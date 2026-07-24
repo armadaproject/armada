@@ -29,12 +29,6 @@ import tenacity
 import re
 
 from airflow.configuration import conf
-
-try:
-    from airflow.sdk.exceptions import AirflowFailException
-except ImportError:
-    from airflow.exceptions import AirflowFailException
-
 from airflow.models import BaseOperator
 from airflow.models.taskinstance import TaskInstance, TaskInstanceKey
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -46,7 +40,7 @@ from armada_client.typings import JobState
 from google.protobuf.json_format import MessageToDict, ParseDict
 from pendulum import DateTime
 
-from .errors import ArmadaOperatorJobFailedError
+from .errors import ArmadaOperatorJobFailedError, ArmadaOperatorJobFailedFatalError
 from .._compat import Context, deserialize, get_current_context
 from ..hooks import ArmadaHook
 from ..model import RunningJobContext
@@ -521,25 +515,30 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
         self.log.info(
             f"job {job_context.job_id} terminated with state: {job_context.state.name}"
         )
-        if job_context.state != JobState.SUCCEEDED:
-            error = ArmadaOperatorJobFailedError(
+        if job_context.state == JobState.SUCCEEDED:
+            return
+
+        termination_reason = self.hook.job_termination_reason(job_context)
+        policy_func = self._reattach_policy(context)
+        # A retry would reattach to this already-terminated job, so retrying
+        # is pointless; REJECTED jobs are never worth retrying either.
+        retry_is_futile = (
+            policy_func(job_context.state, termination_reason)
+            or job_context.state == JobState.REJECTED
+        )
+        if retry_is_futile:
+            raise ArmadaOperatorJobFailedFatalError(
                 job_context.armada_queue,
                 job_context.job_id,
                 job_context.state,
-                self.hook.job_termination_reason(job_context),
+                termination_reason,
             )
-            policy_func = self._reattach_policy(context)
-            if policy_func(error.state, error.reason):
-                self.log.error(str(error))
-                raise AirflowFailException()
-            elif job_context.state == JobState.REJECTED:
-                self.log.error(
-                    f"Armada job ({job_context.job_id}) was REJECTED: "
-                    f"{str(error)} will not retry"
-                )
-                raise AirflowFailException()
-            else:
-                raise error
+        raise ArmadaOperatorJobFailedError(
+            job_context.armada_queue,
+            job_context.job_id,
+            job_context.state,
+            termination_reason,
+        )
 
     def _not_acknowledged_within_timeout(self, job_context: RunningJobContext) -> bool:
         if job_context.state == JobState.UNKNOWN:

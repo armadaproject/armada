@@ -1,5 +1,10 @@
 from airflow.exceptions import AirflowException
 
+try:
+    from airflow.sdk.exceptions import AirflowFailException
+except ImportError:
+    from airflow.exceptions import AirflowFailException
+
 from armada_client.typings import JobState
 
 
@@ -48,3 +53,16 @@ class ArmadaOperatorJobFailedError(AirflowException):
         :rtype: str
         """
         return self.message
+
+
+class ArmadaOperatorJobFailedFatalError(
+    ArmadaOperatorJobFailedError, AirflowFailException
+):
+    """
+    Raised when an ArmadaOperator job has terminated unsuccessfully on Armada
+    and the task must not be retried.
+
+    Subclasses AirflowFailException so Airflow fails the task without
+    scheduling further retries, while carrying the same structured job
+    context (queue, job_id, state, reason) as ArmadaOperatorJobFailedError.
+    """

@@ -1,6 +1,14 @@
 import pytest
 from armada_client.typings import JobState
-from armada.operators.errors import ArmadaOperatorJobFailedError
+from armada.operators.errors import (
+    ArmadaOperatorJobFailedError,
+    ArmadaOperatorJobFailedFatalError,
+)
+
+try:
+    from airflow.sdk.exceptions import AirflowFailException
+except ImportError:
+    from airflow.exceptions import AirflowFailException
 
 
 def test_constructor():
@@ -37,3 +45,20 @@ def test_message(reason: str, expected_message: str):
         "default-queue", "test-job", JobState.FAILED, reason
     )
     assert str(error) == expected_message
+
+
+def test_fatal_error_fails_airflow_task_without_retry():
+    error = ArmadaOperatorJobFailedFatalError(
+        "default-queue", "test-job", JobState.REJECTED, "Invalid pod spec"
+    )
+
+    assert isinstance(error, AirflowFailException)
+    assert isinstance(error, ArmadaOperatorJobFailedError)
+    assert error.queue == "default-queue"
+    assert error.job_id == "test-job"
+    assert error.state == JobState.REJECTED
+    assert error.reason == "Invalid pod spec"
+    assert str(error) == (
+        "ArmadaOperator job 'test-job' in queue 'default-queue' terminated "
+        "with state 'Rejected'. Termination reason: Invalid pod spec"
+    )
