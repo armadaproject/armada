@@ -1101,7 +1101,7 @@ func TestStorePreemptUserForAlreadyPreemptedJob(t *testing.T) {
 
 		job := getJob(t, db, JobId)
 		assert.Equal(t, lookout.JobPreemptedOrdinal, int(job.State))
-		assert.Equal(t, baseTime, job.LastTransitionTime)
+		assert.Equal(t, updateTime, job.LastTransitionTime)
 		assert.Equal(t, userId, *job.PreemptUser)
 
 		mixedPreemptUserUpdate := &model.InstructionSet{
@@ -1119,7 +1119,7 @@ func TestStorePreemptUserForAlreadyPreemptedJob(t *testing.T) {
 
 		job = getJob(t, db, JobId)
 		assert.Equal(t, lookout.JobPreemptedOrdinal, int(job.State))
-		assert.Equal(t, baseTime, job.LastTransitionTime)
+		assert.Equal(t, updateTime, job.LastTransitionTime)
 		assert.Equal(t, "updated-"+userId, *job.PreemptUser)
 		return nil
 	})
@@ -1208,6 +1208,8 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 			latest_run_id,
 			cancel_reason,
 			cancel_user,
+			preempt_user,
+			reprioritize_user,
 			annotations,
 			external_job_uri
 		FROM job WHERE job_id = $1`,
@@ -1233,6 +1235,8 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 		&job.LatestRunId,
 		&job.CancelReason,
 		&job.CancelUser,
+		&job.PreemptUser,
+		&job.ReprioritizeUser,
 		&job.Annotations,
 		&job.ExternalJobUri,
 	)
