@@ -21,7 +21,7 @@ const (
 )
 
 // This is what pulsar returns when there are no message to peek, it doesn't just return an empty list
-var pulsarNotFoundError = rest.Error{messageNotFound, 404}
+var pulsarNotFoundError = rest.Error{Reason: messageNotFound, Code: 404}
 
 func TestInitialise(t *testing.T) {
 	delayMonitor, _, _, _, _ := setupTopicDelayMonitorTest()
