@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
-	grpcstatus "google.golang.org/grpc/status"
 	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -20,6 +19,7 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	servermocks "github.com/armadaproject/armada/internal/server/mocks"
 	"github.com/armadaproject/armada/internal/server/permissions"
+	"github.com/armadaproject/armada/internal/server/servertest"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
 )
@@ -40,13 +40,6 @@ func newExecutorTestServer(t *testing.T) (*Server, *executorTestMocks) {
 	return s, m
 }
 
-func requireGrpcCode(t *testing.T, err error, code codes.Code) {
-	t.Helper()
-	st, ok := grpcstatus.FromError(err)
-	require.True(t, ok, "expected gRPC status error")
-	assert.Equal(t, code, st.Code())
-}
-
 func TestUpsertExecutorSettings_PermissionDenied(t *testing.T) {
 	s, m := newExecutorTestServer(t)
 	grpcCtx := armadacontext.Background()
@@ -59,7 +52,7 @@ func TestUpsertExecutorSettings_PermissionDenied(t *testing.T) {
 
 	_, err := s.UpsertExecutorSettings(grpcCtx, &api.ExecutorSettingsUpsertRequest{Name: "executor-1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.PermissionDenied)
+	servertest.RequireGrpcCode(t, err, codes.PermissionDenied)
 }
 
 func TestUpsertExecutorSettings_AuthorizeErrorUnavailable(t *testing.T) {
@@ -74,7 +67,7 @@ func TestUpsertExecutorSettings_AuthorizeErrorUnavailable(t *testing.T) {
 
 	_, err := s.UpsertExecutorSettings(grpcCtx, &api.ExecutorSettingsUpsertRequest{Name: "executor-1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Unavailable)
+	servertest.RequireGrpcCode(t, err, codes.Unavailable)
 }
 
 func TestUpsertExecutorSettings_ValidationName(t *testing.T) {
@@ -125,7 +118,7 @@ func TestUpsertExecutorSettings_PublishErrorInternal(t *testing.T) {
 
 	_, err := s.UpsertExecutorSettings(grpcCtx, &api.ExecutorSettingsUpsertRequest{Name: "executor-1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Internal)
+	servertest.RequireGrpcCode(t, err, codes.Internal)
 }
 
 func TestUpsertExecutorSettings_SuccessPublishesExpectedEvent(t *testing.T) {
@@ -186,7 +179,7 @@ func TestDeleteExecutorSettings_PermissionDenied(t *testing.T) {
 
 	_, err := s.DeleteExecutorSettings(grpcCtx, &api.ExecutorSettingsDeleteRequest{Name: "executor-1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.PermissionDenied)
+	servertest.RequireGrpcCode(t, err, codes.PermissionDenied)
 }
 
 func TestDeleteExecutorSettings_AuthorizeErrorUnavailable(t *testing.T) {
@@ -201,7 +194,7 @@ func TestDeleteExecutorSettings_AuthorizeErrorUnavailable(t *testing.T) {
 
 	_, err := s.DeleteExecutorSettings(grpcCtx, &api.ExecutorSettingsDeleteRequest{Name: "executor-1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Unavailable)
+	servertest.RequireGrpcCode(t, err, codes.Unavailable)
 }
 
 func TestDeleteExecutorSettings_ValidationName(t *testing.T) {
@@ -237,7 +230,7 @@ func TestDeleteExecutorSettings_PublishErrorInternal(t *testing.T) {
 
 	_, err := s.DeleteExecutorSettings(grpcCtx, &api.ExecutorSettingsDeleteRequest{Name: "executor-1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Internal)
+	servertest.RequireGrpcCode(t, err, codes.Internal)
 }
 
 func TestDeleteExecutorSettings_SuccessPublishesExpectedEvent(t *testing.T) {
@@ -288,7 +281,7 @@ func TestPreemptOnExecutor_PermissionDenied(t *testing.T) {
 
 	_, err := s.PreemptOnExecutor(grpcCtx, &api.ExecutorPreemptRequest{Name: "executor-1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.PermissionDenied)
+	servertest.RequireGrpcCode(t, err, codes.PermissionDenied)
 }
 
 func TestPreemptOnExecutor_AuthorizeErrorUnavailable(t *testing.T) {
@@ -303,7 +296,7 @@ func TestPreemptOnExecutor_AuthorizeErrorUnavailable(t *testing.T) {
 
 	_, err := s.PreemptOnExecutor(grpcCtx, &api.ExecutorPreemptRequest{Name: "executor-1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Unavailable)
+	servertest.RequireGrpcCode(t, err, codes.Unavailable)
 }
 
 func TestPreemptOnExecutor_ValidationName(t *testing.T) {
@@ -339,7 +332,7 @@ func TestPreemptOnExecutor_PublishErrorInternal(t *testing.T) {
 
 	_, err := s.PreemptOnExecutor(grpcCtx, &api.ExecutorPreemptRequest{Name: "executor-1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Internal)
+	servertest.RequireGrpcCode(t, err, codes.Internal)
 }
 
 func TestPreemptOnExecutor_SuccessPublishesExpectedEvent(t *testing.T) {
@@ -392,7 +385,7 @@ func TestCancelOnExecutor_PermissionDenied(t *testing.T) {
 
 	_, err := s.CancelOnExecutor(grpcCtx, &api.ExecutorCancelRequest{Name: "executor-1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.PermissionDenied)
+	servertest.RequireGrpcCode(t, err, codes.PermissionDenied)
 }
 
 func TestCancelOnExecutor_AuthorizeErrorUnavailable(t *testing.T) {
@@ -407,7 +400,7 @@ func TestCancelOnExecutor_AuthorizeErrorUnavailable(t *testing.T) {
 
 	_, err := s.CancelOnExecutor(grpcCtx, &api.ExecutorCancelRequest{Name: "executor-1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Unavailable)
+	servertest.RequireGrpcCode(t, err, codes.Unavailable)
 }
 
 func TestCancelOnExecutor_ValidationName(t *testing.T) {
@@ -443,7 +436,7 @@ func TestCancelOnExecutor_PublishErrorInternal(t *testing.T) {
 
 	_, err := s.CancelOnExecutor(grpcCtx, &api.ExecutorCancelRequest{Name: "executor-1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Internal)
+	servertest.RequireGrpcCode(t, err, codes.Internal)
 }
 
 func TestCancelOnExecutor_SuccessPublishesExpectedEvent(t *testing.T) {

@@ -12,7 +12,6 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
-	grpcstatus "google.golang.org/grpc/status"
 	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -23,6 +22,7 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	servermocks "github.com/armadaproject/armada/internal/server/mocks"
 	"github.com/armadaproject/armada/internal/server/permissions"
+	"github.com/armadaproject/armada/internal/server/servertest"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
@@ -46,13 +46,6 @@ func newTestQueueServer(t *testing.T) (*Server, *queueServiceTestMocks) {
 	return s, m
 }
 
-func requireGrpcCode(t *testing.T, err error, code codes.Code) {
-	t.Helper()
-	st, ok := grpcstatus.FromError(err)
-	require.True(t, ok, "expected gRPC status error")
-	assert.Equal(t, code, st.Code())
-}
-
 func TestCreateQueue_PermissionDenied(t *testing.T) {
 	s, m := newTestQueueServer(t)
 	ctx := armadacontext.Background()
@@ -65,7 +58,7 @@ func TestCreateQueue_PermissionDenied(t *testing.T) {
 
 	_, err := s.CreateQueue(ctx, &api.Queue{Name: "q1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.PermissionDenied)
+	servertest.RequireGrpcCode(t, err, codes.PermissionDenied)
 }
 
 func TestCreateQueue_AuthorizeErrorUnavailable(t *testing.T) {
@@ -80,7 +73,7 @@ func TestCreateQueue_AuthorizeErrorUnavailable(t *testing.T) {
 
 	_, err := s.CreateQueue(ctx, &api.Queue{Name: "q1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Unavailable)
+	servertest.RequireGrpcCode(t, err, codes.Unavailable)
 }
 
 func TestCreateQueue_DefaultsUserOwnerFromPrincipal(t *testing.T) {
@@ -132,7 +125,7 @@ func TestCreateQueue_ValidationInvalidArgument(t *testing.T) {
 
 	_, err := s.CreateQueue(ctx, &api.Queue{Name: "q1", PriorityFactor: 1, Labels: map[string]string{"k": ""}})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.InvalidArgument)
+	servertest.RequireGrpcCode(t, err, codes.InvalidArgument)
 }
 
 func TestCreateQueue_AlreadyExists(t *testing.T) {
@@ -153,7 +146,7 @@ func TestCreateQueue_AlreadyExists(t *testing.T) {
 
 	_, err := s.CreateQueue(ctx, &api.Queue{Name: "q1", PriorityFactor: 1})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.AlreadyExists)
+	servertest.RequireGrpcCode(t, err, codes.AlreadyExists)
 }
 
 func TestUpdateQueue_NotFound(t *testing.T) {
@@ -174,7 +167,7 @@ func TestUpdateQueue_NotFound(t *testing.T) {
 
 	_, err := s.UpdateQueue(ctx, &api.Queue{Name: "q1", PriorityFactor: 1})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.NotFound)
+	servertest.RequireGrpcCode(t, err, codes.NotFound)
 }
 
 func TestDeleteQueue_RepoErrorInvalidArgument(t *testing.T) {
@@ -195,7 +188,7 @@ func TestDeleteQueue_RepoErrorInvalidArgument(t *testing.T) {
 
 	_, err := s.DeleteQueue(ctx, &api.QueueDeleteRequest{Name: "q1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.InvalidArgument)
+	servertest.RequireGrpcCode(t, err, codes.InvalidArgument)
 }
 
 func TestGetQueue_NotFound(t *testing.T) {
@@ -210,7 +203,7 @@ func TestGetQueue_NotFound(t *testing.T) {
 
 	_, err := s.GetQueue(ctx, &api.QueueGetRequest{Name: "q1"})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.NotFound)
+	servertest.RequireGrpcCode(t, err, codes.NotFound)
 }
 
 type fakeQueueStream struct {
@@ -289,7 +282,7 @@ func TestCancelOnQueue_PublishErrorInternal(t *testing.T) {
 
 	_, err := s.CancelOnQueue(ctx, &api.QueueCancelRequest{Name: "q1", JobStates: []api.JobState{api.JobState_RUNNING}})
 	require.Error(t, err)
-	requireGrpcCode(t, err, codes.Internal)
+	servertest.RequireGrpcCode(t, err, codes.Internal)
 }
 
 func TestCancelOnQueue_SuccessPublishesExpectedEvent(t *testing.T) {
