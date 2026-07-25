@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: pip install 'tox>=4,<5'
@@ -78,7 +78,7 @@ jobs:
             python: '3.14'
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
       - name: Setup Go
@@ -146,7 +146,7 @@ jobs:
           large-packages: false
           swap-storage: false
       - name: Setup Docker
-        uses: docker/setup-docker-action@6d7cfa65f60a9dda7b46e5513fa982536f3c9877 # v5
+        uses: docker/setup-docker-action@77e84dbf09b47d1e29270283c22f16145aa85ca1 # v5
         with:
           daemon-config: '{"features":{"containerd-snapshotter":false}}'
       - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
