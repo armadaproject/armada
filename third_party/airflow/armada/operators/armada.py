@@ -522,11 +522,11 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
         policy_func = self._reattach_policy(context)
         # A retry would reattach to this already-terminated job, so retrying
         # is pointless; REJECTED jobs are never worth retrying either.
-        retry_is_futile = (
+        fail_without_retry = (
             policy_func(job_context.state, termination_reason)
             or job_context.state == JobState.REJECTED
         )
-        if retry_is_futile:
+        if fail_without_retry:
             raise ArmadaOperatorJobFailedFatalError(
                 job_context.armada_queue,
                 job_context.job_id,
