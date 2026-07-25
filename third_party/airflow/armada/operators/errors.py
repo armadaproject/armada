@@ -1,3 +1,5 @@
+from typing import Any, Dict, Tuple, Union
+
 from airflow.exceptions import AirflowException
 
 from armada_client.typings import JobState
@@ -13,19 +15,42 @@ class ArmadaOperatorJobFailedError(AirflowException):
     :type job_id: str
     :param queue: The queue the job was submitted to.
     :type queue: str
-    :param state: The termination state of the job.
-    :type state: TerminationState
+    :param state: The termination state of the job. Accepts the state name as
+        a string so Airflow can reconstruct the exception from serialize().
+    :type state: Union[JobState, str]
     :param reason: The termination reason, if provided.
     :type reason: str
     """
 
-    def __init__(self, queue: str, job_id: str, state: JobState, reason: str = ""):
+    def __init__(
+        self,
+        queue: str,
+        job_id: str,
+        state: Union[JobState, str],
+        reason: str = "",
+    ):
         self.job_id = job_id
         self.queue = queue
-        self.state = state
+        self.state = JobState[state] if isinstance(state, str) else state
         self.reason = reason
         self.message = self._generate_message()
         super().__init__(self.message)
+
+    def serialize(self) -> Tuple[str, Tuple[str, str, str, str], Dict[str, Any]]:
+        """
+        Serialize into (classpath, args, kwargs) as expected by Airflow's
+        exception serialization, which reconstructs with cls(*args, **kwargs).
+        The state is passed by name since JobState is not serializable.
+
+        :return: Tuple of class path, constructor args and kwargs.
+        :rtype: Tuple[str, Tuple[str, str, str, str], Dict[str, Any]]
+        """
+        cls = self.__class__
+        return (
+            f"{cls.__module__}.{cls.__name__}",
+            (self.queue, self.job_id, self.state.name, self.reason),
+            {},
+        )
 
     def _generate_message(self) -> str:
         """

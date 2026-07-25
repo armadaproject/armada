@@ -1,4 +1,5 @@
 import pytest
+from airflow.serialization.serialized_objects import BaseSerialization
 from armada_client.typings import JobState
 from armada._compat import AirflowFailException
 from armada.operators.errors import (
@@ -58,3 +59,20 @@ def test_fatal_error_fails_airflow_task_without_retry():
         "ArmadaOperator job 'test-job' in queue 'default-queue' terminated "
         "with state 'Rejected'. Termination reason: Invalid pod spec"
     )
+
+
+@pytest.mark.parametrize(
+    "error_cls",
+    [ArmadaOperatorJobFailedError, ArmadaOperatorJobFailedFatalError],
+)
+def test_error_round_trips_through_airflow_serialization(error_cls):
+    error = error_cls("default-queue", "test-job", JobState.FAILED, "Out of memory")
+
+    restored = BaseSerialization.deserialize(BaseSerialization.serialize(error))
+
+    assert type(restored) is error_cls
+    assert restored.queue == error.queue
+    assert restored.job_id == error.job_id
+    assert restored.state == error.state
+    assert restored.reason == error.reason
+    assert str(restored) == str(error)
