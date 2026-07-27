@@ -294,7 +294,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			runIds = append(runIds, runId)
 			succeeded = append(succeeded, true)
 		}
-		sqlStmt := multiColumnRunsUpdateStmt("run_id", "succeeded", "terminated_timestamp")
+		sqlStmt := multiColumnRunsTerminalUpdateStmt("run_id", "succeeded", "terminated_timestamp")
 		// order of arguments is important. See multiColumnRunsUpdateStmt function for details
 		if _, err := tx.Exec(ctx, sqlStmt, runIds, succeeded, successTimes); err != nil {
 			return errors.WithStack(err)
@@ -316,7 +316,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				runAttempted = append(runAttempted, k)
 			}
 		}
-		sqlStmt := multiColumnRunsUpdateStmt("run_id", "failed", "terminated_timestamp")
+		sqlStmt := multiColumnRunsTerminalUpdateStmt("run_id", "failed", "terminated_timestamp")
 		// order of arguments is important. See multiColumnRunsUpdateStmt function for details
 		if _, err := tx.Exec(ctx, sqlStmt, runIds, failed, failTimes); err != nil {
 			return errors.WithStack(err)
@@ -364,7 +364,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			preemptedTimes = append(preemptedTimes, preemptedTime)
 			preempted = append(preempted, true)
 		}
-		sqlStmt := multiColumnRunsUpdateStmt("run_id", "preempted", "preempted_timestamp")
+		sqlStmt := multiColumnRunsTerminalUpdateStmt("run_id", "preempted", "preempted_timestamp")
 		if _, err := tx.Exec(ctx, sqlStmt, runIds, preempted, preemptedTimes); err != nil {
 			return errors.WithStack(err)
 		}
@@ -769,6 +769,17 @@ func multiColumnRunsUpdateStmt(id, phaseColumn, timeStampColumn string) string {
 	from (select * from unnest($1::%[4]v[], $2::boolean[] ,$3::timestamptz[]))
 	as runs_temp(%[1]v, %[2]v, %[3]v)
 	where runs.%[1]v = runs_temp.%[1]v;`,
+		id, phaseColumn, timeStampColumn, "text")
+}
+
+func multiColumnRunsTerminalUpdateStmt(id, phaseColumn, timeStampColumn string) string {
+	return fmt.Sprintf(`update runs set
+	%[2]v = runs_temp.%[2]v,
+	%[3]v = runs_temp.%[3]v
+	from (select * from unnest($1::%[4]v[], $2::boolean[] ,$3::timestamptz[]))
+	as runs_temp(%[1]v, %[2]v, %[3]v)
+	where runs.%[1]v = runs_temp.%[1]v
+	  and runs.terminated = false;`,
 		id, phaseColumn, timeStampColumn, "text")
 }
 

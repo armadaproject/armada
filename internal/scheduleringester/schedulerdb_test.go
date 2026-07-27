@@ -790,6 +790,48 @@ func TestDeleteExecutorRepeatedCallsAreIdempotent(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestMarkRunsSucceededDoesNotOverwriteTerminalRun(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	err := schedulerdb.WithTestDb(func(queries *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := &SchedulerDb{db: db}
+		jobID := util.NewULID()
+		runID := uuid.NewString()
+		initialTerminationTime := testfixtures.BaseTime
+
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, testInsertJob(jobID)))
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, InsertRuns{
+			runID: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{
+				JobID:               jobID,
+				RunID:               runID,
+				Queue:               testQueueName,
+				JobSet:              "set1",
+				Failed:              true,
+				TerminatedTimestamp: &initialTerminationTime,
+			}},
+		}))
+
+		lateSuccessTime := testfixtures.BaseTime.Add(time.Minute)
+		require.NoError(t, writeSchedulerDbOp(ctx, db, schedulerDb, MarkRunsSucceeded{runID: lateSuccessTime}))
+
+		runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{
+			Serial: 0,
+			JobIds: []string{jobID},
+		})
+		require.NoError(t, err)
+		require.Len(t, runs, 1)
+
+		run := runs[0]
+		assert.True(t, run.Failed)
+		assert.False(t, run.Succeeded)
+		require.NotNil(t, run.TerminatedTimestamp)
+		assert.Equal(t, initialTerminationTime.UTC(), run.TerminatedTimestamp.UTC())
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestUpsertExecutorSettingsPreservesDeletedExecutorTombstone(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 	defer cancel()
