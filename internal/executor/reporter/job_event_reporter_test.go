@@ -26,15 +26,14 @@ func TestJobEventReporter_SendsEventImmediately_OnceNumberOfWaitingEventsMatches
 	pod2 := createPod(2)
 
 	jobEventReporter.QueueEvent(EventMessage{createFailedEvent(t, pod1), util.ExtractJobRunId(pod1)}, func(err error) {})
-	waitForQueueDrained(t, jobEventReporter)
-	// Batch size is 2, so a single buffered event must not be sent
+	time.Sleep(time.Millisecond * 100) // Allow time for async event processing
+	// No calls excepted, as batch size is 2 and only 1 event has been sent
 	assert.Equal(t, 0, eventSender.GetNumberOfSendEventCalls())
 
 	jobEventReporter.QueueEvent(EventMessage{createFailedEvent(t, pod2), util.ExtractJobRunId(pod2)}, func(err error) {})
-	require.Eventually(t, func() bool {
-		return eventSender.GetNumberOfSendEventCalls() == 1
-	}, time.Second, 10*time.Millisecond, "filling the batch must trigger a send")
+	time.Sleep(time.Millisecond * 100) // Allow time for async event processing
 
+	assert.Equal(t, 1, eventSender.GetNumberOfSendEventCalls())
 	sentMessages := eventSender.GetSentEvents(0)
 	assert.Len(t, sentMessages, 2)
 }
@@ -44,31 +43,16 @@ func TestJobEventReporter_SendsAllEventsInBuffer_EachBatchTickInterval(t *testin
 	pod1 := createPod(1)
 
 	jobEventReporter.QueueEvent(EventMessage{createFailedEvent(t, pod1), util.ExtractJobRunId(pod1)}, func(err error) {})
-	waitForQueueDrained(t, jobEventReporter)
+	time.Sleep(time.Millisecond * 100)
 	assert.Equal(t, 0, eventSender.GetNumberOfSendEventCalls())
 
-	// The queue is drained, so the event sits in the partial batch and the tick
-	// below must flush it. The tick is buffered by the fake clock, so it is not
-	// lost if the reporter is between selects when it fires.
-	require.Eventually(t, testClock.HasWaiters, time.Second, 10*time.Millisecond, "reporter never registered its ticker")
+	// Increment time
 	testClock.Step(time.Second * 5)
-	require.Eventually(t, func() bool {
-		return eventSender.GetNumberOfSendEventCalls() == 1
-	}, time.Second, 10*time.Millisecond, "the tick must flush the buffered event")
+	time.Sleep(time.Millisecond * 100)
 
+	assert.Equal(t, 1, eventSender.GetNumberOfSendEventCalls())
 	sentMessages := eventSender.GetSentEvents(0)
 	assert.Len(t, sentMessages, 1)
-}
-
-// Waits until the reporter goroutine has moved every queued event from its
-// intake channel into the in-memory batch. After that, asserting "nothing sent
-// yet" is deterministic: with the batch below maxBatchSize and no tick fired,
-// there is nothing that could have triggered a send.
-func waitForQueueDrained(t *testing.T, reporter *JobEventReporter) {
-	t.Helper()
-	require.Eventually(t, func() bool {
-		return len(reporter.eventBuffer) == 0
-	}, time.Second, 10*time.Millisecond, "reporter never drained its event buffer")
 }
 
 func createFailedEvent(t *testing.T, pod *v1.Pod) *armadaevents.EventSequence {

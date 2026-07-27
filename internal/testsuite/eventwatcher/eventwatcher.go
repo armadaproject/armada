@@ -325,12 +325,9 @@ func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
 		case msg := <-C:
 			if ingressInfo := msg.GetIngressInfo(); ingressInfo != nil {
 				for _, host := range ingressInfo.IngressAddresses {
-					ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Minute)
+					ctxWithTimeout, _ := context.WithTimeout(ctx, time.Minute)
 					host := host
-					g.Go(func() error {
-						defer cancel()
-						return getFromIngress(ctxWithTimeout, host)
-					})
+					g.Go(func() error { return getFromIngress(ctxWithTimeout, host) })
 				}
 			}
 		}

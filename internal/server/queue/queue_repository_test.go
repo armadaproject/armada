@@ -46,10 +46,8 @@ func TestGetAllQueues(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-				defer cancel()
-
 				repo := NewPostgresQueueRepository(db)
 				for _, q := range tc.queues {
 					err := repo.CreateQueue(ctx, q)
@@ -61,6 +59,7 @@ func TestGetAllQueues(t *testing.T) {
 				return nil
 			})
 			assert.NoError(t, err)
+			cancel()
 		})
 	}
 }
@@ -84,10 +83,8 @@ func TestDeleteQueue(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
-				defer cancel()
-
 				repo := NewPostgresQueueRepository(db)
 				for _, q := range tc.intialQueues {
 					err := repo.CreateQueue(ctx, q)
@@ -101,6 +98,7 @@ func TestDeleteQueue(t *testing.T) {
 				return nil
 			})
 			assert.NoError(t, err)
+			cancel()
 		})
 	}
 }
@@ -134,10 +132,8 @@ func TestGetAndUpdateQueue(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 15*time.Second)
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 15*time.Second)
-				defer cancel()
-
 				repo := NewPostgresQueueRepository(db)
 				for _, q := range tc.intialQueues {
 					err := repo.CreateQueue(ctx, q)
@@ -151,6 +147,7 @@ func TestGetAndUpdateQueue(t *testing.T) {
 				return nil
 			})
 			assert.NoError(t, err)
+			cancel()
 		})
 	}
 }
