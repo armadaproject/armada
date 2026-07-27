@@ -28,6 +28,7 @@ jobs:
               cpu: 100m
 ---
 ### Reprioritize the job upward
+triggerEvent: running
 reprioritize:
   request:
     newPriority: 100

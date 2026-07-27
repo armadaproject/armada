@@ -26,6 +26,7 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
+triggerEvent: running
 preempt:
   request:
     reason: "Test job preemption for validation"
