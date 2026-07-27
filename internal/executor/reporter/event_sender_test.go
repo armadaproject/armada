@@ -107,7 +107,7 @@ func makeTestPod(phase v1.PodPhase) *v1.Pod {
 				domain.JobSetId:          "job-set-id-1",
 				constants.PoolAnnotation: "test-pool",
 			},
-			CreationTimestamp: metav1.Time{time.Now().Add(-10 * time.Minute)},
+			CreationTimestamp: metav1.Time{Time: time.Now().Add(-10 * time.Minute)},
 			UID:               k8sTypes.UID(util.NewULID()),
 		},
 		Spec: v1.PodSpec{
