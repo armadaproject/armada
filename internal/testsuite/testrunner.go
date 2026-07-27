@@ -193,22 +193,10 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 }
 
 // triggerEventExtractor resolves testSpec.TriggerEvent to an extractor function.
-// If TriggerEvent is unset, falls back to the default behavior:
-//   - Running for PREEMPT/REPRIORITIZE and node-scoped operations (CancelOnNode/PreemptOnNode)
-//   - Queued for CANCEL via the submit API (BY_ID, BY_IDS, BY_SET), which works from any state.
 func triggerEventExtractor(testSpec *api.TestSpec) (func(*api.EventMessage) string, error) {
-	name := testSpec.TriggerEvent
-	if name == "" {
-		if testSpec.CancelOnNode != nil || testSpec.PreemptOnNode != nil ||
-			testSpec.Preempt != nil || testSpec.Reprioritize != nil {
-			name = "running"
-		} else {
-			name = "queued"
-		}
-	}
-	extractor, ok := triggerEventExtractors[name]
+	extractor, ok := triggerEventExtractors[testSpec.TriggerEvent]
 	if !ok {
-		return nil, errors.Errorf("unknown triggerEvent %q", name)
+		return nil, errors.Errorf("unknown triggerEvent %q", testSpec.TriggerEvent)
 	}
 	return extractor, nil
 }
