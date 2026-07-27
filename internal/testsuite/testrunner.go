@@ -152,22 +152,16 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	)
 	g.Go(func() error { return splitter.Run(ctx) })
 
-	// If configured, cancel or preempt jobs once all reach the appropriate trigger state.
-	// - Node-scoped operations require Running (SQL query constraint).
-	// - Preempt requires Running (preemption acts on the job run, which only exists once running).
-	// - Cancel via submit API can fire as soon as Queued.
-	if srv.testSpec.CancelOnNode != nil || srv.testSpec.PreemptOnNode != nil {
-		g.Go(func() error {
-			return runActionWhenRunning(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
-		})
-	} else if srv.testSpec.Action == api.TestSpec_ACTION_CANCEL || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT ||
+	// If configured, cancel or preempt jobs once all reach the configured trigger event.
+	if srv.testSpec.CancelOnNode != nil || srv.testSpec.PreemptOnNode != nil ||
+		srv.testSpec.Action == api.TestSpec_ACTION_CANCEL || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT ||
 		srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
+		extractor, err := triggerEventExtractor(srv.testSpec)
+		if err != nil {
+			return err
+		}
 		g.Go(func() error {
-			if srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT ||
-				srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
-				return runActionWhenRunning(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
-			}
-			return runActionWhenQueued(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName)
+			return runActionOnState(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName, extractor)
 		})
 	}
 
@@ -199,30 +193,79 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	return nil
 }
 
-// runActionWhenRunning waits for all jobs to reach the Running state, then issues the configured action.
-// Required for node-scoped operations: CancelOnNode/PreemptOnNode only match jobs currently running on the node.
-func runActionWhenRunning(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string) error {
-	return runActionOnState(ctx, eventCh, testSpec, conn, jobIds, nodeName,
-		func(msg *api.EventMessage) string {
-			if e := msg.GetRunning(); e != nil {
-				return e.JobId
-			}
-			return ""
-		},
-	)
+// triggerEventExtractor resolves testSpec.TriggerEvent to an extractor function.
+// If TriggerEvent is unset, falls back to the default behavior:
+//   - Running for PREEMPT/REPRIORITIZE and node-scoped operations (CancelOnNode/PreemptOnNode)
+//   - Queued for CANCEL via the submit API (BY_ID, BY_IDS, BY_SET), which works from any state.
+func triggerEventExtractor(testSpec *api.TestSpec) (func(*api.EventMessage) string, error) {
+	name := testSpec.TriggerEvent
+	if name == "" {
+		if testSpec.CancelOnNode != nil || testSpec.PreemptOnNode != nil ||
+			testSpec.Action == api.TestSpec_ACTION_PREEMPT || testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
+			name = "running"
+		} else {
+			name = "queued"
+		}
+	}
+	extractor, ok := triggerEventExtractors[name]
+	if !ok {
+		return nil, errors.Errorf("unknown triggerEvent %q", name)
+	}
+	return extractor, nil
 }
 
-// runActionWhenQueued waits for all jobs to reach the Queued state, then issues the configured action.
-// Suitable for submit-API cancel/preempt (BY_ID, BY_IDS, BY_SET) which work from any state.
-func runActionWhenQueued(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string) error {
-	return runActionOnState(ctx, eventCh, testSpec, conn, jobIds, nodeName,
-		func(msg *api.EventMessage) string {
-			if e := msg.GetQueued(); e != nil {
-				return e.JobId
-			}
-			return ""
-		},
-	)
+// triggerEventExtractors maps a TestSpec.TriggerEvent name to a function that extracts
+// the job ID from an EventMessage if it matches that event, or "" otherwise.
+// Names match the EventMessage oneof field names (see pkg/api/event.proto).
+var triggerEventExtractors = map[string]func(*api.EventMessage) string{
+	"submitted": func(msg *api.EventMessage) string {
+		if e := msg.GetSubmitted(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
+	"queued": func(msg *api.EventMessage) string {
+		if e := msg.GetQueued(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
+	"leased": func(msg *api.EventMessage) string {
+		if e := msg.GetLeased(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
+	"running": func(msg *api.EventMessage) string {
+		if e := msg.GetRunning(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
+	"succeeded": func(msg *api.EventMessage) string {
+		if e := msg.GetSucceeded(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
+	"failed": func(msg *api.EventMessage) string {
+		if e := msg.GetFailed(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
+	"cancelled": func(msg *api.EventMessage) string {
+		if e := msg.GetCancelled(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
+	"preempted": func(msg *api.EventMessage) string {
+		if e := msg.GetPreempted(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
 }
 
 // runActionOnState waits for all jobs to be reported by jobIdFromEvent, then issues the configured action.
