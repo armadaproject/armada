@@ -23,28 +23,6 @@ func createQueue() error {
 	return nil
 }
 
-// testRun describes a single testsuite invocation
-type testRun struct {
-	name  string
-	tests string
-	junit string
-}
-
-func runTestSuite(r testRun) error {
-	start := time.Now()
-	out, err := goOutput("run", "cmd/testsuite/main.go", "test",
-		"--tests", r.tests,
-		"--junit", r.junit,
-		"--config", "_local/.armadactl.yaml",
-	)
-	fmt.Println(out)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("(Real) Time to run %s tests: %s\n\n", r.name, time.Since(start))
-	return nil
-}
-
 // Build images, spin up a test environment, and run the integration tests against it.
 func TestSuite() error {
 	mg.Deps(CheckForArmadaRunning)
@@ -56,41 +34,39 @@ func TestSuite() error {
 	if os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT") == "" {
 		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
 	}
+	timeTakenTestSuite := time.Now()
 
-	runs := []testRun{
-		{
-			name:  "basic, categorization",
-			tests: "testsuite/testcases/basic/*,testsuite/testcases/categorization/*",
-			junit: "junit.xml",
-		},
-		{
-			name:  "preemption",
-			tests: "testsuite/testcases/preemption/*",
-			junit: "junit-preemption.xml",
-		},
-		{
-			name:  "reprioritization",
-			tests: "testsuite/testcases/reprioritization/*",
-			junit: "junit-reprioritization.xml",
-		},
-		{
-			name:  "node preempt",
-			tests: "testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
-			junit: "junit-node-preempt.xml",
-		},
-		{
-			name:  "node cancel",
-			tests: "testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
-			junit: "junit-node-cancel.xml",
-		},
+	suites := []string{
+		"basic", "categorization", "preemption", "reprioritization",
+		"testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
+		"testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
 	}
 
-	timeTakenTestSuite := time.Now()
-	for _, r := range runs {
-		if err := runTestSuite(r); err != nil {
+	for i, suite := range suites {
+		var tests []string
+		if info, err := os.Stat(suite); err == nil && !info.IsDir() {
+			tests = []string{suite}
+		} else {
+			tests = []string{fmt.Sprintf("testsuite/testcases/%s/*", suite)}
+		}
+
+		timeTaken := time.Now()
+		out, err := goOutput("run", "cmd/testsuite/main.go", "test",
+			"--tests", strings.Join(tests, ","),
+			"--junit", fmt.Sprintf("junit-%s.xml", suite),
+			"--config", "_local/.armadactl.yaml",
+		)
+		fmt.Println(out)
+		if err != nil {
 			return err
 		}
+		verb := "Time"
+		if i > 0 {
+			verb = "Additional time"
+		}
+		fmt.Printf("(Real) %s to run %s tests: %s\n\n", verb, suite, time.Since(timeTaken))
 	}
+
 	fmt.Printf("(Real) Total time to run all tests: %s\n\n", time.Since(timeTakenTestSuite))
 	return nil
 }
