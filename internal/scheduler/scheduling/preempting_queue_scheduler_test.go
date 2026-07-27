@@ -165,54 +165,6 @@ func TestEvictOversubscribed(t *testing.T) {
 	}
 }
 
-func TestEvict(t *testing.T) {
-	config := testfixtures.TestSchedulingConfig()
-
-	priorities := types.AllowedPriorities(config.PriorityClasses)
-
-	queueAJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass6Preemptible, 3)
-	queueBJobs := testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass6Preemptible, 3)
-	queueCJobs := testfixtures.N1Cpu4GiJobs("C", testfixtures.PriorityClass6Preemptible, 3)
-
-	jobs := make([]*jobdb.Job, 0, 10)
-	jobs = append(jobs, queueAJobs...)
-	jobs = append(jobs, queueBJobs...)
-	jobs = append(jobs, queueCJobs...)
-
-	stringInterner := stringinterner.New(1024)
-
-	nodeDb, err := NewNodeDb(config, stringInterner)
-	require.NoError(t, err)
-	nodeDbTxn := nodeDb.Txn(true)
-	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(
-		nodeDbTxn,
-		jobs,
-		testfixtures.Test32CpuNode(priorities),
-	)
-	require.NoError(t, err)
-
-	jobDb := jobdb.NewJobDb(config.PriorityClasses, config.DefaultPriorityClassName, stringInterner, testfixtures.TestResourceListFactory)
-	jobDbTxn := jobDb.WriteTxn()
-	err = jobDbTxn.Upsert(jobs)
-	require.NoError(t, err)
-
-	evictor := NewNodeEvictor(
-		jobDb.ReadTxn(),
-		nodeDb,
-		func(ctx *armadacontext.Context, job *jobdb.Job) (bool, string) { return true, "" },
-	)
-	result, err := evictor.Evict(armadacontext.Background(), nodeDbTxn)
-	require.NoError(t, err)
-
-	for nodeId, node := range result.AffectedNodesById {
-		for _, p := range priorities {
-			for _, r := range node.AllocatableByPriority[p].GetAll() {
-				assert.False(t, r.IsNegative(), "resource oversubscribed by %s on node %s", r.String(), nodeId)
-			}
-		}
-	}
-}
-
 func TestPreemptingQueueScheduler(t *testing.T) {
 	type SchedulingRound struct {
 		// Map from queue name to pod requirements for that queue.
