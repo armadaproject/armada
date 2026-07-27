@@ -41,5 +41,6 @@ preemptOnNode:
 expectedEvents:
   - submitted:
   - preempted:
+  - failed:
 timeout: "180s"
 
