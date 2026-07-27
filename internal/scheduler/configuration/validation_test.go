@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
@@ -256,5 +257,86 @@ func TestSchedulingConfigValidate(t *testing.T) {
 	s := err.Error()
 	for _, expected := range expected {
 		assert.Contains(t, s, expected)
+	}
+}
+
+func TestSchedulingConfigValidate_TaintModifications(t *testing.T) {
+	tests := map[string]struct {
+		taints        []TaintModification
+		expectSuccess bool
+	}{
+		"valid Add and Delete": {
+			taints: []TaintModification{
+				{Operation: TaintOperationAdd, Taint: v1.Taint{Key: "k", Value: "v", Effect: v1.TaintEffectNoSchedule}},
+				{Operation: TaintOperationDelete, Taint: v1.Taint{Key: "k", Value: "v", Effect: v1.TaintEffectNoSchedule}},
+			},
+			expectSuccess: true,
+		},
+		"valid Delete with wildcard value": {
+			taints: []TaintModification{
+				{Operation: TaintOperationDelete, Taint: v1.Taint{Key: "k", Value: "*", Effect: v1.TaintEffectNoSchedule}},
+			},
+			expectSuccess: true,
+		},
+		"invalid operation": {
+			taints: []TaintModification{
+				{Operation: "Sideways", Taint: v1.Taint{Key: "k", Effect: v1.TaintEffectNoSchedule}},
+			},
+			expectSuccess: false,
+		},
+		"Add operation missing effect": {
+			taints: []TaintModification{
+				{Operation: TaintOperationAdd, Taint: v1.Taint{Key: "k"}},
+			},
+			expectSuccess: false,
+		},
+		"Add operation missing key": {
+			taints: []TaintModification{
+				{Operation: TaintOperationAdd, Taint: v1.Taint{Effect: v1.TaintEffectNoSchedule}},
+			},
+			expectSuccess: false,
+		},
+		"Delete operation missing key": {
+			taints: []TaintModification{
+				{Operation: TaintOperationDelete, Taint: v1.Taint{Value: "v", Effect: v1.TaintEffectNoSchedule}},
+			},
+			expectSuccess: false,
+		},
+		"Delete operation missing value": {
+			taints: []TaintModification{
+				{Operation: TaintOperationDelete, Taint: v1.Taint{Key: "k", Effect: v1.TaintEffectNoSchedule}},
+			},
+			expectSuccess: false,
+		},
+		"Delete operation missing effect": {
+			taints: []TaintModification{
+				{Operation: TaintOperationDelete, Taint: v1.Taint{Key: "k", Value: "v"}},
+			},
+			expectSuccess: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			c := createValidMinimalConfig()
+			c.Scheduling.Pools = []PoolConfig{
+				{
+					Name: "home",
+					AwayPools: []AwayPoolConfig{
+						{
+							Name: "away",
+							Node: NodeConfig{Modifications: NodeModifications{Taints: tc.taints}},
+						},
+					},
+				},
+			}
+
+			err := c.Validate()
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), InvalidTaintModificationOperationErrorMessage)
+			}
+		})
 	}
 }
