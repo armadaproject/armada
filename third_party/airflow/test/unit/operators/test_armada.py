@@ -7,7 +7,10 @@ import pytest
 from airflow.exceptions import TaskDeferred
 from armada.model import GrpcChannelArgs, RunningJobContext
 from armada.operators.armada import ArmadaOperator
-from armada.operators.errors import ArmadaOperatorJobFailedError
+from armada.operators.errors import (
+    ArmadaOperatorJobFailedError,
+    ArmadaOperatorJobFailedFatalError,
+)
 from armada.triggers import ArmadaPollJobTrigger
 from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.typings import JobState
@@ -191,6 +194,38 @@ def test_execute_fail(terminal_state, context):
 
     # We're not polling for logs
     op.pod_manager.fetch_container_logs.assert_not_called()
+
+
+def test_execute_fail_rejected_does_not_retry(context):
+    op = operator(JobSubmitRequestItem())
+
+    op.hook.refresh_context.side_effect = [
+        running_job_context(cluster="cluster-1", job_state=s.name)
+        for s in [JobState.RUNNING, JobState.REJECTED]
+    ]
+
+    with pytest.raises(ArmadaOperatorJobFailedFatalError) as exec_info:
+        op.execute(context)
+
+    # Error message contains terminal state and job id
+    assert DEFAULT_JOB_ID in str(exec_info.value)
+    assert JobState.REJECTED.name.capitalize() in str(exec_info.value)
+
+
+def test_execute_fail_when_reattach_policy_matches_terminal_job(context):
+    op = operator(JobSubmitRequestItem(), reattach_policy=lambda state, reason: True)
+
+    op.hook.refresh_context.side_effect = [
+        running_job_context(cluster="cluster-1", job_state=s.name)
+        for s in [JobState.RUNNING, JobState.FAILED]
+    ]
+
+    # A retry would reattach to the same failed job, so we fail without retry.
+    with pytest.raises(ArmadaOperatorJobFailedFatalError) as exec_info:
+        op.execute(context)
+
+    assert DEFAULT_JOB_ID in str(exec_info.value)
+    assert JobState.FAILED.name.capitalize() in str(exec_info.value)
 
 
 @patch("armada.operators.armada.get_current_context")
