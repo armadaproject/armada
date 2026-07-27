@@ -549,7 +549,20 @@ func TestQueueScheduler(t *testing.T) {
 				it := jobRepo.GetJobIterator(q.Name)
 				jobIteratorByQueue[q.Name] = it
 			}
-			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, tc.SchedulingConfig.EnablePreferLargeJobOrdering, tc.SchedulingConfig.MaxQueueLookback, false, 0, clock.RealClock{})
+			sch, err := NewQueueScheduler(
+				sctx,
+				constraints,
+				testfixtures.TestEmptyFloatingResources,
+				nodeDb, jobIteratorByQueue,
+				false,
+				false,
+				tc.SchedulingConfig.EnablePreferLargeJobOrdering,
+				tc.SchedulingConfig.GetPreemptCrossPoolJobsFirst(sctx.Pool),
+				tc.SchedulingConfig.MaxQueueLookback,
+				false,
+				0,
+				clock.RealClock{},
+			)
 			require.NoError(t, err)
 
 			result, err := sch.Schedule(armadacontext.Background())
@@ -679,6 +692,26 @@ func TestQueueScheduler(t *testing.T) {
 			assert.NotEmpty(t, sch.schedulingContext.TerminationReason)
 		})
 	}
+}
+
+func TestQueueCandidateGangIteratorPQ_HomeBeforeAway(t *testing.T) {
+	home := &QueueCandidateGangIteratorItem{queue: "q", proposedQueueCost: 100, priorityClassPriority: 1}
+	away := &QueueCandidateGangIteratorItem{queue: context.CalculateAwayQueueName("q"), away: true, proposedQueueCost: 1, priorityClassPriority: 1000}
+
+	// With the flag on, home sorts before away regardless of cost or priority-class priority.
+	pq := QueueCandidateGangIteratorPQ{
+		considerPriority:          true,
+		preemptCrossPoolJobsFirst: true,
+		items:                     []*QueueCandidateGangIteratorItem{home, away},
+	}
+	require.True(t, pq.Less(0, 1))
+	require.False(t, pq.Less(1, 0))
+
+	// With the flag off, the existing ordering (priority-class priority first) applies:
+	// away has the higher priorityClassPriority (1000 > 1) so it wins.
+	pq.preemptCrossPoolJobsFirst = false
+	require.False(t, pq.Less(0, 1))
+	require.True(t, pq.Less(1, 0))
 }
 
 func NewNodeDb(config configuration.SchedulingConfig, stringInterner *stringinterner.StringInterner) (*nodedb.NodeDb, error) {
@@ -892,7 +925,7 @@ func markJobsAsEvicted(jctxs []*context.JobSchedulingContext) {
 func (s *timeoutTestSetup) createScheduler(clk clock.Clock, jobIteratorsByQueue map[string]JobContextIterator) (*QueueScheduler, error) {
 	return NewQueueScheduler(
 		s.sctx, s.constraints, nil, s.nodeDb, jobIteratorsByQueue,
-		false, false, true, s.config.MaxQueueLookback, false, 0,
+		false, false, true, false, s.config.MaxQueueLookback, false, 0,
 		clk,
 	)
 }

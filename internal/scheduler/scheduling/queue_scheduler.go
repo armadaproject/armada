@@ -48,6 +48,7 @@ func NewQueueScheduler(
 	skipUnsuccessfulSchedulingKeyCheck bool,
 	considerPriorityClassPriority bool,
 	prioritiseLargerJobs bool,
+	preemptCrossPoolJobsFirst bool,
 	maxQueueLookBack uint,
 	marketDriven bool,
 	spotPriceCutoff float64,
@@ -68,12 +69,12 @@ func NewQueueScheduler(
 	}
 	var candidateGangIterator CandidateGangIterator
 	if marketDriven {
-		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangIteratorsByQueue)
+		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangIteratorsByQueue, preemptCrossPoolJobsFirst)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority, prioritiseLargerJobs)
+		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority, prioritiseLargerJobs, preemptCrossPoolJobsFirst)
 		if err != nil {
 			return nil, err
 		}
@@ -418,6 +419,7 @@ func NewCostBasedCandidateGangIterator(
 	iteratorsByQueue map[string]*QueuedGangIterator,
 	considerPriority bool,
 	prioritiseLargerJobs bool,
+	preemptCrossPoolJobsFirst bool,
 ) (*CostBasedCandidateGangIterator, error) {
 	it := &CostBasedCandidateGangIterator{
 		pool:                    pool,
@@ -425,9 +427,10 @@ func NewCostBasedCandidateGangIterator(
 		fairnessCostProvider:    fairnessCostProvider,
 		onlyYieldEvictedByQueue: make(map[string]bool),
 		pq: QueueCandidateGangIteratorPQ{
-			considerPriority:     considerPriority,
-			prioritiseLargerJobs: prioritiseLargerJobs,
-			items:                make([]*QueueCandidateGangIteratorItem, 0, len(iteratorsByQueue)),
+			considerPriority:          considerPriority,
+			prioritiseLargerJobs:      prioritiseLargerJobs,
+			preemptCrossPoolJobsFirst: preemptCrossPoolJobsFirst,
+			items:                     make([]*QueueCandidateGangIteratorItem, 0, len(iteratorsByQueue)),
 		},
 	}
 	for queue, queueIt := range iteratorsByQueue {
@@ -546,6 +549,7 @@ func (it *CostBasedCandidateGangIterator) updatePQItem(item *QueueCandidateGangI
 		return nil
 	}
 	item.gctx = gctx
+	item.away = len(gctx.JobSchedulingContexts) > 0 && !gctx.JobSchedulingContexts[0].IsHomeJob(it.pool)
 	queue, err := it.getQueue(gctx)
 	if err != nil {
 		return err
@@ -594,9 +598,10 @@ func (it *CostBasedCandidateGangIterator) getQueue(gctx *schedulercontext.GangSc
 
 // QueueCandidateGangIteratorPQ is a priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
 type QueueCandidateGangIteratorPQ struct {
-	considerPriority     bool
-	prioritiseLargerJobs bool
-	items                []*QueueCandidateGangIteratorItem
+	considerPriority          bool
+	prioritiseLargerJobs      bool
+	preemptCrossPoolJobsFirst bool
+	items                     []*QueueCandidateGangIteratorItem
 }
 
 type QueueCandidateGangIteratorItem struct {
@@ -618,6 +623,8 @@ type QueueCandidateGangIteratorItem struct {
 	// Used to determine which job is larger
 	itemSize              float64
 	priorityClassPriority int32
+	// away is true when this item's gang is a cross-pool ("away") gang for the pool being scheduled.
+	away bool
 	// The index of the item in the heap.
 	// maintained by the heap.Interface methods.
 	index int
@@ -628,6 +635,12 @@ func (pq *QueueCandidateGangIteratorPQ) Len() int { return len(pq.items) }
 func (pq *QueueCandidateGangIteratorPQ) Less(i, j int) bool {
 	item1 := pq.items[i]
 	item2 := pq.items[j]
+
+	// Home jobs are always scheduled before cross-pool ("away") jobs when enabled.
+	// Within each group, the existing ordering below applies unchanged.
+	if pq.preemptCrossPoolJobsFirst && item1.away != item2.away {
+		return !item1.away // item1 (home) sorts before item2 (away)
+	}
 
 	// Consider priority class priority first
 	if pq.considerPriority && item1.priorityClassPriority != item2.priorityClassPriority {

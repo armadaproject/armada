@@ -221,6 +221,15 @@ func makeCpuResourceList(factory *ResourceListFactory, cpu string) ResourceList 
 	)
 }
 
+func TestCrossPoolPriorityConstants(t *testing.T) {
+	// CrossPoolPriority must sit strictly between EvictedPriority and the lowest real priority (0).
+	assert.Equal(t, int32(-2), EvictedPriority)
+	assert.Equal(t, int32(-1), CrossPoolPriority)
+	assert.Equal(t, EvictedPriority, MinPriority)
+	assert.Less(t, EvictedPriority, CrossPoolPriority)
+	assert.Less(t, CrossPoolPriority, int32(0))
+}
+
 func createNode(allocatableResource ResourceList, allocatableByPriority map[int32]ResourceList) *Node {
 	const id = "id"
 	const reportingNodeType = "re"

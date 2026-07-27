@@ -37,6 +37,7 @@ type PreemptingQueueScheduler struct {
 	protectedFractionOfFairShare     float64
 	maxQueueLookBack                 uint
 	preferLargeJobOrdering           bool
+	preemptCrossPoolJobsFirst        bool
 	protectUncappedAdjustedFairShare bool
 	jobRepo                          jobdb.JobRepository
 	nodeDb                           *nodedb.NodeDb
@@ -66,6 +67,7 @@ func NewPreemptingQueueScheduler(
 		floatingResourceTypes:            floatingResourceTypes,
 		protectedFractionOfFairShare:     config.GetProtectedFractionOfFairShare(sctx.Pool),
 		preferLargeJobOrdering:           config.EnablePreferLargeJobOrdering,
+		preemptCrossPoolJobsFirst:        config.GetPreemptCrossPoolJobsFirst(sctx.Pool),
 		protectUncappedAdjustedFairShare: config.GetProtectUncappedAdjustedFairShare(sctx.Pool),
 		maxQueueLookBack:                 config.MaxQueueLookback,
 		jobRepo:                          jobRepo,
@@ -596,12 +598,12 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 	var candidateGangIterator CandidateGangIterator
 	var err error
 	if sch.marketDriven {
-		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangItByQueue)
+		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangItByQueue, sch.preemptCrossPoolJobsFirst)
 		if err != nil {
 			return err
 		}
 	} else {
-		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering)
+		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering, sch.preemptCrossPoolJobsFirst)
 		if err != nil {
 			return err
 		}
@@ -744,6 +746,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 		skipUnsuccessfulSchedulingKeyCheck,
 		considerPriorityCLassPriority,
 		sch.preferLargeJobOrdering,
+		sch.preemptCrossPoolJobsFirst,
 		sch.maxQueueLookBack,
 		sch.marketDriven,
 		spotPriceCutoff,
