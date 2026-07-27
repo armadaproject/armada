@@ -31,7 +31,7 @@ jobs:
               memory: 25Mi
               cpu: 10m
 ---
-triggerEvent: running
+triggerEvent: leased
 preemptOnNode:
   nodePoolTag: node-ops
   request:

@@ -30,7 +30,7 @@ jobs:
               memory: 25Mi
               cpu: 10m
 ---
-triggerEvent: running
+triggerEvent: leased
 cancelOnNode:
   nodePoolTag: node-ops
   request:
