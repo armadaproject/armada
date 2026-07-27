@@ -94,7 +94,7 @@ Armada maintains automated test suites for its Go and TypeScript code, run in CI
 
 **Pull requests that add or change significant functionality are expected to include tests** covering that functionality. Reviewers will request tests where they are missing. Bug fixes should, where practical, include a test that reproduces the issue being fixed.
 
-Tests live alongside the code they cover (Go `_test.go` files, TypeScript `.test.ts` files) and must pass in CI before a pull request can be merged. See the [development guide](https://armadaproject.io/) for how to run the test suites locally.
+Tests live alongside the code they cover (Go `_test.go` files, TypeScript `.test.ts` files) and must pass in CI before a pull request can be merged. See the [development guide](https://armadaproject.io/developer-guide) for how to run the test suites locally.
 
 
 ## Chat & Discussions
