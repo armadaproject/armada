@@ -48,6 +48,8 @@ type Job struct {
 	CancelUser              *string   `db:"cancel_user"`
 	PriceBand               int32     `db:"price_band"`
 	Terminated              *bool     `db:"terminated"`
+	PreemptUser             *string   `db:"preempt_user"`
+	ReprioritizeUser        *string   `db:"reprioritize_user"`
 	CancelReason            *string   `db:"cancel_reason"`
 }
 

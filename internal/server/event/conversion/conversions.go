@@ -1,6 +1,7 @@
 package conversion
 
 import (
+	"strings"
 	"time"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
@@ -9,6 +10,17 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
+
+// resolveRequestor returns the first non-empty requestor after trim.
+func resolveRequestor(requestors ...string) string {
+	for _, requestor := range requestors {
+		trimmed := strings.TrimSpace(requestor)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
 
 // FromEventSequence Converts internal messages to external api messages
 // Note that some internal api messages can result in multiple api messages so we need to
@@ -120,7 +132,7 @@ func FromInternalPreemptionRequested(userId string, queueName string, jobSetName
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
-					Requestor: userId,
+					Requestor: resolveRequestor(e.GetRequestor(), userId),
 					Reason:    e.Reason,
 				},
 			},
@@ -137,7 +149,7 @@ func FromInternalCancel(userId string, queueName string, jobSetName string, time
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
-					Requestor: userId,
+					Requestor: resolveRequestor(e.GetRequestor(), userId),
 				},
 			},
 		},
@@ -153,7 +165,7 @@ func FromInternalCancelled(userId string, queueName string, jobSetName string, t
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
-					Requestor: userId,
+					Requestor: resolveRequestor(e.GetRequestor(), userId),
 				},
 			},
 		},
@@ -170,7 +182,7 @@ func FromInternalReprioritiseJob(userId string, queueName string, jobSetName str
 					Queue:       queueName,
 					Created:     protoutil.ToTimestamp(time),
 					NewPriority: float64(e.Priority),
-					Requestor:   userId,
+					Requestor:   resolveRequestor(e.GetRequestor(), userId),
 				},
 			},
 		},
@@ -187,7 +199,7 @@ func FromInternalReprioritisedJob(userId string, queueName string, jobSetName st
 					Queue:       queueName,
 					Created:     protoutil.ToTimestamp(time),
 					NewPriority: float64(e.Priority),
-					Requestor:   userId,
+					Requestor:   resolveRequestor(e.GetRequestor(), userId),
 				},
 			},
 		},
