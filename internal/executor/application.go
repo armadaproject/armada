@@ -221,7 +221,7 @@ func setupExecutorApiComponents(
 
 	leaseRequester := service.NewJobLeaseRequester(executorApiClient, clusterContext)
 	preemptRunProcessor := processors.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter)
-	removeRunProcessor := processors.NewRemoveRunProcessor(clusterContext, jobRunState)
+	removeRunProcessor := processors.NewRemoveRunProcessor(clusterContext, jobRunState, eventReporter)
 
 	jobRequester := service.NewJobRequester(
 		clusterContext,
