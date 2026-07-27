@@ -67,6 +67,10 @@ message TestSpec {
     NodeCancelConfig cancel_on_node = 18;
     // Node-scoped preempt operation
     NodePreemptConfig preempt_on_node = 19;
+    // Event name that triggers the configured action once observed for all submitted jobs.
+    // If unset, defaults to running for prempt, reprioritized and node-scoped actions
+    // and queued for cancel via the submit API, matching prior behavior.
+    string trigger_event = 20;
 }
 
 message NodeCancelConfig {
