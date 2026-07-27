@@ -30,13 +30,14 @@ jobs:
               memory: 25Mi
               cpu: 10m
 ---
+triggerEvent: running
 cancelOnNode:
   nodePoolTag: node-ops
   request:
     executor: local-cluster
     queues:
       - e2e-test-queue
-timeout: "180s"
 expectedEvents:
   - submitted:
   - cancelled:
+timeout: "180s"
