@@ -1,6 +1,6 @@
 # Armada Website Readme
 
-The Armada documentation site is built with [Next.js](https://nextjs.org) and [Fumadocs](https://fumadocs.dev). All content is written in MDX, Markdown that can include React components. 
+The Armada documentation site is built with [Next.js](https://nextjs.org) and [Fumadocs](https://fumadocs.dev). All content is written in MDX, Markdown that can include React components.
 
 ## Requirements
 
@@ -16,7 +16,6 @@ All commands should be run from inside the `website/` folder. If you are at the 
 ```bash
 cd website
 ```
-
 
 ### Install dependencies
 
@@ -39,6 +38,7 @@ The live site is deployed to GitHub Pages under a base path. If your changes inv
 ```bash
 cp .env.example .env.local
 ```
+
 Then open `.env.local` and follow the instructions inside. You do not need this for most content changes: only if you are working on routing, assets, or the Next.js config itself.
 
 ## How the site works
@@ -48,15 +48,15 @@ Every page on the site is an `.mdx` file under `content/`. MDX is Markdown that 
 ### Content structure
 
 content/
-├── index.mdx           # Homepage / landing page
+├── index.mdx # Homepage / landing page
 ├── getting-started.mdx # Quickstart guide
-├── meta.json           # Root nav configuration
-├── docs/               # All documentation pages
-│   ├── meta.json
-│   ├── core-concepts.mdx
-│   ├── developer-guide.mdx
-│   └── ...
-└── contribute/         # Contributing section
+├── meta.json # Root nav configuration
+├── docs/ # All documentation pages
+│ ├── meta.json
+│ ├── core-concepts.mdx
+│ ├── developer-guide.mdx
+│ └── ...
+└── contribute/ # Contributing section
 ├── meta.json
 └── ...
 
@@ -66,21 +66,20 @@ The left sidebar is driven entirely by `meta.json` files — Fumadocs reads them
 
 **Root nav — `content/meta.json`**
 
-
 **Section nav — `content/docs/meta.json`**
 
 A `meta.json` inside a folder controls that section's title, page order, and which pages appear.
 
 **To add a page to the nav:**
+
 1. Create the `.mdx` file in the right folder
 2. Add the filename (without `.mdx`) to the relevant `meta.json` pages array
 
 **To remove a page from the nav:**
-Remove it from `meta.json`. 
+Remove it from `meta.json`.
 
 **To reorder pages:**
 Change the order in the `meta.json` pages array. Top to bottom = top to bottom in the sidebar.
-
 
 **Important:** A folder with no `meta.json` is completely invisible to the nav. The pages exist and are routable URLs but won't appear in the sidebar. If a page you created isn't showing up, check whether its folder has a `meta.json` and whether that file is listed in it.
 
@@ -111,9 +110,9 @@ Markdown link syntax (`[text](url)`) does not render inside JSX elements. Use an
 [CNCF](https://cncf.io)
 
 {/* Use this instead */}
+
 <a href='https://cncf.io'>CNCF</a>
 ```
-
 
 ## Format, Lint Content, Lint Code and Spell Check
 

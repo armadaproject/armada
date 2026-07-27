@@ -2,11 +2,17 @@
 title: Armada
 ---
 
-import { ArmadaIcon, ArmadaText } from '@/components/logo';
 import Link from 'next/link';
+import {
+  Boxes,
+  Scale,
+  Zap,
+  MoveUpRight,
+  Activity,
+  LayoutGrid,
+} from 'lucide-react';
 import { Cards, Card } from 'fumadocs-ui/components/card';
-import { Boxes, Scale, Zap, MoveUpRight, Activity, LayoutGrid } from 'lucide-react';
-
+import { ArmadaIcon, ArmadaText } from '@/components/logo';
 
 <div className='relative not-prose'>
 
@@ -73,7 +79,7 @@ import { Boxes, Scale, Zap, MoveUpRight, Activity, LayoutGrid } from 'lucide-rea
       </div>
     </div>
 
-  {/* Hero Section/What is Armada? */}
+{/* Hero Section/What is Armada? */}
 
   <div className='not-prose mt-4 flex flex-col items-center gap-6 text-center'>
     <span className='not-prose hidden flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
@@ -84,7 +90,7 @@ import { Boxes, Scale, Zap, MoveUpRight, Activity, LayoutGrid } from 'lucide-rea
     <span className='max-w-3xl text-4xl font-bold tracking-tight md:text-5xl'>
     One API. <br />
     Any number of clusters. <br />
-    Millions of jobs. 
+    Millions of jobs.
     </span>
 
     {/* Armada description */}
@@ -111,38 +117,45 @@ import { Boxes, Scale, Zap, MoveUpRight, Activity, LayoutGrid } from 'lucide-rea
 
       {/* divider */}
       <hr className='my-6 h-px w-full border-0 bg-fd-border' />
+
   </div>
 
 </div>
 
-
-  <div className='text-center max-w-xl mx-auto my-4'>
-    As a [CNCF Sandbox project](https://www.cncf.io/), Armada is actively maintained and used in production environments, including at [G-Research](https://www.gresearch.com/) where it processes millions of jobs daily.
-  </div>
-
-
+<div className='mx-auto my-4 max-w-xl text-center'>
+  As a [CNCF Sandbox project](https://www.cncf.io/), Armada is actively
+  maintained and used in production environments, including at
+  [G-Research](https://www.gresearch.com/) where it processes millions of jobs
+  daily.
+</div>
 
 {/* divider */}
-      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
 
+<hr className='bg-fd-border my-6 h-px w-full border-0' />
 
 {/* ## Why use Armada? */}
+
 <div className='not-prose mx-auto mt-10 max-w-3xl px-10'>
   <span className='not-prose flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
       ## What is Armada?
     </span>
 
-  {/* heading */}
-  <span className='mt-4 block text-center text-3xl font-bold tracking-tight md:text-4xl'>
-    The batch scheduler Kubernetes was missing.
-  </span>
+{/* heading */}
 
-  {/* description */}
-  <span className='mx-auto mt-4 block max-w-xl text-center text-lg text-fd-muted-foreground'>
-    Armada sits above your Kubernetes clusters as a control plane. It doesn&apos;t replace Kubernetes, it allows Kubernetes to handle millions of jobs a day across tens of thousands of nodes.
-  </span>
+<span className='mt-4 block text-center text-3xl font-bold tracking-tight md:text-4xl'>
+  The batch scheduler Kubernetes was missing.
+</span>
 
-  {/* cards — left-accent, content stays left-aligned */}
+{/* description */}
+
+<span className='text-fd-muted-foreground mx-auto mt-4 block max-w-xl text-center text-lg'>
+  Armada sits above your Kubernetes clusters as a control plane. It does not
+  replace Kubernetes, but allows K8 to handle millions of jobs a day across tens
+  of thousands of nodes.
+</span>
+
+{/* cards — left-accent, content stays left-aligned */}
+
   <Cards className='my-12 '>
     <Card icon={<Boxes className='text-fd-primary' />} title='Multi-cluster native' className='border-0 border-l-2 border-fd-primary rounded-sm shadow-md shadow-black/20 dark:shadow-white/10 transition-colors hover:bg-fd-muted'>
     Run jobs across many clusters through one API, and add or remove capacity without disrupting what&apos;s already running.
@@ -167,26 +180,24 @@ import { Boxes, Scale, Zap, MoveUpRight, Activity, LayoutGrid } from 'lucide-rea
 {/* divider */}
       <hr className='my-6 h-px w-full border-0 bg-fd-border' />
 
-
-
 {/* ## Use cases */}
+
 <div className='not-prose mx-auto mt-10 max-w-3xl px-10'>
   <span className='not-prose flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
       ## Use Cases
     </span>
 
-  {/* heading */}
-  <span className='mt-4 block text-center text-3xl font-bold tracking-tight md:text-4xl'>
-    Is Armada right for you?
-  </span>
+{/* heading */}
 
-  {/* description */}
-  <span className='mx-auto mt-4 block max-w-xl text-center text-lg text-fd-muted-foreground'>
-  </span>
+<span className='mt-4 block text-center text-3xl font-bold tracking-tight md:text-4xl'>
+  Is Armada right for you?
+</span>
 
-  {/* numbered list — divide-y draws the lines between rows;
-    font-mono primary number on the left, content on the right */}
-    <div className='not-prose mt-8 flex flex-col divide-y divide-fd-border'>
+{/* description */}
+
+<span className='text-fd-muted-foreground mx-auto mt-4 block max-w-xl text-center text-lg'></span>
+
+<div className='not-prose mt-8 flex flex-col divide-y divide-fd-border'>
 
       {/* 01 */}
       <div className='flex gap-6 py-6'>
@@ -216,7 +227,7 @@ import { Boxes, Scale, Zap, MoveUpRight, Activity, LayoutGrid } from 'lucide-rea
         <div>
           <span className='block font-semibold'>High-performance computing</span>
           <span className='mt-1 block text-sm text-fd-muted-foreground'>
-          MPI workloads in containers, scheduled across clusters, with hardware-aware placement. Cloud-native tooling without giving up the reproducibility HPC teams depend on.        
+          MPI workloads in containers, scheduled across clusters, with hardware-aware placement. Cloud-native tooling without giving up the reproducibility HPC teams depend on.
           </span>
         </div>
       </div>
@@ -227,7 +238,7 @@ import { Boxes, Scale, Zap, MoveUpRight, Activity, LayoutGrid } from 'lucide-rea
         <div>
           <span className='block font-semibold'>Multi-tenant compute environments</span>
           <span className='mt-1 block text-sm text-fd-muted-foreground'>
-          Multiple teams, one infrastructure. Fair-share scheduling means no single team can quietly consume everything while others wait.     
+          Multiple teams, one infrastructure. Fair-share scheduling means no single team can quietly consume everything while others wait.
           </span>
         </div>
       </div>
@@ -238,12 +249,13 @@ import { Boxes, Scale, Zap, MoveUpRight, Activity, LayoutGrid } from 'lucide-rea
         <div>
           <span className='block font-semibold'>CI/CD build and test</span>
           <span className='mt-1 block text-sm text-fd-muted-foreground'>
-          Critical merges go first. Large test suites don&apos;t block urgent builds. Priority and fairness built in, no manual queue management.      
+          Critical merges go first. Large test suites don&apos;t block urgent builds. Priority and fairness built in, no manual queue management.
           </span>
         </div>
       </div>
 
       <div className='not-prose mt-8'>
+
   <span className='block max-w-2xl text-fd-muted-foreground'>
     Armada&apos;s niche is multi-cluster. If you&apos;re not there yet, another project may be a better fit.
   </span>
@@ -259,59 +271,13 @@ import { Boxes, Scale, Zap, MoveUpRight, Activity, LayoutGrid } from 'lucide-rea
 
     </div>
     </div>
+
 {/* divider */}
-      <hr className='my-6 h-px w-full border-0 bg-fd-border' />
 
-
-{/* ## Use Cases and Success Stories
-
-### High-Performance Computing (HPC)
-
-- **Machine Learning Training**: Distribute large-scale ML training jobs across multiple clusters
-- **Scientific Computing**: Run complex simulations and data analysis workloads
-- **Financial Modeling**: Execute risk calculations and quantitative analysis at scale
-
-### Data Processing Pipelines
-
-- **ETL Workloads**: Process large datasets with parallel batch jobs
-- **Data Analytics**: Run distributed analytics jobs across multiple clusters
-- **Backup and Archival**: Coordinate large-scale data movement operations
-
-### CI/CD and Development
-
-- **Build Systems**: Distribute compilation and testing jobs
-- **Integration Testing**: Run comprehensive test suites across multiple environments
-- **Deployment Automation**: Coordinate complex deployment workflows
-
-### Production Deployment at G-Research
-
-G-Research, a leading quantitative research company, uses Armada in production to:
-
-- Process millions of jobs per day
-- Manage tens of thousands of nodes
-- Support diverse computational workloads
-- Maintain high availability and performance
-
-## Comparison with Other Schedulers
-
-### vs. Native Kubernetes Scheduler
-
-- **Scale**: Armada spans multiple clusters vs. single cluster limitation
-- **Throughput**: Millions of jobs vs. thousands with native scheduler
-- **Batch Features**: Purpose-built for batch vs. service-oriented design
-- **Fair Scheduling**: Advanced fair-use policies vs. basic priority classes
-
-### vs. Traditional HPC Schedulers (SLURM, PBS) */}
-
-{/* - **Container Native**: Built for containerized workloads vs. traditional HPC
-- **Kubernetes Integration**: Leverages Kubernetes ecosystem vs. isolated systems
-- **Cloud Ready**: Designed for cloud and hybrid environments
-- **Modern APIs**: REST/gRPC APIs vs. command-line interfaces
-- **Rich Client Support**: Client libraries available for multiple languages (Go, Java, Scala, Python and .NET) */}
-
-
+<hr className='bg-fd-border my-6 h-px w-full border-0' />
 
 {/* ── CTA ── */}
+
 <div className='relative flex flex-col items-center text-center my-8 py-8 px-8 border border-fd-border rounded-xl overflow-hidden not-prose'>
     
     <span className='not-prose hidden flex flex-col items-center mt-8 text-sm tracking-wide text-fd-muted-foreground'>
@@ -345,30 +311,9 @@ G-Research, a leading quantitative research company, uses Armada in production t
     >
       Join #armada on Slack
     </a>
+
 </div>
 
 </div>
 {/* divider */}
       <hr className='my-6 h-px w-full border-0 bg-fd-border' />
-
-
-
-
-
-{/* 
-## Next Steps
-
-Ready to explore Armada? Here are your next steps:
-
-<Cards>
-  <Card
-    href='/getting-started'
-    title='Getting Started'
-    description='Try Armada locally'
-  />
-  <Card
-    href='/docs/core-concepts'
-    title='Core Concepts'
-    description='Learn about jobs, queues, and scheduling'
-  />
-</Cards> */}

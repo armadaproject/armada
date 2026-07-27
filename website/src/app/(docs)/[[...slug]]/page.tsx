@@ -17,7 +17,7 @@ export default async function Page(props: {
   const params = await props.params;
   const page = source.getPage(params.slug);
   const isHome = !params.slug || params.slug.length === 0;
-  
+
   if (!page) notFound();
 
   const MDXContent = page.data.body;

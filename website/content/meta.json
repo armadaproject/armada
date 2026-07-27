@@ -1,9 +1,4 @@
 {
   "root": true,
-  "pages": [
-    "index",
-    "getting-started",
-    "docs",
-    "contribute"
-  ]
+  "pages": ["index", "getting-started", "docs", "contribute"]
 }
