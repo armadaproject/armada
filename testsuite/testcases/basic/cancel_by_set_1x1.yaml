@@ -22,6 +22,7 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
+triggerEvent: queued
 cancelJobSet:
   request: {}
 timeout: "100s"

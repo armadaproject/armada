@@ -26,6 +26,7 @@ jobs:
               cpu: 100m
 ---
 ## Reprioritize the job set upward
+triggerEvent: running
 reprioritize:
   byJobSet: true
   request:
