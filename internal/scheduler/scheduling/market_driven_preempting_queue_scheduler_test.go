@@ -131,15 +131,9 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(
-							testfixtures.N1Cpu4GiJobsWithPriceBand("A", bidstore.PriceBand_PRICE_BAND_A, 21),
-						),
-						"B": append(
-							testfixtures.N1Cpu4GiJobsWithPriceBand("B", bidstore.PriceBand_PRICE_BAND_A, 21),
-						),
-						"C": append(
-							testfixtures.N1Cpu4GiJobsWithPriceBand("C", bidstore.PriceBand_PRICE_BAND_A, 21),
-						),
+						"A": testfixtures.N1Cpu4GiJobsWithPriceBand("A", bidstore.PriceBand_PRICE_BAND_A, 21),
+						"B": testfixtures.N1Cpu4GiJobsWithPriceBand("B", bidstore.PriceBand_PRICE_BAND_A, 21),
+						"C": testfixtures.N1Cpu4GiJobsWithPriceBand("C", bidstore.PriceBand_PRICE_BAND_A, 21),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 10),

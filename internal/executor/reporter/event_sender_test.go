@@ -49,7 +49,7 @@ func generateEventMessages(t *testing.T, count int) []EventMessage {
 
 	for i := 0; i < count; i++ {
 		pod := makeTestPod(v1.PodRunning)
-		event, err := CreateEventForCurrentState(pod, "cluster-1", categorizer.ClassifyResult{})
+		event, err := CreateEventForCurrentState(pod, "cluster-1", categorizer.ClassifyResult{}, "")
 		require.NoError(t, err)
 		result = append(result, EventMessage{Event: event, JobRunId: uuid.New().String()})
 	}
@@ -107,7 +107,7 @@ func makeTestPod(phase v1.PodPhase) *v1.Pod {
 				domain.JobSetId:          "job-set-id-1",
 				constants.PoolAnnotation: "test-pool",
 			},
-			CreationTimestamp: metav1.Time{time.Now().Add(-10 * time.Minute)},
+			CreationTimestamp: metav1.Time{Time: time.Now().Add(-10 * time.Minute)},
 			UID:               k8sTypes.UID(util.NewULID()),
 		},
 		Spec: v1.PodSpec{
