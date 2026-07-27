@@ -37,6 +37,7 @@ message PreemptOnExecutor {
   repeated string priorityClasses = 3;
   // If empty, jobs on all pools will be preempted
   repeated string pools = 4;
+  string requestor = 5;
 }
 
 message CancelOnExecutor {
@@ -45,6 +46,7 @@ message CancelOnExecutor {
   repeated string priorityClasses = 3;
   // If empty, jobs on all pools will be cancelled
   repeated string pools = 4;
+  string requestor = 5;
 }
 
 message PreemptOnNode {
@@ -52,6 +54,7 @@ message PreemptOnNode {
   string executor = 2;
   repeated string queues = 3;
   repeated string priorityClasses = 4;
+  string requestor = 5;
 }
 
 message CancelOnNode {
@@ -59,6 +62,7 @@ message CancelOnNode {
   string executor = 2;
   repeated string queues = 3;
   repeated string priorityClasses = 4;
+  string requestor = 5;
 }
 
 // A subset of JobState including only non-terminal states
@@ -75,6 +79,7 @@ message PreemptOnQueue {
   repeated string priorityClasses = 2;
   // If empty, jobs on all pools will be preempted
   repeated string pools = 3;
+  string requestor = 4;
 }
 
 message CancelOnQueue {
@@ -83,4 +88,5 @@ message CancelOnQueue {
   repeated ActiveJobState jobStates = 3;
   // If empty, jobs on all pools will be cancelled
   repeated string pools = 4;
+  string requestor = 5;
 }
