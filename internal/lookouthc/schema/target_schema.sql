@@ -42,6 +42,8 @@ CREATE TABLE {{TABLE}} (
     annotations                  jsonb         NOT NULL,
     external_job_uri             varchar(1024) NULL,
     cancel_user                  varchar(512)  NULL,
+    preempt_user                 varchar(512)  NULL,
+    reprioritize_user            varchar(512)  NULL,
     PRIMARY KEY (job_id, state)
 ) PARTITION BY LIST (state);
 
