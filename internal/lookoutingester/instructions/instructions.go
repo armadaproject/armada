@@ -97,7 +97,7 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_SubmitJob:
 			err = c.handleSubmitJob(queue, owner, jobset, ts, event.GetSubmitJob(), update)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
-			err = c.handleReprioritiseJob(ts, event.GetReprioritisedJob(), update)
+			err = c.handleReprioritiseJob(ts, owner, event.GetReprioritisedJob(), update)
 		case *armadaevents.EventSequence_Event_CancelledJob:
 			err = c.handleCancelledJob(ts, owner, event.GetCancelledJob(), update)
 		case *armadaevents.EventSequence_Event_JobPreemptionRequested:
@@ -247,10 +247,10 @@ func sanitizeForJsonb(s string) string {
 	return strings.ReplaceAll(s, "\x00", "")
 }
 
-func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, requestor string, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
 	var reprioritizeUser *string
-	if event.Requestor != "" {
-		reprioritizeUser = &event.Requestor
+	if requestor := strings.TrimSpace(requestor); requestor != "" {
+		reprioritizeUser = &requestor
 	}
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:            event.JobId,
@@ -271,7 +271,7 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, requestor string
 	}
 
 	var cancelUser *string
-	if requestor != "" {
+	if requestor := strings.TrimSpace(requestor); requestor != "" {
 		cancelUser = &requestor
 	}
 
@@ -290,14 +290,14 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, requestor string
 }
 
 func (c *InstructionConverter) handleJobPreemptionRequested(requestor string, event *armadaevents.JobPreemptionRequested, update *model.InstructionSet) error {
-	var user *string
-	if requestor != "" {
-		user = &requestor
+	var preemptUser *string
+	if requestor := strings.TrimSpace(requestor); requestor != "" {
+		preemptUser = &requestor
 	}
 
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:       event.JobId,
-		PreemptUser: user,
+		PreemptUser: preemptUser,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
