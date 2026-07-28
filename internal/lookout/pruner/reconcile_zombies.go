@@ -36,6 +36,15 @@ import (
 // lease-expired run is normally expected to be followed by a legitimate
 // scheduler decision (retry or fail) that can take substantially longer than
 // ordinary ingester lag to arrive.
+//
+// The LEASE_RETURNED/LEASE_EXPIRED branch additionally requires
+// job.last_transition_time <= run.finished. A successful requeue moves
+// job.state to QUEUED (advancing last_transition_time) without changing
+// latest_run_id, which still keeps pointing at the old lease-returned/expired
+// run until the next lease is granted. Without this check, a job that was
+// legitimately requeued and is simply waiting for its next lease -- rather
+// than one whose follow-up event was lost -- would be misdetected as a
+// zombie and incorrectly marked FAILED.
 var reconcileZombiesQuery = fmt.Sprintf(`
 	UPDATE job
 	SET state                        = mapping.new_state,
@@ -69,7 +78,19 @@ var reconcileZombiesQuery = fmt.Sprintf(`
 		  AND (
 		    (r.job_run_state IN (%[1]d, %[3]d, %[5]d, %[7]d) AND r.finished < $1)
 		    OR
-		    (r.job_run_state IN (%[13]d, %[14]d) AND r.finished < $2)
+		    (
+		      r.job_run_state IN (%[13]d, %[14]d)
+		      AND r.finished < $2
+		      -- A JobRequeued event moves job.state to QUEUED and advances
+		      -- last_transition_time, but leaves latest_run_id pointing at the
+		      -- now-stale lease-returned/expired run until the next lease is
+		      -- granted. Without this check, a job that was legitimately
+		      -- requeued and is simply waiting for its next lease would be
+		      -- misdetected as a zombie. Requiring last_transition_time <=
+		      -- finished restricts the match to jobs no later event has
+		      -- touched since the lease was returned/expired.
+		      AND j.last_transition_time <= r.finished
+		    )
 		  )
 		LIMIT $3
 	) AS mapping
