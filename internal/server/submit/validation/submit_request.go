@@ -258,7 +258,7 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 	// still validated below, as is the pod-level block itself.
 	podLevelResourcesEnabled := config.PodLevelResources && spec.Resources != nil
 	if podLevelResourcesEnabled {
-		if err := validatePodLevelResources(spec.Resources, maxOversubscriptionByResource, config); err != nil {
+		if err := validatePodLevelResources(spec, maxOversubscriptionByResource, config); err != nil {
 			return err
 		}
 	}
@@ -327,10 +327,11 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 // cover the same resource set, satisfy limit >= request within the
 // max-oversubscription ratio, and meet MinJobResources.
 func validatePodLevelResources(
-	resources *v1.ResourceRequirements,
+	spec *v1.PodSpec,
 	maxOversubscriptionByResource map[string]float64,
 	config configuration.SubmissionConfig,
 ) error {
+	resources := spec.Resources
 	if len(resources.Requests) == 0 && len(resources.Limits) == 0 {
 		return fmt.Errorf("pod-level resources block is empty")
 	}
@@ -363,10 +364,15 @@ func validatePodLevelResources(
 			return fmt.Errorf("pod-level resources define %s with limits greater than %.2f*requests", resourceName, maxOversubscription)
 		}
 	}
-	for rc, podRsc := range resources.Requests {
-		serverRsc, nonEmpty := config.MinJobResources[rc]
-		if nonEmpty && podRsc.Value() < serverRsc.Value() {
-			return fmt.Errorf("pod-level %s requests (%s) below server minimum (%s)", rc, &podRsc, &serverRsc)
+	// MinJobResources is checked against the effective request
+	// (max of the pod-level request and the summed container requests), since that
+	// is what the scheduler reserves; checking the raw pod-level value alone would
+	// wrongly reject a pod whose container total already meets the minimum.
+	effective := api.SchedulingResourceRequirementsFromPodSpec(spec).Requests
+	for rc, serverRsc := range config.MinJobResources {
+		eff := effective[rc]
+		if eff.Value() < serverRsc.Value() {
+			return fmt.Errorf("effective %s requests (%s) below server minimum (%s)", rc, &eff, &serverRsc)
 		}
 	}
 	return nil

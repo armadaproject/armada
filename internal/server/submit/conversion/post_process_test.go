@@ -756,3 +756,22 @@ func submitMsgFromAnnotations(annotations map[string]string) *armadaevents.Submi
 		},
 	}
 }
+
+func TestDropPodLevelResourcesIfDisabled(t *testing.T) {
+	podLevel := &v1.ResourceRequirements{
+		Requests: v1.ResourceList{"cpu": resource.MustParse("2")},
+		Limits:   v1.ResourceList{"cpu": resource.MustParse("2")},
+	}
+
+	t.Run("disabled clears the pod-level block", func(t *testing.T) {
+		spec := &v1.PodSpec{Resources: podLevel.DeepCopy()}
+		dropPodLevelResourcesIfDisabled(spec, configuration.SubmissionConfig{PodLevelResources: false})
+		assert.Nil(t, spec.Resources)
+	})
+
+	t.Run("enabled preserves the pod-level block", func(t *testing.T) {
+		spec := &v1.PodSpec{Resources: podLevel.DeepCopy()}
+		dropPodLevelResourcesIfDisabled(spec, configuration.SubmissionConfig{PodLevelResources: true})
+		assert.Equal(t, podLevel, spec.Resources)
+	})
+}
