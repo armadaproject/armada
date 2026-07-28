@@ -115,8 +115,9 @@ var expectedJobCancelled = model.UpdateJobInstruction{
 }
 
 var expectedJobReprioritised = model.UpdateJobInstruction{
-	JobId:    testfixtures.JobId,
-	Priority: pointer.Int64(testfixtures.NewPriority),
+	JobId:            testfixtures.JobId,
+	Priority:         pointer.Int64(testfixtures.NewPriority),
+	ReprioritizeUser: pointer.String(testfixtures.UserId),
 }
 
 var expectedFailed = model.UpdateJobInstruction{
@@ -282,6 +283,17 @@ func TestConvert(t *testing.T) {
 	cancelledWithReason, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
 	assert.NoError(t, err)
 	cancelledWithReason.GetCancelledJob().Reason = testfixtures.CancelReason
+	cancelledWithoutLegacyActorField, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
+	assert.NoError(t, err)
+	cancelledWithoutLegacyActorField.GetCancelledJob().Requestor = ""
+	jobPreemptionRequested, err := testfixtures.DeepCopy(testfixtures.JobPreemptionRequested)
+	assert.NoError(t, err)
+	jobPreemptionRequested.GetJobPreemptionRequested().Requestor = testfixtures.UserId
+	jobPreemptionRequestedWithoutRequestor, err := testfixtures.DeepCopy(testfixtures.JobPreemptionRequested)
+	assert.NoError(t, err)
+	jobPreemptionRequestedWithWhitespaceRequestor, err := testfixtures.DeepCopy(testfixtures.JobPreemptionRequested)
+	assert.NoError(t, err)
+	jobPreemptionRequestedWithWhitespaceRequestor.GetJobPreemptionRequested().Requestor = "   "
 
 	tests := map[string]struct {
 		events   *utils.EventsWithIds[*armadaevents.EventSequence]
@@ -371,6 +383,22 @@ func TestConvert(t *testing.T) {
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
+		"job cancelled without cancel user keeps actor empty": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(cancelledWithoutLegacyActorField)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:                     testfixtures.JobId,
+					State:                     pointer.Int32(lookout.JobCancelledOrdinal),
+					Cancelled:                 &testfixtures.BaseTime,
+					LastTransitionTime:        &testfixtures.BaseTime,
+					LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
 		"job cancelled with reason": {
 			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
 				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(cancelledWithReason)},
@@ -427,6 +455,37 @@ func TestConvert(t *testing.T) {
 			expected: &model.InstructionSet{
 				JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job preemption requested": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(jobPreemptionRequested)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:       testfixtures.JobId,
+					PreemptUser: pointer.String(testfixtures.UserId),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job preemption requested without requestor keeps actor empty": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(jobPreemptionRequestedWithoutRequestor)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job preemption requested with whitespace requestor keeps actor empty": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(jobPreemptionRequestedWithWhitespaceRequestor)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"job run failed": {
