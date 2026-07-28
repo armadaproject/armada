@@ -213,6 +213,55 @@ func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
 	assert.Equal(t, expectedAllocatableByPriority, result.AllocatableByPriority)
 }
 
+func TestUrgencyPreemptableByPriorityInitializedEqualToAllocatable(t *testing.T) {
+	resourceListFactory, err := NewResourceListFactory(
+		[]schedulerconfiguration.ResourceType{
+			{Name: "cpu", Resolution: resource.MustParse("1m")},
+		},
+		nil,
+	)
+	require.Nil(t, err)
+
+	allocatableResources := makeCpuResourceList(resourceListFactory, "10")
+	allocatableByPriority := map[int32]ResourceList{
+		1: makeCpuResourceList(resourceListFactory, "8"),
+		2: makeCpuResourceList(resourceListFactory, "6"),
+	}
+
+	node := createNode(allocatableResources, allocatableByPriority)
+
+	require.NotNil(t, node.UrgencyPreemptableByPriority)
+	require.Equal(t, len(node.AllocatableByPriority), len(node.UrgencyPreemptableByPriority))
+	for p, rl := range node.AllocatableByPriority {
+		require.True(t, rl.Equal(node.UrgencyPreemptableByPriority[p]), "priority %d", p)
+	}
+}
+
+func TestDeepCopyNilKeysClonesUrgencyMap(t *testing.T) {
+	resourceListFactory, err := NewResourceListFactory(
+		[]schedulerconfiguration.ResourceType{
+			{Name: "cpu", Resolution: resource.MustParse("1m")},
+		},
+		nil,
+	)
+	require.Nil(t, err)
+
+	allocatableResources := makeCpuResourceList(resourceListFactory, "10")
+	allocatableByPriority := map[int32]ResourceList{
+		1: makeCpuResourceList(resourceListFactory, "8"),
+		2: makeCpuResourceList(resourceListFactory, "6"),
+	}
+
+	node := createNode(allocatableResources, allocatableByPriority)
+	cp := node.DeepCopyNilKeys()
+	require.NotNil(t, cp.UrgencyPreemptableByPriority)
+	for p := range cp.UrgencyPreemptableByPriority {
+		delete(cp.UrgencyPreemptableByPriority, p)
+		break
+	}
+	require.Equal(t, len(node.AllocatableByPriority), len(node.UrgencyPreemptableByPriority))
+}
+
 func makeCpuResourceList(factory *ResourceListFactory, cpu string) ResourceList {
 	return factory.FromNodeProto(
 		map[string]*resource.Quantity{
