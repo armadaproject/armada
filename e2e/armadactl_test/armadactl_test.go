@@ -238,7 +238,7 @@ jobs:
 
 	out = buf.String()
 	buf.Reset()
-	for _, s := range []string{"Reprioritized jobs with ID:\n"} {
+	for _, s := range []string{"Reprioritized jobs with ID:\n", "user: anonymous\n"} {
 		require.True(t, strings.Contains(out, s))
 	}
 
@@ -248,7 +248,7 @@ jobs:
 
 	out = buf.String()
 	buf.Reset()
-	for _, s := range []string{"Requested cancellation for jobs", "\n"} {
+	for _, s := range []string{"Requested cancellation for jobs", "user: anonymous\n"} {
 		require.True(t, strings.Contains(out, s))
 	}
 }
