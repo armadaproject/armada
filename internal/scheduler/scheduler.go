@@ -1178,12 +1178,17 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 
 	if job.RequestedPriority() != job.Priority() {
 		job = job.WithPriority(job.RequestedPriority())
+		var requestor string
+		if requestorPtr := job.Requestor(); requestorPtr != nil {
+			requestor = *requestorPtr
+		}
 		jobReprioritised := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 				ReprioritisedJob: &armadaevents.ReprioritisedJob{
-					JobId:    job.Id(),
-					Priority: job.Priority(),
+					JobId:     job.Id(),
+					Priority:  job.Priority(),
+					Requestor: requestor,
 				},
 			},
 		}
@@ -1223,6 +1228,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				CancelledJob: &armadaevents.CancelledJob{
 					JobId:      job.Id(),
 					CancelUser: cancelUser,
+					Requestor:  cancelUser,
 				},
 			},
 		}
@@ -1240,7 +1246,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		cancelRequest := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
-				CancelJob: &armadaevents.CancelJob{JobId: job.Id()},
+				CancelJob: &armadaevents.CancelJob{JobId: job.Id(), Requestor: cancelUser},
 			},
 		}
 		events = append(events, cancelRequest)
@@ -1268,6 +1274,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				CancelledJob: &armadaevents.CancelledJob{
 					JobId:      job.Id(),
 					CancelUser: cancelUser,
+					Requestor:  cancelUser,
 				},
 			},
 		}

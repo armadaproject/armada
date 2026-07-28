@@ -14,13 +14,13 @@ SELECT serial FROM jobs ORDER BY serial DESC LIMIT 1;
 SELECT serial FROM runs ORDER BY serial DESC LIMIT 1;
 
 -- name: SelectInitialJobs :many
-SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_reason, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial FROM jobs WHERE serial > $1 AND terminated = false ORDER BY serial LIMIT $2;
+SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_reason, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial, preempt_user, reprioritize_user FROM jobs WHERE serial > $1 AND terminated = false ORDER BY serial LIMIT $2;
 
 -- name: SelectUpdatedJobs :many
-SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_reason, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
+SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_reason, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial, preempt_user, reprioritize_user FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 
 -- name: UpdateJobPriorityByJobSet :exec
-UPDATE jobs SET priority = $1 WHERE job_set = $2 and queue = $3 and terminated = false;
+UPDATE jobs SET priority = $1, reprioritize_user = sqlc.arg(reprioritize_user) WHERE job_set = $2 and queue = $3 and terminated = false;
 
 -- name: MarkJobsCancelRequestedBySetAndQueuedState :exec
 UPDATE jobs SET cancel_by_jobset_requested = true, cancel_user = COALESCE(cancel_user, sqlc.arg(cancel_user)), cancel_reason = COALESCE(cancel_reason, sqlc.arg(cancel_reason)) WHERE job_set = sqlc.arg(job_set) and queue = sqlc.arg(queue) and queued = ANY(sqlc.arg(queued_states)::bool[]) and terminated = false;
@@ -41,7 +41,7 @@ UPDATE jobs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 UPDATE jobs SET failed = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: UpdateJobPriorityById :exec
-UPDATE jobs SET priority = $1 WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]) and terminated = false;
+UPDATE jobs SET priority = $1, reprioritize_user = sqlc.arg(reprioritize_user) WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]) and terminated = false;
 
 -- name: SelectInitialRuns :many
 SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::text[]) ORDER BY serial LIMIT $2;
@@ -56,6 +56,9 @@ SELECT run_id FROM runs;
 SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::text[]) ORDER BY serial;
 
 -- name: MarkJobRunsPreemptRequestedByJobId :exec
+UPDATE jobs SET preempt_user = COALESCE(preempt_user, sqlc.arg(preempt_user)) WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]) and terminated = false;
+
+-- name: MarkRunsPreemptRequestedByJobId :exec
 UPDATE runs SET preempt_requested = true, preempt_reason = sqlc.arg(preempt_reason) WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]) and terminated = false;
 
 -- name: MarkJobRunsSucceededById :exec
@@ -204,4 +207,3 @@ WHERE jr.queue = ANY(@queue::text[])
   AND jr.terminated = false
   AND jr.preempted = false
   AND (@pools::text[] IS NULL OR cardinality(@pools::text[]) = 0 OR jr.pool = ANY(@pools::text[]));
-
