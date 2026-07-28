@@ -249,8 +249,8 @@ func sanitizeForJsonb(s string) string {
 
 func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
 	var reprioritizeUser *string
-	if event.Requestor != "" {
-		reprioritizeUser = &event.Requestor
+	if requestor := strings.TrimSpace(event.Requestor); requestor != "" {
+		reprioritizeUser = &requestor
 	}
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:            event.JobId,
@@ -268,8 +268,8 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 	}
 
 	var cancelUser *string
-	if event.Requestor != "" {
-		cancelUser = &event.Requestor
+	if requestor := strings.TrimSpace(event.Requestor); requestor != "" {
+		cancelUser = &requestor
 	}
 
 	// For cancelled jobs, use cancel_user as the canonical actor field.
@@ -287,14 +287,14 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 }
 
 func (c *InstructionConverter) handleJobPreemptionRequested(event *armadaevents.JobPreemptionRequested, update *model.InstructionSet) error {
-	preemptUser := strings.TrimSpace(event.Requestor)
-	if preemptUser == "" {
-		return nil
+	var preemptUser *string
+	if requestor := strings.TrimSpace(event.Requestor); requestor != "" {
+		preemptUser = &requestor
 	}
 
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:       event.JobId,
-		PreemptUser: pointer.String(preemptUser),
+		PreemptUser: preemptUser,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
