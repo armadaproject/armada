@@ -231,6 +231,12 @@ func (srv *ExecutorApi) dropDisallowedResources(pod *v1.PodSpec) {
 	}
 	srv.dropDisallowedResourcesFromContainers(pod.InitContainers)
 	srv.dropDisallowedResourcesFromContainers(pod.Containers)
+	// Pod-level resources (KEP-2837) must be filtered by the same allow-list, else
+	// a disallowed resource could bypass it via the pod-level block.
+	if pod.Resources != nil {
+		removeDisallowedKeys(pod.Resources.Limits, srv.allowedResources)
+		removeDisallowedKeys(pod.Resources.Requests, srv.allowedResources)
+	}
 }
 
 func (srv *ExecutorApi) dropDisallowedResourcesFromContainers(containers []v1.Container) {

@@ -148,6 +148,49 @@ func TestTotalResourceRequest_ShouldCombineMaxInitContainerResourcesWithSummedCo
 	assert.Equal(t, result, FromResourceList(expectedResult))
 }
 
+// Pod-level resources (KEP-2837): TotalPodResourceRequest uses the effective
+// request max(sum(containers), pod-level).
+func TestTotalResourceRequest_PodLevelResources(t *testing.T) {
+	t.Run("pod-level only (empty containers) is accounted at the pod-level value", func(t *testing.T) {
+		podLevel := makeContainerResource(4, 16)
+		pod := makePodWithResource([]*v1.ResourceList{}, []*v1.ResourceList{})
+		pod.Spec.Resources = &v1.ResourceRequirements{Requests: podLevel, Limits: podLevel}
+
+		result := TotalPodResourceRequest(&pod.Spec)
+		assert.Equal(t, FromResourceList(makeContainerResource(4, 16)), result)
+	})
+
+	t.Run("effective request is max of container-sum and pod-level", func(t *testing.T) {
+		container := makeContainerResource(2, 4) // sum of one container = 2cpu/4Gi
+		podLevel := makeContainerResource(4, 2)  // pod-level = 4cpu/2Gi
+		pod := makePodWithResource([]*v1.ResourceList{&container}, []*v1.ResourceList{})
+		pod.Spec.Resources = &v1.ResourceRequirements{Requests: podLevel, Limits: podLevel}
+
+		// cpu: max(2, 4) = 4 ; memory: max(4, 2) = 4
+		result := TotalPodResourceRequest(&pod.Spec)
+		assert.Equal(t, FromResourceList(makeContainerResource(4, 4)), result)
+	})
+
+	t.Run("container-sum wins when it exceeds pod-level", func(t *testing.T) {
+		container := makeContainerResource(8, 8)
+		podLevel := makeContainerResource(4, 4)
+		pod := makePodWithResource([]*v1.ResourceList{&container}, []*v1.ResourceList{})
+		pod.Spec.Resources = &v1.ResourceRequirements{Requests: podLevel, Limits: podLevel}
+
+		result := TotalPodResourceRequest(&pod.Spec)
+		assert.Equal(t, FromResourceList(makeContainerResource(8, 8)), result)
+	})
+
+	t.Run("nil pod-level leaves upstream behaviour unchanged", func(t *testing.T) {
+		container := makeContainerResource(2, 4)
+		pod := makePodWithResource([]*v1.ResourceList{&container}, []*v1.ResourceList{})
+		// pod.Spec.Resources stays nil
+
+		result := TotalPodResourceRequest(&pod.Spec)
+		assert.Equal(t, FromResourceList(makeContainerResource(2, 4)), result)
+	})
+}
+
 func TestTotalResourceRequest_NativeSidecarsShouldBeSummed(t *testing.T) {
 	mainResource := makeContainerResource(2, 1)
 	sidecarResource := makeContainerResource(1, 1)
