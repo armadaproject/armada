@@ -596,12 +596,12 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 	var candidateGangIterator CandidateGangIterator
 	var err error
 	if sch.marketDriven {
-		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangItByQueue)
+		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, qr, gangItByQueue)
 		if err != nil {
 			return err
 		}
 	} else {
-		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering)
+		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, qr, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering)
 		if err != nil {
 			return err
 		}
@@ -622,7 +622,8 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 				i++
 			}
 			q := qr.queues[gctx.Queue]
-			q.allocation.Add(gctx.TotalResourceRequests)
+			q.allocation = q.allocation.Add(gctx.TotalResourceRequests)
+			qr.queues[gctx.Queue] = q
 		}
 		if err := candidateGangIterator.Clear(); err != nil {
 			return err
