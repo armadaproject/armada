@@ -202,6 +202,9 @@ message Queue {
     // A list of Kubernetes-like key-value labels, e.g. armadaproject.io/priority=critical
     repeated string labels_deprecated = 9 [deprecated=true];
     map<string,string> labels = 10;
+    // retry_policies are the names of the retry policies attached to this queue,
+    // in precedence order. The scheduler evaluates the first policy in the list.
+    repeated string retry_policies = 11;
 }
 
 message PriorityClassResourceLimits {
@@ -230,6 +233,49 @@ message CancellationResult {
 // swagger:model
 message PreemptionResult {
     map<string, string> preemption_results = 1;
+}
+
+// RetryPolicy defines rules that determine whether failed jobs should be retried.
+// Operators create policies and assign them to queues by name.
+message RetryPolicy {
+    string name = 1;
+    // retry_limit is the maximum number of retries after the initial failure.
+    // A retry_limit of 0 means the policy never retries.
+    uint32 retry_limit = 2;
+    RetryAction default_action = 3;
+    repeated RetryRule rules = 4;
+}
+
+enum RetryAction {
+    RETRY_ACTION_UNSPECIFIED = 0;
+    RETRY_ACTION_FAIL = 1;
+    RETRY_ACTION_RETRY = 2;
+}
+
+message RetryRule {
+    RetryAction action = 1;
+    // Fields 2-4 (on_conditions, on_exit_codes, on_termination_message)
+    // are reserved for signal-based matchers.
+    reserved 2, 3, 4;
+    reserved "on_conditions", "on_exit_codes", "on_termination_message";
+    // on_category matches against Error.failure_category. When set with on_subcategory,
+    // both must match.
+    string on_category = 5;
+    string on_subcategory = 6;
+}
+
+message RetryPolicyGetRequest {
+    string name = 1;
+}
+
+message RetryPolicyDeleteRequest {
+    string name = 1;
+}
+
+message RetryPolicyListRequest {}
+
+message RetryPolicyList {
+    repeated RetryPolicy retry_policies = 1;
 }
 
 //swagger:model
@@ -319,6 +365,36 @@ service QueueService {
   rpc UncordonQueue (QueueUncordonRequest) returns (google.protobuf.Empty) {}
   rpc PreemptOnQueue (QueuePreemptRequest) returns (google.protobuf.Empty) {}
   rpc CancelOnQueue (QueueCancelRequest) returns (google.protobuf.Empty) {}
+}
+
+service RetryPolicyService {
+    rpc CreateRetryPolicy(RetryPolicy) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            post: "/v1/retry-policy"
+            body: "*"
+        };
+    }
+    rpc UpdateRetryPolicy(RetryPolicy) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            put: "/v1/retry-policy/{name}"
+            body: "*"
+        };
+    }
+    rpc DeleteRetryPolicy(RetryPolicyDeleteRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            delete: "/v1/retry-policy/{name}"
+        };
+    }
+    rpc GetRetryPolicy(RetryPolicyGetRequest) returns (RetryPolicy) {
+        option (google.api.http) = {
+            get: "/v1/retry-policy/{name}"
+        };
+    }
+    rpc GetRetryPolicies(RetryPolicyListRequest) returns (RetryPolicyList) {
+        option (google.api.http) = {
+            get: "/v1/retry-policies"
+        };
+    }
 }
 
 service Submit {

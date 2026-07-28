@@ -22,7 +22,25 @@ type ErrorCategoriesConfig struct {
 type CategoryConfig struct {
 	Name  string         `yaml:"name"`
 	Rules []CategoryRule `yaml:"rules"`
+	// Action is what the executor does with a failed pod in this category.
+	// Empty (the default) means Retain.
+	Action PodFailureAction `yaml:"action"`
 }
+
+// PodFailureAction is the executor's disposition of a failed pod in a category.
+type PodFailureAction string
+
+const (
+	// PodFailureActionRetain keeps the failed pod in place until normal GC, so
+	// its logs remain available for debugging.
+	PodFailureActionRetain PodFailureAction = "Retain"
+	// PodFailureActionDelete deletes the failed pod and reports the failure
+	// once the pod is gone, freeing the pod name for a retry of the same job.
+	// Whether the job is retried stays with the scheduler's retry policy.
+	// Intended for narrow infrastructure-failure categories replacing failed
+	// pod checks, not for broad categories like user errors.
+	PodFailureActionDelete PodFailureAction = "Delete"
+)
 
 // CategoryRule defines a single matching condition. Exactly one matcher must
 // be set per rule (validated by NewClassifier). Rules within a category are OR'd.

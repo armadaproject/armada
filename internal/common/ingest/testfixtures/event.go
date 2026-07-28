@@ -292,6 +292,29 @@ var JobRunCancelled = &armadaevents.EventSequence_Event{
 	},
 }
 
+var JobRunCancelledWithReason = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BasetimeProto,
+	Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+		JobRunCancelled: &armadaevents.JobRunCancelled{
+			RunId:     RunId,
+			JobId:     JobId,
+			Reason:    CancelReason,
+			Requestor: CancelUser,
+		},
+	},
+}
+
+var JobRunCancelledWithReasonOnly = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BasetimeProto,
+	Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+		JobRunCancelled: &armadaevents.JobRunCancelled{
+			RunId:  RunId,
+			JobId:  JobId,
+			Reason: CancelReason,
+		},
+	},
+}
+
 var LeaseReturned = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{

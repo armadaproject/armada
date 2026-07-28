@@ -1,5 +1,5 @@
 numBatches: 1
-batchSize: 1
+batchSize: 5
 queue: e2e-test-queue
 jobSetId: job-set-preemptible
 jobs:
@@ -11,7 +11,8 @@ jobs:
       priorityClassName: armada-preemptible
       containers:
         - name: sleeper
-          image: alpine:latest
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
           command:
             - sh
           args:
@@ -26,7 +27,7 @@ jobs:
               cpu: 100m
 ---
 action: ACTION_PREEMPT
-selection: SELECTION_BY_ID
+selection: SELECTION_BY_IDS
 preemptReason: "Test job preemption for validation"
 timeout: "100s"
 expectedEvents:

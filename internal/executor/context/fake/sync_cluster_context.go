@@ -3,6 +3,7 @@ package fake
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
@@ -22,6 +23,7 @@ type SyncFakeClusterContext struct {
 	AnnotationsAdded map[string]map[string]string
 	podEventHandlers []*cache.ResourceEventHandlerFuncs
 	GetPodEventsErr  error
+	rwLock           sync.RWMutex
 }
 
 func NewSyncFakeClusterContext() *SyncFakeClusterContext {
@@ -101,11 +103,27 @@ func (c *SyncFakeClusterContext) DeleteIngress(ingress *networking.Ingress) erro
 }
 
 func (c *SyncFakeClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {
+	c.rwLock.Lock()
+	defer c.rwLock.Unlock()
 	c.Pods[pod.Labels[domain.JobId]] = pod
 	return pod, nil
 }
 
+// GetAnnotationsAdded returns a copy of the recorded annotations, safe to
+// read while a handler goroutine is annotating.
+func (c *SyncFakeClusterContext) GetAnnotationsAdded() map[string]map[string]string {
+	c.rwLock.RLock()
+	defer c.rwLock.RUnlock()
+	snapshot := make(map[string]map[string]string, len(c.AnnotationsAdded))
+	for jobId, annotations := range c.AnnotationsAdded {
+		snapshot[jobId] = util.MergeMaps(map[string]string{}, annotations)
+	}
+	return snapshot
+}
+
 func (c *SyncFakeClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
+	c.rwLock.Lock()
+	defer c.rwLock.Unlock()
 	pod.Annotations = util.MergeMaps(pod.Annotations, annotations)
 	if c.AnnotationsAdded[pod.Labels[domain.JobId]] == nil {
 		c.AnnotationsAdded[pod.Labels[domain.JobId]] = map[string]string{}
@@ -122,6 +140,8 @@ func (c *SyncFakeClusterContext) DeletePodWithCondition(pod *v1.Pod, condition f
 }
 
 func (c *SyncFakeClusterContext) DeletePods(pods []*v1.Pod) {
+	c.rwLock.Lock()
+	defer c.rwLock.Unlock()
 	for _, p := range pods {
 		delete(c.Pods, p.Labels[domain.JobId])
 	}

@@ -37,6 +37,7 @@ message TestSpec {
         ACTION_NONE = 0; // No action.
         ACTION_CANCEL = 1; // Cancel jobs.
         ACTION_PREEMPT = 2; // Preempt jobs.
+        ACTION_REPRIORITIZE = 3; // Reprioritize jobs.
     }
     ActionType action = 9;
     // Selection method for the action.
@@ -49,6 +50,8 @@ message TestSpec {
     SelectionType selection = 17;
     // Reason for preempting jobs (if preemption is configured).
     string preempt_reason = 16;
+    // New priority to apply when reprioritizing jobs (if reprioritization is configured).
+    double new_priority = 15;
     // Test name. Defaults to the filename if not provided.
     string name = 10;
     // Randomize clientId if not provided

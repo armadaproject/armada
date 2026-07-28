@@ -1,12 +1,15 @@
 package configuration
 
 import (
+	"bytes"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
@@ -118,5 +121,46 @@ func assertResourceTypesEqual(t *testing.T, expected, actual []ResourceType) {
 		assert.True(t, expected[i].Resolution.Equal(actual[i].Resolution),
 			"index %d (%s): expected resolution %s, got %s",
 			i, expected[i].Name, expected[i].Resolution.String(), actual[i].Resolution.String())
+	}
+}
+
+// TestAwayPoolsDecoding verifies AwayPools decodes from both the deprecated
+// list-of-strings form and the new list-of-structs form. Decoding goes through
+// viper + commonconfig.CustomHooks, mirroring how the scheduler and simulator
+// actually load config (see internal/scheduler/simulator/runner.go).
+func TestAwayPoolsDecoding(t *testing.T) {
+	expected := []AwayPoolConfig{{Name: "poolA"}, {Name: "poolB"}}
+
+	tests := map[string]string{
+		"deprecated list of strings": `
+pools:
+  - name: home
+    awayPools:
+      - poolA
+      - poolB
+`,
+		"list of structs": `
+pools:
+  - name: home
+    awayPools:
+      - name: poolA
+      - name: poolB
+`,
+	}
+
+	for name, yamlConfig := range tests {
+		t.Run(name, func(t *testing.T) {
+			v := viper.NewWithOptions(viper.KeyDelimiter("::"))
+			v.SetConfigType("yaml")
+			require.NoError(t, v.ReadConfig(bytes.NewBufferString(yamlConfig)))
+
+			var sc SchedulingConfig
+			require.NoError(t, v.Unmarshal(&sc, commonconfig.CustomHooks...))
+
+			require.Len(t, sc.Pools, 1)
+			assert.Equal(t, "home", sc.Pools[0].Name)
+			assert.Equal(t, expected, sc.Pools[0].AwayPools)
+			assert.Equal(t, []string{"poolA", "poolB"}, sc.Pools[0].AwayPoolNames())
+		})
 	}
 }
