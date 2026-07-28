@@ -156,7 +156,7 @@ func TestReconcileZombieJobs(t *testing.T) {
 				dbConn, err := db.Acquire(ctx)
 				require.NoError(t, err)
 
-				repaired, err := ReconcileZombieJobs(ctx, dbConn.Conn(), tc.zombieRepairThreshold, tc.batchSize, clock.NewFakeClock(baseTime))
+				repaired, err := ReconcileZombieJobs(ctx, dbConn.Conn(), tc.zombieRepairThreshold, tc.zombieRepairThreshold, tc.batchSize, clock.NewFakeClock(baseTime))
 				require.NoError(t, err)
 
 				expectedRepairs := 0
@@ -214,12 +214,98 @@ func TestReconcileZombieJobsLeavesNonZombiesAlone(t *testing.T) {
 		dbConn, err := db.Acquire(ctx)
 		require.NoError(t, err)
 
-		repaired, err := ReconcileZombieJobs(ctx, dbConn.Conn(), 1*time.Hour, 10, clock.NewFakeClock(baseTime))
+		repaired, err := ReconcileZombieJobs(ctx, dbConn.Conn(), 1*time.Hour, 1*time.Hour, 10, clock.NewFakeClock(baseTime))
 		require.NoError(t, err)
 		assert.Equal(t, 0, repaired)
 
 		assert.Equal(t, lookout.JobRunning, readJobState(t, ctx, db, runningJobId))
 		assert.Equal(t, lookout.JobSucceeded, readJobState(t, ctx, db, healthyTerminalJobId))
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+// TestReconcileZombieJobsRepairsLeaseReturnedAndExpired verifies that jobs
+// left stuck in a non-terminal state whose latest run is lease-returned or
+// lease-expired -- because the job-level JobRequeued/JobErrors event that
+// should have followed was lost -- are conservatively repaired to FAILED.
+func TestReconcileZombieJobsRepairsLeaseReturnedAndExpired(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, "armadaproject.io/", []string{}, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10, 10)
+
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Minute)
+		defer cancel()
+
+		leaseReturnedJobId := util.NewULID()
+		leaseReturnedRunId := uuid.NewString()
+		repository.NewJobSimulator(converter, store).
+			Submit("queue", "jobSet", "owner", "namespace", baseTime.Add(-3*time.Hour), &repository.JobOptions{JobId: leaseReturnedJobId}).
+			Lease(leaseReturnedRunId, "cluster", "node", "pool", baseTime.Add(-3*time.Hour)).
+			Pending(leaseReturnedRunId, "cluster", baseTime.Add(-3*time.Hour)).
+			LeaseReturned(leaseReturnedRunId, "lease returned", baseTime.Add(-2*time.Hour)).
+			Build()
+
+		leaseExpiredJobId := util.NewULID()
+		leaseExpiredRunId := uuid.NewString()
+		repository.NewJobSimulator(converter, store).
+			Submit("queue", "jobSet", "owner", "namespace", baseTime.Add(-3*time.Hour), &repository.JobOptions{JobId: leaseExpiredJobId}).
+			Lease(leaseExpiredRunId, "cluster", "node", "pool", baseTime.Add(-3*time.Hour)).
+			Pending(leaseExpiredRunId, "cluster", baseTime.Add(-3*time.Hour)).
+			LeaseExpired(leaseExpiredRunId, baseTime.Add(-2*time.Hour), clock.NewFakeClock(baseTime)).
+			Build()
+
+		dbConn, err := db.Acquire(ctx)
+		require.NoError(t, err)
+
+		// zombieRepairThreshold is set to a value too long to have repaired
+		// these on its own (were it wrongly applied to this run-state group),
+		// proving leaseReturnedZombieRepairThreshold is what governs here.
+		repaired, err := ReconcileZombieJobs(ctx, dbConn.Conn(), 24*time.Hour, 1*time.Hour, 10, clock.NewFakeClock(baseTime))
+		require.NoError(t, err)
+		assert.Equal(t, 2, repaired)
+
+		assert.Equal(t, lookout.JobFailed, readJobState(t, ctx, db, leaseReturnedJobId))
+		assert.Equal(t, lookout.JobFailed, readJobState(t, ctx, db, leaseExpiredJobId))
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+// TestReconcileZombieJobsLeasesReturnedWithinGracePeriodAreLeftAlone verifies
+// that a lease-returned/expired run does not get repaired while still within
+// the grace period, since the job may simply be about to be re-leased.
+func TestReconcileZombieJobsLeasesReturnedWithinGracePeriodAreLeftAlone(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, "armadaproject.io/", []string{}, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10, 10)
+
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Minute)
+		defer cancel()
+
+		jobId := util.NewULID()
+		runId := uuid.NewString()
+		repository.NewJobSimulator(converter, store).
+			Submit("queue", "jobSet", "owner", "namespace", baseTime.Add(-1*time.Hour), &repository.JobOptions{JobId: jobId}).
+			Lease(runId, "cluster", "node", "pool", baseTime.Add(-1*time.Hour)).
+			Pending(runId, "cluster", baseTime.Add(-1*time.Hour)).
+			LeaseReturned(runId, "lease returned", baseTime.Add(-30*time.Minute)).
+			Build()
+
+		dbConn, err := db.Acquire(ctx)
+		require.NoError(t, err)
+
+		// zombieRepairThreshold is set far shorter than the run's 30-minute
+		// age -- if it were wrongly applied to this run-state group, the job
+		// would get repaired. leaseReturnedZombieRepairThreshold (1 hour) is
+		// what should govern here, and correctly leaves the job alone.
+		repaired, err := ReconcileZombieJobs(ctx, dbConn.Conn(), 1*time.Minute, 1*time.Hour, 10, clock.NewFakeClock(baseTime))
+		require.NoError(t, err)
+		assert.Equal(t, 0, repaired)
+
+		assert.Equal(t, lookout.JobPending, readJobState(t, ctx, db, jobId))
 
 		return nil
 	})
@@ -255,7 +341,7 @@ func TestReconcileZombieJobsCountsNullFinishedZombies(t *testing.T) {
 		dbConn, err := db.Acquire(ctx)
 		require.NoError(t, err)
 
-		repaired, err := ReconcileZombieJobs(ctx, dbConn.Conn(), 1*time.Hour, 10, clock.NewFakeClock(baseTime))
+		repaired, err := ReconcileZombieJobs(ctx, dbConn.Conn(), 1*time.Hour, 1*time.Hour, 10, clock.NewFakeClock(baseTime))
 		require.NoError(t, err)
 
 		// Not repaired: the reconciler refuses to touch a row with NULL finished.
@@ -294,7 +380,7 @@ func TestPruneDbRunsZombieReconciliation(t *testing.T) {
 		require.NoError(t, err)
 
 		isHC := isHotColdSchema(ctx, db)
-		err = PruneDb(ctx, dbConn.Conn(), 100*time.Hour, 100*time.Hour, 1*time.Hour, 10, clock.NewFakeClock(baseTime), isHC)
+		err = PruneDb(ctx, dbConn.Conn(), 100*time.Hour, 100*time.Hour, 1*time.Hour, 1*time.Hour, 10, clock.NewFakeClock(baseTime), isHC)
 		require.NoError(t, err)
 
 		assert.Equal(t, lookout.JobSucceeded, readJobState(t, ctx, db, zombie.jobId))

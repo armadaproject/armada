@@ -19,14 +19,15 @@ func PruneDb(
 	jobLifetime time.Duration,
 	deduplicationLifetime time.Duration,
 	zombieRepairThreshold time.Duration,
+	leaseReturnedZombieRepairThreshold time.Duration,
 	batchLimit int,
 	clock clock.Clock,
 	hotColdSplit bool,
 ) error {
 	var result *multierror.Error
 
-	if zombieRepairThreshold > 0 {
-		if _, err := ReconcileZombieJobs(ctx, db, zombieRepairThreshold, batchLimit, clock); err != nil {
+	if zombieRepairThreshold > 0 || leaseReturnedZombieRepairThreshold > 0 {
+		if _, err := ReconcileZombieJobs(ctx, db, zombieRepairThreshold, leaseReturnedZombieRepairThreshold, batchLimit, clock); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
