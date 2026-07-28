@@ -107,27 +107,6 @@ func (q *Queries) MarkJobRunsFailedById(ctx context.Context, runIds []string) er
 	return err
 }
 
-const markJobRunsPreemptRequestedByJobId = `-- name: MarkJobRunsPreemptRequestedByJobId :exec
-UPDATE jobs SET preempt_user = COALESCE(preempt_user, $1) WHERE queue = $2 and job_set = $3 and job_id = ANY($4::text[]) and terminated = false
-`
-
-type MarkJobRunsPreemptRequestedByJobIdParams struct {
-	PreemptUser *string  `db:"preempt_user"`
-	Queue       string   `db:"queue"`
-	JobSet      string   `db:"job_set"`
-	JobIds      []string `db:"job_ids"`
-}
-
-func (q *Queries) MarkJobRunsPreemptRequestedByJobId(ctx context.Context, arg MarkJobRunsPreemptRequestedByJobIdParams) error {
-	_, err := q.db.Exec(ctx, markJobRunsPreemptRequestedByJobId,
-		arg.PreemptUser,
-		arg.Queue,
-		arg.JobSet,
-		arg.JobIds,
-	)
-	return err
-}
-
 const markJobRunsReturnedById = `-- name: MarkJobRunsReturnedById :exec
 UPDATE runs SET returned = true WHERE run_id = ANY($1::text[])
 `
