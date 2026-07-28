@@ -394,6 +394,54 @@ func TestReconcileZombieJobsLeavesRequeuedJobsAloneEvenWithEqualTimestamp(t *tes
 	assert.NoError(t, err)
 }
 
+// TestReconcileZombieJobsUsesUTCClock verifies that the reconciler normalizes
+// clock.Now() to UTC before using it as a cutoff, so a clock returning a
+// non-UTC-zoned time.Time for the same instant still produces the correct
+// repair decision. job_run.finished is always written in UTC by the ingester
+// (see protoutil.ToStdTime), so a cutoff derived from the wall-clock digits of
+// a non-UTC time.Time -- rather than the UTC-normalized instant -- would be
+// skewed by the zone's offset and silently mis-repair jobs.
+func TestReconcileZombieJobsUsesUTCClock(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, "armadaproject.io/", []string{}, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10, 10)
+
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Minute)
+		defer cancel()
+
+		zombie := zombieScenario{
+			jobId:            util.NewULID(),
+			runFinishedAt:    baseTime.Add(-2 * time.Hour),
+			terminalJobState: lookout.JobSucceeded,
+			rewindToJobState: lookout.JobRunning,
+		}
+		seedTerminalJob(t, ctx, db, store, converter, zombie)
+		rewindJobState(t, ctx, db, zombie.jobId, zombie.rewindToJobState)
+
+		dbConn, err := db.Acquire(ctx)
+		require.NoError(t, err)
+
+		// The fake clock returns the same instant as baseTime, but represented
+		// in a non-UTC fixed zone. With a 1-hour threshold, the correct
+		// UTC-normalized cutoff (baseTime - 1h) is after the run's finished
+		// time (baseTime - 2h), so the zombie should be repaired. Without the
+		// .UTC() normalization, the cutoff would be computed from the -5h
+		// zone's wall-clock digits instead (effectively baseTime - 6h), which
+		// falls before the run's finished time and would wrongly leave the
+		// zombie unrepaired.
+		nonUTCClock := clock.NewFakeClock(baseTime.In(time.FixedZone("UTC-5", -5*60*60)))
+
+		repaired, err := ReconcileZombieJobs(ctx, dbConn.Conn(), 1*time.Hour, 1*time.Hour, 10, nonUTCClock)
+		require.NoError(t, err)
+		assert.Equal(t, 1, repaired)
+
+		assert.Equal(t, lookout.JobSucceeded, readJobState(t, ctx, db, zombie.jobId))
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 // TestReconcileZombieJobsCountsNullFinishedZombies verifies that zombie jobs
 // whose latest run has no finished timestamp are observed via the
 // zombiesSkippedNullFinished metric (and are NOT silently repaired with bogus
@@ -431,6 +479,57 @@ func TestReconcileZombieJobsCountsNullFinishedZombies(t *testing.T) {
 		assert.Equal(t, lookout.JobRunning, readJobState(t, ctx, db, jobId))
 
 		// Gauge reflects the current count of NULL-finished zombies.
+		assert.Equal(t, 1.0, testutil.ToFloat64(zombiesSkippedNullFinished))
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+// TestReconcileZombieJobsCountsLegitimatelyRequeuedNullFinishedJob documents a
+// known, currently-unfixable limitation of countZombiesWithNullFinishedQuery
+// (see the comment above that query): a job whose LEASE_RETURNED/LEASE_EXPIRED
+// run has a lost finished write, and which is then legitimately requeued
+// while waiting for its next lease, is indistinguishable from a true zombie
+// by this diagnostic query, since it has no run.finished to compare
+// job.last_transition_time against. This test locks in that documented
+// behaviour so a future change does not silently alter it. It only affects
+// the zombiesSkippedNullFinished metric -- the job's state is never mutated,
+// since the repair query still refuses to touch a row with NULL finished.
+func TestReconcileZombieJobsCountsLegitimatelyRequeuedNullFinishedJob(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, "armadaproject.io/", []string{}, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10, 10)
+
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Minute)
+		defer cancel()
+
+		jobId := util.NewULID()
+		runId := uuid.NewString()
+		repository.NewJobSimulator(converter, store).
+			Submit("queue", "jobSet", "owner", "namespace", baseTime.Add(-3*time.Hour), &repository.JobOptions{JobId: jobId}).
+			Lease(runId, "cluster", "node", "pool", baseTime.Add(-3*time.Hour)).
+			Pending(runId, "cluster", baseTime.Add(-3*time.Hour)).
+			LeaseReturned(runId, "lease returned", baseTime.Add(-2*time.Hour)).
+			Requeued(baseTime.Add(-90 * time.Minute)).
+			Build()
+
+		_, err := db.Exec(ctx, `UPDATE job_run SET finished = NULL WHERE job_id = $1`, jobId)
+		require.NoError(t, err)
+
+		dbConn, err := db.Acquire(ctx)
+		require.NoError(t, err)
+
+		repaired, err := ReconcileZombieJobs(ctx, dbConn.Conn(), 1*time.Hour, 1*time.Hour, 10, clock.NewFakeClock(baseTime))
+		require.NoError(t, err)
+
+		// Not repaired: the repair query still refuses to touch a row with
+		// NULL finished, regardless of the requeue guard.
+		assert.Equal(t, 0, repaired)
+		assert.Equal(t, lookout.JobQueued, readJobState(t, ctx, db, jobId))
+
+		// Documented limitation: the legitimately-requeued job is still
+		// counted here, because countZombiesWithNullFinishedQuery has no
+		// run.finished to check the requeue guard against.
 		assert.Equal(t, 1.0, testutil.ToFloat64(zombiesSkippedNullFinished))
 		return nil
 	})

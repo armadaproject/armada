@@ -163,13 +163,22 @@ func ReconcileZombieJobs(
 	// the zero time.Time (year 1) as the cutoff, rather than clock.Now(),
 	// ensures "r.finished < cutoff" can never match instead of matching
 	// everything already finished.
+	//
+	// clock.Now() is normalized to UTC before use: job_run.finished and
+	// job.last_transition_time are always written in UTC (see
+	// protoutil.ToStdTime(...).UTC() in the ingester), but clock.Now() is not
+	// guaranteed to return a UTC-zoned time.Time -- Postgres's naive
+	// "timestamp" columns encode the wall-clock digits of whatever zone the
+	// bind parameter is in, not a zone-normalized instant, so comparing a
+	// non-UTC cutoff against a UTC-stored value would silently skew every
+	// comparison in this file by the process's UTC offset.
 	cutOffTime := time.Time{}
 	if zombieRepairThreshold > 0 {
-		cutOffTime = clock.Now().Add(-zombieRepairThreshold)
+		cutOffTime = clock.Now().UTC().Add(-zombieRepairThreshold)
 	}
 	leaseReturnedCutOffTime := time.Time{}
 	if leaseReturnedZombieRepairThreshold > 0 {
-		leaseReturnedCutOffTime = clock.Now().Add(-leaseReturnedZombieRepairThreshold)
+		leaseReturnedCutOffTime = clock.Now().UTC().Add(-leaseReturnedZombieRepairThreshold)
 	}
 	totalRepaired := 0
 	for {
