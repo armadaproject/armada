@@ -4,6 +4,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+	"k8s.io/utils/ptr"
 
 	armadamath "github.com/armadaproject/armada/internal/common/math"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -176,11 +177,15 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 		if jobRepoJob.CancelByJobsetRequested && !job.CancelByJobsetRequested() {
 			job = job.WithCancelByJobsetRequested(true)
 		}
-		if jobRepoJob.CancelUser != nil && (job.CancelUser() == nil || *jobRepoJob.CancelUser != *job.CancelUser()) {
+		if !ptr.Equal(jobRepoJob.CancelUser, job.CancelUser()) {
 			job = job.WithCancelUser(jobRepoJob.CancelUser)
 		}
-		if jobRepoJob.CancelReason != nil && (job.CancelReason() == nil || *jobRepoJob.CancelReason != *job.CancelReason()) {
+		if !ptr.Equal(jobRepoJob.CancelReason, job.CancelReason()) {
 			job = job.WithCancelReason(jobRepoJob.CancelReason)
+		}
+		// Map reprioritize_user to generic requestor field for backwards compat
+		if !ptr.Equal(jobRepoJob.ReprioritizeUser, job.Requestor()) {
+			job = job.WithRequestor(jobRepoJob.ReprioritizeUser)
 		}
 		if jobRepoJob.Cancelled && !job.Cancelled() {
 			job = job.WithCancelled(true)
@@ -359,6 +364,9 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 	}
 	if dbJob.CancelReason != nil {
 		job = job.WithCancelReason(dbJob.CancelReason)
+	}
+	if dbJob.ReprioritizeUser != nil {
+		job = job.WithRequestor(dbJob.ReprioritizeUser)
 	}
 	return job, nil
 }
