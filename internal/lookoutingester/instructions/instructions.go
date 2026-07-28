@@ -100,6 +100,8 @@ func (c *InstructionConverter) convertSequence(
 			err = c.handleReprioritiseJob(ts, event.GetReprioritisedJob(), update)
 		case *armadaevents.EventSequence_Event_CancelledJob:
 			err = c.handleCancelledJob(ts, owner, event.GetCancelledJob(), update)
+		case *armadaevents.EventSequence_Event_JobPreemptionRequested:
+			err = c.handleJobPreemptionRequested(owner, event.GetJobPreemptionRequested(), update)
 		case *armadaevents.EventSequence_Event_JobSucceeded:
 			err = c.handleJobSucceeded(ts, event.GetJobSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobErrors:
@@ -246,9 +248,14 @@ func sanitizeForJsonb(s string) string {
 }
 
 func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
+	var reprioritizeUser *string
+	if event.Requestor != "" {
+		reprioritizeUser = &event.Requestor
+	}
 	jobUpdate := model.UpdateJobInstruction{
-		JobId:    event.JobId,
-		Priority: pointer.Int64(int64(event.Priority)),
+		JobId:            event.JobId,
+		Priority:         pointer.Int64(int64(event.Priority)),
+		ReprioritizeUser: reprioritizeUser,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
@@ -267,6 +274,8 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, requestor string
 	if requestor != "" {
 		cancelUser = &requestor
 	}
+
+	// For cancelled jobs, use cancel_user as the canonical actor field.
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:                     event.GetJobId(),
 		State:                     pointer.Int32(int32(lookout.JobCancelledOrdinal)),
@@ -275,6 +284,20 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, requestor string
 		CancelUser:                cancelUser,
 		LastTransitionTime:        &ts,
 		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
+	}
+	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
+	return nil
+}
+
+func (c *InstructionConverter) handleJobPreemptionRequested(requestor string, event *armadaevents.JobPreemptionRequested, update *model.InstructionSet) error {
+	var user *string
+	if requestor != "" {
+		user = &requestor
+	}
+
+	jobUpdate := model.UpdateJobInstruction{
+		JobId:       event.JobId,
+		PreemptUser: user,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
