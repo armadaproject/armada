@@ -14,15 +14,16 @@ import (
 )
 
 func TestRequestorFromEvent(t *testing.T) {
+	requestor := "alice"
 	for name, event := range map[string]api.Event{
-		"preempting event":     &api.JobPreemptingEvent{Requestor: "alice"},
-		"cancelling event":     &api.JobCancellingEvent{Requestor: "alice"},
-		"cancelled event":      &api.JobCancelledEvent{Requestor: "alice"},
-		"reprioritizing event": &api.JobReprioritizingEvent{Requestor: "alice"},
-		"reprioritized event":  &api.JobReprioritizedEvent{Requestor: "alice"},
+		"preempting event":     &api.JobPreemptingEvent{Requestor: requestor},
+		"cancelling event":     &api.JobCancellingEvent{Requestor: requestor},
+		"cancelled event":      &api.JobCancelledEvent{Requestor: requestor},
+		"reprioritizing event": &api.JobReprioritizingEvent{Requestor: requestor},
+		"reprioritized event":  &api.JobReprioritizedEvent{Requestor: requestor},
 	} {
 		t.Run("returns requestor for "+name, func(t *testing.T) {
-			assert.Equal(t, "alice", requestorFromEvent(event))
+			assert.Equal(t, requestor, requestorFromEvent(event))
 		})
 	}
 
