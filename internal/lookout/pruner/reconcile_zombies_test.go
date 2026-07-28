@@ -355,6 +355,45 @@ func TestReconcileZombieJobsLeavesLegitimatelyRequeuedJobsAlone(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TestReconcileZombieJobsLeavesRequeuedJobsAloneEvenWithEqualTimestamp
+// verifies that the requeue guard uses a strict "<" comparison: a JobRequeued
+// event timestamped identically to the preceding lease-returned/expired event
+// (e.g. both derived from the same ingested batch) must still count as having
+// touched the job, since a non-strict "<=" would incorrectly let this
+// legitimately-requeued job be repaired to FAILED.
+func TestReconcileZombieJobsLeavesRequeuedJobsAloneEvenWithEqualTimestamp(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, "armadaproject.io/", []string{}, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10, 10)
+
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Minute)
+		defer cancel()
+
+		jobId := util.NewULID()
+		runId := uuid.NewString()
+		leaseReturnedAt := baseTime.Add(-2 * time.Hour)
+		repository.NewJobSimulator(converter, store).
+			Submit("queue", "jobSet", "owner", "namespace", baseTime.Add(-3*time.Hour), &repository.JobOptions{JobId: jobId}).
+			Lease(runId, "cluster", "node", "pool", baseTime.Add(-3*time.Hour)).
+			Pending(runId, "cluster", baseTime.Add(-3*time.Hour)).
+			LeaseReturned(runId, "lease returned", leaseReturnedAt).
+			Requeued(leaseReturnedAt).
+			Build()
+
+		dbConn, err := db.Acquire(ctx)
+		require.NoError(t, err)
+
+		repaired, err := ReconcileZombieJobs(ctx, dbConn.Conn(), 1*time.Hour, 1*time.Hour, 10, clock.NewFakeClock(baseTime))
+		require.NoError(t, err)
+		assert.Equal(t, 0, repaired)
+
+		assert.Equal(t, lookout.JobQueued, readJobState(t, ctx, db, jobId))
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 // TestReconcileZombieJobsCountsNullFinishedZombies verifies that zombie jobs
 // whose latest run has no finished timestamp are observed via the
 // zombiesSkippedNullFinished metric (and are NOT silently repaired with bogus

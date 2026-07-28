@@ -38,13 +38,16 @@ import (
 // ordinary ingester lag to arrive.
 //
 // The LEASE_RETURNED/LEASE_EXPIRED branch additionally requires
-// job.last_transition_time <= run.finished. A successful requeue moves
-// job.state to QUEUED (advancing last_transition_time) without changing
-// latest_run_id, which still keeps pointing at the old lease-returned/expired
-// run until the next lease is granted. Without this check, a job that was
-// legitimately requeued and is simply waiting for its next lease -- rather
-// than one whose follow-up event was lost -- would be misdetected as a
-// zombie and incorrectly marked FAILED.
+// job.last_transition_time < run.finished (strictly). A successful requeue
+// moves job.state to QUEUED (advancing last_transition_time) without
+// changing latest_run_id, which still keeps pointing at the old
+// lease-returned/expired run until the next lease is granted. Without this
+// check, a job that was legitimately requeued and is simply waiting for its
+// next lease -- rather than one whose follow-up event was lost -- would be
+// misdetected as a zombie and incorrectly marked FAILED. The comparison must
+// be strict rather than <=: a requeue timestamped identically to the
+// lease-returned/expired event (e.g. both derived from the same ingested
+// batch) still counts as having touched the job.
 var reconcileZombiesQuery = fmt.Sprintf(`
 	UPDATE job
 	SET state                        = mapping.new_state,
@@ -86,10 +89,13 @@ var reconcileZombiesQuery = fmt.Sprintf(`
 		      -- now-stale lease-returned/expired run until the next lease is
 		      -- granted. Without this check, a job that was legitimately
 		      -- requeued and is simply waiting for its next lease would be
-		      -- misdetected as a zombie. Requiring last_transition_time <=
-		      -- finished restricts the match to jobs no later event has
-		      -- touched since the lease was returned/expired.
-		      AND j.last_transition_time <= r.finished
+		      -- misdetected as a zombie. The comparison is strict (<, not <=)
+		      -- because a requeue recorded with the same timestamp as the
+		      -- lease-returned/expired event (e.g. both derived from the same
+		      -- ingested batch) must still count as "touched": only a
+		      -- last_transition_time strictly before finished proves no
+		      -- later event has updated the job since the run finished.
+		      AND j.last_transition_time < r.finished
 		    )
 		  )
 		LIMIT $3
