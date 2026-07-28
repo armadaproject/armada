@@ -1150,6 +1150,83 @@ func TestValidateResources(t *testing.T) {
 	}
 }
 
+// TestValidateResources_PodLevel covers Kubernetes pod-level resources (KEP-2837),
+// gated by SubmissionConfig.PodLevelResources.
+func TestValidateResources_PodLevel(t *testing.T) {
+	oneCpu := v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")}
+	twoCpu := v1.ResourceList{v1.ResourceCPU: resource.MustParse("2")}
+	negativeCpu := v1.ResourceList{v1.ResourceCPU: resource.MustParse("-1")}
+
+	// Container that declares no resources of its own.
+	emptyContainer := []v1.Container{{Name: "main"}}
+
+	req := func(podResources *v1.ResourceRequirements, containers []v1.Container) *api.JobSubmitRequestItem {
+		return &api.JobSubmitRequestItem{
+			PodSpec: &v1.PodSpec{
+				Containers: containers,
+				Resources:  podResources,
+			},
+		}
+	}
+
+	tests := map[string]struct {
+		req             *api.JobSubmitRequestItem
+		podLevelEnabled bool
+		expectSuccess   bool
+	}{
+		"pod-level-only accepted when feature enabled": {
+			req:             req(&v1.ResourceRequirements{Requests: oneCpu, Limits: oneCpu}, emptyContainer),
+			podLevelEnabled: true,
+			expectSuccess:   true,
+		},
+		"pod-level-only rejected when feature disabled": {
+			req:             req(&v1.ResourceRequirements{Requests: oneCpu, Limits: oneCpu}, emptyContainer),
+			podLevelEnabled: false,
+			expectSuccess:   false,
+		},
+		"empty container with NO pod-level still rejected even when enabled": {
+			req:             req(nil, emptyContainer),
+			podLevelEnabled: true,
+			expectSuccess:   false,
+		},
+		"pod-level with limits < requests rejected": {
+			req:             req(&v1.ResourceRequirements{Requests: twoCpu, Limits: oneCpu}, emptyContainer),
+			podLevelEnabled: true,
+			expectSuccess:   false,
+		},
+		"pod-level negative request rejected": {
+			req:             req(&v1.ResourceRequirements{Requests: negativeCpu, Limits: negativeCpu}, emptyContainer),
+			podLevelEnabled: true,
+			expectSuccess:   false,
+		},
+		"pod-level empty block rejected": {
+			req:             req(&v1.ResourceRequirements{}, emptyContainer),
+			podLevelEnabled: true,
+			expectSuccess:   false,
+		},
+		"container-only still valid with feature enabled": {
+			req: req(nil, []v1.Container{{
+				Name:      "main",
+				Resources: v1.ResourceRequirements{Requests: oneCpu, Limits: oneCpu},
+			}}),
+			podLevelEnabled: true,
+			expectSuccess:   true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			cfg := configuration.SubmissionConfig{PodLevelResources: tc.podLevelEnabled}
+			err := validateResources(tc.req, cfg)
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
 func TestValidateTerminationGracePeriod(t *testing.T) {
 	defaultMinPeriod := 30 * time.Second
 	defaultMaxPeriod := 300 * time.Second

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
 	"github.com/armadaproject/armada/internal/common/constants"
@@ -252,8 +253,21 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 	if maxOversubscriptionByResource == nil {
 		maxOversubscriptionByResource = map[string]float64{}
 	}
+	// Pod-level resources (KEP-2837): when enabled and a pod-level block is set, a
+	// container may omit its own resources. Containers that do set resources are
+	// still validated below, as is the pod-level block itself.
+	podLevelResourcesEnabled := config.PodLevelResources && spec.Resources != nil
+	if podLevelResourcesEnabled {
+		if err := validatePodLevelResources(spec.Resources, maxOversubscriptionByResource, config); err != nil {
+			return err
+		}
+	}
 	for _, container := range armadaslices.Concatenate(spec.Containers, spec.InitContainers) {
 		if len(container.Resources.Requests) == 0 && len(container.Resources.Limits) == 0 {
+			if podLevelResourcesEnabled {
+				// Budget is supplied at the pod level; nothing to validate for this container.
+				continue
+			}
 			return fmt.Errorf("container %v has no resources specified", container.Name)
 		}
 
@@ -303,6 +317,56 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 					&serverRsc,
 				)
 			}
+		}
+	}
+	return nil
+}
+
+// validatePodLevelResources validates a pod-level resources block (KEP-2837),
+// mirroring the per-container checks: requests and limits must be non-negative,
+// cover the same resource set, satisfy limit >= request within the
+// max-oversubscription ratio, and meet MinJobResources.
+func validatePodLevelResources(
+	resources *v1.ResourceRequirements,
+	maxOversubscriptionByResource map[string]float64,
+	config configuration.SubmissionConfig,
+) error {
+	if len(resources.Requests) == 0 && len(resources.Limits) == 0 {
+		return fmt.Errorf("pod-level resources block is empty")
+	}
+	if len(resources.Requests) != len(resources.Limits) {
+		return fmt.Errorf("pod-level resources define different resources for requests and limits")
+	}
+	for resourceName, request := range resources.Requests {
+		if request.Sign() < 0 {
+			return fmt.Errorf("pod-level resources define negative request (%s) for resource %s", request.String(), resourceName)
+		}
+	}
+	for resourceName, limit := range resources.Limits {
+		if limit.Sign() < 0 {
+			return fmt.Errorf("pod-level resources define negative limit (%s) for resource %s", limit.String(), resourceName)
+		}
+	}
+	for resourceName, request := range resources.Requests {
+		limit, ok := resources.Limits[resourceName]
+		if !ok {
+			return fmt.Errorf("pod-level resources define %s for requests but not limits", resourceName)
+		}
+		if limit.MilliValue() < request.MilliValue() {
+			return fmt.Errorf("pod-level resources define %s with limits smaller than requests", resourceName)
+		}
+		maxOversubscription, ok := maxOversubscriptionByResource[resourceName.String()]
+		if !ok {
+			maxOversubscription = 1.0
+		}
+		if float64(limit.MilliValue()) > maxOversubscription*float64(request.MilliValue()) {
+			return fmt.Errorf("pod-level resources define %s with limits greater than %.2f*requests", resourceName, maxOversubscription)
+		}
+	}
+	for rc, podRsc := range resources.Requests {
+		serverRsc, nonEmpty := config.MinJobResources[rc]
+		if nonEmpty && podRsc.Value() < serverRsc.Value() {
+			return fmt.Errorf("pod-level %s requests (%s) below server minimum (%s)", rc, &podRsc, &serverRsc)
 		}
 	}
 	return nil
