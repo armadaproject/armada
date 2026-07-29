@@ -681,6 +681,123 @@ func TestQueueScheduler(t *testing.T) {
 	}
 }
 
+func newQueueSchedulerSctx(t *testing.T, config configuration.SchedulingConfig, totalResources internaltypes.ResourceList, queues []string) *context.SchedulingContext {
+	t.Helper()
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, testfixtures.TestPool, config)
+	require.NoError(t, err)
+	sctx := context.NewSchedulingContext(
+		"pool",
+		fairnessCostProvider,
+		rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+		totalResources,
+	)
+	for _, q := range queues {
+		require.NoError(t, sctx.AddQueueSchedulingContext(
+			q, 1, 1, nil,
+			internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{},
+			rate.NewLimiter(rate.Limit(config.MaximumPerQueueSchedulingRate), config.MaximumPerQueueSchedulingBurst),
+		))
+	}
+	sctx.UpdateFairShares()
+	return sctx
+}
+
+func TestQueueScheduler_PreemptedJobsGetMarkedInSctx(t *testing.T) {
+	config := testfixtures.TestSchedulingConfig()
+	nodeDb, err := NewNodeDb(config, stringinterner.New(1024))
+	require.NoError(t, err)
+
+	// Fully allocate the node with a low-priority jobs in queue A.
+	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+	existingJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)
+	txn := nodeDb.Txn(true)
+	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, existingJobs, node.DeepCopyNilKeys()))
+	txn.Commit()
+
+	// Evict the existing jobs and register them so they are candidates for fair-share preemption.
+	dbNode, err := nodeDb.GetNode(node.GetId())
+	require.NoError(t, err)
+	evictedNode, err := nodeDb.EvictJobsFromNode(existingJobs, dbNode)
+	require.NoError(t, err)
+	txn = nodeDb.Txn(true)
+	require.NoError(t, nodeDb.UpsertWithTxn(txn, evictedNode))
+	evictedJctxByJobId := make(map[string]*context.JobSchedulingContext, len(existingJobs))
+	for i, job := range existingJobs {
+		evictedJctx := context.JobSchedulingContextFromJob(job)
+		evictedJctx.SetAssignedNode(evictedNode)
+		evictedJctxByJobId[job.Id()] = evictedJctx
+		require.NoError(t, nodeDb.AddEvictedJobSchedulingContextWithTxn(txn, i, evictedJctx))
+	}
+	txn.Commit()
+
+	sctx := newQueueSchedulerSctx(t, config, nodeDb.TotalKubernetesResources(), []string{"A", "B"})
+	constraints := schedulerconstraints.NewSchedulingConstraints("pool", nodeDb.TotalKubernetesResources(), config,
+		[]*api.Queue{{Name: "A"}, {Name: "B"}})
+
+	// New job must preempt one of the existing jobs to fit on
+	job := testfixtures.Test1Cpu4GiJob("B", testfixtures.PriorityClass1)
+	jobRepo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.JobPriorityComparer{})
+	jobRepo.EnqueueMany(context.JobSchedulingContextsFromJobs([]*jobdb.Job{job}))
+	jobIteratorByQueue := map[string]JobContextIterator{
+		"A": jobRepo.GetJobIterator("A"),
+		"B": jobRepo.GetJobIterator("B"),
+	}
+
+	sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, true, config.EnablePreferLargeJobOrdering, config.MaxQueueLookback, false, 0, clock.RealClock{})
+	require.NoError(t, err)
+
+	result, err := sch.Schedule(armadacontext.Background())
+	require.NoError(t, err)
+
+	require.Len(t, result.ScheduledJobs, 1)
+	require.Equal(t, job.Id(), result.ScheduledJobs[0].JobId)
+
+	// Exactly one incumbent should be preempted, marked in both the jctx and the sctx.
+	preemptedCount := 0
+	for jobId, evictedJctx := range evictedJctxByJobId {
+		markedInSctx := sctx.IsJobPreempted(jobId)
+		markedInJctx := evictedJctx.PreemptingJob != nil
+		require.Equal(t, markedInSctx, markedInJctx, "sctx and jctx preemption marking disagree for job %s", jobId)
+		if markedInJctx {
+			preemptedCount++
+			require.Equal(t, job.Id(), evictedJctx.PreemptingJob.Id())
+		}
+	}
+	require.Equal(t, 1, preemptedCount, "expected exactly one incumbent to be preempted")
+}
+
+func TestQueueScheduler_SkipsPreemptedCandidate(t *testing.T) {
+	config := testfixtures.TestSchedulingConfig()
+	nodeDb, err := NewNodeDb(config, stringinterner.New(1024))
+	require.NoError(t, err)
+
+	txn := nodeDb.Txn(true)
+	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, testfixtures.Test32CpuNode(testfixtures.TestPriorities)))
+	txn.Commit()
+
+	sctx := newQueueSchedulerSctx(t, config, nodeDb.TotalKubernetesResources(), []string{"A"})
+	constraints := schedulerconstraints.NewSchedulingConstraints("pool", nodeDb.TotalKubernetesResources(), config,
+		[]*api.Queue{{Name: "A"}})
+
+	jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2)
+	jctxs := context.JobSchedulingContextsFromJobs(jobs)
+	// Mark the first job as already preempted this round; it must not be re-scheduled.
+	sctx.MarkJobPreempted(jobs[0].Id())
+
+	jobRepo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.JobPriorityComparer{})
+	jobRepo.EnqueueMany(jctxs)
+	jobIteratorByQueue := map[string]JobContextIterator{"A": jobRepo.GetJobIterator("A")}
+
+	sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, config.EnablePreferLargeJobOrdering, config.MaxQueueLookback, false, 0, clock.RealClock{})
+	require.NoError(t, err)
+
+	result, err := sch.Schedule(armadacontext.Background())
+	require.NoError(t, err)
+
+	assert.Len(t, result.ScheduledJobs, 1)
+	require.Equal(t, jobs[1].Id(), result.ScheduledJobs[0].JobId)
+}
+
 func NewNodeDb(config configuration.SchedulingConfig, stringInterner *stringinterner.StringInterner) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		config.PriorityClasses,
@@ -1036,6 +1153,35 @@ func createJctx(evicted bool) *context.JobSchedulingContext {
 	jctx := context.JobSchedulingContextFromJob(job)
 	jctx.IsEvicted = evicted
 	return jctx
+}
+
+func createGangJctx(gangId string, cardinality int) *context.JobSchedulingContext {
+	job := testfixtures.Test1Cpu4GiJob("A", testfixtures.PriorityClass0).
+		WithGangInfo(jobdb.CreateGangInfo(gangId, cardinality, ""))
+	jctx := context.JobSchedulingContextFromJob(job)
+	jctx.IsEvicted = true
+	return jctx
+}
+
+func TestGangContainsPreemptedJob(t *testing.T) {
+	sctx := context.NewSchedulingContext("pool", nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+
+	gangJob1 := createGangJctx("gang-1", 2)
+	gangJob2 := createGangJctx("gang-1", 2)
+	standalone := createJctx(true)
+
+	// No preempted jobs registered: nothing is skipped.
+	assert.False(t, gangContainsPreemptedJob(sctx, []*context.JobSchedulingContext{gangJob1, gangJob2}))
+	assert.False(t, gangContainsPreemptedJob(sctx, []*context.JobSchedulingContext{standalone}))
+
+	// A gang with any preempted member is considered preempted
+	sctx.MarkJobPreempted(gangJob1.JobId)
+	assert.True(t, gangContainsPreemptedJob(sctx, []*context.JobSchedulingContext{gangJob1, gangJob2}))
+	assert.False(t, gangContainsPreemptedJob(sctx, []*context.JobSchedulingContext{standalone}))
+
+	// A preempted standalone job marked as preempted is considered preempted
+	sctx.MarkJobPreempted(standalone.JobId)
+	assert.True(t, gangContainsPreemptedJob(sctx, []*context.JobSchedulingContext{standalone}))
 }
 
 func TestQueueSchedulerTimeouts(t *testing.T) {

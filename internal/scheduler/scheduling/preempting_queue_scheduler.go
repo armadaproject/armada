@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"time"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/benbjohnson/immutable"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
@@ -196,6 +197,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	// Only necessary if a non-zero number of jobs were evicted.
 	if len(reevictResult.EvictedJctxsByJobId) > 0 {
 		ctx.Logger().WithField("stage", "scheduling-algo").Info("Performing second scheduling ")
+		log.Info("####################")
 		rescheduleSchedulerResult, rescheduleErr := sch.schedule(
 			armadacontext.WithLogField(ctx, "stage", "schedule after oversubscribed eviction"),
 			inMemoryJobRepo,
