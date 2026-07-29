@@ -29,12 +29,11 @@ func applyRandomSuffix(testSpec *api.TestSpec) {
 // batch_size queues are created per round, for num_batches rounds (defaults to 1 if unset),
 // waiting interval between rounds.
 func RunSetup(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, out io.Writer) ([]string, error) {
-	applyRandomSuffix(testSpec)
-
 	setup := testSpec.GetQueueConfig().GetSetup()
 	if setup == nil {
 		return nil, nil
 	}
+	applyRandomSuffix(testSpec)
 	batchSize := setup.GetBatchSize()
 	if batchSize == 0 {
 		batchSize = 1
