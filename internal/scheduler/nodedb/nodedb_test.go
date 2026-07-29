@@ -915,6 +915,84 @@ func TestPreemptionScheduling(t *testing.T) {
 	}
 }
 
+func TestFairSharePreemption_RespectsPriorityOrder(t *testing.T) {
+	tests := map[string]struct {
+		evictedJobPriorityClass string
+		newJobPriorityClass     string
+		expectScheduled         bool
+	}{
+		"cannot fair-share preempt higher-priority jobs": {
+			evictedJobPriorityClass: testfixtures.PriorityClass2,
+			newJobPriorityClass:     testfixtures.PriorityClass1,
+			expectScheduled:         false,
+		},
+		"can fair-share preempt equal-priority jobs": {
+			evictedJobPriorityClass: testfixtures.PriorityClass1,
+			newJobPriorityClass:     testfixtures.PriorityClass1,
+			expectScheduled:         true,
+		},
+		"can fair-share preempt lower-priority jobs": {
+			evictedJobPriorityClass: testfixtures.PriorityClass0,
+			newJobPriorityClass:     testfixtures.PriorityClass1,
+			expectScheduled:         true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			nodeDb, err := newNodeDbWithNodes(nil)
+			require.NoError(t, err)
+			// Disable urgency-based preemption so that fair-share preemption is the only preemption method available
+			nodeDb.ConfigureScheduling(SchedulingOptions{
+				DisableUrgencyScheduling: true,
+			})
+
+			// Fully allocate the node
+			txn := nodeDb.Txn(true)
+			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+			evictedJob := testfixtures.N1Cpu4GiJobs("A", tc.evictedJobPriorityClass, 32)
+			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, evictedJob, node))
+			txn.Commit()
+
+			// Evict the existing job
+			node, err = nodeDb.GetNode(node.GetId())
+			require.NoError(t, err)
+			evictedNode, err := nodeDb.EvictJobsFromNode(evictedJob, node)
+			require.NoError(t, err)
+
+			txn = nodeDb.Txn(true)
+			require.NoError(t, nodeDb.UpsertWithTxn(txn, evictedNode))
+			for i, job := range evictedJob {
+				evictedJctx := context.JobSchedulingContextFromJob(job)
+				evictedJctx.SetAssignedNode(evictedNode)
+				require.NoError(t, nodeDb.AddEvictedJobSchedulingContextWithTxn(txn, i, evictedJctx))
+			}
+			txn.Commit()
+
+			// Try to schedule a single incoming job that only fits if incumbents are preempted.
+			incoming := testfixtures.Test1Cpu4GiJob("B", tc.newJobPriorityClass)
+			jctx := context.JobSchedulingContextFromJob(incoming)
+			gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
+
+			txn = nodeDb.Txn(true)
+			defer txn.Abort()
+			ok, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.expectScheduled, ok)
+			require.NotNil(t, jctx.PodSchedulingContext)
+			if tc.expectScheduled {
+				assert.True(t, jctx.PodSchedulingContext.IsSuccessful())
+				assert.Equal(t, node.GetId(), jctx.PodSchedulingContext.NodeId)
+				assert.Equal(t, context.ScheduledWithFairSharePreemption, jctx.PodSchedulingContext.SchedulingMethod)
+			} else {
+				assert.False(t, jctx.PodSchedulingContext.IsSuccessful())
+				assert.Empty(t, jctx.PodSchedulingContext.NodeId)
+			}
+		})
+	}
+}
+
 func TestMatchesConditions(t *testing.T) {
 	cpu0 := resource.MustParse("0")
 	cpu2 := resource.MustParse("2")
