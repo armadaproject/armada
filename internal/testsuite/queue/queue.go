@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -18,22 +17,14 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-// applyRandomSuffix appends a random suffix to testSpec.Queue, since queues created for a
-// test are never intended to be reused.
-func applyRandomSuffix(testSpec *api.TestSpec) {
-	testSpec.Queue = testSpec.Queue + "-" + shortuuid.New()
-}
-
 // RunSetup randomises the test's queue name, then creates the queue(s) if configured, and
-// returns the names of the queues created. Mirrors submitter.Submitter.Run's batching structure:
-// batch_size queues are created per round, for num_batches rounds (defaults to 1 if unset),
-// waiting interval between rounds.
+// returns the names of the queues created.
 func RunSetup(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, out io.Writer) ([]string, error) {
 	setup := testSpec.GetQueueConfig().GetSetup()
 	if setup == nil {
 		return nil, nil
 	}
-	applyRandomSuffix(testSpec)
+	testSpec.Queue = testSpec.Queue + "-" + shortuuid.New()
 	batchSize := setup.GetBatchSize()
 	if batchSize == 0 {
 		batchSize = 1
@@ -66,7 +57,13 @@ func RunSetup(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConne
 				return ctx.Err()
 			case <-tickerCh:
 				batchQueues := queuesForBatch(testSpec.Queue, queueSpec, batchSize, len(queueNames) == 0)
-				if err := createQueueBatch(ctx, qsc, batchQueues, out); err != nil {
+				var err error
+				if len(batchQueues) == 1 {
+					_, err = qsc.CreateQueue(ctx, batchQueues[0])
+				} else {
+					_, err = qsc.CreateQueues(ctx, &api.QueueList{Queues: batchQueues})
+				}
+				if err != nil {
 					return err
 				}
 				fmt.Fprintf(out, "created %d queue(s)\n", len(batchQueues))
@@ -109,9 +106,7 @@ func queuesForBatch(baseName string, queueSpec *api.Queue, batchSize uint32, isF
 	return queues
 }
 
-// queueFromSpec clones spec, naming the copy after baseName if spec doesn't set its own name.
-// Unless isFirstQueue, a random suffix is appended so the same spec can be reused to create
-// many batches of queues with identical properties without name collisions.
+// queueFromSpec creates queues from the queueSpec will append suffix to every queue after the first
 func queueFromSpec(baseName string, spec *api.Queue, isFirstQueue bool) *api.Queue {
 	clone := proto.Clone(spec).(*api.Queue)
 	if clone.PriorityFactor == 0 {
@@ -124,44 +119,6 @@ func queueFromSpec(baseName string, spec *api.Queue, isFirstQueue bool) *api.Que
 		clone.Name = clone.Name + "-" + shortuuid.New()
 	}
 	return clone
-}
-
-// createQueueBatch creates the given queues, using the batched CreateQueues endpoint
-// (POST /v1/batched/create_queues) when there is more than one queue to create so that
-// endpoint is exercised. Falls back to individual CreateQueue calls for a single queue.
-func createQueueBatch(ctx context.Context, qsc api.QueueServiceClient, queues []*api.Queue, out io.Writer) error {
-	if len(queues) == 1 {
-		return createOneQueue(ctx, qsc, queues[0], out)
-	}
-	createCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	resp, err := qsc.CreateQueues(createCtx, &api.QueueList{Queues: queues})
-	if err != nil {
-		return errors.Wrap(err, "CreateQueues (batched) failed")
-	}
-	for _, failed := range resp.GetFailedQueues() {
-		if strings.Contains(failed.GetError(), codes.AlreadyExists.String()) {
-			fmt.Fprintf(out, "queue %s already exists, continuing\n", failed.GetQueue().GetName())
-			continue
-		}
-		return fmt.Errorf("failed to create queue %s: %s", failed.GetQueue().GetName(), failed.GetError())
-	}
-	return nil
-}
-
-// createOneQueue creates a single queue.
-func createOneQueue(ctx context.Context, qsc api.QueueServiceClient, queue *api.Queue, out io.Writer) error {
-	createCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	_, err := qsc.CreateQueue(createCtx, queue)
-	if err != nil {
-		if s, ok := status.FromError(err); ok && s.Code() == codes.AlreadyExists {
-			fmt.Fprintf(out, "queue %s already exists, continuing\n", queue.Name)
-			return nil
-		}
-		return errors.Wrapf(err, "failed to create queue %s", queue.Name)
-	}
-	return nil
 }
 
 // RunUpdate applies the configured update to the queue(s), if configured.
