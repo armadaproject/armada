@@ -52,7 +52,6 @@ A list of checks, run in order after `update`:
 queueConfig:
     assertions:
         - activeInPool: "default" # queue appears in GetActiveQueues for this pool
-        - notActiveInPool: "default" # queue does NOT appear in GetActiveQueues for this pool
         - appearsInStream: true # queue appears in the GetQueues streaming response
         - matches: # GetQueue's result matches this template
               priorityFactor: 2.0 # (useful for verifying an `update` was applied)
