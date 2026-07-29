@@ -3,8 +3,8 @@ queue: e2e-test-queue
 timeout: "30s"
 queueConfig:
   setup:
-    create: true
-    randomSuffix: true
+    queueSpec:
+      priorityFactor: 3.0
   update:
     priorityFactor: 2.0
   assertions:

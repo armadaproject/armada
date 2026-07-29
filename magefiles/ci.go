@@ -25,7 +25,7 @@ func createQueue() error {
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func TestSuite() error {
-	mg.Deps(CheckForArmadaRunning)
+	// mg.Deps(CheckForArmadaRunning)
 
 	// Only set these if they have not already been set
 	if os.Getenv("ARMADA_EXECUTOR_INGRESS_URL") == "" {

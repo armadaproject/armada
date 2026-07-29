@@ -5,23 +5,19 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/jstemmer/go-junit-report/v2/junit"
 	"github.com/pkg/errors"
-	"github.com/renstrom/shortuuid"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/testsuite/eventbenchmark"
 	"github.com/armadaproject/armada/internal/testsuite/eventlogger"
 	"github.com/armadaproject/armada/internal/testsuite/eventsplitter"
 	"github.com/armadaproject/armada/internal/testsuite/eventwatcher"
+	"github.com/armadaproject/armada/internal/testsuite/queue"
 	"github.com/armadaproject/armada/internal/testsuite/submitter"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
@@ -81,19 +77,19 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	defer cancel()
 
 	// Phase 1: Queue setup (create queue(s) if configured).
-	queueNames, err := runQueueSetup(ctx, srv.testSpec, srv.apiConnectionDetails, out)
+	queueNames, err := queue.RunSetup(ctx, srv.testSpec, srv.apiConnectionDetails, out)
 	if err != nil {
 		return err
 	}
 
 	// Phase 1b: Queue update (update queue priority factor if configured).
-	if err = runQueueUpdate(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out); err != nil {
+	if err = queue.RunUpdate(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out); err != nil {
 		return err
 	}
 
 	// Phase 4 (deferred): Queue teardown — registered here, executes last after all phases complete.
 	defer func() {
-		if teardownErr := runQueueTeardown(queueNames, srv.testSpec, srv.apiConnectionDetails, out); teardownErr != nil {
+		if teardownErr := queue.RunTeardown(queueNames, srv.testSpec, srv.apiConnectionDetails, out); teardownErr != nil {
 			fmt.Fprintf(out, "warning: queue teardown failed: %s\n", teardownErr)
 			if err == nil {
 				err = teardownErr
@@ -203,7 +199,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	}
 
 	// Phase 3: Queue assertions (after jobs finish, or for pure queue tests).
-	if err = runQueueAssertions(ctx, srv.testSpec, srv.apiConnectionDetails, out); err != nil {
+	if err = queue.RunAssertions(ctx, srv.testSpec, srv.apiConnectionDetails, out); err != nil {
 		return err
 	}
 
@@ -414,369 +410,6 @@ func tryPreemptJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.Ap
 			}
 			return nil
 		})
-	}
-	return nil
-}
-
-// applyQueueRandomSuffix appends a random suffix to testSpec.Queue if configured.
-func applyQueueRandomSuffix(testSpec *api.TestSpec) {
-	if testSpec.GetQueueConfig().GetSetup().GetRandomSuffix() {
-		testSpec.Queue = testSpec.Queue + "-" + shortuuid.New()
-	}
-}
-
-// runQueueSetup creates the queue(s) if configured, and returns the names of the queues created.
-// Mirrors submitter.Submitter.Run's batching structure: batch_size queues are created per round,
-// for num_batches rounds (defaults to 1 if unset), waiting interval between rounds.
-func runQueueSetup(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, out io.Writer) ([]string, error) {
-	setup := testSpec.GetQueueConfig().GetSetup()
-	if setup == nil || !setup.Create {
-		return nil, nil
-	}
-	batchSize := setup.GetBatchSize()
-	if batchSize == 0 {
-		batchSize = 1
-	}
-	numBatches := setup.GetNumBatches()
-	if numBatches == 0 {
-		numBatches = 1
-	}
-	interval := protoutil.ToStdDuration(setup.GetInterval())
-	queueSpecs := setup.GetQueueSpecs()
-
-	var queueNames []string
-	err := client.WithQueueServiceClient(conn, func(qsc api.QueueServiceClient) error {
-		// Create a closed ticker channel; receiving on tickerCh returns immediately.
-		C := make(chan time.Time)
-		close(C)
-		tickerCh := (<-chan time.Time)(C)
-
-		// If an interval is provided, replace tickerCh with one that generates ticks periodically.
-		if interval != 0 {
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-			tickerCh = ticker.C
-		}
-
-		var numBatchesCreated uint32
-		for numBatchesCreated < numBatches {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-tickerCh:
-				batchQueues := queuesForBatch(testSpec.Queue, queueSpecs, numBatchesCreated, numBatches, batchSize, setup.RandomSuffix)
-				if err := createQueueBatch(ctx, qsc, batchQueues, out); err != nil {
-					return err
-				}
-				fmt.Fprintf(out, "created %d queue(s)\n", len(batchQueues))
-				for _, queue := range batchQueues {
-					queueNames = append(queueNames, queue.Name)
-				}
-				numBatchesCreated++
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return queueNames, nil
-}
-
-// queuesForBatch builds the queues to create for a single batch. If queueSpecs is non-empty, one
-// copy of each entry is created per queue slot in the batch (batchSize slots); otherwise a single
-// queue named after baseName (with default priority factor 1.0) is created per slot.
-func queuesForBatch(baseName string, queueSpecs []*api.Queue, batchIndex uint32, numBatches uint32, batchSize uint32, randomSuffix bool) []*api.Queue {
-	totalCopies := numBatches * batchSize
-	var queues []*api.Queue
-	for i := uint32(0); i < batchSize; i++ {
-		index := batchIndex*batchSize + i
-		if len(queueSpecs) == 0 {
-			queues = append(queues, &api.Queue{
-				Name:           queueNameForIndex(baseName, index, numBatches, batchSize),
-				PriorityFactor: 1.0,
-			})
-			continue
-		}
-		for _, spec := range queueSpecs {
-			queues = append(queues, queueFromSpecForIndex(spec, index, totalCopies, randomSuffix))
-		}
-	}
-	return queues
-}
-
-// queueFromSpecForIndex clones spec, giving the copy a unique name: a random suffix if
-// randomSuffix is set (so the same spec can be reused to create many batches of queues with
-// identical properties), otherwise "-<index>" if more than one copy will be created.
-func queueFromSpecForIndex(spec *api.Queue, index uint32, totalCopies uint32, randomSuffix bool) *api.Queue {
-	clone := proto.Clone(spec).(*api.Queue)
-	if clone.PriorityFactor == 0 {
-		clone.PriorityFactor = 1.0
-	}
-	switch {
-	case randomSuffix:
-		clone.Name = clone.Name + "-" + shortuuid.New()
-	case totalCopies > 1:
-		clone.Name = fmt.Sprintf("%s-%d", clone.Name, index)
-	}
-	return clone
-}
-
-// queueNameForIndex returns the name for the queue at the given index: baseName exactly if
-// only a single queue will ever be created (numBatches == 1 && batchSize == 1), or
-// "<baseName>-<index>" otherwise.
-func queueNameForIndex(baseName string, index uint32, numBatches uint32, batchSize uint32) string {
-	if numBatches == 1 && batchSize == 1 {
-		return baseName
-	}
-	return fmt.Sprintf("%s-%d", baseName, index)
-}
-
-// createQueueBatch creates the given queues, using the batched CreateQueues endpoint
-// (POST /v1/batched/create_queues) when there is more than one queue to create so that
-// endpoint is exercised. Falls back to individual CreateQueue calls for a single queue.
-func createQueueBatch(ctx context.Context, qsc api.QueueServiceClient, queues []*api.Queue, out io.Writer) error {
-	if len(queues) == 1 {
-		return createOneQueue(ctx, qsc, queues[0], out)
-	}
-	createCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	resp, err := qsc.CreateQueues(createCtx, &api.QueueList{Queues: queues})
-	if err != nil {
-		return errors.Wrap(err, "CreateQueues (batched) failed")
-	}
-	for _, failed := range resp.GetFailedQueues() {
-		if strings.Contains(failed.GetError(), codes.AlreadyExists.String()) {
-			fmt.Fprintf(out, "queue %s already exists, continuing\n", failed.GetQueue().GetName())
-			continue
-		}
-		return fmt.Errorf("failed to create queue %s: %s", failed.GetQueue().GetName(), failed.GetError())
-	}
-	return nil
-}
-
-// createOneQueue creates a single queue.
-func createOneQueue(ctx context.Context, qsc api.QueueServiceClient, queue *api.Queue, out io.Writer) error {
-	createCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	_, err := qsc.CreateQueue(createCtx, queue)
-	if err != nil {
-		if s, ok := status.FromError(err); ok && s.Code() == codes.AlreadyExists {
-			fmt.Fprintf(out, "queue %s already exists, continuing\n", queue.Name)
-			return nil
-		}
-		return errors.Wrapf(err, "failed to create queue %s", queue.Name)
-	}
-	return nil
-}
-
-// runQueueUpdate applies the configured update to the queue(s), if configured.
-func runQueueUpdate(ctx context.Context, queueNames []string, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, out io.Writer) error {
-	update := testSpec.GetQueueConfig().GetUpdate()
-	if update == nil {
-		return nil
-	}
-	if len(queueNames) == 0 {
-		queueNames = []string{testSpec.Queue}
-	}
-	return client.WithQueueServiceClient(conn, func(qsc api.QueueServiceClient) error {
-		queues := make([]*api.Queue, len(queueNames))
-		for i, queueName := range queueNames {
-			queue := proto.Clone(update).(*api.Queue)
-			queue.Name = queueName
-			if queue.PriorityFactor == 0 {
-				queue.PriorityFactor = 1.0
-			}
-			queues[i] = queue
-		}
-		if len(queues) == 1 {
-			updateCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			_, err := qsc.UpdateQueue(updateCtx, queues[0])
-			cancel()
-			if err != nil {
-				return errors.Wrapf(err, "failed to update queue %s", queues[0].Name)
-			}
-		} else {
-			// Use the batched UpdateQueues endpoint (PUT /v1/batched/update_queues) to exercise it.
-			updateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			resp, err := qsc.UpdateQueues(updateCtx, &api.QueueList{Queues: queues})
-			cancel()
-			if err != nil {
-				return errors.Wrap(err, "UpdateQueues (batched) failed")
-			}
-			if failed := resp.GetFailedQueues(); len(failed) > 0 {
-				return fmt.Errorf("failed to update queue %s: %s", failed[0].GetQueue().GetName(), failed[0].GetError())
-			}
-		}
-		fmt.Fprintf(out, "updated %d queue(s)\n", len(queueNames))
-		return nil
-	})
-}
-
-// runQueueTeardown deletes the queue(s), unless queueConfig.teardown.skipDelete is set.
-func runQueueTeardown(queueNames []string, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, out io.Writer) error {
-	config := testSpec.GetQueueConfig()
-	if config == nil {
-		return nil
-	}
-	teardown := config.GetTeardown()
-	if teardown.GetSkipDelete() {
-		return nil
-	}
-	if len(queueNames) == 0 {
-		queueNames = []string{testSpec.Queue}
-	}
-	return client.WithQueueServiceClient(conn, func(qsc api.QueueServiceClient) error {
-		var deleted []string
-		for _, queueName := range queueNames {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			_, err := qsc.DeleteQueue(ctx, &api.QueueDeleteRequest{Name: queueName})
-			cancel()
-			if err != nil {
-				if s, ok := status.FromError(err); ok && s.Code() == codes.NotFound {
-					if teardown.GetExpectNotFound() {
-						fmt.Fprintf(out, "correctly received NOT_FOUND when deleting non-existent queue %s\n", queueName)
-						continue
-					}
-					fmt.Fprintf(out, "queue %s already deleted, skipping teardown\n", queueName)
-					continue // already gone; that's fine
-				}
-				return errors.Wrapf(err, "failed to delete queue %s", queueName)
-			}
-			if teardown.GetExpectNotFound() {
-				return fmt.Errorf("expected NOT_FOUND when deleting queue %s but delete succeeded", queueName)
-			}
-			deleted = append(deleted, queueName)
-		}
-		if len(deleted) > 0 {
-			fmt.Fprintf(out, "deleted %d queue(s)\n", len(deleted))
-		}
-		if assertDeleted(testSpec) {
-			for _, queueName := range deleted {
-				getCtx, getCancel := context.WithTimeout(context.Background(), 10*time.Second)
-				_, err := qsc.GetQueue(getCtx, &api.QueueGetRequest{Name: queueName})
-				getCancel()
-				if err == nil {
-					return fmt.Errorf("expected queue %s to be deleted, but GetQueue succeeded", queueName)
-				}
-				if s, ok := status.FromError(err); !ok || s.Code() != codes.NotFound {
-					return errors.Wrapf(err, "expected NOT_FOUND asserting queue %s was deleted, got", queueName)
-				}
-			}
-			fmt.Fprintf(out, "asserted %d queue(s) were deleted\n", len(deleted))
-		}
-		return nil
-	})
-}
-
-// assertDeleted returns true if any configured assertion requests that deleted queue(s)
-// be verified as NOT_FOUND via GetQueue.
-func assertDeleted(testSpec *api.TestSpec) bool {
-	for _, assertion := range testSpec.GetQueueConfig().GetAssertions() {
-		if assertion.GetDeleted() {
-			return true
-		}
-	}
-	return false
-}
-
-// runQueueAssertions checks queue state assertions.
-func runQueueAssertions(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, out io.Writer) error {
-	assertions := testSpec.GetQueueConfig().GetAssertions()
-	if len(assertions) == 0 {
-		return nil
-	}
-	for _, assertion := range assertions {
-		if pool := assertion.ActiveInPool; pool != "" {
-			if err := client.WithJobsClient(conn, func(jc api.JobsClient) error {
-				reqCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-				defer cancel()
-				resp, err := jc.GetActiveQueues(reqCtx, &api.GetActiveQueuesRequest{})
-				if err != nil {
-					return errors.Wrap(err, "GetActiveQueues failed")
-				}
-				activeQueues, ok := resp.ActiveQueuesByPool[pool]
-				if !ok {
-					return fmt.Errorf("pool %q not found in GetActiveQueues response", pool)
-				}
-				for _, q := range activeQueues.Queues {
-					if q == testSpec.Queue {
-						fmt.Fprintf(out, "asserted queue %s is active in pool %s\n", testSpec.Queue, pool)
-						return nil
-					}
-				}
-				return fmt.Errorf("queue %q not found in active queues for pool %q", testSpec.Queue, pool)
-			}); err != nil {
-				return err
-			}
-		}
-		if pool := assertion.NotActiveInPool; pool != "" {
-			if err := client.WithJobsClient(conn, func(jc api.JobsClient) error {
-				reqCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-				defer cancel()
-				resp, err := jc.GetActiveQueues(reqCtx, &api.GetActiveQueuesRequest{})
-				if err != nil {
-					return errors.Wrap(err, "GetActiveQueues failed")
-				}
-				activeQueues, ok := resp.ActiveQueuesByPool[pool]
-				if ok {
-					for _, q := range activeQueues.Queues {
-						if q == testSpec.Queue {
-							return fmt.Errorf("queue %q unexpectedly found in active queues for pool %q", testSpec.Queue, pool)
-						}
-					}
-				}
-				fmt.Fprintf(out, "asserted queue %s is NOT active in pool %s\n", testSpec.Queue, pool)
-				return nil
-			}); err != nil {
-				return err
-			}
-		}
-		if assertion.AppearsInStream {
-			if err := client.WithQueueServiceClient(conn, func(qsc api.QueueServiceClient) error {
-				streamCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-				defer cancel()
-				stream, err := qsc.GetQueues(streamCtx, &api.StreamingQueueGetRequest{})
-				if err != nil {
-					return errors.Wrap(err, "GetQueues stream failed to open")
-				}
-				for {
-					msg, err := stream.Recv()
-					if err == io.EOF {
-						break
-					}
-					if err != nil {
-						return errors.Wrap(err, "GetQueues stream recv error")
-					}
-					if q := msg.GetQueue(); q != nil && q.Name == testSpec.Queue {
-						fmt.Fprintf(out, "asserted queue %s appears in GetQueues stream\n", testSpec.Queue)
-						return nil
-					}
-				}
-				return fmt.Errorf("queue %q not found in GetQueues stream", testSpec.Queue)
-			}); err != nil {
-				return err
-			}
-		}
-		if expected := assertion.Matches; expected != nil {
-			if err := client.WithQueueServiceClient(conn, func(qsc api.QueueServiceClient) error {
-				getCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-				defer cancel()
-				actual, err := qsc.GetQueue(getCtx, &api.QueueGetRequest{Name: testSpec.Queue})
-				if err != nil {
-					return errors.Wrap(err, "GetQueue failed")
-				}
-				want := proto.Clone(expected).(*api.Queue)
-				want.Name = actual.Name
-				if !proto.Equal(want, actual) {
-					return fmt.Errorf("queue %q properties did not match: got %+v, want %+v", testSpec.Queue, actual, want)
-				}
-				fmt.Fprintf(out, "asserted queue %s properties match expected\n", testSpec.Queue)
-				return nil
-			}); err != nil {
-				return err
-			}
-		}
 	}
 	return nil
 }

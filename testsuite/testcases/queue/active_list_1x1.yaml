@@ -27,9 +27,7 @@ expectedEvents:
   - submitted:
   - running:
 queueConfig:
-  setup:
-    create: true
-    randomSuffix: true
+  setup: {}
   assertions:
     - activeInPool: "default"
     - deleted: true

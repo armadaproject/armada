@@ -3,14 +3,13 @@ queue: e2e-test-queue-multi
 timeout: "30s"
 queueConfig:
   setup:
-    create: true
-    randomSuffix: true
     numBatches: 5
     batchSize: 5
   update:
-    cordon: true
-  assert:
+    cordoned: true
+  assertions:
     - appearsInStream: true
     - matches:
-        cordon: true
+        cordoned: true
+        priorityFactor: 1.0
     - deleted: true
