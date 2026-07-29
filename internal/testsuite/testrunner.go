@@ -77,18 +77,16 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	}
 	defer cancel()
 
-	// Phase 1: Queue setup (create queue(s) if configured).
+	// Phase 1: create and (optionally) update the queue(s) under test.
 	queueNames, err := queue.RunSetup(ctx, srv.testSpec, srv.apiConnectionDetails, out)
 	if err != nil {
 		return err
 	}
-
-	// Phase 1b: Queue update (update queue priority factor if configured).
 	if err = queue.RunUpdate(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out); err != nil {
 		return err
 	}
 
-	// Phase 4 (deferred): Queue teardown — registered here, executes last after all phases complete.
+	// Phase 4 (deferred): always delete the queue(s) once the test finishes.
 	defer func() {
 		if teardownErr := queue.RunTeardown(queueNames, srv.testSpec, srv.apiConnectionDetails, out); teardownErr != nil {
 			fmt.Fprintf(out, "warning: queue teardown failed: %s\n", teardownErr)
@@ -98,155 +96,154 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		}
 	}()
 
-	// Phase 2: Job submission and event watching (skip for pure queue tests).
-	if len(srv.testSpec.Jobs) > 0 || srv.testSpec.NumBatches > 0 {
-		// Setup an errgroup that cancels on any job failing or there being no active jobs.
-		g, ctx := errgroup.WithContext(ctx)
-
-		// Submit jobs. All jobs must be submitted before proceeding since we need the job ids.
-		sbmtr := submitter.NewSubmitterFromTestSpec(srv.apiConnectionDetails, srv.testSpec, out)
-		if err = sbmtr.Run(ctx); err != nil {
-			return err
-		}
-		jobIds := sbmtr.JobIds()
-		jobIdMap := make(map[string]bool)
-		for _, jobId := range jobIds {
-			jobIdMap[jobId] = false
-		}
-
-		// Before returning, cancel the job set to ensure there are no lingering jobs.
-		defer func() {
-			err := client.WithSubmitClient(srv.apiConnectionDetails, func(sc api.SubmitClient) error {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				_, err := sc.CancelJobSet(ctx, &api.JobSetCancelRequest{
-					JobSetId: srv.testSpec.JobSetId,
-					Queue:    srv.testSpec.Queue,
-				})
-				return err
-			})
-			if err != nil {
-				fmt.Fprintf(out, "failed to cancel job set %s: %s\n", srv.testSpec.JobSetId, err)
-			}
-		}()
-
-		// If configured, cancel the submitted jobs immediately.
-		// Used to test job cancellation.
-		if err = tryCancelJobs(ctx, srv.testSpec, srv.apiConnectionDetails, jobIds); err != nil {
-			return err
-		}
-
-		// One channel for each system listening to events.
-		benchmarkCh := make(chan *api.EventMessage)
-		noActiveCh := make(chan *api.EventMessage)
-		assertCh := make(chan *api.EventMessage)
-		ingressCh := make(chan *api.EventMessage)
-
-		// Goroutine forwarding API events on a channel.
-		watcher := eventwatcher.New(srv.testSpec.Queue, srv.testSpec.JobSetId, srv.apiConnectionDetails)
-		watcher.Out = out
-		g.Go(func() error { return watcher.Run(ctx) })
-
-		// TODO: Get job logs.
-		// jobLogger, err := a.createJobLogger(testSpec)
-		// if err != nil {
-		// 	return errors.WithMessage(err, "error creating job logger")
-		// }
-		// executorClustersDefined := len(a.Params.ApiConnectionDetails.ExecutorClusters) > 0
-		// if testSpec.GetLogs {
-		// 	if executorClustersDefined {
-		// 		g.Go(func() error { return jobLogger.Run(ctx) })
-		// 	} else {
-		// 		_, _ = fmt.Fprintf(
-		// 			a.Out,
-		// 			"cannot get logs for test %s, no executor clusters specified in executorClusters config\n",
-		// 			testSpec.Name,
-		// 		)
-		// 	}
-		// }
-
-		// Build list of event channels based on test configuration.
-		eventChannels := []chan *api.EventMessage{assertCh, ingressCh, noActiveCh, benchmarkCh, srv.eventLogger.In}
-
-		// Add preempt channel if preemption is configured.
-		var preemptCh chan *api.EventMessage
-		if srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
-			preemptCh = make(chan *api.EventMessage)
-			eventChannels = append(eventChannels, preemptCh)
-		}
-
-		// Add reprioritize channel if reprioritization is configured.
-		var reprioritizeCh chan *api.EventMessage
-		if srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
-			reprioritizeCh = make(chan *api.EventMessage)
-			eventChannels = append(eventChannels, reprioritizeCh)
-		}
-
-		// Duplicate events across all downstream services.
-		splitter := eventsplitter.New(
-			watcher.C,
-			eventChannels...,
-		)
-		g.Go(func() error { return splitter.Run(ctx) })
-
-		// If configured, preempt jobs once they are running.
-		// Used to test job preemption.
-		if srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
-			g.Go(func() error {
-				return preemptJobsWhenRunning(ctx, preemptCh, srv.testSpec, srv.apiConnectionDetails, jobIds)
-			})
-		}
-
-		// If configured, reprioritize jobs once they are running.
-		// Used to test job reprioritization. Waiting for the jobs to be running
-		// (rather than sleeping a fixed interval) ensures the reprioritize request
-		// is not handled before its jobs exist in the scheduler, which would produce
-		// no reprioritized events.
-		if srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
-			g.Go(func() error {
-				return reprioritizeJobsWhenRunning(ctx, reprioritizeCh, srv.testSpec, srv.apiConnectionDetails, jobIds)
-			})
-		}
-
-		// Cancel the errgroup if there are no active jobs.
-		g.Go(func() error { return eventwatcher.ErrorOnNoActiveJobs(ctx, noActiveCh, maps.Clone(jobIdMap)) })
-
-		// Record time spent per job state. Used to benchmark jobs.
-		eventBenchmark := eventbenchmark.New(benchmarkCh)
-		eventBenchmark.Out = out
-		g.Go(func() error { return eventBenchmark.Run(ctx) })
-		defer func() {
-			report.BenchmarkReport = eventBenchmark.NewTestCaseBenchmarkReport(srv.testSpec.GetName())
-		}()
-
-		// Watch for ingress events and try to download from any ingresses found.
-		g.Go(func() error { return eventwatcher.GetFromIngresses(ctx, ingressCh) })
-
-		// Assert that we get the right events for each job.
-		// Returns once we've received all events or when ctx is cancelled.
-		if err = eventwatcher.AssertEvents(ctx, assertCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents); err != nil {
-			cancel()
-			groupErr := g.Wait()
-			if groupErr != nil {
-				return errors.Errorf("%s: %s", err, groupErr)
-			} else {
-				return err
-			}
-		}
-
-		// Armada JobSet logs
-		// TODO: Optionally get logs from failed jobs.
-		// if testSpec.GetLogs && executorClustersDefined {
-		// 	jobLogger.PrintLogs()
-		// }
+	// Pure queue tests submit no jobs, so skip the job-submission block below and
+	// go straight to the queue assertions.
+	if len(srv.testSpec.Jobs) == 0 && srv.testSpec.NumBatches == 0 {
+		return queue.RunAssertions(ctx, srv.testSpec, srv.apiConnectionDetails, out)
 	}
 
-	// Phase 3: Queue assertions (after jobs finish, or for pure queue tests).
-	if err = queue.RunAssertions(ctx, srv.testSpec, srv.apiConnectionDetails, out); err != nil {
+	// Setup an errgroup that cancels on any job failing or there being no active jobs.
+	g, ctx := errgroup.WithContext(ctx)
+
+	// Submit jobs. All jobs must be submitted before proceeding since we need the job ids.
+	sbmtr := submitter.NewSubmitterFromTestSpec(srv.apiConnectionDetails, srv.testSpec, out)
+	if err = sbmtr.Run(ctx); err != nil {
+		return err
+	}
+	jobIds := sbmtr.JobIds()
+	jobIdMap := make(map[string]bool)
+	for _, jobId := range jobIds {
+		jobIdMap[jobId] = false
+	}
+
+	// Before returning, cancel the job set to ensure there are no lingering jobs.
+	defer func() {
+		err := client.WithSubmitClient(srv.apiConnectionDetails, func(sc api.SubmitClient) error {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_, err := sc.CancelJobSet(ctx, &api.JobSetCancelRequest{
+				JobSetId: srv.testSpec.JobSetId,
+				Queue:    srv.testSpec.Queue,
+			})
+			return err
+		})
+		if err != nil {
+			fmt.Fprintf(out, "failed to cancel job set %s: %s\n", srv.testSpec.JobSetId, err)
+		}
+	}()
+
+	// If configured, cancel the submitted jobs immediately.
+	// Used to test job cancellation.
+	if err = tryCancelJobs(ctx, srv.testSpec, srv.apiConnectionDetails, jobIds); err != nil {
 		return err
 	}
 
-	return nil
+	// One channel for each system listening to events.
+	benchmarkCh := make(chan *api.EventMessage)
+	noActiveCh := make(chan *api.EventMessage)
+	assertCh := make(chan *api.EventMessage)
+	ingressCh := make(chan *api.EventMessage)
+
+	// Goroutine forwarding API events on a channel.
+	watcher := eventwatcher.New(srv.testSpec.Queue, srv.testSpec.JobSetId, srv.apiConnectionDetails)
+	watcher.Out = out
+	g.Go(func() error { return watcher.Run(ctx) })
+
+	// TODO: Get job logs.
+	// jobLogger, err := a.createJobLogger(testSpec)
+	// if err != nil {
+	// 	return errors.WithMessage(err, "error creating job logger")
+	// }
+	// executorClustersDefined := len(a.Params.ApiConnectionDetails.ExecutorClusters) > 0
+	// if testSpec.GetLogs {
+	// 	if executorClustersDefined {
+	// 		g.Go(func() error { return jobLogger.Run(ctx) })
+	// 	} else {
+	// 		_, _ = fmt.Fprintf(
+	// 			a.Out,
+	// 			"cannot get logs for test %s, no executor clusters specified in executorClusters config\n",
+	// 			testSpec.Name,
+	// 		)
+	// 	}
+	// }
+
+	// Build list of event channels based on test configuration.
+	eventChannels := []chan *api.EventMessage{assertCh, ingressCh, noActiveCh, benchmarkCh, srv.eventLogger.In}
+
+	// Add preempt channel if preemption is configured.
+	var preemptCh chan *api.EventMessage
+	if srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
+		preemptCh = make(chan *api.EventMessage)
+		eventChannels = append(eventChannels, preemptCh)
+	}
+
+	// Add reprioritize channel if reprioritization is configured.
+	var reprioritizeCh chan *api.EventMessage
+	if srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
+		reprioritizeCh = make(chan *api.EventMessage)
+		eventChannels = append(eventChannels, reprioritizeCh)
+	}
+
+	// Duplicate events across all downstream services.
+	splitter := eventsplitter.New(
+		watcher.C,
+		eventChannels...,
+	)
+	g.Go(func() error { return splitter.Run(ctx) })
+
+	// If configured, preempt jobs once they are running.
+	// Used to test job preemption.
+	if srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
+		g.Go(func() error {
+			return preemptJobsWhenRunning(ctx, preemptCh, srv.testSpec, srv.apiConnectionDetails, jobIds)
+		})
+	}
+
+	// If configured, reprioritize jobs once they are running.
+	// Used to test job reprioritization. Waiting for the jobs to be running
+	// (rather than sleeping a fixed interval) ensures the reprioritize request
+	// is not handled before its jobs exist in the scheduler, which would produce
+	// no reprioritized events.
+	if srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
+		g.Go(func() error {
+			return reprioritizeJobsWhenRunning(ctx, reprioritizeCh, srv.testSpec, srv.apiConnectionDetails, jobIds)
+		})
+	}
+
+	// Cancel the errgroup if there are no active jobs.
+	g.Go(func() error { return eventwatcher.ErrorOnNoActiveJobs(ctx, noActiveCh, maps.Clone(jobIdMap)) })
+
+	// Record time spent per job state. Used to benchmark jobs.
+	eventBenchmark := eventbenchmark.New(benchmarkCh)
+	eventBenchmark.Out = out
+	g.Go(func() error { return eventBenchmark.Run(ctx) })
+	defer func() {
+		report.BenchmarkReport = eventBenchmark.NewTestCaseBenchmarkReport(srv.testSpec.GetName())
+	}()
+
+	// Watch for ingress events and try to download from any ingresses found.
+	g.Go(func() error { return eventwatcher.GetFromIngresses(ctx, ingressCh) })
+
+	// Assert that we get the right events for each job.
+	// Returns once we've received all events or when ctx is cancelled.
+	if err = eventwatcher.AssertEvents(ctx, assertCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents); err != nil {
+		cancel()
+		groupErr := g.Wait()
+		if groupErr != nil {
+			return errors.Errorf("%s: %s", err, groupErr)
+		} else {
+			return err
+		}
+	}
+
+	// Armada JobSet logs
+	// TODO: Optionally get logs from failed jobs.
+	// if testSpec.GetLogs && executorClustersDefined {
+	// 	jobLogger.PrintLogs()
+	// }
+
+	// Phase 3: assert queue state now that the jobs have finished.
+	return queue.RunAssertions(ctx, srv.testSpec, srv.apiConnectionDetails, out)
 }
 
 // tryCancelJobs cancels submitted jobs if cancellation is configured.
