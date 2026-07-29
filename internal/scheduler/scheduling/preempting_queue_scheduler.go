@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"time"
 
-	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/benbjohnson/immutable"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
@@ -15,6 +14,7 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
