@@ -139,8 +139,11 @@ func (l *LookoutDb) UpdateJobs(ctx *armadacontext.Context, instructions []*model
 		return nil
 	}
 	start := time.Now()
-	instructions = l.filterEventsForTerminalJobs(ctx, l.db, instructions, l.metrics)
-	err := l.UpdateJobsBatch(ctx, instructions)
+	instructions, err := l.filterEventsForTerminalJobs(ctx, l.db, instructions, l.metrics)
+	if err != nil {
+		return err
+	}
+	err = l.UpdateJobsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Updating jobs via batch failed, will attempt to insert serially (this might be slow).")
 		if scalarErr := l.UpdateJobsScalar(ctx, instructions); scalarErr != nil {
@@ -1163,14 +1166,15 @@ type updateInstructionsForJob struct {
 // The proper solution here is to make it so once a job is terminal, no more events are generated for it, but until
 // that day we have to manually filter them out here.
 // NOTE: this function will retry querying the database for as long as possible in order to determine which jobs are
-// in the terminal state.  If, however, the database returns a non-retryable error it will give up and simply not
-// filter out any events as the job state is undetermined.
+// in the terminal state.  If the database returns a non-retryable error, the job state is undetermined and it
+// returns an error rather than silently skipping the filter, since proceeding unfiltered risks a stale update
+// overwriting a terminal one.
 func (l *LookoutDb) filterEventsForTerminalJobs(
 	ctx *armadacontext.Context,
 	db *pgxpool.Pool,
 	instructions []*model.UpdateJobInstruction,
 	m *metrics.Metrics,
-) []*model.UpdateJobInstruction {
+) ([]*model.UpdateJobInstruction, error) {
 	jobIds := make([]string, len(instructions))
 	for i, instruction := range instructions {
 		jobIds[i] = instruction.JobId
@@ -1188,8 +1192,8 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 	})
 	if err != nil {
 		m.RecordDBError(commonmetrics.DBOperationRead)
-		log.WithError(err).Warnf("Cannot retrieve job state from the database- Cancelled jobs may not be filtered out")
-		return instructions
+		log.WithError(err).Warnf("Cannot retrieve job state from the database- unable to determine which jobs are terminal")
+		return nil, err
 	}
 	rows := rowsRaw.(pgx.Rows)
 
@@ -1233,9 +1237,9 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 				filtered = append(filtered, updateInstructions.instructions...)
 			}
 		}
-		return filtered
+		return filtered, nil
 	} else {
-		return instructions
+		return instructions, nil
 	}
 }
 
