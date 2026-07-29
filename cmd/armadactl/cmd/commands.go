@@ -34,9 +34,10 @@ func deleteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete Armada resource",
-		Long:  "Delete Armada resource. Supported: queue",
+		Long:  "Delete Armada resource. Supported: queue, executor",
 	}
 	cmd.AddCommand(queueDeleteCmd())
+	cmd.AddCommand(executorDeleteCmd())
 	return cmd
 }
 

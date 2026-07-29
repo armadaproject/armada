@@ -17,6 +17,7 @@ corsAllowedOrigins:
 auth:
   anonymousAuth: true
   permissionGroupMapping:
+    update_executor_settings: ["everyone"]
     submit_any_jobs: ["everyone"]
     create_queue: ["everyone"]
     delete_queue: ["everyone"]

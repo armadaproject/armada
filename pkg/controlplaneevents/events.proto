@@ -17,6 +17,7 @@ message Event {
     CancelOnQueue cancelOnQueue = 7;
     PreemptOnNode preemptOnNode = 8;
     CancelOnNode cancelOnNode = 9;
+    ExecutorDelete executorDelete = 10;
   }
 }
 
@@ -28,6 +29,10 @@ message ExecutorSettingsUpsert {
 }
 
 message ExecutorSettingsDelete {
+  string name = 1;
+}
+
+message ExecutorDelete {
   string name = 1;
 }
 

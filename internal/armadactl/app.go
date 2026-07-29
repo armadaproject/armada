@@ -67,6 +67,7 @@ type ExecutorAPI struct {
 	Uncordon          executor.UncordonAPI
 	CancelOnExecutor  executor.CancelAPI
 	PreemptOnExecutor executor.PreemptAPI
+	Delete            executor.DeleteAPI
 }
 
 type NodeAPI struct {

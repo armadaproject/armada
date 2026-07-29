@@ -653,6 +653,14 @@ var DeleteExecutorSettings = &controlplaneevents.Event{
 	},
 }
 
+var DeleteExecutor = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_ExecutorDelete{
+		ExecutorDelete: &controlplaneevents.ExecutorDelete{
+			Name: ExecutorId,
+		},
+	},
+}
+
 var PreemptOnExecutor = &controlplaneevents.Event{
 	Event: &controlplaneevents.Event_PreemptOnExecutor{
 		PreemptOnExecutor: &controlplaneevents.PreemptOnExecutor{
