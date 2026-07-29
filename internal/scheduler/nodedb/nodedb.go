@@ -825,6 +825,17 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 	for obj := it.Next(); obj != nil && selectedNode == nil; obj = it.Next() {
 		evictedJobSchedulingContext := obj.(*EvictedJobSchedulingContext)
 		evictedJctx := evictedJobSchedulingContext.JobSchedulingContext
+
+		evictedJobSchedulingPriority, ok := nodeDb.GetScheduledAtPriority(evictedJctx.JobId)
+		if !ok {
+			return nil, errors.Errorf("evicted job %s does not have scheduled at priority set in nodedb", evictedJctx.JobId)
+		}
+
+		// Jobs should not preempt jobs with a higher priority, even via fairshare
+		if evictedJobSchedulingPriority > jctx.PodSchedulingContext.ScheduledAtPriority {
+			continue
+		}
+
 		nodeId := evictedJctx.GetAssignedNodeId()
 		if nodeId == "" {
 			return nil, errors.Errorf("evicted job %s does not have an assigned nodeId", evictedJctx.JobId)
