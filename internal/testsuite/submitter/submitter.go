@@ -19,8 +19,10 @@ import (
 )
 
 // Retry to account for recently created queues returning not found errors on SubmitJobs
-const submitRetryInterval = 500 * time.Millisecond
-const submitRetryTimeout = 15 * time.Second
+const (
+	submitRetryInterval = 500 * time.Millisecond
+	submitRetryTimeout  = 15 * time.Second
+)
 
 var submissionSerializer sync.Mutex
 

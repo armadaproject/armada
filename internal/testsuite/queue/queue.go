@@ -7,14 +7,15 @@ import (
 	"strings"
 	"time"
 
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/client"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
 	"google.golang.org/grpc/codes"
+
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 // applyRandomSuffix appends a random suffix to testSpec.Queue, since queues created for a
