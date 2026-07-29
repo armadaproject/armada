@@ -149,7 +149,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		inMemoryJobRepo,
 		sch.jobRepo,
 		false,
-		false,
+		true,
 	)
 	if err != nil {
 		return nil, err
@@ -601,7 +601,7 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 			return err
 		}
 	} else {
-		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, qr, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering)
+		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, qr, sctx.FairnessCostProvider, gangItByQueue, true, sch.preferLargeJobOrdering)
 		if err != nil {
 			return err
 		}
