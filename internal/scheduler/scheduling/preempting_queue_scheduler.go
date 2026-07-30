@@ -14,7 +14,6 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	log "github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -197,7 +196,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	// Only necessary if a non-zero number of jobs were evicted.
 	if len(reevictResult.EvictedJctxsByJobId) > 0 {
 		ctx.Logger().WithField("stage", "scheduling-algo").Info("Performing second scheduling ")
-		log.Info("####################")
 		rescheduleSchedulerResult, rescheduleErr := sch.schedule(
 			armadacontext.WithLogField(ctx, "stage", "schedule after oversubscribed eviction"),
 			inMemoryJobRepo,
