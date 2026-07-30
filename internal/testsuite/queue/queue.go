@@ -17,14 +17,13 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-// RunSetup randomises the test's queue name, then creates the queue(s) if configured, and
-// returns the names of the queues created.
+// RunSetup creates the queue(s) if configured and returns list of created queue names
 func RunSetup(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, out io.Writer) ([]string, error) {
 	setup := testSpec.GetQueueConfig().GetSetup()
 	if setup == nil {
 		return nil, nil
 	}
-	testSpec.Queue = testSpec.Queue + "-" + shortuuid.New()
+	baseName := testSpec.Queue
 	batchSize := setup.GetBatchSize()
 	if batchSize == 0 {
 		batchSize = 1
@@ -56,7 +55,7 @@ func RunSetup(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConne
 			case <-ctx.Done():
 				return ctx.Err()
 			case <-tickerCh:
-				batchQueues := queuesForBatch(testSpec.Queue, queueSpec, batchSize, len(queueNames) == 0)
+				batchQueues := queuesForBatch(baseName, queueSpec, batchSize)
 				var err error
 				if len(batchQueues) == 1 {
 					_, err = qsc.CreateQueue(ctx, batchQueues[0])
@@ -78,46 +77,36 @@ func RunSetup(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConne
 	if err != nil {
 		return nil, err
 	}
+	// The assertions query TestSpec.Queue, so point it at a queue that actually exists.
+	if len(queueNames) > 0 {
+		testSpec.Queue = queueNames[0]
+	}
 	return queueNames, nil
 }
 
-// queuesForBatch builds the queues to create for a single batch: one queue per slot in the
-// batch (batchSize slots). If queueSpec is set, each queue is a copy of it; otherwise each queue
-// is named after baseName (with default priority factor 1.0). The very first queue created
-// overall (isFirstBatch && slot 0) is named exactly baseName, since TestSpec.queue itself is
-// meant to refer to that queue; every other queue gets a random suffix so they don't collide.
-func queuesForBatch(baseName string, queueSpec *api.Queue, batchSize uint32, isFirstBatch bool) []*api.Queue {
+// queuesForBatch builds the queues to create for a single batch
+func queuesForBatch(baseName string, queueSpec *api.Queue, batchSize uint32) []*api.Queue {
 	queues := make([]*api.Queue, 0, batchSize)
 	for i := uint32(0); i < batchSize; i++ {
-		isFirstQueue := isFirstBatch && i == 0
 		if queueSpec == nil {
-			name := baseName
-			if !isFirstQueue {
-				name = baseName + "-" + shortuuid.New()
-			}
 			queues = append(queues, &api.Queue{
-				Name:           name,
+				Name:           baseName + "-" + shortuuid.New(),
 				PriorityFactor: 1.0,
 			})
 			continue
 		}
-		queues = append(queues, queueFromSpec(baseName, queueSpec, isFirstQueue))
+		queues = append(queues, queueFromSpec(baseName, queueSpec))
 	}
 	return queues
 }
 
-// queueFromSpec creates queues from the queueSpec will append suffix to every queue after the first
-func queueFromSpec(baseName string, spec *api.Queue, isFirstQueue bool) *api.Queue {
+// queueFromSpec clones spec to create a queue
+func queueFromSpec(baseName string, spec *api.Queue) *api.Queue {
 	clone := proto.Clone(spec).(*api.Queue)
 	if clone.PriorityFactor == 0 {
 		clone.PriorityFactor = 1.0
 	}
-	if clone.Name == "" {
-		clone.Name = baseName
-	}
-	if !isFirstQueue {
-		clone.Name = clone.Name + "-" + shortuuid.New()
-	}
+	clone.Name = baseName + "-" + shortuuid.New()
 	return clone
 }
 
