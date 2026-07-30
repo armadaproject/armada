@@ -65,8 +65,11 @@ func (s *Server) CreateQueue(grpcCtx context.Context, req *api.Queue) (*types.Em
 
 	err = s.queueRepository.CreateQueue(ctx, queue)
 	var eq *ErrQueueAlreadyExists
+	var eu *ErrUnknownRetryPolicies
 	if errors.As(err, &eq) {
 		return nil, status.Errorf(codes.AlreadyExists, "error creating queue: %s", err)
+	} else if errors.As(err, &eu) {
+		return nil, status.Errorf(codes.InvalidArgument, "error creating queue: %s", err)
 	} else if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "error creating queue: %s", err)
 	}
@@ -110,8 +113,11 @@ func (s *Server) UpdateQueue(grpcCtx context.Context, req *api.Queue) (*types.Em
 
 	err = s.queueRepository.UpdateQueue(ctx, queue)
 	var e *ErrQueueNotFound
+	var eu *ErrUnknownRetryPolicies
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.NotFound, "error: %s", err)
+	} else if errors.As(err, &eu) {
+		return nil, status.Errorf(codes.InvalidArgument, "error updating queue: %s", err)
 	} else if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "error getting queue %q: %s", queue.Name, err)
 	}
