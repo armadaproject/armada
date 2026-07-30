@@ -502,15 +502,6 @@ func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) flo
 	return sc.ProtectedFractionOfFairShare
 }
 
-func (sc *SchedulingConfig) GetFairsharePreemptionRateLimit(poolName string) (rate float64, burst int, enabled bool) {
-	for _, poolConfig := range sc.Pools {
-		if poolConfig.Name == poolName && poolConfig.FairsharePreemptionRateLimit != nil {
-			return poolConfig.FairsharePreemptionRateLimit.MaximumRate, poolConfig.FairsharePreemptionRateLimit.MaximumBurst, true
-		}
-	}
-	return 0, 0, false
-}
-
 func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string) bool {
 	for _, poolConfig := range sc.Pools {
 		if poolConfig.Name == poolName {
