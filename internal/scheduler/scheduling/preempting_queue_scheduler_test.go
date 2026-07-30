@@ -771,7 +771,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
-					// Fill half of node 1 and half of node 2.
+					// Fill half capacity with jobs from queues A and B
 					JobsByQueue: map[string][]*jobdb.Job{
 						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 16),
 						"B": testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 16),
@@ -782,7 +782,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					},
 				},
 				{
-					// Schedule a gang filling the remaining space on both nodes.
+					// Schedule a gang filling the remaining space
 					JobsByQueue: map[string][]*jobdb.Job{
 						"C": testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("C", testfixtures.PriorityClass0, 32)),
 					},
@@ -2300,6 +2300,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						m = make(map[string]internaltypes.ResourceList)
 						allocatedByQueueAndPriorityClass[job.Queue()] = m
 					}
+
 					m[job.PriorityClassName()] = m[job.PriorityClassName()].Subtract(job.AllResourceRequirements())
 				}
 				for _, jctx := range result.ScheduledJobs {

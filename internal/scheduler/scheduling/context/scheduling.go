@@ -62,7 +62,10 @@ type SchedulingContext struct {
 	// Record of job scheduling requirements known to be unfeasible.
 	// Used to immediately reject new jobs with identical requirements.
 	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
-	UnfeasibleSchedulingKeys     map[internaltypes.SchedulingKey]*JobSchedulingContext
+	UnfeasibleSchedulingKeys map[internaltypes.SchedulingKey]*JobSchedulingContext
+	// Ids of jobs preempted during this scheduling round (e.g. via fair-share preemption).
+	// Such jobs must not be re-offered as scheduling candidates
+	PreemptedJobIds              map[string]bool
 	ExperimentalIndicativeShares map[int]float64
 	SpotPrice                    *float64
 	// Time spent scheduling new jobs in this round.
@@ -86,6 +89,7 @@ func NewSchedulingContext(
 		EvictedResources:             internaltypes.ResourceList{},
 		SchedulingKeyGenerator:       internaltypes.NewSchedulingKeyGenerator(),
 		UnfeasibleSchedulingKeys:     make(map[internaltypes.SchedulingKey]*JobSchedulingContext),
+		PreemptedJobIds:              make(map[string]bool),
 		ExperimentalIndicativeShares: make(map[int]float64),
 	}
 }
@@ -488,6 +492,17 @@ func (sctx *SchedulingContext) QueueContextExists(job *jobdb.Job) bool {
 	queue := sctx.resolveQueueName(job)
 	_, ok := sctx.QueueSchedulingContexts[queue]
 	return ok
+}
+
+// MarkJobPreempted records that the job with the given id was preempted during this scheduling round.
+// Preempted jobs must not be re-scheduled; see IsJobPreempted.
+func (sctx *SchedulingContext) MarkJobPreempted(jobId string) {
+	sctx.PreemptedJobIds[jobId] = true
+}
+
+// IsJobPreempted reports whether the job with the given id was preempted during this scheduling round.
+func (sctx *SchedulingContext) IsJobPreempted(jobId string) bool {
+	return sctx.PreemptedJobIds[jobId]
 }
 
 func (sctx *SchedulingContext) PreemptJob(jctx *JobSchedulingContext) (bool, error) {
