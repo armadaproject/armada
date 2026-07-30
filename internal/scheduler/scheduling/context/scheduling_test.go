@@ -376,6 +376,24 @@ func TestRecordNewJobSchedulingDuration(t *testing.T) {
 	}
 }
 
+func TestMarkJobPreempted(t *testing.T) {
+	sctx := NewSchedulingContext("pool", nil, nil, cpu(100))
+
+	// Unknown jobs are not preempted.
+	assert.False(t, sctx.IsJobPreempted("job-1"))
+
+	// Marking a job records it as preempted; other jobs are unaffected.
+	sctx.MarkJobPreempted("job-1")
+	assert.True(t, sctx.IsJobPreempted("job-1"))
+	assert.False(t, sctx.IsJobPreempted("job-2"))
+
+	// Marking is idempotent and additive.
+	sctx.MarkJobPreempted("job-1")
+	sctx.MarkJobPreempted("job-2")
+	assert.True(t, sctx.IsJobPreempted("job-1"))
+	assert.True(t, sctx.IsJobPreempted("job-2"))
+}
+
 func TestCalculateFairnessError(t *testing.T) {
 	tests := map[string]struct {
 		availableResources internaltypes.ResourceList
