@@ -85,8 +85,6 @@ message NodePreemptConfig {
     NodePreemptRequest request = 1;
     // value of the armadaproject.io/node-pool label used to resolve the target node at runtime
     string node_pool_tag = 2;
-    // Optional queue lifecycle phases.
-    QueueConfig queue_config = 18;
 }
 
 // Queue lifecycle configuration for a test.
