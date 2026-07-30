@@ -36,6 +36,10 @@ type SchedulingContext struct {
 	// Limits job scheduling rate globally across all queues.
 	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
 	Limiter *rate.Limiter
+	// Limits the rate of fairshare preemptions for this pool, counting one token per preempted job.
+	// nil means no limit (the pool is not configured with a fairshare preemption rate limit).
+	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
+	FairsharePreemptionLimiter *rate.Limiter
 	// Sum of queue weights across all queues.
 	WeightSum float64
 	// Per-queue scheduling contexts.
@@ -76,6 +80,7 @@ func NewSchedulingContext(
 	pool string,
 	fairnessCostProvider fairness.FairnessCostProvider,
 	limiter *rate.Limiter,
+	fairsharePreemptionLimiter *rate.Limiter,
 	totalResources internaltypes.ResourceList,
 ) *SchedulingContext {
 	return &SchedulingContext{
@@ -83,6 +88,7 @@ func NewSchedulingContext(
 		Pool:                         pool,
 		FairnessCostProvider:         fairnessCostProvider,
 		Limiter:                      limiter,
+		FairsharePreemptionLimiter:   fairsharePreemptionLimiter,
 		QueueSchedulingContexts:      make(map[string]*QueueSchedulingContext),
 		TotalResources:               totalResources,
 		ScheduledResources:           internaltypes.ResourceList{},
@@ -496,13 +502,29 @@ func (sctx *SchedulingContext) QueueContextExists(job *jobdb.Job) bool {
 
 // MarkJobPreempted records that the job with the given id was preempted during this scheduling round.
 // Preempted jobs must not be re-scheduled; see IsJobPreempted.
+// Each newly-preempted job consumes one token from the pool's fairshare preemption rate limiter.
+// This is retrospective (the bucket may go negative) and idempotent: re-marking a job does not
+// consume additional tokens.
 func (sctx *SchedulingContext) MarkJobPreempted(jobId string) {
+	if sctx.PreemptedJobIds[jobId] {
+		return
+	}
 	sctx.PreemptedJobIds[jobId] = true
+	if sctx.FairsharePreemptionLimiter != nil {
+		sctx.FairsharePreemptionLimiter.ReserveN(sctx.Started, 1)
+	}
 }
 
 // IsJobPreempted reports whether the job with the given id was preempted during this scheduling round.
 func (sctx *SchedulingContext) IsJobPreempted(jobId string) bool {
 	return sctx.PreemptedJobIds[jobId]
+}
+
+func (sctx *SchedulingContext) AtFairsharePreemptionRateLimit() bool {
+	if sctx.FairsharePreemptionLimiter == nil {
+		return false
+	}
+	return sctx.FairsharePreemptionLimiter.TokensAt(sctx.Started) < 1
 }
 
 func (sctx *SchedulingContext) PreemptJob(jctx *JobSchedulingContext) (bool, error) {
