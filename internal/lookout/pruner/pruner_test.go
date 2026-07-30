@@ -222,7 +222,7 @@ func TestPruneDb(t *testing.T) {
 				dbConn, err := db.Acquire(ctx)
 				assert.NoError(t, err)
 				isHC := isHotColdSchema(ctx, db)
-				err = PruneDb(ctx, dbConn.Conn(), tc.expireAfter, 0, 10, clock.NewFakeClock(baseTime), isHC)
+				err = PruneDb(ctx, dbConn.Conn(), tc.expireAfter, 0, 0, 10, clock.NewFakeClock(baseTime), isHC)
 				assert.NoError(t, err)
 
 				queriedJobIdsPerTable := []map[string]bool{

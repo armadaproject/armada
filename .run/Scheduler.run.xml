@@ -2,7 +2,7 @@
   <configuration default="false" name="Scheduler" type="GoApplicationRunConfiguration" factoryName="Go Application">
     <module name="armada" />
     <working_directory value="$PROJECT_DIR$" />
-    <parameters value="run --config $PROJECT_DIR$/developer/config/insecure-armada.yaml" />
+    <parameters value="run --config $PROJECT_DIR$/_local/scheduler/config.yaml" />
     <envs>
       <env name="ARMADA_ARMADAAPI_ARMADAURL" value="localhost:50051" />
       <env name="ARMADA_HTTP_PORT" value="8084" />

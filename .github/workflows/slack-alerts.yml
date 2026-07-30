@@ -8,12 +8,12 @@ on:
 jobs:
   on-failure:
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'failure' 
+    if: github.event.workflow_run.conclusion == 'failure'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: "Send Notification"
-        uses: Mo-Fatah/ci-alerts@v2
-        env: 
+        uses: Mo-Fatah/ci-alerts@4ee9acee5acfaf272c9712fbbefe493d8ca2a1dc # v2
+        env:
           webhook: ${{ secrets.SLACK_WEBHOOK }}
           github_context: ${{ toJSON(github) }}
           users_path: ${{github.workspace}}/.github/gh-to-slackid

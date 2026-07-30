@@ -264,6 +264,61 @@ func (qctx *QueueSchedulingContext) addJobSchedulingContext(jctx *JobSchedulingC
 	return evictedInThisRound, nil
 }
 
+func (qctx *QueueSchedulingContext) UnscheduleJob(jctx *JobSchedulingContext) bool {
+	jobId := jctx.Job.Id()
+
+	pcName := jctx.Job.PriorityClassName()
+	rl := jctx.Job.AllResourceRequirements()
+
+	existingJctx, scheduledInThisRound := qctx.SuccessfulJobSchedulingContexts[jobId]
+	if scheduledInThisRound {
+		qctx.ScheduledResourcesByPriorityClass[pcName] = qctx.ScheduledResourcesByPriorityClass[pcName].Subtract(rl)
+		delete(qctx.SuccessfulJobSchedulingContexts, jobId)
+		qctx.AllocatedByPriorityClass[pcName] = qctx.AllocatedByPriorityClass[pcName].Subtract(rl)
+		qctx.Allocated = qctx.Allocated.Subtract(rl)
+		if existingJctx.Billable {
+			qctx.BillableResource = qctx.BillableResource.Subtract(rl)
+		}
+	}
+
+	return scheduledInThisRound
+}
+
+func (qctx *QueueSchedulingContext) RemoveJob(jctx *JobSchedulingContext) (bool, bool, bool) {
+	jobId := jctx.Job.Id()
+
+	pcName := jctx.Job.PriorityClassName()
+	rl := jctx.Job.AllResourceRequirements()
+
+	scheduledInRound := qctx.UnscheduleJob(jctx)
+
+	existingJctx, rescheduledThisRound := qctx.RescheduledJobSchedulingContexts[jobId]
+	if rescheduledThisRound {
+		delete(qctx.RescheduledJobSchedulingContexts, jobId)
+		qctx.AllocatedByPriorityClass[pcName] = qctx.AllocatedByPriorityClass[pcName].Subtract(rl)
+		qctx.Allocated = qctx.Allocated.Subtract(rl)
+		if existingJctx.Billable {
+			qctx.BillableResource = qctx.BillableResource.Subtract(rl)
+		}
+	}
+
+	_, preemptedByOptimiserThisRound := qctx.PreemptedByOptimiserJobSchedulingContexts[jobId]
+	if preemptedByOptimiserThisRound {
+		delete(qctx.PreemptedByOptimiserJobSchedulingContexts, jobId)
+		qctx.PreemptedByOptimiserResourceByPriorityClass[pcName] = qctx.PreemptedByOptimiserResourceByPriorityClass[pcName].Subtract(rl)
+	}
+
+	evictedThisRound := qctx.EvictedJobsById[jobId]
+	if evictedThisRound {
+		delete(qctx.EvictedJobsById, jobId)
+		qctx.EvictedResourcesByPriorityClass[pcName] = qctx.EvictedResourcesByPriorityClass[pcName].Subtract(rl)
+	}
+
+	qctx.Demand = qctx.Demand.Subtract(rl)
+
+	return scheduledInRound, rescheduledThisRound, evictedThisRound
+}
+
 func (qctx *QueueSchedulingContext) preemptJob(jctx *JobSchedulingContext) (bool, error) {
 	jobId := jctx.Job.Id()
 

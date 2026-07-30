@@ -51,7 +51,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		{Name: "cpu2"},
 		{Name: "cpu-disallowed-resources", ExperimentalUnscheduledResources: []string{"cpu"}},
 		{Name: "gpu"},
-		{Name: "cpu-away", AwayPools: []string{"gpu"}},
+		{Name: "cpu-away", AwayPools: []configuration.AwayPoolConfig{{Name: "gpu"}}},
 		{Name: "cpu-grouped-1", ExperimentalSubmissionGroup: "group-1"},
 		{Name: "cpu-grouped-2", ExperimentalSubmissionGroup: "group-1"},
 	}
@@ -90,6 +90,22 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			jobs:            []*jobdb.Job{smallJob1},
 			expectedResult: map[string]schedulingResult{
 				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
+		"Job schedulable when its only node is cordoned": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(cordon(SmallNode("cpu")))},
+			jobs:            []*jobdb.Job{smallJob1},
+			expectedResult: map[string]schedulingResult{
+				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
+		"GPU job schedulable when all GPU nodes are cordoned": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(cordon(GpuNode("gpu")))},
+			jobs:            []*jobdb.Job{smallGpuJob},
+			expectedResult: map[string]schedulingResult{
+				smallGpuJob.Id(): {isSchedulable: true, pools: []string{"gpu"}},
 			},
 		},
 		"One job schedulable, jobs not assigned to pools with matching disallowed resources": {
@@ -514,6 +530,19 @@ func GpuNode(pool string) *schedulerobjects.Node {
 		},
 	}
 	node.Pool = pool
+	return node
+}
+
+// cordon simulates `kubectl cordon` on a node: it sets the unschedulable flag (which the scheduler
+// turns into the armadaproject.io/unschedulable taint) and adds the Kubernetes-native unschedulable
+// taint that kubectl applies. armadactl executor-level cordoning is unaffected as the submit checker
+// does not read executor settings.
+func cordon(node *schedulerobjects.Node) *schedulerobjects.Node {
+	node.Unschedulable = true
+	node.Taints = append(node.Taints, &v1.Taint{
+		Key:    v1.TaintNodeUnschedulable,
+		Effect: v1.TaintEffectNoSchedule,
+	})
 	return node
 }
 

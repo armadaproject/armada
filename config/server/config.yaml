@@ -87,3 +87,20 @@ postgres:
     sslmode: disable
 queryapi:
   maxQueryItems: 500
+  # Optionally replay each Query API database query against a second database
+  # for performance evaluation. Fire-and-forget: mirror results are discarded
+  # and never affect the primary query path.
+  mirror:
+    enabled: false
+    # Maximum concurrently replayed mirror queries. When this bound is reached
+    # further queries are dropped (logged at debug level), so the mirrored load
+    # under-counts real Query API traffic if the bound is hit.
+    maxInFlight: 100
+    postgres:
+      connection:
+        host: postgres
+        port: 5432
+        user: postgres
+        password: psw
+        dbname: lookout_mirror
+        sslmode: disable

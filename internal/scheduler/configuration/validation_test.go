@@ -8,7 +8,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/observability"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/leaderelection"
 )
 
 func TestMutate(t *testing.T) {
@@ -66,15 +68,68 @@ func TestMutate(t *testing.T) {
 				},
 			},
 		},
+		"Observability - preserves configured value": {
+			input: &Configuration{
+				Observability: observability.ObservabilityConfig{
+					Enabled: true,
+					Exporter: observability.OTLPExporterConfig{
+						Endpoint: "http://otel-collector:4318",
+						Protocol: "http/protobuf",
+					},
+					Traces: observability.TracesConfig{
+						Sampler:    "parent_based_trace_id_ratio",
+						SamplerArg: 0.25,
+					},
+					Resource: observability.ResourceAttributes{
+						ServiceName:     "scheduler",
+						ServiceVersion:  "configured-version",
+						ServiceInstance: "configured-instance",
+					},
+				},
+			},
+			expected: &Configuration{
+				Observability: observability.ObservabilityConfig{
+					Enabled: true,
+					Exporter: observability.OTLPExporterConfig{
+						Endpoint: "http://otel-collector:4318",
+						Protocol: "http/protobuf",
+					},
+					Traces: observability.TracesConfig{
+						Sampler:    "parent_based_trace_id_ratio",
+						SamplerArg: 0.25,
+					},
+					Resource: observability.ResourceAttributes{
+						ServiceName:     "scheduler",
+						ServiceVersion:  "configured-version",
+						ServiceInstance: "configured-instance",
+					},
+				},
+			},
+		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			result, err := tc.input.Mutate()
 			assert.NoError(t, err)
+
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+func TestMutateAppliesObservabilityResourceDefaults(t *testing.T) {
+	config := &Configuration{
+		Observability: observability.ObservabilityConfig{Enabled: true},
+	}
+
+	result, err := config.Mutate()
+	assert.NoError(t, err)
+
+	mutated := result.(*Configuration)
+	assert.Equal(t, "armada-scheduler", mutated.Observability.Resource.ServiceName)
+	assert.NotEmpty(t, mutated.Observability.Resource.ServiceVersion)
+	assert.NotEmpty(t, mutated.Observability.Resource.ServiceInstance)
 }
 
 func TestValidate_SchedulingTimeoutConfig(t *testing.T) {
@@ -153,12 +208,68 @@ func createValidMinimalConfig() Configuration {
 			MaximumPerQueueSchedulingBurst: 1,
 			MaxSchedulingDuration:          time.Second,
 		},
-		Leader: LeaderConfig{
+		Leader: leaderelection.Config{
 			Mode: "local",
 		},
 		Pulsar: commonconfig.PulsarConfig{
 			URL: "pulsar",
 		},
+	}
+}
+
+func TestValidate_PreemptionRateLimitWithMarketScheduling(t *testing.T) {
+	rateLimit := &RateLimit{MaximumRate: 10, MaximumBurst: 20}
+
+	tests := map[string]struct {
+		pool      PoolConfig
+		expectErr bool
+	}{
+		"rate limit without market scheduling is allowed": {
+			pool: PoolConfig{
+				Name:                         "cpu",
+				FairsharePreemptionRateLimit: rateLimit,
+			},
+			expectErr: false,
+		},
+		"market scheduling without rate limit is allowed": {
+			pool: PoolConfig{
+				Name:                         "cpu",
+				ExperimentalMarketScheduling: &MarketSchedulingConfig{Enabled: true, GangIndicativePricingTimeout: time.Second},
+			},
+			expectErr: false,
+		},
+		"rate limit with market scheduling disabled is allowed": {
+			pool: PoolConfig{
+				Name:                         "cpu",
+				FairsharePreemptionRateLimit: rateLimit,
+				ExperimentalMarketScheduling: &MarketSchedulingConfig{Enabled: false, GangIndicativePricingTimeout: time.Second},
+			},
+			expectErr: false,
+		},
+		"rate limit with market scheduling enabled is rejected": {
+			pool: PoolConfig{
+				Name:                         "cpu",
+				FairsharePreemptionRateLimit: rateLimit,
+				ExperimentalMarketScheduling: &MarketSchedulingConfig{Enabled: true, GangIndicativePricingTimeout: time.Second},
+			},
+			expectErr: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			c := createValidMinimalConfig()
+			c.Scheduling.Pools = []PoolConfig{tc.pool}
+
+			err := c.Validate()
+
+			if tc.expectErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), PreemptionRateLimitWithMarketSchedulingErrorMessage)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
 	}
 }
 

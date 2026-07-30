@@ -4,7 +4,7 @@ import _ from "lodash"
 
 import { getConfig } from "../../config"
 import { Job, JobFilter, JobFiltersWithExcludes } from "../../models/lookoutModels"
-import { useAuthenticatedFetch } from "../../oidcAuth"
+import { useMirroredLookoutApiFetch } from "../../oidcAuth"
 
 const MAX_JOBS_PER_REQUEST = 10_000
 
@@ -37,7 +37,7 @@ export const useGetAllJobsMatchingFilters = ({
   const [error, setError] = useState<string | null>(null)
   const [refetchCounter, setRefetchCounter] = useState(0)
 
-  const authenticatedFetch = useAuthenticatedFetch()
+  const lookoutApiFetch = useMirroredLookoutApiFetch()
   const config = getConfig()
 
   // Create a stable key for filtersGroups to avoid unnecessary re-renders
@@ -50,7 +50,7 @@ export const useGetAllJobsMatchingFilters = ({
         path += "?" + new URLSearchParams({ backend: config.backend })
       }
 
-      const response = await authenticatedFetch(path, {
+      const response = await lookoutApiFetch(path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -67,7 +67,7 @@ export const useGetAllJobsMatchingFilters = ({
         jobs: json.jobs ?? [],
       }
     },
-    [authenticatedFetch, config.backend],
+    [lookoutApiFetch, config.backend],
   )
 
   const fetchJobsWithPagination = useCallback(

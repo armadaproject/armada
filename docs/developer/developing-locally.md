@@ -12,7 +12,7 @@ Lookout consists of two components:
 * Lookout API: a Go service that provides an API to the Armada backend
 * Lookout UI: a React application that provides a web interface to the Lookout API
 
-After running `mage localdev full` and `mage ui`, you can access the Lookout UI through your browser at `http://localhost:8089`.
+After running `mage dev:full` and `mage ui`, you can access the Lookout UI through your browser at `http://localhost:8089`.
 
 You can also rebuild a production build of the UI by running `mage ui` in the root of the repo.
 

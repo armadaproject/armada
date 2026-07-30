@@ -11,6 +11,9 @@ const proportionTolerance = 0.001 // Tolerance for floating point comparison
 
 // Validate validates the Test configuration.
 func (t *TestConfig) Validate() error {
+	if t.FeatureToggles.HotColdSplit && t.FeatureToggles.PartitionBySubmitted {
+		return fmt.Errorf("feature toggles are mutually exclusive: only one of hotColdSplit, partitionBySubmitted may be enabled")
+	}
 	if t.TestDuration <= 0 {
 		return fmt.Errorf("testDuration must be positive, got %v", t.TestDuration)
 	}

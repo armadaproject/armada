@@ -9,6 +9,7 @@ import (
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/client"
@@ -17,10 +18,11 @@ import (
 type ArmadaConfig struct {
 	Auth authconfig.AuthConfig
 
-	GrpcPort    uint16
-	HttpPort    uint16
-	MetricsPort uint16
-	Profiling   *profilingconfig.ProfilingConfig
+	GrpcPort      uint16
+	HttpPort      uint16
+	MetricsPort   uint16
+	Profiling     *profilingconfig.ProfilingConfig
+	Observability observability.ObservabilityConfig
 
 	CorsAllowedOrigins []string
 	GrpcGatewayPath    string
@@ -106,4 +108,21 @@ type PostgresConfig struct {
 
 type QueryApiConfig struct {
 	MaxQueryItems int
+	// Mirror optionally duplicates each Query API database query against a
+	// second database for performance evaluation under real query patterns.
+	Mirror QueryApiMirrorConfig
+}
+
+// QueryApiMirrorConfig configures fire-and-forget server-side mirroring of
+// Query API database queries to a second database, so it can be evaluated
+// under real production query patterns without affecting the primary query
+// path.
+type QueryApiMirrorConfig struct {
+	Enabled bool
+	// Postgres connection pointed at the database to mirror queries to.
+	Postgres PostgresConfig
+	// MaxInFlight bounds the number of concurrently replayed mirror queries.
+	// When the bound is reached, further mirror queries are dropped. If zero,
+	// a sensible default is used.
+	MaxInFlight int
 }

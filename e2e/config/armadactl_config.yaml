@@ -1,4 +1,0 @@
-currentContext: test
-contexts:
-  test:
-    armadaUrl: localhost:50051

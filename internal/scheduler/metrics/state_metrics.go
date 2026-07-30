@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"math"
-	"regexp"
 	"strings"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 )
 
 type jobStateMetrics struct {
-	errorRegexes           []*regexp.Regexp
 	resetInterval          time.Duration
 	jobCheckpointIntervals []time.Duration
 	lastResetTime          time.Time
@@ -35,7 +33,6 @@ type jobStateMetrics struct {
 }
 
 func newJobStateMetrics(
-	errorRegexes []*regexp.Regexp,
 	trackedResourceNames []v1.ResourceName,
 	jobCheckpointIntervals []time.Duration,
 	resetInterval time.Duration,
@@ -100,7 +97,7 @@ func newJobStateMetrics(
 	jobErrorsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: ArmadaSchedulerMetricsPrefix + "job_error_classification_by_node",
-			Help: "Failed jobs ey error classification at the node level",
+			Help: "Failed jobs by error classification at the node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, errorCategoryLabel, errorSubcategoryLabel},
 	)
@@ -112,7 +109,6 @@ func newJobStateMetrics(
 		[]string{queueLabel, poolLabel, checkpointLabel, resourceLabel},
 	)
 	return &jobStateMetrics{
-		errorRegexes:                              errorRegexes,
 		trackedResourceNames:                      trackedResourceNames,
 		jobCheckpointIntervals:                    jobCheckpointIntervals,
 		resetInterval:                             resetInterval,
@@ -234,7 +230,7 @@ func (m *jobStateMetrics) ReportStateTransitions(
 			m.updateStateDuration(job, failed, priorState, duration)
 			m.completedRunDurations.WithLabelValues(job.Queue(), run.Pool()).Observe(duration)
 			jobRunError := jobRunErrorsByRunId[run.Id()]
-			category, subCategory := m.failedCategoryAndSubCategoryFromJob(jobRunError)
+			category, subCategory := jobRunError.GetFailureCategory(), jobRunError.GetFailureSubcategory()
 			m.jobErrorsByQueue.WithLabelValues(job.Queue(), run.Pool(), category, subCategory).Inc()
 			m.jobErrorsByNode.WithLabelValues(run.NodeName(), run.Pool(), run.Executor(), category, subCategory).Inc()
 		}
@@ -294,16 +290,6 @@ func (m *jobStateMetrics) updateStateDuration(job *jobdb.Job, state string, prio
 	}
 }
 
-func (m *jobStateMetrics) failedCategoryAndSubCategoryFromJob(err *armadaevents.Error) (string, string) {
-	category, message := errorTypeAndMessageFromError(err)
-	for _, r := range m.errorRegexes {
-		if r.MatchString(message) {
-			return category, r.String()
-		}
-	}
-	return category, ""
-}
-
 func (m *jobStateMetrics) reset() {
 	m.jobStateCounterByNode.Reset()
 	for _, metric := range m.allMetrics {
@@ -356,24 +342,4 @@ func stateDuration(job *jobdb.Job, run *jobdb.JobRun, stateTime *time.Time) (flo
 	}
 	// succeeded, failed, cancelled, preempted are not prior states
 	return stateTime.Sub(*priorTime).Seconds(), prior
-}
-
-func errorTypeAndMessageFromError(err *armadaevents.Error) (string, string) {
-	if err == nil {
-		return "", ""
-	}
-	// The following errors relate to job run failures.
-	// We do not process JobRunPreemptedError as there is separate metric for preemption.
-	switch reason := err.Reason.(type) {
-	case *armadaevents.Error_LeaseExpired:
-		return "leaseExpired", ""
-	case *armadaevents.Error_PodError:
-		return "podError", reason.PodError.Message
-	case *armadaevents.Error_PodLeaseReturned:
-		return "podLeaseReturned", reason.PodLeaseReturned.Message
-	case *armadaevents.Error_JobRunPreemptedError:
-		return "jobRunPreempted", ""
-	default:
-		return "", ""
-	}
 }

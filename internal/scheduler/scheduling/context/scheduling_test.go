@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/pointer"
@@ -19,6 +20,19 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
+func TestNewSchedulingContextDefaultsPreemptionLimiterToUnset(t *testing.T) {
+	totalResources := testfixtures.TestResourceListFactory.FromNodeProto(
+		map[string]*resource.Quantity{"cpu": pointer.MustParseResource("1")},
+	)
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+	require.NoError(t, err)
+	sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, nil, totalResources)
+
+	// A nil fairshare preemption limiter means no limit; the pool is never at the rate limit.
+	assert.Nil(t, sctx.FairsharePreemptionLimiter)
+	assert.False(t, sctx.AtFairsharePreemptionRateLimit())
+}
+
 func TestSchedulingContextAccounting(t *testing.T) {
 	totalResources := testfixtures.TestResourceListFactory.FromNodeProto(
 		map[string]*resource.Quantity{"cpu": pointer.MustParseResource("1")},
@@ -28,6 +42,7 @@ func TestSchedulingContextAccounting(t *testing.T) {
 	sctx := NewSchedulingContext(
 		"pool",
 		fairnessCostProvider,
+		nil,
 		nil,
 		totalResources,
 	)
@@ -204,6 +219,7 @@ func TestCalculateFairShares(t *testing.T) {
 				"pool",
 				fairnessCostProvider,
 				nil,
+				nil,
 				tc.availableResources,
 			)
 			for qName, q := range tc.queueCtxs {
@@ -296,6 +312,7 @@ func TestCalculateTheoreticalShare(t *testing.T) {
 				"pool",
 				fairnessCostProvider,
 				nil,
+				nil,
 				tc.availableResources,
 			)
 			for qName, q := range tc.queueCtxs {
@@ -355,7 +372,7 @@ func TestRecordNewJobSchedulingDuration(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(cpu(100), "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 			require.NoError(t, err)
-			sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, cpu(100))
+			sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, nil, cpu(100))
 			if tc.initialTotalSchedulingDuration > 0 {
 				sctx.TotalNewJobSchedulingTime = tc.initialTotalSchedulingDuration
 			}
@@ -374,6 +391,51 @@ func TestRecordNewJobSchedulingDuration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMarkJobPreempted(t *testing.T) {
+	sctx := NewSchedulingContext("pool", nil, nil, nil, cpu(100))
+
+	// Unknown jobs are not preempted.
+	assert.False(t, sctx.IsJobPreempted("job-1"))
+
+	// Marking a job records it as preempted; other jobs are unaffected.
+	sctx.MarkJobPreempted("job-1")
+	assert.True(t, sctx.IsJobPreempted("job-1"))
+	assert.False(t, sctx.IsJobPreempted("job-2"))
+
+	// Marking is idempotent and additive.
+	sctx.MarkJobPreempted("job-1")
+	sctx.MarkJobPreempted("job-2")
+	assert.True(t, sctx.IsJobPreempted("job-1"))
+	assert.True(t, sctx.IsJobPreempted("job-2"))
+}
+
+func TestMarkJobPreempted_ConsumesPreemptionLimiterTokens(t *testing.T) {
+	sctx := NewSchedulingContext("pool", nil, nil, nil, cpu(100))
+	sctx.FairsharePreemptionLimiter = rate.NewLimiter(rate.Limit(1), 5)
+	before := sctx.FairsharePreemptionLimiter.TokensAt(sctx.Started)
+
+	// Each newly-preempted job consumes one token.
+	sctx.MarkJobPreempted("job-1")
+	sctx.MarkJobPreempted("job-2")
+	assert.InDelta(t, before-2, sctx.FairsharePreemptionLimiter.TokensAt(sctx.Started), 1e-9)
+
+	// Re-marking an already-preempted job does not consume additional tokens.
+	sctx.MarkJobPreempted("job-1")
+	assert.InDelta(t, before-2, sctx.FairsharePreemptionLimiter.TokensAt(sctx.Started), 1e-9)
+}
+
+func TestMarkJobPreempted_PreemptionLimiterMayGoNegative(t *testing.T) {
+	sctx := NewSchedulingContext("pool", nil, nil, nil, cpu(100))
+	// Budget of 1 token, but preempt 3 jobs: the bucket is allowed to go negative (retrospective limit).
+	sctx.FairsharePreemptionLimiter = rate.NewLimiter(rate.Limit(1), 1)
+
+	sctx.MarkJobPreempted("job-1")
+	sctx.MarkJobPreempted("job-2")
+	sctx.MarkJobPreempted("job-3")
+
+	assert.Less(t, sctx.FairsharePreemptionLimiter.TokensAt(sctx.Started), 0.0)
 }
 
 func TestCalculateFairnessError(t *testing.T) {
@@ -457,7 +519,7 @@ func TestCalculateFairnessError(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 			require.NoError(t, err)
-			sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, tc.availableResources)
+			sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, nil, tc.availableResources)
 			sctx.QueueSchedulingContexts = tc.queueCtxs
 			assert.InDelta(t, tc.expected, sctx.FairnessError(), 0.00001)
 		})
@@ -538,6 +600,156 @@ func addFloatingResourceRequest(request string, job *jobdb.Job) *jobdb.Job {
 			},
 		},
 		[]*jobdb.Job{job})[0]
+}
+
+func TestSchedulingContext_UnscheduleJob(t *testing.T) {
+	tests := map[string]struct {
+		isExistingJob bool
+		setup         func(t *testing.T, sctx *SchedulingContext, jctx *JobSchedulingContext)
+		expectError   bool
+	}{
+		"unschedules a job scheduled this round": {
+			setup: func(t *testing.T, sctx *SchedulingContext, jctx *JobSchedulingContext) {
+				_, err := sctx.AddJobSchedulingContext(jctx)
+				require.NoError(t, err)
+			},
+		},
+		"errors if job was not scheduled this round": {
+			setup:       func(t *testing.T, sctx *SchedulingContext, jctx *JobSchedulingContext) {},
+			expectError: true,
+		},
+		// UnscheduleJob only reverts jobs newly scheduled this round
+		"errors for a rescheduled job": {
+			isExistingJob: true,
+			setup: func(t *testing.T, sctx *SchedulingContext, jctx *JobSchedulingContext) {
+				_, err := sctx.EvictJob(jctx)
+				require.NoError(t, err)
+				_, err = sctx.AddJobSchedulingContext(jctx)
+				require.NoError(t, err)
+			},
+			expectError: true,
+		},
+		"errors for an optimiser-preempted job": {
+			isExistingJob: true,
+			setup: func(t *testing.T, sctx *SchedulingContext, jctx *JobSchedulingContext) {
+				_, err := sctx.PreemptJob(jctx)
+				require.NoError(t, err)
+			},
+			expectError: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			jctx := testSmallCpuJobSchedulingContext("A", testfixtures.TestDefaultPriorityClass)
+			sctx := createSchedulingContext(t, jctx, tc.isExistingJob)
+			tc.setup(t, sctx, jctx)
+
+			err := sctx.UnscheduleJob(jctx)
+			if tc.expectError {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, 0, sctx.NumScheduledJobs)
+			assert.True(t, sctx.ScheduledResources.AllZero())
+			assert.True(t, sctx.Allocated.AllZero())
+		})
+	}
+}
+
+func TestSchedulingContext_UnscheduleJob_ErrorsIfQueueContextMissing(t *testing.T) {
+	jctx := testSmallCpuJobSchedulingContext("A", testfixtures.TestDefaultPriorityClass)
+	sctx := createSchedulingContext(t, jctx, false)
+	missingQueueJctx := testSmallCpuJobSchedulingContext("unknown", testfixtures.TestDefaultPriorityClass)
+
+	err := sctx.UnscheduleJob(missingQueueJctx)
+	assert.Error(t, err)
+}
+
+func TestSchedulingContext_RemoveJob(t *testing.T) {
+	tests := map[string]struct {
+		isExistingJob     bool
+		setup             func(t *testing.T, sctx *SchedulingContext, jctx *JobSchedulingContext)
+		expectedScheduled bool
+	}{
+		"scheduled this round": {
+			setup: func(t *testing.T, sctx *SchedulingContext, jctx *JobSchedulingContext) {
+				_, err := sctx.AddJobSchedulingContext(jctx)
+				require.NoError(t, err)
+			},
+			expectedScheduled: true,
+		},
+		"rescheduled this round": {
+			isExistingJob: true,
+			setup: func(t *testing.T, sctx *SchedulingContext, jctx *JobSchedulingContext) {
+				_, err := sctx.EvictJob(jctx)
+				require.NoError(t, err)
+				_, err = sctx.AddJobSchedulingContext(jctx)
+				require.NoError(t, err)
+			},
+			expectedScheduled: false,
+		},
+		"optimiser-preempted this round": {
+			isExistingJob: true,
+			setup: func(t *testing.T, sctx *SchedulingContext, jctx *JobSchedulingContext) {
+				_, err := sctx.PreemptJob(jctx)
+				require.NoError(t, err)
+			},
+			expectedScheduled: false,
+		},
+		"evicted this round": {
+			isExistingJob: true,
+			setup: func(t *testing.T, sctx *SchedulingContext, jctx *JobSchedulingContext) {
+				_, err := sctx.EvictJob(jctx)
+				require.NoError(t, err)
+			},
+			expectedScheduled: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			jctx := testSmallCpuJobSchedulingContext("A", testfixtures.TestDefaultPriorityClass)
+			sctx := createSchedulingContext(t, jctx, tc.isExistingJob)
+			tc.setup(t, sctx, jctx)
+
+			scheduledInRound, err := sctx.RemoveJob(jctx)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expectedScheduled, scheduledInRound)
+			assert.Equal(t, 0, sctx.NumScheduledJobs)
+			assert.True(t, sctx.ScheduledResources.AllZero())
+			assert.Equal(t, 0, sctx.NumEvictedJobs)
+			assert.True(t, sctx.EvictedResources.AllZero())
+			assert.True(t, sctx.Allocated.AllZero())
+		})
+	}
+}
+
+func TestSchedulingContext_RemoveJob_ErrorsIfQueueContextMissing(t *testing.T) {
+	jctx := testSmallCpuJobSchedulingContext("A", testfixtures.TestDefaultPriorityClass)
+	sctx := createSchedulingContext(t, jctx, false)
+	missingQueueJctx := testSmallCpuJobSchedulingContext("unknown", testfixtures.TestDefaultPriorityClass)
+
+	_, err := sctx.RemoveJob(missingQueueJctx)
+	assert.Error(t, err)
+}
+
+func createSchedulingContext(t *testing.T, jctx *JobSchedulingContext, isJobExisting bool) *SchedulingContext {
+	totalResources := cpu(100)
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
+		totalResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
+	require.NoError(t, err)
+	sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, nil, totalResources)
+
+	var initialAllocation map[string]internaltypes.ResourceList
+	demand := jctx.Job.AllResourceRequirements()
+	if isJobExisting {
+		rl := jctx.Job.AllResourceRequirements()
+		initialAllocation = map[string]internaltypes.ResourceList{jctx.Job.PriorityClassName(): rl}
+	}
+	err = sctx.AddQueueSchedulingContext(jctx.Job.Queue(), 1.0, 1.0, initialAllocation, demand, demand, internaltypes.ResourceList{}, nil)
+	require.NoError(t, err)
+	return sctx
 }
 
 func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) []*JobSchedulingContext {

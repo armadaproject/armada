@@ -2,14 +2,14 @@ import { useQuery } from "@tanstack/react-query"
 
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
-import { useAuthenticatedFetch } from "../../oidcAuth"
+import { useMirroredLookoutApiFetch } from "../../oidcAuth"
 
 import { fakeJobError } from "./mocks/fakeData"
 
 export const useGetJobError = (jobId: string, enabled = true) => {
   const config = getConfig()
 
-  const authenticatedFetch = useAuthenticatedFetch()
+  const lookoutApiFetch = useMirroredLookoutApiFetch()
 
   return useQuery<string, string>({
     queryKey: ["getJobError", jobId],
@@ -19,7 +19,7 @@ export const useGetJobError = (jobId: string, enabled = true) => {
           return fakeJobError
         }
 
-        const response = await authenticatedFetch("/api/v1/jobError", {
+        const response = await lookoutApiFetch("/api/v1/jobError", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jobId }),

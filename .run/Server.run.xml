@@ -2,7 +2,7 @@
   <configuration default="false" name="Server" type="GoApplicationRunConfiguration" factoryName="Go Application">
     <module name="armada" />
     <working_directory value="$PROJECT_DIR$" />
-    <parameters value="--config ./developer/config/insecure-armada.yaml" />
+    <parameters value="--config ./_local/server/config.yaml" />
     <envs>
       <env name="ARMADA_CORSALLOWEDORIGINS" value="&quot;http://localhost:3000,http://localhost:4173,http://localhost:8089,http://localhost:10000,http://example.com:10000,http://example.com:8089&quot;" />
       <env name="ARMADA_QUERYAPI_POSTGRES_CONNECTION_HOST" value="localhost" />

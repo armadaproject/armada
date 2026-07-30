@@ -30,7 +30,7 @@ func NewSqlGetJobRunDebugMessageRepository(db *pgxpool.Pool, decompressor compre
 
 func (r *SqlGetJobRunDebugMessageRepository) GetJobRunDebugMessage(ctx *armadacontext.Context, runId string) (string, error) {
 	var rawBytes []byte
-	err := r.db.QueryRow(ctx, "SELECT debug FROM job_run WHERE run_id = $1 AND error IS NOT NULL", runId).Scan(&rawBytes)
+	err := r.db.QueryRow(ctx, "SELECT debug FROM job_run WHERE run_id = $1 AND debug IS NOT NULL", runId).Scan(&rawBytes)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", fmt.Errorf("no debug message found for run with id %s: %w", runId, ErrNotFound)

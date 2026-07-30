@@ -62,6 +62,7 @@ kubernetes:
   pendingPodChecks:
     deadlineForUpdates: 5m
     deadlineForNodeAssignment: 5m
+    deadlineForInitContainers: 5m
     events:
       - regexp: "Failed to pull image.* failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.
         type: Warning

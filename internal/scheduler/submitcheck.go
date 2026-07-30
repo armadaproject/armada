@@ -154,6 +154,8 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 		nodes := nodeFactory.FromSchedulerObjectsExecutors(
 			[]*schedulerobjects.Executor{ex},
 			func(s string) { ctx.Error(s) })
+		// Treat cordoned nodes as available.
+		nodes = nodeFactory.RemoveCordonTaint(nodes)
 		nodesByPool := armadaslices.GroupByFunc(nodes, func(n *internaltypes.Node) string {
 			return n.GetPool()
 		})
@@ -311,7 +313,7 @@ poolStart:
 		}
 
 		for _, awayPool := range pool.AwayPools {
-			if successfulPools[awayPool] {
+			if successfulPools[awayPool.Name] {
 				continue poolStart
 			}
 		}
@@ -339,7 +341,7 @@ poolStart:
 
 		executors := maps.Values(state.executorsByPoolAndId[pool.Name])
 		for _, awayPool := range pool.AwayPools {
-			executors = append(executors, maps.Values(state.executorsByPoolAndId[awayPool])...)
+			executors = append(executors, maps.Values(state.executorsByPoolAndId[awayPool.Name])...)
 		}
 
 		for _, ex := range executors {
@@ -348,28 +350,17 @@ poolStart:
 			gctx := copyGangContext(originalGangCtx)
 
 			// TODO construct nodedb per synthetic pool to avoid needing to set this dynamically
-			if pool.DisableAwayScheduling {
-				ex.nodeDb.DisableAwayScheduling()
-			} else {
-				ex.nodeDb.EnableAwayScheduling()
-			}
-
-			if pool.DisableHomeScheduling {
-				ex.nodeDb.DisableHomeScheduling()
-			} else {
-				ex.nodeDb.EnableHomeScheduling()
-			}
-
-			if pool.DisableGangAwayScheduling {
-				ex.nodeDb.DisableGangAwayScheduling()
-			} else {
-				ex.nodeDb.EnableGangAwayScheduling()
-			}
-
-			ex.nodeDb.SetDisallowedJobResources(pool.ExperimentalUnscheduledResources)
+			ex.nodeDb.ConfigureScheduling(nodedb.SchedulingOptions{
+				DisableHomeScheduling:      pool.DisableHomeScheduling,
+				DisableAwayScheduling:      pool.DisableAwayScheduling,
+				DisableGangAwayScheduling:  pool.DisableGangAwayScheduling,
+				DisableFairshareScheduling: pool.DisableFairshareScheduling,
+				DisableUrgencyScheduling:   pool.DisableUrgencyScheduling,
+				DisallowedJobResources:     pool.ExperimentalUnscheduledResources,
+			})
 
 			txn := ex.nodeDb.Txn(true)
-			ok, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
+			ok, _, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
 			txn.Abort()
 
 			sb.WriteString(ex.id)

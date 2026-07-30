@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -33,20 +35,42 @@ func TestSuite() error {
 	if os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT") == "" {
 		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
 	}
+	timeTakenTestSuite := time.Now()
 
-	timeTaken := time.Now()
-	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
-		"--tests", "testsuite/testcases/basic/*,testsuite/testcases/categorization/*",
-		"--junit", "junit.xml",
-		"--config", "e2e/config/armadactl_config.yaml",
-	)
-	if err2 != nil {
-		fmt.Println(out)
-		return err2
+	suites := []string{
+		"basic", "categorization", "preemption", "reprioritization",
+		"testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
+		"testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
 	}
-	fmt.Printf("(Real) Time to run tests: %s\n\n", time.Since(timeTaken))
 
-	fmt.Println(out)
+	for i, suite := range suites {
+		var tests []string
+		label := suite
+		if info, err := os.Stat(suite); err == nil && !info.IsDir() {
+			tests = []string{suite}
+			label = strings.TrimSuffix(filepath.Base(suite), filepath.Ext(suite))
+		} else {
+			tests = []string{fmt.Sprintf("testsuite/testcases/%s/*", suite)}
+		}
+
+		timeTaken := time.Now()
+		out, err := goOutput("run", "cmd/testsuite/main.go", "test",
+			"--tests", strings.Join(tests, ","),
+			"--junit", fmt.Sprintf("junit-%s.xml", label),
+			"--config", "_local/.armadactl.yaml",
+		)
+		fmt.Println(out)
+		if err != nil {
+			return err
+		}
+		verb := "Time"
+		if i > 0 {
+			verb = "Additional time"
+		}
+		fmt.Printf("(Real) %s to run %s tests: %s\n\n", verb, suite, time.Since(timeTaken))
+	}
+
+	fmt.Printf("(Real) Total time to run all tests: %s\n\n", time.Since(timeTakenTestSuite))
 	return nil
 }
 
@@ -67,7 +91,7 @@ func CheckForArmadaRunning() error {
 		case <-timeout:
 			return fmt.Errorf("timed out waiting for Armada to start")
 		case <-tick:
-			out, _ := runArmadaCtl("submit", "./developer/config/job.yaml")
+			out, _ := runArmadaCtl("submit", "./_local/readiness-job.yaml")
 			if strings.Contains(out, "Submitted job with id") {
 				// Sleep for 1 second to allow Armada to fully start
 				time.Sleep(1 * time.Second)
@@ -79,9 +103,47 @@ func CheckForArmadaRunning() error {
 	}
 }
 
+// CheckSchedulerReady waits until the scheduler reports at least one registered executor.
+func CheckSchedulerReady() error {
+	return CheckDockerContainerRunning("scheduler", "Retrieved [1-9]+ executors")
+}
+
+// CheckDockerContainerRunning repeatedly checks a container's logs until expectedLogRegex matches.
+func CheckDockerContainerRunning(containerName string, expectedLogRegex string) error {
+	timeout := time.After(1 * time.Minute)
+	tick := time.Tick(1 * time.Second)
+	seconds := 0
+
+	logMatchRegex, err := regexp.Compile(expectedLogRegex)
+	if err != nil {
+		return fmt.Errorf("invalid log regex %s - %s", expectedLogRegex, err)
+	}
+
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timed out waiting for %s to start", containerName)
+		case <-tick:
+			out, err := dockerOutput("compose", "-f", "_local/compose/full.yaml", "logs", containerName)
+			if err != nil {
+				return err
+			}
+			if len(logMatchRegex.FindStringSubmatch(out)) > 0 {
+				if seconds < 1 {
+					fmt.Printf("\n%s had already started!\n\n", containerName)
+					return nil
+				}
+				fmt.Printf("\n%s took %d seconds to start!\n\n", containerName, seconds)
+				return nil
+			}
+			seconds++
+		}
+	}
+}
+
 func runArmadaCtl(args ...string) (string, error) {
 	armadaCtlArgs := []string{
-		"--config", "e2e/config/armadactl_config.yaml",
+		"--config", "_local/.armadactl.yaml",
 	}
 	armadaCtlArgs = append(armadaCtlArgs, args...)
 	outBytes, err := exec.Command(findOrBuildArmadaCtl(), armadaCtlArgs...).CombinedOutput()

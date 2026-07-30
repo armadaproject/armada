@@ -5,19 +5,19 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/armadaproject/armada/internal/scheduler/leader"
+	"github.com/armadaproject/armada/internal/leaderelection"
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 )
 
 type LeaderProxyingSchedulingReportsServer struct {
 	localReportsServer               schedulerobjects.SchedulerReportingServer
-	leaderClientProvider             leader.LeaderClientConnectionProvider
+	leaderClientProvider             leaderelection.LeaderClientConnectionProvider
 	schedulerReportingClientProvider reportingClientProvider
 }
 
 func NewLeaderProxyingSchedulingReportsServer(
 	schedulingReportsRepository schedulerobjects.SchedulerReportingServer,
-	leaderClientProvider leader.LeaderClientConnectionProvider,
+	leaderClientProvider leaderelection.LeaderClientConnectionProvider,
 ) *LeaderProxyingSchedulingReportsServer {
 	return &LeaderProxyingSchedulingReportsServer{
 		leaderClientProvider:             leaderClientProvider,

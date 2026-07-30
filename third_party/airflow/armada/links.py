@@ -5,9 +5,12 @@ import attrs
 
 from typing import Dict, Optional, Union
 from airflow.models import XCom, TaskInstance
-from airflow.utils.log.logging_mixin import LoggingMixin
-from airflow.models import BaseOperator, BaseOperatorLink
 from airflow.models.taskinstancekey import TaskInstanceKey
+
+try:
+    from airflow.sdk import BaseOperator, BaseOperatorLink
+except ImportError:
+    from airflow.models import BaseOperator, BaseOperatorLink
 
 
 def get_link_value(ti_key: TaskInstanceKey, name: str) -> Optional[str]:
@@ -31,35 +34,16 @@ def persist_link_value(ti: TaskInstance, name: str, value: str):
     ti.xcom_push(key=f"armada_{name.lower()}_url", value=value)
 
 
-class LookoutLink(BaseOperatorLink):
-    name = "Lookout"
-
-    def get_link(self, operator: BaseOperator, *, ti_key: TaskInstanceKey):
-        """
-        Get Lookout URL from XCom.
-        Returns empty string if XCom data doesn't exist yet.
-        """
-        try:
-            task_state = XCom.get_value(ti_key=ti_key, key="job_context")
-        except Exception:
-            # XCom doesn't exist yet (e.g., task not started)
-            return ""
-
-        if not task_state:
-            return ""
-
-        return task_state.get("armada_lookout_url", "")
-
-
 @attrs.define(init=True)
-class DynamicLink(BaseOperatorLink, LoggingMixin):
+class DynamicLink(BaseOperatorLink):
     name: str
 
+    @property
+    def xcom_key(self) -> str:
+        return f"armada_{self.name.lower()}_url"
+
     def get_link(self, operator: BaseOperator, *, ti_key: TaskInstanceKey):
-        url = get_link_value(ti_key, self.name)
-        if not url:
-            return ""
-        return url
+        return get_link_value(ti_key, self.name)
 
 
 class UrlFromLogsExtractor:

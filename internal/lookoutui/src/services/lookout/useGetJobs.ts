@@ -6,7 +6,7 @@ import { compareValues, makeRandomJobs, mergeFilters } from "../../common/fakeJo
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
 import { Job, JobFilter, JobKey, JobOrder } from "../../models/lookoutModels"
-import { useAuthenticatedFetch } from "../../oidcAuth"
+import { useMirroredLookoutApiFetch } from "../../oidcAuth"
 
 export interface GetJobsParams {
   filters: JobFilter[]
@@ -79,11 +79,11 @@ const getQueryFn =
 
 export const useGetJobs = (params: GetJobsParams, enabled = true) => {
   const config = getConfig()
-  const authenticatedFetch = useAuthenticatedFetch()
+  const lookoutApiFetch = useMirroredLookoutApiFetch()
 
   const queryFn = useMemo(
-    () => getQueryFn(params, authenticatedFetch, config.backend, config.fakeDataEnabled),
-    [params, authenticatedFetch, config.backend, config.fakeDataEnabled],
+    () => getQueryFn(params, lookoutApiFetch, config.backend, config.fakeDataEnabled),
+    [params, lookoutApiFetch, config.backend, config.fakeDataEnabled],
   )
 
   return useQuery<GetJobsResponse, string>({

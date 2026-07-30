@@ -8,10 +8,13 @@ import (
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/database"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/leaderelection"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -25,14 +28,18 @@ const (
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
+	// Migration configuration controlling optional schema creation
+	Migration database.MigrationConfig
 	// Armada Api Connection.  Used to fetch queues.
 	ArmadaApi client.ApiConnectionDetails
 	// General Pulsar configuration
 	Pulsar commonconfig.PulsarConfig
 	// Configuration controlling leader election
-	Leader LeaderConfig
+	Leader leaderelection.Config
 	// Configuration controlling metrics
 	Metrics MetricsConfig
+	// Configuration controlling OpenTelemetry observability
+	Observability observability.ObservabilityConfig
 	// Scheduler configuration (this is shared with the old scheduler)
 	Scheduling  SchedulingConfig
 	Auth        authconfig.AuthConfig
@@ -107,26 +114,6 @@ type SubmitCheckConfig struct {
 	MaxDurationPerQueue time.Duration `validate:"omitempty,gt=0"`
 }
 
-type LeaderConfig struct {
-	// Valid modes are "standalone" or "kubernetes"
-	Mode string `validate:"required"`
-	// Name of the K8s Lock Object
-	LeaseLockName string
-	// Namespace of the K8s Lock Object
-	LeaseLockNamespace string
-	// The name of the pod
-	PodName string
-	// How long the lease is held for.
-	// Non leaders much wait this long before trying to acquire the lease
-	LeaseDuration time.Duration
-	// RenewDeadline is the duration that the acting leader will retry refreshing leadership before giving up.
-	RenewDeadline time.Duration
-	// RetryPeriod is the duration the LeaderElector clients should waite between tries of actions.
-	RetryPeriod time.Duration
-	// Connection details to the leader
-	LeaderConnection client.ApiConnectionDetails
-}
-
 type FloatingResourceConfig struct {
 	// Resource name, e.g. "storage-connections"
 	Name string
@@ -154,10 +141,6 @@ type MetricsConfig struct {
 	// Used to calculate job seconds lost to preemption
 	// Calculate as if the job checkpoints at these different intervals
 	JobCheckpointIntervals []time.Duration
-	// Regexes used for job error categorisation.
-	// Specifically, the subCategory label for job failure counters is the first regex that matches the job error.
-	// If no regex matches, the subCategory label is the empty string.
-	TrackedErrorRegexes []string
 	// Metrics are exported for these resources.
 	TrackedResourceNames []v1.ResourceName
 	// Node label key used to identify which scalable unit it belongs to.
@@ -186,6 +169,10 @@ type HistogramConfig struct {
 type SchedulingConfig struct {
 	// Set to true to disable scheduling
 	DisableScheduling bool
+	// Set to true to run scheduling on a background goroutine;
+	// The purpose of this is to keep the main loop free allowing it to send job state updates in a timely manner
+	// The main loop will consume and reconcile the scheduling result when it exists
+	AsyncSchedulingEnabled bool
 	// Set to true to make scheduling all or nothing
 	// By default pools the scheduler will attempt fail scheduling independently, not causing other pools to also fail
 	// This only applies to certain types of known failures
@@ -361,11 +348,12 @@ type SchedulingConfig struct {
 }
 
 const (
-	DuplicateWellKnownNodeTypeErrorMessage           = "duplicate well-known node type name"
-	AwayNodeTypesWithoutPreemptionErrorMessage       = "priority class has away node types but is not preemptible"
-	UnknownWellKnownNodeTypeErrorMessage             = "priority class refers to unknown well-known node type"
-	WildCardWellKnownNodeTypeValue                   = "*"
-	InvalidAwayNodeTypeConditionOperatorErrorMessage = "away node type condition has invalid operator; must be one of >, <, =="
+	DuplicateWellKnownNodeTypeErrorMessage              = "duplicate well-known node type name"
+	AwayNodeTypesWithoutPreemptionErrorMessage          = "priority class has away node types but is not preemptible"
+	UnknownWellKnownNodeTypeErrorMessage                = "priority class refers to unknown well-known node type"
+	WildCardWellKnownNodeTypeValue                      = "*"
+	InvalidAwayNodeTypeConditionOperatorErrorMessage    = "away node type condition has invalid operator; must be one of >, <, =="
+	PreemptionRateLimitWithMarketSchedulingErrorMessage = "preemption rate limit is not supported with market scheduling enabled on the same pool"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
@@ -396,7 +384,7 @@ type WellKnownNodeType struct {
 
 type PoolConfig struct {
 	Name                         string `validate:"required"`
-	AwayPools                    []string
+	AwayPools                    []AwayPoolConfig
 	ProtectedFractionOfFairShare *float64
 	// List of resource names, (e.g. "cpu" or "memory"), to consider when computing DominantResourceFairness costs.
 	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
@@ -416,6 +404,17 @@ type PoolConfig struct {
 	DisableHomeScheduling            bool
 	DisableAwayScheduling            bool
 	DisableGangAwayScheduling        bool
+	DisableFairshareScheduling       bool
+	DisableUrgencyScheduling         bool
+	FairsharePreemptionRateLimit     *RateLimit
+}
+
+// RateLimit The rate at which an action can happen using a token bucket approach
+type RateLimit struct {
+	// Sustained actions per second (tokens/sec).
+	MaximumRate float64 `validate:"gte=0"`
+	// Bucket capacity: the maximum number of actions that can bunch up in a single scheduling round.
+	MaximumBurst int `validate:"gte=0"`
 }
 
 func (p PoolConfig) GetSubmissionGroup() string {
@@ -423,6 +422,29 @@ func (p PoolConfig) GetSubmissionGroup() string {
 		return p.Name
 	}
 	return p.ExperimentalSubmissionGroup
+}
+
+// AwayPoolNames returns the names of the away pools configured for this pool.
+func (p PoolConfig) AwayPoolNames() []string {
+	names := make([]string, len(p.AwayPools))
+	for i, ap := range p.AwayPools {
+		names[i] = ap.Name
+	}
+	return names
+}
+
+type AwayPoolConfig struct {
+	// Name of the away pool.
+	Name string `validate:"required"`
+}
+
+// UnmarshalConfigString allows an away pool to be specified in config as a plain
+// string (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
+// This preserves backwards compatibility with the deprecated []string form.
+// It opts AwayPoolConfig in to commonconfig.StringConfigUnmarshalerHook during config decode.
+func (a *AwayPoolConfig) UnmarshalConfigString(text string) error {
+	a.Name = text
+	return nil
 }
 
 type MarketSchedulingConfig struct {

@@ -61,7 +61,7 @@ contexts:
   auth-exec:
     armadaUrl: localhost:50051
     execAuth:
-      cmd: "/path/to/token-helper"  # Note: field is 'cmd' not 'command'
+      cmd: "/path/to/token-helper" # Note: field is 'cmd' not 'command'
       args: ["--get-token"]
       # Optional: environment variables to pass to the command
       env:

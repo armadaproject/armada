@@ -34,25 +34,57 @@ on:
       - './magefiles/python.go'
 
 jobs:
+  # Formatting, linting and docs only need to run once. They are pinned to
+  # Python 3.12 here rather than repeated across every version in the
+  # python-client-tox matrix.
+  python-client-lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.12'
+      - run: pip install 'tox>=4,<5'
+      - name: Setup Docker
+        uses: docker/setup-docker-action@6d7cfa65f60a9dda7b46e5513fa982536f3c9877 # v5.3.0
+        with:
+          daemon-config: '{"features":{"containerd-snapshotter":false}}'
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: python-client-lint
+      - name: Install Protoc
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
+        with:
+          version: '23.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      # The armada_client package is the generated proto code, so docs autodoc
+      # needs it built before it can import the package.
+      - run: go run github.com/magefile/mage@v1.17.2 -v buildPython
+      - name: Check formatting and lint
+        run: tox -e format
+        working-directory: client/python
+      - name: Verify docs updated if needed
+        run: tox -e docs-check
+        working-directory: client/python
+
   python-client-tox:
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        python-version: [ '3.9', '3.10', '3.11', '3.12' ]
+        python-version: [ '3.10', '3.12', '3.14' ]
         include:
-          - tox-env: 'py39'
-            python-version: '3.9'
           - tox-env: 'py310'
             python-version: '3.10'
-          - tox-env: 'py311'
-            python-version: '3.11'
           - tox-env: 'py312'
             python-version: '3.12'
+          - tox-env: 'py314'
+            python-version: '3.14'
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Setup Docker
-        uses: docker/setup-docker-action@1a6edb0ba9ac496f6850236981f15d8f9a82254d # v5
+        uses: docker/setup-docker-action@6d7cfa65f60a9dda7b46e5513fa982536f3c9877 # v5.3.0
         with:
           daemon-config: '{"features":{"containerd-snapshotter":false}}'
       - name: Setup Go
@@ -75,9 +107,18 @@ jobs:
       # This variable is picked up by the goreleaser config.
       DOCKER_BUILDX_BUILDER: "builder"
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      # Some ubuntu-22.04 runners only have ~17GB free on the root disk, which is
+      # less than this job's ~19.5GB peak usage. Remove unused preinstalled
+      # toolchains to make room.
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          large-packages: false
+          swap-storage: false
       - name: Setup Docker
-        uses: docker/setup-docker-action@1a6edb0ba9ac496f6850236981f15d8f9a82254d # v5
+        uses: docker/setup-docker-action@6d7cfa65f60a9dda7b46e5513fa982536f3c9877 # v5.3.0
         with:
           daemon-config: '{"features":{"containerd-snapshotter":false}}'
       - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
@@ -94,10 +135,15 @@ jobs:
           # Manually create folders to ensure perms are correct.
           mkdir -p .kube/internal
           mkdir -p .kube/external
-          go run github.com/magefile/mage@v1.15.0 -v localdev minimal
+          go run github.com/magefile/mage@v1.17.2 -v dev:full
       - name: Install Protoc
-        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
         with:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: go run github.com/magefile/mage@v1.15.0 -v teste2epython
+      - run: go run github.com/magefile/mage@v1.17.2 -v teste2epython
+      - name: Disk usage report
+        if: always()
+        run: |
+          df -h /
+          docker system df || true

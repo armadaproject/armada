@@ -10,6 +10,8 @@ import (
 )
 
 func (c *Configuration) Mutate() (config.Config, error) {
+	c.Observability.ApplyResourceDefaults("scheduler")
+
 	if c.MaxSchedulingDuration > 0 {
 		log.Warnf("use of top level MaxSchedulingDuration has been deprecated - please use scheduling.MaxSchedulingDuration. Applying MaxSchedulingDuration to scheduling.MaxSchedulingDuration")
 		c.Scheduling.MaxSchedulingDuration = c.MaxSchedulingDuration
@@ -31,6 +33,15 @@ func (c *Configuration) Validate() error {
 
 func SchedulingConfigValidation(sl validator.StructLevel) {
 	c := sl.Current().Interface().(SchedulingConfig)
+
+	for i, pool := range c.Pools {
+		// The preemption rate limit relies on rescheduling evicted jobs before new jobs, which the
+		// market-driven scheduler does not support. Reject the combination rather than silently no-op.
+		if pool.FairsharePreemptionRateLimit != nil && pool.ExperimentalMarketScheduling != nil && pool.ExperimentalMarketScheduling.Enabled {
+			fieldName := fmt.Sprintf("Pools[%d].FairsharePreemptionRateLimit", i)
+			sl.ReportError(pool.FairsharePreemptionRateLimit, fieldName, "", PreemptionRateLimitWithMarketSchedulingErrorMessage, "")
+		}
+	}
 
 	wellKnownNodeTypes := make(map[string]bool)
 	for i, wellKnownNodeType := range c.WellKnownNodeTypes {

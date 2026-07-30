@@ -23,6 +23,7 @@ import (
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi"
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi/operations"
 	"github.com/armadaproject/armada/internal/lookout/repository"
+	"github.com/armadaproject/armada/internal/lookout/version"
 )
 
 func Serve(configuration configuration.LookoutConfig) error {
@@ -47,6 +48,7 @@ func Serve(configuration configuration.LookoutConfig) error {
 	getJobRunErrorRepo := repository.NewSqlGetJobRunErrorRepository(db, decompressor)
 	getJobRunDebugMessageRepo := repository.NewSqlGetJobRunDebugMessageRepository(db, decompressor)
 	getJobSpecRepo := repository.NewSqlGetJobSpecRepository(db, decompressor)
+	getJobRunSchedulerTerminationReasonRepo := repository.NewSqlGetJobRunSchedulerTerminationReasonRepository(db)
 
 	// create new service API
 	api := operations.NewLookoutAPI(swaggerSpec)
@@ -60,6 +62,8 @@ func Serve(configuration configuration.LookoutConfig) error {
 			return operations.NewGetHealthOK().WithPayload("Health check passed")
 		},
 	)
+
+	api.GetVersionHandler = versionHandler(version.Version, version.Commit, version.BuildTime)
 
 	api.GetJobsHandler = operations.GetJobsHandlerFunc(
 		func(params operations.GetJobsParams) middleware.Responder {
@@ -127,6 +131,19 @@ func Serve(configuration configuration.LookoutConfig) error {
 			}
 			return operations.NewGetJobRunDebugMessageOK().WithPayload(&operations.GetJobRunDebugMessageOKBody{
 				ErrorString: result,
+			})
+		},
+	)
+
+	api.GetJobRunSchedulerTerminationReasonHandler = operations.GetJobRunSchedulerTerminationReasonHandlerFunc(
+		func(params operations.GetJobRunSchedulerTerminationReasonParams) middleware.Responder {
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+			result, err := getJobRunSchedulerTerminationReasonRepo.GetJobRunSchedulerTerminationReason(ctx, params.GetJobRunSchedulerTerminationReasonRequest.RunID)
+			if err != nil {
+				return operations.NewGetJobRunSchedulerTerminationReasonBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
+			}
+			return operations.NewGetJobRunSchedulerTerminationReasonOK().WithPayload(&operations.GetJobRunSchedulerTerminationReasonOKBody{
+				SchedulerTerminationReason: result,
 			})
 		},
 	)

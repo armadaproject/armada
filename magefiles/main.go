@@ -3,15 +3,45 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	semver "github.com/Masterminds/semver/v3"
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
 	"github.com/pkg/errors"
 	"sigs.k8s.io/yaml"
 )
+
+const MAGE_VERSION_CONSTRAINT = ">= 1.16.0"
+
+// mageCheck verifies that any mage binary on PATH is new enough to register targets with
+// optional arguments (a mage 1.16 feature). Older mage silently hides such targets, so
+// `mage dev:up` fails with "Unknown target" before any magefile code runs. This check
+// cannot intercept that failure, but it explains it after the fact.
+func mageCheck() error {
+	if _, err := exec.LookPath("mage"); err != nil {
+		// No binary installed: targets are run via `go run github.com/magefile/mage@<version>`,
+		// which picks the version explicitly.
+		return nil
+	}
+	out, err := sh.Output("mage", "-version")
+	if err != nil {
+		return errors.Errorf("error running version cmd: %v", err)
+	}
+	// Output starts with "Mage Build Tool 1.17.2" (some builds prefix the version with "v").
+	fields := strings.Fields(out)
+	if len(fields) < 4 {
+		return errors.Errorf("unexpected version cmd output: %s", out)
+	}
+	version, err := semver.NewVersion(strings.TrimPrefix(fields[3], "v"))
+	if err != nil {
+		return errors.Errorf("error parsing version: %v", err)
+	}
+	return constraintCheck(version, MAGE_VERSION_CONSTRAINT, "mage")
+}
 
 // BootstrapTools installs all tools needed tobuild and release Armada.
 // For the list of tools this will install, see tools.yaml in the root directory
@@ -103,6 +133,7 @@ func CheckDeps() error {
 	}{
 		{"docker", dockerCheck},
 		{"go", goCheck},
+		{"mage", mageCheck},
 		{"kind", kindCheck},
 		{"kubectl", kubectlCheck},
 		{"protoc", protocCheck},
@@ -203,55 +234,6 @@ func BuildDockers(arg string) error {
 	}
 	fmt.Println("Time to build dockers:", time.Since(timeTaken))
 	return nil
-}
-
-// Create a Local Armada Cluster.
-func LocalDev(arg string) error {
-	timeTaken := time.Now()
-	mg.Deps(BootstrapTools)
-	fmt.Println("Time to bootstrap tools:", time.Since(timeTaken))
-
-	switch arg {
-	case "minimal":
-		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"), Kind, downloadDependencyImages)
-	case "full":
-		mg.Deps(BuildPython, BuildScala, BuildJava, mg.F(BuildDockers, "bundle, lookout-bundle"), Kind, downloadDependencyImages)
-	case "no-build", "debug":
-		mg.Deps(Kind, downloadDependencyImages)
-	default:
-		return fmt.Errorf("invalid localdev mode: %s; valid modes are: minimal, full, no-build, debug", arg)
-	}
-
-	mg.Deps(StartDependencies)
-	fmt.Println("Waiting for dependencies to start...")
-	mg.Deps(CheckPulsarRunning)
-	mg.Deps(CheckPostgresRunning)
-
-	switch arg {
-	case "minimal":
-		os.Setenv("ARMADA_COMPONENTS", "executor,server,scheduler")
-		mg.Deps(StartComponents)
-		// This is a naive check to confirm the containers are running, it doesn't check they are ready
-		// TODO Make a good check to confirm the system is ready, such as seeing armadactl get executors return a value
-		mg.Deps(CheckServerRunning)
-		mg.Deps(CheckSchedulerRunning)
-		mg.Deps(CheckExecutorRunning)
-	case "debug", "no-build":
-		fmt.Println("Dependencies started, ending localdev...")
-		return nil
-	default:
-		mg.Deps(StartComponents)
-	}
-
-	fmt.Println("Run: `docker compose logs -f` to see logs")
-	return nil
-}
-
-// Stop Local Armada Cluster
-func LocalDevStop() {
-	mg.Deps(StopComponents)
-	mg.Deps(StopDependencies)
-	mg.Deps(KindTeardown)
 }
 
 // Build the lookout UI from internal/lookoutui

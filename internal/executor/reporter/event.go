@@ -16,8 +16,9 @@ import (
 )
 
 // CreateEventForCurrentState builds the armada event for pod's current phase.
-// For failed pods the caller supplies the classification result to attach to the event.
-func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult categorizer.ClassifyResult) (*armadaevents.EventSequence, error) {
+// For failed pods the caller supplies the classification result to attach to the event,
+// along with an optional debugMessage (rendered k8s events) to include on the PodError.
+func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult categorizer.ClassifyResult, debugMessage string) (*armadaevents.EventSequence, error) {
 	phase := pod.Status.Phase
 	sequence := createEmptySequence(pod)
 	jobId, runId, err := extractIds(pod)
@@ -88,7 +89,7 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult ca
 			pod,
 			reason,
 			util.ExtractPodFailureCause(pod),
-			"",
+			debugMessage,
 			util.ExtractFailedPodContainerStatuses(pod, clusterId),
 			clusterId,
 			classifyResult.Category,
@@ -209,10 +210,9 @@ func CreateSimpleJobPreemptedEvent(pod *v1.Pod) (*armadaevents.EventSequence, er
 	return sequence, nil
 }
 
-// CreateSimpleJobFailedEvent creates a failed event with no container details and no classification.
-// Use for failures where pod container statuses are unavailable (preemption, submit failures).
-// failure_category/failure_subcategory are left empty, resulting in NULL in the DB.
-// This is intentional: these failures are not classifiable pod errors.
+// CreateSimpleJobFailedEvent creates a failed event with no container details
+// or failure category, for failures where pod container statuses are unavailable
+// (preemption, submit failures).
 func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string, cause armadaevents.KubernetesReason) (*armadaevents.EventSequence, error) {
 	return CreateJobFailedEvent(pod, reason, cause, "", []*armadaevents.ContainerError{}, clusterId, "", "")
 }
@@ -261,7 +261,31 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.Kuberne
 	return sequence, nil
 }
 
-func CreateMinimalJobFailedEvent(jobId string, runId string, jobSet string, queue string, clusterId string, message string) (*armadaevents.EventSequence, error) {
+// CreateJobRunCancelledDebugEvent creates a JobCancelledDebugInfo event carrying the rendered
+// k8s pod events for a run that is being cancelled before its main container ever started. It is
+// purely diagnostic: it is NOT an error and does NOT change the run's state, so the run remains
+// cancelled. Only Lookout consumes it, to populate the run's debug column.
+func CreateJobRunCancelledDebugEvent(pod *v1.Pod, debugMessage string) (*armadaevents.EventSequence, error) {
+	sequence := createEmptySequence(pod)
+	jobId, runId, err := extractIds(pod)
+	if err != nil {
+		return nil, err
+	}
+
+	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+		Created: types.TimestampNow(),
+		Event: &armadaevents.EventSequence_Event_JobCancelledDebugInfo{
+			JobCancelledDebugInfo: &armadaevents.JobCancelledDebugInfo{
+				JobId:        jobId,
+				RunId:        runId,
+				DebugMessage: debugMessage,
+			},
+		},
+	})
+	return sequence, nil
+}
+
+func CreateMinimalJobFailedEvent(jobId string, runId string, jobSet string, queue string, clusterId string, message string, failureCategory string, failureSubcategory string) (*armadaevents.EventSequence, error) {
 	sequence := &armadaevents.EventSequence{}
 	sequence.Queue = queue
 	sequence.JobSetName = jobSet
@@ -274,7 +298,9 @@ func CreateMinimalJobFailedEvent(jobId string, runId string, jobSet string, queu
 				JobId: jobId,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal:           true,
+						FailureCategory:    failureCategory,
+						FailureSubcategory: failureSubcategory,
 						Reason: &armadaevents.Error_PodError{
 							PodError: &armadaevents.PodError{
 								ObjectMeta: &armadaevents.ObjectMeta{
@@ -294,7 +320,12 @@ func CreateMinimalJobFailedEvent(jobId string, runId string, jobSet string, queu
 	return sequence, nil
 }
 
-func CreateReturnLeaseEvent(pod *v1.Pod, reason string, debugMessage string, clusterId string, runAttempted bool) (*armadaevents.EventSequence, error) {
+// CreateReturnLeaseEvent builds the lease-return error event for a run the scheduler should retry.
+// failureCategory and failureSubcategory carry the pod error classification when the caller has
+// one; empty strings mean the failure was not classified and leave the fields unset.
+func CreateReturnLeaseEvent(pod *v1.Pod, reason string, debugMessage string, clusterId string, runAttempted bool,
+	failureCategory string, failureSubcategory string,
+) (*armadaevents.EventSequence, error) {
 	sequence := createEmptySequence(pod)
 	jobId, runId, err := extractIds(pod)
 	if err != nil {
@@ -309,7 +340,9 @@ func CreateReturnLeaseEvent(pod *v1.Pod, reason string, debugMessage string, clu
 				JobId: jobId,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
+						Terminal:           true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
+						FailureCategory:    failureCategory,
+						FailureSubcategory: failureSubcategory,
 						Reason: &armadaevents.Error_PodLeaseReturned{
 							PodLeaseReturned: &armadaevents.PodLeaseReturned{
 								ObjectMeta: &armadaevents.ObjectMeta{

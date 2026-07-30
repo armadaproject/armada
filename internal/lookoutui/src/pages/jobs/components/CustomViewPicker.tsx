@@ -13,6 +13,8 @@ import {
   ListItemButton,
 } from "@mui/material"
 
+import { Analytics, ANALYTICS_EVENTS } from "../../../analytics"
+
 import styles from "./CustomViewPicker.module.css"
 
 interface CustomViewPickerProps {
@@ -20,6 +22,8 @@ interface CustomViewPickerProps {
   onAddCustomView: (name: string) => void
   onDeleteCustomView: (name: string) => void
   onLoadCustomView: (name: string) => void
+  getViewEventData: (name: string) => Record<string, string>
+  getCurrentViewEventData: (name?: string) => Record<string, string>
 }
 
 export const CustomViewPicker = ({
@@ -27,6 +31,8 @@ export const CustomViewPicker = ({
   onAddCustomView,
   onDeleteCustomView,
   onLoadCustomView,
+  getViewEventData,
+  getCurrentViewEventData,
 }: CustomViewPickerProps) => {
   const anchorElRef = useRef<HTMLDivElement>(null)
   const [isOpen, setIsOpen] = useState<boolean>(false)
@@ -94,9 +100,16 @@ export const CustomViewPicker = ({
                   />
                   <div className={styles.addCustomViewActions}>
                     <div className={styles.addCustomViewAction}>
-                      <Button variant="contained" onClick={addCustomView}>
+                      <Analytics
+                        component={Button}
+                        eventName={ANALYTICS_EVENTS.CUSTOM_VIEW_CREATED}
+                        eventData={() => getCurrentViewEventData(newCustomViewName)}
+                        variant="contained"
+                        disabled={newCustomViewName === ""}
+                        onClick={addCustomView}
+                      >
                         Save
-                      </Button>
+                      </Analytics>
                     </div>
                     <div className={styles.addCustomViewAction}>
                       <Button variant="outlined" onClick={clearAddCustomView}>
@@ -122,14 +135,26 @@ export const CustomViewPicker = ({
                     disablePadding
                     key={name}
                     secondaryAction={
-                      <IconButton edge="end" aria-label="delete" onClick={() => onDeleteCustomView(name)}>
+                      <Analytics
+                        component={IconButton}
+                        eventName={ANALYTICS_EVENTS.CUSTOM_VIEW_DELETED}
+                        eventData={() => getViewEventData(name)}
+                        edge="end"
+                        aria-label="delete"
+                        onClick={() => onDeleteCustomView(name)}
+                      >
                         <Delete />
-                      </IconButton>
+                      </Analytics>
                     }
                   >
-                    <ListItemButton onClick={() => onLoadCustomView(name)}>
+                    <Analytics
+                      component={ListItemButton}
+                      eventName={ANALYTICS_EVENTS.CUSTOM_VIEW_LOADED}
+                      eventData={() => getViewEventData(name)}
+                      onClick={() => onLoadCustomView(name)}
+                    >
                       <ListItemText>{name}</ListItemText>
-                    </ListItemButton>
+                    </Analytics>
                   </ListItem>
                 ))}
             </List>

@@ -14,7 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/eventingester/repository"
-	"github.com/armadaproject/armada/internal/scheduler/leader"
+	"github.com/armadaproject/armada/internal/leaderelection"
 )
 
 // Metric name constants follow the pattern: ArmadaRedisMetricsPrefix + specific_metric_name
@@ -53,7 +53,7 @@ type Collector struct {
 	config  configuration.RedisMemoryMetricsConfig
 
 	// Leadership support for gating metric collection
-	leaderController leader.LeaderController
+	leaderController leaderelection.LeaderController
 
 	// Top-N gauges (labels: queue, jobset)
 	topNMemoryGauge *prometheus.GaugeVec
@@ -108,7 +108,7 @@ func newAgeHistogram() prometheus.Histogram {
 }
 
 // NewCollector creates a new Collector instance.
-func NewCollector(scanner ScannerInterface, config configuration.RedisMemoryMetricsConfig, leaderController leader.LeaderController) *Collector {
+func NewCollector(scanner ScannerInterface, config configuration.RedisMemoryMetricsConfig, leaderController leaderelection.LeaderController) *Collector {
 	collector := &Collector{
 		scanner:          scanner,
 		config:           config,

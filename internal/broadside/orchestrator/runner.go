@@ -252,11 +252,24 @@ func (r *Runner) newDatabase() (db.Database, error) {
 func NewDatabase(config configuration.TestConfig) (db.Database, error) {
 	switch {
 	case len(config.DatabaseConfig.Postgres) > 0:
+		var allJobAgeDays []int
+		seen := make(map[int]struct{})
+		for _, qc := range config.QueueConfig {
+			for _, jsc := range qc.JobSetConfig {
+				for _, d := range jsc.HistoricalJobsConfig.JobAgeDays {
+					if _, ok := seen[d]; !ok {
+						allJobAgeDays = append(allJobAgeDays, d)
+						seen[d] = struct{}{}
+					}
+				}
+			}
+		}
 		return db.NewPostgresDatabase(
 			config.DatabaseConfig.Postgres,
 			config.FeatureToggles,
 			config.DatabaseConfig.PostgresTuningSQL,
 			config.DatabaseConfig.PostgresTuningRevertSQL,
+			allJobAgeDays,
 		), nil
 	case len(config.DatabaseConfig.ClickHouse) > 0:
 		return db.NewClickHouseDatabase(config.DatabaseConfig.ClickHouse), nil

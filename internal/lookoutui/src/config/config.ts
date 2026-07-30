@@ -20,6 +20,7 @@ export const DEFAULT_LOOKOUT_UI_CONFIG: LookoutUiConfig = {
   },
   customThemeConfigs: undefined,
   analytics: undefined,
+  requestMirror: undefined,
 }
 
 export const getConfig = (): Config => {

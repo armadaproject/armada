@@ -37,18 +37,18 @@ jobs:
       matrix:
         scala-version: [ '2.12.18', '2.13.15' ]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup Go
         uses: ./.github/actions/setup-go-cache
         with:
           cache-prefix: scala-client-test
       - name: Install Protoc
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
         with:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Restore Maven packages cache
-        uses: actions/cache@v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-mvn-build-${{ matrix.scala-version }}-${{ hashFiles('client/scala/armada-scala-client/pom.xml') }}
@@ -56,7 +56,7 @@ jobs:
             ${{ runner.os }}-mvn-build-${{ matrix.scala-version }}-${{ hashFiles('client/scala/armada-scala-client/pom.xml') }}
             ${{ runner.os }}-mvn-build-${{ matrix.scala-version }}-
       - name: Setup JDK
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: 'temurin'
           java-version: '11'
@@ -67,7 +67,7 @@ jobs:
           git diff
         shell: bash
       - name: Bootstrap Proto files
-        run: go run github.com/magefile/mage@v1.15.0 -v BootstrapProto
+        run: go run github.com/magefile/mage@v1.17.2 -v BootstrapProto
         shell: bash
       - name: Fetch mvn dependencies
         working-directory: client/scala/armada-scala-client

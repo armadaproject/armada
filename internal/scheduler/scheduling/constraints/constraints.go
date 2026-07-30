@@ -134,7 +134,7 @@ func (constraints *schedulingConstraints) CheckJobConstraints(
 
 	// Global rate limiter check.
 	tokens := sctx.Limiter.TokensAt(sctx.Started)
-	if tokens <= 0 {
+	if tokens < 1 {
 		return false, GlobalRateLimitExceededUnschedulableReason, nil
 	}
 	if sctx.Limiter.Burst() < gctx.Cardinality() {
@@ -146,7 +146,7 @@ func (constraints *schedulingConstraints) CheckJobConstraints(
 
 	// Per-queue rate limiter check.
 	tokens = qctx.Limiter.TokensAt(sctx.Started)
-	if tokens <= 0 {
+	if tokens < 1 {
 		return false, QueueRateLimitExceededUnschedulableReason, nil
 	}
 	if qctx.Limiter.Burst() < gctx.Cardinality() {

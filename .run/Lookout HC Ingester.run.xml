@@ -1,0 +1,21 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Lookout HC Ingester" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="armada" />
+    <working_directory value="$PROJECT_DIR$" />
+    <envs>
+      <env name="ARMADA_METRICSPORT" value="9009" />
+      <env name="ARMADA_EXPERIMENTALHOTCOLDSPLIT" value="true" />
+      <env name="ARMADA_LOG_CONFIG" value="config/logging-dev.yaml" />
+      <env name="ARMADA_POSTGRES_CONNECTION_DBNAME" value="lookouthc" />
+      <env name="ARMADA_POSTGRES_CONNECTION_HOST" value="localhost" />
+      <env name="ARMADA_POSTGRES_CONNECTION_PORT" value="5432" />
+      <env name="ARMADA_PULSAR_URL" value="pulsar://localhost:6650" />
+      <env name="ARMADA_SUBSCRIPTIONNAME" value="lookouthc-ingester" />
+    </envs>
+    <kind value="FILE" />
+    <package value="$PROJECT_DIR$/cmd/lookout/main.go" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$/cmd/lookoutingester/main.go" />
+    <method v="2" />
+  </configuration>
+</component>

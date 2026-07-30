@@ -368,7 +368,13 @@ func (i *Ingester) runBatchExecutor(
 			if !ok {
 				stopAndDrainTimer()
 				if len(batch) > 0 {
-					i.executeBatch(ctx, batch)
+					// Use a fresh context for the final flush. The parent ctx is
+					// cancelled at this point, but the batch still needs to commit
+					// cleanly — otherwise the Postgres backend will be mid-rollback
+					// when TearDown tries to TRUNCATE, blocking on lock acquisition.
+					flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
+					defer flushCancel()
+					i.executeBatch(flushCtx, batch)
 				}
 				return
 			}
@@ -454,6 +460,7 @@ func (i *Ingester) submitJob(
 		newJob.JobID,
 		"",
 		jobspec.StateLeased,
+		now,
 	))
 }
 
@@ -465,6 +472,7 @@ func (i *Ingester) processTransition(
 ) {
 	now := time.Now()
 	cfg := i.config.JobStateTransitionConfig
+	submitted := trans.Submitted()
 
 	jobNumber := jobspec.ExtractJobNumber(trans.JobID())
 	cluster, node := jobspec.GetClusterNodeForJobNumber(jobNumber)
@@ -474,20 +482,22 @@ func (i *Ingester) processTransition(
 		runID := jobspec.EncodeRunID(trans.JobID(), 0)
 		i.routerSend(router, timestampedQuery{
 			query: db.SetJobLeased{
-				JobID: trans.JobID(),
-				Time:  now,
-				RunID: runID,
+				JobID:     trans.JobID(),
+				Time:      now,
+				RunID:     runID,
+				Submitted: submitted,
 			},
 			enqueuedAt: now,
 		}, ctx)
 		i.routerSend(router, timestampedQuery{
 			query: db.InsertJobRun{
-				JobRunID: runID,
-				JobID:    trans.JobID(),
-				Cluster:  cluster,
-				Node:     node,
-				Pool:     jobspec.GetPool(jobNumber),
-				Time:     now,
+				JobRunID:  runID,
+				JobID:     trans.JobID(),
+				Cluster:   cluster,
+				Node:      node,
+				Pool:      jobspec.GetPool(jobNumber),
+				Time:      now,
+				Submitted: submitted,
 			},
 			enqueuedAt: now,
 		}, ctx)
@@ -496,14 +506,16 @@ func (i *Ingester) processTransition(
 			trans.JobID(),
 			runID,
 			jobspec.StatePending,
+			submitted,
 		))
 
 	case jobspec.StatePending:
 		i.routerSend(router, timestampedQuery{
 			query: db.SetJobPending{
-				JobID: trans.JobID(),
-				Time:  now,
-				RunID: trans.RunID(),
+				JobID:     trans.JobID(),
+				Time:      now,
+				RunID:     trans.RunID(),
+				Submitted: submitted,
 			},
 			enqueuedAt: now,
 		}, ctx)
@@ -519,6 +531,7 @@ func (i *Ingester) processTransition(
 			trans.JobID(),
 			trans.RunID(),
 			jobspec.StateRunning,
+			submitted,
 		))
 
 	case jobspec.StateRunning:
@@ -527,6 +540,7 @@ func (i *Ingester) processTransition(
 				JobID:       trans.JobID(),
 				Time:        now,
 				LatestRunID: trans.RunID(),
+				Submitted:   submitted,
 			},
 			enqueuedAt: now,
 		}, ctx)
@@ -545,6 +559,7 @@ func (i *Ingester) processTransition(
 				trans.JobID(),
 				trans.RunID(),
 				jobspec.StateSucceeded,
+				submitted,
 			))
 		} else {
 			heap.Push(transitions, jobspec.NewScheduledTransition(
@@ -552,14 +567,16 @@ func (i *Ingester) processTransition(
 				trans.JobID(),
 				trans.RunID(),
 				jobspec.StateErrored,
+				submitted,
 			))
 		}
 
 	case jobspec.StateSucceeded:
 		i.routerSend(router, timestampedQuery{
 			query: db.SetJobSucceeded{
-				JobID: trans.JobID(),
-				Time:  now,
+				JobID:     trans.JobID(),
+				Time:      now,
+				Submitted: submitted,
 			},
 			enqueuedAt: now,
 		}, ctx)
@@ -574,8 +591,9 @@ func (i *Ingester) processTransition(
 	case jobspec.StateErrored:
 		i.routerSend(router, timestampedQuery{
 			query: db.SetJobErrored{
-				JobID: trans.JobID(),
-				Time:  now,
+				JobID:     trans.JobID(),
+				Time:      now,
+				Submitted: submitted,
 			},
 			enqueuedAt: now,
 		}, ctx)
@@ -590,8 +608,9 @@ func (i *Ingester) processTransition(
 		}, ctx)
 		i.routerSend(router, timestampedQuery{
 			query: db.InsertJobError{
-				JobID: trans.JobID(),
-				Error: simulatedError,
+				JobID:     trans.JobID(),
+				Error:     simulatedError,
+				Submitted: submitted,
 			},
 			enqueuedAt: now,
 		}, ctx)

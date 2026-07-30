@@ -274,6 +274,9 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 	})
 
 	queueMetrics := commonmetrics.CollectQueueMetrics(c.pools, queuedJobsCount, bidPrices, queuedDistinctSchedulingKeysCount, provider)
+	if !bidPrices.Timestamp.IsZero() {
+		queueMetrics = append(queueMetrics, commonmetrics.NewBidPriceCacheLastRefreshMetric(bidPrices.Timestamp))
+	}
 	return queueMetrics, nil
 }
 
@@ -383,7 +386,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	poolToAwayPools := map[string][]string{}
 	for _, poolConfig := range c.pools {
 		for _, ap := range poolConfig.AwayPools {
-			poolToAwayPools[ap] = append(poolToAwayPools[ap], poolConfig.Name)
+			poolToAwayPools[ap.Name] = append(poolToAwayPools[ap.Name], poolConfig.Name)
 		}
 	}
 

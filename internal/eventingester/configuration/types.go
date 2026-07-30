@@ -6,7 +6,9 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
+	"github.com/armadaproject/armada/internal/leaderelection"
 )
 
 type EventIngesterConfiguration struct {
@@ -19,6 +21,8 @@ type EventIngesterConfiguration struct {
 	MetricsPort uint16
 	// Metrics configuration for Redis memory metrics collection
 	Metrics MetricsConfig
+	// Configuration controlling OpenTelemetry observability
+	Observability observability.ObservabilityConfig
 	// General Pulsar configuration
 	Pulsar commonconfig.PulsarConfig
 	// Pulsar subscription name
@@ -55,19 +59,7 @@ type RedisMemoryMetricsConfig struct {
 	PipelineBatchSize         int
 	InterBatchDelay           time.Duration
 	MemoryUsageSamples        int
-	ConnectionInfo            redis.UniversalOptions
-	Leader                    LeaderConfig
-}
-
-type LeaderConfig struct {
-	// Valid modes are "standalone" or "kubernetes"
-	Mode               string
-	LeaseLockName      string
-	LeaseLockNamespace string
-	LeaseDuration      time.Duration
-	RenewDeadline      time.Duration
-	RetryPeriod        time.Duration
-	PodName            string
+	Leader                    leaderelection.Config
 }
 
 // TODO: unpack this into just EventExpirtation

@@ -124,6 +124,7 @@ func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]
 				QueuedVersion:           row.QueuedVersion,
 				CancelRequested:         row.CancelRequested,
 				CancelUser:              row.CancelUser,
+				CancelReason:            row.CancelReason,
 				Cancelled:               row.Cancelled,
 				CancelByJobsetRequested: row.CancelByJobsetRequested,
 				Succeeded:               row.Succeeded,
@@ -272,6 +273,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 				Cancelled:               row.Cancelled,
 				CancelByJobsetRequested: row.CancelByJobsetRequested,
 				CancelUser:              row.CancelUser,
+				CancelReason:            row.CancelReason,
 				Succeeded:               row.Succeeded,
 				Failed:                  row.Failed,
 				SchedulingInfo:          row.SchedulingInfo,
@@ -354,20 +356,21 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 			return err
 		}
 
-		query := `
-				SELECT jr.run_id, jr.node, j.queue, j.job_set,  jr.pool, j.user_id, j.groups, j.submit_message, jr.pod_requirements_overlay
+		query := fmt.Sprintf(`
+				SELECT jr.run_id, jr.node, j.queue, j.job_set, jr.pool, j.user_id, jm.groups, jm.submit_message, jr.pod_requirements_overlay
 				FROM runs jr
 				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)
 			    JOIN jobs j
 			    ON jr.job_id = j.job_id
+			    JOIN job_metadata jm ON j.job_id = jm.job_id
 				WHERE jr.executor = $1
 			    AND tmp.run_id IS NULL
 				AND jr.terminated = false
 				ORDER BY jr.serial
 				LIMIT %d;
-`
+		`, tmpTable, maxResults)
 
-		rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable, maxResults), executor)
+		rows, err := tx.Query(ctx, query, executor)
 		if err != nil {
 			return errors.WithStack(err)
 		}

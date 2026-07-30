@@ -157,6 +157,51 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 	return result
 }
 
+// RemoveCordonTaint returns copies of nodes with cordon taints stripped (see IsCordonTaint) and the
+// unschedulable flag cleared. The submit checker uses it so that jobs targeting a node type whose
+// nodes are all cordoned (via `kubectl cordon`, or otherwise reported unschedulable by the executor)
+// stay queued rather than being rejected. See issue #4946.
+//
+// A cordoned node always has the unschedulable flag set (Kubernetes only adds
+// node.kubernetes.io/unschedulable when the node is unschedulable, and the Armada taint is only
+// synthesized for unschedulable nodes), so the flag alone identifies the nodes to fix.
+//
+// Like AddTaints/AddLabels, this rebuilds via CreateNodeAndType so NodeType (used for nodeDb
+// indexing) is recomputed from the reduced taint set and stays consistent.
+func (f *NodeFactory) RemoveCordonTaint(nodes []*Node) []*Node {
+	result := make([]*Node, len(nodes))
+	for i, node := range nodes {
+		if !node.IsUnschedulable() {
+			// Not cordoned. Freshly built node, not yet inserted into a NodeDb, so reuse it as-is.
+			result[i] = node
+			continue
+		}
+		taints := node.GetTaints()
+		nonCordonTaints := make([]v1.Taint, 0, len(taints))
+		for _, taint := range taints {
+			if !IsCordonTaint(taint) {
+				nonCordonTaints = append(nonCordonTaints, taint)
+			}
+		}
+		result[i] = CreateNodeAndType(node.GetId(),
+			node.GetIndex(),
+			node.GetExecutor(),
+			node.GetName(),
+			node.GetPool(),
+			node.GetReportingNodeType(),
+			false,
+			nonCordonTaints,
+			node.GetLabels(),
+			f.indexedTaints,
+			f.indexedNodeLabels,
+			node.GetTotalResources(),
+			node.GetAllocatableResources(),
+			node.AllocatableByPriority,
+		)
+	}
+	return result
+}
+
 func (f *NodeFactory) allocateNodeIndex() uint64 {
 	return f.nodeIndexCounter.Add(1)
 }

@@ -19,7 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/eventingester/repository"
-	"github.com/armadaproject/armada/internal/scheduler/leader"
+	"github.com/armadaproject/armada/internal/leaderelection"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -171,7 +171,7 @@ func TestIntegration_CollectorMetrics(t *testing.T) {
 			MemoryUsageSamples: 5,
 		}
 		scanner := repository.NewScanner(client, config)
-		collector := NewCollector(scanner, config, leader.NewStandaloneLeaderController())
+		collector := NewCollector(scanner, config, leaderelection.NewStandaloneLeaderController())
 
 		streams, err := scanner.ScanAll(ctx)
 		require.NoError(t, err)
@@ -285,8 +285,8 @@ func TestIntegration_LeaderMode_EmitsMetrics(t *testing.T) {
 		createTestStream(t, client, ctx, "queue-a", "jobset-1", 100)
 		createTestStream(t, client, ctx, "queue-b", "jobset-1", 50)
 
-		leaderController := leader.NewStandaloneLeaderController()
-		leaderController.SetToken(leader.NewLeaderToken())
+		leaderController := leaderelection.NewStandaloneLeaderController()
+		leaderController.SetToken(leaderelection.NewLeaderToken())
 
 		config := configuration.RedisMemoryMetricsConfig{
 			CollectionInterval: 5 * time.Minute,
@@ -322,8 +322,8 @@ func TestIntegration_NonLeaderMode_NoMetrics(t *testing.T) {
 		createTestStream(t, client, ctx, "queue-a", "jobset-1", 100)
 		createTestStream(t, client, ctx, "queue-b", "jobset-1", 50)
 
-		leaderController := leader.NewStandaloneLeaderController()
-		leaderController.SetToken(leader.NewLeaderToken())
+		leaderController := leaderelection.NewStandaloneLeaderController()
+		leaderController.SetToken(leaderelection.NewLeaderToken())
 
 		config := configuration.RedisMemoryMetricsConfig{
 			CollectionInterval: 5 * time.Minute,
@@ -339,7 +339,7 @@ func TestIntegration_NonLeaderMode_NoMetrics(t *testing.T) {
 		err := collector.collectOnce(ctx)
 		require.NoError(t, err)
 
-		leaderController.SetToken(leader.InvalidLeaderToken())
+		leaderController.SetToken(leaderelection.InvalidLeaderToken())
 		collector.ClearState()
 
 		metrics := collectMetrics(collector)
@@ -358,7 +358,7 @@ func TestIntegration_LeadershipTransition(t *testing.T) {
 		createTestStream(t, client, ctx, "queue-a", "jobset-1", 100)
 		createTestStream(t, client, ctx, "queue-b", "jobset-1", 50)
 
-		leaderController := leader.NewStandaloneLeaderController()
+		leaderController := leaderelection.NewStandaloneLeaderController()
 		config := configuration.RedisMemoryMetricsConfig{
 			CollectionInterval: 5 * time.Minute,
 			TopN:               5,
@@ -370,7 +370,7 @@ func TestIntegration_LeadershipTransition(t *testing.T) {
 		scanner := repository.NewScanner(client, config)
 		collector := NewCollector(scanner, config, leaderController)
 
-		leaderController.SetToken(leader.NewLeaderToken())
+		leaderController.SetToken(leaderelection.NewLeaderToken())
 		err := collector.collectOnce(ctx)
 		require.NoError(t, err)
 		metricsAsLeader := collectMetrics(collector)
@@ -383,7 +383,7 @@ func TestIntegration_LeadershipTransition(t *testing.T) {
 		}
 		assert.True(t, leaderFoundMetrics, "Expected metrics when running as leader")
 
-		leaderController.SetToken(leader.InvalidLeaderToken())
+		leaderController.SetToken(leaderelection.InvalidLeaderToken())
 		collector.ClearState()
 		metricsAsNonLeader := collectMetrics(collector)
 		for _, m := range metricsAsNonLeader {
@@ -391,7 +391,7 @@ func TestIntegration_LeadershipTransition(t *testing.T) {
 				"Non-leader should not emit redis metrics after transition")
 		}
 
-		leaderController.SetToken(leader.NewLeaderToken())
+		leaderController.SetToken(leaderelection.NewLeaderToken())
 		err = collector.collectOnce(ctx)
 		require.NoError(t, err)
 		metricsAfterRestore := collectMetrics(collector)

@@ -8,7 +8,7 @@ import (
 
 type PulsarConfig struct {
 	// Pulsar URL
-	URL string `validate:"required"`
+	URL string
 	// Pulsar REST API URL (Pulsar admin API)
 	// If not set, event latency metrics will not be published
 	RestURL string

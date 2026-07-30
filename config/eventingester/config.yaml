@@ -32,12 +32,6 @@ metrics:
     pipelineBatchSize: 500
     interBatchDelay: 100ms
     memoryUsageSamples: 25
-    ## Optional: separate Redis for metrics collection.
-    ## If unspecified, event db connection will be used
-    # connectionInfo:
-    #   addrs:
-    #     - redis-replica:6379
-    #   db: 1
     leader:
       mode: "kubernetes"
       leaseLockName: "armada-redis-metrics-leader"

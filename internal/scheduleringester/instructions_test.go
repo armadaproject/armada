@@ -35,36 +35,44 @@ func TestConvertEventSequence(t *testing.T) {
 	}{
 		"submit": {
 			events: []*armadaevents.EventSequence_Event{f.Submit},
-			expected: []DbOperation{InsertJobs{f.JobId: &schedulerdb.Job{
-				JobID:          f.JobId,
-				JobSet:         f.JobsetName,
-				UserID:         f.UserId,
-				Groups:         compress.MustCompressStringArray(f.Groups, compressor),
-				Queue:          f.Queue,
-				Queued:         true,
-				QueuedVersion:  0,
-				Priority:       int64(f.Priority),
-				Submitted:      f.BaseTime.UnixNano(),
-				SubmitMessage:  protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
-				SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
-				PriceBand:      1,
+			expected: []DbOperation{InsertJobs{f.JobId: &JobInsertion{
+				Job: &schedulerdb.Job{
+					JobID:          f.JobId,
+					JobSet:         f.JobsetName,
+					UserID:         f.UserId,
+					Queue:          f.Queue,
+					Queued:         true,
+					QueuedVersion:  0,
+					Priority:       int64(f.Priority),
+					Submitted:      f.BaseTime.UnixNano(),
+					SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
+					PriceBand:      1,
+				},
+				Metadata: JobInsertionMetadata{
+					Groups:        compress.MustCompressStringArray(f.Groups, compressor),
+					SubmitMessage: protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
+				},
 			}}},
 		},
 		"submit with annotations we want to filter": {
 			events: []*armadaevents.EventSequence_Event{f.SubmitWithIrrelevantAnnotations},
-			expected: []DbOperation{InsertJobs{f.JobId: &schedulerdb.Job{
-				JobID:          f.JobId,
-				JobSet:         f.JobsetName,
-				UserID:         f.UserId,
-				Groups:         compress.MustCompressStringArray(f.Groups, compressor),
-				Queue:          f.Queue,
-				Queued:         true,
-				QueuedVersion:  0,
-				Priority:       int64(f.Priority),
-				Submitted:      f.BaseTime.UnixNano(),
-				SubmitMessage:  protoutil.MustMarshallAndCompress(f.SubmitWithIrrelevantAnnotations.GetSubmitJob(), compressor),
-				SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
-				PriceBand:      1,
+			expected: []DbOperation{InsertJobs{f.JobId: &JobInsertion{
+				Job: &schedulerdb.Job{
+					JobID:          f.JobId,
+					JobSet:         f.JobsetName,
+					UserID:         f.UserId,
+					Queue:          f.Queue,
+					Queued:         true,
+					QueuedVersion:  0,
+					Priority:       int64(f.Priority),
+					Submitted:      f.BaseTime.UnixNano(),
+					SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
+					PriceBand:      1,
+				},
+				Metadata: JobInsertionMetadata{
+					Groups:        compress.MustCompressStringArray(f.Groups, compressor),
+					SubmitMessage: protoutil.MustMarshallAndCompress(f.SubmitWithIrrelevantAnnotations.GetSubmitJob(), compressor),
+				},
 			}}},
 		},
 		"job run leased": {
@@ -179,7 +187,8 @@ func TestConvertEventSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobCancelRequested},
 			expected: []DbOperation{
 				MarkJobsCancelRequested{
-					cancelUser: f.UserId,
+					cancelUser:   f.UserId,
+					cancelReason: cancelReasonUserInitiated,
 					jobIds: map[JobSetKey][]string{
 						{queue: f.Queue, jobSet: f.JobsetName}: {f.JobId},
 					},
@@ -190,7 +199,8 @@ func TestConvertEventSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested},
 			expected: []DbOperation{
 				MarkJobSetsCancelRequested{
-					cancelUser: f.UserId,
+					cancelUser:   f.UserId,
+					cancelReason: cancelReasonUserInitiated,
 					jobSets: map[JobSetKey]*JobSetCancelAction{
 						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: true, cancelLeased: true},
 					},
@@ -201,7 +211,8 @@ func TestConvertEventSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_QUEUED)},
 			expected: []DbOperation{
 				MarkJobSetsCancelRequested{
-					cancelUser: f.UserId,
+					cancelUser:   f.UserId,
+					cancelReason: cancelReasonUserInitiated,
 					jobSets: map[JobSetKey]*JobSetCancelAction{
 						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: true, cancelLeased: false},
 					},
@@ -212,7 +223,8 @@ func TestConvertEventSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_PENDING)},
 			expected: []DbOperation{
 				MarkJobSetsCancelRequested{
-					cancelUser: f.UserId,
+					cancelUser:   f.UserId,
+					cancelReason: cancelReasonUserInitiated,
 					jobSets: map[JobSetKey]*JobSetCancelAction{
 						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: false, cancelLeased: true},
 					},
@@ -223,7 +235,8 @@ func TestConvertEventSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_RUNNING)},
 			expected: []DbOperation{
 				MarkJobSetsCancelRequested{
-					cancelUser: f.UserId,
+					cancelUser:   f.UserId,
+					cancelReason: cancelReasonUserInitiated,
 					jobSets: map[JobSetKey]*JobSetCancelAction{
 						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: false, cancelLeased: true},
 					},
@@ -271,8 +284,9 @@ func TestConvertEventSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested, f.Running, f.JobSucceeded},
 			expected: []DbOperation{
 				MarkJobSetsCancelRequested{
-					cancelUser: f.UserId,
-					jobSets:    map[JobSetKey]*JobSetCancelAction{{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: true, cancelLeased: true}},
+					cancelUser:   f.UserId,
+					cancelReason: cancelReasonUserInitiated,
+					jobSets:      map[JobSetKey]*JobSetCancelAction{{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: true, cancelLeased: true}},
 				},
 				MarkRunsRunning{f.RunId: f.BaseTime},
 				MarkJobsSucceeded{f.JobId: true},
@@ -482,13 +496,13 @@ func assertOperationsEqual(t *testing.T, expectedOps []DbOperation, actualOps []
 			for k, expectedSubmit := range expectedOp.(InsertJobs) {
 				actualSubmit, ok := actualSubmits[k]
 				assert.True(t, ok)
-				assertSubmitMessagesEqual(t, expectedSubmit.SubmitMessage, actualSubmit.SubmitMessage)
-				assertSchedulingInfoEqual(t, expectedSubmit.SchedulingInfo, actualSubmit.SchedulingInfo)
+				assertSubmitMessagesEqual(t, expectedSubmit.Metadata.SubmitMessage, actualSubmit.Metadata.SubmitMessage)
+				assertSchedulingInfoEqual(t, expectedSubmit.Job.SchedulingInfo, actualSubmit.Job.SchedulingInfo)
 				// nil out the byte arrays
-				actualSubmit.SchedulingInfo = nil
-				actualSubmit.SubmitMessage = nil
-				expectedSubmit.SchedulingInfo = nil
-				expectedSubmit.SubmitMessage = nil
+				actualSubmit.Job.SchedulingInfo = nil
+				actualSubmit.Metadata.SubmitMessage = nil
+				expectedSubmit.Job.SchedulingInfo = nil
+				expectedSubmit.Metadata.SubmitMessage = nil
 				assert.Equal(t, expectedSubmit, actualSubmit)
 			}
 		case InsertJobRunErrors:

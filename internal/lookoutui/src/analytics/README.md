@@ -162,6 +162,46 @@ The `Analytics` component:
 - `eventData` (optional): Additional key-value pairs to include with the event
 - All other props are passed through to the underlying component
 
+## Custom View Events
+
+Custom view actions emit enriched metadata describing the view's configuration at the time of the action.
+
+### Event Names
+
+| Event | Trigger |
+|-------|---------|
+| `CUSTOM_VIEW_CREATED` | User saves current table configuration as a named view |
+| `CUSTOM_VIEW_LOADED` | User loads a previously saved view |
+| `CUSTOM_VIEW_DELETED` | User deletes a saved view |
+
+### Event Data Schema
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `viewName` | string | Name of the custom view (empty string for "current" on create) |
+| `columnCount` | string | Number of currently visible columns |
+| `columns` | string | Delta from default columns: added columns listed by ID, removed defaults prefixed with `-` (e.g. `"Node,Priority,-Queue"`). Annotation columns always included. Empty = no customization. |
+| `filterCount` | string | Number of active column filters |
+| `filteredColumns` | string | Comma-joined column IDs that have active filters |
+| `groupedColumns` | string | Comma-joined column IDs used for grouping |
+| `groupCount` | string | Number of grouped columns |
+| `sortColumn` | string | Current sort column ID |
+| `sortDirection` | string | `"ASC"` or `"DESC"` |
+| `pageSize` | string | Rows per page |
+| `hasAnnotations` | string | `"true"` if any annotation columns exist |
+| `annotationCount` | string | Number of annotation columns |
+| `autoRefresh` | string | `"true"`, `"false"`, or `"unset"` |
+| `activeJobSets` | string | `"true"`, `"false"`, or `"unset"` |
+| `filterDetails` | string | JSON-stringified array of active filter objects. Each entry: `{ column, matchType, value }`. `matchType` is one of `"exact"` (default), `"startsWith"`, `"contains"`, `"greaterThan"`, `"lessThan"`, `"greaterThanOrEqualTo"`, `"lessThanOrEqualTo"`, `"anyOf"`, `"exists"`. Empty array `[]` when no filters are active. |
+
+### Columns Delta Format
+
+The `columns` field shows how the view differs from defaults:
+- Columns visible in the view but hidden by default appear as-is (e.g. `Node`)
+- Default columns hidden in the view appear prefixed with `-` (e.g. `-State`)
+- Annotation columns (never in defaults) always appear (e.g. `annotation_team`)
+- An empty string means no column customization from defaults
+
 ## Notes
 
 - The script is injected dynamically when the app loads

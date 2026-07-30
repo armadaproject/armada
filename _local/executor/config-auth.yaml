@@ -7,6 +7,14 @@ executorApiConnection:
     clientId: "armada-executor"
     clientSecret: "executor-secret"
     scopes: ["profile", "email"]
+observability:
+  enabled: true
+  exporter:
+    endpoint: "http://localhost:4318"
+    protocol: "http/protobuf"
+  traces:
+    sampler: "parent_based_trace_id_ratio"
+    samplerArg: 1.0
 metric:
   port: 9002
 application:

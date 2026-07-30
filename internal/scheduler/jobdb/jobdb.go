@@ -20,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
@@ -71,7 +72,6 @@ type JobDb struct {
 	jobsByQueue        map[string]immutable.SortedSet[*Job]
 	jobsByPoolAndQueue map[string]map[string]immutable.SortedSet[*Job]
 	leasedJobs         *immutable.Set[*Job]
-	terminalJobs       *immutable.Set[*Job]
 	unvalidatedJobs    *immutable.Set[*Job]
 	// Configured priority classes.
 	priorityClasses map[string]types.PriorityClass
@@ -91,6 +91,9 @@ type JobDb struct {
 	// Used to make efficient ResourceList types.
 	resourceListFactory  *internaltypes.ResourceListFactory
 	respectNodePodLimits bool
+	// The current bid price snapshot. Used by NewJob to apply prices to newly created jobs.
+	// Updated through the same WriteTxn → SetBidPriceSnapshot → Commit flow as the rest of the JobDb state.
+	bidPriceSnapshot *pricing.BidPriceSnapshot
 }
 
 // IDProvider is an interface used to mock run id  generation for tests.
@@ -133,7 +136,6 @@ func NewJobDbWithSchedulingKeyGenerator(
 	}
 	unvalidatedJobs := immutable.NewSet[*Job](JobHasher{})
 	leasedJobs := immutable.NewSet[*Job](JobHasher{})
-	terminalJobs := immutable.NewSet[*Job](JobHasher{})
 	return &JobDb{
 		jobsById:               immutable.NewMap[string, *Job](nil),
 		jobsByRunId:            immutable.NewMap[string, string](nil),
@@ -141,7 +143,6 @@ func NewJobDbWithSchedulingKeyGenerator(
 		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
 		jobsByPoolAndQueue:     map[string]map[string]immutable.SortedSet[*Job]{},
 		leasedJobs:             &leasedJobs,
-		terminalJobs:           &terminalJobs,
 		unvalidatedJobs:        &unvalidatedJobs,
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
@@ -174,7 +175,6 @@ func (jobDb *JobDb) Clone() *JobDb {
 		jobsByQueue:            maps.Clone(jobDb.jobsByQueue),
 		jobsByPoolAndQueue:     deepClone(jobDb.jobsByPoolAndQueue),
 		leasedJobs:             jobDb.leasedJobs,
-		terminalJobs:           jobDb.terminalJobs,
 		unvalidatedJobs:        jobDb.unvalidatedJobs,
 		priorityClasses:        jobDb.priorityClasses,
 		defaultPriorityClass:   jobDb.defaultPriorityClass,
@@ -182,6 +182,7 @@ func (jobDb *JobDb) Clone() *JobDb {
 		stringInterner:         jobDb.stringInterner,
 		resourceListFactory:    jobDb.resourceListFactory,
 		respectNodePodLimits:   jobDb.respectNodePodLimits,
+		bidPriceSnapshot:       jobDb.bidPriceSnapshot,
 	}
 }
 
@@ -217,6 +218,14 @@ func (jobDb *JobDb) NewJob(
 		pb = bidstore.PriceBand(priceBand)
 	}
 
+	bidPrices := map[string]pricing.Bid{}
+	if jobDb.bidPriceSnapshot != nil {
+		prices, ok := jobDb.bidPriceSnapshot.GetPrice(queue, pb)
+		if ok {
+			bidPrices = maps.Clone(prices)
+		}
+	}
+
 	gangInfo, err := GangInfoFromMinimalJob(schedulingInfo)
 	if err != nil {
 		log.Errorf("failed creating gang info for job %s", jobId)
@@ -245,6 +254,7 @@ func (jobDb *JobDb) NewJob(
 		runsById:                       map[string]*JobRun{},
 		pools:                          jobDb.internPools(pools),
 		priceBand:                      pb,
+		bidPricesPool:                  bidPrices,
 		gangInfo:                       *gangInfo,
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
@@ -339,8 +349,8 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 		jobsByQueue:        jobDb.jobsByQueue,
 		jobsByPoolAndQueue: jobDb.jobsByPoolAndQueue,
 		leasedJobs:         jobDb.leasedJobs,
-		terminalJobs:       jobDb.terminalJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
 	}
@@ -361,8 +371,30 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		jobsByQueue:        maps.Clone(jobDb.jobsByQueue),
 		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
 		leasedJobs:         jobDb.leasedJobs,
-		terminalJobs:       jobDb.terminalJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
+		active:             true,
+		jobDb:              jobDb,
+	}
+}
+
+// DryRunTxn returns a writable transaction over an isolated snapshot of the current db state.
+// Mutations are local to the snapshot and are never committed back to the db.
+// This is useful for processes that need to speculatively modify state without affecting the real db.
+func (jobDb *JobDb) DryRunTxn() *Txn {
+	jobDb.copyMutex.Lock()
+	defer jobDb.copyMutex.Unlock()
+	return &Txn{
+		readOnly:           false,
+		dryRun:             true,
+		jobsById:           jobDb.jobsById,
+		jobsByRunId:        jobDb.jobsByRunId,
+		jobsByGangKey:      maps.Clone(jobDb.jobsByGangKey),
+		jobsByQueue:        maps.Clone(jobDb.jobsByQueue),
+		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
+		leasedJobs:         jobDb.leasedJobs,
+		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
 	}
@@ -387,6 +419,9 @@ func (jobDb *JobDb) CumulativeInternedStringsCount() uint64 {
 // until the transaction is committed.
 type Txn struct {
 	readOnly bool
+	// dryRun transactions allow mutations but Commit is a no-op — changes are never written back to the db.
+	// Created via DryRunTxn(); useful for speculative state manipulation without affecting the real db.
+	dryRun bool
 	// Map from job ids to jobs.
 	jobsById *immutable.Map[string, *Job]
 	// Map from run ids to jobs.
@@ -402,10 +437,10 @@ type Txn struct {
 	jobsByPoolAndQueue map[string]map[string]immutable.SortedSet[*Job]
 	// Jobs that are currently leased
 	leasedJobs *immutable.Set[*Job]
-	// Jobs that are currently in a terminal state
-	terminalJobs *immutable.Set[*Job]
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
+	// The current snapshot of bid prices - allowing look up of bidding prices on job creation
+	bidPriceSnapshot *pricing.BidPriceSnapshot
 	// The jobDb from which this transaction was created.
 	jobDb *JobDb
 	// Set to false when this transaction is either committed or aborted.
@@ -414,6 +449,10 @@ type Txn struct {
 
 func (txn *Txn) Commit() {
 	if txn.readOnly || !txn.active {
+		return
+	}
+	if txn.dryRun {
+		txn.active = false
 		return
 	}
 	txn.jobDb.copyMutex.Lock()
@@ -425,8 +464,8 @@ func (txn *Txn) Commit() {
 	txn.jobDb.jobsByQueue = txn.jobsByQueue
 	txn.jobDb.jobsByPoolAndQueue = txn.jobsByPoolAndQueue
 	txn.jobDb.leasedJobs = txn.leasedJobs
-	txn.jobDb.terminalJobs = txn.terminalJobs
 	txn.jobDb.unvalidatedJobs = txn.unvalidatedJobs
+	txn.jobDb.bidPriceSnapshot = txn.bidPriceSnapshot
 
 	txn.active = false
 }
@@ -521,6 +560,10 @@ func (txn *Txn) Abort() {
 	if txn.readOnly || !txn.active {
 		return
 	}
+	if txn.dryRun {
+		txn.active = false
+		return
+	}
 	txn.active = false
 	txn.jobDb.writerMutex.Unlock()
 }
@@ -561,11 +604,6 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 					txn.leasedJobs = &newLeasedJobs
 				}
 
-				if existingJob.InTerminalState() {
-					newTerminalJobs := txn.terminalJobs.Delete(existingJob)
-					txn.terminalJobs = &newTerminalJobs
-				}
-
 				if !existingJob.Validated() {
 					newUnvalidatedJobs := txn.unvalidatedJobs.Delete(existingJob)
 					txn.unvalidatedJobs = &newUnvalidatedJobs
@@ -576,7 +614,7 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 
 	// Now need to insert jobs, runs and queuedJobs. This can be done in parallel.
 	wg := sync.WaitGroup{}
-	wg.Add(7)
+	wg.Add(6)
 
 	// jobs
 	go func() {
@@ -739,30 +777,6 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 		}
 	}()
 
-	// Terminal jobs
-	go func() {
-		defer wg.Done()
-		if hasJobs {
-			for _, job := range jobs {
-				if job.InTerminalState() {
-					terminalJobs := txn.terminalJobs.Add(job)
-					txn.terminalJobs = &terminalJobs
-				}
-			}
-		} else {
-			terminalJobs := map[*Job]bool{}
-
-			for _, job := range jobs {
-				if job.InTerminalState() {
-					terminalJobs[job] = true
-				}
-			}
-
-			terminalJobsImmutable := immutable.NewSet[*Job](JobHasher{}, maps.Keys(terminalJobs)...)
-			txn.terminalJobs = &terminalJobsImmutable
-		}
-	}()
-
 	// Unvalidated jobs
 	go func() {
 		defer wg.Done()
@@ -904,11 +918,6 @@ func (txn *Txn) GetAllLeasedJobs() []*Job {
 	return txn.leasedJobs.Items()
 }
 
-// GetAllTerminalJobs returns all terminal jobs in the database
-func (txn *Txn) GetAllTerminalJobs() []*Job {
-	return txn.terminalJobs.Items()
-}
-
 // GetAll returns all jobs in the database.
 func (txn *Txn) GetAll() []*Job {
 	allJobs := make([]*Job, 0, txn.jobsById.Len())
@@ -981,9 +990,6 @@ func (txn *Txn) delete(jobId string) {
 		newLeasedJobs := txn.leasedJobs.Delete(job)
 		txn.leasedJobs = &newLeasedJobs
 
-		newTerminalJobs := txn.terminalJobs.Delete(job)
-		txn.terminalJobs = &newTerminalJobs
-
 		newUnvalidatedJobs := txn.unvalidatedJobs.Delete(job)
 		txn.unvalidatedJobs = &newUnvalidatedJobs
 	}
@@ -996,5 +1002,17 @@ func (txn *Txn) checkWritableTransaction() error {
 	if !txn.active {
 		return errors.New("Cannot write using an inactive transaction")
 	}
+	return nil
+}
+
+func (txn *Txn) GetBidPriceSnapshot() *pricing.BidPriceSnapshot {
+	return txn.bidPriceSnapshot
+}
+
+func (txn *Txn) SetBidPriceSnapshot(snapshot *pricing.BidPriceSnapshot) error {
+	if err := txn.checkWritableTransaction(); err != nil {
+		return err
+	}
+	txn.bidPriceSnapshot = snapshot
 	return nil
 }

@@ -56,6 +56,15 @@ func TestTest_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "mutually exclusive feature toggles",
+			modify: func(t *TestConfig) {
+				t.FeatureToggles.HotColdSplit = true
+				t.FeatureToggles.PartitionBySubmitted = true
+			},
+			wantErr: true,
+			errText: "feature toggles are mutually exclusive",
+		},
+		{
 			name: "zero test duration",
 			modify: func(t *TestConfig) {
 				t.TestDuration = 0

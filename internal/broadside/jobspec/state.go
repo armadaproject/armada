@@ -26,25 +26,28 @@ const (
 )
 
 type ScheduledTransition struct {
-	time    time.Time
-	jobID   string
-	runID   string
-	toState JobState
+	time      time.Time
+	jobID     string
+	runID     string
+	toState   JobState
+	submitted time.Time
 }
 
-func NewScheduledTransition(t time.Time, jobID, runID string, toState JobState) ScheduledTransition {
+func NewScheduledTransition(t time.Time, jobID, runID string, toState JobState, submitted time.Time) ScheduledTransition {
 	return ScheduledTransition{
-		time:    t,
-		jobID:   jobID,
-		runID:   runID,
-		toState: toState,
+		time:      t,
+		jobID:     jobID,
+		runID:     runID,
+		toState:   toState,
+		submitted: submitted,
 	}
 }
 
-func (s ScheduledTransition) Time() time.Time   { return s.time }
-func (s ScheduledTransition) JobID() string     { return s.jobID }
-func (s ScheduledTransition) RunID() string     { return s.runID }
-func (s ScheduledTransition) ToState() JobState { return s.toState }
+func (s ScheduledTransition) Time() time.Time      { return s.time }
+func (s ScheduledTransition) JobID() string        { return s.jobID }
+func (s ScheduledTransition) RunID() string        { return s.runID }
+func (s ScheduledTransition) ToState() JobState    { return s.toState }
+func (s ScheduledTransition) Submitted() time.Time { return s.submitted }
 
 type TransitionHeap []ScheduledTransition
 

@@ -1,5 +1,5 @@
 ARG PLATFORM=x86_64
-ARG BASE_IMAGE=python:3.9-slim-bookworm
+ARG BASE_IMAGE=python:3.10-slim-bookworm
 FROM --platform=$PLATFORM ${BASE_IMAGE}
 
 RUN mkdir /proto

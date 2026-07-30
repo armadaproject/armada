@@ -577,6 +577,45 @@ func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
 	return js
 }
 
+func (js *JobSimulator) PreemptedWithRunId(runId string, reason string, preemptingJobId string, timestamp time.Time) *JobSimulator {
+	ts := timestampOrNow(timestamp)
+	preemptedTime := protoutil.ToStdTime(ts)
+
+	preemptedJob := &armadaevents.EventSequence_Event{
+		Created: ts,
+		Event: &armadaevents.EventSequence_Event_JobErrors{
+			JobErrors: &armadaevents.JobErrors{
+				JobId: js.jobId,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal: true,
+						Reason: &armadaevents.Error_JobRunPreemptedError{
+							JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	preemptedRun := &armadaevents.EventSequence_Event{
+		Created: ts,
+		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: &armadaevents.JobRunPreempted{
+				PreemptedJobId:  js.jobId,
+				PreemptedRunId:  runId,
+				PreemptingJobId: preemptingJobId,
+				Reason:          reason,
+			},
+		},
+	}
+	js.events = append(js.events, preemptedJob, preemptedRun)
+
+	js.job.LastTransitionTime = preemptedTime
+	js.job.State = string(lookout.JobPreempted)
+	return js
+}
+
 func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, _ clock.Clock) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	leaseExpiredTime := protoutil.ToStdTime(ts)

@@ -36,6 +36,10 @@ type SchedulingContext struct {
 	// Limits job scheduling rate globally across all queues.
 	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
 	Limiter *rate.Limiter
+	// Limits the rate of fairshare preemptions for this pool, counting one token per preempted job.
+	// nil means no limit (the pool is not configured with a fairshare preemption rate limit).
+	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
+	FairsharePreemptionLimiter *rate.Limiter
 	// Sum of queue weights across all queues.
 	WeightSum float64
 	// Per-queue scheduling contexts.
@@ -60,9 +64,12 @@ type SchedulingContext struct {
 	// Used to efficiently generate scheduling keys.
 	SchedulingKeyGenerator *internaltypes.SchedulingKeyGenerator
 	// Record of job scheduling requirements known to be unfeasible.
-	// Used to immediately reject new jobs with identical reqirements.
+	// Used to immediately reject new jobs with identical requirements.
 	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
-	UnfeasibleSchedulingKeys     map[internaltypes.SchedulingKey]*JobSchedulingContext
+	UnfeasibleSchedulingKeys map[internaltypes.SchedulingKey]*JobSchedulingContext
+	// Ids of jobs preempted during this scheduling round (e.g. via fair-share preemption).
+	// Such jobs must not be re-offered as scheduling candidates
+	PreemptedJobIds              map[string]bool
 	ExperimentalIndicativeShares map[int]float64
 	SpotPrice                    *float64
 	// Time spent scheduling new jobs in this round.
@@ -73,6 +80,7 @@ func NewSchedulingContext(
 	pool string,
 	fairnessCostProvider fairness.FairnessCostProvider,
 	limiter *rate.Limiter,
+	fairsharePreemptionLimiter *rate.Limiter,
 	totalResources internaltypes.ResourceList,
 ) *SchedulingContext {
 	return &SchedulingContext{
@@ -80,12 +88,14 @@ func NewSchedulingContext(
 		Pool:                         pool,
 		FairnessCostProvider:         fairnessCostProvider,
 		Limiter:                      limiter,
+		FairsharePreemptionLimiter:   fairsharePreemptionLimiter,
 		QueueSchedulingContexts:      make(map[string]*QueueSchedulingContext),
 		TotalResources:               totalResources,
 		ScheduledResources:           internaltypes.ResourceList{},
 		EvictedResources:             internaltypes.ResourceList{},
 		SchedulingKeyGenerator:       internaltypes.NewSchedulingKeyGenerator(),
 		UnfeasibleSchedulingKeys:     make(map[internaltypes.SchedulingKey]*JobSchedulingContext),
+		PreemptedJobIds:              make(map[string]bool),
 		ExperimentalIndicativeShares: make(map[int]float64),
 	}
 }
@@ -438,12 +448,83 @@ func (sctx *SchedulingContext) EvictGang(gctx *GangSchedulingContext) (bool, err
 	return allJobsScheduledInThisRound, nil
 }
 
+func (sctx *SchedulingContext) UnscheduleJob(jctx *JobSchedulingContext) error {
+	queue := sctx.resolveQueueName(jctx.Job)
+	qctx, ok := sctx.QueueSchedulingContexts[queue]
+	if !ok {
+		return errors.Errorf("failed unscheduling job %s: no context for queue %s", jctx.JobId, queue)
+	}
+
+	scheduledInThisRound := qctx.UnscheduleJob(jctx)
+	if !scheduledInThisRound {
+		return errors.Errorf("failed unscheduling job %s: job is not marked as scheduled", jctx.JobId)
+	}
+
+	sctx.ScheduledResources = sctx.ScheduledResources.Subtract(jctx.Job.AllResourceRequirements())
+	sctx.NumScheduledJobs--
+	sctx.Allocated = sctx.Allocated.Subtract(jctx.Job.AllResourceRequirements())
+
+	return nil
+}
+
+func (sctx *SchedulingContext) RemoveJob(jctx *JobSchedulingContext) (bool, error) {
+	queue := sctx.resolveQueueName(jctx.Job)
+	qctx, ok := sctx.QueueSchedulingContexts[queue]
+	if !ok {
+		return false, errors.Errorf("failed removing job %s from scheduling context: no context for queue %s", jctx.JobId, queue)
+	}
+
+	scheduledInThisRound, rescheduledInThisRound, evictedInRound := qctx.RemoveJob(jctx)
+	if scheduledInThisRound {
+		sctx.ScheduledResources = sctx.ScheduledResources.Subtract(jctx.Job.AllResourceRequirements())
+		sctx.NumScheduledJobs--
+	}
+
+	if scheduledInThisRound || rescheduledInThisRound {
+		sctx.Allocated = sctx.Allocated.Subtract(jctx.Job.AllResourceRequirements())
+	}
+
+	if evictedInRound {
+		sctx.EvictedResources = sctx.EvictedResources.Subtract(jctx.Job.AllResourceRequirements())
+		sctx.NumEvictedJobs--
+	}
+
+	return scheduledInThisRound, nil
+}
+
 // QueueContextExists returns true if we know about the queue associated with the job. An example of when this can
 // return false is when a job is running on a node
 func (sctx *SchedulingContext) QueueContextExists(job *jobdb.Job) bool {
 	queue := sctx.resolveQueueName(job)
 	_, ok := sctx.QueueSchedulingContexts[queue]
 	return ok
+}
+
+// MarkJobPreempted records that the job with the given id was preempted during this scheduling round.
+// Preempted jobs must not be re-scheduled; see IsJobPreempted.
+// Each newly-preempted job consumes one token from the pool's fairshare preemption rate limiter.
+// This is retrospective (the bucket may go negative) and idempotent: re-marking a job does not
+// consume additional tokens.
+func (sctx *SchedulingContext) MarkJobPreempted(jobId string) {
+	if sctx.PreemptedJobIds[jobId] {
+		return
+	}
+	sctx.PreemptedJobIds[jobId] = true
+	if sctx.FairsharePreemptionLimiter != nil {
+		sctx.FairsharePreemptionLimiter.ReserveN(sctx.Started, 1)
+	}
+}
+
+// IsJobPreempted reports whether the job with the given id was preempted during this scheduling round.
+func (sctx *SchedulingContext) IsJobPreempted(jobId string) bool {
+	return sctx.PreemptedJobIds[jobId]
+}
+
+func (sctx *SchedulingContext) AtFairsharePreemptionRateLimit() bool {
+	if sctx.FairsharePreemptionLimiter == nil {
+		return false
+	}
+	return sctx.FairsharePreemptionLimiter.TokensAt(sctx.Started) < 1
 }
 
 func (sctx *SchedulingContext) PreemptJob(jctx *JobSchedulingContext) (bool, error) {

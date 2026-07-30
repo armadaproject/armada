@@ -1,13 +1,15 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Armada" type="CompoundRunConfigurationType">
+    <toRun name="Binoculars" type="GoApplicationRunConfiguration" />
     <toRun name="Event Ingester" type="GoApplicationRunConfiguration" />
     <toRun name="Executor" type="GoApplicationRunConfiguration" />
+    <toRun name="Lookout" type="GoApplicationRunConfiguration" />
     <toRun name="Lookout Ingester" type="GoApplicationRunConfiguration" />
+    <toRun name="Lookout UI" type="ShConfigurationType" />
     <toRun name="Scheduler" type="GoApplicationRunConfiguration" />
     <toRun name="Scheduler Ingester" type="GoApplicationRunConfiguration" />
     <toRun name="Server" type="GoApplicationRunConfiguration" />
-    <toRun name="lookoutPostgresMigration" type="GoApplicationRunConfiguration" />
-    <toRun name="schedulerPostgresMigration" type="GoApplicationRunConfiguration" />
+    <toRun name="Run Migrations" type="ShConfigurationType" />
     <method v="2" />
   </configuration>
 </component>

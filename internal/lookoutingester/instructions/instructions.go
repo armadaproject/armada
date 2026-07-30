@@ -24,14 +24,15 @@ import (
 )
 
 const (
-	maxQueueLen         = 512
-	maxOwnerLen         = 512
-	maxJobSetLen        = 1024
-	maxAnnotationKeyLen = 1024
-	maxAnnotationValLen = 1024
-	maxPriorityClassLen = 63
-	maxClusterLen       = 512
-	maxNodeLen          = 512
+	maxQueueLen          = 512
+	maxOwnerLen          = 512
+	maxJobSetLen         = 1024
+	maxAnnotationKeyLen  = 1024
+	maxAnnotationValLen  = 1024
+	maxPriorityClassLen  = 63
+	maxClusterLen        = 512
+	maxNodeLen           = 512
+	cancelReasonFallback = "no reason provided"
 )
 
 type HasNodeName interface {
@@ -109,6 +110,8 @@ func (c *InstructionConverter) convertSequence(
 			err = c.handleJobRunRunning(ts, event.GetJobRunRunning(), update)
 		case *armadaevents.EventSequence_Event_JobRunCancelled:
 			err = c.handleJobRunCancelled(ts, event.GetJobRunCancelled(), update)
+		case *armadaevents.EventSequence_Event_JobCancelledDebugInfo:
+			err = c.handleJobCancelledDebugInfo(event.GetJobCancelledDebugInfo(), update)
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
 			err = c.handleJobRunSucceeded(ts, event.GetJobRunSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
@@ -398,10 +401,34 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 }
 
 func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armadaevents.JobRunCancelled, update *model.InstructionSet) error {
+	var args map[string]any
+	if event.Requestor != "" {
+		args = map[string]any{"requestor": event.Requestor}
+	}
+	// fallback for events that arrive without a reason; event should set one otherwise.
+	reason := event.Reason
+	if reason == "" {
+		reason = cancelReasonFallback
+	}
+	terminationReason := BuildTerminationReason(reason, args)
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:       event.RunId,
-		Finished:    &ts,
-		JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
+		RunId:                      event.RunId,
+		Finished:                   &ts,
+		JobRunState:                pointer.Int32(lookout.JobRunCancelledOrdinal),
+		SchedulerTerminationReason: terminationReason,
+	}
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+	return nil
+}
+
+// handleJobCancelledDebugInfo persists only the debug message (rendered k8s events) for a run that
+// was cancelled before its main container started. It leaves the run's state untouched - the
+// JobRunCancelled event owns the state, and Lookout coalesces column updates so arrival order does
+// not matter.
+func (c *InstructionConverter) handleJobCancelledDebugInfo(event *armadaevents.JobCancelledDebugInfo, update *model.InstructionSet) error {
+	jobRun := model.UpdateJobRunInstruction{
+		RunId: event.RunId,
+		Debug: tryCompressError(event.JobId, event.DebugMessage, c.compressor),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
@@ -476,11 +503,20 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 }
 
 func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+	var terminationReasonArgs map[string]any
+	if event.PreemptingJobId != "" {
+		terminationReasonArgs = map[string]any{"preemptingJobId": event.PreemptingJobId}
+	}
+	var terminationReason map[string]any
+	if event.Reason != "" || terminationReasonArgs != nil {
+		terminationReason = BuildTerminationReason(event.Reason, terminationReasonArgs)
+	}
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:       event.PreemptedRunId,
-		JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
-		Finished:    &ts,
-		Error:       tryCompressError(event.PreemptedJobId, event.Reason, c.compressor),
+		RunId:                      event.PreemptedRunId,
+		JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
+		Finished:                   &ts,
+		Error:                      tryCompressError(event.PreemptedJobId, event.Reason, c.compressor),
+		SchedulerTerminationReason: terminationReason,
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
@@ -553,4 +589,14 @@ func getJobPriorityClass(job *api.Job) *string {
 		return pointer.String(podSpec.PriorityClassName)
 	}
 	return nil
+}
+
+func BuildTerminationReason(reason string, args map[string]any) map[string]any {
+	result := map[string]any{
+		"reason": reason,
+	}
+	if len(args) > 0 {
+		result["args"] = args
+	}
+	return result
 }

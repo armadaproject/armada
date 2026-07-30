@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query"
 import { makeFakeJobSpec } from "../../common/fakeJobsUtils"
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
-import { useAuthenticatedFetch } from "../../oidcAuth"
+import { useMirroredLookoutApiFetch } from "../../oidcAuth"
 
 export const useGetJobSpec = (jobId: string, enabled = true) => {
-  const authenticatedFetch = useAuthenticatedFetch()
+  const lookoutApiFetch = useMirroredLookoutApiFetch()
   const config = getConfig()
 
   return useQuery<Record<string, any>, string>({
@@ -17,7 +17,7 @@ export const useGetJobSpec = (jobId: string, enabled = true) => {
           return makeFakeJobSpec(jobId)
         }
 
-        const response = await authenticatedFetch("/api/v1/jobSpec", {
+        const response = await lookoutApiFetch("/api/v1/jobSpec", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jobId }),

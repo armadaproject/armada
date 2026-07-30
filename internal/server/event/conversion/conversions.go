@@ -55,6 +55,7 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_JobRunPreemptionRequested,
 			*armadaevents.EventSequence_Event_JobRunCancelled,
+			*armadaevents.EventSequence_Event_JobCancelledDebugInfo,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_JobRunSucceeded,
 			*armadaevents.EventSequence_Event_JobRequeued,
@@ -440,12 +441,13 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 	}
 
 	apiEvent := &api.JobPreemptedEvent{
-		JobId:    e.PreemptedJobId,
-		JobSetId: jobSetName,
-		Queue:    queueName,
-		Created:  protoutil.ToTimestamp(time),
-		RunId:    e.PreemptedRunId,
-		Reason:   e.Reason,
+		JobId:           e.PreemptedJobId,
+		JobSetId:        jobSetName,
+		Queue:           queueName,
+		Created:         protoutil.ToTimestamp(time),
+		RunId:           e.PreemptedRunId,
+		Reason:          e.Reason,
+		PreemptingJobId: e.PreemptingJobId,
 	}
 
 	return []*api.EventMessage{

@@ -4,6 +4,8 @@ import (
 	"time"
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/server/configuration"
 )
@@ -11,14 +13,17 @@ import (
 type LookoutConfig struct {
 	Auth authconfig.AuthConfig
 
-	ApiPort     int
-	Profiling   *profilingconfig.ProfilingConfig
-	MetricsPort int
+	ApiPort       int
+	Profiling     *profilingconfig.ProfilingConfig
+	MetricsPort   int
+	Observability observability.ObservabilityConfig
 
 	CorsAllowedOrigins []string
 	Tls                TlsConfig
 
 	Postgres configuration.PostgresConfig
+
+	Migration database.MigrationConfig
 
 	PrunerConfig PrunerConfig
 
@@ -36,9 +41,26 @@ type TlsConfig struct {
 type PrunerConfig struct {
 	ExpireAfter              time.Duration
 	DeduplicationExpireAfter time.Duration
-	Timeout                  time.Duration
-	BatchSize                int
-	Postgres                 configuration.PostgresConfig
+	// ZombieRepairThreshold is the minimum age of a terminal latest run before
+	// a zombie job (one whose state column is non-terminal but whose latest
+	// run is in a terminal state) will be repaired by the pruner. This acts as
+	// a grace period to avoid racing legitimately in-flight state transitions
+	// or repairing jobs whose state-update events the lookout ingester has not
+	// yet caught up on.
+	//
+	// If nil, defaults to 15 minutes. Set to 0 explicitly to disable zombie
+	// reconciliation entirely.
+	ZombieRepairThreshold *time.Duration
+	Timeout               time.Duration
+	BatchSize             int
+	Postgres              configuration.PostgresConfig
+	// PushgatewayUrl is the URL of a Prometheus Pushgateway (or compatible
+	// endpoint) to push pruner metrics to after each run. If empty, no metrics
+	// are pushed.
+	PushgatewayUrl string
+	// PushgatewayJobName is the job label attached to pushed metrics.
+	// Defaults to "lookout-pruner" if empty.
+	PushgatewayJobName string
 }
 
 // Alert level enum values correspond to the severity levels of the MUI Alert
@@ -174,6 +196,16 @@ type OidcConfig struct {
 	DisplayNameClaim *string `json:"displayNameClaim,omitempty"`
 }
 
+// RequestMirrorConfig configures client-side mirroring of Lookout UI API
+// requests to a secondary backend, e.g. for comparing performance against an
+// experimental deployment under real traffic patterns. TargetUrl must be an
+// HTTPS origin: mirrored requests carry the user's Authorization header, so it
+// must never be sent to a plaintext or untrusted origin.
+type RequestMirrorConfig struct {
+	Enabled   bool   `json:"enabled"`
+	TargetUrl string `json:"targetUrl,omitempty"`
+}
+
 // UIConfig must match the LookoutUiConfig TypeScript interface defined in internal/lookoutui/src/config/types.ts
 type UIConfig struct {
 	CustomTitle string `json:"customTitle"`
@@ -205,4 +237,7 @@ type UIConfig struct {
 
 	// Analytics is an optional analytics configuration
 	Analytics *AnalyticsConfig `json:"analytics,omitempty"`
+
+	// RequestMirror is an optional configuration for mirroring API requests to a secondary backend
+	RequestMirror *RequestMirrorConfig `json:"requestMirror,omitempty"`
 }

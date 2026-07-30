@@ -5,9 +5,10 @@ import { IconButton, styled, Typography } from "@mui/material"
 import { generatePath } from "react-router-dom"
 
 import { formatTimestampRelative } from "../../../../common/formatTime"
+import { SPACING } from "../../../../common/spacing"
 import { CopyIconButton } from "../../../../components/CopyIconButton"
 import { JobStateChip } from "../../../../components/JobStateChip"
-import { Job } from "../../../../models/lookoutModels"
+import { Job, JobState } from "../../../../models/lookoutModels"
 import { JOB_REDIRECT } from "../../../../pathnames"
 
 const HeaderContainer = styled("div")({
@@ -55,9 +56,14 @@ export const SidebarHeader = memo(({ job, onClose }: SidebarHeaderProps) => (
     <HeaderSection
       title="State"
       value={
-        <>
+        <div>
           <JobStateChip state={job.state} /> for {formatTimestampRelative(job.lastTransitionTime, false)}
-        </>
+          {job.state === JobState.Cancelled && job.cancelUser && (
+            <Typography variant="body2" component="span" display="block" marginTop={SPACING.xs}>
+              Cancelled by <strong>{job.cancelUser}</strong>.
+            </Typography>
+          )}
+        </div>
       }
     />
     <HeaderCloseButtonContainer>
