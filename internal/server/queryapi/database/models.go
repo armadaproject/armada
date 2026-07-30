@@ -74,3 +74,14 @@ type Queue struct {
 	Name       string `db:"name"`
 	Definition []byte `db:"definition"`
 }
+
+type QueueRetryPolicy struct {
+	QueueName  string `db:"queue_name"`
+	PolicyName string `db:"policy_name"`
+	Ordinal    int32  `db:"ordinal"`
+}
+
+type RetryPolicy struct {
+	Name       string `db:"name"`
+	Definition []byte `db:"definition"`
+}

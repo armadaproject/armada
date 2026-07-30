@@ -183,7 +183,8 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 		}
 		addNodeSelectorToGctx(gctx, nodeUniformity, value)
 		txn := sch.nodeDb.Txn(true)
-		ok, unschedulableReason, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
+		var preemptedJobs []*nodedb.JobPreemptionInfo
+		ok, unschedulableReason, preemptedJobs, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
 		if err != nil {
 			txn.Abort()
 			return ok, unschedulableReason, err
@@ -195,6 +196,7 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 				// Store the selected label value in all job contexts
 				gctx.SetGangNodeUniformityValues(nodeUniformity, value)
 				txn.Commit()
+				sch.applyPreemptions(preemptedJobs)
 				return true, "", nil
 			}
 			if bestValue == "" || bestFit.Less(currentFit) {
@@ -203,6 +205,7 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 					// Store the selected label value in all job contexts
 					gctx.SetGangNodeUniformityValues(nodeUniformity, value)
 					txn.Commit()
+					sch.applyPreemptions(preemptedJobs)
 					return true, "", nil
 				}
 				// Record the best value seen so far.
@@ -226,21 +229,26 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 func (sch *GangScheduler) tryScheduleGang(ctx *armadacontext.Context, gctx *context.GangSchedulingContext) (bool, string, error) {
 	var ok bool
 	var unschedulableReason string
+	var preemptedJobs []*nodedb.JobPreemptionInfo
 	var err error
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
-	ok, unschedulableReason, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
+	ok, unschedulableReason, preemptedJobs, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
 	if ok && err == nil {
 		txn.Commit()
+		// Only apply preemptions once the scheduling transaction has committed, so that aborted
+		// attempts (e.g. rejected node-uniformity values) never leak preemptions.
+		sch.applyPreemptions(preemptedJobs)
 	}
 	return ok, unschedulableReason, err
 }
 
-func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *memdb.Txn, gctx *context.GangSchedulingContext) (bool, string, error) {
+func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *memdb.Txn, gctx *context.GangSchedulingContext) (bool, string, []*nodedb.JobPreemptionInfo, error) {
 	var ok bool
 	var unschedulableReason string
+	var preemptedJobs []*nodedb.JobPreemptionInfo
 	var err error
-	if ok, err = sch.nodeDb.ScheduleManyWithTxn(txn, gctx); err == nil {
+	if ok, preemptedJobs, err = sch.nodeDb.ScheduleManyWithTxn(txn, gctx); err == nil {
 		if !ok {
 			if gctx.Cardinality() > 1 {
 				unschedulableReason = schedulerconstraints.GangDoesNotFitUnschedulableReason
@@ -248,9 +256,20 @@ func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *
 				unschedulableReason = schedulerconstraints.JobDoesNotFitUnschedulableReason
 			}
 		}
-		return ok, unschedulableReason, err
+		return ok, unschedulableReason, preemptedJobs, err
 	}
-	return ok, unschedulableReason, err
+	return ok, unschedulableReason, preemptedJobs, err
+}
+
+// applyPreemptions applies the preemptions reported by the NodeDb to the scheduling context.
+// NodeDb reports preemptions but does not mutate the preempted jobs' scheduling contexts; that is
+// done here, once the caller has committed the scheduling transaction. It records the preempting
+// job on each preempted job's context and marks the job as preempted so it is not re-scheduled.
+func (sch *GangScheduler) applyPreemptions(preemptedJobs []*nodedb.JobPreemptionInfo) {
+	for _, preemption := range preemptedJobs {
+		preemption.PreemptedJob.PreemptingJob = preemption.PreemptingJob
+		sch.schedulingContext.MarkJobPreempted(preemption.PreemptedJob.JobId)
+	}
 }
 
 func addNodeSelectorToGctx(gctx *context.GangSchedulingContext, nodeSelectorKey, nodeSelectorValue string) {
