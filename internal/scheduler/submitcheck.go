@@ -360,7 +360,7 @@ poolStart:
 			})
 
 			txn := ex.nodeDb.Txn(true)
-			ok, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
+			ok, _, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
 			txn.Abort()
 
 			sb.WriteString(ex.id)

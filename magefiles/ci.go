@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -38,15 +39,24 @@ func TestSuite() error {
 
 	suites := []string{
 		"basic", "categorization", "preemption", "reprioritization", "queue",
+		"testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
+		"testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
 	}
 
 	for i, suite := range suites {
-		tests := []string{fmt.Sprintf("testsuite/testcases/%s/*", suite)}
+		var tests []string
+		label := suite
+		if info, err := os.Stat(suite); err == nil && !info.IsDir() {
+			tests = []string{suite}
+			label = strings.TrimSuffix(filepath.Base(suite), filepath.Ext(suite))
+		} else {
+			tests = []string{fmt.Sprintf("testsuite/testcases/%s/*", suite)}
+		}
 
 		timeTaken := time.Now()
 		out, err := goOutput("run", "cmd/testsuite/main.go", "test",
 			"--tests", strings.Join(tests, ","),
-			"--junit", fmt.Sprintf("junit-%s.xml", suite),
+			"--junit", fmt.Sprintf("junit-%s.xml", label),
 			"--config", "_local/.armadactl.yaml",
 		)
 		fmt.Println(out)
