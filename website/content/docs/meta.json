@@ -1,4 +1,14 @@
 {
   "title": "Docs",
-  "pages": ["core-concepts", "developer-guide", "architecture", "..."]
+  "pages": [
+    "core-concepts",
+    "developer-guide",
+    "architecture",
+    "cli",
+    "clients",
+    "integrations",
+    "user-guide",
+    "api",
+    "..."
+  ]
 }
