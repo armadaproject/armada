@@ -100,7 +100,7 @@ func queuesForBatch(baseName string, queueSpec *api.Queue, batchSize uint32) []*
 	return queues
 }
 
-// queueFromSpec clones spec to create a queue
+// queueFromSpec clones spec to create a queue, name from TestSpec.Queue will override the name in spec, and if PriorityFactor is 0 it will be set to 1.0.
 func queueFromSpec(baseName string, spec *api.Queue) *api.Queue {
 	clone := proto.Clone(spec).(*api.Queue)
 	if clone.PriorityFactor == 0 {
@@ -208,11 +208,16 @@ func assertDeleted(testSpec *api.TestSpec) bool {
 	return false
 }
 
-// RunAssertions checks queue state assertions.
-func RunAssertions(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, out io.Writer) error {
+// RunAssertions checks queue state assertions. activeInPool is checked against testSpec.Queue
+// (the queue jobs are submitted to); appearsInStream and matches are checked against every queue
+// in queueNames, since a batched setup creates and updates many queues that must all be valid.
+func RunAssertions(ctx context.Context, queueNames []string, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, out io.Writer) error {
 	assertions := testSpec.GetQueueConfig().GetAssertions()
 	if len(assertions) == 0 {
 		return nil
+	}
+	if len(queueNames) == 0 {
+		queueNames = []string{testSpec.Queue}
 	}
 	for _, assertion := range assertions {
 		if pool := assertion.ActiveInPool; pool != "" {
@@ -246,6 +251,8 @@ func RunAssertions(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 				if err != nil {
 					return errors.Wrap(err, "GetQueues stream failed to open")
 				}
+				// Collect the stream once, then verify every created queue is present.
+				seen := make(map[string]bool)
 				for {
 					msg, err := stream.Recv()
 					if err == io.EOF {
@@ -254,30 +261,37 @@ func RunAssertions(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 					if err != nil {
 						return errors.Wrap(err, "GetQueues stream recv error")
 					}
-					if q := msg.GetQueue(); q != nil && q.Name == testSpec.Queue {
-						fmt.Fprintf(out, "asserted queue %s appears in GetQueues stream\n", testSpec.Queue)
-						return nil
+					if q := msg.GetQueue(); q != nil {
+						seen[q.Name] = true
 					}
 				}
-				return fmt.Errorf("queue %q not found in GetQueues stream", testSpec.Queue)
+				for _, queueName := range queueNames {
+					if !seen[queueName] {
+						return fmt.Errorf("queue %q not found in GetQueues stream", queueName)
+					}
+				}
+				fmt.Fprintf(out, "asserted %d queue(s) appear in GetQueues stream\n", len(queueNames))
+				return nil
 			}); err != nil {
 				return err
 			}
 		}
 		if expected := assertion.Matches; expected != nil {
 			if err := client.WithQueueServiceClient(conn, func(qsc api.QueueServiceClient) error {
-				getCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-				defer cancel()
-				actual, err := qsc.GetQueue(getCtx, &api.QueueGetRequest{Name: testSpec.Queue})
-				if err != nil {
-					return errors.Wrap(err, "GetQueue failed")
+				for _, queueName := range queueNames {
+					getCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+					actual, err := qsc.GetQueue(getCtx, &api.QueueGetRequest{Name: queueName})
+					cancel()
+					if err != nil {
+						return errors.Wrap(err, "GetQueue failed")
+					}
+					want := proto.Clone(expected).(*api.Queue)
+					want.Name = actual.Name
+					if !proto.Equal(want, actual) {
+						return fmt.Errorf("queue %q properties did not match: got %+v, want %+v", queueName, actual, want)
+					}
 				}
-				want := proto.Clone(expected).(*api.Queue)
-				want.Name = actual.Name
-				if !proto.Equal(want, actual) {
-					return fmt.Errorf("queue %q properties did not match: got %+v, want %+v", testSpec.Queue, actual, want)
-				}
-				fmt.Fprintf(out, "asserted queue %s properties match expected\n", testSpec.Queue)
+				fmt.Fprintf(out, "asserted %d queue(s) properties match expected\n", len(queueNames))
 				return nil
 			}); err != nil {
 				return err

@@ -102,7 +102,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Pure queue tests submit no jobs, so skip the job-submission block below and
 	// go straight to the queue assertions.
 	if len(srv.testSpec.Jobs) == 0 && srv.testSpec.NumBatches == 0 {
-		return queue.RunAssertions(ctx, srv.testSpec, srv.apiConnectionDetails, out)
+		return queue.RunAssertions(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out)
 	}
 
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
@@ -224,7 +224,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// }
 
 	// Assert queue state now that the jobs have finished. (used for GetActiveQueues)
-	return queue.RunAssertions(ctx, srv.testSpec, srv.apiConnectionDetails, out)
+	return queue.RunAssertions(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out)
 }
 
 // triggerEventExtractor resolves testSpec.TriggerEvent to an extractor function.
