@@ -80,7 +80,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	}
 	defer cancel()
 
-	// Phase 1: create and (optionally) update the queue(s) under test.
+	// Create and (optionally) update the queue(s) under test.
 	queueNames, err := queue.RunSetup(ctx, srv.testSpec, srv.apiConnectionDetails, out)
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		return err
 	}
 
-	// Phase 4 (deferred): always delete the queue(s) once the test finishes.
+	// (deferred): always delete the queue(s) once the test finishes.
 	defer func() {
 		if teardownErr := queue.RunTeardown(queueNames, srv.testSpec, srv.apiConnectionDetails, out); teardownErr != nil {
 			fmt.Fprintf(out, "warning: queue teardown failed: %s\n", teardownErr)
@@ -223,7 +223,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// 	jobLogger.PrintLogs()
 	// }
 
-	// Phase 3: assert queue state now that the jobs have finished.
+	// Assert queue state now that the jobs have finished. (used for GetActiveQueues)
 	return queue.RunAssertions(ctx, srv.testSpec, srv.apiConnectionDetails, out)
 }
 
