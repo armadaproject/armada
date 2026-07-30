@@ -519,6 +519,7 @@ func TestQueueScheduler(t *testing.T) {
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
 					tc.SchedulingConfig.MaximumSchedulingBurst,
 				),
+				nil,
 				totalResources,
 			)
 			for _, q := range tc.Queues {
@@ -689,6 +690,7 @@ func newQueueSchedulerSctx(t *testing.T, config configuration.SchedulingConfig, 
 		"pool",
 		fairnessCostProvider,
 		rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+		nil,
 		totalResources,
 	)
 	for _, q := range queues {
@@ -764,6 +766,150 @@ func TestQueueScheduler_PreemptedJobsGetMarkedInSctx(t *testing.T) {
 		}
 	}
 	require.Equal(t, 1, preemptedCount, "expected exactly one incumbent to be preempted")
+}
+
+func TestQueueScheduler_PreemptionRateLimit(t *testing.T) {
+	tests := map[string]struct {
+		node *internaltypes.Node
+		// These will all be evicted
+		existingJobsQueueA []*jobdb.Job
+		// These will all be evicted
+		existingJobsQueueB []*jobdb.Job
+		// New jobs to try scheduling
+		newJobsQueueB                  []*jobdb.Job
+		rateLimit                      *rate.Limiter
+		expectedNumberNewJobsScheduled int
+		expectedNumberPreemptedJobs    int
+	}{
+		"exhausted limit, full node: new job cannot preempt": {
+			node:                           testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			existingJobsQueueA:             testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+			newJobsQueueB:                  testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
+			rateLimit:                      rate.NewLimiter(rate.Limit(0), 0),
+			expectedNumberNewJobsScheduled: 0,
+			expectedNumberPreemptedJobs:    0,
+		},
+		"exhausted limit, free space: new job scheduled without preemption": {
+			node:                           testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			existingJobsQueueA:             testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 31),
+			newJobsQueueB:                  testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
+			rateLimit:                      rate.NewLimiter(rate.Limit(0), 0),
+			expectedNumberNewJobsScheduled: 1,
+			expectedNumberPreemptedJobs:    0,
+		},
+		"limited rate limit, full node: limited new jobs preempt via fairshare": {
+			node:                           testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			existingJobsQueueA:             testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+			newJobsQueueB:                  testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
+			rateLimit:                      rate.NewLimiter(rate.Limit(5), 5),
+			expectedNumberNewJobsScheduled: 5,
+			expectedNumberPreemptedJobs:    5,
+		},
+		"limited rate limit, partially full node: new jobs fill space perform limited fairshare preemption": {
+			node:                           testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			existingJobsQueueA:             testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 31),
+			newJobsQueueB:                  testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
+			rateLimit:                      rate.NewLimiter(rate.Limit(5), 5),
+			expectedNumberNewJobsScheduled: 6,
+			expectedNumberPreemptedJobs:    5,
+		},
+		"limited rate limit, queue with mix of new + evicted jobs - partially full node: new jobs fill space perform limited fairshare preemption": {
+			node:                           testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			existingJobsQueueA:             testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 25),
+			existingJobsQueueB:             testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 5),
+			newJobsQueueB:                  testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
+			rateLimit:                      rate.NewLimiter(rate.Limit(5), 5),
+			expectedNumberNewJobsScheduled: 7,
+			expectedNumberPreemptedJobs:    5,
+		},
+		"unlimited rate limit, full node: new job preempts via fairshare": {
+			node:                           testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			existingJobsQueueA:             testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+			newJobsQueueB:                  testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
+			rateLimit:                      nil,
+			expectedNumberNewJobsScheduled: 16,
+			expectedNumberPreemptedJobs:    16,
+		},
+		"unlimited rate limit - queue with mix of new + evicted jobs - new job preempts via fairshare": {
+			node:                           testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+			existingJobsQueueA:             testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 22),
+			existingJobsQueueB:             testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 10),
+			newJobsQueueB:                  testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
+			rateLimit:                      nil,
+			expectedNumberNewJobsScheduled: 6,
+			expectedNumberPreemptedJobs:    6,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			config := testfixtures.TestSchedulingConfig()
+			nodeDb, err := NewNodeDb(config, stringinterner.New(1024))
+			require.NoError(t, err)
+
+			existingJobs := append(tc.existingJobsQueueA, tc.existingJobsQueueB...)
+			// candidates for fair-share preemption / rescheduling.
+			txn := nodeDb.Txn(true)
+			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, existingJobs, tc.node))
+			txn.Commit()
+
+			dbNode, err := nodeDb.GetNode(tc.node.GetId())
+			require.NoError(t, err)
+			evictedNode, err := nodeDb.EvictJobsFromNode(existingJobs, dbNode)
+			require.NoError(t, err)
+			txn = nodeDb.Txn(true)
+			require.NoError(t, nodeDb.UpsertWithTxn(txn, evictedNode))
+			evictedJctxs := make([]*context.JobSchedulingContext, len(existingJobs))
+			evictedJctxByQueue := make(map[string][]*context.JobSchedulingContext, 2)
+			for i, job := range existingJobs {
+				evictedJctx := context.JobSchedulingContextFromJob(job)
+				evictedJctx.SetAssignedNode(evictedNode)
+				evictedJctx.IsEvicted = true
+				evictedJctxs[i] = evictedJctx
+				evictedJctxByQueue[evictedJctx.Job.Queue()] = append(evictedJctxByQueue[evictedJctx.Job.Queue()], evictedJctx)
+				require.NoError(t, nodeDb.AddEvictedJobSchedulingContextWithTxn(txn, i, evictedJctx))
+			}
+			txn.Commit()
+
+			sctx := newQueueSchedulerSctx(t, config, nodeDb.TotalKubernetesResources(), []string{"A", "B"})
+			sctx.FairsharePreemptionLimiter = tc.rateLimit
+
+			constraints := schedulerconstraints.NewSchedulingConstraints("pool", nodeDb.TotalKubernetesResources(), config,
+				[]*api.Queue{{Name: "A"}, {Name: "B"}})
+
+			evictedRepoA := NewInMemoryJobIterator(evictedJctxByQueue["A"])
+			evictedRepoB := NewInMemoryJobIterator(evictedJctxByQueue["B"])
+
+			newRepo := newMockJobRepository()
+			newRepo.EnqueueMany(tc.newJobsQueueB)
+			jobIteratorByQueue := map[string]JobContextIterator{
+				"A": evictedRepoA,
+				"B": NewMultiJobsIterator(evictedRepoB, newRepo.GetJobIterator("B")),
+			}
+
+			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, true, config.EnablePreferLargeJobOrdering, config.MaxQueueLookback, false, 0, clock.RealClock{})
+			require.NoError(t, err)
+
+			result, err := sch.Schedule(armadacontext.Background())
+			require.NoError(t, err)
+
+			newJobsScheduled := 0
+			for _, job := range result.ScheduledJobs {
+				if !job.IsEvicted {
+					newJobsScheduled++
+				}
+			}
+			assert.Equal(t, tc.expectedNumberNewJobsScheduled, newJobsScheduled)
+
+			numberPreemptedJobs := 0
+			for _, jctx := range evictedJctxs {
+				if jctx.PreemptingJob != nil {
+					numberPreemptedJobs++
+				}
+			}
+			assert.Equal(t, tc.expectedNumberPreemptedJobs, numberPreemptedJobs)
+		})
+	}
 }
 
 func TestQueueScheduler_SkipsPreemptedCandidate(t *testing.T) {
@@ -973,6 +1119,7 @@ func setupTimeoutTest(t *testing.T, queues []*api.Queue, jobsByQueue map[string]
 		testfixtures.TestPool,
 		fairnessCostProvider,
 		rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+		nil,
 		totalResources,
 	)
 
@@ -1073,7 +1220,7 @@ func TestQueuedGangIterator(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			sctx := context.NewSchedulingContext("pool", nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+			sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
 			it := NewQueuedGangIterator(sctx, NewInMemoryJobIterator(tc.jctxs), tc.maxLookback, false)
 			if tc.onlyYieldEvicted {
 				it.OnlyYieldEvicted()
@@ -1108,7 +1255,7 @@ func TestQueuedGangIterator_OnlyYieldEvicted_TopItemEvicted(t *testing.T) {
 		createJctx(true),
 	}
 
-	sctx := context.NewSchedulingContext("pool", nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
 	it := NewQueuedGangIterator(sctx, NewInMemoryJobIterator(jctxs), 1, false)
 
 	gctx, err := it.Peek()
@@ -1132,7 +1279,7 @@ func TestQueuedGangIterator_OnlyYieldEvicted_TopItemNonEvicted(t *testing.T) {
 		createJctx(true),
 	}
 
-	sctx := context.NewSchedulingContext("pool", nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
 	it := NewQueuedGangIterator(sctx, NewInMemoryJobIterator(jctxs), 1, false)
 
 	gctx, err := it.Peek()
@@ -1146,6 +1293,78 @@ func TestQueuedGangIterator_OnlyYieldEvicted_TopItemNonEvicted(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, gctx.JobSchedulingContexts, 1)
 	assert.Equal(t, jctxs[1].JobId, gctx.JobSchedulingContexts[0].JobId)
+}
+
+func TestQueuedGangIterator_ResumeNonEvicted(t *testing.T) {
+	evictedJob := testfixtures.Test1Cpu4GiJob("A", testfixtures.PriorityClass0)
+	evictedJctx := context.JobSchedulingContextFromJob(evictedJob)
+	evictedJctx.IsEvicted = true
+	evictedIt := NewInMemoryJobIterator([]*context.JobSchedulingContext{evictedJctx})
+
+	newRepo := newMockJobRepository()
+	newJob := jobFromPodSpec("A", testfixtures.N1CpuPodReqs(1)[0])
+	newRepo.Enqueue(newJob)
+	newIt := NewQueuedJobsIterator("A", testfixtures.TestPool, jobdb.FairShareOrder, newRepo)
+
+	combined := NewMultiJobsIterator(evictedIt, newIt)
+
+	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+	it := NewQueuedGangIterator(sctx, combined, 0, false)
+
+	// Peek gives evicted job prior to only yield evicted
+	gctx, err := it.Peek()
+	require.NoError(t, err)
+	assert.Equal(t, evictedJob.Id(), gctx.JobSchedulingContexts[0].JobId)
+
+	// Evicted-only mode: only the evicted job is yielded, the new job is paused.
+	it.OnlyYieldEvicted()
+	gctx, err = it.Peek()
+	require.NoError(t, err)
+	require.NotNil(t, gctx)
+	assert.Equal(t, evictedJob.Id(), gctx.JobSchedulingContexts[0].JobId)
+	it.Clear()
+	gctx, err = it.Peek()
+	require.NoError(t, err)
+	assert.Nil(t, gctx, "new job must stay paused while in evicted-only mode")
+
+	// Resume: the paused new job is now yielded.
+	it.ResumeNonEvicted()
+	gctx, err = it.Peek()
+	require.NoError(t, err)
+	require.NotNil(t, gctx)
+	assert.Equal(t, newJob.Id(), gctx.JobSchedulingContexts[0].JobId)
+}
+
+func TestQueuedGangIterator_ResumeNonEvicted_NoEvicted(t *testing.T) {
+	evictedIt := NewInMemoryJobIterator([]*context.JobSchedulingContext{})
+
+	newRepo := newMockJobRepository()
+	newJob := jobFromPodSpec("A", testfixtures.N1CpuPodReqs(1)[0])
+	newRepo.Enqueue(newJob)
+	newIt := NewQueuedJobsIterator("A", testfixtures.TestPool, jobdb.FairShareOrder, newRepo)
+
+	combined := NewMultiJobsIterator(evictedIt, newIt)
+
+	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+	it := NewQueuedGangIterator(sctx, combined, 0, false)
+
+	// Peek gives new job prior to only yield evicted
+	gctx, err := it.Peek()
+	require.NoError(t, err)
+	assert.Equal(t, newJob.Id(), gctx.JobSchedulingContexts[0].JobId)
+
+	// Evicted-only mode: only the evicted job is yielded, the new job is paused.
+	it.OnlyYieldEvicted()
+	gctx, err = it.Peek()
+	require.NoError(t, err)
+	assert.Nil(t, gctx, "new job must stay paused while in evicted-only mode")
+
+	// Resume: the paused new job is now yielded.
+	it.ResumeNonEvicted()
+	gctx, err = it.Peek()
+	require.NoError(t, err)
+	require.NotNil(t, gctx)
+	assert.Equal(t, newJob.Id(), gctx.JobSchedulingContexts[0].JobId)
 }
 
 func createJctx(evicted bool) *context.JobSchedulingContext {
@@ -1164,7 +1383,7 @@ func createGangJctx(gangId string, cardinality int) *context.JobSchedulingContex
 }
 
 func TestGangContainsPreemptedJob(t *testing.T) {
-	sctx := context.NewSchedulingContext("pool", nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
 
 	gangJob1 := createGangJctx("gang-1", 2)
 	gangJob2 := createGangJctx("gang-1", 2)

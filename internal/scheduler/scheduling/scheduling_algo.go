@@ -52,7 +52,10 @@ type FairSchedulingAlgo struct {
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
 	// Per-queue job scheduling rate-limiters.
-	limiterByQueue               map[string]*rate.Limiter
+	limiterByQueue map[string]*rate.Limiter
+	// Per-pool fairshare preemption rate-limiters
+	// No rate limiter for a pool means no preemption limit
+	preemptionLimiterByPool      map[string]*rate.Limiter
 	lastOptimiserRoundTimeByPool map[string]time.Time
 	// Max amount of time each scheduling round is allowed to take (hard timeout).
 	maxSchedulingDuration time.Duration
@@ -88,6 +91,7 @@ func NewFairSchedulingAlgo(
 		schedulingContextRepository:  schedulingContextRepository,
 		limiter:                      rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		limiterByQueue:               make(map[string]*rate.Limiter),
+		preemptionLimiterByPool:      initialisePerPoolRateLimiters(config.Pools),
 		lastOptimiserRoundTimeByPool: make(map[string]time.Time, len(config.Pools)),
 		maxSchedulingDuration:        maxSchedulingDuration,
 		clock:                        clock.RealClock{},
@@ -710,7 +714,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 	if err != nil {
 		return nil, err
 	}
-	sctx := schedulercontext.NewSchedulingContext(pool, fairnessCostProvider, l.limiter, totalCapacity)
+	sctx := schedulercontext.NewSchedulingContext(pool, fairnessCostProvider, l.limiter, l.preemptionLimiterByPool[pool], totalCapacity)
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalCapacity, l.schedulingConfig, maps.Values(queues))
 
 	for _, queue := range queues {
@@ -781,6 +785,20 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 	sctx.UpdateFairShares()
 
 	return sctx, nil
+}
+
+func initialisePerPoolRateLimiters(pools []configuration.PoolConfig) map[string]*rate.Limiter {
+	limiterByPool := make(map[string]*rate.Limiter, len(pools))
+	for _, pool := range pools {
+		if pool.FairsharePreemptionRateLimit == nil {
+			continue
+		}
+		limiterByPool[pool.Name] = rate.NewLimiter(
+			rate.Limit(pool.FairsharePreemptionRateLimit.MaximumRate),
+			pool.FairsharePreemptionRateLimit.MaximumBurst,
+		)
+	}
+	return limiterByPool
 }
 
 // SchedulePool schedules jobs on nodes that belong to a given pool.
