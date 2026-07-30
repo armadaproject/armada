@@ -93,7 +93,7 @@ func (sch *IdealisedValueScheduler) Schedule(ctx *armadacontext.Context) (*Sched
 		sch.nodeDb,
 		jobIteratorsByQueue,
 		false,
-		false,
+		true,
 		false,
 		sch.schedulingConfig.MaxQueueLookback,
 		true,
