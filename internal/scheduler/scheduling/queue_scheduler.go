@@ -122,6 +122,14 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 			}
 			continue
 		}
+
+		// Skip gangs containing a job already preempted this round; they must not be re-scheduled.
+		if gangContainsPreemptedJob(sctx, gctx.JobSchedulingContexts) {
+			if err := sch.candidateGangIterator.Clear(); err != nil {
+				return nil, err
+			}
+			continue
+		}
 		start := sch.clock.Now()
 		scheduledOk, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx)
 		if err != nil {
@@ -310,6 +318,15 @@ func (it *QueuedGangIterator) OnlyYieldEvicted() {
 
 func (it *QueuedGangIterator) Clear() {
 	it.next = nil
+}
+
+func gangContainsPreemptedJob(sctx *schedulercontext.SchedulingContext, gang []*schedulercontext.JobSchedulingContext) bool {
+	for _, jctx := range gang {
+		if sctx.IsJobPreempted(jctx.JobId) {
+			return true
+		}
+	}
+	return false
 }
 
 func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, error) {
