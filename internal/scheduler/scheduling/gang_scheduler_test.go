@@ -629,6 +629,7 @@ func TestGangScheduler(t *testing.T) {
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
 					tc.SchedulingConfig.MaximumSchedulingBurst,
 				),
+				nil,
 				tc.TotalResources,
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
@@ -770,6 +771,7 @@ func TestGangScheduler_MarksPreemptedJobs(t *testing.T) {
 		"pool",
 		fairnessCostProvider,
 		rate.NewLimiter(rate.Limit(schedulingConfig.MaximumSchedulingRate), schedulingConfig.MaximumSchedulingBurst),
+		rate.NewLimiter(rate.Limit(1), 5),
 		totalResources,
 	)
 	for _, queue := range []string{"A", "B"} {
@@ -791,6 +793,7 @@ func TestGangScheduler_MarksPreemptedJobs(t *testing.T) {
 	incomingJctx := context.JobSchedulingContextFromJob(incoming)
 	gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{incomingJctx})
 
+	tokensBefore := sctx.FairsharePreemptionLimiter.TokensAt(sctx.Started)
 	ok, reason, err := sch.Schedule(armadacontext.Background(), gctx)
 	require.NoError(t, err)
 	require.True(t, ok, "expected incoming job to schedule via fair-share preemption")
@@ -810,6 +813,9 @@ func TestGangScheduler_MarksPreemptedJobs(t *testing.T) {
 		}
 	}
 	require.Equal(t, 1, preemptedCount, "expected exactly one incumbent to be preempted")
+	// One job was preempted, so exactly one token should have been consumed.
+	tokensAfter := sctx.FairsharePreemptionLimiter.TokensAt(sctx.Started)
+	assert.InDelta(t, tokensBefore-1, tokensAfter, 1e-9, "expected one preemption token consumed per preempted job")
 }
 
 func createAwayJob() *jobdb.Job {
