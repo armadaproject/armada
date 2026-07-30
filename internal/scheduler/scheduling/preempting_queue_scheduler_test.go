@@ -56,7 +56,7 @@ func TestEvict_JobsEvictedInFairshareOrder(t *testing.T) {
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, testfixtures.TestPool, config)
 	require.NoError(t, err)
 	sctx := schedulingcontext.NewSchedulingContext(
-		testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), totalResources,
+		testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), nil, totalResources,
 	)
 
 	var allJobs []*jobdb.Job
@@ -2248,6 +2248,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					testfixtures.TestPool,
 					fairnessCostProvider,
 					limiter,
+					nil,
 					totalResources,
 				)
 				sctx.Started = schedulingStarted.Add(time.Duration(i) * schedulingInterval)
@@ -2600,6 +2601,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				testfixtures.TestPool,
 				fairnessCostProvider,
 				limiter,
+				nil,
 				nodeDb.TotalKubernetesResources(),
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
@@ -2670,6 +2672,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					"pool",
 					fairnessCostProvider,
 					limiter,
+					nil,
 					nodeDb.TotalKubernetesResources(),
 				)
 				for queue, priorityFactor := range priorityFactorByQueue {
@@ -2748,6 +2751,7 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 			testfixtures.TestPool,
 			fairnessCostProvider,
 			rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+			nil,
 			totalResources,
 		)
 
@@ -2819,6 +2823,7 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 			testfixtures.TestPool,
 			fairnessCostProvider,
 			rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+			nil,
 			totalResources,
 		)
 		demand := testfixtures.TestResourceListFactory.MakeAllZero()
@@ -2887,6 +2892,7 @@ func setupGangEvictionTest(t *testing.T, numNodes int) *gangEvictionTestFixture 
 		testfixtures.TestPool,
 		fairnessCostProvider,
 		rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+		nil,
 		totalResources,
 	)
 
@@ -3264,7 +3270,7 @@ func TestPreemptingQueueScheduler_RespectNodePodLimits(t *testing.T) {
 				allocatedByPriorityClass[j.PriorityClassName()] = allocatedByPriorityClass[j.PriorityClassName()].Add(j.AllResourceRequirements())
 			}
 
-			sctx := schedulingcontext.NewSchedulingContext(testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), totalResources)
+			sctx := schedulingcontext.NewSchedulingContext(testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), nil, totalResources)
 			require.NoError(t, sctx.AddQueueSchedulingContext(
 				"A", 1, 1,
 				allocatedByPriorityClass,
@@ -3376,7 +3382,7 @@ func TestPreemptingQueueScheduler_NonPreemptibleOverPack(t *testing.T) {
 		allocatedByPriorityClass[j.PriorityClassName()] = allocatedByPriorityClass[j.PriorityClassName()].Add(j.AllResourceRequirements())
 	}
 
-	sctx := schedulingcontext.NewSchedulingContext(testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), totalResources)
+	sctx := schedulingcontext.NewSchedulingContext(testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), nil, totalResources)
 	require.NoError(t, sctx.AddQueueSchedulingContext(
 		"A", 1, 1,
 		allocatedByPriorityClass,
