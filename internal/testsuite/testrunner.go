@@ -217,12 +217,6 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		}
 	}
 
-	// Armada JobSet logs
-	// TODO: Optionally get logs from failed jobs.
-	// if testSpec.GetLogs && executorClustersDefined {
-	// 	jobLogger.PrintLogs()
-	// }
-
 	// Assert queue state now that the jobs have finished. (used for GetActiveQueues)
 	return queue.RunAssertions(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out)
 }
