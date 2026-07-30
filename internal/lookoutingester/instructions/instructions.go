@@ -275,7 +275,6 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, requestor string
 		cancelUser = &requestor
 	}
 
-	// For cancelled jobs, use cancel_user as the canonical actor field.
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:                     event.GetJobId(),
 		State:                     pointer.Int32(int32(lookout.JobCancelledOrdinal)),
