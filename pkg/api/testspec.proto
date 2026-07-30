@@ -71,6 +71,10 @@ message TestSpec {
     // If unset, defaults to running for prempt, reprioritized and node-scoped actions
     // and queued for cancel via the submit API, matching prior behavior.
     string trigger_event = 20;
+    // If true and action is ACTION_CANCEL, once all jobs in the set are terminal (the set
+    // has no active jobs) the job set is cancelled again; the test fails only if that cancel
+    // errors. Verifies that cancelling a job set with no active jobs is a successful no-op.
+    bool assert_cancel_inactive_succeeds = 21;
 }
 
 message NodeCancelConfig {

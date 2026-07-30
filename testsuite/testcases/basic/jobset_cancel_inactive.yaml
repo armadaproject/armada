@@ -1,0 +1,35 @@
+## POST /v1/jobset/cancel
+## Drive the jobset to have no active jobs (all jobs terminal), then cancel the
+## jobset and assert that cancelling a jobset with no active jobs is a successful no-op.
+
+numBatches: 1
+batchSize: 5
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: jobset-cancel-inactive
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          args:
+            - "sleep"
+            - "600s"
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+action: ACTION_CANCEL
+selection: SELECTION_BY_SET
+assertCancelInactiveSucceeds: true
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - cancelled:

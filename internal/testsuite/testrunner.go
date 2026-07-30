@@ -190,6 +190,16 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 			return err
 		}
 	}
+
+	// If configured, cancel the job set once it has no active jobs (all jobs terminal) and
+	// assert that cancel is a successful no-op. Runs only after AssertEvents confirmed every
+	// job reached a terminal state.
+	if srv.testSpec.AssertCancelInactiveSucceeds && srv.testSpec.Action == api.TestSpec_ACTION_CANCEL {
+		if err = cancelJobSet(srv.apiConnectionDetails, srv.testSpec.Queue, srv.testSpec.JobSetId); err != nil {
+			return errors.WithMessage(err, "cancel of job set with no active jobs returned an error")
+		}
+	}
+
 	return nil
 }
 
@@ -266,6 +276,18 @@ var triggerEventExtractors = map[string]func(*api.EventMessage) string{
 		}
 		return ""
 	},
+}
+
+// cancelJobSet cancels every job in a job set via the same RPC used by the BY_SET cancel
+// path. Uses a fresh context so it is unaffected by the errgroup ctx, which is cancelled
+// once all jobs reach a terminal state.
+func cancelJobSet(conn *client.ApiConnectionDetails, queue, jobSetId string) error {
+	return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := sc.CancelJobs(ctx, &api.JobCancelRequest{Queue: queue, JobSetId: jobSetId})
+		return errors.WithStack(err)
+	})
 }
 
 // runActionOnState waits for all jobs to be reported by jobIdFromEvent, then issues the configured action.
