@@ -39,6 +39,49 @@ func TestGetProtectedFractionOfFairShare(t *testing.T) {
 	assert.Equal(t, 0.1, sc.GetProtectedFractionOfFairShare("missing-pool"))
 }
 
+func TestGetFairsharePreemptionRateLimit(t *testing.T) {
+	sc := SchedulingConfig{
+		Pools: []PoolConfig{
+			{
+				Name: "limited-pool",
+				FairsharePreemptionRateLimit: &RateLimit{
+					MaximumRate:  10,
+					MaximumBurst: 20,
+				},
+			},
+			{
+				Name: "zero-pool",
+				FairsharePreemptionRateLimit: &RateLimit{
+					MaximumRate:  0,
+					MaximumBurst: 0,
+				},
+			},
+			{
+				Name: "unlimited-pool",
+			},
+		},
+	}
+
+	rate, burst, enabled := sc.GetFairsharePreemptionRateLimit("limited-pool")
+	assert.True(t, enabled)
+	assert.Equal(t, 10.0, rate)
+	assert.Equal(t, 20, burst)
+
+	// A configured-but-zero limit is still "enabled" (allows nothing until it refills).
+	rate, burst, enabled = sc.GetFairsharePreemptionRateLimit("zero-pool")
+	assert.True(t, enabled)
+	assert.Equal(t, 0.0, rate)
+	assert.Equal(t, 0, burst)
+
+	// A pool without preemption config is unlimited (disabled).
+	_, _, enabled = sc.GetFairsharePreemptionRateLimit("unlimited-pool")
+	assert.False(t, enabled)
+
+	// An unknown pool is unlimited (disabled).
+	_, _, enabled = sc.GetFairsharePreemptionRateLimit("missing-pool")
+	assert.False(t, enabled)
+}
+
 func TestApplyRespectNodePodLimits(t *testing.T) {
 	cpu := ResourceType{Name: "cpu", Resolution: resource.MustParse("1m")}
 	mem := ResourceType{Name: "memory", Resolution: resource.MustParse("1")}

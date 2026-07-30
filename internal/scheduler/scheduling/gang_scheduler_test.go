@@ -629,6 +629,7 @@ func TestGangScheduler(t *testing.T) {
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
 					tc.SchedulingConfig.MaximumSchedulingBurst,
 				),
+				nil,
 				tc.TotalResources,
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
@@ -770,6 +771,7 @@ func TestGangScheduler_MarksPreemptedJobs(t *testing.T) {
 		"pool",
 		fairnessCostProvider,
 		rate.NewLimiter(rate.Limit(schedulingConfig.MaximumSchedulingRate), schedulingConfig.MaximumSchedulingBurst),
+		nil,
 		totalResources,
 	)
 	for _, queue := range []string{"A", "B"} {
@@ -810,6 +812,83 @@ func TestGangScheduler_MarksPreemptedJobs(t *testing.T) {
 		}
 	}
 	require.Equal(t, 1, preemptedCount, "expected exactly one incumbent to be preempted")
+}
+
+func TestGangScheduler_ConsumesPreemptionLimiterTokens(t *testing.T) {
+	schedulingConfig := testfixtures.TestSchedulingConfig()
+	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+
+	nodeDb, err := nodedb.NewNodeDb(
+		schedulingConfig.PriorityClasses,
+		schedulingConfig.IndexedResources,
+		schedulingConfig.IndexedTaints,
+		schedulingConfig.IndexedNodeLabels,
+		schedulingConfig.WellKnownNodeTypes,
+		testfixtures.TestResourceListFactory,
+	)
+	require.NoError(t, err)
+
+	// Fully allocate the node with a low-priority incumbent job.
+	txn := nodeDb.Txn(true)
+	incumbentJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)
+	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, incumbentJobs, node.DeepCopyNilKeys()))
+	txn.Commit()
+
+	// Evict the incumbents and register them so they are candidates for fair-share preemption.
+	dbNode, err := nodeDb.GetNode(node.GetId())
+	require.NoError(t, err)
+	evictedNode, err := nodeDb.EvictJobsFromNode(incumbentJobs, dbNode)
+	require.NoError(t, err)
+	txn = nodeDb.Txn(true)
+	require.NoError(t, nodeDb.UpsertWithTxn(txn, evictedNode))
+	for i, job := range incumbentJobs {
+		evictedJctx := context.JobSchedulingContextFromJob(job)
+		evictedJctx.SetAssignedNode(evictedNode)
+		require.NoError(t, nodeDb.AddEvictedJobSchedulingContextWithTxn(txn, i, evictedJctx))
+	}
+	txn.Commit()
+
+	totalResources := nodeDb.TotalKubernetesResources()
+	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, testfixtures.TestPool, schedulingConfig)
+	require.NoError(t, err)
+	sctx := context.NewSchedulingContext(
+		"pool",
+		fairnessCostProvider,
+		rate.NewLimiter(rate.Limit(schedulingConfig.MaximumSchedulingRate), schedulingConfig.MaximumSchedulingBurst),
+		nil,
+		totalResources,
+	)
+	// Preemption limiter with a small, known budget so we can observe consumption.
+	sctx.FairsharePreemptionLimiter = rate.NewLimiter(rate.Limit(1), 5)
+	tokensBefore := sctx.FairsharePreemptionLimiter.TokensAt(sctx.Started)
+	for _, queue := range []string{"A", "B"} {
+		require.NoError(t, sctx.AddQueueSchedulingContext(
+			queue, 1, 1, nil,
+			internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{},
+			rate.NewLimiter(rate.Limit(schedulingConfig.MaximumPerQueueSchedulingRate), schedulingConfig.MaximumPerQueueSchedulingBurst),
+		))
+	}
+	constraints := schedulerconstraints.NewSchedulingConstraints("pool", totalResources, schedulingConfig,
+		[]*api.Queue{{Name: "A"}, {Name: "B"}})
+	floatingResourceTypes, err := floatingresources.NewFloatingResourceTypes(schedulingConfig.FloatingResources, testfixtures.TestResourceListFactory)
+	require.NoError(t, err)
+	sch, err := NewGangScheduler(sctx, constraints, floatingResourceTypes, nodeDb, false)
+	require.NoError(t, err)
+
+	// Schedule a single higher-priority job that only fits if an incumbent is preempted.
+	incoming := testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass1, 1)[0]
+	incomingJctx := context.JobSchedulingContextFromJob(incoming)
+	gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{incomingJctx})
+
+	ok, reason, err := sch.Schedule(armadacontext.Background(), gctx)
+	require.NoError(t, err)
+	require.True(t, ok, "expected incoming job to schedule via fair-share preemption")
+	require.Empty(t, reason)
+	require.Equal(t, context.ScheduledWithFairSharePreemption, incomingJctx.PodSchedulingContext.SchedulingMethod)
+
+	// One incumbent was preempted, so exactly one token should have been consumed.
+	tokensAfter := sctx.FairsharePreemptionLimiter.TokensAt(sctx.Started)
+	assert.InDelta(t, tokensBefore-1, tokensAfter, 1e-9, "expected one preemption token consumed per preempted job")
 }
 
 func createAwayJob() *jobdb.Job {

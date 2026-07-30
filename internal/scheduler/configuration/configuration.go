@@ -348,11 +348,12 @@ type SchedulingConfig struct {
 }
 
 const (
-	DuplicateWellKnownNodeTypeErrorMessage           = "duplicate well-known node type name"
-	AwayNodeTypesWithoutPreemptionErrorMessage       = "priority class has away node types but is not preemptible"
-	UnknownWellKnownNodeTypeErrorMessage             = "priority class refers to unknown well-known node type"
-	WildCardWellKnownNodeTypeValue                   = "*"
-	InvalidAwayNodeTypeConditionOperatorErrorMessage = "away node type condition has invalid operator; must be one of >, <, =="
+	DuplicateWellKnownNodeTypeErrorMessage              = "duplicate well-known node type name"
+	AwayNodeTypesWithoutPreemptionErrorMessage          = "priority class has away node types but is not preemptible"
+	UnknownWellKnownNodeTypeErrorMessage                = "priority class refers to unknown well-known node type"
+	WildCardWellKnownNodeTypeValue                      = "*"
+	InvalidAwayNodeTypeConditionOperatorErrorMessage    = "away node type condition has invalid operator; must be one of >, <, =="
+	PreemptionRateLimitWithMarketSchedulingErrorMessage = "preemption rate limit is not supported with market scheduling enabled on the same pool"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
@@ -405,6 +406,15 @@ type PoolConfig struct {
 	DisableGangAwayScheduling        bool
 	DisableFairshareScheduling       bool
 	DisableUrgencyScheduling         bool
+	FairsharePreemptionRateLimit     *RateLimit
+}
+
+// RateLimit The rate at which an action can happen using a token bucket approach
+type RateLimit struct {
+	// Sustained actions per second (tokens/sec).
+	MaximumRate float64 `validate:"gte=0"`
+	// Bucket capacity: the maximum number of actions that can bunch up in a single scheduling round.
+	MaximumBurst int `validate:"gte=0"`
 }
 
 func (p PoolConfig) GetSubmissionGroup() string {
@@ -490,6 +500,15 @@ func (sc *SchedulingConfig) GetProtectedFractionOfFairShare(poolName string) flo
 		}
 	}
 	return sc.ProtectedFractionOfFairShare
+}
+
+func (sc *SchedulingConfig) GetFairsharePreemptionRateLimit(poolName string) (rate float64, burst int, enabled bool) {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName && poolConfig.FairsharePreemptionRateLimit != nil {
+			return poolConfig.FairsharePreemptionRateLimit.MaximumRate, poolConfig.FairsharePreemptionRateLimit.MaximumBurst, true
+		}
+	}
+	return 0, 0, false
 }
 
 func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string) bool {
