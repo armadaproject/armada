@@ -247,6 +247,18 @@ func sanitizeForJsonb(s string) string {
 	return strings.ReplaceAll(s, "\x00", "")
 }
 
+// nullableTrimmedRequestor returns a pointer to the first non-empty,
+// whitespace-trimmed requestor, or nil if all are empty.
+func nullableTrimmedRequestor(requestors ...string) *string {
+	for _, requestor := range requestors {
+		trimmed := strings.TrimSpace(requestor)
+		if trimmed != "" {
+			return &trimmed
+		}
+	}
+	return nil
+}
+
 func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
 	var reprioritizeUser *string
 	if requestor := strings.TrimSpace(event.Requestor); requestor != "" {
@@ -267,12 +279,8 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 		reason = &event.Reason
 	}
 
-	var cancelUser *string
-	if requestor := strings.TrimSpace(event.Requestor); requestor != "" {
-		cancelUser = &requestor
-	}
+	cancelUser := nullableTrimmedRequestor(event.Requestor, event.CancelUser)
 
-	// For cancelled jobs, use cancel_user as the canonical actor field.
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:                     event.GetJobId(),
 		State:                     pointer.Int32(int32(lookout.JobCancelledOrdinal)),
@@ -287,14 +295,14 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 }
 
 func (c *InstructionConverter) handleJobPreemptionRequested(event *armadaevents.JobPreemptionRequested, update *model.InstructionSet) error {
-	var preemptUser *string
-	if requestor := strings.TrimSpace(event.Requestor); requestor != "" {
-		preemptUser = &requestor
+	preemptUser := strings.TrimSpace(event.Requestor)
+	if preemptUser == "" {
+		return nil
 	}
 
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:       event.JobId,
-		PreemptUser: preemptUser,
+		PreemptUser: pointer.String(preemptUser),
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil

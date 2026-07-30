@@ -286,6 +286,7 @@ func TestConvert(t *testing.T) {
 	cancelledWithoutLegacyActorField, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
 	assert.NoError(t, err)
 	cancelledWithoutLegacyActorField.GetCancelledJob().Requestor = ""
+	cancelledWithoutLegacyActorField.GetCancelledJob().CancelUser = ""
 	jobPreemptionRequested, err := testfixtures.DeepCopy(testfixtures.JobPreemptionRequested)
 	assert.NoError(t, err)
 	jobPreemptionRequested.GetJobPreemptionRequested().Requestor = testfixtures.UserId
