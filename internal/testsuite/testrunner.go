@@ -203,7 +203,8 @@ func triggerEventExtractor(testSpec *api.TestSpec) (func(*api.EventMessage) stri
 
 // triggerEventExtractors maps a TestSpec.TriggerEvent name to a function that extracts
 // the job ID from an EventMessage if it matches that event, or "" otherwise.
-// Names match the EventMessage oneof field names (see pkg/api/event.proto).
+// Names match the EventMessage oneof field names (see pkg/api/event.proto), which correspond
+// to the external API events in docs/developer/job-lifecycle-events.md#event-vocabulary.
 var triggerEventExtractors = map[string]func(*api.EventMessage) string{
 	"submitted": func(msg *api.EventMessage) string {
 		if e := msg.GetSubmitted(); e != nil {
