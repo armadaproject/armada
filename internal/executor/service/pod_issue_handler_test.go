@@ -925,6 +925,7 @@ func TestDetectAndRegisterDeleteActionIssue(t *testing.T) {
 		podEventsErr     bool
 		classifier       func(t *testing.T) *categorizer.Classifier
 		pod              func(t *testing.T) *v1.Pod
+		podEvents        []*v1.Event
 		expectRegistered bool
 	}{
 		"failed pod in a delete-action category":  {deleteAction: true, phase: v1.PodFailed, expectRegistered: true},
@@ -957,6 +958,36 @@ func TestDetectAndRegisterDeleteActionIssue(t *testing.T) {
 			},
 			expectRegistered: true,
 		},
+		// A device-plugin admission failure surfaces only as a Warning event.
+		// Pod and container status carry nothing to classify by.
+		"rejected pod matches an onPodEvents delete rule": {
+			phase: v1.PodFailed,
+			classifier: func(t *testing.T) *categorizer.Classifier {
+				c, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+					Categories: []categorizer.CategoryConfig{
+						{
+							Name:   "pih-gpu-cat",
+							Action: categorizer.PodFailureActionDelete,
+							Rules: []categorizer.CategoryRule{{OnPodEvents: &errormatch.PodEventMatcher{
+								Regexp: "devices unavailable for nvidia.com/gpu",
+								Type:   v1.EventTypeWarning,
+							}}},
+						},
+					},
+				})
+				require.NoError(t, err)
+				return c
+			},
+			pod: func(t *testing.T) *v1.Pod {
+				return makeTestPod(v1.PodStatus{Phase: v1.PodFailed})
+			},
+			podEvents: []*v1.Event{{
+				Type:    v1.EventTypeWarning,
+				Reason:  "UnexpectedAdmissionError",
+				Message: "Pod Allocate failed due to requested number of devices unavailable for nvidia.com/gpu. Requested: 1, Available: 0",
+			}},
+			expectRegistered: true,
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -976,6 +1007,9 @@ func TestDetectAndRegisterDeleteActionIssue(t *testing.T) {
 				pod.Status.Phase = tc.phase
 			}
 			addPod(t, fakeClusterContext, pod)
+			if tc.podEvents != nil {
+				addPodEvents(fakeClusterContext, pod, tc.podEvents)
+			}
 			if tc.podEventsErr {
 				fakeClusterContext.GetPodEventsErr = fmt.Errorf("events unavailable")
 			}

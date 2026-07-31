@@ -72,7 +72,8 @@
 //	// Terminated pod: container state carries the relevant termination signals.
 //	result := classifier.ClassifyContainerError(pod)
 //
-//	// Pre-terminal failure: an executor-captured error message is matched
-//	// against onPodError rules in addition to pod state.
-//	result = classifier.ClassifyPodError(pod, podErrorMessage)
+//	// Pod-level failure: an executor-captured error message and the pod's
+//	// Kubernetes events are matched against onPodError and onPodEvents rules
+//	// in addition to pod state. Pass nil events when they are unavailable.
+//	result = classifier.ClassifyPodError(pod, podErrorMessage, podEvents)
 package categorizer
