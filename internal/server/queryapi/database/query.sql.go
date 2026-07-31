@@ -11,6 +11,64 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createRetryPolicy = `-- name: CreateRetryPolicy :exec
+INSERT INTO retry_policy (name, definition)
+VALUES ($1::text, $2::bytea)
+ON CONFLICT (name) DO UPDATE SET definition = EXCLUDED.definition
+`
+
+type CreateRetryPolicyParams struct {
+	Name       string `db:"name"`
+	Definition []byte `db:"definition"`
+}
+
+func (q *Queries) CreateRetryPolicy(ctx context.Context, arg CreateRetryPolicyParams) error {
+	_, err := q.db.Exec(ctx, createRetryPolicy, arg.Name, arg.Definition)
+	return err
+}
+
+const deleteQueueRetryPolicies = `-- name: DeleteQueueRetryPolicies :exec
+DELETE FROM queue_retry_policy WHERE queue_name = $1::text
+`
+
+func (q *Queries) DeleteQueueRetryPolicies(ctx context.Context, queueName string) error {
+	_, err := q.db.Exec(ctx, deleteQueueRetryPolicies, queueName)
+	return err
+}
+
+const deleteRetryPolicy = `-- name: DeleteRetryPolicy :exec
+DELETE FROM retry_policy WHERE name = $1::text
+`
+
+func (q *Queries) DeleteRetryPolicy(ctx context.Context, name string) error {
+	_, err := q.db.Exec(ctx, deleteRetryPolicy, name)
+	return err
+}
+
+const deleteRetryPolicyAttachments = `-- name: DeleteRetryPolicyAttachments :many
+DELETE FROM queue_retry_policy WHERE policy_name = $1::text RETURNING queue_name
+`
+
+func (q *Queries) DeleteRetryPolicyAttachments(ctx context.Context, policyName string) ([]string, error) {
+	rows, err := q.db.Query(ctx, deleteRetryPolicyAttachments, policyName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var queue_name string
+		if err := rows.Scan(&queue_name); err != nil {
+			return nil, err
+		}
+		items = append(items, queue_name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getActiveQueuesByPool = `-- name: GetActiveQueuesByPool :many
 SELECT DISTINCT jr.pool, j.queue FROM job j JOIN job_run jr ON j.job_id = jr.job_id WHERE j.state IN (2, 3, 8) AND jr.job_run_state IN (1, 2, 11) ORDER BY jr.pool, j.queue
 `
@@ -33,6 +91,83 @@ func (q *Queries) GetActiveQueuesByPool(ctx context.Context) ([]GetActiveQueuesB
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllQueueRetryPolicies = `-- name: GetAllQueueRetryPolicies :many
+SELECT queue_name, policy_name FROM queue_retry_policy ORDER BY queue_name, ordinal
+`
+
+type GetAllQueueRetryPoliciesRow struct {
+	QueueName  string `db:"queue_name"`
+	PolicyName string `db:"policy_name"`
+}
+
+func (q *Queries) GetAllQueueRetryPolicies(ctx context.Context) ([]GetAllQueueRetryPoliciesRow, error) {
+	rows, err := q.db.Query(ctx, getAllQueueRetryPolicies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAllQueueRetryPoliciesRow
+	for rows.Next() {
+		var i GetAllQueueRetryPoliciesRow
+		if err := rows.Scan(&i.QueueName, &i.PolicyName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllRetryPolicies = `-- name: GetAllRetryPolicies :many
+SELECT definition FROM retry_policy ORDER BY name
+`
+
+func (q *Queries) GetAllRetryPolicies(ctx context.Context) ([][]byte, error) {
+	rows, err := q.db.Query(ctx, getAllRetryPolicies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items [][]byte
+	for rows.Next() {
+		var definition []byte
+		if err := rows.Scan(&definition); err != nil {
+			return nil, err
+		}
+		items = append(items, definition)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getExistingRetryPolicyNames = `-- name: GetExistingRetryPolicyNames :many
+SELECT name FROM retry_policy WHERE name = ANY($1::text[])
+`
+
+func (q *Queries) GetExistingRetryPolicyNames(ctx context.Context, names []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, getExistingRetryPolicyNames, names)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -274,4 +409,75 @@ func (q *Queries) GetJobStatesUsingExternalSystemUri(ctx context.Context, arg Ge
 		return nil, err
 	}
 	return items, nil
+}
+
+const getQueueRetryPolicies = `-- name: GetQueueRetryPolicies :many
+SELECT policy_name FROM queue_retry_policy WHERE queue_name = $1::text ORDER BY ordinal
+`
+
+func (q *Queries) GetQueueRetryPolicies(ctx context.Context, queueName string) ([]string, error) {
+	rows, err := q.db.Query(ctx, getQueueRetryPolicies, queueName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var policy_name string
+		if err := rows.Scan(&policy_name); err != nil {
+			return nil, err
+		}
+		items = append(items, policy_name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRetryPolicy = `-- name: GetRetryPolicy :one
+SELECT definition FROM retry_policy WHERE name = $1::text
+`
+
+func (q *Queries) GetRetryPolicy(ctx context.Context, name string) ([]byte, error) {
+	row := q.db.QueryRow(ctx, getRetryPolicy, name)
+	var definition []byte
+	err := row.Scan(&definition)
+	return definition, err
+}
+
+const insertQueueRetryPolicy = `-- name: InsertQueueRetryPolicy :exec
+INSERT INTO queue_retry_policy (queue_name, policy_name, ordinal)
+VALUES ($1::text, $2::text, $3::int)
+ON CONFLICT (queue_name, policy_name) DO NOTHING
+`
+
+type InsertQueueRetryPolicyParams struct {
+	QueueName  string `db:"queue_name"`
+	PolicyName string `db:"policy_name"`
+	Ordinal    int32  `db:"ordinal"`
+}
+
+// A name repeated in one queue's list collapses onto the row from its first
+// occurrence, keeping that position's ordinal.
+func (q *Queries) InsertQueueRetryPolicy(ctx context.Context, arg InsertQueueRetryPolicyParams) error {
+	_, err := q.db.Exec(ctx, insertQueueRetryPolicy, arg.QueueName, arg.PolicyName, arg.Ordinal)
+	return err
+}
+
+const updateRetryPolicy = `-- name: UpdateRetryPolicy :execrows
+UPDATE retry_policy SET definition = $1::bytea WHERE name = $2::text
+`
+
+type UpdateRetryPolicyParams struct {
+	Definition []byte `db:"definition"`
+	Name       string `db:"name"`
+}
+
+func (q *Queries) UpdateRetryPolicy(ctx context.Context, arg UpdateRetryPolicyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateRetryPolicy, arg.Definition, arg.Name)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

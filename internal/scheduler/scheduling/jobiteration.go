@@ -14,6 +14,9 @@ import (
 type JobContextIterator interface {
 	Next() (*schedulercontext.JobSchedulingContext, error)
 	OnlyYieldEvicted()
+	// ResumeNonEvicted reverses OnlyYieldEvicted, allowing non-evicted (new) jobs to be yielded again.
+	// New jobs paused by OnlyYieldEvicted are resumed from where iteration left off.
+	ResumeNonEvicted()
 }
 
 type InMemoryJobIterator struct {
@@ -48,7 +51,17 @@ func (it *InMemoryJobIterator) Next() (*schedulercontext.JobSchedulingContext, e
 }
 
 func (it *InMemoryJobIterator) OnlyYieldEvicted() {
+	if it.onlyYieldEvicted {
+		return
+	}
 	it.onlyYieldEvicted = true
+}
+
+func (it *InMemoryJobIterator) ResumeNonEvicted() {
+	if !it.onlyYieldEvicted {
+		return
+	}
+	it.onlyYieldEvicted = false
 }
 
 type InMemoryJobRepository struct {
@@ -147,13 +160,26 @@ func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, er
 }
 
 func (it *QueuedJobsIterator) OnlyYieldEvicted() {
+	if it.onlyYieldEvicted {
+		return
+	}
 	it.onlyYieldEvicted = true
+}
+
+func (it *QueuedJobsIterator) ResumeNonEvicted() {
+	if !it.onlyYieldEvicted {
+		return
+	}
+	// The underlying jobIter cursor is untouched while paused, so clearing the flag resumes
+	// yielding new jobs from where iteration left off.
+	it.onlyYieldEvicted = false
 }
 
 // MultiJobsIterator chains several JobIterators together in the order provided.
 type MultiJobsIterator struct {
-	i   int
-	its []JobContextIterator
+	i                int
+	onlyYieldEvicted bool
+	its              []JobContextIterator
 }
 
 func NewMultiJobsIterator(its ...JobContextIterator) *MultiJobsIterator {
@@ -178,16 +204,35 @@ func (it *MultiJobsIterator) Next() (*schedulercontext.JobSchedulingContext, err
 }
 
 func (it *MultiJobsIterator) OnlyYieldEvicted() {
+	if it.onlyYieldEvicted {
+		return
+	}
+	it.onlyYieldEvicted = true
 	for _, iter := range it.its {
 		iter.OnlyYieldEvicted()
 	}
 }
 
+func (it *MultiJobsIterator) ResumeNonEvicted() {
+	if !it.onlyYieldEvicted {
+		return
+	}
+	it.onlyYieldEvicted = false
+	for _, iter := range it.its {
+		iter.ResumeNonEvicted()
+	}
+	// Re-scan from the first sub-iterator. Already-drained sub-iterators (e.g. the evicted-jobs
+	// iterator) return nil immediately and are skipped, so iteration continues with the resumed
+	// new-jobs iterator.
+	it.i = 0
+}
+
 // MarketDrivenMultiJobsIterator combines two iterators by price
 type MarketDrivenMultiJobsIterator struct {
-	it1  JobContextIterator
-	it2  JobContextIterator
-	pool string
+	it1              JobContextIterator
+	it2              JobContextIterator
+	pool             string
+	onlyYieldEvicted bool
 
 	// TODO: ideally we add peek() to JobContextIterator and remove these
 	it1Value *schedulercontext.JobSchedulingContext
@@ -249,6 +294,10 @@ func (it *MarketDrivenMultiJobsIterator) Next() (*schedulercontext.JobScheduling
 }
 
 func (it *MarketDrivenMultiJobsIterator) OnlyYieldEvicted() {
+	if it.onlyYieldEvicted {
+		return
+	}
+	it.onlyYieldEvicted = true
 	it.it1.OnlyYieldEvicted()
 	if it.it1Value != nil && !it.it1Value.IsEvicted {
 		it.it1Value = nil
@@ -257,4 +306,16 @@ func (it *MarketDrivenMultiJobsIterator) OnlyYieldEvicted() {
 	if it.it2Value != nil && !it.it2Value.IsEvicted {
 		it.it2Value = nil
 	}
+}
+
+// ResumeNonEvicted reverses OnlyYieldEvicted. Note: the preemption rate limit that drives the
+// drain/resume flow is not applied on market-driven pools (see QueueScheduler.Schedule), so this
+// is provided only to satisfy the interface.
+func (it *MarketDrivenMultiJobsIterator) ResumeNonEvicted() {
+	if !it.onlyYieldEvicted {
+		return
+	}
+	it.onlyYieldEvicted = false
+	it.it1.ResumeNonEvicted()
+	it.it2.ResumeNonEvicted()
 }

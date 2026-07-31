@@ -231,61 +231,57 @@ func isTerminalEvent(msg *api.EventMessage) bool {
 		return true
 	case *api.EventMessage_Cancelled:
 		return true
-	case *api.EventMessage_Preempted:
-		return true
 	}
 
 	return false
 }
 
 // ErrorOnNoActiveJobs returns an error if there are no active jobs.
-// Note: Preempted jobs receive both Preempted and Failed events, so we allow both without erroring.
+// Note: Preempted jobs also receive a subsequent Failed event; only that
+// Failed event counts as the job exiting, so we don't race AssertEvents.
 func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobIds map[string]bool) error {
 	numActive := 0
 	numRemaining := len(jobIds)
 	exitedByJobId := make(map[string]bool)
+loop:
 	for {
 		select {
 		case <-parent.Done():
 			return nil
 		case msg := <-C:
-			if e := msg.GetSubmitted(); e != nil {
+			switch e := msg.Events.(type) {
+			case *api.EventMessage_Submitted:
 				numActive++
-			} else if e := msg.GetSucceeded(); e != nil {
-				if _, ok := exitedByJobId[e.JobId]; ok {
-					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
+			case *api.EventMessage_Succeeded:
+				if _, ok := exitedByJobId[e.Succeeded.JobId]; ok {
+					fmt.Fprintf(os.Stderr, "warn: duplicate succeeded event for job %s\n", e.Succeeded.JobId)
+					continue loop
 				}
-				exitedByJobId[e.JobId] = true
-				if _, ok := jobIds[e.JobId]; ok {
+				exitedByJobId[e.Succeeded.JobId] = true
+				if _, ok := jobIds[e.Succeeded.JobId]; ok {
 					numRemaining--
 				}
 				numActive--
-			} else if e := msg.GetPreempted(); e != nil {
-				// Preempted jobs will also receive a Failed event.
-				// Only count as exited once.
-				if _, ok := exitedByJobId[e.JobId]; !ok {
-					exitedByJobId[e.JobId] = true
-					if _, ok := jobIds[e.JobId]; ok {
-						numRemaining--
-					}
-					numActive--
-				}
-			} else if e := msg.GetFailed(); e != nil {
+			case *api.EventMessage_Preempted:
+				// The job-level JobFailedEvent (from JobErrors/JobRunPreemptedError) always
+				// follows JobPreemptedEvent. Don't count as exited yet.
+			case *api.EventMessage_Failed:
 				// Failed may come after Preempted for preempted jobs.
 				// Only count as exited once.
-				if _, ok := exitedByJobId[e.JobId]; !ok {
-					exitedByJobId[e.JobId] = true
-					if _, ok := jobIds[e.JobId]; ok {
+				if _, ok := exitedByJobId[e.Failed.JobId]; !ok {
+					exitedByJobId[e.Failed.JobId] = true
+					if _, ok := jobIds[e.Failed.JobId]; ok {
 						numRemaining--
 					}
 					numActive--
 				}
-			} else if e := msg.GetCancelled(); e != nil {
-				if _, ok := exitedByJobId[e.JobId]; ok {
-					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
+			case *api.EventMessage_Cancelled:
+				if _, ok := exitedByJobId[e.Cancelled.JobId]; ok {
+					fmt.Fprintf(os.Stderr, "warn: duplicate cancelled event for job %s\n", e.Cancelled.JobId)
+					continue loop
 				}
-				exitedByJobId[e.JobId] = true
-				if _, ok := jobIds[e.JobId]; ok {
+				exitedByJobId[e.Cancelled.JobId] = true
+				if _, ok := jobIds[e.Cancelled.JobId]; ok {
 					numRemaining--
 				}
 				numActive--
