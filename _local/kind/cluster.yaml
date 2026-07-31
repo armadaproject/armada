@@ -7,9 +7,9 @@ networking:
   apiServerAddress: 0.0.0.0
 nodes:
 - role: worker
-  image: kindest/node:v1.33.2
+  image: kindest/node:v1.33.12
 - role: worker
-  image: kindest/node:v1.33.2
+  image: kindest/node:v1.33.12
   labels:
     armadaproject.io/node-pool: node-ops
   kubeadmConfigPatches:
@@ -19,7 +19,7 @@ nodes:
         kubeletExtraArgs:
           register-with-taints: "node-tests=true:NoSchedule"
 - role: control-plane
-  image: kindest/node:v1.33.2
+  image: kindest/node:v1.33.12
   labels:
     armadaproject.io/pool: control-plane
   kubeadmConfigPatches:
