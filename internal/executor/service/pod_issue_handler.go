@@ -194,7 +194,11 @@ func (p *PodIssueHandler) DetectAndRegisterDeleteActionIssue(pod *v1.Pod) (bool,
 	if !util.IsManagedPod(pod) || pod.Status.Phase != v1.PodFailed {
 		return false, nil
 	}
-	classification := p.classifier.ClassifyContainerError(pod)
+	// Classify with the extracted failure reason. This lets onPodError rules
+	// match pods that never started a container, for example kubelet admission
+	// rejections. Such pods have no exit codes and no termination messages.
+	failedReason := util.ExtractPodFailedReason(pod)
+	classification := p.classifier.ClassifyPodError(pod, failedReason)
 	if classification.Action != categorizer.PodFailureActionDelete {
 		return false, nil
 	}
@@ -211,7 +215,7 @@ func (p *PodIssueHandler) DetectAndRegisterDeleteActionIssue(pod *v1.Pod) (bool,
 		RunId: util.ExtractJobRunId(pod),
 		PodIssue: &podIssue{
 			OriginalPodState: pod.DeepCopy(),
-			Message:          util.ExtractPodFailedReason(pod),
+			Message:          failedReason,
 			DebugMessage:     reporter.CreateDebugMessage(podEvents),
 			Retryable:        false,
 			Type:             DeleteActionFailure,
