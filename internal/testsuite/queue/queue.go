@@ -24,14 +24,8 @@ func RunSetup(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConne
 		return nil, nil
 	}
 	baseName := testSpec.Queue
-	batchSize := setup.GetBatchSize()
-	if batchSize == 0 {
-		batchSize = 1
-	}
-	numBatches := setup.GetNumBatches()
-	if numBatches == 0 {
-		numBatches = 1
-	}
+	batchSize := max(1, setup.GetBatchSize())
+	numBatches := max(1, setup.GetNumBatches())
 	interval := protoutil.ToStdDuration(setup.GetInterval())
 	queueSpec := setup.GetQueueSpec()
 
