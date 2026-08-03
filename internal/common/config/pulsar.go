@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -44,10 +45,34 @@ type PulsarConfig struct {
 	MaxAllowedMessageSize uint
 	// Timeout when sending messages asynchronously
 	SendTimeout time.Duration
-	// Backoff from polling when Pulsar returns an error
+	// Initial backoff in the exponential-with-jitter backoff sequence used when polling or
+	// retrying fails.
 	BackoffTime time.Duration
+	// Upper bound on the backoff duration between retries. If unset or <= 0, defaults to
+	// BackoffTime (i.e. no growth).
+	MaxBackoffTime time.Duration
+	// Fraction by which each backoff is randomised: the actual wait is drawn uniformly from
+	// [interval * (1 - BackoffRandomizationFactor), interval * (1 + BackoffRandomizationFactor)].
+	// If unset or < 0, defaults to backoff.DefaultRandomizationFactor (0.5).
+	BackoffRandomizationFactor float64
+	// Factor by which the backoff interval grows after each retry. If unset or <= 0, defaults to
+	// backoff.DefaultMultiplier (1.5).
+	BackoffMultiplier float64
 	// Number of pulsar messages that will be queued by the pulsar consumer.
 	ReceiverQueueSize int
+	// The pulsar topic that messages will be published to if a sink cannot store them after DeadLetterMaxAttempts attempts
+	DeadLetterTopic string
+	// Number of consecutive Sink.Store attempts before a message is published to DeadLetterTopic and acked.
+	// Must be at least 2: a value of 1 would dead-letter on the first failure with no retry at all.
+	DeadLetterMaxAttempts int `validate:"gte=2"`
+}
+
+// Validate checks invariants that span multiple fields and so cannot be expressed via struct tags alone.
+func (c PulsarConfig) Validate() error {
+	if c.MaxBackoffTime > 0 && c.MaxBackoffTime < c.BackoffTime {
+		return fmt.Errorf("pulsar.maxBackoffTime (%s) must be >= pulsar.backoffTime (%s) if set", c.MaxBackoffTime, c.BackoffTime)
+	}
+	return nil
 }
 
 type TopicDelayMonitor struct {
