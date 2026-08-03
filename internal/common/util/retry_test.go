@@ -225,6 +225,37 @@ func TestIsNonRetryable(t *testing.T) {
 	assert.True(t, IsNonRetryable(fmt.Errorf("outer: %w", NewNonRetryableError(fmt.Errorf("inner")))))
 }
 
+func TestNewNonRetryableError_NilCauseDoesNotPanic(t *testing.T) {
+	err := NewNonRetryableError(nil)
+
+	assert.NotPanics(t, func() {
+		_ = err.Error()
+	})
+}
+
+func TestRetryUntilSuccessOrExhausted_NonPositiveMaxAttempts(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 1*time.Second)
+	defer cancel()
+
+	performed := false
+	var exhaustedErr error
+
+	ok := RetryUntilSuccessOrExhausted(
+		ctx,
+		0,
+		func() error {
+			performed = true
+			return nil
+		},
+		func(attempt int, err error) {},
+		func(lastErr error) { exhaustedErr = lastErr },
+	)
+
+	assert.False(t, ok)
+	assert.False(t, performed)
+	assert.Error(t, exhaustedErr)
+}
+
 func TestRetryUntilSuccessOrExhausted_CancelledMidRetry(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 50*time.Millisecond)
 	defer cancel()
