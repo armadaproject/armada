@@ -19,6 +19,17 @@ type RegexMatcher struct {
 	Pattern string `yaml:"pattern"`
 }
 
+// PodEventMatcher matches one Kubernetes event on the pod. The fields mirror
+// the failedPodChecks PodEventCheck so existing check configs migrate by copy.
+type PodEventMatcher struct {
+	// Regexp must match the event message.
+	Regexp string `yaml:"regexp"`
+	// Reason, when set, must equal the event reason exactly.
+	Reason string `yaml:"reason,omitempty"`
+	// Type must equal the event type: Normal or Warning.
+	Type string `yaml:"type"`
+}
+
 // Condition constants derived from KubernetesReason.
 // OOMKilled is a container-level condition (container.State.Terminated.Reason).
 // Evicted and DeadlineExceeded are pod-level conditions (pod.Status.Reason).
