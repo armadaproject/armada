@@ -923,20 +923,58 @@ func TestDetectAndRegisterDeleteActionIssue(t *testing.T) {
 		deleteAction     bool
 		phase            v1.PodPhase
 		podEventsErr     bool
+		classifier       func(t *testing.T) *categorizer.Classifier
+		pod              func(t *testing.T) *v1.Pod
 		expectRegistered bool
 	}{
 		"failed pod in a delete-action category":  {deleteAction: true, phase: v1.PodFailed, expectRegistered: true},
 		"failed pod in a retain category":         {deleteAction: false, phase: v1.PodFailed, expectRegistered: false},
 		"running pod in a delete-action category": {deleteAction: true, phase: v1.PodRunning, expectRegistered: false},
 		"pod events unavailable still registers":  {deleteAction: true, phase: v1.PodFailed, podEventsErr: true, expectRegistered: true},
+		// A kubelet admission rejection has no container statuses. Only the
+		// pod-level failure message can classify it.
+		"rejected pod matches an onPodError delete rule": {
+			phase: v1.PodFailed,
+			classifier: func(t *testing.T) *categorizer.Classifier {
+				c, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+					Categories: []categorizer.CategoryConfig{
+						{
+							Name:   "pih-rejected-cat",
+							Action: categorizer.PodFailureActionDelete,
+							Rules:  []categorizer.CategoryRule{{OnPodError: &errormatch.RegexMatcher{Pattern: "Pod was rejected.*"}}},
+						},
+					},
+				})
+				require.NoError(t, err)
+				return c
+			},
+			pod: func(t *testing.T) *v1.Pod {
+				return makeTestPod(v1.PodStatus{
+					Phase:   v1.PodFailed,
+					Reason:  "UnexpectedAdmissionError",
+					Message: "Pod was rejected: not enough cpus available to satisfy request",
+				})
+			},
+			expectRegistered: true,
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			classifier := classifierForExitCode(t, "pih-del-cat", "pih-del-sub", 42, tc.deleteAction)
+			var classifier *categorizer.Classifier
+			if tc.classifier != nil {
+				classifier = tc.classifier(t)
+			} else {
+				classifier = classifierForExitCode(t, "pih-del-cat", "pih-del-sub", 42, tc.deleteAction)
+			}
 			podIssueService, _, fakeClusterContext, _, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
 			require.NoError(t, err)
-			pod := makeFailedPodWithExitCode(t, 42)
-			pod.Status.Phase = tc.phase
+			var pod *v1.Pod
+			if tc.pod != nil {
+				pod = tc.pod(t)
+			} else {
+				pod = makeFailedPodWithExitCode(t, 42)
+				pod.Status.Phase = tc.phase
+			}
 			addPod(t, fakeClusterContext, pod)
 			if tc.podEventsErr {
 				fakeClusterContext.GetPodEventsErr = fmt.Errorf("events unavailable")
