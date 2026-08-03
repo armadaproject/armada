@@ -225,7 +225,7 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 			} else {
 				log.Infof("%s - Inserted %d pulsar messages in %dms", i.pulsarTopic, len(msg.GetMessageIDs()), taken.Milliseconds())
 			}
-			if errors.Is(err, context.DeadlineExceeded) {
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 				// This occurs when we're shutting down- it's a signal to stop processing immediately
 				break
 			} else {
