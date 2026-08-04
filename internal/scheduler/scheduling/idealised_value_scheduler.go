@@ -93,7 +93,7 @@ func (sch *IdealisedValueScheduler) Schedule(ctx *armadacontext.Context) (*Sched
 		sch.nodeDb,
 		jobIteratorsByQueue,
 		false,
-		false,
+		true,
 		false,
 		sch.schedulingConfig.MaxQueueLookback,
 		true,
@@ -182,6 +182,10 @@ type staticRequirementsIgnoringIterator struct {
 
 func (s staticRequirementsIgnoringIterator) OnlyYieldEvicted() {
 	s.iter.OnlyYieldEvicted()
+}
+
+func (s staticRequirementsIgnoringIterator) ResumeNonEvicted() {
+	s.iter.ResumeNonEvicted()
 }
 
 func (s staticRequirementsIgnoringIterator) Next() (*schedulercontext.JobSchedulingContext, error) {

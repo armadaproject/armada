@@ -11,6 +11,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 	clock "k8s.io/utils/clock/testing"
@@ -31,6 +32,57 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
 )
+
+func TestConstructSchedulingContext_SetsFairsharePreemptionLimiter(t *testing.T) {
+	tests := map[string]struct {
+		rateLimit     *configuration.RateLimit
+		expectLimiter bool
+		expectedRate  rate.Limit
+		expectedBurst int
+	}{
+		"configured": {
+			rateLimit:     &configuration.RateLimit{MaximumRate: 10, MaximumBurst: 20},
+			expectLimiter: true,
+			expectedRate:  rate.Limit(10),
+			expectedBurst: 20,
+		},
+		"configured with zero rate/burst": {
+			rateLimit:     &configuration.RateLimit{MaximumRate: 0, MaximumBurst: 0},
+			expectLimiter: true,
+			expectedRate:  rate.Limit(0),
+			expectedBurst: 0,
+		},
+		"unconfigured means no limiter": {
+			rateLimit:     nil,
+			expectLimiter: false,
+		},
+	}
+
+	totalResources := testfixtures.TestResourceListFactory.FromNodeProto(
+		map[string]*k8sResource.Quantity{"cpu": pointer.MustParseResource("1")},
+	)
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			config := testfixtures.TestSchedulingConfig()
+			config.Pools = []configuration.PoolConfig{{Name: "pool", FairsharePreemptionRateLimit: tc.rateLimit}}
+			l := &FairSchedulingAlgo{
+				schedulingConfig:        config,
+				preemptionLimiterByPool: initialisePerPoolRateLimiters(config.Pools),
+			}
+
+			sctx, err := l.constructSchedulingContext("pool", totalResources, nil, nil, nil, nil, map[string]*api.Queue{})
+			require.NoError(t, err)
+
+			if !tc.expectLimiter {
+				assert.Nil(t, sctx.FairsharePreemptionLimiter)
+				return
+			}
+			require.NotNil(t, sctx.FairsharePreemptionLimiter)
+			assert.Equal(t, tc.expectedRate, sctx.FairsharePreemptionLimiter.Limit())
+			assert.Equal(t, tc.expectedBurst, sctx.FairsharePreemptionLimiter.Burst())
+		})
+	}
+}
 
 type scheduledJobs struct {
 	jobs         []*jobdb.Job

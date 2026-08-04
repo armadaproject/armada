@@ -34,100 +34,138 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		marketBased                 bool
-		preemptedJobContext         *context.JobSchedulingContext
-		expectedPreemptedJobContext *context.JobSchedulingContext
+		marketBased                  bool
+		preemptedJobContexts         []*context.JobSchedulingContext
+		expectedPreemptedJobContexts []*context.JobSchedulingContext
 	}{
 		"unknown cause - basic job": {
-			preemptedJobContext: &context.JobSchedulingContext{
+			preemptedJobContexts: []*context.JobSchedulingContext{{
 				JobId:        "job-1",
 				AssignedNode: testfixtures.TestSimpleNode("node-3"),
 				Job:          makeJob(t, "job-1", false),
-			},
-			expectedPreemptedJobContext: &context.JobSchedulingContext{
+			}},
+			expectedPreemptedJobContexts: []*context.JobSchedulingContext{{
 				JobId:                 "job-1",
 				AssignedNode:          testfixtures.TestSimpleNode("node-3"),
 				Job:                   makeJob(t, "job-1", false),
 				PreemptionDescription: fmt.Sprintf(unknownPreemptionCause, testfixtures.TestSimpleNode("node-3").SummaryString()),
 				PreemptionType:        context.Unknown,
-			},
+			}},
 		},
 		"unknown cause - gang job": {
-			preemptedJobContext: &context.JobSchedulingContext{
+			preemptedJobContexts: []*context.JobSchedulingContext{{
 				JobId:        "job-1",
 				AssignedNode: testfixtures.TestSimpleNode("node-3"),
 				Job:          makeJob(t, "job-1", true),
-			},
-			expectedPreemptedJobContext: &context.JobSchedulingContext{
+			}},
+			expectedPreemptedJobContexts: []*context.JobSchedulingContext{{
 				JobId:                 "job-1",
 				AssignedNode:          testfixtures.TestSimpleNode("node-3"),
 				Job:                   makeJob(t, "job-1", true),
 				PreemptionDescription: unknownGangPreemptionCause,
 				PreemptionType:        context.UnknownGangJob,
-			},
+			}},
 		},
 		"urgency preemption - single preempting job": {
-			preemptedJobContext: &context.JobSchedulingContext{
+			preemptedJobContexts: []*context.JobSchedulingContext{{
 				JobId:        "job-1",
 				AssignedNode: testfixtures.TestSimpleNode("node-1"),
-			},
-			expectedPreemptedJobContext: &context.JobSchedulingContext{
+				Job:          makeJob(t, "job-1", false),
+			}},
+			expectedPreemptedJobContexts: []*context.JobSchedulingContext{{
 				JobId:                 "job-1",
 				AssignedNode:          testfixtures.TestSimpleNode("node-1"),
+				Job:                   makeJob(t, "job-1", false),
 				PreemptionDescription: fmt.Sprintf(urgencyPreemptionTemplate, "job-2"),
 				PreemptionType:        context.PreemptedWithUrgencyPreemption,
-			},
+			}},
 		},
 		"urgency preemption - multiple preempting jobs": {
-			preemptedJobContext: &context.JobSchedulingContext{
+			preemptedJobContexts: []*context.JobSchedulingContext{{
 				JobId:        "job-1",
 				AssignedNode: testfixtures.TestSimpleNode("node-2"),
-			},
-			expectedPreemptedJobContext: &context.JobSchedulingContext{
+				Job:          makeJob(t, "job-1", false),
+			}},
+			expectedPreemptedJobContexts: []*context.JobSchedulingContext{{
 				JobId:                 "job-1",
 				AssignedNode:          testfixtures.TestSimpleNode("node-2"),
+				Job:                   makeJob(t, "job-1", false),
 				PreemptionDescription: fmt.Sprintf(urgencyPreemptionMultiJobTemplate, "job-3,job-4"),
 				PreemptionType:        context.PreemptedWithUrgencyPreemption,
-			},
+			}},
 		},
 		"fairshare": {
-			preemptedJobContext: &context.JobSchedulingContext{
+			preemptedJobContexts: []*context.JobSchedulingContext{{
 				JobId:         "job-1",
 				AssignedNode:  testfixtures.TestSimpleNode("node-4"),
+				Job:           makeJob(t, "job-1", false),
 				PreemptingJob: makeJob(t, "job-7", false),
-			},
-			expectedPreemptedJobContext: &context.JobSchedulingContext{
+			}},
+			expectedPreemptedJobContexts: []*context.JobSchedulingContext{{
 				JobId:                 "job-1",
 				AssignedNode:          testfixtures.TestSimpleNode("node-4"),
+				Job:                   makeJob(t, "job-1", false),
 				PreemptingJob:         makeJob(t, "job-7", false),
 				PreemptionDescription: fmt.Sprintf(fairSharePreemptionTemplate, "job-7"),
 				PreemptionType:        context.PreemptedWithFairsharePreemption,
+			}},
+		},
+		"fairshare - gang": {
+			preemptedJobContexts: []*context.JobSchedulingContext{
+				{
+					JobId:        "job-1",
+					AssignedNode: testfixtures.TestSimpleNode("node-4"),
+					Job:          makeJob(t, "job-1", true),
+				},
+				{
+					JobId:         "job-8",
+					AssignedNode:  testfixtures.TestSimpleNode("node-3"),
+					Job:           makeJob(t, "job-8", true),
+					PreemptingJob: makeJob(t, "job-7", false),
+				},
+			},
+			expectedPreemptedJobContexts: []*context.JobSchedulingContext{
+				{
+					JobId:                 "job-1",
+					AssignedNode:          testfixtures.TestSimpleNode("node-4"),
+					Job:                   makeJob(t, "job-1", true),
+					PreemptionDescription: fmt.Sprintf(gangSiblingFairSharePreemptionTemplate, describeGangMemberPreemptions([]preemptionInfo{{"job-8", "job-7"}})),
+					PreemptionType:        context.PreemptedWithFairsharePreemption,
+				},
+				{
+					JobId:                 "job-8",
+					AssignedNode:          testfixtures.TestSimpleNode("node-3"),
+					Job:                   makeJob(t, "job-8", true),
+					PreemptingJob:         makeJob(t, "job-7", false),
+					PreemptionDescription: fmt.Sprintf(fairSharePreemptionTemplate, "job-7"),
+					PreemptionType:        context.PreemptedWithFairsharePreemption,
+				},
 			},
 		},
 		"fairshare - market based": {
 			marketBased: true,
-			preemptedJobContext: &context.JobSchedulingContext{
+			preemptedJobContexts: []*context.JobSchedulingContext{{
 				JobId:         "job-1",
 				Job:           makeJobWithPrice(t, "job-1", false, 0),
 				AssignedNode:  testfixtures.TestSimpleNode("node-4"),
 				PreemptingJob: makeJobWithPrice(t, "job-7", false, 5),
-			},
-			expectedPreemptedJobContext: &context.JobSchedulingContext{
+			}},
+			expectedPreemptedJobContexts: []*context.JobSchedulingContext{{
 				JobId:                 "job-1",
 				Job:                   makeJobWithPrice(t, "job-1", false, 0),
 				AssignedNode:          testfixtures.TestSimpleNode("node-4"),
 				PreemptingJob:         makeJobWithPrice(t, "job-7", false, 5),
 				PreemptionDescription: fmt.Sprintf(marketBasedPreemptionTemplate, float64(0), "job-7", float64(5)),
 				PreemptionType:        context.PreemptedWithFairsharePreemption,
-			},
+			}},
 		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			PopulatePreemptionDescriptions(tc.marketBased, testfixtures.TestPool, []*context.JobSchedulingContext{tc.preemptedJobContext}, scheduledJobContexts)
+			PopulatePreemptionDescriptions(tc.marketBased, testfixtures.TestPool, tc.preemptedJobContexts, scheduledJobContexts)
 			assert.Equal(t, expectedScheduleJobContexts, scheduledJobContexts)
-			assert.Equal(t, []*context.JobSchedulingContext{tc.expectedPreemptedJobContext}, []*context.JobSchedulingContext{tc.preemptedJobContext})
+			assert.Equal(t, tc.expectedPreemptedJobContexts, tc.preemptedJobContexts)
 		})
 	}
 }

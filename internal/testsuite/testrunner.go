@@ -11,12 +11,16 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/testsuite/eventbenchmark"
 	"github.com/armadaproject/armada/internal/testsuite/eventlogger"
 	"github.com/armadaproject/armada/internal/testsuite/eventsplitter"
 	"github.com/armadaproject/armada/internal/testsuite/eventwatcher"
+	"github.com/armadaproject/armada/internal/testsuite/queue"
 	"github.com/armadaproject/armada/internal/testsuite/submitter"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
@@ -76,6 +80,31 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	}
 	defer cancel()
 
+	// Create and (optionally) update the queue(s) under test.
+	queueNames, err := queue.RunSetup(ctx, srv.testSpec, srv.apiConnectionDetails, out)
+	if err != nil {
+		return err
+	}
+	if err = queue.RunUpdate(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out); err != nil {
+		return err
+	}
+
+	// (deferred): always delete the queue(s) once the test finishes.
+	defer func() {
+		if teardownErr := queue.RunTeardown(queueNames, srv.testSpec, srv.apiConnectionDetails, out); teardownErr != nil {
+			fmt.Fprintf(out, "warning: queue teardown failed: %s\n", teardownErr)
+			if err == nil {
+				err = teardownErr
+			}
+		}
+	}()
+
+	// Pure queue tests submit no jobs, so skip the job-submission block below and
+	// go straight to the queue assertions.
+	if len(srv.testSpec.Jobs) == 0 && srv.testSpec.NumBatches == 0 {
+		return queue.RunAssertions(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out)
+	}
+
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, ctx := errgroup.WithContext(ctx)
 
@@ -88,6 +117,19 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	jobIdMap := make(map[string]bool)
 	for _, jobId := range jobIds {
 		jobIdMap[jobId] = false
+	}
+
+	nodeName := ""
+	if srv.testSpec.CancelOnNode != nil {
+		nodeName, err = resolveNodeByPoolTag(ctx, srv.testSpec.CancelOnNode.NodePoolTag)
+		if err != nil {
+			return err
+		}
+	} else if srv.testSpec.PreemptOnNode != nil {
+		nodeName, err = resolveNodeByPoolTag(ctx, srv.testSpec.PreemptOnNode.NodePoolTag)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Before returning, cancel the job set to ensure there are no lingering jobs.
@@ -106,12 +148,6 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		}
 	}()
 
-	// If configured, cancel the submitted jobs immediately.
-	// Used to test job cancellation.
-	if err = tryCancelJobs(ctx, srv.testSpec, srv.apiConnectionDetails, jobIds); err != nil {
-		return err
-	}
-
 	// One channel for each system listening to events.
 	benchmarkCh := make(chan *api.EventMessage)
 	noActiveCh := make(chan *api.EventMessage)
@@ -123,39 +159,16 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	watcher.Out = out
 	g.Go(func() error { return watcher.Run(ctx) })
 
-	// TODO: Get job logs.
-	// jobLogger, err := a.createJobLogger(testSpec)
-	// if err != nil {
-	// 	return errors.WithMessage(err, "error creating job logger")
-	// }
-	// executorClustersDefined := len(a.Params.ApiConnectionDetails.ExecutorClusters) > 0
-	// if testSpec.GetLogs {
-	// 	if executorClustersDefined {
-	// 		g.Go(func() error { return jobLogger.Run(ctx) })
-	// 	} else {
-	// 		_, _ = fmt.Fprintf(
-	// 			a.Out,
-	// 			"cannot get logs for test %s, no executor clusters specified in executorClusters config\n",
-	// 			testSpec.Name,
-	// 		)
-	// 	}
-	// }
-
 	// Build list of event channels based on test configuration.
 	eventChannels := []chan *api.EventMessage{assertCh, ingressCh, noActiveCh, benchmarkCh, srv.eventLogger.In}
 
-	// Add preempt channel if preemption is configured.
-	var preemptCh chan *api.EventMessage
-	if srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
-		preemptCh = make(chan *api.EventMessage)
-		eventChannels = append(eventChannels, preemptCh)
-	}
-
-	// Add reprioritize channel if reprioritization is configured.
-	var reprioritizeCh chan *api.EventMessage
-	if srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
-		reprioritizeCh = make(chan *api.EventMessage)
-		eventChannels = append(eventChannels, reprioritizeCh)
+	// Add action channel if cancel or preempt is configured and waits for all jobs to reach a trigger state before acting.
+	var actionCh chan *api.EventMessage
+	if srv.testSpec.Action == api.TestSpec_ACTION_CANCEL || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT ||
+		srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE ||
+		srv.testSpec.CancelOnNode != nil || srv.testSpec.PreemptOnNode != nil {
+		actionCh = make(chan *api.EventMessage)
+		eventChannels = append(eventChannels, actionCh)
 	}
 
 	// Duplicate events across all downstream services.
@@ -165,22 +178,16 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	)
 	g.Go(func() error { return splitter.Run(ctx) })
 
-	// If configured, preempt jobs once they are running.
-	// Used to test job preemption.
-	if srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT {
+	// If configured, cancel or preempt jobs once all reach the configured trigger event.
+	if srv.testSpec.CancelOnNode != nil || srv.testSpec.PreemptOnNode != nil ||
+		srv.testSpec.Action == api.TestSpec_ACTION_CANCEL || srv.testSpec.Action == api.TestSpec_ACTION_PREEMPT ||
+		srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
+		extractor, err := triggerEventExtractor(srv.testSpec)
+		if err != nil {
+			return err
+		}
 		g.Go(func() error {
-			return preemptJobsWhenRunning(ctx, preemptCh, srv.testSpec, srv.apiConnectionDetails, jobIds)
-		})
-	}
-
-	// If configured, reprioritize jobs once they are running.
-	// Used to test job reprioritization. Waiting for the jobs to be running
-	// (rather than sleeping a fixed interval) ensures the reprioritize request
-	// is not handled before its jobs exist in the scheduler, which would produce
-	// no reprioritized events.
-	if srv.testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
-		g.Go(func() error {
-			return reprioritizeJobsWhenRunning(ctx, reprioritizeCh, srv.testSpec, srv.apiConnectionDetails, jobIds)
+			return runActionOnState(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName, extractor)
 		})
 	}
 
@@ -210,138 +217,213 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		}
 	}
 
-	// Armada JobSet logs
-	// TODO: Optionally get logs from failed jobs.
-	// if testSpec.GetLogs && executorClustersDefined {
-	// 	jobLogger.PrintLogs()
-	// }
-
-	return nil
+	// Assert queue state now that the jobs have finished. (used for GetActiveQueues)
+	return queue.RunAssertions(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out)
 }
 
-// tryCancelJobs cancels submitted jobs if cancellation is configured.
-func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
-	if testSpec.Action != api.TestSpec_ACTION_CANCEL {
-		return nil
+// triggerEventExtractor resolves testSpec.TriggerEvent to an extractor function.
+// If TriggerEvent is unset, falls back to the default behavior:
+//   - Running for PREEMPT/REPRIORITIZE and node-scoped operations (CancelOnNode/PreemptOnNode)
+//   - Queued for CANCEL via the submit API (BY_ID, BY_IDS, BY_SET), which works from any state.
+func triggerEventExtractor(testSpec *api.TestSpec) (func(*api.EventMessage) string, error) {
+	name := testSpec.TriggerEvent
+	if name == "" {
+		if testSpec.CancelOnNode != nil || testSpec.PreemptOnNode != nil ||
+			testSpec.Action == api.TestSpec_ACTION_PREEMPT || testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE {
+			name = "running"
+		} else {
+			name = "queued"
+		}
 	}
-
-	req := &api.JobCancelRequest{
-		Queue:    testSpec.GetQueue(),
-		JobSetId: testSpec.GetJobSetId(),
+	extractor, ok := triggerEventExtractors[name]
+	if !ok {
+		return nil, errors.Errorf("unknown triggerEvent %q", name)
 	}
-	switch {
-	case testSpec.Selection == api.TestSpec_SELECTION_BY_ID:
-		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-			time.Sleep(3 * time.Second)
-			for _, jobId := range jobIds {
-				req.JobId = jobId
-				_, err := sc.CancelJobs(ctx, req)
-				if err != nil {
-					return errors.WithStack(err)
-				}
-			}
-			return nil
-		})
-	case testSpec.Selection == api.TestSpec_SELECTION_BY_SET:
-		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-			time.Sleep(3 * time.Second)
-			_, err := sc.CancelJobs(ctx, req)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			return nil
-		})
-	case testSpec.Selection == api.TestSpec_SELECTION_BY_IDS:
-		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-			time.Sleep(3 * time.Second)
-			req.JobIds = jobIds
-			_, err := sc.CancelJobs(ctx, req)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			return nil
-		})
-	}
-	return nil
+	return extractor, nil
 }
 
-// tryReprioritizeJobs reprioritizes submitted jobs if reprioritization is configured.
-func tryReprioritizeJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
-	if testSpec.Action != api.TestSpec_ACTION_REPRIORITIZE {
-		return nil
-	}
-
-	req := &api.JobReprioritizeRequest{
-		Queue:       testSpec.GetQueue(),
-		JobSetId:    testSpec.GetJobSetId(),
-		NewPriority: testSpec.GetNewPriority(),
-	}
-	switch {
-	case testSpec.Selection == api.TestSpec_SELECTION_BY_ID:
-		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-			for _, jobId := range jobIds {
-				req.JobIds = []string{jobId}
-				_, err := sc.ReprioritizeJobs(ctx, req)
-				if err != nil {
-					return errors.WithStack(err)
-				}
-			}
-			return nil
-		})
-	case testSpec.Selection == api.TestSpec_SELECTION_BY_SET:
-		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-			_, err := sc.ReprioritizeJobs(ctx, req)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			return nil
-		})
-	case testSpec.Selection == api.TestSpec_SELECTION_BY_IDS:
-		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-			req.JobIds = jobIds
-			_, err := sc.ReprioritizeJobs(ctx, req)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			return nil
-		})
-	}
-	return nil
+// triggerEventExtractors maps a TestSpec.TriggerEvent name to a function that extracts
+// the job ID from an EventMessage if it matches that event, or "" otherwise.
+// Names match the EventMessage oneof field names (see pkg/api/event.proto).
+var triggerEventExtractors = map[string]func(*api.EventMessage) string{
+	"submitted": func(msg *api.EventMessage) string {
+		if e := msg.GetSubmitted(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
+	"queued": func(msg *api.EventMessage) string {
+		if e := msg.GetQueued(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
+	"leased": func(msg *api.EventMessage) string {
+		if e := msg.GetLeased(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
+	"running": func(msg *api.EventMessage) string {
+		if e := msg.GetRunning(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
+	"succeeded": func(msg *api.EventMessage) string {
+		if e := msg.GetSucceeded(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
+	"failed": func(msg *api.EventMessage) string {
+		if e := msg.GetFailed(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
+	"cancelled": func(msg *api.EventMessage) string {
+		if e := msg.GetCancelled(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
+	"preempted": func(msg *api.EventMessage) string {
+		if e := msg.GetPreempted(); e != nil {
+			return e.JobId
+		}
+		return ""
+	},
 }
 
-// reprioritizeJobsWhenRunning waits for all jobs to be running, then
-// reprioritizes them. Waiting for the Running event (rather than sleeping a fixed
-// interval or reacting to an early Queued event) guarantees each job is present in
-// the scheduler's job db before the reprioritize request is handled. Otherwise the
-// fire-once reprioritization can run before a job exists in the scheduler, so no
-// reprioritized event is produced and the test times out intermittently.
-func reprioritizeJobsWhenRunning(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
-	// Only this runner's submitted jobs should count toward the readiness gate.
-	// The job set may be shared with concurrently-running test cases, so a Running
-	// event from another case must not satisfy the gate and fire the reprioritize
-	// request before this case's own jobs reach the scheduler.
-	submittedJobs := make(map[string]bool, len(jobIds))
-	for _, jobId := range jobIds {
-		submittedJobs[jobId] = true
+// runActionOnState waits for all jobs to be reported by jobIdFromEvent, then issues the configured action.
+// jobIdFromEvent should return the job ID when the event matches the desired trigger state, or "" to ignore the event.
+// Not every event needs all of these parameters, for instance nodeName is only relevant for node-scoped actions.
+// This is a consequence of a testSpec.proto being too long. Ideally we will modularize the testspec in future prs.
+func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string, jobIdFromEvent func(*api.EventMessage) string) error {
+	jobIdSet := make(map[string]bool, len(jobIds))
+	for _, id := range jobIds {
+		jobIdSet[id] = true
 	}
-
-	runningJobs := make(map[string]bool)
-
-	// Wait for all jobs to be running before reprioritizing.
+	triggeredJobs := make(map[string]bool)
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case msg := <-eventCh:
-			if e := msg.GetRunning(); e != nil && submittedJobs[e.JobId] {
-				runningJobs[e.JobId] = true
-
-				// Once all jobs are running, reprioritize them.
-				if len(runningJobs) == len(jobIds) {
-					if err := tryReprioritizeJobs(ctx, testSpec, conn, jobIds); err != nil {
-						return err
+			if jobId := jobIdFromEvent(msg); jobId != "" && jobIdSet[jobId] {
+				triggeredJobs[jobId] = true
+				if len(triggeredJobs) == len(jobIds) {
+					time.Sleep(1 * time.Second)
+					var actionErr error
+					switch {
+					case testSpec.CancelOnNode != nil:
+						actionErr = client.WithNodeClient(conn, func(nc api.NodeClient) error {
+							req := testSpec.CancelOnNode.GetRequest()
+							req.Name = nodeName
+							_, err := nc.CancelOnNode(ctx, req)
+							return errors.WithStack(err)
+						})
+					case testSpec.PreemptOnNode != nil:
+						actionErr = client.WithNodeClient(conn, func(nc api.NodeClient) error {
+							req := testSpec.PreemptOnNode.GetRequest()
+							req.Name = nodeName
+							_, err := nc.PreemptOnNode(ctx, req)
+							return errors.WithStack(err)
+						})
+					case testSpec.Action == api.TestSpec_ACTION_CANCEL && testSpec.Selection == api.TestSpec_SELECTION_BY_ID:
+						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+							req := &api.JobCancelRequest{Queue: testSpec.GetQueue(), JobSetId: testSpec.GetJobSetId()}
+							for _, jobId := range jobIds {
+								req.JobId = jobId
+								if _, err := sc.CancelJobs(ctx, req); err != nil {
+									return errors.WithStack(err)
+								}
+							}
+							return nil
+						})
+					case testSpec.Action == api.TestSpec_ACTION_CANCEL && testSpec.Selection == api.TestSpec_SELECTION_BY_IDS:
+						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+							_, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
+								Queue:    testSpec.GetQueue(),
+								JobSetId: testSpec.GetJobSetId(),
+								JobIds:   jobIds,
+							})
+							return errors.WithStack(err)
+						})
+					case testSpec.Action == api.TestSpec_ACTION_CANCEL && testSpec.Selection == api.TestSpec_SELECTION_BY_SET:
+						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+							_, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
+								Queue:    testSpec.GetQueue(),
+								JobSetId: testSpec.GetJobSetId(),
+							})
+							return errors.WithStack(err)
+						})
+					case testSpec.Action == api.TestSpec_ACTION_PREEMPT && testSpec.Selection == api.TestSpec_SELECTION_BY_ID:
+						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+							req := &api.JobPreemptRequest{Queue: testSpec.GetQueue(), JobSetId: testSpec.GetJobSetId(), Reason: testSpec.GetPreemptReason()}
+							for _, jobId := range jobIds {
+								req.JobIds = []string{jobId}
+								if _, err := sc.PreemptJobs(ctx, req); err != nil {
+									return errors.WithStack(err)
+								}
+							}
+							return nil
+						})
+					case testSpec.Action == api.TestSpec_ACTION_PREEMPT && testSpec.Selection == api.TestSpec_SELECTION_BY_IDS:
+						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+							_, err := sc.PreemptJobs(ctx, &api.JobPreemptRequest{
+								Queue:    testSpec.GetQueue(),
+								JobSetId: testSpec.GetJobSetId(),
+								Reason:   testSpec.GetPreemptReason(),
+								JobIds:   jobIds,
+							})
+							return errors.WithStack(err)
+						})
+					case testSpec.Action == api.TestSpec_ACTION_PREEMPT && testSpec.Selection == api.TestSpec_SELECTION_BY_SET:
+						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+							_, err := sc.PreemptJobs(ctx, &api.JobPreemptRequest{
+								Queue:    testSpec.GetQueue(),
+								JobSetId: testSpec.GetJobSetId(),
+								Reason:   testSpec.GetPreemptReason(),
+							})
+							return errors.WithStack(err)
+						})
+					case testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE && testSpec.Selection == api.TestSpec_SELECTION_BY_ID:
+						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+							_, err := sc.ReprioritizeJobs(ctx, &api.JobReprioritizeRequest{
+								Queue:       testSpec.GetQueue(),
+								JobSetId:    testSpec.GetJobSetId(),
+								NewPriority: testSpec.GetNewPriority(),
+							})
+							return errors.WithStack(err)
+						})
+					case testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE && testSpec.Selection == api.TestSpec_SELECTION_BY_IDS:
+						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+							_, err := sc.ReprioritizeJobs(ctx, &api.JobReprioritizeRequest{
+								JobIds:      jobIds,
+								JobSetId:    testSpec.GetJobSetId(),
+								Queue:       testSpec.GetQueue(),
+								NewPriority: testSpec.GetNewPriority(),
+							})
+							return errors.WithStack(err)
+						})
+					case testSpec.Action == api.TestSpec_ACTION_REPRIORITIZE && testSpec.Selection == api.TestSpec_SELECTION_BY_SET:
+						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+							_, err := sc.ReprioritizeJobs(ctx, &api.JobReprioritizeRequest{
+								Queue:       testSpec.GetQueue(),
+								JobSetId:    testSpec.GetJobSetId(),
+								NewPriority: testSpec.GetNewPriority(),
+							})
+							return errors.WithStack(err)
+						})
+					default:
+						return errors.Errorf("action/selection combination invalid or not yet implemented: %v/%v", testSpec.Action, testSpec.Selection)
 					}
-					// Continue consuming events to avoid blocking the splitter.
+					if actionErr != nil {
+						return actionErr
+					}
+					// Drain the channel to avoid blocking the splitter.
 					for {
 						select {
 						case <-ctx.Done():
@@ -355,74 +437,28 @@ func reprioritizeJobsWhenRunning(ctx context.Context, eventCh chan *api.EventMes
 	}
 }
 
-// preemptJobsWhenRunning waits for jobs to be running, then preempts them.
-func preemptJobsWhenRunning(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
-	runningJobs := make(map[string]bool)
-
-	// Wait for all jobs to be running
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case msg := <-eventCh:
-			if e := msg.GetRunning(); e != nil {
-				runningJobs[e.JobId] = true
-
-				// Once all jobs are running, preempt them
-				if len(runningJobs) == len(jobIds) {
-					time.Sleep(1 * time.Second) // Brief delay to ensure job is fully running
-					_ = tryPreemptJobs(ctx, testSpec, conn, jobIds)
-					// Continue consuming events but don't preempt again
-					for {
-						select {
-						case <-ctx.Done():
-							return nil
-						case <-eventCh:
-							// Keep consuming to avoid blocking the splitter
-						}
-					}
-				}
-			}
-		}
+// resolveNodeByPoolTag finds the k8s node name for the given armadaproject.io/node-pool label value.
+// Node-scoped api calls need the node name, which kind sets dynamically.
+func resolveNodeByPoolTag(ctx context.Context, tag string) (string, error) {
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, nil).ClientConfig()
+	if err != nil {
+		return "", errors.Wrap(err, "failed to load kubeconfig")
 	}
-}
-
-// tryPreemptJobs preempts submitted jobs if preemption is configured.
-func tryPreemptJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
-	req := &api.JobPreemptRequest{
-		Queue:    testSpec.GetQueue(),
-		JobSetId: testSpec.GetJobSetId(),
-		Reason:   testSpec.GetPreemptReason(),
+	k8sClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to create k8s client")
 	}
-	switch {
-	case testSpec.Selection == api.TestSpec_SELECTION_BY_ID:
-		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-			for _, jobId := range jobIds {
-				req.JobIds = []string{jobId}
-				_, err := sc.PreemptJobs(ctx, req)
-				if err != nil {
-					return errors.WithStack(err)
-				}
-			}
-			return nil
-		})
-	case testSpec.Selection == api.TestSpec_SELECTION_BY_SET:
-		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-			_, err := sc.PreemptJobs(ctx, req)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			return nil
-		})
-	case testSpec.Selection == api.TestSpec_SELECTION_BY_IDS:
-		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-			req.JobIds = jobIds
-			_, err := sc.PreemptJobs(ctx, req)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			return nil
-		})
+	labelSelector := fmt.Sprintf("armadaproject.io/node-pool=%s", tag)
+	nodes, err := k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to list nodes with label %s", labelSelector)
 	}
-	return nil
+	if len(nodes.Items) == 0 {
+		return "", errors.Errorf("no node found with label %s", labelSelector)
+	}
+	if len(nodes.Items) > 1 {
+		fmt.Printf("warn: multiple nodes match label %s; using %s\n", labelSelector, nodes.Items[0].Name)
+	}
+	return nodes.Items[0].Name, nil
 }
