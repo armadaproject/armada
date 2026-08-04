@@ -2403,6 +2403,30 @@
         "RETRY_ACTION_RETRY"
       ]
     },
+    "apiRetryAffinityMutation": {
+      "description": "RetryAffinityMutation groups placement changes applied to a retried job.",
+      "type": "object",
+      "properties": {
+        "avoidSameNode": {
+          "description": "avoid_same_node, when true, steers the retry away from every node a\nprevious run attempted. This matches the lease-return retry behaviour:\nthe job fails if the anti-affinity makes it unschedulable. Default\nfalse: the retry requeues without the per-job scheduling probe.",
+          "type": "boolean"
+        }
+      }
+    },
+    "apiRetryMutation": {
+      "description": "RetryMutation groups the changes applied to a job on a policy-driven retry.\nFields are additive: new mutation kinds get new fields over time.",
+      "type": "object",
+      "properties": {
+        "affinity": {
+          "description": "affinity changes where the retry is allowed to run.",
+          "$ref": "#/definitions/apiRetryAffinityMutation"
+        },
+        "resources": {
+          "description": "resources bumps the retried job's resource requirements. If the bumped\njob no longer fits any node, the job fails terminally.",
+          "$ref": "#/definitions/apiRetryResourceMutation"
+        }
+      }
+    },
     "apiRetryPolicy": {
       "description": "RetryPolicy defines rules that determine whether failed jobs should be retried.\nOperators create policies and assign them to queues by name.",
       "type": "object",
@@ -2437,11 +2461,39 @@
         }
       }
     },
+    "apiRetryResourceBump": {
+      "description": "RetryResourceBump grows one resource on retry. Set exactly one field.\nThe bump changes requests and limits together, and it compounds across\nretries: each retry grows the amount the previous retry produced.",
+      "type": "object",
+      "properties": {
+        "factor": {
+          "description": "factor multiplies the current amount. 1.1 means a 10% increase.\nMust be greater than 1.0 when set.",
+          "type": "number",
+          "format": "double"
+        },
+        "static": {
+          "description": "static adds a fixed amount, as a Kubernetes quantity, e.g. \"512Mi\".",
+          "type": "string"
+        }
+      }
+    },
+    "apiRetryResourceMutation": {
+      "description": "RetryResourceMutation groups per-resource bumps applied to a retried job.\nNew resources get new fields over time.",
+      "type": "object",
+      "properties": {
+        "memory": {
+          "$ref": "#/definitions/apiRetryResourceBump"
+        }
+      }
+    },
     "apiRetryRule": {
       "type": "object",
       "properties": {
         "action": {
           "$ref": "#/definitions/apiRetryAction"
+        },
+        "mutate": {
+          "description": "mutate describes changes applied to the job when this rule retries it.\nOnly meaningful when action is Retry.",
+          "$ref": "#/definitions/apiRetryMutation"
         },
         "onCategory": {
           "description": "on_category matches against Error.failure_category. When set with on_subcategory,\nboth must match.",

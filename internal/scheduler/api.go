@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -150,6 +151,9 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 			}
 			addTolerations(submitMsg, PodRequirementsOverlay.Tolerations)
 			addAnnotations(submitMsg, PodRequirementsOverlay.Annotations)
+			if err := applyResourceMutations(submitMsg, PodRequirementsOverlay.ResourceMutations); err != nil {
+				return err
+			}
 		}
 
 		srv.addPreemptibleLabel(submitMsg)
@@ -311,6 +315,63 @@ func addTolerations(job *armadaevents.SubmitJob, tolerations []*v1.Toleration) {
 			}
 		}
 	}
+}
+
+// applyResourceMutations grows the pod's memory by the cumulative retry-policy
+// bump the scheduler attached to the run. The factor multiplies every
+// container's memory. The static amount is shared across the main containers
+// in proportion to their current requests. The pod total then grows by
+// exactly the static amount and stays consistent with the scheduler's
+// reservation. Each init container receives the full static amount, because
+// init containers run alone and each must fit the reserved total on its own.
+// Requests and limits move together. Containers without a memory value stay
+// unchanged.
+func applyResourceMutations(job *armadaevents.SubmitJob, mutations *schedulerobjects.RetryResourceMutations) error {
+	if job == nil || mutations == nil {
+		return nil
+	}
+	factor := mutations.MemoryFactor
+	if factor == 0 {
+		factor = 1
+	}
+	static := int64(0)
+	if mutations.MemoryStatic != "" {
+		parsed, err := resource.ParseQuantity(mutations.MemoryStatic)
+		if err != nil {
+			return errors.Errorf("invalid memory_static %q on run lease: %s", mutations.MemoryStatic, err)
+		}
+		static = parsed.Value()
+	}
+	podSpec := job.MainObject.GetPodSpec().GetPodSpec()
+	if podSpec == nil {
+		return nil
+	}
+
+	totalRequests := int64(0)
+	for _, container := range podSpec.Containers {
+		if request, ok := container.Resources.Requests[v1.ResourceMemory]; ok {
+			totalRequests += request.Value()
+		}
+	}
+	bump := func(resources v1.ResourceList, staticShare int64) {
+		if current, ok := resources[v1.ResourceMemory]; ok {
+			grown := int64(float64(current.Value())*factor) + staticShare
+			resources[v1.ResourceMemory] = *resource.NewQuantity(grown, current.Format)
+		}
+	}
+	for i := range podSpec.Containers {
+		staticShare := int64(0)
+		if request, ok := podSpec.Containers[i].Resources.Requests[v1.ResourceMemory]; ok && totalRequests > 0 {
+			staticShare = static * request.Value() / totalRequests
+		}
+		bump(podSpec.Containers[i].Resources.Requests, staticShare)
+		bump(podSpec.Containers[i].Resources.Limits, staticShare)
+	}
+	for i := range podSpec.InitContainers {
+		bump(podSpec.InitContainers[i].Resources.Requests, static)
+		bump(podSpec.InitContainers[i].Resources.Limits, static)
+	}
+	return nil
 }
 
 func addLabels(job *armadaevents.SubmitJob, labels map[string]string) {
