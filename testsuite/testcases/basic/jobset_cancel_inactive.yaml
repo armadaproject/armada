@@ -26,9 +26,9 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-action: ACTION_CANCEL
-selection: SELECTION_BY_SET
-assertCancelInactiveSucceeds: true
+cancelSet:
+  request: {}
+  assertInactiveSucceeds: true
 timeout: "100s"
 expectedEvents:
   - submitted:
