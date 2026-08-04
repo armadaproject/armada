@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -240,61 +239,6 @@ func TestEngine_Evaluate(t *testing.T) {
 			engine := NewEngine(tc.globalMax)
 			result := engine.Evaluate(tc.policy, tc.runError, tc.counts)
 			assert.Equal(t, tc.expected, result)
-		})
-	}
-}
-
-func TestValidatePolicy(t *testing.T) {
-	tests := map[string]struct {
-		policy      Policy
-		expectError string
-	}{
-		"valid policy with Retry default": {
-			policy: Policy{
-				Name:          "test",
-				DefaultAction: ActionRetry,
-			},
-		},
-		"valid policy with OnCategory rule": {
-			policy: Policy{
-				Name:          "test",
-				DefaultAction: ActionFail,
-				Rules: []Rule{
-					{Action: ActionRetry, OnCategory: "transient"},
-				},
-			},
-		},
-		"empty name rejected": {
-			policy:      Policy{Name: "", DefaultAction: ActionRetry},
-			expectError: "policy name must not be empty",
-		},
-		"empty DefaultAction rejected": {
-			policy:      Policy{Name: "test", DefaultAction: ""},
-			expectError: "DefaultAction must be",
-		},
-		"unknown DefaultAction rejected": {
-			policy:      Policy{Name: "test", DefaultAction: "Skip"},
-			expectError: "DefaultAction must be",
-		},
-		"rule without OnCategory rejected": {
-			policy: Policy{
-				Name:          "test",
-				DefaultAction: ActionRetry,
-				Rules:         []Rule{{Action: ActionRetry, OnCategory: ""}},
-			},
-			expectError: "rule 0: OnCategory must be set",
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			err := ValidatePolicy(tc.policy)
-			if tc.expectError != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectError)
-			} else {
-				assert.NoError(t, err)
-			}
 		})
 	}
 }

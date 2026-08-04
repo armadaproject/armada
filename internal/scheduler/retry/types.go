@@ -1,9 +1,5 @@
 package retry
 
-import (
-	"fmt"
-)
-
 // Action is what a rule or a policy's default prescribes for a failed run:
 // retry it or fail it permanently.
 type Action string
@@ -52,30 +48,4 @@ type Result struct {
 	// Decision is the typed counterpart of Reason, suitable for metrics. It is
 	// always set.
 	Decision Decision
-}
-
-// ValidatePolicy checks that a policy has valid fields.
-func ValidatePolicy(p Policy) error {
-	if p.Name == "" {
-		return fmt.Errorf("policy name must not be empty")
-	}
-	if p.DefaultAction != ActionFail && p.DefaultAction != ActionRetry {
-		return fmt.Errorf("DefaultAction must be %q or %q, got %q", ActionFail, ActionRetry, p.DefaultAction)
-	}
-	for i := range p.Rules {
-		if err := validateRule(i, p.Rules[i]); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func validateRule(index int, rule Rule) error {
-	if rule.Action != ActionFail && rule.Action != ActionRetry {
-		return fmt.Errorf("rule %d: Action must be %q or %q, got %q", index, ActionFail, ActionRetry, rule.Action)
-	}
-	if rule.OnCategory == "" {
-		return fmt.Errorf("rule %d: OnCategory must be set", index)
-	}
-	return nil
 }
