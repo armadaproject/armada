@@ -284,6 +284,7 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 			start := time.Now()
 			storeBackoff := i.newBackOff()
 			dropped := false
+			deadLettered := false
 			succeeded := util.RetryUntilSuccessOrExhausted(
 				ctx,
 				i.deadLetterMaxAttempts(),
@@ -326,13 +327,12 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 						MessageIDs:    pulsarutils.MessageIdsToStrings(msg.GetMessageIDs()),
 					}
 					dlqBackoff := i.newBackOff()
-					published := false
 					util.RetryUntilSuccess(
 						ctx,
 						func() error {
 							err := i.deadLetterPublisher.Publish(ctx, payload, meta)
 							if err == nil {
-								published = true
+								deadLettered = true
 							}
 							return err
 						},
@@ -342,15 +342,18 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 							time.Sleep(wait)
 						},
 					)
-					if published {
+					if deadLettered {
 						i.metrics.RecordPulsarMessageDeadLettered()
 					}
 				},
 			)
-			if !succeeded && (ctx.Err() != nil || dropped) {
+			if !succeeded && !deadLettered && (ctx.Err() != nil || dropped) {
 				// Either ctx was cancelled (e.g. ingester shutdown) while retrying, or attempts
 				// were exhausted with no dead-letter topic configured; the message is left
-				// unacked for redelivery rather than dropped.
+				// unacked for redelivery rather than dropped. If the message was successfully
+				// dead-lettered, it must still be acked below even if ctx was cancelled
+				// immediately afterwards, otherwise it is redelivered and dead-lettered again
+				// on restart.
 				break loop
 			}
 			taken := time.Since(start)
