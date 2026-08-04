@@ -194,24 +194,30 @@ func (p *PodIssueHandler) DetectAndRegisterDeleteActionIssue(pod *v1.Pod) (bool,
 	if !util.IsManagedPod(pod) || pod.Status.Phase != v1.PodFailed {
 		return false, nil
 	}
-	classification := p.classifier.ClassifyContainerError(pod)
-	if classification.Action != categorizer.PodFailureActionDelete {
-		return false, nil
-	}
 	podEvents, err := p.clusterContext.GetPodEvents(pod)
 	if err != nil {
-		// The debug message is best effort, the delete-first ordering is not.
-		// Register without the events rather than let the caller report the
-		// failure while the pod still holds its name.
+		// The events feed the debug message and the onPodEvents rules. Both
+		// are best effort. The delete-first ordering is not. If the fetch
+		// fails, classify and register without the events. The caller must
+		// not report the failure while the pod still holds its name.
 		log.Warnf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
 		podEvents = nil
+	}
+	// Classify with the extracted failure reason and the pod events. This
+	// lets onPodError and onPodEvents rules match pods that never started a
+	// container, for example kubelet admission rejections. Such pods have no
+	// exit codes and no termination messages.
+	failedReason := util.ExtractPodFailedReason(pod)
+	classification := p.classifier.ClassifyPodError(pod, failedReason, podEvents)
+	if classification.Action != categorizer.PodFailureActionDelete {
+		return false, nil
 	}
 	return p.registerIssue(&runIssue{
 		JobId: util.ExtractJobId(pod),
 		RunId: util.ExtractJobRunId(pod),
 		PodIssue: &podIssue{
 			OriginalPodState: pod.DeepCopy(),
-			Message:          util.ExtractPodFailedReason(pod),
+			Message:          failedReason,
 			DebugMessage:     reporter.CreateDebugMessage(podEvents),
 			Retryable:        false,
 			Type:             DeleteActionFailure,
@@ -465,7 +471,7 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 			failureCategory, failureSubcategory = errormatch.CategoryInternal, sub
 			message = podIssue.Message
 		} else {
-			result := p.classifier.ClassifyPodError(podIssue.OriginalPodState, podIssue.Message)
+			result := p.classifier.ClassifyPodError(podIssue.OriginalPodState, podIssue.Message, nil)
 			failureCategory, failureSubcategory = result.Category, result.Subcategory
 			message = result.AppendHint(podIssue.Message)
 		}
@@ -633,7 +639,7 @@ func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 		// When we have our own internal state - we don't need to wait for the pod deletion to complete
 		// We can just mark is to delete in our state and return the lease
 		jobRunAttempted := issue.RunIssue.PodIssue.Type != UnableToSchedule
-		result := p.classifier.ClassifyPodError(issue.RunIssue.PodIssue.OriginalPodState, issue.RunIssue.PodIssue.Message)
+		result := p.classifier.ClassifyPodError(issue.RunIssue.PodIssue.OriginalPodState, issue.RunIssue.PodIssue.Message, nil)
 
 		returnLeaseEvent, err := reporter.CreateReturnLeaseEvent(
 			issue.RunIssue.PodIssue.OriginalPodState,
