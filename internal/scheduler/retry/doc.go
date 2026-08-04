@@ -8,13 +8,13 @@
 // on a subcategory that narrows the match. The first rule that matches wins.
 // If no rule matches, the policy's default action applies.
 //
-// Engine.Evaluate makes the decision. It is a pure function of the compiled
-// policy, the run error, and the job's failure counts; its doc comment
-// defines the check order and the exact limit semantics.
+// [Engine.Evaluate] makes the decision. It is a pure function of the
+// compiled policy, the run error, and the job's failure counts. Its doc
+// comment defines the check order and the exact limit semantics.
 //
-// ConvertPolicy compiles api.RetryPolicy protos into the Policy type the
-// engine evaluates. ApiPolicyCache keeps the compiled policies in memory,
-// refreshed from the Armada API, and NoopPolicyCache stands in when the
+// [ConvertPolicy] compiles api.RetryPolicy protos into the [Policy] type the
+// engine evaluates. [ApiPolicyCache] keeps the compiled policies in memory,
+// refreshed from the Armada API, and [NoopPolicyCache] stands in when the
 // retry policy feature is disabled.
 //
 // A Retry rule can carry a Mutation that changes the job when that rule
