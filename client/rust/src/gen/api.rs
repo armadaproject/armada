@@ -412,7 +412,7 @@ pub struct RetryPolicy {
     #[prost(message, repeated, tag = "4")]
     pub rules: ::prost::alloc::vec::Vec<RetryRule>,
 }
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RetryRule {
     #[prost(enumeration = "RetryAction", tag = "1")]
     pub action: i32,
@@ -422,6 +422,52 @@ pub struct RetryRule {
     pub on_category: ::prost::alloc::string::String,
     #[prost(string, tag = "6")]
     pub on_subcategory: ::prost::alloc::string::String,
+    /// mutate describes changes applied to the job when this rule retries it.
+    /// Only meaningful when action is Retry.
+    #[prost(message, optional, tag = "7")]
+    pub mutate: ::core::option::Option<RetryMutation>,
+}
+/// RetryMutation groups the changes applied to a job on a policy-driven retry.
+/// Fields are additive: new mutation kinds get new fields over time.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RetryMutation {
+    /// affinity changes where the retry is allowed to run.
+    #[prost(message, optional, tag = "1")]
+    pub affinity: ::core::option::Option<RetryAffinityMutation>,
+    /// resources bumps the retried job's resource requirements. If the bumped
+    /// job no longer fits any node, the job fails terminally.
+    #[prost(message, optional, tag = "2")]
+    pub resources: ::core::option::Option<RetryResourceMutation>,
+}
+/// RetryAffinityMutation groups placement changes applied to a retried job.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RetryAffinityMutation {
+    /// avoid_same_node, when true, steers the retry away from every node a
+    /// previous run attempted. This matches the lease-return retry behaviour:
+    /// the job fails if the anti-affinity makes it unschedulable. Default
+    /// false: the retry requeues without the per-job scheduling probe.
+    #[prost(bool, tag = "1")]
+    pub avoid_same_node: bool,
+}
+/// RetryResourceMutation groups per-resource bumps applied to a retried job.
+/// New resources get new fields over time.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RetryResourceMutation {
+    #[prost(message, optional, tag = "1")]
+    pub memory: ::core::option::Option<RetryResourceBump>,
+}
+/// RetryResourceBump grows one resource on retry. Set exactly one field.
+/// The bump changes requests and limits together, and it compounds across
+/// retries: each retry grows the amount the previous retry produced.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RetryResourceBump {
+    /// static adds a fixed amount, as a Kubernetes quantity, e.g. "512Mi".
+    #[prost(string, tag = "1")]
+    pub r#static: ::prost::alloc::string::String,
+    /// factor multiplies the current amount. 1.1 means a 10% increase.
+    /// Must be greater than 1.0 when set.
+    #[prost(double, tag = "2")]
+    pub factor: f64,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RetryPolicyGetRequest {

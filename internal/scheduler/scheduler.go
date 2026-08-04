@@ -831,6 +831,10 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 									return &t
 								}),
 								Annotations: getGangNodeUniformityAnnotations(jctx),
+								// The scheduler serves a mutated job's lease with a rewritten pod
+								// spec: the original submit message plus the job's total resource
+								// growth. The executor receives the finished spec.
+								ResourceMutations: internaltypes.RetryResourceMutationsToProto(job.JobSchedulingInfo().ResourceMutations),
 							},
 							Pool: run.Pool(),
 						},
