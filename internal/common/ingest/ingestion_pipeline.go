@@ -328,7 +328,7 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 					}
 					dlqBackoff := i.newBackOff()
 					util.RetryUntilSuccess(
-						armadacontext.Background(),
+						ctx,
 						func() error { return i.deadLetterPublisher.Publish(ctx, payload, meta) },
 						func(err error) {
 							wait := dlqBackoff.NextBackOff()
