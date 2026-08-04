@@ -310,7 +310,6 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 							i.pulsarTopic, i.deadLetterMaxAttempts(), len(msg.GetMessageIDs()), msg.GetMessageIDs())
 						return
 					}
-					i.metrics.RecordPulsarMessageDeadLettered()
 					log.WithError(lastErr).Warnf("%s - Exhausted %d attempts inserting %d messages (ids: %v); publishing to dead-letter topic",
 						i.pulsarTopic, i.deadLetterMaxAttempts(), len(msg.GetMessageIDs()), msg.GetMessageIDs())
 					payload, err := i.sink.Serialize(msg)
@@ -327,15 +326,25 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 						MessageIDs:    pulsarutils.MessageIdsToStrings(msg.GetMessageIDs()),
 					}
 					dlqBackoff := i.newBackOff()
+					published := false
 					util.RetryUntilSuccess(
 						ctx,
-						func() error { return i.deadLetterPublisher.Publish(ctx, payload, meta) },
+						func() error {
+							err := i.deadLetterPublisher.Publish(ctx, payload, meta)
+							if err == nil {
+								published = true
+							}
+							return err
+						},
 						func(err error) {
 							wait := dlqBackoff.NextBackOff()
 							log.WithError(err).Warnf("%s - Dead-letter publish failed; backing off for %s", i.pulsarTopic, wait)
 							time.Sleep(wait)
 						},
 					)
+					if published {
+						i.metrics.RecordPulsarMessageDeadLettered()
+					}
 				},
 			)
 			if !succeeded && (ctx.Err() != nil || dropped) {
