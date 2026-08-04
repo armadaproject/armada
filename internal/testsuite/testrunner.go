@@ -20,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/testsuite/eventlogger"
 	"github.com/armadaproject/armada/internal/testsuite/eventsplitter"
 	"github.com/armadaproject/armada/internal/testsuite/eventwatcher"
+	"github.com/armadaproject/armada/internal/testsuite/queue"
 	"github.com/armadaproject/armada/internal/testsuite/submitter"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
@@ -78,6 +79,31 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		ctx, cancel = context.WithCancel(ctx)
 	}
 	defer cancel()
+
+	// Create and (optionally) update the queue(s) under test.
+	queueNames, err := queue.RunSetup(ctx, srv.testSpec, srv.apiConnectionDetails, out)
+	if err != nil {
+		return err
+	}
+	if err = queue.RunUpdate(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out); err != nil {
+		return err
+	}
+
+	// (deferred): always delete the queue(s) once the test finishes.
+	defer func() {
+		if teardownErr := queue.RunTeardown(queueNames, srv.testSpec, srv.apiConnectionDetails, out); teardownErr != nil {
+			fmt.Fprintf(out, "warning: queue teardown failed: %s\n", teardownErr)
+			if err == nil {
+				err = teardownErr
+			}
+		}
+	}()
+
+	// Pure queue tests submit no jobs, so skip the job-submission block below and
+	// go straight to the queue assertions.
+	if len(srv.testSpec.Jobs) == 0 && srv.testSpec.NumBatches == 0 {
+		return queue.RunAssertions(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out)
+	}
 
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, ctx := errgroup.WithContext(ctx)
@@ -201,7 +227,8 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		}
 	}
 
-	return nil
+	// Assert queue state now that the jobs have finished. (used for GetActiveQueues)
+	return queue.RunAssertions(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out)
 }
 
 // triggerEventExtractor resolves testSpec.TriggerEvent to an extractor function.

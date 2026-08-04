@@ -71,6 +71,8 @@ message TestSpec {
     // If unset, defaults to running for prempt, reprioritized and node-scoped actions
     // and queued for cancel via the submit API, matching prior behavior.
     string trigger_event = 20;
+    // Optional queue lifecycle phases.
+    QueueConfig queue_config = 21;
     // Job-set-scoped cancel operation. Groups the JobSetCancelRequest with test-specific
     // options instead of the top-level action/selection combination.
     CancelSetConfig cancel_set = 22;
@@ -96,4 +98,44 @@ message NodePreemptConfig {
     NodePreemptRequest request = 1;
     // value of the armadaproject.io/node-pool label used to resolve the target node at runtime
     string node_pool_tag = 2;
+}
+
+// Queue lifecycle configuration for a test.
+message QueueConfig {
+    QueueSetup setup = 1;
+    repeated QueueAssertion assertions = 2;
+    Queue update = 4;
+}
+
+// Queue setup to run before job submission. If present, the queue named by TestSpec.queue
+// is created before running the test.
+message QueueSetup {
+    // Number of batches of queues to create.
+    // If 0, defaults to 1.
+    uint32 num_batches = 5;
+    // Number of queues to create per batch.
+    // If 0, defaults to 1.
+    uint32 batch_size = 6;
+    // Time between batches.
+    // If 0, queues are created as quickly as possible.
+    google.protobuf.Duration interval = 7;
+    // Queue to create, as a template. Allows creating queues with a non-default priority factor,
+    // permissions, labels, etc. (anything on api.Queue) in a single test.
+    Queue queue_spec = 8;
+}
+
+// A single assertion to run against queue state after jobs finish.
+message QueueAssertion {
+    // If non-empty, assert that TestSpec.queue appears in GetActiveQueues for this pool name.
+    string active_in_pool = 1;
+    // If true, assert that TestSpec.queue appears in the GetQueues streaming response.
+    bool appears_in_stream = 2;
+    // If set, fetch TestSpec.queue via GetQueue and assert that its properties match this
+    // template (name is ignored; compares priority_factor, user_owners, group_owners,
+    // permissions, cordoned, labels, and resource_limits_by_priority_class_name).
+    // Useful for verifying that a QueueUpdate was actually applied.
+    Queue matches = 3;
+    // If true, after the queue(s) are deleted at the end of the test, assert that GetQueue on
+    // the deleted queue(s) returns NOT_FOUND.
+    bool deleted = 4;
 }
