@@ -27,7 +27,7 @@ jobs:
               cpu: 100m
 ---
 cancelSet:
-  request: {}
+  request:
 timeout: "100s"
 expectedEvents:
   - submitted:
