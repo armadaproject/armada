@@ -1,13 +1,16 @@
 package store
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/eventingester/model"
 )
@@ -43,6 +46,35 @@ func TestReportEvents(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, update.Events[1].Event, read2)
 		}
+	})
+}
+
+func TestSerialize(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+	withRedisEventStore(ctx, func(r *RedisEventStore) {
+		update := &model.BatchUpdate{
+			Events: []*model.Event{
+				{Queue: "testQueue", Jobset: "testJobset", Event: []byte{1}},
+			},
+			MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1), pulsarutils.NewMessageId(2)},
+		}
+
+		bytes, err := r.Serialize(update)
+		assert.NoError(t, err)
+
+		var decoded struct {
+			MessageIds []string
+			Events     []*model.Event
+		}
+		err = json.Unmarshal(bytes, &decoded)
+		assert.NoError(t, err)
+
+		assert.Equal(t, []string{
+			pulsarutils.NewMessageId(1).String(),
+			pulsarutils.NewMessageId(2).String(),
+		}, decoded.MessageIds)
+		assert.Equal(t, update.Events, decoded.Events)
 	})
 }
 

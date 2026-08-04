@@ -2,7 +2,6 @@ package eventingester
 
 import (
 	"regexp"
-	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
@@ -73,7 +72,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		dbNames = append(dbNames, "replica")
 	}
 
-	eventDb := store.NewRedisEventStore(dbs, dbNames, config.EventRetentionPolicy, fatalRegexes, 100*time.Millisecond, 60*time.Second)
+	eventDb := store.NewRedisEventStore(dbs, dbNames, config.EventRetentionPolicy, fatalRegexes)
 
 	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
 

@@ -3624,8 +3624,6 @@ func TestCycleConsistency(t *testing.T) {
 					schedulerDb := scheduleringester.NewSchedulerDb(
 						db,
 						nil,
-						time.Second,
-						time.Second,
 						10*time.Second,
 					)
 

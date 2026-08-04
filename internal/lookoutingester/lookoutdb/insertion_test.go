@@ -239,7 +239,7 @@ var expectedJobRunAfterUpdate = JobRunRow{
 
 func TestCreateJobsBatch(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 		// Insert
 		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -268,7 +268,7 @@ func TestCreateJobsBatch(t *testing.T) {
 
 func TestUpdateJobsBatch(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 		// Insert
 		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -303,7 +303,7 @@ func TestUpdateJobsBatch(t *testing.T) {
 
 func TestUpdateJobsScalar(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 		// Insert
 		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -442,7 +442,7 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 			LatestRunId:               pointer.String(RunId),
 		}}
 
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 
 		// Insert
 		err := ldb.CreateJobs(armadacontext.Background(), initial)
@@ -475,7 +475,7 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 
 func TestCreateJobsScalar(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 		// Simple create
 		err := ldb.CreateJobsScalar(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.NoError(t, err)
@@ -505,7 +505,7 @@ func TestCreateJobsScalar(t *testing.T) {
 
 func TestCreateJobRunsBatch(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 		// Need to make sure we have a job, so we can satisfy PK
 		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -538,7 +538,7 @@ func TestCreateJobRunsBatch(t *testing.T) {
 
 func TestCreateJobRunsScalar(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 		// Need to make sure we have a job, so we can satisfy PK
 		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -572,7 +572,7 @@ func TestCreateJobRunsScalar(t *testing.T) {
 
 func TestUpdateJobRunsBatch(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 		// Need to make sure we have a job and run
 		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -611,7 +611,7 @@ func TestUpdateJobRunsBatch(t *testing.T) {
 
 func TestUpdateJobRunsScalar(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 		// Need to make sure we have a job and run
 		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -650,7 +650,7 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 
 func TestCreateJobErrorsBatch(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 
 		// Insert
 		err := ldb.CreateJobErrorsBatch(armadacontext.Background(), defaultInstructionSet().JobErrorsToCreate)
@@ -688,7 +688,7 @@ func TestCreateJobErrorsBatch(t *testing.T) {
 
 func TestCreateJobErrorsScalar(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 
 		// Insert
 		err := ldb.CreateJobErrorsScalar(armadacontext.Background(), defaultInstructionSet().JobErrorsToCreate)
@@ -708,7 +708,7 @@ func TestCreateJobErrorsScalar(t *testing.T) {
 
 func TestStoreWithEmptyInstructionSet(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 		err := ldb.Store(armadacontext.Background(), &model.InstructionSet{
 			MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 		})
@@ -728,7 +728,7 @@ func TestStoreWithEmptyInstructionSet(t *testing.T) {
 // messages and they are re-processed on the next run.
 func TestStoreReturnsErrorOnContextCancellation(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 		ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
 		cancel()
 		err := ldb.Store(ctx, defaultInstructionSet())
@@ -745,7 +745,7 @@ func TestStoreReturnsErrorOnContextCancellation(t *testing.T) {
 // cancellation and allowing the pipeline to ack messages whose DB writes never succeeded.
 func TestScalarMethodsReturnErrorOnContextCancellation(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 		ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
 		cancel()
 
@@ -762,7 +762,7 @@ func TestScalarMethodsReturnErrorOnContextCancellation(t *testing.T) {
 
 func TestStore(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 		// Do the update
 		err := ldb.Store(armadacontext.Background(), defaultInstructionSet())
 		assert.NoError(t, err)
@@ -780,7 +780,7 @@ func TestStore(t *testing.T) {
 // ensure executor update doesn't write over scheduler termination reason update
 func TestSchedulerTerminationReasonNotOverwritten(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 
 		err := ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -970,7 +970,7 @@ func TestStoreNullValue(t *testing.T) {
 		instructions.JobRunsToUpdate[0].Error = errorMsg
 		instructions.JobRunsToUpdate[0].Debug = debugMsg
 
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 		// Do the update
 		err := ldb.Store(armadacontext.Background(), instructions)
 		assert.NoError(t, err)
@@ -988,7 +988,7 @@ func TestStoreNullValue(t *testing.T) {
 
 func TestStoreEventsForAlreadyTerminalJobs(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 
 		baseInstructions := &model.InstructionSet{
 			JobsToCreate: []*model.CreateJobInstruction{
@@ -1039,7 +1039,7 @@ func TestStoreEventsForAlreadyTerminalJobs(t *testing.T) {
 }
 
 func TestRecordTerminalStateUpdates(t *testing.T) {
-	ldb := NewLookoutDb(nil, fatalErrors, m, 10, 10)
+	ldb := NewLookoutDb(nil, fatalErrors, m)
 
 	instructions := []*model.UpdateJobInstruction{
 		{JobId: "job1", State: pointer.Int32(lookout.JobSucceededOrdinal)},
@@ -1056,10 +1056,35 @@ func TestRecordTerminalStateUpdates(t *testing.T) {
 }
 
 func TestRecordTerminalStateUpdates_Empty(t *testing.T) {
-	ldb := NewLookoutDb(nil, fatalErrors, m, 10, 10)
+	ldb := NewLookoutDb(nil, fatalErrors, m)
 	// Neither nil nor empty should panic
 	ldb.recordStateUpdates(nil)
 	ldb.recordStateUpdates([]*model.UpdateJobInstruction{})
+}
+
+func TestSerialize(t *testing.T) {
+	ldb := NewLookoutDb(nil, fatalErrors, m)
+	instructionSet := &model.InstructionSet{
+		JobsToCreate: []*model.CreateJobInstruction{makeCreateJobInstruction(JobId)},
+		MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1), pulsarutils.NewMessageId(2)},
+	}
+
+	bytes, err := ldb.Serialize(instructionSet)
+	assert.NoError(t, err)
+
+	var decoded struct {
+		JobsToCreate []*model.CreateJobInstruction
+		MessageIds   []string
+	}
+	err = json.Unmarshal(bytes, &decoded)
+	assert.NoError(t, err)
+
+	assert.Equal(t, []string{
+		pulsarutils.NewMessageId(1).String(),
+		pulsarutils.NewMessageId(2).String(),
+	}, decoded.MessageIds)
+	assert.Len(t, decoded.JobsToCreate, 1)
+	assert.Equal(t, JobId, decoded.JobsToCreate[0].JobId)
 }
 
 func makeCreateJobInstruction(jobId string) *model.CreateJobInstruction {

@@ -1,6 +1,7 @@
 package scheduleringester
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -12,8 +13,8 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
-	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/slices"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -28,56 +29,177 @@ const (
 // SchedulerDb writes DbOperations into postgres.
 type SchedulerDb struct {
 	// Connection to the postgres database.
-	db             *pgxpool.Pool
-	metrics        *metrics.Metrics
-	initialBackOff time.Duration
-	maxBackOff     time.Duration
-	lockTimeout    time.Duration
+	db          *pgxpool.Pool
+	metrics     *metrics.Metrics
+	lockTimeout time.Duration
 }
 
 func NewSchedulerDb(
 	db *pgxpool.Pool,
 	metrics *metrics.Metrics,
-	initialBackOff time.Duration,
-	maxBackOff time.Duration,
 	lockTimeout time.Duration,
 ) *SchedulerDb {
 	return &SchedulerDb{
-		db:             db,
-		metrics:        metrics,
-		initialBackOff: initialBackOff,
-		maxBackOff:     maxBackOff,
-		lockTimeout:    lockTimeout,
+		db:          db,
+		metrics:     metrics,
+		lockTimeout: lockTimeout,
 	}
 }
 
 // Store persists all operations in the database.
-// This function retires until it either succeeds or encounters a terminal error.
 // This function locks the postgres table to avoid write conflicts; see acquireLock() for details.
 func (s *SchedulerDb) Store(ctx *armadacontext.Context, instructions *DbOperationsWithMessageIds) error {
-	return ingest.WithRetry(func() (bool, error) {
-		err := pgx.BeginTxFunc(ctx, s.db, pgx.TxOptions{
-			IsoLevel:       pgx.ReadCommitted,
-			AccessMode:     pgx.ReadWrite,
-			DeferrableMode: pgx.Deferrable,
-		}, func(tx pgx.Tx) error {
-			lockCtx, cancel := armadacontext.WithTimeout(ctx, s.lockTimeout)
-			defer cancel()
-			if scope, err := getLockKey(instructions.Ops); err == nil {
-				// The lock is released automatically on transaction rollback/commit.
-				if err := s.acquireLock(lockCtx, tx, scope); err != nil {
-					return err
-				}
+	return pgx.BeginTxFunc(ctx, s.db, pgx.TxOptions{
+		IsoLevel:       pgx.ReadCommitted,
+		AccessMode:     pgx.ReadWrite,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		lockCtx, cancel := armadacontext.WithTimeout(ctx, s.lockTimeout)
+		defer cancel()
+		if scope, err := getLockKey(instructions.Ops); err == nil {
+			// The lock is released automatically on transaction rollback/commit.
+			if err := s.acquireLock(lockCtx, tx, scope); err != nil {
+				return err
 			}
-			for _, dbOp := range instructions.Ops {
-				if err := s.WriteDbOp(ctx, tx, dbOp); err != nil {
-					return err
-				}
+		}
+		for _, dbOp := range instructions.Ops {
+			if err := s.WriteDbOp(ctx, tx, dbOp); err != nil {
+				return err
 			}
-			return nil
-		})
-		return true, err
-	}, s.initialBackOff, s.maxBackOff)
+		}
+		return nil
+	})
+}
+
+// Serialize renders instructions as JSON for the dead-letter topic. Each op is rendered as its
+// concrete type name plus its data, since DbOperation is an interface and would otherwise
+// serialize to an uninformative "{}". This payload is for inspection/manual-replay purposes,
+// not automatic round-tripping.
+func (s *SchedulerDb) Serialize(instructions *DbOperationsWithMessageIds) ([]byte, error) {
+	type serializedOp struct {
+		Type string
+		Data any
+	}
+	ops := make([]serializedOp, len(instructions.Ops))
+	for i, op := range instructions.Ops {
+		ops[i] = serializedOp{
+			Type: fmt.Sprintf("%T", op),
+			Data: serializeDbOperation(op),
+		}
+	}
+	return json.Marshal(struct {
+		Ops        []serializedOp
+		MessageIds []string
+	}{
+		Ops:        ops,
+		MessageIds: pulsarutils.MessageIdsToStrings(instructions.MessageIds),
+	})
+}
+
+func serializeDbOperation(op DbOperation) any {
+	switch o := op.(type) {
+	case InsertJobs:
+		return o
+	case InsertRuns:
+		return o
+	case UpdateJobSetPriorities:
+		return jobSetKeyMapToPairs(o)
+	case MarkJobSetsCancelRequested:
+		return struct {
+			CancelUser   string
+			CancelReason string
+			JobSets      []jobSetKeyPair[*JobSetCancelAction]
+		}{o.cancelUser, o.cancelReason, jobSetKeyMapToPairs(o.jobSets)}
+	case MarkJobsCancelRequested:
+		return struct {
+			CancelUser   string
+			CancelReason string
+			JobIds       []jobSetKeyPair[[]string]
+		}{o.cancelUser, o.cancelReason, jobSetKeyMapToPairs(o.jobIds)}
+	case MarkJobsCancelled:
+		return o
+	case MarkJobsSucceeded:
+		return o
+	case MarkJobsFailed:
+		return o
+	case UpdateJobSchedulingInfo:
+		return o
+	case UpdateJobQueuedState:
+		return o
+	case MarkRunsSucceeded:
+		return o
+	case MarkRunsFailed:
+		return o
+	case MarkRunsForJobPreemptRequested:
+		return jobSetKeyMapToPairs(o)
+	case MarkRunsRunning:
+		return o
+	case MarkRunsPending:
+		return o
+	case MarkRunsPreempted:
+		return o
+	case InsertJobRunErrors:
+		return o
+	case *UpdateJobPriorities:
+		return struct {
+			Key    JobReprioritiseKey
+			JobIds []string
+		}{o.key, o.jobIds}
+	case MarkJobsValidated:
+		return o
+	case *InsertPartitionMarker:
+		return struct {
+			Markers []*schedulerdb.Marker
+		}{o.markers}
+	case UpsertExecutorSettings:
+		return o
+	case DeleteExecutorSettings:
+		return o
+	case PreemptExecutor:
+		return o
+	case CancelExecutor:
+		return o
+	case PreemptNode:
+		return nodeOnExecutorMapToPairs(o)
+	case CancelNode:
+		return nodeOnExecutorMapToPairs(o)
+	case PreemptQueue:
+		return o
+	case CancelQueue:
+		return o
+	default:
+		return fmt.Sprintf("%+v", op)
+	}
+}
+
+type jobSetKeyPair[V any] struct {
+	Key   JobSetKey
+	Value V
+}
+
+// jobSetKeyMapToPairs converts a map keyed by JobSetKey (a struct, and so not directly
+// JSON-marshalable as an object key) into a slice of key/value pairs.
+func jobSetKeyMapToPairs[V any](m map[JobSetKey]V) []jobSetKeyPair[V] {
+	pairs := make([]jobSetKeyPair[V], 0, len(m))
+	for k, v := range m {
+		pairs = append(pairs, jobSetKeyPair[V]{Key: k, Value: v})
+	}
+	return pairs
+}
+
+type nodeOnExecutorPair[V any] struct {
+	Key   NodeOnExecutor
+	Value V
+}
+
+// nodeOnExecutorMapToPairs converts a map keyed by NodeOnExecutor (a struct, and so not
+// directly JSON-marshalable as an object key) into a slice of key/value pairs.
+func nodeOnExecutorMapToPairs[V any](m map[NodeOnExecutor]V) []nodeOnExecutorPair[V] {
+	pairs := make([]nodeOnExecutorPair[V], 0, len(m))
+	for k, v := range m {
+		pairs = append(pairs, nodeOnExecutorPair[V]{Key: k, Value: v})
+	}
+	return pairs
 }
 
 // acquireLock acquires a postgres advisory lock, thus preventing concurrent writes.

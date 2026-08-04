@@ -37,6 +37,8 @@ type Metrics struct {
 	pulsarConnectionError              prometheus.Counter
 	pulsarMessageError                 *prometheus.CounterVec
 	pulsarMessagesProcessed            prometheus.Counter
+	pulsarMessageStoreRetries          prometheus.Counter
+	pulsarMessagesDeadLettered         prometheus.Counter
 	pulsarMessagePublishTime           *prometheus.GaugeVec
 	pulsarMessageProcessingDelay       *prometheus.GaugeVec
 	eventsProcessed                    *prometheus.CounterVec
@@ -64,6 +66,14 @@ func NewMetricsWithRegistry(prefix string, registerer prometheus.Registerer) *Me
 	pulsarMessagesProcessedOpts := prometheus.CounterOpts{
 		Name: prefix + "pulsar_messages_processed",
 		Help: "Number of pulsar messages processed",
+	}
+	pulsarMessageStoreRetriesOpts := prometheus.CounterOpts{
+		Name: prefix + "pulsar_message_store_retries",
+		Help: "Number of times a sink Store call failed and was retried before the batch was acked",
+	}
+	pulsarMessagesDeadLetteredOpts := prometheus.CounterOpts{
+		Name: prefix + "pulsar_messages_dead_lettered",
+		Help: "Number of message batches that exhausted retries and were published to the dead-letter topic",
 	}
 	pulsarMessagePublishTime := prometheus.GaugeOpts{
 		Name: prefix + "pulsar_message_publish_time",
@@ -94,6 +104,8 @@ func NewMetricsWithRegistry(prefix string, registerer prometheus.Registerer) *Me
 		pulsarMessageProcessingDelay:       factory.NewGaugeVec(pulsarMessageProcessingDelayOpts, []string{"subscription", "partition"}),
 		pulsarMessagePublishTime:           factory.NewGaugeVec(pulsarMessagePublishTime, []string{"subscription", "partition"}),
 		pulsarMessagesProcessed:            factory.NewCounter(pulsarMessagesProcessedOpts),
+		pulsarMessageStoreRetries:          factory.NewCounter(pulsarMessageStoreRetriesOpts),
+		pulsarMessagesDeadLettered:         factory.NewCounter(pulsarMessagesDeadLetteredOpts),
 		eventsProcessed:                    factory.NewCounterVec(eventsProcessedOpts, []string{"queue", "eventType", "msgType"}),
 		uncompressedEventBytesTotal:        factory.NewCounterVec(uncompressedEventBytesTotalOpts, []string{"queue", "event_type"}),
 		estimatedCompressedEventBytesTotal: factory.NewCounterVec(estimatedCompressedEventBytesTotalOpts, []string{"queue", "event_type"}),
@@ -114,6 +126,14 @@ func (m *Metrics) RecordPulsarConnectionError() {
 
 func (m *Metrics) RecordPulsarMessageProcessed() {
 	m.pulsarMessagesProcessed.Inc()
+}
+
+func (m *Metrics) RecordPulsarMessageStoreRetry() {
+	m.pulsarMessageStoreRetries.Inc()
+}
+
+func (m *Metrics) RecordPulsarMessageDeadLettered() {
+	m.pulsarMessagesDeadLettered.Inc()
 }
 
 func (m *Metrics) RecordPulsarMessagePublishTime(subscriptionName string, partition int, publishTime time.Time) {

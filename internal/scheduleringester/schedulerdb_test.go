@@ -1178,7 +1178,7 @@ func TestStore(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	defer cancel()
 	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
-		schedulerDb := NewSchedulerDb(db, metrics.NewMetrics("test"), time.Second, time.Second, 10*time.Second)
+		schedulerDb := NewSchedulerDb(db, metrics.NewMetrics("test"), 10*time.Second)
 		err := schedulerDb.Store(ctx, &DbOperationsWithMessageIds{Ops: ops})
 		require.NoError(t, err)
 
