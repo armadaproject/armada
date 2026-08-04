@@ -14,10 +14,20 @@ pulsar:
   jobsetEventsTopic: "events"
   controlPlaneEventsTopic: "control-plane"
   backoffTime: 1s
+  maxBackoffTime: 30s
+  backoffRandomizationFactor: 0.5
+  backoffMultiplier: 1.5
   receiverQueueSize: 100
+  deadLetterTopic: scheduler-events-dead-letter
+  deadLetterMaxAttempts: 5
   delayMonitor:
     enabled: false
     interval: 30s
+# deadLetterMaxAttemptsOverride and maxBackoffTimeOverride let this ingester diverge from
+# pulsar.deadLetterMaxAttempts/pulsar.maxBackoffTime above without affecting the event/lookout
+# ingesters, which share the same pulsar config block. Unset (0) means "use the value above".
+# deadLetterMaxAttemptsOverride: 10
+# maxBackoffTimeOverride: 60s
 subscriptionName: "scheduler-ingester"
 batchSize: 10000
 batchDuration: 500ms

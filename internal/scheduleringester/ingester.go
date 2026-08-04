@@ -33,6 +33,8 @@ func Run(config Configuration) error {
 	}
 	schedulerDb := NewSchedulerDb(db, svcMetrics, 5*time.Second)
 
+	pulsarConfig := config.effectivePulsarConfig()
+
 	jobSetEventsConverter, err := NewJobSetEventsInstructionConverter(svcMetrics)
 	if err != nil {
 		return err
@@ -49,8 +51,8 @@ func Run(config Configuration) error {
 	defer shutdownMetricServer()
 
 	jobSetEventsIngester := ingest.NewIngestionPipeline[*DbOperationsWithMessageIds, *armadaevents.EventSequence](
-		config.Pulsar,
-		config.Pulsar.JobsetEventsTopic,
+		pulsarConfig,
+		pulsarConfig.JobsetEventsTopic,
 		config.SubscriptionName,
 		config.BatchSize,
 		config.BatchDuration,
@@ -70,8 +72,8 @@ func Run(config Configuration) error {
 	}
 
 	controlPlaneEventsIngester := ingest.NewIngestionPipeline[*DbOperationsWithMessageIds, *controlplaneevents.Event](
-		config.Pulsar,
-		config.Pulsar.ControlPlaneEventsTopic,
+		pulsarConfig,
+		pulsarConfig.ControlPlaneEventsTopic,
 		config.SubscriptionName,
 		config.BatchSize,
 		config.BatchDuration,

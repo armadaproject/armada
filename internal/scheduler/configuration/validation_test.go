@@ -212,7 +212,8 @@ func createValidMinimalConfig() Configuration {
 			Mode: "local",
 		},
 		Pulsar: commonconfig.PulsarConfig{
-			URL: "pulsar",
+			URL:                   "pulsar",
+			DeadLetterMaxAttempts: 1,
 		},
 	}
 }
