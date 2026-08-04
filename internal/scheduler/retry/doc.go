@@ -16,4 +16,10 @@
 // engine evaluates. ApiPolicyCache keeps the compiled policies in memory,
 // refreshed from the Armada API, and NoopPolicyCache stands in when the
 // retry policy feature is disabled.
+//
+// A Retry rule can carry a Mutation that changes the job when that rule
+// retries it. AffinityMutation steers the retry away from every node a
+// previous run attempted. ResourceMutation grows the job's memory, by a
+// factor or by a static amount. The engine only reports the matched rule's
+// Mutation on its Result; the scheduler applies it.
 package retry

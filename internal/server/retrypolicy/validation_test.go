@@ -15,6 +15,50 @@ func TestValidatePolicy(t *testing.T) {
 		policy  *api.RetryPolicy
 		wantErr string // empty means the policy is expected to validate
 	}{
+		"memory bump with both static and factor rejected": {
+			policy:  policyWithMemoryBump(&api.RetryResourceBump{Static: "1Gi", Factor: 2}),
+			wantErr: "exactly one of static and factor",
+		},
+		"memory bump with neither static nor factor rejected": {
+			policy:  policyWithMemoryBump(&api.RetryResourceBump{}),
+			wantErr: "exactly one of static and factor",
+		},
+		"memory bump factor at or below one rejected": {
+			policy:  policyWithMemoryBump(&api.RetryResourceBump{Factor: 1.0}),
+			wantErr: "greater than 1.0",
+		},
+		"memory bump with invalid static quantity rejected": {
+			policy:  policyWithMemoryBump(&api.RetryResourceBump{Static: "many"}),
+			wantErr: "invalid static quantity",
+		},
+		"memory bump with negative static rejected": {
+			policy:  policyWithMemoryBump(&api.RetryResourceBump{Static: "-1Gi"}),
+			wantErr: "must be positive",
+		},
+		"valid memory bumps accepted": {
+			policy: &api.RetryPolicy{
+				Name:          "good-bumps",
+				DefaultAction: api.RetryAction_RETRY_ACTION_FAIL,
+				Rules: []*api.RetryRule{
+					{
+						Action:     api.RetryAction_RETRY_ACTION_RETRY,
+						OnCategory: "oom",
+						Mutate: &api.RetryMutation{
+							Affinity:  &api.RetryAffinityMutation{AvoidSameNode: true},
+							Resources: &api.RetryResourceMutation{Memory: &api.RetryResourceBump{Factor: 1.25}},
+						},
+					},
+					{
+						Action:        api.RetryAction_RETRY_ACTION_RETRY,
+						OnCategory:    "oom",
+						OnSubcategory: "small",
+						Mutate: &api.RetryMutation{
+							Resources: &api.RetryResourceMutation{Memory: &api.RetryResourceBump{Static: "256Mi"}},
+						},
+					},
+				},
+			},
+		},
 		"nil policy": {
 			policy:  nil,
 			wantErr: "must not be nil",
@@ -121,5 +165,21 @@ func TestValidatePolicy(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.wantErr)
 		})
+	}
+}
+
+// policyWithMemoryBump builds a single-rule policy whose only interesting part
+// is the memory bump under test.
+func policyWithMemoryBump(bump *api.RetryResourceBump) *api.RetryPolicy {
+	return &api.RetryPolicy{
+		Name:          "memory-bump",
+		DefaultAction: api.RetryAction_RETRY_ACTION_RETRY,
+		Rules: []*api.RetryRule{{
+			Action:     api.RetryAction_RETRY_ACTION_RETRY,
+			OnCategory: "oom",
+			Mutate: &api.RetryMutation{
+				Resources: &api.RetryResourceMutation{Memory: bump},
+			},
+		}},
 	}
 }
