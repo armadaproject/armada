@@ -38,7 +38,7 @@ func TestSuite() error {
 	timeTakenTestSuite := time.Now()
 
 	suites := []string{
-		"basic", "categorization", "preemption", "reprioritization",
+		"basic", "categorization", "preemption", "reprioritization", "queue",
 		"testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
 		"testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
 	}
