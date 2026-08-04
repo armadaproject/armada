@@ -1270,7 +1270,7 @@ func (l *LookoutDb) withDatabaseRetryInsert(ctx *armadacontext.Context, executeD
 
 // Executes a database function once. Retry-then-dead-letter policy is owned by the
 // IngestionPipeline ack-path (see internal/common/ingest). Errors classified as
-// non-retryable are wrapped with util.NewNonRetryableError so that ack-path skips
+// non-retryable are wrapped with util.ErrNonRetryable so that ack-path skips
 // straight to dead-lettering instead of exhausting its retry budget first.
 func (l *LookoutDb) withDatabaseRetryQuery(ctx *armadacontext.Context, executeDb func() (interface{}, error)) (interface{}, error) {
 	res, err := executeDb()
@@ -1284,7 +1284,7 @@ func (l *LookoutDb) withDatabaseRetryQuery(ctx *armadacontext.Context, executeDb
 
 	if !armadaerrors.IsRetryablePostgresError(err, l.fatalErrors) {
 		log.WithError(err).Warnf("Non-retryable error encountered executing sql; returning immediately")
-		return nil, util.NewNonRetryableError(err)
+		return nil, fmt.Errorf("%w: %w", util.ErrNonRetryable, err)
 	}
 	return nil, err
 }

@@ -5,6 +5,6 @@
 // on error; retry-then-dead-letter policy is owned by the shared
 // [ingest.IngestionPipeline.Run] ack-path. Errors classified as
 // non-retryable by isRetryableRedisError are wrapped with
-// [util.NewNonRetryableError] so the ack-path dead-letters immediately
+// [util.ErrNonRetryable] so the ack-path dead-letters immediately
 // instead of exhausting its retry budget first.
 package store

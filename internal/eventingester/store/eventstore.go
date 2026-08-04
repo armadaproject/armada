@@ -111,7 +111,7 @@ func (repo *RedisEventStore) doStore(ctx *armadacontext.Context, update []*model
 		if err := repo.writeToRedis(ctx, db, data, uniqueJobSets, repo.dbNames[i]); err != nil {
 			if !repo.isRetryableRedisError(err) {
 				log.WithError(err).Warnf("Non-retryable error writing to redis %s; returning immediately", repo.dbNames[i])
-				return util.NewNonRetryableError(fmt.Errorf("error with redis %s: %v", repo.dbNames[i], err))
+				return fmt.Errorf("%w: error with redis %s: %v", util.ErrNonRetryable, repo.dbNames[i], err)
 			}
 			return fmt.Errorf("error with redis %s: %v", repo.dbNames[i], err)
 		}
