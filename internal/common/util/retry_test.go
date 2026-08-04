@@ -1,6 +1,7 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -169,7 +170,7 @@ func TestRetryUntilSuccessOrExhausted_NonRetryableShortCircuits(t *testing.T) {
 	defer cancel()
 
 	dummyErr := fmt.Errorf("dummy error")
-	nonRetryableErr := NewNonRetryableError(dummyErr)
+	nonRetryableErr := fmt.Errorf("%w: %w", ErrNonRetryable, dummyErr)
 	errorCount := 0
 	var exhaustedErr error
 
@@ -193,7 +194,7 @@ func TestRetryUntilSuccessOrExhausted_NonRetryableAfterSomeRetries(t *testing.T)
 	defer cancel()
 
 	retryableErr := fmt.Errorf("retryable error")
-	nonRetryableErr := NewNonRetryableError(fmt.Errorf("non-retryable error"))
+	nonRetryableErr := fmt.Errorf("%w: %w", ErrNonRetryable, fmt.Errorf("non-retryable error"))
 
 	ch := make(chan error, 3)
 	ch <- retryableErr
@@ -219,18 +220,10 @@ func TestRetryUntilSuccessOrExhausted_NonRetryableAfterSomeRetries(t *testing.T)
 }
 
 func TestIsNonRetryable(t *testing.T) {
-	assert.False(t, IsNonRetryable(nil))
-	assert.False(t, IsNonRetryable(fmt.Errorf("plain error")))
-	assert.True(t, IsNonRetryable(NewNonRetryableError(fmt.Errorf("wrapped error"))))
-	assert.True(t, IsNonRetryable(fmt.Errorf("outer: %w", NewNonRetryableError(fmt.Errorf("inner")))))
-}
-
-func TestNewNonRetryableError_NilCauseDoesNotPanic(t *testing.T) {
-	err := NewNonRetryableError(nil)
-
-	assert.NotPanics(t, func() {
-		_ = err.Error()
-	})
+	assert.False(t, errors.Is(nil, ErrNonRetryable))
+	assert.False(t, errors.Is(fmt.Errorf("plain error"), ErrNonRetryable))
+	assert.True(t, errors.Is(fmt.Errorf("%w: %w", ErrNonRetryable, fmt.Errorf("wrapped error")), ErrNonRetryable))
+	assert.True(t, errors.Is(fmt.Errorf("outer: %w", fmt.Errorf("%w: %w", ErrNonRetryable, fmt.Errorf("inner"))), ErrNonRetryable))
 }
 
 func TestRetryUntilSuccessOrExhausted_NonPositiveMaxAttempts(t *testing.T) {

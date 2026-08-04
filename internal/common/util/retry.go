@@ -7,32 +7,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
-// NonRetryableError wraps an error to signal that it should not be retried, even if
-// remaining attempts are available. Sinks can wrap errors with this to short-circuit
-// RetryUntilSuccessOrExhausted straight to onExhausted.
-type NonRetryableError struct {
-	err error
-}
-
-func NewNonRetryableError(err error) *NonRetryableError {
-	if err == nil {
-		err = errors.New("non-retryable error")
-	}
-	return &NonRetryableError{err: err}
-}
-
-func (e *NonRetryableError) Error() string {
-	return e.err.Error()
-}
-
-func (e *NonRetryableError) Unwrap() error {
-	return e.err
-}
-
-func IsNonRetryable(err error) bool {
-	var nonRetryable *NonRetryableError
-	return errors.As(err, &nonRetryable)
-}
+// ErrNonRetryable signals that an error should not be retried, even if remaining
+// attempts are available. Sinks can wrap errors with fmt.Errorf("%w: %w", ErrNonRetryable, err)
+// to short-circuit RetryUntilSuccessOrExhausted straight to onExhausted.
+var ErrNonRetryable = errors.New("non-retryable error")
 
 func RetryUntilSuccess(ctx *armadacontext.Context, performAction func() error, onError func(error)) {
 	for {
@@ -55,7 +33,7 @@ func RetryUntilSuccess(ctx *armadacontext.Context, performAction func() error, o
 // instead of continuing. Returns true on eventual success, false otherwise.
 // onExhausted is NOT called if ctx is cancelled first (shutdown case) - callers
 // must distinguish "gave up due to shutdown" from "exhausted attempts" via ctx.Err().
-// If performAction returns an error wrapped with NewNonRetryableError, remaining
+// If performAction returns an error wrapping ErrNonRetryable, remaining
 // attempts are skipped and onExhausted is called immediately with that error.
 // If maxAttempts is non-positive, performAction is never called and onExhausted
 // is called with a placeholder error describing this.
@@ -78,7 +56,7 @@ attempts:
 				return true
 			}
 			lastErr = err
-			if IsNonRetryable(err) {
+			if errors.Is(err, ErrNonRetryable) {
 				break attempts
 			}
 			onError(attempt, err)
