@@ -21,7 +21,6 @@ import (
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi"
 	"github.com/armadaproject/armada/internal/lookout/pruner"
 	lookoutschema "github.com/armadaproject/armada/internal/lookout/schema"
-	lookouthcschema "github.com/armadaproject/armada/internal/lookouthc/schema"
 	armada_config "github.com/armadaproject/armada/internal/server/configuration"
 )
 
@@ -83,12 +82,6 @@ func migrate(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 	if err != nil {
 		panic(err)
 	}
-
-	if config.ExperimentalHotColdSplit {
-		if err := lookouthcschema.ApplyPartitioner(ctx, db); err != nil {
-			panic(err)
-		}
-	}
 }
 
 func prune(ctx *armadacontext.Context, config configuration.LookoutConfig) {
@@ -130,7 +123,6 @@ func prune(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 		zombieRepairThreshold,
 		config.PrunerConfig.BatchSize,
 		clock.RealClock{},
-		config.ExperimentalHotColdSplit,
 	)
 	if err != nil {
 		panic(err)

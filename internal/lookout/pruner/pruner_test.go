@@ -35,8 +35,8 @@ func TestPruneDb(t *testing.T) {
 		expireAfter          time.Duration
 		jobs                 []testJob
 		jobIdsLeft           []string
-		activeJobIdsLeft     []string // HC only: when non-nil, assert job_active contains exactly these
-		terminatedJobIdsLeft []string // HC only: when non-nil, assert job_terminated contains exactly these
+		activeJobIdsLeft     []string // when non-nil, assert job_active contains exactly these
+		terminatedJobIdsLeft []string // when non-nil, assert job_terminated contains exactly these
 		jobErrorIdsLeft      []string // when non-nil, assert job_error contains exactly these
 	}
 
@@ -221,8 +221,7 @@ func TestPruneDb(t *testing.T) {
 
 				dbConn, err := db.Acquire(ctx)
 				assert.NoError(t, err)
-				isHC := isHotColdSchema(ctx, db)
-				err = PruneDb(ctx, dbConn.Conn(), tc.expireAfter, 0, 0, 10, clock.NewFakeClock(baseTime), isHC)
+				err = PruneDb(ctx, dbConn.Conn(), tc.expireAfter, 0, 0, 10, clock.NewFakeClock(baseTime))
 				assert.NoError(t, err)
 
 				queriedJobIdsPerTable := []map[string]bool{
@@ -238,13 +237,11 @@ func TestPruneDb(t *testing.T) {
 					}
 				}
 
-				if isHC {
-					if tc.activeJobIdsLeft != nil {
-						assertJobIds(t, db, "SELECT job_id FROM job_active", tc.activeJobIdsLeft)
-					}
-					if tc.terminatedJobIdsLeft != nil {
-						assertJobIds(t, db, "SELECT job_id FROM job_terminated", tc.terminatedJobIdsLeft)
-					}
+				if tc.activeJobIdsLeft != nil {
+					assertJobIds(t, db, "SELECT job_id FROM job_active", tc.activeJobIdsLeft)
+				}
+				if tc.terminatedJobIdsLeft != nil {
+					assertJobIds(t, db, "SELECT job_id FROM job_terminated", tc.terminatedJobIdsLeft)
 				}
 				if tc.jobErrorIdsLeft != nil {
 					assertJobIds(t, db, "SELECT job_id FROM job_error", tc.jobErrorIdsLeft)
@@ -300,16 +297,6 @@ func storeJob(job testJob, db *lookoutdb.LookoutDb, converter *instructions.Inst
 	default:
 		panic(fmt.Sprintf("job state %s not supported", job.state))
 	}
-}
-
-func isHotColdSchema(ctx *armadacontext.Context, db *pgxpool.Pool) bool {
-	var exists bool
-	err := db.QueryRow(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM information_schema.tables
-			WHERE table_name = 'job_active'
-		)`).Scan(&exists)
-	return err == nil && exists
 }
 
 func assertJobIds(t *testing.T, db *pgxpool.Pool, query string, expected []string) {

@@ -15,7 +15,6 @@ postgres:
     password: psw
     dbname: lookouthc
     sslmode: disable
-experimentalHotColdSplit: true
 uiConfig:
   backend: "jsonb"
   armadaApiBaseUrl: "http://localhost:8081"

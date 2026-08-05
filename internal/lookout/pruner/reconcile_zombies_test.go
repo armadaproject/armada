@@ -293,8 +293,7 @@ func TestPruneDbRunsZombieReconciliation(t *testing.T) {
 		dbConn, err := db.Acquire(ctx)
 		require.NoError(t, err)
 
-		isHC := isHotColdSchema(ctx, db)
-		err = PruneDb(ctx, dbConn.Conn(), 100*time.Hour, 100*time.Hour, 1*time.Hour, 10, clock.NewFakeClock(baseTime), isHC)
+		err = PruneDb(ctx, dbConn.Conn(), 100*time.Hour, 100*time.Hour, 1*time.Hour, 10, clock.NewFakeClock(baseTime))
 		require.NoError(t, err)
 
 		assert.Equal(t, lookout.JobSucceeded, readJobState(t, ctx, db, zombie.jobId))

@@ -11,27 +11,11 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	lookoutschema "github.com/armadaproject/armada/internal/lookout/schema"
-	lookouthcschema "github.com/armadaproject/armada/internal/lookouthc/schema"
 	"github.com/armadaproject/armada/internal/lookoutingester/model"
 )
-
-func withLookoutHCDb(action func(db *pgxpool.Pool) error) error {
-	migrations, err := lookoutschema.LookoutMigrations()
-	if err != nil {
-		return err
-	}
-	return database.WithTestDb(migrations, func(db *pgxpool.Pool) error {
-		if err := lookouthcschema.ApplyPartitioner(armadacontext.Background(), db); err != nil {
-			return err
-		}
-		return action(db)
-	})
-}
 
 func countInPartition(t *testing.T, db *pgxpool.Pool, partition, jobId string) int {
 	t.Helper()
@@ -45,8 +29,8 @@ func countInPartition(t *testing.T, db *pgxpool.Pool, partition, jobId string) i
 	return count
 }
 
-func TestHotCold_StoreRoutesTerminalJobToTerminatedPartition(t *testing.T) {
-	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
+func TestPartitioning_StoreRoutesTerminalJobToTerminatedPartition(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
 
 		createInstructions := &model.InstructionSet{
@@ -101,8 +85,8 @@ func TestHotCold_StoreRoutesTerminalJobToTerminatedPartition(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestHotCold_StoreKeepsRunningJobInActivePartition(t *testing.T) {
-	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
+func TestPartitioning_StoreKeepsRunningJobInActivePartition(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
 
 		instructions := &model.InstructionSet{
@@ -127,8 +111,8 @@ func TestHotCold_StoreKeepsRunningJobInActivePartition(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestHotCold_MultipleJobsDistributedAcrossPartitions(t *testing.T) {
-	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
+func TestPartitioning_MultipleJobsDistributedAcrossPartitions(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
 
 		activeIds := []string{"job-active-1", "job-active-2"}
@@ -197,8 +181,8 @@ func TestHotCold_MultipleJobsDistributedAcrossPartitions(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestHotCold_FailedJobStoresErrorAndRoutesToTerminatedPartition(t *testing.T) {
-	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
+func TestPartitioning_FailedJobStoresErrorAndRoutesToTerminatedPartition(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
 
 		instructions := &model.InstructionSet{
@@ -227,8 +211,8 @@ func TestHotCold_FailedJobStoresErrorAndRoutesToTerminatedPartition(t *testing.T
 	require.NoError(t, err)
 }
 
-func TestHotCold_ParentJobTableReturnsAllJobs(t *testing.T) {
-	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
+func TestPartitioning_ParentJobTableReturnsAllJobs(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
 
 		createInstructions := []*model.CreateJobInstruction{
@@ -285,8 +269,8 @@ func TestHotCold_ParentJobTableReturnsAllJobs(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestHotCold_TerminalStateQueryPrunesActivePartition(t *testing.T) {
-	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
+func TestPartitioning_TerminalStateQueryPrunesActivePartition(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
 
 		require.NoError(t, ldb.Store(armadacontext.Background(), &model.InstructionSet{
@@ -326,8 +310,8 @@ func TestHotCold_TerminalStateQueryPrunesActivePartition(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestHotCold_ConflatedTerminalUpdatesProduceSingleTerminatedRow(t *testing.T) {
-	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
+func TestPartitioning_ConflatedTerminalUpdatesProduceSingleTerminatedRow(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
 
 		require.NoError(t, ldb.Store(armadacontext.Background(), &model.InstructionSet{
@@ -381,14 +365,15 @@ func TestHotCold_ConflatedTerminalUpdatesProduceSingleTerminatedRow(t *testing.T
 	require.NoError(t, err)
 }
 
-// TestHotCold_CreateSuppressedWhenJobExistsInOtherPartition guards against the
-// cross-partition duplicate that caused job_terminated_pkey violations: a
-// create must not add a second row when a row for the same job_id already
-// exists in a different partition. Without the WHERE NOT EXISTS guard in
-// CreateJobs, the untargeted ON CONFLICT DO NOTHING only checks the destination
-// (active) partition and would insert a duplicate routed there.
-func TestHotCold_CreateSuppressedWhenJobExistsInOtherPartition(t *testing.T) {
-	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
+// TestPartitioning_CreateSuppressedWhenJobExistsInOtherPartition guards
+// against the cross-partition duplicate that caused job_terminated_pkey
+// violations: a create must not add a second row when a row for the same
+// job_id already exists in a different partition. Without the WHERE NOT
+// EXISTS guard in CreateJobs, the untargeted ON CONFLICT DO NOTHING only
+// checks the destination (active) partition and would insert a duplicate
+// routed there.
+func TestPartitioning_CreateSuppressedWhenJobExistsInOtherPartition(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
 
 		// A row for the job already exists in job_terminated (e.g. from an
@@ -417,12 +402,12 @@ func TestHotCold_CreateSuppressedWhenJobExistsInOtherPartition(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestHotCold_CreateSuppressedWhenJobExistsInSamePartition covers the
+// TestPartitioning_CreateSuppressedWhenJobExistsInSamePartition covers the
 // same-partition variant of the duplicate bug: a create routed to job_active
 // must be suppressed when another active-state row for the same job_id already
 // exists there (e.g. a Queued create arriving after a Leased row is present).
-func TestHotCold_CreateSuppressedWhenJobExistsInSamePartition(t *testing.T) {
-	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
+func TestPartitioning_CreateSuppressedWhenJobExistsInSamePartition(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
 
 		// An active-state row (Leased) already exists in job_active.
