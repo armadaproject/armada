@@ -1089,6 +1089,45 @@ func TestQueueCandidateGangIteratorPQ_Fallback(t *testing.T) {
 	assert.Equal(t, expectedOrder, pq.items)
 }
 
+func TestQueueCandidateGangIteratorPQ_Ordering_SchedulingPriority(t *testing.T) {
+	queueA := &QueueCandidateGangIteratorItem{
+		queue:                 "A",
+		schedulingPriority:    29000,
+		priorityClassPriority: 30000,
+	}
+	queueB := &QueueCandidateGangIteratorItem{
+		queue:                 "B",
+		schedulingPriority:    30000,
+		priorityClassPriority: 30000,
+	}
+
+	tests := map[string]struct {
+		shouldCompareSchedulingPriority bool
+		expectedOrder                   []*QueueCandidateGangIteratorItem
+	}{
+		"compares scheduling priority": {
+			shouldCompareSchedulingPriority: true,
+			expectedOrder:                   []*QueueCandidateGangIteratorItem{queueB, queueA},
+		},
+		"ignores scheduling priority": {
+			shouldCompareSchedulingPriority: false,
+			expectedOrder:                   []*QueueCandidateGangIteratorItem{queueA, queueB},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			pq := &QueueCandidateGangIteratorPQ{
+				prioritiseLargerJobs:      true,
+				compareSchedulingPriority: tc.shouldCompareSchedulingPriority,
+				items:                     []*QueueCandidateGangIteratorItem{queueA, queueB},
+			}
+
+			sort.Sort(pq)
+			assert.Equal(t, tc.expectedOrder, pq.items)
+		})
+	}
+}
+
 type timeoutTestSetup struct {
 	config      configuration.SchedulingConfig
 	nodeDb      *nodedb.NodeDb
