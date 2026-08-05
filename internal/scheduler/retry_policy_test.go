@@ -155,19 +155,20 @@ func makeRetryJob(t *testing.T, sched *Scheduler, opts jobRunOpts) *jobdb.Job {
 	return job
 }
 
-// runFailurePath drives generateUpdateMessagesFromJob for a single job through
-// the standard {"testQueue":"test-policy"} mapping and returns the emitted
-// events plus the open write txn (the caller must defer txn.Abort()).
+// runFailurePath drives generateUpdateMessages for a single job through the
+// standard {"testQueue":"test-policy"} mapping. It returns the emitted events
+// and the open write txn (the caller must defer txn.Abort()). It calls the
+// batch entry point, so the tests cover the planning pass and its probes.
 func runFailurePath(t *testing.T, sched *Scheduler, job *jobdb.Job, runErr *armadaevents.Error) (*armadaevents.EventSequence, *jobdb.Txn) {
 	t.Helper()
 	txn := sched.jobDb.WriteTxn()
 	require.NoError(t, txn.Upsert([]*jobdb.Job{job}))
 	jobErrors := map[string]*armadaevents.Error{job.LatestRun().Id(): runErr}
 	queueRetryPolicies := map[string]string{"testQueue": "test-policy"}
-	events, err := sched.generateUpdateMessagesFromJob(armadacontext.Background(), job, jobErrors, queueRetryPolicies, txn)
+	eventSequences, err := sched.generateUpdateMessages(armadacontext.Background(), txn, []*jobdb.Job{job}, jobErrors, queueRetryPolicies)
 	require.NoError(t, err)
-	require.NotNil(t, events)
-	return events, txn
+	require.Len(t, eventSequences, 1)
+	return eventSequences[0], txn
 }
 
 // runLeaseExpiryPath drives expireJobsIfNecessary for a single job whose
@@ -181,7 +182,7 @@ func runLeaseExpiryPath(t *testing.T, sched *Scheduler, job *jobdb.Job) ([]*arma
 	}
 	txn := sched.jobDb.WriteTxn()
 	require.NoError(t, txn.Upsert([]*jobdb.Job{job}))
-	eventSequences, err := sched.expireJobsIfNecessary(armadacontext.Background(), txn)
+	eventSequences, err := sched.expireJobsIfNecessary(armadacontext.Background(), txn, map[string]string{"testQueue": "test-policy"})
 	require.NoError(t, err)
 	return eventSequences, txn
 }
@@ -658,6 +659,55 @@ func TestRetryPolicy_FFOn_MemoryBumpGrowsRequeuedJob(t *testing.T) {
 	}
 }
 
+func TestRetryPolicy_FFOn_ProbesRunAsRoundBatches(t *testing.T) {
+	tests := map[string]struct {
+		mutate             *api.RetryMutation
+		expectedCheckCalls int
+	}{
+		"memory bump probes once for the whole round": {
+			mutate:             &api.RetryMutation{Resources: &api.RetryResourceMutation{Memory: &api.RetryResourceBump{Factor: 1.5}}},
+			expectedCheckCalls: 1,
+		},
+		"memory bump and avoidSameNode probe twice for the whole round": {
+			mutate: &api.RetryMutation{
+				Resources: &api.RetryResourceMutation{Memory: &api.RetryResourceBump{Factor: 1.5}},
+				Affinity:  &api.RetryAffinityMutation{AvoidSameNode: true},
+			},
+			expectedCheckCalls: 2,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			policy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{
+				Action:     api.RetryAction_RETRY_ACTION_RETRY,
+				OnCategory: "app-error",
+				Mutate:     tc.mutate,
+			})
+			sched := makeRetryTestScheduler(t, true, fakePolicyCache{"test-policy": policy})
+			checker := &testSubmitChecker{checkSuccess: true}
+			sched.submitChecker = checker
+
+			txn := sched.jobDb.WriteTxn()
+			defer txn.Abort()
+			jobs := make([]*jobdb.Job, 3)
+			jobErrors := map[string]*armadaevents.Error{}
+			for i := range jobs {
+				jobs[i] = makeRetryJob(t, sched, jobRunOpts{schedulingInfo: memorySchedulingInfoFixture(), failedRuns: 1, runAttempted: true})
+				jobErrors[jobs[i].LatestRun().Id()] = categorizedError("app-error")
+			}
+			require.NoError(t, txn.Upsert(jobs))
+
+			eventSequences, err := sched.generateUpdateMessages(armadacontext.Background(), txn, jobs, jobErrors, map[string]string{"testQueue": "test-policy"})
+			require.NoError(t, err)
+			require.Len(t, eventSequences, 3)
+			for _, es := range eventSequences {
+				assert.True(t, hasRequeued(es.Events), "every granted retry must requeue")
+			}
+			assert.Equal(t, tc.expectedCheckCalls, checker.checkCalls, "probes must run per round, not per job")
+		})
+	}
+}
+
 func TestRetryPolicy_FFOn_MemoryBumpFailsWhenUnschedulable(t *testing.T) {
 	policy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{
 		Action:     api.RetryAction_RETRY_ACTION_RETRY,
@@ -788,7 +838,7 @@ func TestRetryPolicy_FFOff_FailedRunIdentity(t *testing.T) {
 	runError := containerErrorWithExitCode(42)
 	jobErrors := map[string]*armadaevents.Error{job.LatestRun().Id(): runError}
 
-	events, err := sched.generateUpdateMessagesFromJob(armadacontext.Background(), job, jobErrors, nil, txn)
+	events, err := sched.generateUpdateMessagesFromJob(armadacontext.Background(), job, jobErrors, nil, nil, txn)
 	require.NoError(t, err)
 	require.NotNil(t, events)
 
@@ -826,7 +876,7 @@ func TestRetryPolicy_FFOff_ApiPreemptionIdentity(t *testing.T) {
 	defer txn.Abort()
 	require.NoError(t, txn.Upsert([]*jobdb.Job{job}))
 
-	events, err := sched.generateUpdateMessagesFromJob(armadacontext.Background(), job, nil, nil, txn)
+	events, err := sched.generateUpdateMessagesFromJob(armadacontext.Background(), job, nil, nil, nil, txn)
 	require.NoError(t, err)
 	require.NotNil(t, events)
 
