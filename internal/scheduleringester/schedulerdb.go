@@ -84,7 +84,7 @@ func (s *SchedulerDb) Serialize(instructions *DbOperationsWithMessageIds) ([]byt
 	for i, op := range instructions.Ops {
 		ops[i] = serializedOp{
 			Type: fmt.Sprintf("%T", op),
-			Data: serializeDbOperation(op),
+			Data: op.SerializeForDLQ(),
 		}
 	}
 	return json.Marshal(struct {
@@ -94,82 +94,6 @@ func (s *SchedulerDb) Serialize(instructions *DbOperationsWithMessageIds) ([]byt
 		Ops:        ops,
 		MessageIds: pulsarutils.MessageIdsToStrings(instructions.MessageIds),
 	})
-}
-
-func serializeDbOperation(op DbOperation) any {
-	switch o := op.(type) {
-	case InsertJobs:
-		return o
-	case InsertRuns:
-		return o
-	case UpdateJobSetPriorities:
-		return jobSetKeyMapToPairs(o)
-	case MarkJobSetsCancelRequested:
-		return struct {
-			CancelUser   string
-			CancelReason string
-			JobSets      []jobSetKeyPair[*JobSetCancelAction]
-		}{o.cancelUser, o.cancelReason, jobSetKeyMapToPairs(o.jobSets)}
-	case MarkJobsCancelRequested:
-		return struct {
-			CancelUser   string
-			CancelReason string
-			JobIds       []jobSetKeyPair[[]string]
-		}{o.cancelUser, o.cancelReason, jobSetKeyMapToPairs(o.jobIds)}
-	case MarkJobsCancelled:
-		return o
-	case MarkJobsSucceeded:
-		return o
-	case MarkJobsFailed:
-		return o
-	case UpdateJobSchedulingInfo:
-		return o
-	case UpdateJobQueuedState:
-		return o
-	case MarkRunsSucceeded:
-		return o
-	case MarkRunsFailed:
-		return o
-	case MarkRunsForJobPreemptRequested:
-		return jobSetKeyMapToPairs(o)
-	case MarkRunsRunning:
-		return o
-	case MarkRunsPending:
-		return o
-	case MarkRunsPreempted:
-		return o
-	case InsertJobRunErrors:
-		return o
-	case *UpdateJobPriorities:
-		return struct {
-			Key    JobReprioritiseKey
-			JobIds []string
-		}{o.key, o.jobIds}
-	case MarkJobsValidated:
-		return o
-	case *InsertPartitionMarker:
-		return struct {
-			Markers []*schedulerdb.Marker
-		}{o.markers}
-	case UpsertExecutorSettings:
-		return o
-	case DeleteExecutorSettings:
-		return o
-	case PreemptExecutor:
-		return o
-	case CancelExecutor:
-		return o
-	case PreemptNode:
-		return nodeOnExecutorMapToPairs(o)
-	case CancelNode:
-		return nodeOnExecutorMapToPairs(o)
-	case PreemptQueue:
-		return o
-	case CancelQueue:
-		return o
-	default:
-		return fmt.Sprintf("%+v", op)
-	}
 }
 
 type jobSetKeyPair[V any] struct {

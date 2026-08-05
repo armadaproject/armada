@@ -64,31 +64,29 @@ func allDbOperations() map[string]DbOperation {
 }
 
 // TestAllDbOperationsCovered guards against allDbOperations silently going stale: it fails if
-// the number of concrete types it constructs no longer matches the number of case branches in
-// serializeDbOperation's type switch, which would happen if a DbOperation type were added to
-// dbops.go without also being added here and to the switch.
+// the number of concrete types it constructs no longer matches the number of DbOperation
+// implementations, which would happen if a DbOperation type were added to dbops.go without
+// also being added here.
 func TestAllDbOperationsCovered(t *testing.T) {
 	assert.Len(t, allDbOperations(), 28)
 }
 
-// TestSerializeDbOperation_NeverFallsThrough asserts that serializeDbOperation has an explicit
-// case for every current concrete DbOperation type, i.e. it never falls through to the
-// default branch (which is reserved for DbOperation types added in future without a
-// corresponding case).
-func TestSerializeDbOperation_NeverFallsThrough(t *testing.T) {
+// TestSerializeForDLQ_NeverEmpty asserts that every current concrete DbOperation type's
+// SerializeForDLQ implementation produces non-empty JSON output.
+func TestSerializeForDLQ_NeverEmpty(t *testing.T) {
 	for name, op := range allDbOperations() {
 		t.Run(name, func(t *testing.T) {
-			data := serializeDbOperation(op)
+			data := op.SerializeForDLQ()
 			bytes, err := json.Marshal(data)
 			assert.NoError(t, err)
-			assert.NotEqual(t, "{}", string(bytes), "serializeDbOperation fell through to default for %s", name)
+			assert.NotEqual(t, "{}", string(bytes), "SerializeForDLQ produced empty output for %s", name)
 		})
 	}
 }
 
 // TestSerialize_UnexportedFieldsSurface confirms that DbOperation types whose data lives in
 // unexported struct fields (and so does not appear in the source struct's JSON output) is
-// nonetheless surfaced by serializeDbOperation.
+// nonetheless surfaced by SerializeForDLQ.
 func TestSerialize_UnexportedFieldsSurface(t *testing.T) {
 	db := &SchedulerDb{}
 
