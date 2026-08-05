@@ -70,8 +70,6 @@ message TestSpec {
     string trigger_event = 20;
     // Cancel jobs by id/ids
     JobCancelConfig cancel = 21;
-    // Cancel jobs by job set
-    JobSetCancelConfig cancel_job_set = 22;
     // Preempt jobs by id/ids
     JobPreemptConfig preempt = 23;
     // Reprioritize jobs by id/ids/job set
@@ -79,19 +77,9 @@ message TestSpec {
     SelectionType selection = 17 [deprecated = true]; // Use cancel, cancel_job_set, preempt, or reprioritize instead
     // Optional queue lifecycle phases.
     QueueConfig queue_config = 25;
-    // Job-set-scoped cancel operation. Groups the JobSetCancelRequest with test-specific
+    // Cancel jobs by job set. Groups the JobSetCancelRequest with test-specific
     // options instead of the top-level action/selection combination.
-    CancelSetConfig cancel_set = 26;
-}
-
-message CancelSetConfig {
-    // The api request itself. Queue and job_set_id are injected from the top-level
-    // TestSpec at runtime, so a test only needs to set request-specific extras (e.g. filter).
-    JobSetCancelRequest request = 1;
-    // If true, once all jobs in the set are terminal (the set has no active jobs) the job set
-    // is cancelled again; the test fails only if that cancel errors. Verifies that cancelling
-    // a job set with no active jobs is a successful no-op.
-    bool assert_inactive_succeeds = 2;
+    JobSetCancelConfig cancel_job_set = 26;
 }
 
 message NodeCancelConfig {
@@ -117,7 +105,13 @@ message JobCancelConfig {
 }
 
 message JobSetCancelConfig {
+    // The api request itself. Queue and job_set_id are injected from the top-level
+    // TestSpec at runtime, so a test only needs to set request-specific extras (e.g. filter).
     JobSetCancelRequest request = 1;
+    // If true, once all jobs in the set are terminal (the set has no active jobs) the job set
+    // is cancelled again; the test fails only if that cancel errors. Verifies that cancelling
+    // a job set with no active jobs is a successful no-op.
+    bool assert_inactive_succeeds = 2;
 }
 
 message JobReprioritizeConfig {

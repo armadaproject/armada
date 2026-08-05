@@ -165,7 +165,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Add action channel if cancel or preempt is configured and waits for all jobs to reach a trigger state before acting.
 	var actionCh chan *api.EventMessage
 	if srv.testSpec.Cancel != nil || srv.testSpec.CancelJobSet != nil || srv.testSpec.Preempt != nil ||
-		srv.testSpec.Reprioritize != nil || srv.testSpec.CancelSet != nil ||
+		srv.testSpec.Reprioritize != nil ||
 		srv.testSpec.CancelOnNode != nil || srv.testSpec.PreemptOnNode != nil {
 		actionCh = make(chan *api.EventMessage)
 		eventChannels = append(eventChannels, actionCh)
@@ -181,8 +181,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// If configured, cancel or preempt jobs once all reach the configured trigger event.
 	if srv.testSpec.CancelOnNode != nil || srv.testSpec.PreemptOnNode != nil ||
 		srv.testSpec.Cancel != nil || srv.testSpec.CancelJobSet != nil ||
-		srv.testSpec.Preempt != nil || srv.testSpec.Reprioritize != nil ||
-		srv.testSpec.CancelSet != nil {
+		srv.testSpec.Preempt != nil || srv.testSpec.Reprioritize != nil {
 		extractor, err := triggerEventExtractor(srv.testSpec)
 		if err != nil {
 			return err
@@ -221,7 +220,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// If configured, cancel the job set once it has no active jobs (all jobs terminal) and
 	// assert that cancel is a successful no-op. Runs only after AssertEvents confirmed every
 	// job reached a terminal state.
-	if srv.testSpec.CancelSet.GetAssertInactiveSucceeds() {
+	if srv.testSpec.CancelJobSet.GetAssertInactiveSucceeds() {
 		if err = cancelJobSet(srv.apiConnectionDetails, srv.testSpec.Queue, srv.testSpec.JobSetId); err != nil {
 			return errors.WithMessage(err, "cancel of job set with no active jobs returned an error")
 		}
@@ -234,7 +233,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 // triggerEventExtractor resolves testSpec.TriggerEvent to an extractor function.
 // If TriggerEvent is unset, falls back to the default behavior:
 //   - Running for PREEMPT/REPRIORITIZE and node-scoped operations (CancelOnNode/PreemptOnNode)
-//   - Queued for CANCEL via the submit API (BY_ID, BY_IDS, BY_SET, CancelSet), which works from any state.
+//   - Queued for CANCEL via the submit API (BY_ID, BY_IDS, BY_SET, CancelJobSet), which works from any state.
 func triggerEventExtractor(testSpec *api.TestSpec) (func(*api.EventMessage) string, error) {
 	extractor, ok := triggerEventExtractors[testSpec.TriggerEvent]
 	if !ok {
@@ -330,9 +329,9 @@ func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testS
 					time.Sleep(1 * time.Second)
 					var actionErr error
 					switch {
-					case testSpec.CancelSet != nil:
+					case testSpec.CancelJobSet != nil:
 						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-							req := testSpec.CancelSet.GetRequest()
+							req := testSpec.CancelJobSet.GetRequest()
 							if req == nil {
 								req = &api.JobSetCancelRequest{}
 							}
@@ -362,14 +361,6 @@ func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testS
 							req.JobSetId = testSpec.GetJobSetId()
 							req.JobIds = jobIds
 							_, err := sc.CancelJobs(ctx, req)
-							return errors.WithStack(err)
-						})
-					case testSpec.CancelJobSet != nil:
-						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-							req := testSpec.CancelJobSet.GetRequest()
-							req.Queue = testSpec.GetQueue()
-							req.JobSetId = testSpec.GetJobSetId()
-							_, err := sc.CancelJobSet(ctx, req)
 							return errors.WithStack(err)
 						})
 					case testSpec.Preempt != nil:
