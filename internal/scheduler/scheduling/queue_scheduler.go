@@ -732,6 +732,9 @@ func (pq *QueueCandidateGangIteratorPQ) Less(i, j int) bool {
 	item1 := pq.items[i]
 	item2 := pq.items[j]
 
+	// Consider priority first. schedulingPriority is the priority the gang was actually
+	// scheduled at, which is lower than its priority class for jobs scheduled away.
+	// priorityClassPriority is the static priority class value, ignoring where it ran.
 	if pq.compareSchedulingPriority {
 		if item1.schedulingPriority != item2.schedulingPriority {
 			return item1.schedulingPriority > item2.schedulingPriority
