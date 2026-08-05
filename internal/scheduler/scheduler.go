@@ -39,16 +39,6 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-// retryPolicyDecisionsCounter counts every retry engine verdict, labeled by
-// which gate produced it (see retry.Decision for the label values).
-var retryPolicyDecisionsCounter = promauto.NewCounterVec(
-	prometheus.CounterOpts{
-		Name: "armada_scheduler_retry_policy_decisions_total",
-		Help: "Retry policy engine decisions by policy and decision outcome.",
-	},
-	[]string{"policy", "decision"},
-)
-
 // retryPolicyGangSkippedCounter counts jobs skipped by the retry engine
 // because they belong to a gang. A job counts when a policy name resolved for
 // its queue, from an attached policy or the default, even when the cache does
@@ -1104,13 +1094,6 @@ func (s *Scheduler) evaluateRetryPolicy(
 	return result, policyName, true
 }
 
-// recordRetryDecision records the final outcome of an engine decision. The
-// callers record after the mutation gates, so a granted retry the scheduler
-// abandoned counts as what actually happened, not as a retry.
-func recordRetryDecision(policyName string, decision retry.Decision) {
-	retryPolicyDecisionsCounter.WithLabelValues(policyName, string(decision)).Inc()
-}
-
 // runErrorDetail renders the human-readable detail of a run error (the pod
 // message and per-container exit codes) so a policy-driven terminal failure
 // keeps the original cause instead of only the policy verdict. It returns an
@@ -1371,7 +1354,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			// Record the outcome after the mutation gates, so a granted retry
 			// the scheduler abandoned counts as what actually happened.
 			if engineDecided {
-				recordRetryDecision(enginePolicyName, engineResult.Decision)
+				s.metrics.ReportRetryPolicyDecision(job, enginePolicyName, string(engineResult.Decision))
 			}
 
 			if requeueJob {
@@ -1574,7 +1557,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 				if decided {
 					// The expiry path applies no mutations, so the verdict is
 					// the outcome.
-					recordRetryDecision(policyName, result.Decision)
+					s.metrics.ReportRetryPolicyDecision(jobWithFailedRun, policyName, string(result.Decision))
 				}
 				if decided && result.ShouldRetry {
 					ctx.Debugf("Requeueing job %s from lost executor %s per retry policy", job.Id(), run.Executor())
