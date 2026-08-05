@@ -266,7 +266,7 @@ func (l *LookoutDb) CreateJobErrors(ctx *armadacontext.Context, instructions []*
 }
 
 func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
-	return l.withDatabaseRetryInsert(ctx, func() error {
+	return l.executeDbInsert(ctx, func() error {
 		tmpTable := "job_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -441,7 +441,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		err := l.withDatabaseRetryInsert(ctx, func() error {
+		err := l.executeDbInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
 				i.Queue,
@@ -477,7 +477,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 }
 
 func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) error {
-	return l.withDatabaseRetryInsert(ctx, func() error {
+	return l.executeDbInsert(ctx, func() error {
 		tmpTable := "job_update_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -576,7 +576,7 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		err := l.withDatabaseRetryInsert(ctx, func() error {
+		err := l.executeDbInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
 				i.Priority,
@@ -604,7 +604,7 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 }
 
 func (l *LookoutDb) CreateJobSpecsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
-	return l.withDatabaseRetryInsert(ctx, func() error {
+	return l.executeDbInsert(ctx, func() error {
 		tmpTable := "job_spec_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -667,7 +667,7 @@ func (l *LookoutDb) CreateJobSpecsScalar(ctx *armadacontext.Context, instruction
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		err := l.withDatabaseRetryInsert(ctx, func() error {
+		err := l.executeDbInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
 				i.JobProto,
@@ -688,7 +688,7 @@ func (l *LookoutDb) CreateJobSpecsScalar(ctx *armadacontext.Context, instruction
 }
 
 func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) error {
-	return l.withDatabaseRetryInsert(ctx, func() error {
+	return l.executeDbInsert(ctx, func() error {
 		tmpTable := "job_run_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -783,7 +783,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		err := l.withDatabaseRetryInsert(ctx, func() error {
+		err := l.executeDbInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.RunId,
 				i.JobId,
@@ -811,7 +811,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 }
 
 func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) error {
-	return l.withDatabaseRetryInsert(ctx, func() error {
+	return l.executeDbInsert(ctx, func() error {
 		tmpTable := "job_run_update_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -925,7 +925,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		err := l.withDatabaseRetryInsert(ctx, func() error {
+		err := l.executeDbInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.RunId,
 				i.Node,
@@ -958,7 +958,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 
 func (l *LookoutDb) CreateJobErrorsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobErrorInstruction) error {
 	tmpTable := "job_error_create_tmp"
-	return l.withDatabaseRetryInsert(ctx, func() error {
+	return l.executeDbInsert(ctx, func() error {
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
 				CREATE TEMPORARY TABLE %s (
@@ -1014,7 +1014,7 @@ func (l *LookoutDb) CreateJobErrorsScalar(ctx *armadacontext.Context, instructio
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		err := l.withDatabaseRetryInsert(ctx, func() error {
+		err := l.executeDbInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
 				i.Error)
@@ -1198,7 +1198,7 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 		jobIds[i] = instruction.JobId
 	}
 	queryStart := time.Now()
-	rowsRaw, err := l.withDatabaseRetryQuery(ctx, func() (interface{}, error) {
+	rowsRaw, err := l.executeDbQuery(ctx, func() (interface{}, error) {
 		terminalStates := []int{
 			lookout.JobSucceededOrdinal,
 			lookout.JobFailedOrdinal,
@@ -1261,18 +1261,18 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 	}
 }
 
-func (l *LookoutDb) withDatabaseRetryInsert(ctx *armadacontext.Context, executeDb func() error) error {
-	_, err := l.withDatabaseRetryQuery(ctx, func() (interface{}, error) {
+func (l *LookoutDb) executeDbInsert(ctx *armadacontext.Context, executeDb func() error) error {
+	_, err := l.executeDbQuery(ctx, func() (interface{}, error) {
 		return nil, executeDb()
 	})
 	return err
 }
 
-// Executes a database function once. Retry-then-dead-letter policy is owned by the
+// executeDbQuery runs a database function once. Retry-then-dead-letter policy is owned by the
 // IngestionPipeline ack-path (see internal/common/ingest). Errors classified as
-// non-retryable are wrapped with util.ErrNonRetryable so that ack-path skips
+// non-retryable are wrapped with util.ErrNonRetryable so that the ack-path skips
 // straight to dead-lettering instead of exhausting its retry budget first.
-func (l *LookoutDb) withDatabaseRetryQuery(ctx *armadacontext.Context, executeDb func() (interface{}, error)) (interface{}, error) {
+func (l *LookoutDb) executeDbQuery(ctx *armadacontext.Context, executeDb func() (interface{}, error)) (interface{}, error) {
 	res, err := executeDb()
 	if err == nil {
 		return res, nil
