@@ -94,5 +94,11 @@ func (e *Engine) Evaluate(policy *Policy, runError *armadaevents.Error, counts C
 		}
 	}
 
-	return Result{ShouldRetry: true, Reason: reason, Decision: DecisionRetry}
+	// The retry carries the matched rule's mutation, if any. A default-action
+	// retry (no rule matched) applies no mutation.
+	mutation := Mutation{}
+	if matched != nil {
+		mutation = matched.Mutation
+	}
+	return Result{ShouldRetry: true, Reason: reason, Decision: DecisionRetry, Mutation: mutation}
 }

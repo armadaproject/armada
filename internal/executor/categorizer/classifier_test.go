@@ -18,10 +18,59 @@ func TestClassify(t *testing.T) {
 		config              ErrorCategoriesConfig
 		pod                 *v1.Pod
 		podErrorMessage     string
+		podEvents           []*v1.Event
 		expectedCategory    string
 		expectedSubcategory string
 		expectedAction      PodFailureAction
 	}{
+		"onPodEvents matches a warning event by message and type": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: "gpu_unavailable", Action: PodFailureActionDelete, Rules: []CategoryRule{
+					{OnPodEvents: &errormatch.PodEventMatcher{
+						Regexp: "Pod Allocate failed due to requested number of devices unavailable for nvidia.com/gpu.*",
+						Type:   v1.EventTypeWarning,
+					}, Subcategory: "device_plugin"},
+				}},
+			}},
+			pod: &v1.Pod{Status: v1.PodStatus{Phase: v1.PodFailed}},
+			podEvents: []*v1.Event{
+				{Type: v1.EventTypeNormal, Message: "Successfully assigned default/pod to node"},
+				{Type: v1.EventTypeWarning, Reason: "UnexpectedAdmissionError", Message: "Pod Allocate failed due to requested number of devices unavailable for nvidia.com/gpu. Requested: 1, Available: 0"},
+			},
+			expectedCategory:    "gpu_unavailable",
+			expectedSubcategory: "device_plugin",
+			expectedAction:      PodFailureActionDelete,
+		},
+		"onPodEvents reason filter rejects a different reason": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: "gpu_unavailable", Rules: []CategoryRule{
+					{OnPodEvents: &errormatch.PodEventMatcher{Regexp: ".*", Reason: "UnexpectedAdmissionError", Type: v1.EventTypeWarning}},
+				}},
+			}},
+			pod:              &v1.Pod{Status: v1.PodStatus{Phase: v1.PodFailed}},
+			podEvents:        []*v1.Event{{Type: v1.EventTypeWarning, Reason: "FailedScheduling", Message: "anything"}},
+			expectedCategory: "",
+		},
+		"onPodEvents does not match an event of a different type": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: "gpu_unavailable", Rules: []CategoryRule{
+					{OnPodEvents: &errormatch.PodEventMatcher{Regexp: ".*", Type: v1.EventTypeWarning}},
+				}},
+			}},
+			pod:              &v1.Pod{Status: v1.PodStatus{Phase: v1.PodFailed}},
+			podEvents:        []*v1.Event{{Type: v1.EventTypeNormal, Message: "anything"}},
+			expectedCategory: "",
+		},
+		"onPodEvents does not match without events": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: "gpu_unavailable", Rules: []CategoryRule{
+					{OnPodEvents: &errormatch.PodEventMatcher{Regexp: ".*", Type: v1.EventTypeWarning}},
+				}},
+			}},
+			pod:              podWithTerminatedContainer(1, "Error", ""),
+			podErrorMessage:  "some pod error",
+			expectedCategory: "",
+		},
 		"action propagates from the matched category": {
 			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "infra", Action: PodFailureActionDelete, Rules: []CategoryRule{
@@ -379,10 +428,10 @@ func TestClassify(t *testing.T) {
 			classifier, err := NewClassifier(tc.config)
 			require.NoError(t, err)
 			var result ClassifyResult
-			if tc.podErrorMessage == "" {
+			if tc.podErrorMessage == "" && tc.podEvents == nil {
 				result = classifier.ClassifyContainerError(tc.pod)
 			} else {
-				result = classifier.ClassifyPodError(tc.pod, tc.podErrorMessage)
+				result = classifier.ClassifyPodError(tc.pod, tc.podErrorMessage, tc.podEvents)
 			}
 			assert.Equal(t, tc.expectedCategory, result.Category)
 			assert.Equal(t, tc.expectedSubcategory, result.Subcategory)
@@ -467,6 +516,30 @@ func TestNewClassifier_ValidationErrors(t *testing.T) {
 				}},
 			}},
 			errContains: "invalid action",
+		},
+		"invalid onPodEvents regexp": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: "bad", Rules: []CategoryRule{
+					{OnPodEvents: &errormatch.PodEventMatcher{Regexp: "([invalid", Type: v1.EventTypeWarning}},
+				}},
+			}},
+			errContains: "invalid onPodEvents regexp",
+		},
+		"invalid onPodEvents type": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: "bad", Rules: []CategoryRule{
+					{OnPodEvents: &errormatch.PodEventMatcher{Regexp: ".*", Type: "Info"}},
+				}},
+			}},
+			errContains: "invalid onPodEvents type",
+		},
+		"onPodEvents type is required": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: "bad", Rules: []CategoryRule{
+					{OnPodEvents: &errormatch.PodEventMatcher{Regexp: ".*"}},
+				}},
+			}},
+			errContains: "invalid onPodEvents type",
 		},
 		"invalid exit code operator": {
 			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
