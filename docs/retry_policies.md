@@ -1,6 +1,7 @@
 # Retry policies
 - [Retry policies](#retry-policies)
   - [Overview](#overview)
+  - [How a retry happens](#how-a-retry-happens)
   - [Enabling the retry engine](#enabling-the-retry-engine)
   - [Policy format](#policy-format)
     - [Matching semantics](#matching-semantics)
@@ -18,6 +19,19 @@
 Retry policies let operators define, per queue, which job failures Armada should retry and which it should fail permanently. A retry policy is a named resource, managed through `armadactl` like a queue, and attached to one or more queues by name. When a job run fails, the scheduler looks up the policy attached to the job's queue, evaluates the policy rules against the failure, and either requeues the job for another attempt or fails it terminally.
 
 The retry engine is off by default. It only runs when `scheduling.retryPolicy.enabled` is set to `true` in the scheduler configuration. With the flag off, or for queues with no policy attached, Armada behaves exactly as before: jobs are only re-leased on lease returns, up to the legacy attempt limit.
+
+## How a retry happens
+
+One failure travels this path:
+
+1. A run's pod fails on a cluster.
+2. The executor's error categorizer inspects the failure and assigns a category and subcategory, for example `oom` or `internal` / `node-failure`.
+3. When the category is configured with `action: Delete`, the executor deletes the failed pod and confirms it is gone. This frees the pod name for the next attempt.
+4. The executor reports the failed run, with its category, to the scheduler.
+5. The scheduler looks up the retry policy attached to the job's queue and evaluates the rules against the category. The first matching rule decides.
+6. On a `Retry` verdict within budget, the scheduler requeues the same job: same job id, a new run, and any mutations from the rule applied. On a `Fail` verdict, or an exhausted budget, the job fails terminally with the category attached.
+
+The event stream mirrors this. A retried failure appears as a `JobFailedEvent` with `retryable: true`, followed by the new run's events. A terminal failure appears as a normal failed event. A lease expiry (a lost executor) skips steps 1 to 4: the scheduler detects the expiry itself and goes straight to the policy evaluation.
 
 ## Enabling the retry engine
 
