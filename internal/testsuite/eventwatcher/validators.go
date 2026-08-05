@@ -36,18 +36,20 @@ func assertEventFailed(expected *api.EventMessage_Failed, actual *api.EventMessa
 		}
 	}
 
-	if expected.Failed.GetFailureCategory() != "" {
-		if expected.Failed.GetFailureCategory() != actual.Failed.GetFailureCategory() {
-			return errors.Errorf("expected failure_category %q but got %q",
-				expected.Failed.GetFailureCategory(), actual.Failed.GetFailureCategory())
-		}
+	if cat := expected.Failed.GetFailureCategory(); cat != "" && cat != actual.Failed.GetFailureCategory() {
+		return errors.Errorf("expected failure_category %q but got %q", cat, actual.Failed.GetFailureCategory())
 	}
 
-	if expected.Failed.GetFailureSubcategory() != "" {
-		if expected.Failed.GetFailureSubcategory() != actual.Failed.GetFailureSubcategory() {
-			return errors.Errorf("expected failure_subcategory %q but got %q",
-				expected.Failed.GetFailureSubcategory(), actual.Failed.GetFailureSubcategory())
-		}
+	if sub := expected.Failed.GetFailureSubcategory(); sub != "" && sub != actual.Failed.GetFailureSubcategory() {
+		return errors.Errorf("expected failure_subcategory %q but got %q", sub, actual.Failed.GetFailureSubcategory())
+	}
+
+	// retryable is compared unconditionally, unlike the category fields above:
+	// a testcase expecting a terminal failure (the zero value, retryable=false)
+	// must reject a retryable, non-terminal failure rather than pass silently.
+	if expected.Failed.GetRetryable() != actual.Failed.GetRetryable() {
+		return errors.Errorf("expected retryable=%t but got retryable=%t",
+			expected.Failed.GetRetryable(), actual.Failed.GetRetryable())
 	}
 
 	return nil

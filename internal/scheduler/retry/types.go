@@ -65,6 +65,11 @@ type ResourceBump struct {
 	Factor float64
 }
 
+// IsZero reports whether the bump applies no change.
+func (b ResourceBump) IsZero() bool {
+	return b.Static == nil && b.Factor == 0
+}
+
 // Decision identifies which gate produced an engine verdict. It is used as
 // a prometheus label value, so it must stay low-cardinality.
 type Decision string
@@ -78,6 +83,10 @@ const (
 	// DecisionNoError is returned when there is no run error to evaluate. It
 	// gives the nil-error path a non-empty metrics label instead of a gap.
 	DecisionNoError Decision = "no_error"
+	// DecisionRetryUnschedulable records a granted retry the scheduler
+	// abandoned because the mutated job fits no node. The engine never
+	// returns it. The scheduler records it in place of DecisionRetry.
+	DecisionRetryUnschedulable Decision = "retry_unschedulable"
 )
 
 // Result is the output of the retry engine evaluation.
