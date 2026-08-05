@@ -33,6 +33,8 @@ One failure travels this path:
 
 The event stream mirrors this. A retried failure appears as a `JobFailedEvent` with `retryable: true`, followed by the new run's events. A terminal failure appears as a normal failed event. A lease expiry (a lost executor) skips steps 1 to 4: the scheduler detects the expiry itself and goes straight to the policy evaluation.
 
+A requeued retry competes for capacity under fair share like any queued job. It waits as long as needed, and it does not fail from waiting.
+
 ## Enabling the retry engine
 
 The engine is controlled by the `retryPolicy` block under the `scheduling` section of the scheduler configuration:
@@ -116,7 +118,7 @@ rules:
           factor: 1.5
 ```
 
-* `affinity.avoidSameNode`: when `true`, the retry avoids every node a previous run attempted. This matches the lease-return retry behaviour: the job fails if the anti-affinity makes it unschedulable. The check costs a per-job scheduling probe. Leave it off (the default) for categories where the node is not the cause, for example a plain application error. Turn it on for node-specific failures.
+* `affinity.avoidSameNode`: when `true`, the retry avoids every node a previous run attempted. This matches the lease-return retry behaviour: the job fails if the anti-affinity makes it unschedulable. The check costs a per-job scheduling probe. The probe checks static fit only: can any node in the fleet ever fit the job, ignoring current occupancy and fair share. It is the same check Armada runs at submission, so only a job that could never schedule fails here. Leave it off (the default) for categories where the node is not the cause, for example a plain application error. Turn it on for node-specific failures.
 * `avoidSameNode` needs two node-label config entries. The scheduler expresses the avoidance through its `nodeIdLabel`, so that label must be in the executor's `trackedNodeLabels`. An untracked label is invisible to the scheduler, the avoidance matches every node without effect, and the scheduler warns once per executor about it. The scheduler also requires the label in `scheduling.indexedNodeLabels` when the retry engine is enabled, and fails config validation at startup without it. The index keeps node matching fast when many retried jobs carry the anti-affinity.
 * `resources.memory`: grows the job's memory on retry. Set exactly one of `factor` (multiply, must exceed 1.0) or `static` (add a fixed quantity, for example `"512Mi"`). Requests and limits grow together, and the retried pod runs with the grown memory. The bump compounds across retries. If the grown job fits no node, it fails terminally. A job accumulates one bump kind: when a later retry matches a rule with the other kind, the scheduler skips that bump.
 
