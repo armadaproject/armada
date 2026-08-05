@@ -24,7 +24,7 @@ jobs:
 ---
 triggerEvent: queued
 cancel:
-  request: {}
+  request:
 timeout: "100s"
 expectedEvents:
   - submitted:
