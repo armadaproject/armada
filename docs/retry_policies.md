@@ -6,8 +6,8 @@
   - [Policy format](#policy-format)
     - [Matching semantics](#matching-semantics)
     - [Match fields](#match-fields)
+    - [Mutating the job on retry](#mutating-the-job-on-retry)
   - [Retry budgets](#retry-budgets)
-  - [Mutating the job on retry](#mutating-the-job-on-retry)
   - [Gang jobs](#gang-jobs)
   - [Pod naming and collision avoidance](#pod-naming-and-collision-avoidance)
   - [Per-job opt-out](#per-job-opt-out)
@@ -26,7 +26,7 @@ One failure travels this path:
 
 1. A run's pod fails on a cluster.
 2. The executor's error categorizer inspects the failure and assigns a category and subcategory, for example `oom` or `internal` / `node-failure`.
-3. When the category is configured with `action: Delete`, the executor deletes the failed pod and confirms it is gone. This frees the pod name for the next attempt.
+3. When the category is configured with `action: Delete`, the executor deletes the failed pod and confirms it is gone. This frees the pod name for the next attempt (see [Pod naming and collision avoidance](#pod-naming-and-collision-avoidance)).
 4. The executor reports the failed run, with its category, to the scheduler.
 5. The scheduler looks up the retry policy attached to the job's queue and evaluates the rules against the category. The first matching rule decides.
 6. On a `Retry` verdict within budget, the scheduler requeues the same job: same job id, a new run, and any mutations from the rule applied. On a `Fail` verdict, or an exhausted budget, the job fails terminally with the category attached.
@@ -122,8 +122,6 @@ rules:
 
 Mutations apply on the failed-run retry path only. A lease-expiry retry (a lost executor) requeues the job unchanged: the lost node is not a node to avoid, and growing the job does not cure a lost executor.
 
-A queue can list several policies in `retry_policies`, in precedence order. This version evaluates only the first policy in the list. Later entries are stored but not consulted yet.
-
 ## Retry budgets
 
 Two limits bound how often a job is retried: the per-policy `retryLimit` and the scheduler-wide `globalMaxRetries`.
@@ -182,6 +180,8 @@ Attach a policy to a queue at creation time, or to an existing queue:
 armadactl create queue my-queue --retry-policies ml-training-retries
 armadactl update queue my-queue --retry-policies ml-training-retries
 ```
+
+A queue can list several policies in `retry_policies`, in precedence order. This version evaluates only the first policy in the list. Later entries are stored but not consulted yet.
 
 Delete a policy:
 
