@@ -23,11 +23,6 @@ pulsar:
   delayMonitor:
     enabled: false
     interval: 30s
-# deadLetterMaxAttemptsOverride and maxBackoffTimeOverride let this ingester diverge from
-# pulsar.deadLetterMaxAttempts/pulsar.maxBackoffTime above without affecting the event/lookout
-# ingesters, which share the same pulsar config block. Unset (0) means "use the value above".
-# deadLetterMaxAttemptsOverride: 10
-# maxBackoffTimeOverride: 60s
 subscriptionName: "scheduler-ingester"
 batchSize: 10000
 batchDuration: 500ms

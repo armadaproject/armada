@@ -33,7 +33,7 @@ func Run(config Configuration) error {
 	}
 	schedulerDb := NewSchedulerDb(db, svcMetrics, 5*time.Second)
 
-	pulsarConfig := config.effectivePulsarConfig()
+	pulsarConfig := config.Pulsar
 
 	jobSetEventsConverter, err := NewJobSetEventsInstructionConverter(svcMetrics)
 	if err != nil {
