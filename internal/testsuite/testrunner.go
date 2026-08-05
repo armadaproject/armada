@@ -164,9 +164,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 
 	// Add action channel if cancel or preempt is configured and waits for all jobs to reach a trigger state before acting.
 	var actionCh chan *api.EventMessage
-	if srv.testSpec.Cancel != nil || srv.testSpec.CancelJobSet != nil || srv.testSpec.Preempt != nil ||
-		srv.testSpec.Reprioritize != nil ||
-		srv.testSpec.CancelOnNode != nil || srv.testSpec.PreemptOnNode != nil {
+	if hasConfiguredAction(srv.testSpec) {
 		actionCh = make(chan *api.EventMessage)
 		eventChannels = append(eventChannels, actionCh)
 	}
@@ -179,9 +177,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	g.Go(func() error { return splitter.Run(ctx) })
 
 	// If configured, cancel or preempt jobs once all reach the configured trigger event.
-	if srv.testSpec.CancelOnNode != nil || srv.testSpec.PreemptOnNode != nil ||
-		srv.testSpec.Cancel != nil || srv.testSpec.CancelJobSet != nil ||
-		srv.testSpec.Preempt != nil || srv.testSpec.Reprioritize != nil {
+	if hasConfiguredAction(srv.testSpec) {
 		extractor, err := triggerEventExtractor(srv.testSpec)
 		if err != nil {
 			return err
@@ -228,6 +224,13 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 
 	// Assert queue state now that the jobs have finished. (used for GetActiveQueues)
 	return queue.RunAssertions(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out)
+}
+
+// hasConfiguredAction reports whether testSpec configures a cancel/preempt/reprioritize action,
+// i.e. whether an action should be triggered once all jobs reach the configured trigger event.
+func hasConfiguredAction(testSpec *api.TestSpec) bool {
+	return testSpec.Cancel != nil || testSpec.CancelJobSet != nil || testSpec.Preempt != nil ||
+		testSpec.Reprioritize != nil || testSpec.CancelOnNode != nil || testSpec.PreemptOnNode != nil
 }
 
 // triggerEventExtractor resolves testSpec.TriggerEvent to an extractor function.
@@ -306,14 +309,13 @@ var triggerEventExtractors = map[string]func(*api.EventMessage) string{
 	},
 }
 
-// cancelJobSet cancels every job in a job set via the same RPC used by the BY_SET cancel
-// path. Uses a fresh context so it is unaffected by the errgroup ctx, which is cancelled
-// once all jobs reach a terminal state.
+// cancelJobSet cancels a job set. Uses a fresh context so it is unaffected by the errgroup
+// ctx, which is cancelled once all jobs reach a terminal state.
 func cancelJobSet(conn *client.ApiConnectionDetails, queue, jobSetId string) error {
 	return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_, err := sc.CancelJobs(ctx, &api.JobCancelRequest{Queue: queue, JobSetId: jobSetId})
+		_, err := sc.CancelJobSet(ctx, &api.JobSetCancelRequest{Queue: queue, JobSetId: jobSetId})
 		return errors.WithStack(err)
 	})
 }
@@ -336,69 +338,8 @@ func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testS
 				triggeredJobs[jobId] = true
 				if len(triggeredJobs) == len(jobIds) {
 					time.Sleep(1 * time.Second)
-					var actionErr error
-					switch {
-					case testSpec.CancelJobSet != nil:
-						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-							req := testSpec.CancelJobSet.GetRequest()
-							if req == nil {
-								req = &api.JobSetCancelRequest{}
-							}
-							req.Queue = testSpec.GetQueue()
-							req.JobSetId = testSpec.GetJobSetId()
-							_, err := sc.CancelJobSet(ctx, req)
-							return errors.WithStack(err)
-						})
-					case testSpec.CancelOnNode != nil:
-						actionErr = client.WithNodeClient(conn, func(nc api.NodeClient) error {
-							req := testSpec.CancelOnNode.GetRequest()
-							req.Name = nodeName
-							_, err := nc.CancelOnNode(ctx, req)
-							return errors.WithStack(err)
-						})
-					case testSpec.PreemptOnNode != nil:
-						actionErr = client.WithNodeClient(conn, func(nc api.NodeClient) error {
-							req := testSpec.PreemptOnNode.GetRequest()
-							req.Name = nodeName
-							_, err := nc.PreemptOnNode(ctx, req)
-							return errors.WithStack(err)
-						})
-					case testSpec.Cancel != nil:
-						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-							req := testSpec.Cancel.GetRequest()
-							req.Queue = testSpec.GetQueue()
-							req.JobSetId = testSpec.GetJobSetId()
-							req.JobIds = jobIds
-							_, err := sc.CancelJobs(ctx, req)
-							return errors.WithStack(err)
-						})
-					case testSpec.Preempt != nil:
-						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-							req := testSpec.Preempt.GetRequest()
-							req.Queue = testSpec.GetQueue()
-							req.JobSetId = testSpec.GetJobSetId()
-							if !testSpec.Preempt.GetByJobSet() {
-								req.JobIds = jobIds
-							}
-							_, err := sc.PreemptJobs(ctx, req)
-							return errors.WithStack(err)
-						})
-					case testSpec.Reprioritize != nil:
-						actionErr = client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-							req := testSpec.Reprioritize.GetRequest()
-							req.Queue = testSpec.GetQueue()
-							req.JobSetId = testSpec.GetJobSetId()
-							if !testSpec.Reprioritize.GetByJobSet() {
-								req.JobIds = jobIds
-							}
-							_, err := sc.ReprioritizeJobs(ctx, req)
-							return errors.WithStack(err)
-						})
-					default:
-						return errors.Errorf("no action configured for test spec %s", testSpec.GetName())
-					}
-					if actionErr != nil {
-						return actionErr
+					if err := dispatchAction(ctx, testSpec, conn, jobIds, nodeName); err != nil {
+						return err
 					}
 					// Drain the channel to avoid blocking the splitter.
 					for {
@@ -411,6 +352,71 @@ func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testS
 				}
 			}
 		}
+	}
+}
+
+// dispatchAction issues the action configured on testSpec (Cancel, CancelJobSet, Preempt,
+// Reprioritize, CancelOnNode, or PreemptOnNode). nodeName is only relevant for node-scoped actions.
+func dispatchAction(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string) error {
+	switch {
+	case testSpec.CancelJobSet != nil:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			req := testSpec.CancelJobSet.GetRequest()
+			if req == nil {
+				req = &api.JobSetCancelRequest{}
+			}
+			req.Queue = testSpec.GetQueue()
+			req.JobSetId = testSpec.GetJobSetId()
+			_, err := sc.CancelJobSet(ctx, req)
+			return errors.WithStack(err)
+		})
+	case testSpec.CancelOnNode != nil:
+		return client.WithNodeClient(conn, func(nc api.NodeClient) error {
+			req := testSpec.CancelOnNode.GetRequest()
+			req.Name = nodeName
+			_, err := nc.CancelOnNode(ctx, req)
+			return errors.WithStack(err)
+		})
+	case testSpec.PreemptOnNode != nil:
+		return client.WithNodeClient(conn, func(nc api.NodeClient) error {
+			req := testSpec.PreemptOnNode.GetRequest()
+			req.Name = nodeName
+			_, err := nc.PreemptOnNode(ctx, req)
+			return errors.WithStack(err)
+		})
+	case testSpec.Cancel != nil:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			req := testSpec.Cancel.GetRequest()
+			req.Queue = testSpec.GetQueue()
+			req.JobSetId = testSpec.GetJobSetId()
+			req.JobIds = jobIds
+			_, err := sc.CancelJobs(ctx, req)
+			return errors.WithStack(err)
+		})
+	case testSpec.Preempt != nil:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			req := testSpec.Preempt.GetRequest()
+			req.Queue = testSpec.GetQueue()
+			req.JobSetId = testSpec.GetJobSetId()
+			if !testSpec.Preempt.GetByJobSet() {
+				req.JobIds = jobIds
+			}
+			_, err := sc.PreemptJobs(ctx, req)
+			return errors.WithStack(err)
+		})
+	case testSpec.Reprioritize != nil:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			req := testSpec.Reprioritize.GetRequest()
+			req.Queue = testSpec.GetQueue()
+			req.JobSetId = testSpec.GetJobSetId()
+			if !testSpec.Reprioritize.GetByJobSet() {
+				req.JobIds = jobIds
+			}
+			_, err := sc.ReprioritizeJobs(ctx, req)
+			return errors.WithStack(err)
+		})
+	default:
+		return errors.Errorf("no action configured for test spec %s", testSpec.GetName())
 	}
 }
 
