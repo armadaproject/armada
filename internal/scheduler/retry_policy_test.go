@@ -529,6 +529,7 @@ func TestRetryPolicy_FFOn_LeaseExpiryRetriesWhenPolicyMatches(t *testing.T) {
 	require.Len(t, je.Errors, 1)
 	assert.False(t, je.Errors[0].Terminal, "the JobErrors must be non-terminal so the api stream sees retryable=true")
 	assert.NotNil(t, je.Errors[0].GetLeaseExpired(), "the error reason must be LeaseExpired")
+	assert.Equal(t, "test-policy", je.Errors[0].RetryPolicyName, "the retry event must record the deciding policy")
 
 	require.NotNil(t, rq, "a JobRequeued event must be emitted")
 	assert.Equal(t, int32(2), rq.UpdateSequenceNumber, "JobRequeued must carry the bumped queued version")
@@ -674,6 +675,8 @@ func TestRetryPolicy_FFOn_MemoryBumpFailsWhenUnschedulable(t *testing.T) {
 	updated := txn.GetById(job.Id())
 	require.NotNil(t, updated)
 	assert.True(t, updated.Failed())
+	assert.Contains(t, terminalError(events.Events).GetMaxRunsExceeded().GetMessage(), "fits no node",
+		"the terminal reason must state the abandoned retry, not the granted verdict")
 }
 
 func TestScheduler_MemoryBumpCompoundsAndSkipsMixedKinds(t *testing.T) {
@@ -744,6 +747,8 @@ func TestRetryPolicy_FFOn_EngineRetryOptInFailsWhenUnschedulable(t *testing.T) {
 	updated := txn.GetById(job.Id())
 	require.NotNil(t, updated)
 	assert.True(t, updated.Failed())
+	assert.Contains(t, terminalError(events.Events).GetMaxRunsExceeded().GetMessage(), "no untried node",
+		"the terminal reason must state the abandoned retry, not the granted verdict")
 }
 
 func TestRetryPolicy_FFOn_EngineRetryWithoutOptInSkipsAntiAffinity(t *testing.T) {

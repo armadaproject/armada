@@ -83,6 +83,10 @@ const (
 	// DecisionNoError is returned when there is no run error to evaluate. It
 	// gives the nil-error path a non-empty metrics label instead of a gap.
 	DecisionNoError Decision = "no_error"
+	// DecisionRetryUnschedulable records a granted retry the scheduler
+	// abandoned because the mutated job fits no node. The engine never
+	// returns it. The scheduler records it in place of DecisionRetry.
+	DecisionRetryUnschedulable Decision = "retry_unschedulable"
 )
 
 // Result is the output of the retry engine evaluation.

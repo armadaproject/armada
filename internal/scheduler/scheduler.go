@@ -1099,10 +1099,16 @@ func (s *Scheduler) evaluateRetryPolicy(
 	}
 
 	result = s.retryEngine.Evaluate(policy, runError, retry.Counts{Failures: job.FailureCount()})
-	retryPolicyDecisionsCounter.WithLabelValues(policyName, string(result.Decision)).Inc()
 	ctx.Debugf("retry decision for job %s queue=%s policy=%s: ShouldRetry=%v Reason=%q",
 		job.Id(), job.Queue(), policyName, result.ShouldRetry, result.Reason)
 	return result, policyName, true
+}
+
+// recordRetryDecision records the final outcome of an engine decision. The
+// callers record after the mutation gates, so a granted retry the scheduler
+// abandoned counts as what actually happened, not as a retry.
+func recordRetryDecision(policyName string, decision retry.Decision) {
+	retryPolicyDecisionsCounter.WithLabelValues(policyName, string(decision)).Inc()
 }
 
 // runErrorDetail renders the human-readable detail of a run error (the pod
@@ -1334,6 +1340,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 					job = bumpedJob
 				} else {
 					requeueJob = false
+					engineResult.Decision = retry.DecisionRetryUnschedulable
+					engineResult.Reason = "retry granted, but the job grown by the rule's memory bump fits no node"
 				}
 			}
 
@@ -1353,7 +1361,17 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 					job = jobWithAntiAffinity
 				} else {
 					requeueJob = false
+					if engineDecided {
+						engineResult.Decision = retry.DecisionRetryUnschedulable
+						engineResult.Reason = "retry granted, but no untried node fits the job"
+					}
 				}
+			}
+
+			// Record the outcome after the mutation gates, so a granted retry
+			// the scheduler abandoned counts as what actually happened.
+			if engineDecided {
+				recordRetryDecision(enginePolicyName, engineResult.Decision)
 			}
 
 			if requeueJob {
@@ -1553,6 +1571,11 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 				// terminal path below.
 				jobWithFailedRun := job.WithUpdatedRun(run.WithFailed(true))
 				result, policyName, decided := s.evaluateRetryPolicy(ctx, jobWithFailedRun, leaseExpiredError, queueRetryPolicies)
+				if decided {
+					// The expiry path applies no mutations, so the verdict is
+					// the outcome.
+					recordRetryDecision(policyName, result.Decision)
+				}
 				if decided && result.ShouldRetry {
 					ctx.Debugf("Requeueing job %s from lost executor %s per retry policy", job.Id(), run.Executor())
 					retriedJob := jobWithFailedRun.WithQueued(true).WithQueuedVersion(job.QueuedVersion() + 1)
