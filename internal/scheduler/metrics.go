@@ -7,6 +7,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -372,6 +374,14 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 		return nil, err
 	}
 
+	// Created per call rather than shared at package level: cases.Caser is
+	// documented as potentially stateful and must not be shared between
+	// goroutines, and Collect may be called concurrently by the Prometheus
+	// registry. Sharing one silently corrupts its output rather than failing
+	// loudly; Alertmanager shipped that bug in its templates (prometheus/
+	// alertmanager#3278) and it produced garbled text in production.
+	phaseTitleCaser := cases.Title(language.English)
+
 	cordonedStatusByCluster := map[string]*clusterCordonedStatus{}
 	phaseCountByQueue := map[queuePhaseMetricKey]int{}
 	allocatedResourceByQueue := map[queuePriceBandMetricKey]resource.ComputeResources{}
@@ -503,7 +513,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 						nodeType:    node.ReportingNodeType,
 						reservation: reservation,
 						// Convert to string with first letter capitalised
-						phase: strings.Title(strings.ToLower(phase)),
+						phase: phaseTitleCaser.String(strings.ToLower(phase)),
 					}
 					phaseCountByQueue[key]++
 
@@ -512,7 +522,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 						nodeJobsMetricCounts[nodeJobPhaseMetricKey{
 							node:    node.Name,
 							cluster: executor.Id,
-							phase:   strings.Title(strings.ToLower(phase)),
+							phase:   phaseTitleCaser.String(strings.ToLower(phase)),
 						}]++
 					}
 
