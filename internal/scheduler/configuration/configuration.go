@@ -293,6 +293,8 @@ type SchedulingConfig struct {
 	MaximumPerQueueSchedulingBurst int `validate:"gt=0"`
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
+	// RetryPolicy controls the policy-based retry engine (disabled by default).
+	RetryPolicy RetryPolicyConfig
 	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness costs.
 	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
 	DominantResourceFairnessResourcesToConsider []string
@@ -347,6 +349,25 @@ type SchedulingConfig struct {
 	ExperimentalIndicativeShare ExperimentalIndicativeShare
 }
 
+// RetryPolicyConfig controls the scheduler's retry policy behavior.
+type RetryPolicyConfig struct {
+	// Enabled controls whether the retry policy engine is active.
+	Enabled bool
+	// GlobalMaxRetries is the scheduler-wide cap on genuine-failure retries per
+	// job, on top of every policy. It counts retries, not runs: the initial
+	// failure consumes no budget, only subsequent retries do. Preempted and
+	// lease-returned runs are never charged. A value of 0 is the kill switch:
+	// no job is ever retried by the policy engine. There is no unlimited
+	// setting for the global cap.
+	GlobalMaxRetries uint
+	// DefaultPolicyName is the retry policy applied to jobs whose queue has no
+	// policy of its own. It lets an operator turn on retry policies fleet-wide
+	// with a single named policy before per-queue attachment is configured.
+	// Optional: when empty, only queues with an attached policy get engine
+	// decisions and every other queue keeps the existing behaviour.
+	DefaultPolicyName string
+}
+
 const (
 	DuplicateWellKnownNodeTypeErrorMessage              = "duplicate well-known node type name"
 	AwayNodeTypesWithoutPreemptionErrorMessage          = "priority class has away node types but is not preemptible"
@@ -354,6 +375,7 @@ const (
 	WildCardWellKnownNodeTypeValue                      = "*"
 	InvalidAwayNodeTypeConditionOperatorErrorMessage    = "away node type condition has invalid operator; must be one of >, <, =="
 	PreemptionRateLimitWithMarketSchedulingErrorMessage = "preemption rate limit is not supported with market scheduling enabled on the same pool"
+	NodeIdLabelNotIndexedErrorMessage                   = "nodeIdLabel must be in indexedNodeLabels when the retry policy engine is enabled, so avoidSameNode retries can match nodes efficiently"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
