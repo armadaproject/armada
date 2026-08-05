@@ -2,6 +2,7 @@ package configuration
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/go-playground/validator/v10"
 
@@ -37,6 +38,13 @@ func (c *Configuration) Validate() error {
 
 func SchedulingConfigValidation(sl validator.StructLevel) {
 	c := sl.Current().Interface().(SchedulingConfig)
+
+	// avoidSameNode retries express node avoidance through nodeIdLabel, and an
+	// unindexed label forces a per-node scan for every job that carries the
+	// anti-affinity. Reject the config instead of running slow.
+	if c.RetryPolicy.Enabled && !slices.Contains(c.IndexedNodeLabels, c.NodeIdLabel) {
+		sl.ReportError(c.IndexedNodeLabels, "IndexedNodeLabels", "", NodeIdLabelNotIndexedErrorMessage, "")
+	}
 
 	for i, pool := range c.Pools {
 		// The preemption rate limit relies on rescheduling evicted jobs before new jobs, which the

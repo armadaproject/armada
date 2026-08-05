@@ -375,6 +375,7 @@ const (
 	WildCardWellKnownNodeTypeValue                      = "*"
 	InvalidAwayNodeTypeConditionOperatorErrorMessage    = "away node type condition has invalid operator; must be one of >, <, =="
 	PreemptionRateLimitWithMarketSchedulingErrorMessage = "preemption rate limit is not supported with market scheduling enabled on the same pool"
+	NodeIdLabelNotIndexedErrorMessage                   = "nodeIdLabel must be in indexedNodeLabels when the retry policy engine is enabled, so avoidSameNode retries can match nodes efficiently"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
