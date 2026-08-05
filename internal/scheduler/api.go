@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"strconv"
+	"sync"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
@@ -48,6 +49,8 @@ type ExecutorApi struct {
 	// This is needed to ensure floating resources are not passed to k8s.
 	allowedResources map[string]bool
 	nodeIdLabel      string
+	// Executors already warned about nodes missing the node id label.
+	nodeIdLabelWarnings sync.Map
 	// See scheduling schedulingConfig.
 	priorityClassNameOverride *string
 	clock                     clock.Clock
@@ -432,13 +435,28 @@ func (srv *ExecutorApi) authorize(ctx *armadacontext.Context) error {
 func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
 	now := srv.clock.Now().UTC()
+	nodeIdLabelMissing := false
 	for _, nodeInfo := range req.Nodes {
 		if node, err := executorapi.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, now); err != nil {
 			ctx.Logger().WithStacktrace(err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetExecutorId(),
 			)
 		} else {
+			if _, ok := node.Labels[srv.nodeIdLabel]; !ok {
+				nodeIdLabelMissing = true
+			}
 			nodes = append(nodes, node)
+		}
+	}
+	// Node anti-affinity on retries matches against the node id label. A node
+	// without it satisfies every avoidance vacuously, so warn loudly. Once per
+	// executor: the executor must add the label to trackedNodeLabels.
+	if nodeIdLabelMissing {
+		if _, warned := srv.nodeIdLabelWarnings.LoadOrStore(req.ExecutorId, true); !warned {
+			ctx.Warnf(
+				"executor %s reports nodes without the node id label %q: retry node anti-affinity cannot work; add the label to the executor's trackedNodeLabels",
+				req.ExecutorId, srv.nodeIdLabel,
+			)
 		}
 	}
 	return &schedulerobjects.Executor{
