@@ -393,9 +393,7 @@ func dispatchAction(ctx context.Context, testSpec *api.TestSpec, conn *client.Ap
 			}
 			req.Queue = testSpec.GetQueue()
 			req.JobSetId = testSpec.GetJobSetId()
-			if !testSpec.Preempt.GetByJobSet() {
-				req.JobIds = jobIds
-			}
+			req.JobIds = jobIds
 			_, err := sc.PreemptJobs(ctx, req)
 			return errors.WithStack(err)
 		})

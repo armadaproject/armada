@@ -366,7 +366,8 @@ func (m *NodePreemptConfig) GetNodePoolTag() string {
 
 type JobPreemptConfig struct {
 	Request *JobPreemptRequest `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
-	// If true, preempt the whole job set (request.job_ids left empty) instead of the submitted jobs.
+	// If true, documents intent to preempt the whole job set. PreemptJobs has no job-set-wide
+	// primitive, so the runner still populates request.job_ids with every submitted job's id.
 	ByJobSet bool `protobuf:"varint,2,opt,name=by_job_set,json=byJobSet,proto3" json:"byJobSet,omitempty"`
 }
 
