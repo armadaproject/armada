@@ -14,7 +14,12 @@ pulsar:
   jobsetEventsTopic: "events"
   controlPlaneEventsTopic: "control-plane"
   backoffTime: 1s
+  maxBackoffTime: 30s
+  backoffRandomizationFactor: 0.5
+  backoffMultiplier: 1.5
   receiverQueueSize: 100
+  deadLetterTopic: scheduler-events-dead-letter
+  deadLetterMaxAttempts: 5
   delayMonitor:
     enabled: false
     interval: 30s

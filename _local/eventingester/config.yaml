@@ -7,6 +7,12 @@ pulsar:
   URL: "pulsar://localhost:6650"
   restURL: "http://localhost:8090"
   jobsetEventsTopic: "events"
+  backoffTime: 1s
+  maxBackoffTime: 5s
+  backoffRandomizationFactor: 0.5
+  backoffMultiplier: 1.5
+  deadLetterTopic: events-dead-letter
+  deadLetterMaxAttempts: 5
 subscriptionName: "events-ingester"
 metricsPort: 9004
 observability:

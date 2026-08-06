@@ -9,7 +9,12 @@ pulsar:
   restURL: "http://localhost:8090"
   jobsetEventsTopic: events
   backoffTime: 1s
+  maxBackoffTime: 30s
+  backoffRandomizationFactor: 0.5
+  backoffMultiplier: 1.5
   receiverQueueSize: 100
+  deadLetterTopic: events-dead-letter
+  deadLetterMaxAttempts: 5
   delayMonitor:
     enabled: false
     interval: 30s
