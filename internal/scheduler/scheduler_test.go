@@ -2450,9 +2450,10 @@ type testSubmitChecker struct {
 	checkSuccess   bool
 	checkCalls     int
 	checkJobCounts []int
-	// skipJobIds simulates the checker's time limits. The real checker leaves
-	// a job it does not reach out of the result map.
-	skipJobIds map[string]bool
+	// skipJobChecks simulates the checker's time limits. The real checker
+	// leaves a job it does not reach out of the result map. The value counts
+	// the calls that skip the job. The next call answers for it.
+	skipJobChecks map[string]int
 }
 
 func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, map[string]time.Duration, error) {
@@ -2460,7 +2461,8 @@ func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (
 	t.checkJobCounts = append(t.checkJobCounts, len(jobs))
 	result := make(map[string]schedulingResult)
 	for _, job := range jobs {
-		if t.skipJobIds[job.Id()] {
+		if t.skipJobChecks[job.Id()] > 0 {
+			t.skipJobChecks[job.Id()]--
 			continue
 		}
 		if t.checkSuccess {

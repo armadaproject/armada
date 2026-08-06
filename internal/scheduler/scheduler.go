@@ -1306,9 +1306,9 @@ func (s *Scheduler) planRetryDecisions(ctx *armadacontext.Context, jobs []*jobdb
 	return plans, nil
 }
 
-// resolveProbes checks all the candidates in one SubmitChecker call. A
-// candidate that fits a node keeps its mutation. A candidate that fits no node
-// loses the retry, and its plan records unschedulableReason.
+// resolveProbes checks all the candidates in one batch. A candidate that fits
+// a node keeps its mutation. A candidate that fits no node loses the retry,
+// and its plan records unschedulableReason.
 //
 // Candidates with the same scheduling key have the same placement
 // requirements, and the check is deterministic against one snapshot. The probe
@@ -1332,9 +1332,26 @@ func (s *Scheduler) resolveProbes(ctx *armadacontext.Context, candidates []probe
 		representativeIdByKey[key] = candidate.job.Id()
 		probedJobs = append(probedJobs, candidate.job)
 	}
-	results, _, err := s.submitChecker.Check(ctx, probedJobs)
-	if err != nil {
-		return err
+	// The checker applies its time limits per call, so a new call starts with
+	// a fresh budget. The probe therefore asks again for the representatives
+	// that an earlier call did not reach.
+	const maxProbeAttempts = 3
+	results := map[string]schedulingResult{}
+	unresolved := probedJobs
+	for attempt := 0; attempt < maxProbeAttempts && len(unresolved) > 0; attempt++ {
+		callResults, _, err := s.submitChecker.Check(ctx, unresolved)
+		if err != nil {
+			return err
+		}
+		var remaining []*jobdb.Job
+		for _, job := range unresolved {
+			if result, ok := callResults[job.Id()]; ok {
+				results[job.Id()] = result
+			} else {
+				remaining = append(remaining, job)
+			}
+		}
+		unresolved = remaining
 	}
 	unprobed := 0
 	for _, candidate := range candidates {
