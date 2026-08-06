@@ -1,6 +1,7 @@
 package lookoutdb
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
 	"github.com/armadaproject/armada/internal/lookoutingester/model"
 )
@@ -20,17 +23,13 @@ import (
 type LookoutDb struct {
 	db          *pgxpool.Pool
 	metrics     *metrics.Metrics
-	maxBackoff  int
-	maxRetries  int
 	fatalErrors []*regexp.Regexp
 }
 
-func NewLookoutDb(db *pgxpool.Pool, fatalErrors []*regexp.Regexp, metrics *metrics.Metrics, maxBackoff int, maxRetries int) *LookoutDb {
+func NewLookoutDb(db *pgxpool.Pool, fatalErrors []*regexp.Regexp, metrics *metrics.Metrics) *LookoutDb {
 	return &LookoutDb{
 		db:          db,
 		metrics:     metrics,
-		maxBackoff:  maxBackoff,
-		maxRetries:  maxRetries,
 		fatalErrors: fatalErrors,
 	}
 }
@@ -96,6 +95,25 @@ func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.Instru
 	return nil
 }
 
+// Serialize renders instructions as JSON for the dead-letter topic.
+func (l *LookoutDb) Serialize(instructions *model.InstructionSet) ([]byte, error) {
+	return json.Marshal(struct {
+		JobsToCreate      []*model.CreateJobInstruction
+		JobsToUpdate      []*model.UpdateJobInstruction
+		JobRunsToCreate   []*model.CreateJobRunInstruction
+		JobRunsToUpdate   []*model.UpdateJobRunInstruction
+		JobErrorsToCreate []*model.CreateJobErrorInstruction
+		MessageIds        []string
+	}{
+		JobsToCreate:      instructions.JobsToCreate,
+		JobsToUpdate:      instructions.JobsToUpdate,
+		JobRunsToCreate:   instructions.JobRunsToCreate,
+		JobRunsToUpdate:   instructions.JobRunsToUpdate,
+		JobErrorsToCreate: instructions.JobErrorsToCreate,
+		MessageIds:        pulsarutils.MessageIdsToStrings(instructions.MessageIds),
+	})
+}
+
 func (l *LookoutDb) CreateJobs(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
 	if len(instructions) == 0 {
 		return nil
@@ -139,8 +157,11 @@ func (l *LookoutDb) UpdateJobs(ctx *armadacontext.Context, instructions []*model
 		return nil
 	}
 	start := time.Now()
-	instructions = l.filterEventsForTerminalJobs(ctx, l.db, instructions, l.metrics)
-	err := l.UpdateJobsBatch(ctx, instructions)
+	instructions, err := l.filterEventsForTerminalJobs(ctx, l.db, instructions, l.metrics)
+	if err != nil {
+		return err
+	}
+	err = l.UpdateJobsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Updating jobs via batch failed, will attempt to insert serially (this might be slow).")
 		if scalarErr := l.UpdateJobsScalar(ctx, instructions); scalarErr != nil {
@@ -245,7 +266,7 @@ func (l *LookoutDb) CreateJobErrors(ctx *armadacontext.Context, instructions []*
 }
 
 func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
-	return l.withDatabaseRetryInsert(ctx, func() error {
+	return l.executeDbInsert(ctx, func() error {
 		tmpTable := "job_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -420,7 +441,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		err := l.withDatabaseRetryInsert(ctx, func() error {
+		err := l.executeDbInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
 				i.Queue,
@@ -456,7 +477,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 }
 
 func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobInstruction) error {
-	return l.withDatabaseRetryInsert(ctx, func() error {
+	return l.executeDbInsert(ctx, func() error {
 		tmpTable := "job_update_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -555,7 +576,7 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		err := l.withDatabaseRetryInsert(ctx, func() error {
+		err := l.executeDbInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
 				i.Priority,
@@ -583,7 +604,7 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.Context, instructions []
 }
 
 func (l *LookoutDb) CreateJobSpecsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobInstruction) error {
-	return l.withDatabaseRetryInsert(ctx, func() error {
+	return l.executeDbInsert(ctx, func() error {
 		tmpTable := "job_spec_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -646,7 +667,7 @@ func (l *LookoutDb) CreateJobSpecsScalar(ctx *armadacontext.Context, instruction
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		err := l.withDatabaseRetryInsert(ctx, func() error {
+		err := l.executeDbInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
 				i.JobProto,
@@ -667,7 +688,7 @@ func (l *LookoutDb) CreateJobSpecsScalar(ctx *armadacontext.Context, instruction
 }
 
 func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobRunInstruction) error {
-	return l.withDatabaseRetryInsert(ctx, func() error {
+	return l.executeDbInsert(ctx, func() error {
 		tmpTable := "job_run_create_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -762,7 +783,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		err := l.withDatabaseRetryInsert(ctx, func() error {
+		err := l.executeDbInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.RunId,
 				i.JobId,
@@ -790,7 +811,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 }
 
 func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) error {
-	return l.withDatabaseRetryInsert(ctx, func() error {
+	return l.executeDbInsert(ctx, func() error {
 		tmpTable := "job_run_update_tmp"
 
 		createTmp := func(tx pgx.Tx) error {
@@ -904,7 +925,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		err := l.withDatabaseRetryInsert(ctx, func() error {
+		err := l.executeDbInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.RunId,
 				i.Node,
@@ -937,7 +958,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 
 func (l *LookoutDb) CreateJobErrorsBatch(ctx *armadacontext.Context, instructions []*model.CreateJobErrorInstruction) error {
 	tmpTable := "job_error_create_tmp"
-	return l.withDatabaseRetryInsert(ctx, func() error {
+	return l.executeDbInsert(ctx, func() error {
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
 				CREATE TEMPORARY TABLE %s (
@@ -993,7 +1014,7 @@ func (l *LookoutDb) CreateJobErrorsScalar(ctx *armadacontext.Context, instructio
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		err := l.withDatabaseRetryInsert(ctx, func() error {
+		err := l.executeDbInsert(ctx, func() error {
 			_, err := l.db.Exec(ctx, sqlStatement,
 				i.JobId,
 				i.Error)
@@ -1163,20 +1184,21 @@ type updateInstructionsForJob struct {
 // The proper solution here is to make it so once a job is terminal, no more events are generated for it, but until
 // that day we have to manually filter them out here.
 // NOTE: this function will retry querying the database for as long as possible in order to determine which jobs are
-// in the terminal state.  If, however, the database returns a non-retryable error it will give up and simply not
-// filter out any events as the job state is undetermined.
+// in the terminal state.  If the database returns a non-retryable error, the job state is undetermined and it
+// returns an error rather than silently skipping the filter, since proceeding unfiltered risks a stale update
+// overwriting a terminal one.
 func (l *LookoutDb) filterEventsForTerminalJobs(
 	ctx *armadacontext.Context,
 	db *pgxpool.Pool,
 	instructions []*model.UpdateJobInstruction,
 	m *metrics.Metrics,
-) []*model.UpdateJobInstruction {
+) ([]*model.UpdateJobInstruction, error) {
 	jobIds := make([]string, len(instructions))
 	for i, instruction := range instructions {
 		jobIds[i] = instruction.JobId
 	}
 	queryStart := time.Now()
-	rowsRaw, err := l.withDatabaseRetryQuery(ctx, func() (interface{}, error) {
+	rowsRaw, err := l.executeDbQuery(ctx, func() (interface{}, error) {
 		terminalStates := []int{
 			lookout.JobSucceededOrdinal,
 			lookout.JobFailedOrdinal,
@@ -1188,8 +1210,8 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 	})
 	if err != nil {
 		m.RecordDBError(commonmetrics.DBOperationRead)
-		log.WithError(err).Warnf("Cannot retrieve job state from the database- Cancelled jobs may not be filtered out")
-		return instructions
+		log.WithError(err).Warnf("Cannot retrieve job state from the database- unable to determine which jobs are terminal")
+		return nil, err
 	}
 	rows := rowsRaw.(pgx.Rows)
 
@@ -1233,57 +1255,36 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 				filtered = append(filtered, updateInstructions.instructions...)
 			}
 		}
-		return filtered
+		return filtered, nil
 	} else {
-		return instructions
+		return instructions, nil
 	}
 }
 
-func (l *LookoutDb) withDatabaseRetryInsert(ctx *armadacontext.Context, executeDb func() error) error {
-	_, err := l.withDatabaseRetryQuery(ctx, func() (interface{}, error) {
+func (l *LookoutDb) executeDbInsert(ctx *armadacontext.Context, executeDb func() error) error {
+	_, err := l.executeDbQuery(ctx, func() (interface{}, error) {
 		return nil, executeDb()
 	})
 	return err
 }
 
-// Executes a database function, retrying until it either succeeds, exceeds the
-// retry limit, encounters a non-retryable error, or the context is cancelled.
-func (l *LookoutDb) withDatabaseRetryQuery(ctx *armadacontext.Context, executeDb func() (interface{}, error)) (interface{}, error) {
-	backOff := 1
-	retries := 0
-	for {
-		res, err := executeDb()
-
-		if err == nil {
-			return res, nil
-		}
-
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-
-		if armadaerrors.IsRetryablePostgresError(err, l.fatalErrors) {
-			retries++
-			if l.maxRetries > 0 && retries >= l.maxRetries {
-				return nil, fmt.Errorf("exceeded max retries (%d): %w", l.maxRetries, err)
-			}
-			backOff = min(2*backOff, l.maxBackoff)
-			log.WithError(err).Warnf("Retryable error encountered executing sql (attempt %d/%d), will wait for %d seconds before retrying.", retries, l.maxRetries, backOff)
-			select {
-			case <-time.After(time.Duration(backOff) * time.Second):
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-		} else {
-			// Non retryable error
-			return nil, err
-		}
+// executeDbQuery runs a database function once. Retry-then-dead-letter policy is owned by the
+// IngestionPipeline ack-path (see internal/common/ingest). Errors classified as
+// non-retryable are wrapped with util.ErrNonRetryable so that the ack-path skips
+// straight to dead-lettering instead of exhausting its retry budget first.
+func (l *LookoutDb) executeDbQuery(ctx *armadacontext.Context, executeDb func() (interface{}, error)) (interface{}, error) {
+	res, err := executeDb()
+	if err == nil {
+		return res, nil
 	}
-}
 
-func min(a int, b int) int {
-	if a < b {
-		return a
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
-	return b
+
+	if !armadaerrors.IsRetryablePostgresError(err, l.fatalErrors) {
+		log.WithError(err).Warnf("Non-retryable error encountered executing sql; returning immediately")
+		return nil, fmt.Errorf("%w: %w", util.ErrNonRetryable, err)
+	}
+	return nil, err
 }

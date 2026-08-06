@@ -143,7 +143,7 @@ func TestReconcileZombieJobs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 				converter := instructions.NewInstructionConverter(metrics.Get().Metrics, "armadaproject.io/", []string{}, &compress.NoOpCompressor{})
-				store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10, 10)
+				store := lookoutdb.NewLookoutDb(db, nil, metrics.Get())
 
 				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Minute)
 				defer cancel()
@@ -184,7 +184,7 @@ func TestReconcileZombieJobs(t *testing.T) {
 func TestReconcileZombieJobsLeavesNonZombiesAlone(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, "armadaproject.io/", []string{}, &compress.NoOpCompressor{})
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get())
 
 		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Minute)
 		defer cancel()
@@ -234,7 +234,7 @@ func TestReconcileZombieJobsLeavesNonZombiesAlone(t *testing.T) {
 func TestReconcileZombieJobsCountsNullFinishedZombies(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, "armadaproject.io/", []string{}, &compress.NoOpCompressor{})
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get())
 
 		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Minute)
 		defer cancel()
@@ -274,7 +274,7 @@ func TestReconcileZombieJobsCountsNullFinishedZombies(t *testing.T) {
 func TestPruneDbRunsZombieReconciliation(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, "armadaproject.io/", []string{}, &compress.NoOpCompressor{})
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get())
 
 		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Minute)
 		defer cancel()

@@ -1,12 +1,12 @@
 package ingest
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -48,6 +48,15 @@ type Sink[T HasPulsarMessageIds] interface {
 	// Store should persist the sink.  The store is responsible for retrying failed attempts and should only return an error
 	// When it is satisfied that operation cannot be retries.
 	Store(ctx *armadacontext.Context, msg T) error
+	// Serialize renders msg as a self-contained byte payload for the dead-letter topic.
+	// Only called when the pipeline is about to give up on msg, never on the happy path.
+	Serialize(msg T) ([]byte, error)
+}
+
+// deadLetterPublisher is implemented by *pulsarutils.DeadLetterPublisher; declared here so tests can inject a fake.
+type deadLetterPublisher interface {
+	Publish(ctx *armadacontext.Context, payload []byte, meta pulsarutils.DeadLetterMetadata) error
+	Close()
 }
 
 // IngestionPipeline is a pipeline that reads message from pulsar and inserts them into a sink. The pipeline will
@@ -76,6 +85,7 @@ type IngestionPipeline[T HasPulsarMessageIds, U utils.ArmadaEvent] struct {
 	converter              InstructionConverter[T, U]
 	sink                   Sink[T]
 	consumer               pulsar.Consumer // for test purposes only
+	deadLetterPublisher    deadLetterPublisher
 }
 
 // NewIngestionPipeline creates an IngestionPipeline that processes all pulsar messages
@@ -111,6 +121,46 @@ func NewIngestionPipeline[T HasPulsarMessageIds, U utils.ArmadaEvent](
 	}
 }
 
+// defaultDeadLetterMaxAttempts is used when PulsarConfig.DeadLetterMaxAttempts is unset (0),
+// i.e. dead-lettering has not been explicitly configured. It still bounds retries so that a
+// persistently failing message doesn't block the pipeline forever; the message is dead-lettered
+// (if DeadLetterTopic is set) or, if not, left unacked for redelivery - see deadLetterMaxAttempts.
+const defaultDeadLetterMaxAttempts = 5
+
+// deadLetterMaxAttempts returns the effective number of Sink.Store attempts before a message is
+// given up on, defaulting to defaultDeadLetterMaxAttempts when PulsarConfig.DeadLetterMaxAttempts
+// is unset.
+func (i *IngestionPipeline[T, U]) deadLetterMaxAttempts() int {
+	if i.pulsarConfig.DeadLetterMaxAttempts > 0 {
+		return i.pulsarConfig.DeadLetterMaxAttempts
+	}
+	return defaultDeadLetterMaxAttempts
+}
+
+// newBackOff returns a fresh jittered exponential backoff sequence, starting at
+// i.pulsarConfig.BackoffTime and capped at i.pulsarConfig.MaxBackoffTime (falling back to
+// BackoffTime, i.e. no growth, if MaxBackoffTime is unset). Randomization and growth can be
+// tuned via i.pulsarConfig.BackoffRandomizationFactor and BackoffMultiplier; if unset, the
+// backoff library's own defaults are used.
+func (i *IngestionPipeline[T, U]) newBackOff() *backoff.ExponentialBackOff {
+	maxInterval := i.pulsarConfig.MaxBackoffTime
+	if maxInterval <= 0 {
+		maxInterval = i.pulsarConfig.BackoffTime
+	}
+	opts := []backoff.ExponentialBackOffOpts{
+		backoff.WithInitialInterval(i.pulsarConfig.BackoffTime),
+		backoff.WithMaxInterval(maxInterval),
+		backoff.WithMaxElapsedTime(0),
+	}
+	if i.pulsarConfig.BackoffRandomizationFactor >= 0 {
+		opts = append(opts, backoff.WithRandomizationFactor(i.pulsarConfig.BackoffRandomizationFactor))
+	}
+	if i.pulsarConfig.BackoffMultiplier > 0 {
+		opts = append(opts, backoff.WithMultiplier(i.pulsarConfig.BackoffMultiplier))
+	}
+	return backoff.NewExponentialBackOff(opts...)
+}
+
 // Run will run the ingestion pipeline until the supplied context is shut down
 func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 	// Waitgroup that wil fire when the pipeline has been torn down
@@ -124,6 +174,21 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 		}
 		i.consumer = consumer
 		defer closePulsar()
+
+		if i.pulsarConfig.DeadLetterTopic != "" {
+			deadLetterPublisher, err := pulsarutils.NewDeadLetterPublisher(
+				client,
+				i.pulsarConfig.DeadLetterTopic,
+				i.pulsarConfig.CompressionType,
+				i.pulsarConfig.CompressionLevel,
+				i.pulsarConfig.SendTimeout,
+			)
+			if err != nil {
+				return errors.WithMessage(err, "error creating dead-letter publisher")
+			}
+			i.deadLetterPublisher = deadLetterPublisher
+			defer deadLetterPublisher.Close()
+		}
 
 		if i.pulsarConfig.DelayMonitor.Enabled {
 			err := i.startProcessingDelayMonitor(ctx, client)
@@ -153,7 +218,7 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 				pulsarMessages <- msg
 				lastReceivedTime = time.Now()
 			case <-ticker.C:
-				timeSinceLastReceived := time.Now().Sub(lastReceivedTime)
+				timeSinceLastReceived := time.Since(lastReceivedTime)
 				if timeSinceLastReceived > timeout {
 					log.Infof("%s - Last pulsar message received %s ago", i.pulsarTopic, timeSinceLastReceived)
 				}
@@ -205,7 +270,7 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 		for batch := range preprocessedEventBatches {
 			start := time.Now()
 			converted := i.converter.Convert(ctx, batch)
-			taken := time.Now().Sub(start)
+			taken := time.Since(start)
 			log.Infof("%s - Processed %d pulsar messages in %dms", i.pulsarTopic, len(batch.MessageIds), taken.Milliseconds())
 			instructions <- converted
 		}
@@ -214,32 +279,95 @@ func (i *IngestionPipeline[T, U]) Run(ctx *armadacontext.Context) error {
 
 	// Publish messages to sink then ACK on pulsar
 	go func() {
+	loop:
 		for msg := range instructions {
-			// The sink is responsible for retrying any messages so if we get a message here we know we can give up
-			// and just ACK the ids
 			start := time.Now()
-			err := i.sink.Store(ctx, msg)
-			taken := time.Now().Sub(start)
-			if err != nil {
-				log.WithError(err).Warnf("%s - Error inserting messages", i.pulsarTopic)
-			} else {
-				log.Infof("%s - Inserted %d pulsar messages in %dms", i.pulsarTopic, len(msg.GetMessageIDs()), taken.Milliseconds())
-			}
-			if errors.Is(err, context.DeadlineExceeded) {
-				// This occurs when we're shutting down- it's a signal to stop processing immediately
-				break
-			} else {
-				for _, msgId := range msg.GetMessageIDs() {
+			storeBackoff := i.newBackOff()
+			dropped := false
+			deadLettered := false
+			succeeded := util.RetryUntilSuccessOrExhausted(
+				ctx,
+				i.deadLetterMaxAttempts(),
+				func() error {
+					return i.sink.Store(ctx, msg)
+				},
+				func(attempt int, err error) {
+					i.metrics.RecordPulsarMessageStoreRetry()
+					wait := storeBackoff.NextBackOff()
+					log.WithError(err).Warnf("%s - Error inserting %d messages (ids: %v); will retry after %s",
+						i.pulsarTopic, len(msg.GetMessageIDs()), msg.GetMessageIDs(), wait)
+					// This sleep is not ctx-aware: RetryUntilSuccessOrExhausted only checks ctx
+					// before the next performAction call, not during this wait. On shutdown, the
+					// sleep runs to completion before cancellation is noticed, delaying shutdown
+					// by up to `wait`. Deemed acceptable since wait is bounded by backoff config.
+					time.Sleep(wait)
+				},
+				func(lastErr error) {
+					if i.deadLetterPublisher == nil {
+						// No dead-letter topic configured: leave the message unacked for
+						// redelivery rather than dropping it silently.
+						dropped = true
+						log.WithError(lastErr).Warnf("%s - Exhausted %d attempts inserting %d messages (ids: %v); no dead-letter topic configured, leaving unacked for redelivery",
+							i.pulsarTopic, i.deadLetterMaxAttempts(), len(msg.GetMessageIDs()), msg.GetMessageIDs())
+						return
+					}
+					log.WithError(lastErr).Warnf("%s - Exhausted %d attempts inserting %d messages (ids: %v); publishing to dead-letter topic",
+						i.pulsarTopic, i.deadLetterMaxAttempts(), len(msg.GetMessageIDs()), msg.GetMessageIDs())
+					payload, err := i.sink.Serialize(msg)
+					if err != nil {
+						log.WithError(err).Warnf("%s - Error serializing dead-lettered messages (ids: %v); publishing error text instead",
+							i.pulsarTopic, msg.GetMessageIDs())
+						payload = []byte(err.Error())
+					}
+					meta := pulsarutils.DeadLetterMetadata{
+						OriginalTopic: i.pulsarTopic,
+						Subscription:  i.pulsarSubscriptionName,
+						Attempts:      i.deadLetterMaxAttempts(),
+						LastError:     lastErr.Error(),
+						MessageIDs:    pulsarutils.MessageIdsToStrings(msg.GetMessageIDs()),
+					}
+					dlqBackoff := i.newBackOff()
 					util.RetryUntilSuccess(
-						armadacontext.Background(),
-						func() error { return i.consumer.AckID(msgId) },
+						ctx,
+						func() error {
+							err := i.deadLetterPublisher.Publish(ctx, payload, meta)
+							if err == nil {
+								deadLettered = true
+							}
+							return err
+						},
 						func(err error) {
-							log.WithError(err).Warnf("%s - Pulsar ack failed; backing off for %s", i.pulsarTopic, i.pulsarConfig.BackoffTime)
-							time.Sleep(i.pulsarConfig.BackoffTime)
+							wait := dlqBackoff.NextBackOff()
+							log.WithError(err).Warnf("%s - Dead-letter publish failed; backing off for %s", i.pulsarTopic, wait)
+							time.Sleep(wait)
 						},
 					)
-					i.metrics.RecordPulsarMessageProcessed()
-				}
+					if deadLettered {
+						i.metrics.RecordPulsarMessageDeadLettered()
+					}
+				},
+			)
+			if !succeeded && !deadLettered && (ctx.Err() != nil || dropped) {
+				// Either ctx was cancelled (e.g. ingester shutdown) while retrying, or attempts
+				// were exhausted with no dead-letter topic configured; the message is left
+				// unacked for redelivery rather than dropped. If the message was successfully
+				// dead-lettered, it must still be acked below even if ctx was cancelled
+				// immediately afterwards, otherwise it is redelivered and dead-lettered again
+				// on restart.
+				break loop
+			}
+			taken := time.Since(start)
+			log.Infof("%s - Inserted %d pulsar messages in %dms", i.pulsarTopic, len(msg.GetMessageIDs()), taken.Milliseconds())
+			for _, msgId := range msg.GetMessageIDs() {
+				util.RetryUntilSuccess(
+					armadacontext.Background(),
+					func() error { return i.consumer.AckID(msgId) },
+					func(err error) {
+						log.WithError(err).Warnf("%s - Pulsar ack failed; backing off for %s", i.pulsarTopic, i.pulsarConfig.BackoffTime)
+						time.Sleep(i.pulsarConfig.BackoffTime)
+					},
+				)
+				i.metrics.RecordPulsarMessageProcessed()
 			}
 		}
 		wg.Done()

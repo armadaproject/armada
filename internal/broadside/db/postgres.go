@@ -117,7 +117,7 @@ func (p *PostgresDatabase) InitialiseSchema(ctx context.Context) error {
 	}
 
 	decompressor := &compress.NoOpDecompressor{}
-	p.lookoutDb = lookoutdb.NewLookoutDb(p.pool, nil, lookoutingestermetrics.Get(), 16, 12)
+	p.lookoutDb = lookoutdb.NewLookoutDb(p.pool, nil, lookoutingestermetrics.Get())
 	if p.features.HotColdSplit {
 		tables := repository.NewTablesWithJobTable("job_all")
 		p.jobsRepository = repository.NewSqlGetJobsRepositoryWithTables(p.pool, tables)

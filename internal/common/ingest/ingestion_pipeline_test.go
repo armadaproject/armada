@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -170,6 +171,35 @@ func (p *mockPulsarConsumer) assertDidAck(messages []pulsar.Message) {
 
 func (p *mockPulsarConsumer) Close() {
 	// do nothing
+}
+
+type fakeDeadLetterPublisher struct {
+	mutex      sync.Mutex
+	published  []pulsarutils.DeadLetterMetadata
+	shouldFail bool
+}
+
+func newFakeDeadLetterPublisher() *fakeDeadLetterPublisher {
+	return &fakeDeadLetterPublisher{}
+}
+
+func (f *fakeDeadLetterPublisher) Publish(_ *armadacontext.Context, _ []byte, meta pulsarutils.DeadLetterMetadata) error {
+	if f.shouldFail {
+		return assert.AnError
+	}
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+	f.published = append(f.published, meta)
+	return nil
+}
+
+func (f *fakeDeadLetterPublisher) Close() {}
+
+func (f *fakeDeadLetterPublisher) assertPublishedCount(t *testing.T, count int) {
+	t.Helper()
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+	assert.Len(t, f.published, count)
 }
 
 type simpleMessage struct {
@@ -345,10 +375,60 @@ func TestRun_ControlPlaneEvents_LimitsProcessingBatchSize(t *testing.T) {
 	}
 }
 
+func TestRun_ControlPlaneEvents_ExhaustsRetriesThenDeadLettersAndAcks(t *testing.T) {
+	ctx, cancel := armadacontext.WithDeadline(armadacontext.Background(), time.Now().Add(10*time.Second))
+	messages := []pulsar.Message{
+		pulsarutils.NewPulsarMessage(1, baseTime, marshal(t, f.UpsertExecutorSettingsCordon)),
+	}
+	mockConsumer := newMockPulsarConsumer(t, messages, cancel)
+	converter := newSimpleControlPlaneEventConverter(t)
+	sink := &alwaysFailingSink{}
+	dlq := newFakeDeadLetterPublisher()
+
+	pipeline := testControlPlaneEventsPipeline(mockConsumer, converter, sink)
+	pipeline.pulsarConfig.DeadLetterMaxAttempts = 3
+	pipeline.pulsarConfig.BackoffTime = time.Millisecond
+	pipeline.deadLetterPublisher = dlq
+
+	err := pipeline.Run(ctx)
+	assert.NoError(t, err)
+
+	mockConsumer.assertDidAck(messages)
+	dlq.assertPublishedCount(t, 1)
+}
+
+func TestRun_ControlPlaneEvents_CancelledMidRetry_NotAckedNotDeadLettered(t *testing.T) {
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	messages := []pulsar.Message{
+		pulsarutils.NewPulsarMessage(1, baseTime, marshal(t, f.UpsertExecutorSettingsCordon)),
+	}
+	mockConsumer := newMockPulsarConsumer(t, messages, func() {})
+	converter := newSimpleControlPlaneEventConverter(t)
+	sink := &alwaysFailingSink{}
+	dlq := newFakeDeadLetterPublisher()
+
+	pipeline := testControlPlaneEventsPipeline(mockConsumer, converter, sink)
+	pipeline.pulsarConfig.DeadLetterMaxAttempts = 1000000
+	pipeline.pulsarConfig.BackoffTime = 50 * time.Millisecond
+	pipeline.deadLetterPublisher = dlq
+
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		cancel()
+	}()
+
+	err := pipeline.Run(ctx)
+	assert.NoError(t, err)
+
+	assert.Empty(t, mockConsumer.acked)
+	dlq.assertPublishedCount(t, 0)
+}
+
 func testControlPlaneEventsPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simpleMessages, *controlplaneevents.Event], sink Sink[*simpleMessages]) *IngestionPipeline[*simpleMessages, *controlplaneevents.Event] {
 	return &IngestionPipeline[*simpleMessages, *controlplaneevents.Event]{
 		pulsarConfig: commonconfig.PulsarConfig{
-			BackoffTime: time.Second,
+			BackoffTime:           time.Second,
+			DeadLetterMaxAttempts: 5,
 		},
 		pulsarTopic:            controlPlaneEventsTopic,
 		pulsarSubscriptionName: "subscription",
@@ -362,6 +442,7 @@ func testControlPlaneEventsPipeline(consumer pulsar.Consumer, converter Instruct
 		sink:                   sink,
 		metrics:                testMetrics,
 		consumer:               consumer,
+		deadLetterPublisher:    newFakeDeadLetterPublisher(),
 	}
 }
 
@@ -388,6 +469,20 @@ func (s *simpleSink) Store(_ *armadacontext.Context, msg *simpleMessages) error 
 		s.mutex.Unlock()
 	}
 	return nil
+}
+
+func (s *simpleSink) Serialize(msg *simpleMessages) ([]byte, error) {
+	return fmt.Appendf(nil, "%+v", msg), nil
+}
+
+type alwaysFailingSink struct{}
+
+func (s *alwaysFailingSink) Store(_ *armadacontext.Context, _ *simpleMessages) error {
+	return assert.AnError
+}
+
+func (s *alwaysFailingSink) Serialize(msg *simpleMessages) ([]byte, error) {
+	return fmt.Appendf(nil, "%+v", msg), nil
 }
 
 func (s *simpleSink) assertDidProcess(messages []pulsar.Message) {
@@ -569,7 +664,8 @@ func TestRun_MultipleSimultaneousIngesters(t *testing.T) {
 func testJobSetEventsPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simpleMessages, *armadaevents.EventSequence], sink Sink[*simpleMessages]) *IngestionPipeline[*simpleMessages, *armadaevents.EventSequence] {
 	return &IngestionPipeline[*simpleMessages, *armadaevents.EventSequence]{
 		pulsarConfig: commonconfig.PulsarConfig{
-			BackoffTime: time.Second,
+			BackoffTime:           time.Second,
+			DeadLetterMaxAttempts: 5,
 		},
 		pulsarTopic:            jobSetEventsTopic,
 		pulsarSubscriptionName: "subscription",
@@ -583,6 +679,7 @@ func testJobSetEventsPipeline(consumer pulsar.Consumer, converter InstructionCon
 		sink:                   sink,
 		metrics:                testMetrics,
 		consumer:               consumer,
+		deadLetterPublisher:    newFakeDeadLetterPublisher(),
 	}
 }
 

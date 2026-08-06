@@ -161,6 +161,9 @@ type DbOperation interface {
 	CanBeAppliedBefore(DbOperation) bool
 	// GetOperation returns the Operation/grouping that this DbOperation belongs to.
 	GetOperation() Operation
+	// SerializeForDLQ returns a JSON-marshalable representation of the op for the dead-letter
+	// topic. This payload is for inspection/manual-replay purposes, not automatic round-tripping.
+	SerializeForDLQ() any
 }
 
 // AppendDbOperation appends a sql operation,
@@ -728,112 +731,237 @@ func (a InsertJobs) GetOperation() Operation {
 	return JobSetOperation
 }
 
+func (a InsertJobs) SerializeForDLQ() any {
+	return a
+}
+
 func (a InsertRuns) GetOperation() Operation {
 	return JobSetOperation
+}
+
+func (a InsertRuns) SerializeForDLQ() any {
+	return a
 }
 
 func (a UpdateJobSetPriorities) GetOperation() Operation {
 	return JobSetOperation
 }
 
+func (a UpdateJobSetPriorities) SerializeForDLQ() any {
+	return jobSetKeyMapToPairs(a)
+}
+
 func (a MarkJobSetsCancelRequested) GetOperation() Operation {
 	return JobSetOperation
+}
+
+func (a MarkJobSetsCancelRequested) SerializeForDLQ() any {
+	return struct {
+		CancelUser   string
+		CancelReason string
+		JobSets      []jobSetKeyPair[*JobSetCancelAction]
+	}{a.cancelUser, a.cancelReason, jobSetKeyMapToPairs(a.jobSets)}
 }
 
 func (a MarkJobsCancelRequested) GetOperation() Operation {
 	return JobSetOperation
 }
 
+func (a MarkJobsCancelRequested) SerializeForDLQ() any {
+	return struct {
+		CancelUser   string
+		CancelReason string
+		JobIds       []jobSetKeyPair[[]string]
+	}{a.cancelUser, a.cancelReason, jobSetKeyMapToPairs(a.jobIds)}
+}
+
 func (a MarkRunsForJobPreemptRequested) GetOperation() Operation {
 	return JobSetOperation
+}
+
+func (a MarkRunsForJobPreemptRequested) SerializeForDLQ() any {
+	return jobSetKeyMapToPairs(a)
 }
 
 func (a UpdateJobSchedulingInfo) GetOperation() Operation {
 	return JobSetOperation
 }
 
+func (a UpdateJobSchedulingInfo) SerializeForDLQ() any {
+	return a
+}
+
 func (a UpdateJobQueuedState) GetOperation() Operation {
 	return JobSetOperation
+}
+
+func (a UpdateJobQueuedState) SerializeForDLQ() any {
+	return a
 }
 
 func (a MarkJobsCancelled) GetOperation() Operation {
 	return JobSetOperation
 }
 
+func (a MarkJobsCancelled) SerializeForDLQ() any {
+	return a
+}
+
 func (a MarkJobsSucceeded) GetOperation() Operation {
 	return JobSetOperation
+}
+
+func (a MarkJobsSucceeded) SerializeForDLQ() any {
+	return a
 }
 
 func (a MarkJobsFailed) GetOperation() Operation {
 	return JobSetOperation
 }
 
+func (a MarkJobsFailed) SerializeForDLQ() any {
+	return a
+}
+
 func (a *UpdateJobPriorities) GetOperation() Operation {
 	return JobSetOperation
+}
+
+func (a *UpdateJobPriorities) SerializeForDLQ() any {
+	return struct {
+		Key    JobReprioritiseKey
+		JobIds []string
+	}{a.key, a.jobIds}
 }
 
 func (a MarkRunsSucceeded) GetOperation() Operation {
 	return JobSetOperation
 }
 
+func (a MarkRunsSucceeded) SerializeForDLQ() any {
+	return a
+}
+
 func (a MarkRunsFailed) GetOperation() Operation {
 	return JobSetOperation
+}
+
+func (a MarkRunsFailed) SerializeForDLQ() any {
+	return a
 }
 
 func (a MarkRunsRunning) GetOperation() Operation {
 	return JobSetOperation
 }
 
+func (a MarkRunsRunning) SerializeForDLQ() any {
+	return a
+}
+
 func (a MarkRunsPending) GetOperation() Operation {
 	return JobSetOperation
+}
+
+func (a MarkRunsPending) SerializeForDLQ() any {
+	return a
 }
 
 func (a MarkRunsPreempted) GetOperation() Operation {
 	return JobSetOperation
 }
 
+func (a MarkRunsPreempted) SerializeForDLQ() any {
+	return a
+}
+
 func (a InsertJobRunErrors) GetOperation() Operation {
 	return JobSetOperation
+}
+
+func (a InsertJobRunErrors) SerializeForDLQ() any {
+	return a
 }
 
 func (a MarkJobsValidated) GetOperation() Operation {
 	return JobSetOperation
 }
 
+func (a MarkJobsValidated) SerializeForDLQ() any {
+	return a
+}
+
 func (a *InsertPartitionMarker) GetOperation() Operation {
 	return JobSetOperation
+}
+
+func (a *InsertPartitionMarker) SerializeForDLQ() any {
+	return struct {
+		Markers []*schedulerdb.Marker
+	}{a.markers}
 }
 
 func (a UpsertExecutorSettings) GetOperation() Operation {
 	return ControlPlaneOperation
 }
 
+func (a UpsertExecutorSettings) SerializeForDLQ() any {
+	return a
+}
+
 func (a DeleteExecutorSettings) GetOperation() Operation {
 	return ControlPlaneOperation
+}
+
+func (a DeleteExecutorSettings) SerializeForDLQ() any {
+	return a
 }
 
 func (pe PreemptExecutor) GetOperation() Operation {
 	return ControlPlaneOperation
 }
 
+func (pe PreemptExecutor) SerializeForDLQ() any {
+	return pe
+}
+
 func (ce CancelExecutor) GetOperation() Operation {
 	return ControlPlaneOperation
+}
+
+func (ce CancelExecutor) SerializeForDLQ() any {
+	return ce
 }
 
 func (ne PreemptNode) GetOperation() Operation {
 	return ControlPlaneOperation
 }
 
+func (ne PreemptNode) SerializeForDLQ() any {
+	return nodeOnExecutorMapToPairs(ne)
+}
+
 func (cn CancelNode) GetOperation() Operation {
 	return ControlPlaneOperation
+}
+
+func (cn CancelNode) SerializeForDLQ() any {
+	return nodeOnExecutorMapToPairs(cn)
 }
 
 func (pq PreemptQueue) GetOperation() Operation {
 	return ControlPlaneOperation
 }
 
+func (pq PreemptQueue) SerializeForDLQ() any {
+	return pq
+}
+
 func (cq CancelQueue) GetOperation() Operation {
 	return ControlPlaneOperation
+}
+
+func (cq CancelQueue) SerializeForDLQ() any {
+	return cq
 }
 
 type executorOperation interface {

@@ -47,7 +47,7 @@ func countInPartition(t *testing.T, db *pgxpool.Pool, partition, jobId string) i
 
 func TestHotCold_StoreRoutesTerminalJobToTerminatedPartition(t *testing.T) {
 	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 
 		createInstructions := &model.InstructionSet{
 			JobsToCreate: []*model.CreateJobInstruction{makeCreateJobInstruction(JobId)},
@@ -103,7 +103,7 @@ func TestHotCold_StoreRoutesTerminalJobToTerminatedPartition(t *testing.T) {
 
 func TestHotCold_StoreKeepsRunningJobInActivePartition(t *testing.T) {
 	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 
 		instructions := &model.InstructionSet{
 			JobsToCreate: []*model.CreateJobInstruction{makeCreateJobInstruction(JobId)},
@@ -129,7 +129,7 @@ func TestHotCold_StoreKeepsRunningJobInActivePartition(t *testing.T) {
 
 func TestHotCold_MultipleJobsDistributedAcrossPartitions(t *testing.T) {
 	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 
 		activeIds := []string{"job-active-1", "job-active-2"}
 		terminalTargets := map[string]int32{
@@ -199,7 +199,7 @@ func TestHotCold_MultipleJobsDistributedAcrossPartitions(t *testing.T) {
 
 func TestHotCold_FailedJobStoresErrorAndRoutesToTerminatedPartition(t *testing.T) {
 	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 
 		instructions := &model.InstructionSet{
 			JobsToCreate: []*model.CreateJobInstruction{makeCreateJobInstruction(JobId)},
@@ -229,7 +229,7 @@ func TestHotCold_FailedJobStoresErrorAndRoutesToTerminatedPartition(t *testing.T
 
 func TestHotCold_ParentJobTableReturnsAllJobs(t *testing.T) {
 	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 
 		createInstructions := []*model.CreateJobInstruction{
 			makeCreateJobInstruction("job-a"),
@@ -287,7 +287,7 @@ func TestHotCold_ParentJobTableReturnsAllJobs(t *testing.T) {
 
 func TestHotCold_TerminalStateQueryPrunesActivePartition(t *testing.T) {
 	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 
 		require.NoError(t, ldb.Store(armadacontext.Background(), &model.InstructionSet{
 			JobsToCreate: []*model.CreateJobInstruction{
@@ -328,7 +328,7 @@ func TestHotCold_TerminalStateQueryPrunesActivePartition(t *testing.T) {
 
 func TestHotCold_ConflatedTerminalUpdatesProduceSingleTerminatedRow(t *testing.T) {
 	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 
 		require.NoError(t, ldb.Store(armadacontext.Background(), &model.InstructionSet{
 			JobsToCreate: []*model.CreateJobInstruction{makeCreateJobInstruction(JobId)},
@@ -389,7 +389,7 @@ func TestHotCold_ConflatedTerminalUpdatesProduceSingleTerminatedRow(t *testing.T
 // (active) partition and would insert a duplicate routed there.
 func TestHotCold_CreateSuppressedWhenJobExistsInOtherPartition(t *testing.T) {
 	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 
 		// A row for the job already exists in job_terminated (e.g. from an
 		// out-of-order or replayed terminal event).
@@ -423,7 +423,7 @@ func TestHotCold_CreateSuppressedWhenJobExistsInOtherPartition(t *testing.T) {
 // exists there (e.g. a Queued create arriving after a Leased row is present).
 func TestHotCold_CreateSuppressedWhenJobExistsInSamePartition(t *testing.T) {
 	err := withLookoutHCDb(func(db *pgxpool.Pool) error {
-		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		ldb := NewLookoutDb(db, fatalErrors, m)
 
 		// An active-state row (Leased) already exists in job_active.
 		_, err := db.Exec(armadacontext.Background(),

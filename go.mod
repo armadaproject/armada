@@ -51,6 +51,7 @@ require (
 	github.com/IBM/pgxpoolprometheus v1.1.2
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/benbjohnson/immutable v0.4.3
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/charmbracelet/glamour v0.10.0
 	github.com/go-openapi/errors v0.22.6
 	github.com/go-openapi/strfmt v0.25.0
@@ -121,7 +122,6 @@ require (
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/caarlos0/log v0.5.4 // indirect
-	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.1 // indirect
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834 // indirect

@@ -63,7 +63,8 @@ type PulsarConfig struct {
 	// The pulsar topic that messages will be published to if a sink cannot store them after DeadLetterMaxAttempts attempts
 	DeadLetterTopic string
 	// Number of consecutive Sink.Store attempts before a message is published to DeadLetterTopic and acked.
-	// If set, must be at least 2: a value of 1 would dead-letter on the first failure with no retry at all.
+	// If unset, dead-lettering is not configured. If set, must be at least 2: a value of 1 would
+	// dead-letter on the first failure with no retry at all.
 	DeadLetterMaxAttempts int `validate:"omitempty,gte=2"`
 }
 
