@@ -192,11 +192,6 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
       return
     }
 
-    if (loadFromStart) {
-      downloadLogLines(logLines)
-      return
-    }
-
     setDownloadingLogs(true)
     try {
       const allLogLines = await fetchAllLogsFromStart(cluster, namespace, job.jobId, selectedContainer)
@@ -208,8 +203,6 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
     }
   }, [
     getLogsResult.status,
-    loadFromStart,
-    logLines,
     downloadLogLines,
     fetchAllLogsFromStart,
     cluster,
