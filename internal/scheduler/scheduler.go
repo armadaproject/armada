@@ -1309,28 +1309,43 @@ func (s *Scheduler) planRetryDecisions(ctx *armadacontext.Context, jobs []*jobdb
 // resolveProbes checks all the candidates in one SubmitChecker call. A
 // candidate that fits a node keeps its mutation. A candidate that fits no node
 // loses the retry, and its plan records unschedulableReason.
+//
+// Candidates with the same scheduling key have the same placement
+// requirements, and the check is deterministic against one snapshot. The probe
+// therefore checks one representative per key and applies its verdict to the
+// whole class. Gang members reach this probe only on the lease-return path,
+// where the probe judges each member alone, as it always has.
+// A mass failure affects many jobs of few distinct shapes. The
+// probe cost therefore scales with the number of shapes, not with the number
+// of jobs.
 func (s *Scheduler) resolveProbes(ctx *armadacontext.Context, candidates []probeCandidate, unschedulableReason string) error {
 	if len(candidates) == 0 {
 		return nil
 	}
-	probedJobs := make([]*jobdb.Job, 0, len(candidates))
+	representativeIdByKey := map[internaltypes.SchedulingKey]string{}
+	var probedJobs []*jobdb.Job
 	for _, candidate := range candidates {
+		key := candidate.job.SchedulingKey()
+		if _, ok := representativeIdByKey[key]; ok {
+			continue
+		}
+		representativeIdByKey[key] = candidate.job.Id()
 		probedJobs = append(probedJobs, candidate.job)
 	}
 	results, _, err := s.submitChecker.Check(ctx, probedJobs)
 	if err != nil {
 		return err
 	}
+	unprobed := 0
 	for _, candidate := range candidates {
-		result, ok := results[candidate.job.Id()]
+		result, ok := results[representativeIdByKey[candidate.job.SchedulingKey()]]
 		if !ok {
 			// The checker returns partial results when it reaches its time
-			// limits (submitCheck.maxDuration, maxDurationPerQueue). An
-			// absent result means "not probed", not "unschedulable": keep
-			// the granted retry and its mutation. A job that truly fits no
-			// node then waits in the queue, which an operator can recover.
-			// A terminal failure is not recoverable.
-			ctx.Warnf("schedulability probe returned no result for job %s; the retry proceeds unprobed", candidate.job.Id())
+			// limits. An absent result means "not probed", not
+			// "unschedulable". A job that fits no node then waits in the
+			// queue, and an operator can recover it. A terminal failure is
+			// not recoverable.
+			unprobed++
 			candidate.plan.newSchedulingInfo = candidate.info
 			continue
 		}
@@ -1343,6 +1358,9 @@ func (s *Scheduler) resolveProbes(ctx *armadacontext.Context, candidates []probe
 			candidate.plan.engineResult.Decision = retry.DecisionRetryUnschedulable
 			candidate.plan.engineResult.Reason = unschedulableReason
 		}
+	}
+	if unprobed > 0 {
+		ctx.Warnf("the schedulability probe returned no result for %d of %d retry candidates. Their retries proceed unprobed", unprobed, len(candidates))
 	}
 	return nil
 }

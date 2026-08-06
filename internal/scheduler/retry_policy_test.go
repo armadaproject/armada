@@ -662,18 +662,30 @@ func TestRetryPolicy_FFOn_MemoryBumpGrowsRequeuedJob(t *testing.T) {
 func TestRetryPolicy_FFOn_ProbesRunAsRoundBatches(t *testing.T) {
 	tests := map[string]struct {
 		mutate             *api.RetryMutation
+		checkSuccess       bool
 		expectedCheckCalls int
+		expectRequeued     bool
 	}{
 		"memory bump probes once for the whole round": {
 			mutate:             &api.RetryMutation{Resources: &api.RetryResourceMutation{Memory: &api.RetryResourceBump{Factor: 1.5}}},
+			checkSuccess:       true,
 			expectedCheckCalls: 1,
+			expectRequeued:     true,
 		},
 		"memory bump and avoidSameNode probe twice for the whole round": {
 			mutate: &api.RetryMutation{
 				Resources: &api.RetryResourceMutation{Memory: &api.RetryResourceBump{Factor: 1.5}},
 				Affinity:  &api.RetryAffinityMutation{AvoidSameNode: true},
 			},
+			checkSuccess:       true,
 			expectedCheckCalls: 2,
+			expectRequeued:     true,
+		},
+		"an unschedulable verdict reaches every job in the class": {
+			mutate:             &api.RetryMutation{Resources: &api.RetryResourceMutation{Memory: &api.RetryResourceBump{Factor: 1.5}}},
+			checkSuccess:       false,
+			expectedCheckCalls: 1,
+			expectRequeued:     false,
 		},
 	}
 	for name, tc := range tests {
@@ -684,7 +696,7 @@ func TestRetryPolicy_FFOn_ProbesRunAsRoundBatches(t *testing.T) {
 				Mutate:     tc.mutate,
 			})
 			sched := makeRetryTestScheduler(t, true, fakePolicyCache{"test-policy": policy})
-			checker := &testSubmitChecker{checkSuccess: true}
+			checker := &testSubmitChecker{checkSuccess: tc.checkSuccess}
 			sched.submitChecker = checker
 
 			txn := sched.jobDb.WriteTxn()
@@ -701,17 +713,17 @@ func TestRetryPolicy_FFOn_ProbesRunAsRoundBatches(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, eventSequences, 3)
 			for _, es := range eventSequences {
-				assert.True(t, hasRequeued(es.Events), "every granted retry must requeue")
+				assert.Equal(t, tc.expectRequeued, hasRequeued(es.Events), "the class verdict must reach every job")
 			}
 			assert.Equal(t, tc.expectedCheckCalls, checker.checkCalls, "probes must run per round, not per job")
+			for _, jobCount := range checker.checkJobCounts {
+				assert.Equal(t, 1, jobCount, "same-shaped candidates must collapse to one probed representative")
+			}
 		})
 	}
 }
 
 func TestRetryPolicy_FFOn_UnprobedJobKeepsRetry(t *testing.T) {
-	// The submit checker returns partial results when it reaches its time
-	// limits. A job absent from the results is not probed, so it keeps the
-	// granted retry and its mutation instead of failing terminally.
 	policy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{
 		Action:     api.RetryAction_RETRY_ACTION_RETRY,
 		OnCategory: "app-error",
