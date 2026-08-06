@@ -30,12 +30,28 @@ contexts:
 
   # Context with OIDC Client Credentials authentication
   # For service accounts (requires confidential client with secret)
-  auth-client-creds:
+  auth-client-creds-executor:
     armadaUrl: localhost:50051
     openIdClientCredentialsAuth:
       providerUrl: "http://localhost:8180/realms/armada"
       clientId: "armada-executor"
       clientSecret: "executor-secret"
+      scopes: ["openid", "profile", "email"]
+
+  auth-client-creds-user:
+    armadaUrl: localhost:50051
+    openIdClientCredentialsAuth:
+      providerUrl: "http://localhost:8180/realms/armada"
+      clientId: "armada-user"
+      clientSecret: "user-secret"
+      scopes: ["openid", "profile", "email"]
+
+  auth-client-creds-admin:
+    armadaUrl: localhost:50051
+    openIdClientCredentialsAuth:
+      providerUrl: "http://localhost:8180/realms/armada"
+      clientId: "armada-admin"
+      clientSecret: "admin-secret"
       scopes: ["openid", "profile", "email"]
 
   # Context with OIDC Password Flow authentication
