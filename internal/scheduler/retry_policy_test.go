@@ -708,6 +708,29 @@ func TestRetryPolicy_FFOn_ProbesRunAsRoundBatches(t *testing.T) {
 	}
 }
 
+func TestRetryPolicy_FFOn_UnprobedJobKeepsRetry(t *testing.T) {
+	// The submit checker returns partial results when it reaches its time
+	// limits. A job absent from the results is not probed, so it keeps the
+	// granted retry and its mutation instead of failing terminally.
+	policy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{
+		Action:     api.RetryAction_RETRY_ACTION_RETRY,
+		OnCategory: "app-error",
+		Mutate:     &api.RetryMutation{Resources: &api.RetryResourceMutation{Memory: &api.RetryResourceBump{Factor: 1.5}}},
+	})
+	sched := makeRetryTestScheduler(t, true, fakePolicyCache{"test-policy": policy})
+	job := makeRetryJob(t, sched, jobRunOpts{schedulingInfo: memorySchedulingInfoFixture(), failedRuns: 1, runAttempted: true})
+	sched.submitChecker = &testSubmitChecker{checkSuccess: false, skipJobIds: map[string]bool{job.Id(): true}}
+
+	events, txn := runFailurePath(t, sched, job, categorizedError("app-error"))
+	defer txn.Abort()
+
+	assert.True(t, hasRequeued(events.Events), "an unprobed job must keep its retry")
+	si := requeuedSchedulingInfo(t, events.Events)
+	expected := resource.MustParse("1536Mi")
+	grown := si.GetPodRequirements().ResourceRequirements.Requests["memory"]
+	assert.Equal(t, expected.Value(), grown.Value(), "an unprobed job must keep its mutation")
+}
+
 func TestRetryPolicy_FFOn_MemoryBumpFailsWhenUnschedulable(t *testing.T) {
 	policy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{
 		Action:     api.RetryAction_RETRY_ACTION_RETRY,

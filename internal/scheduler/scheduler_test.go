@@ -2449,12 +2449,18 @@ func (t *testGangValidator) Validate(txn *jobdb.Txn, jobs []*jobdb.Job) ([]*inva
 type testSubmitChecker struct {
 	checkSuccess bool
 	checkCalls   int
+	// skipJobIds simulates the checker's time limits: jobs in this set are
+	// left out of the result map, like a job the checker did not reach.
+	skipJobIds map[string]bool
 }
 
 func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, map[string]time.Duration, error) {
 	t.checkCalls++
 	result := make(map[string]schedulingResult)
 	for _, job := range jobs {
+		if t.skipJobIds[job.Id()] {
+			continue
+		}
 		if t.checkSuccess {
 			result[job.Id()] = schedulingResult{isSchedulable: true}
 		} else {

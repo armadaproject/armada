@@ -1322,7 +1322,19 @@ func (s *Scheduler) resolveProbes(ctx *armadacontext.Context, candidates []probe
 		return err
 	}
 	for _, candidate := range candidates {
-		if result, ok := results[candidate.job.Id()]; ok && result.isSchedulable {
+		result, ok := results[candidate.job.Id()]
+		if !ok {
+			// The checker returns partial results when it reaches its time
+			// limits (submitCheck.maxDuration, maxDurationPerQueue). An
+			// absent result means "not probed", not "unschedulable": keep
+			// the granted retry and its mutation. A job that truly fits no
+			// node then waits in the queue, which an operator can recover.
+			// A terminal failure is not recoverable.
+			ctx.Warnf("schedulability probe returned no result for job %s; the retry proceeds unprobed", candidate.job.Id())
+			candidate.plan.newSchedulingInfo = candidate.info
+			continue
+		}
+		if result.isSchedulable {
 			candidate.plan.newSchedulingInfo = candidate.info
 			continue
 		}
