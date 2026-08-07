@@ -707,7 +707,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 	inMemoryJobRepo *InMemoryJobRepository,
 	jobRepo jobdb.JobRepository,
 	skipUnsuccessfulSchedulingKeyCheck bool,
-	considerPriorityCLassPriority bool,
+	compareSchedulingPriority bool,
 ) (*SchedulingResult, error) {
 	sortOrder := jobdb.FairShareOrder
 	if sch.marketDriven {
@@ -743,7 +743,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 		sch.nodeDb,
 		jobIteratorByQueue,
 		skipUnsuccessfulSchedulingKeyCheck,
-		considerPriorityCLassPriority,
+		compareSchedulingPriority,
 		sch.preferLargeJobOrdering,
 		sch.maxQueueLookBack,
 		sch.marketDriven,

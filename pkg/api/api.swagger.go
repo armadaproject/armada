@@ -1429,6 +1429,10 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"retryable\": {\n" +
+		"          \"description\": \"retryable indicates the scheduler emitted this failure for an\\nintermediate (non-terminal) run that will be retried. When true,\\na subsequent leased/succeeded/failed event for the same job is\\nexpected. Default false preserves the prior behavior where every\\nemitted JobFailedEvent was terminal.\",\n" +
+		"          \"type\": \"boolean\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -2414,6 +2418,30 @@ func SwaggerJsonTemplate() string {
 		"        \"RETRY_ACTION_RETRY\"\n" +
 		"      ]\n" +
 		"    },\n" +
+		"    \"apiRetryAffinityMutation\": {\n" +
+		"      \"description\": \"RetryAffinityMutation groups placement changes applied to a retried job.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"avoidSameNode\": {\n" +
+		"          \"description\": \"avoid_same_node, when true, steers the retry away from every node a\\nprevious run attempted. This matches the lease-return retry behaviour:\\nthe job fails if the anti-affinity makes it unschedulable. Default\\nfalse: the retry requeues without the per-job scheduling probe.\",\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiRetryMutation\": {\n" +
+		"      \"description\": \"RetryMutation groups the changes applied to a job on a policy-driven retry.\\nFields are additive: new mutation kinds get new fields over time.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"affinity\": {\n" +
+		"          \"description\": \"affinity changes where the retry is allowed to run.\",\n" +
+		"          \"$ref\": \"#/definitions/apiRetryAffinityMutation\"\n" +
+		"        },\n" +
+		"        \"resources\": {\n" +
+		"          \"description\": \"resources bumps the retried job's resource requirements. If the bumped\\njob no longer fits any node, the job fails terminally.\",\n" +
+		"          \"$ref\": \"#/definitions/apiRetryResourceMutation\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiRetryPolicy\": {\n" +
 		"      \"description\": \"RetryPolicy defines rules that determine whether failed jobs should be retried.\\nOperators create policies and assign them to queues by name.\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -2448,11 +2476,39 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiRetryResourceBump\": {\n" +
+		"      \"description\": \"RetryResourceBump grows one resource on retry. Set exactly one field.\\nThe bump changes requests and limits together, and it compounds across\\nretries: each retry grows the amount the previous retry produced.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"factor\": {\n" +
+		"          \"description\": \"factor multiplies the current amount. 1.1 means a 10% increase.\\nMust be greater than 1.0 when set.\",\n" +
+		"          \"type\": \"number\",\n" +
+		"          \"format\": \"double\"\n" +
+		"        },\n" +
+		"        \"static\": {\n" +
+		"          \"description\": \"static adds a fixed amount, as a Kubernetes quantity, e.g. \\\"512Mi\\\".\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiRetryResourceMutation\": {\n" +
+		"      \"description\": \"RetryResourceMutation groups per-resource bumps applied to a retried job.\\nNew resources get new fields over time.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"memory\": {\n" +
+		"          \"$ref\": \"#/definitions/apiRetryResourceBump\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiRetryRule\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"action\": {\n" +
 		"          \"$ref\": \"#/definitions/apiRetryAction\"\n" +
+		"        },\n" +
+		"        \"mutate\": {\n" +
+		"          \"description\": \"mutate describes changes applied to the job when this rule retries it.\\nOnly meaningful when action is Retry.\",\n" +
+		"          \"$ref\": \"#/definitions/apiRetryMutation\"\n" +
 		"        },\n" +
 		"        \"onCategory\": {\n" +
 		"          \"description\": \"on_category matches against Error.failure_category. When set with on_subcategory,\\nboth must match.\",\n" +

@@ -29,6 +29,9 @@ auth:
   permissionGroupMapping:
     submit_any_jobs: ["admins"]
     create_queue: ["admins"]
+    create_retry_policy: ["admins"]
+    update_retry_policy: ["admins"]
+    delete_retry_policy: ["admins"]
     delete_queue: ["admins"]
     cancel_any_jobs: ["admins"]
     reprioritize_any_jobs: ["admins"]

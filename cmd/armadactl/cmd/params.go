@@ -8,6 +8,7 @@ import (
 	ce "github.com/armadaproject/armada/pkg/client/executor"
 	cn "github.com/armadaproject/armada/pkg/client/node"
 	cq "github.com/armadaproject/armada/pkg/client/queue"
+	crp "github.com/armadaproject/armada/pkg/client/retrypolicy"
 )
 
 // initParams initialises the command parameters, flags, and a configuration file.
@@ -32,6 +33,12 @@ func initParams(cmd *cobra.Command, params *armadactl.Params) error {
 	params.QueueAPI.Uncordon = cq.Uncordon(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.QueueAPI.Preempt = cq.Preempt(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.QueueAPI.Cancel = cq.Cancel(client.ExtractCommandlineArmadaApiConnectionDetails)
+
+	params.RetryPolicyAPI.Create = crp.Create(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.RetryPolicyAPI.Delete = crp.Delete(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.RetryPolicyAPI.Get = crp.Get(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.RetryPolicyAPI.GetAll = crp.GetAll(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.RetryPolicyAPI.Update = crp.Update(client.ExtractCommandlineArmadaApiConnectionDetails)
 
 	params.ExecutorAPI.Cordon = ce.CordonExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.ExecutorAPI.Uncordon = ce.UncordonExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)

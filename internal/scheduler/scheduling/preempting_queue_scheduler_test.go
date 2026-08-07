@@ -56,7 +56,7 @@ func TestEvict_JobsEvictedInFairshareOrder(t *testing.T) {
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, testfixtures.TestPool, config)
 	require.NoError(t, err)
 	sctx := schedulingcontext.NewSchedulingContext(
-		testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), totalResources,
+		testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), nil, totalResources,
 	)
 
 	var allJobs []*jobdb.Job
@@ -579,6 +579,45 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 			},
 		},
+		"away scheduling stability": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass4PreemptibleAway, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 31),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass4PreemptibleAway, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 15),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: testfixtures.IntRange(16, 31),
+						},
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass4PreemptibleAway, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{},
+					ExpectedPreemptedIndices: map[string]map[int][]int{},
+				},
+				{},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
 		"avoid urgency-based preemption when possible": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
@@ -771,7 +810,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
-					// Fill half of node 1 and half of node 2.
+					// Fill half capacity with jobs from queues A and B
 					JobsByQueue: map[string][]*jobdb.Job{
 						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 16),
 						"B": testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 16),
@@ -782,7 +821,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					},
 				},
 				{
-					// Schedule a gang filling the remaining space on both nodes.
+					// Schedule a gang filling the remaining space
 					JobsByQueue: map[string][]*jobdb.Job{
 						"C": testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("C", testfixtures.PriorityClass0, 32)),
 					},
@@ -2248,6 +2287,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					testfixtures.TestPool,
 					fairnessCostProvider,
 					limiter,
+					nil,
 					totalResources,
 				)
 				sctx.Started = schedulingStarted.Add(time.Duration(i) * schedulingInterval)
@@ -2300,6 +2340,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						m = make(map[string]internaltypes.ResourceList)
 						allocatedByQueueAndPriorityClass[job.Queue()] = m
 					}
+
 					m[job.PriorityClassName()] = m[job.PriorityClassName()].Subtract(job.AllResourceRequirements())
 				}
 				for _, jctx := range result.ScheduledJobs {
@@ -2599,6 +2640,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				testfixtures.TestPool,
 				fairnessCostProvider,
 				limiter,
+				nil,
 				nodeDb.TotalKubernetesResources(),
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
@@ -2669,6 +2711,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					"pool",
 					fairnessCostProvider,
 					limiter,
+					nil,
 					nodeDb.TotalKubernetesResources(),
 				)
 				for queue, priorityFactor := range priorityFactorByQueue {
@@ -2747,6 +2790,7 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 			testfixtures.TestPool,
 			fairnessCostProvider,
 			rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+			nil,
 			totalResources,
 		)
 
@@ -2818,6 +2862,7 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 			testfixtures.TestPool,
 			fairnessCostProvider,
 			rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+			nil,
 			totalResources,
 		)
 		demand := testfixtures.TestResourceListFactory.MakeAllZero()
@@ -2886,6 +2931,7 @@ func setupGangEvictionTest(t *testing.T, numNodes int) *gangEvictionTestFixture 
 		testfixtures.TestPool,
 		fairnessCostProvider,
 		rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+		nil,
 		totalResources,
 	)
 
@@ -3263,7 +3309,7 @@ func TestPreemptingQueueScheduler_RespectNodePodLimits(t *testing.T) {
 				allocatedByPriorityClass[j.PriorityClassName()] = allocatedByPriorityClass[j.PriorityClassName()].Add(j.AllResourceRequirements())
 			}
 
-			sctx := schedulingcontext.NewSchedulingContext(testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), totalResources)
+			sctx := schedulingcontext.NewSchedulingContext(testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), nil, totalResources)
 			require.NoError(t, sctx.AddQueueSchedulingContext(
 				"A", 1, 1,
 				allocatedByPriorityClass,
@@ -3375,7 +3421,7 @@ func TestPreemptingQueueScheduler_NonPreemptibleOverPack(t *testing.T) {
 		allocatedByPriorityClass[j.PriorityClassName()] = allocatedByPriorityClass[j.PriorityClassName()].Add(j.AllResourceRequirements())
 	}
 
-	sctx := schedulingcontext.NewSchedulingContext(testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), totalResources)
+	sctx := schedulingcontext.NewSchedulingContext(testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), nil, totalResources)
 	require.NoError(t, sctx.AddQueueSchedulingContext(
 		"A", 1, 1,
 		allocatedByPriorityClass,
