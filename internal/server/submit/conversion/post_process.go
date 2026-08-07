@@ -30,6 +30,7 @@ var (
 		addGangIdLabel,
 	}
 	podLevelProcessors = []podProcessor{
+		dropPodLevelResourcesIfDisabled,
 		defaultActiveDeadlineSeconds,
 		defaultPriorityClass,
 		defaultResource,
@@ -107,6 +108,14 @@ func defaultActiveDeadlineSeconds(spec *v1.PodSpec, config configuration.Submiss
 func defaultPriorityClass(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	if spec.PriorityClassName == "" {
 		spec.PriorityClassName = config.DefaultPriorityClassName
+	}
+}
+
+// Clears the pod-level resources block (KEP-2837) unless the feature is enabled,
+// so all downstream accounting ignores it when the feature is off.
+func dropPodLevelResourcesIfDisabled(spec *v1.PodSpec, config configuration.SubmissionConfig) {
+	if !config.PodLevelResources {
+		spec.Resources = nil
 	}
 }
 

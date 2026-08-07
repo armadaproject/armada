@@ -69,6 +69,13 @@ func SchedulingResourceRequirementsFromPodSpec(podSpec *v1.PodSpec) *v1.Resource
 			maxResourcesToList(rv.Limits, c.Resources.Limits)
 		}
 	}
+
+	// Pod-level resources (KEP-2837): max with the pod-level request/limit so the
+	// scheduler reserves the pod-level budget. Inert when podSpec.Resources is unset.
+	if podSpec.Resources != nil {
+		maxResourcesToList(rv.Requests, podSpec.Resources.Requests)
+		maxResourcesToList(rv.Limits, podSpec.Resources.Limits)
+	}
 	return &rv
 }
 
