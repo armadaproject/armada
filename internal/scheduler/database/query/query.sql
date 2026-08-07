@@ -55,6 +55,9 @@ SELECT run_id FROM runs;
 -- name: SelectNewRunsForJobs :many
 SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::text[]) ORDER BY serial;
 
+-- name: MarkJobRunsPreemptRequestedByJobId :exec
+UPDATE jobs SET preempt_user = COALESCE(preempt_user, sqlc.arg(preempt_user)) WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]) and terminated = false;
+
 -- name: MarkRunsPreemptRequestedByJobId :exec
 UPDATE runs SET preempt_requested = true, preempt_reason = sqlc.arg(preempt_reason) WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]) and terminated = false;
 
