@@ -91,6 +91,7 @@ type PreemptOnExecutor struct {
 	Queues          []string
 	PriorityClasses []string
 	Pools           []string
+	Requestor       string
 }
 
 type PreemptOnNode struct {
@@ -98,6 +99,7 @@ type PreemptOnNode struct {
 	Executor        string
 	Queues          []string
 	PriorityClasses []string
+	Requestor       string
 }
 
 type CancelOnNode struct {
@@ -105,6 +107,7 @@ type CancelOnNode struct {
 	Executor        string
 	Queues          []string
 	PriorityClasses []string
+	Requestor       string
 }
 
 type CancelOnExecutor struct {
@@ -112,12 +115,14 @@ type CancelOnExecutor struct {
 	Queues          []string
 	PriorityClasses []string
 	Pools           []string
+	Requestor       string
 }
 
 type PreemptOnQueue struct {
 	Name            string
 	PriorityClasses []string
 	Pools           []string
+	Requestor       string
 }
 
 type CancelOnQueue struct {
@@ -125,6 +130,7 @@ type CancelOnQueue struct {
 	PriorityClasses []string
 	JobStates       []controlplaneevents.ActiveJobState
 	Pools           []string
+	Requestor       string
 }
 
 // DbOperation captures a generic batch database operation.
@@ -195,9 +201,12 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 }
 
 type (
-	InsertJobs                 map[string]*JobInsertion
-	InsertRuns                 map[string]*JobRunDetails
-	UpdateJobSetPriorities     map[JobSetKey]int64
+	InsertJobs             map[string]*JobInsertion
+	InsertRuns             map[string]*JobRunDetails
+	UpdateJobSetPriorities struct {
+		jobSets   map[JobSetKey]int64
+		Requestor string
+	}
 	MarkJobSetsCancelRequested struct {
 		cancelUser   string
 		cancelReason string
@@ -215,14 +224,18 @@ type (
 	UpdateJobQueuedState           map[string]*JobQueuedStateUpdate
 	MarkRunsSucceeded              map[string]time.Time
 	MarkRunsFailed                 map[string]*JobRunFailed
-	MarkRunsForJobPreemptRequested map[JobSetKey]map[string]string
-	MarkRunsRunning                map[string]time.Time
-	MarkRunsPending                map[string]time.Time
-	MarkRunsPreempted              map[string]time.Time
-	InsertJobRunErrors             map[string]*schedulerdb.JobRunError
-	UpdateJobPriorities            struct {
-		key    JobReprioritiseKey
-		jobIds []string
+	MarkRunsForJobPreemptRequested struct {
+		preemptUser string
+		jobSets     map[JobSetKey]map[string]string
+	}
+	MarkRunsRunning     map[string]time.Time
+	MarkRunsPending     map[string]time.Time
+	MarkRunsPreempted   map[string]time.Time
+	InsertJobRunErrors  map[string]*schedulerdb.JobRunError
+	UpdateJobPriorities struct {
+		key       JobReprioritiseKey
+		jobIds    []string
+		Requestor string
 	}
 	MarkJobsValidated     map[string][]string
 	InsertPartitionMarker struct {
@@ -249,7 +262,7 @@ type jobSetOperation interface {
 }
 
 func (a UpdateJobSetPriorities) AffectsJobSet(queue string, jobSet string) bool {
-	_, ok := a[JobSetKey{queue: queue, jobSet: jobSet}]
+	_, ok := a.jobSets[JobSetKey{queue: queue, jobSet: jobSet}]
 	return ok
 }
 
@@ -267,7 +280,15 @@ func (a InsertRuns) Merge(b DbOperation) bool {
 }
 
 func (a UpdateJobSetPriorities) Merge(b DbOperation) bool {
-	return mergeInMap(a, b)
+	switch op := b.(type) {
+	case UpdateJobSetPriorities:
+		if a.Requestor != op.Requestor {
+			return false
+		}
+		maps.Copy(a.jobSets, op.jobSets)
+		return true
+	}
+	return false
 }
 
 func (a MarkJobSetsCancelRequested) Merge(b DbOperation) bool {
@@ -303,14 +324,16 @@ func (a MarkJobsCancelRequested) Merge(b DbOperation) bool {
 func (a MarkRunsForJobPreemptRequested) Merge(b DbOperation) bool {
 	switch op := b.(type) {
 	case MarkRunsForJobPreemptRequested:
-		for k, v := range op {
-			if _, present := a[k]; present {
-				// merge the inner maps
+		if a.preemptUser != op.preemptUser {
+			return false
+		}
+		for k, v := range op.jobSets {
+			if _, present := a.jobSets[k]; present {
 				for jobId, reason := range v {
-					a[k][jobId] = reason
+					a.jobSets[k][jobId] = reason
 				}
 			} else {
-				a[k] = v
+				a.jobSets[k] = v
 			}
 		}
 		return true
@@ -369,7 +392,7 @@ func (a MarkJobsFailed) Merge(b DbOperation) bool {
 func (a *UpdateJobPriorities) Merge(b DbOperation) bool {
 	switch op := b.(type) {
 	case *UpdateJobPriorities:
-		if a.key == op.key {
+		if a.key == op.key && a.Requestor == op.Requestor {
 			a.jobIds = append(a.jobIds, op.jobIds...)
 			return true
 		}
@@ -496,7 +519,8 @@ func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
 
 func (a UpdateJobSetPriorities) CanBeAppliedBefore(b DbOperation) bool {
 	_, isUpdateJobPriorities := b.(*UpdateJobPriorities)
-	return !isUpdateJobPriorities && !definesJobInSet(a, b)
+	_, isUpdateJobSetPriorities := b.(UpdateJobSetPriorities)
+	return !isUpdateJobPriorities && !isUpdateJobSetPriorities && !definesJobInSet(a.jobSets, b)
 }
 
 func (a MarkJobSetsCancelRequested) CanBeAppliedBefore(b DbOperation) bool {
@@ -508,7 +532,7 @@ func (a MarkJobsCancelRequested) CanBeAppliedBefore(b DbOperation) bool {
 }
 
 func (a MarkRunsForJobPreemptRequested) CanBeAppliedBefore(b DbOperation) bool {
-	return !definesJobInSet(a, b) && !definesRunInSet(a, b)
+	return !definesJobInSet(a.jobSets, b) && !definesRunInSet(a.jobSets, b)
 }
 
 func (a MarkJobsSucceeded) CanBeAppliedBefore(b DbOperation) bool {
