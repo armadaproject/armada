@@ -152,7 +152,8 @@ func TestEvictOversubscribed(t *testing.T) {
 	evictor := NewOversubscribedEvictor(
 		testQueueContextChecker{},
 		jobDbTxn,
-		nodeDb)
+		nodeDb,
+	)
 	result, err := evictor.Evict(armadacontext.Background(), nodeDbTxn)
 	require.NoError(t, err)
 
@@ -1168,9 +1169,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(append(
-							testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
-							testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 10)...),
+						"A": append(
+							append(
+								testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
+								testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 10)...,
+							),
 							testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass2, 10)...,
 						),
 					},
@@ -2314,7 +2317,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					armadaslices.Map(
 						maps.Keys(tc.PriorityFactorByQueue),
 						func(qn string) *api.Queue { return &api.Queue{Name: qn} },
-					))
+					),
+				)
 				sctx.UpdateFairShares()
 
 				tc.SchedulingConfig.EnablePreferLargeJobOrdering = true
