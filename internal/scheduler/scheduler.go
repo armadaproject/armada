@@ -379,7 +379,9 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Generate any eventSequences that came out of synchronising the db state.
 	ctx.Info("Generating update messages based on reconciliation changes")
-	events, err := s.generateUpdateMessages(ctx, txn, updatedJobs, jobRepoRunErrorsByRunId)
+	// The update messages and the expiry sweep below share one queue-to-policy map.
+	queueRetryPolicies := s.buildQueueRetryPolicyMap(ctx)
+	events, err := s.generateUpdateMessages(ctx, txn, updatedJobs, jobRepoRunErrorsByRunId, queueRetryPolicies)
 	if err != nil {
 		return false, err
 	}
@@ -394,7 +396,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Expire any jobs running on clusters that haven't heartbeated within the configured deadline.
 	ctx.Info("Looking for jobs to expire")
-	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn)
+	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn, queueRetryPolicies)
 	if err != nil {
 		return false, err
 	}
@@ -1119,13 +1121,16 @@ func runErrorDetail(runError *armadaevents.Error) string {
 
 // generateUpdateMessages generates EventSequences representing the state changes on updated jobs.
 // If there are no state changes then an empty slice will be returned.
-func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[string]*armadaevents.Error) ([]*armadaevents.EventSequence, error) {
-	queueRetryPolicies := s.buildQueueRetryPolicyMap(ctx)
+func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[string]*armadaevents.Error, queueRetryPolicies map[string]string) ([]*armadaevents.EventSequence, error) {
+	plans, err := s.planRetryDecisions(ctx, updatedJobs, jobRunErrors, queueRetryPolicies)
+	if err != nil {
+		return nil, err
+	}
 
 	// Generate any eventSequences that came out of synchronising the db state.
 	var events []*armadaevents.EventSequence
 	for _, job := range updatedJobs {
-		jobEvents, err := s.generateUpdateMessagesFromJob(ctx, job, jobRunErrors, queueRetryPolicies, txn)
+		jobEvents, err := s.generateUpdateMessagesFromJob(ctx, job, jobRunErrors, queueRetryPolicies, plans, txn)
 		if err != nil {
 			return nil, err
 		}
@@ -1164,9 +1169,238 @@ func (s *Scheduler) buildQueueRetryPolicyMap(ctx *armadacontext.Context) map[str
 	return m
 }
 
+// plannedRetry is the resolved retry decision for one failed run.
+// planRetryDecisions computes it before event generation, so the round makes at
+// most two schedulability probe calls.
+type plannedRetry struct {
+	engineResult     retry.Result
+	enginePolicyName string
+	engineDecided    bool
+	requeueJob       bool
+	// newSchedulingInfo carries the granted mutations (memory bump, node
+	// anti-affinity). It is nil when the retry changes nothing. The event
+	// generator applies it to the job it holds, so the job keeps the changes
+	// from the earlier branches, for example a reprioritisation.
+	newSchedulingInfo *internaltypes.JobSchedulingInfo
+}
+
+// probeCandidate pairs a mutated job with the plan that receives the
+// schedulability verdict.
+type probeCandidate struct {
+	plan *plannedRetry
+	job  *jobdb.Job
+	info *internaltypes.JobSchedulingInfo
+}
+
+// retryDecisionPending reports whether generateUpdateMessagesFromJob resolves
+// a retry decision for this job. The job needs a failed latest run that no
+// earlier branch (terminal state, cancellation, success) takes first.
+func retryDecisionPending(job *jobdb.Job) bool {
+	if job.InTerminalState() || job.CancelRequested() || job.CancelByJobsetRequested() || !job.HasRuns() {
+		return false
+	}
+	lastRun := job.LatestRun()
+	return !lastRun.Succeeded() && lastRun.Failed() && !job.Queued()
+}
+
+// planRetryDecisions resolves the retry decision for every failed run in the
+// batch. It evaluates the retry engine once per job. It then probes
+// schedulability with at most two batched SubmitChecker calls per round: one
+// for the memory-grown candidates and one for the node-anti-affinity
+// candidates. One call per job is expensive under mass failure.
+// generateUpdateMessagesFromJob consumes the plans.
+//
+// A decided engine verdict overrides the maxAttemptedRuns logic. The engine
+// evaluation applies the failFast and gang opt-outs internally, so the
+// gang-skip metric stays consistent across call sites.
+func (s *Scheduler) planRetryDecisions(ctx *armadacontext.Context, jobs []*jobdb.Job, jobRunErrors map[string]*armadaevents.Error, queueRetryPolicies map[string]string) (map[string]*plannedRetry, error) {
+	plans := map[string]*plannedRetry{}
+
+	var bumpCandidates []probeCandidate
+	for _, job := range jobs {
+		if !retryDecisionPending(job) {
+			continue
+		}
+		lastRun := job.LatestRun()
+		failFast := job.Annotations()[constants.FailFastAnnotation] == "true"
+		requeueJob := !failFast && lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
+		runError := jobRunErrors[lastRun.Id()]
+
+		plan := &plannedRetry{}
+		if s.retryPolicyConfig.Enabled {
+			plan.engineResult, plan.enginePolicyName, plan.engineDecided = s.evaluateRetryPolicy(ctx, job, runError, queueRetryPolicies)
+			if plan.engineDecided {
+				requeueJob = plan.engineResult.ShouldRetry
+			}
+		}
+		plan.requeueJob = requeueJob
+		plans[job.Id()] = plan
+
+		// A memory bump grows the job before it re-enters the queue: the
+		// scheduling info aggregate for placement and accounting, and the
+		// cumulative record the lease pipeline applies to the pod spec.
+		// Both change together or not at all.
+		memoryBump := plan.engineResult.Mutation.Resources.Memory
+		if requeueJob && !memoryBump.IsZero() {
+			newInfo, err := createSchedulingInfoWithMemoryBump(job, memoryBump)
+			if err != nil {
+				return nil, errors.Errorf("unable to apply memory bump for job %s because %s", job.Id(), err)
+			}
+			if newInfo == nil {
+				ctx.Warnf("skipping memory bump for job %s: the bump kind differs from the job's accumulated record", job.Id())
+			} else {
+				candidate, err := job.WithJobSchedulingInfo(newInfo)
+				if err != nil {
+					return nil, err
+				}
+				bumpCandidates = append(bumpCandidates, probeCandidate{plan: plan, job: candidate, info: newInfo})
+			}
+		}
+	}
+
+	// A grown job that fits no node fails terminally instead of queueing
+	// forever.
+	if err := s.resolveProbes(ctx, bumpCandidates, "retry granted, but the job grown by the rule's memory bump fits no node"); err != nil {
+		return nil, err
+	}
+
+	// Node anti-affinity steers a retry away from every node the job failed on.
+	// The lease-return retry path applies it to every attempted run. An engine
+	// retry applies it only when the matched rule opts in via
+	// mutate.affinity.avoidSameNode. An opted-in retry then behaves like a
+	// lease-return retry: the job fails if the anti-affinity makes it
+	// unschedulable.
+	var affinityCandidates []probeCandidate
+	for _, job := range jobs {
+		plan, ok := plans[job.Id()]
+		if !ok || !plan.requeueJob {
+			continue
+		}
+		lastRun := job.LatestRun()
+		if !lastRun.RunAttempted() || (plan.engineDecided && !plan.engineResult.Mutation.Affinity.AvoidSameNode) {
+			continue
+		}
+		base := job
+		if plan.newSchedulingInfo != nil {
+			var err error
+			base, err = job.WithJobSchedulingInfo(plan.newSchedulingInfo)
+			if err != nil {
+				return nil, err
+			}
+		}
+		newInfo, err := s.createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(base)
+		if err != nil {
+			return nil, errors.Errorf("unable to set node anti-affinity for job %s because %s", job.Id(), err)
+		}
+		candidate, err := base.WithJobSchedulingInfo(newInfo)
+		if err != nil {
+			return nil, err
+		}
+		affinityCandidates = append(affinityCandidates, probeCandidate{plan: plan, job: candidate, info: newInfo})
+	}
+
+	if err := s.resolveProbes(ctx, affinityCandidates, "retry granted, but no untried node fits the job"); err != nil {
+		return nil, err
+	}
+
+	return plans, nil
+}
+
+// resolveProbes checks all the candidates in one batch. A candidate that fits
+// a node keeps its mutation. A candidate that fits no node loses the retry,
+// and its plan records unschedulableReason.
+//
+// Candidates in the same queue with the same scheduling key get the same
+// verdict: the scheduling key covers the placement requirements, the checker
+// applies its per-queue resource limit, and the check is deterministic
+// against one snapshot. The probe therefore checks one representative per
+// queue and key and applies its verdict to the whole class. Gang members
+// reach this probe only on the lease-return path, where the probe judges
+// each member alone, as it always has.
+// A mass failure affects many jobs of few distinct shapes. The
+// probe cost therefore scales with the number of shapes, not with the number
+// of jobs.
+func (s *Scheduler) resolveProbes(ctx *armadacontext.Context, candidates []probeCandidate, unschedulableReason string) error {
+	if len(candidates) == 0 {
+		return nil
+	}
+	type probeClass struct {
+		queue string
+		key   internaltypes.SchedulingKey
+	}
+	classOf := func(job *jobdb.Job) probeClass {
+		return probeClass{queue: job.Queue(), key: job.SchedulingKey()}
+	}
+	representativeIdByClass := map[probeClass]string{}
+	var probedJobs []*jobdb.Job
+	for _, candidate := range candidates {
+		class := classOf(candidate.job)
+		if _, ok := representativeIdByClass[class]; ok {
+			continue
+		}
+		representativeIdByClass[class] = candidate.job.Id()
+		probedJobs = append(probedJobs, candidate.job)
+	}
+	// The checker applies its time limits per call, so a new call starts with
+	// a fresh budget. The probe therefore asks again for the representatives
+	// that an earlier call did not reach.
+	const maxProbeAttempts = 3
+	results := map[string]schedulingResult{}
+	unresolved := probedJobs
+	for attempt := 0; attempt < maxProbeAttempts && len(unresolved) > 0; attempt++ {
+		callResults, _, err := s.submitChecker.Check(ctx, unresolved)
+		if err != nil {
+			return err
+		}
+		var remaining []*jobdb.Job
+		for _, job := range unresolved {
+			if result, ok := callResults[job.Id()]; ok {
+				results[job.Id()] = result
+			} else {
+				remaining = append(remaining, job)
+			}
+		}
+		unresolved = remaining
+	}
+	unprobed := 0
+	for _, candidate := range candidates {
+		result, ok := results[representativeIdByClass[classOf(candidate.job)]]
+		if !ok {
+			// The checker returns partial results when it reaches its time
+			// limits. An absent result means "not probed", not
+			// "unschedulable". A job that fits no node then waits in the
+			// queue, and an operator can recover it. A terminal failure is
+			// not recoverable.
+			unprobed++
+			candidate.plan.newSchedulingInfo = candidate.info
+			continue
+		}
+		if result.isSchedulable {
+			candidate.plan.newSchedulingInfo = candidate.info
+			continue
+		}
+		candidate.plan.requeueJob = false
+		if candidate.plan.engineDecided {
+			candidate.plan.engineResult.Decision = retry.DecisionRetryUnschedulable
+			candidate.plan.engineResult.Reason = unschedulableReason
+		}
+	}
+	if unprobed > 0 {
+		ctx.Warnf("the schedulability probe returned no result for %d of %d retry candidates. Their retries proceed unprobed", unprobed, len(candidates))
+	}
+	return nil
+}
+
 // generateUpdateMessages generates an EventSequence representing the state changes for a single job.
 // If there are no state changes it returns nil.
-func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrors map[string]*armadaevents.Error, queueRetryPolicies map[string]string, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessagesFromJob(
+	ctx *armadacontext.Context,
+	job *jobdb.Job,
+	jobRunErrors map[string]*armadaevents.Error,
+	queueRetryPolicies map[string]string,
+	plans map[string]*plannedRetry,
+	txn *jobdb.Txn,
+) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state? If so then don't send any more messages
@@ -1288,65 +1522,68 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			events = append(events, jobSucceeded)
 		} else if lastRun.Failed() && !job.Queued() {
 			failFast := job.Annotations()[constants.FailFastAnnotation] == "true"
-			requeueJob := !failFast && lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
 			runError := jobRunErrors[lastRun.Id()]
 
-			// A decided engine verdict overrides the maxAttemptedRuns logic
-			// and suppresses its "Maximum number of attempts ..." message.
-			// evaluateRetryPolicy applies the failFast and gang opt-outs
-			// internally, so both call sites reach it and the gang-skip
-			// metric stays consistent.
-			// enginePolicyName is recorded on the emitted event so the decision
-			// is attributable downstream.
+			// enginePolicyName is recorded on the emitted event so the
+			// decision is attributable downstream.
 			var engineResult retry.Result
 			var enginePolicyName string
 			var engineDecided bool
-			if s.retryPolicyConfig.Enabled {
-				engineResult, enginePolicyName, engineDecided = s.evaluateRetryPolicy(ctx, job, runError, queueRetryPolicies)
-				if engineDecided {
-					requeueJob = engineResult.ShouldRetry
+			var requeueJob bool
+			if plan, ok := plans[job.Id()]; ok {
+				engineResult = plan.engineResult
+				enginePolicyName = plan.enginePolicyName
+				engineDecided = plan.engineDecided
+				requeueJob = plan.requeueJob
+				if requeueJob && plan.newSchedulingInfo != nil {
+					var err error
+					job, err = job.WithJobSchedulingInfo(plan.newSchedulingInfo)
+					if err != nil {
+						return nil, err
+					}
 				}
-			}
-
-			// A memory bump grows the job before it re-enters the queue: the
-			// scheduling info aggregate for placement and accounting, and the
-			// cumulative record the lease pipeline applies to the pod spec.
-			// Both change together or not at all. If the bumped job fits no
-			// node, it fails terminally instead of queueing forever.
-			memoryBump := engineResult.Mutation.Resources.Memory
-			if requeueJob && !memoryBump.IsZero() {
-				bumpedJob, schedulable, err := s.applyMemoryBumpIfSchedulable(ctx, job, memoryBump)
-				if err != nil {
-					return nil, errors.Errorf("unable to apply memory bump for job %s because %s", job.Id(), err)
-				}
-				if schedulable {
-					job = bumpedJob
-				} else {
-					requeueJob = false
-					engineResult.Decision = retry.DecisionRetryUnschedulable
-					engineResult.Reason = "retry granted, but the job grown by the rule's memory bump fits no node"
-				}
-			}
-
-			// Node anti-affinity steers a retry away from every node it failed
-			// on. The lease-return retry path always applies it. Engine retries
-			// apply it only when the matched rule opts in via
-			// mutate.affinity.avoidSameNode, because the schedulability probe
-			// costs a per-job SubmitChecker.Check, which is expensive under
-			// mass failure. An opted-in retry behaves like a lease-return
-			// retry: the job fails if the anti-affinity makes it unschedulable.
-			if requeueJob && lastRun.RunAttempted() && (!engineDecided || engineResult.Mutation.Affinity.AvoidSameNode) {
-				jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx, job)
-				if err != nil {
-					return nil, errors.Errorf("unable to set node anti-affinity for job %s because %s", job.Id(), err)
-				}
-				if schedulable {
-					job = jobWithAntiAffinity
-				} else {
-					requeueJob = false
+			} else {
+				// Fallback for a job the planning pass did not cover. It
+				// repeats the decision logic of planRetryDecisions and probes
+				// this job alone. The warning surfaces a drift between
+				// retryDecisionPending and this branch.
+				ctx.Warnf("job %s reached the failure branch without a retry plan; deciding with a per-job probe", job.Id())
+				requeueJob = !failFast && lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
+				if s.retryPolicyConfig.Enabled {
+					engineResult, enginePolicyName, engineDecided = s.evaluateRetryPolicy(ctx, job, runError, queueRetryPolicies)
 					if engineDecided {
+						requeueJob = engineResult.ShouldRetry
+					}
+				}
+
+				memoryBump := engineResult.Mutation.Resources.Memory
+				if requeueJob && !memoryBump.IsZero() {
+					bumpedJob, schedulable, err := s.applyMemoryBumpIfSchedulable(ctx, job, memoryBump)
+					if err != nil {
+						return nil, errors.Errorf("unable to apply memory bump for job %s because %s", job.Id(), err)
+					}
+					if schedulable {
+						job = bumpedJob
+					} else {
+						requeueJob = false
 						engineResult.Decision = retry.DecisionRetryUnschedulable
-						engineResult.Reason = "retry granted, but no untried node fits the job"
+						engineResult.Reason = "retry granted, but the job grown by the rule's memory bump fits no node"
+					}
+				}
+
+				if requeueJob && lastRun.RunAttempted() && (!engineDecided || engineResult.Mutation.Affinity.AvoidSameNode) {
+					jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(ctx, job)
+					if err != nil {
+						return nil, errors.Errorf("unable to set node anti-affinity for job %s because %s", job.Id(), err)
+					}
+					if schedulable {
+						job = jobWithAntiAffinity
+					} else {
+						requeueJob = false
+						if engineDecided {
+							engineResult.Decision = retry.DecisionRetryUnschedulable
+							engineResult.Reason = "retry granted, but no untried node fits the job"
+						}
 					}
 				}
 			}
@@ -1496,7 +1733,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 // expireJobsIfNecessary removes any jobs from the JobDb which are running on stale executors.
 // It also generates an EventSequence for each job, indicating that both the run and the job has failed
 // Note that this is different behaviour from the old scheduler which would allow expired jobs to be rerun
-func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb.Txn, queueRetryPolicies map[string]string) ([]*armadaevents.EventSequence, error) {
 	heartbeatTimes, err := s.executorRepository.GetLastUpdateTimes(ctx)
 	if err != nil {
 		return nil, err
@@ -1523,10 +1760,6 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 	}
 
 	events := make([]*armadaevents.EventSequence, 0)
-
-	// Resolved once per expiry sweep. It is nil when the feature flag is off,
-	// in which case every expired job takes the terminal path below.
-	queueRetryPolicies := s.buildQueueRetryPolicyMap(ctx)
 
 	jobs := txn.GetAllLeasedJobs()
 
