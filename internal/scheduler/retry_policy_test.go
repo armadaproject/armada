@@ -108,6 +108,7 @@ func mkPolicy(t *testing.T, limit uint32, defaultAction api.RetryAction, rules .
 // leased/running run added last so it becomes the job's LatestRun.
 type jobRunOpts struct {
 	schedulingInfo   *schedulerobjects.JobSchedulingInfo
+	queue            string
 	leased           bool
 	running          bool
 	preemptRequested bool
@@ -122,8 +123,12 @@ type jobRunOpts struct {
 func makeRetryJob(t *testing.T, sched *Scheduler, opts jobRunOpts) *jobdb.Job {
 	t.Helper()
 	jobId := util.NewULID()
+	queue := opts.queue
+	if queue == "" {
+		queue = "testQueue"
+	}
 	job := testfixtures.NewJob(
-		jobId, "testJobset", "testQueue", uint32(10),
+		jobId, "testJobset", queue, uint32(10),
 		toInternalSchedulingInfo(opts.schedulingInfo),
 		false, 1, false, false, false, 1, true,
 	)
@@ -721,6 +726,41 @@ func TestRetryPolicy_FFOn_ProbesRunAsRoundBatches(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRetryPolicy_FFOn_ProbeSplitsClassesByQueue(t *testing.T) {
+	// The checker applies a per-queue resource limit, so same-shaped jobs in
+	// different queues can get different verdicts and must probe separately.
+	policy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{
+		Action:     api.RetryAction_RETRY_ACTION_RETRY,
+		OnCategory: "app-error",
+		Mutate:     &api.RetryMutation{Resources: &api.RetryResourceMutation{Memory: &api.RetryResourceBump{Factor: 1.5}}},
+	})
+	sched := makeRetryTestScheduler(t, true, fakePolicyCache{"test-policy": policy})
+	checker := &testSubmitChecker{checkSuccess: true}
+	sched.submitChecker = checker
+
+	txn := sched.jobDb.WriteTxn()
+	defer txn.Abort()
+	jobs := []*jobdb.Job{
+		makeRetryJob(t, sched, jobRunOpts{schedulingInfo: memorySchedulingInfoFixture(), failedRuns: 1, runAttempted: true}),
+		makeRetryJob(t, sched, jobRunOpts{schedulingInfo: memorySchedulingInfoFixture(), queue: "otherQueue", failedRuns: 1, runAttempted: true}),
+	}
+	jobErrors := map[string]*armadaevents.Error{}
+	for _, job := range jobs {
+		jobErrors[job.LatestRun().Id()] = categorizedError("app-error")
+	}
+	require.NoError(t, txn.Upsert(jobs))
+
+	queueRetryPolicies := map[string]string{"testQueue": "test-policy", "otherQueue": "test-policy"}
+	eventSequences, err := sched.generateUpdateMessages(armadacontext.Background(), txn, jobs, jobErrors, queueRetryPolicies)
+	require.NoError(t, err)
+	require.Len(t, eventSequences, 2)
+	for _, es := range eventSequences {
+		assert.True(t, hasRequeued(es.Events))
+	}
+	require.Len(t, checker.checkJobCounts, 1)
+	assert.Equal(t, 2, checker.checkJobCounts[0], "same-shaped jobs in different queues must probe separately")
 }
 
 func TestRetryPolicy_FFOn_ProbeAsksAgainForUnprobedJob(t *testing.T) {

@@ -1310,11 +1310,13 @@ func (s *Scheduler) planRetryDecisions(ctx *armadacontext.Context, jobs []*jobdb
 // a node keeps its mutation. A candidate that fits no node loses the retry,
 // and its plan records unschedulableReason.
 //
-// Candidates with the same scheduling key have the same placement
-// requirements, and the check is deterministic against one snapshot. The probe
-// therefore checks one representative per key and applies its verdict to the
-// whole class. Gang members reach this probe only on the lease-return path,
-// where the probe judges each member alone, as it always has.
+// Candidates in the same queue with the same scheduling key get the same
+// verdict: the scheduling key covers the placement requirements, the checker
+// applies its per-queue resource limit, and the check is deterministic
+// against one snapshot. The probe therefore checks one representative per
+// queue and key and applies its verdict to the whole class. Gang members
+// reach this probe only on the lease-return path, where the probe judges
+// each member alone, as it always has.
 // A mass failure affects many jobs of few distinct shapes. The
 // probe cost therefore scales with the number of shapes, not with the number
 // of jobs.
@@ -1322,14 +1324,21 @@ func (s *Scheduler) resolveProbes(ctx *armadacontext.Context, candidates []probe
 	if len(candidates) == 0 {
 		return nil
 	}
-	representativeIdByKey := map[internaltypes.SchedulingKey]string{}
+	type probeClass struct {
+		queue string
+		key   internaltypes.SchedulingKey
+	}
+	classOf := func(job *jobdb.Job) probeClass {
+		return probeClass{queue: job.Queue(), key: job.SchedulingKey()}
+	}
+	representativeIdByClass := map[probeClass]string{}
 	var probedJobs []*jobdb.Job
 	for _, candidate := range candidates {
-		key := candidate.job.SchedulingKey()
-		if _, ok := representativeIdByKey[key]; ok {
+		class := classOf(candidate.job)
+		if _, ok := representativeIdByClass[class]; ok {
 			continue
 		}
-		representativeIdByKey[key] = candidate.job.Id()
+		representativeIdByClass[class] = candidate.job.Id()
 		probedJobs = append(probedJobs, candidate.job)
 	}
 	// The checker applies its time limits per call, so a new call starts with
@@ -1355,7 +1364,7 @@ func (s *Scheduler) resolveProbes(ctx *armadacontext.Context, candidates []probe
 	}
 	unprobed := 0
 	for _, candidate := range candidates {
-		result, ok := results[representativeIdByKey[candidate.job.SchedulingKey()]]
+		result, ok := results[representativeIdByClass[classOf(candidate.job)]]
 		if !ok {
 			// The checker returns partial results when it reaches its time
 			// limits. An absent result means "not probed", not
