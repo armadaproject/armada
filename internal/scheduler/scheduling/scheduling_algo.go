@@ -67,6 +67,7 @@ type FairSchedulingAlgo struct {
 	resourceListFactory   *internaltypes.ResourceListFactory
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
 	shortJobPenalty       *ShortJobPenalty
+	tracer                trace.Tracer
 }
 
 func NewFairSchedulingAlgo(
@@ -103,6 +104,7 @@ func NewFairSchedulingAlgo(
 		floatingResourceTypes:        floatingResourceTypes,
 		shortJobPenalty:              shortJobPenalty,
 		stateValidator:               stateValidator,
+		tracer:                       otel.Tracer("armada.scheduler.fair_scheduling_algo"),
 	}, nil
 }
 
@@ -118,7 +120,7 @@ func (l *FairSchedulingAlgo) Schedule(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
 ) (*SchedulerResult, error) {
-	goCtx, span := otel.Tracer(schedulerTracerName).Start(ctx, "scheduler.schedule", trace.WithAttributes(
+	goCtx, span := l.tracer.Start(ctx, "scheduler.schedule", trace.WithAttributes(
 		attribute.Int("armada.scheduler.pool_count", len(l.schedulingConfig.Pools)),
 		attribute.Bool("armada.scheduler.disabled", l.schedulingConfig.DisableScheduling),
 	))
