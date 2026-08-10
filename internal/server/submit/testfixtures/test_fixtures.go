@@ -128,11 +128,11 @@ func CreateCancelJobSequenceEvents(jobIds []string) []*armadaevents.EventSequenc
 func CreateCancelJobSetSequenceEvent() *armadaevents.EventSequence_Event {
 	return &armadaevents.EventSequence_Event{
 		Created: DefaultTimeProto,
-			Event: &armadaevents.EventSequence_Event_CancelJobSet{
-				CancelJobSet: &armadaevents.CancelJobSet{
-					States: []armadaevents.JobState{},
-				},
+		Event: &armadaevents.EventSequence_Event_CancelJobSet{
+			CancelJobSet: &armadaevents.CancelJobSet{
+				States: []armadaevents.JobState{},
 			},
+		},
 	}
 }
 
@@ -155,11 +155,11 @@ func CreateReprioritizeJobSequenceEvents(jobIds []string, newPriority float64) [
 func CreateReprioritizedJobSetSequenceEvent(newPriority float64) *armadaevents.EventSequence_Event {
 	return &armadaevents.EventSequence_Event{
 		Created: DefaultTimeProto,
-			Event: &armadaevents.EventSequence_Event_ReprioritiseJobSet{
-				ReprioritiseJobSet: &armadaevents.ReprioritiseJobSet{
-					Priority: uint32(newPriority),
-				},
+		Event: &armadaevents.EventSequence_Event_ReprioritiseJobSet{
+			ReprioritiseJobSet: &armadaevents.ReprioritiseJobSet{
+				Priority: uint32(newPriority),
 			},
+		},
 	}
 }
 
