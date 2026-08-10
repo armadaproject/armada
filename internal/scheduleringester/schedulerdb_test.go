@@ -1145,10 +1145,63 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			return ok
 		})
 		assert.Equal(t, 0, len(filtered))
+	case DeleteExecutor:
+		allExecutors, err := queries.SelectAllExecutors(ctx)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		filtered := armadaslices.Filter(allExecutors, func(e schedulerdb.Executor) bool {
+			_, ok := expected[e.ExecutorID]
+			return ok
+		})
+		assert.Equal(t, 0, len(filtered))
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}
 	return nil
+}
+
+func TestDeleteExecutor(t *testing.T) {
+	err := schedulerdb.WithTestDb(func(_ *schedulerdb.Queries, db *pgxpool.Pool) error {
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+		defer cancel()
+
+		// Seed an executor row.
+		queries := schedulerdb.New(db)
+		executorId := "executor-to-delete"
+		err := queries.UpsertExecutor(ctx, schedulerdb.UpsertExecutorParams{
+			ExecutorID:  executorId,
+			LastRequest: []byte{},
+			UpdateTime:  testfixtures.BaseTime,
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		// Apply the delete operation.
+		schedulerDb := &SchedulerDb{db: db}
+		err = pgx.BeginTxFunc(ctx, db, pgx.TxOptions{
+			IsoLevel:       pgx.ReadCommitted,
+			AccessMode:     pgx.ReadWrite,
+			DeferrableMode: pgx.Deferrable,
+		}, func(tx pgx.Tx) error {
+			return schedulerDb.WriteDbOp(ctx, tx, DeleteExecutor{executorId: &ExecutorDelete{ExecutorID: executorId}})
+		})
+		if err != nil {
+			return err
+		}
+
+		// Verify the row is gone.
+		executors, err := queries.SelectAllExecutors(ctx)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		for _, e := range executors {
+			assert.NotEqual(t, executorId, e.ExecutorID)
+		}
+		return nil
+	})
+	assert.NoError(t, err)
 }
 
 func TestStore(t *testing.T) {
