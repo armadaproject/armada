@@ -86,6 +86,10 @@ type ExecutorSettingsDelete struct {
 	ExecutorID string
 }
 
+type ExecutorDelete struct {
+	ExecutorID string
+}
+
 type PreemptOnExecutor struct {
 	Name            string
 	Queues          []string
@@ -231,6 +235,7 @@ type (
 
 	UpsertExecutorSettings map[string]*ExecutorSettingsUpsert
 	DeleteExecutorSettings map[string]*ExecutorSettingsDelete
+	DeleteExecutor         map[string]*ExecutorDelete
 	PreemptExecutor        map[string]*PreemptOnExecutor
 	CancelExecutor         map[string]*CancelOnExecutor
 	PreemptNode            map[NodeOnExecutor]*PreemptOnNode
@@ -422,6 +427,10 @@ func (a DeleteExecutorSettings) Merge(_ DbOperation) bool {
 	return false
 }
 
+func (a DeleteExecutor) Merge(_ DbOperation) bool {
+	return false
+}
+
 func (pe PreemptExecutor) Merge(_ DbOperation) bool {
 	return false
 }
@@ -589,6 +598,18 @@ func (a UpsertExecutorSettings) CanBeAppliedBefore(b DbOperation) bool {
 
 // Can be applied before another operation only if it relates to a different executor
 func (a DeleteExecutorSettings) CanBeAppliedBefore(b DbOperation) bool {
+	switch op := b.(type) {
+	case executorOperation:
+		for executor := range a {
+			if affectsExecutor := op.affectsExecutor(executor); affectsExecutor {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (a DeleteExecutor) CanBeAppliedBefore(b DbOperation) bool {
 	switch op := b.(type) {
 	case executorOperation:
 		for executor := range a {
@@ -812,6 +833,10 @@ func (a DeleteExecutorSettings) GetOperation() Operation {
 	return ControlPlaneOperation
 }
 
+func (a DeleteExecutor) GetOperation() Operation {
+	return ControlPlaneOperation
+}
+
 func (pe PreemptExecutor) GetOperation() Operation {
 	return ControlPlaneOperation
 }
@@ -846,6 +871,11 @@ func (a UpsertExecutorSettings) affectsExecutor(executor string) bool {
 }
 
 func (a DeleteExecutorSettings) affectsExecutor(executor string) bool {
+	_, ok := a[executor]
+	return ok
+}
+
+func (a DeleteExecutor) affectsExecutor(executor string) bool {
 	_, ok := a[executor]
 	return ok
 }
