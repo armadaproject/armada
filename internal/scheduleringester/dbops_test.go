@@ -320,6 +320,14 @@ func TestDbOperationOptimisation(t *testing.T) {
 			UpsertExecutorSettings{f.ExecutorId2: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId2, Cordoned: true, CordonReason: f.ExecutorCordonReason}},
 			UpsertExecutorSettings{f.ExecutorId3: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId3, Cordoned: false, CordonReason: ""}},
 		}},
+		"DeleteExecutor": {N: 1, Ops: []DbOperation{
+			DeleteExecutor{f.ExecutorId: &ExecutorDelete{ExecutorID: f.ExecutorId}},
+		}},
+		"DeleteExecutor x3, different executors": {N: 3, Ops: []DbOperation{
+			DeleteExecutor{f.ExecutorId: &ExecutorDelete{ExecutorID: f.ExecutorId}},
+			DeleteExecutor{f.ExecutorId2: &ExecutorDelete{ExecutorID: f.ExecutorId2}},
+			DeleteExecutor{f.ExecutorId3: &ExecutorDelete{ExecutorID: f.ExecutorId3}},
+		}},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

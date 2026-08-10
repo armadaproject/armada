@@ -419,6 +419,14 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			}
 		}
 		return nil
+	case DeleteExecutor:
+		for _, executorDelete := range o {
+			err := queries.DeleteExecutor(ctx, executorDelete.ExecutorID)
+			if err != nil {
+				return errors.Wrapf(err, "error deleting executor %s", executorDelete.ExecutorID)
+			}
+		}
+		return nil
 	case CancelExecutor:
 		for executor, cancelRequest := range o {
 			jobs, err := queries.SelectJobsByExecutorAndQueues(ctx, schedulerdb.SelectJobsByExecutorAndQueuesParams{
