@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -227,30 +226,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	txn *jobdb.Txn,
 	executors []*schedulerobjects.Executor,
 	shortJobPenalty *ShortJobPenaltySnapshot,
-) (outcome *PoolSchedulingOutcome, schedulingResult *SchedulingResult, err error) {
-	goCtx, span := otel.Tracer(schedulerTracerName).Start(ctx, "scheduler.pool.round", trace.WithAttributes(
-		attribute.String("armada.scheduler.pool", pool.Name),
-		attribute.Int("armada.scheduler.executor_count", len(executors)),
-		attribute.Bool("armada.scheduler.market_driven", pool.ExperimentalMarketScheduling != nil && pool.ExperimentalMarketScheduling.Enabled),
-	))
-	ctx = armadacontext.WithContext(ctx, goCtx)
-	defer func() {
-		if outcome != nil {
-			span.SetAttributes(attribute.String("armada.scheduler.termination_reason", string(outcome.TerminationReason())))
-		}
-		if schedulingResult != nil {
-			span.SetAttributes(
-				attribute.Int("armada.scheduler.scheduled_jobs", len(schedulingResult.ScheduledJobs)),
-				attribute.Int("armada.scheduler.preempted_jobs", len(schedulingResult.PreemptedJobs)),
-			)
-		}
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-		}
-		span.End()
-	}()
-
+) (*PoolSchedulingOutcome, *SchedulingResult, error) {
 	select {
 	case <-ctx.Done():
 		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, fmt.Errorf("scheduling round hit global maximum scheduling duration")), nil, nil
@@ -290,7 +266,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	start := time.Now()
 	schedulingResult, sctx, err := l.SchedulePool(ctx, fsctx, pool)
 	if err != nil {
-		ctx.Infof("Scheduled on pool %s in %v - failed with error %s", pool.Name, time.Since(start), err)
+		ctx.Infof("Scheduled on pool %s in %v - failed with error %s", pool.Name, time.Now().Sub(start), err)
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 			return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, err), nil, nil
 		} else if err != nil {
@@ -298,7 +274,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 		}
 	}
 
-	ctx.Infof("Scheduled on pool %s in %v", pool.Name, time.Since(start))
+	ctx.Infof("Scheduled on pool %s in %v", pool.Name, time.Now().Sub(start))
 	if l.schedulingContextRepository != nil {
 		l.schedulingContextRepository.StoreSchedulingContext(sctx)
 	}
