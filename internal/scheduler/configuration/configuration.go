@@ -293,6 +293,8 @@ type SchedulingConfig struct {
 	MaximumPerQueueSchedulingBurst int `validate:"gt=0"`
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
+	// RetryPolicy controls the policy-based retry engine (disabled by default).
+	RetryPolicy RetryPolicyConfig
 	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness costs.
 	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
 	DominantResourceFairnessResourcesToConsider []string
@@ -347,12 +349,33 @@ type SchedulingConfig struct {
 	ExperimentalIndicativeShare ExperimentalIndicativeShare
 }
 
+// RetryPolicyConfig controls the scheduler's retry policy behavior.
+type RetryPolicyConfig struct {
+	// Enabled controls whether the retry policy engine is active.
+	Enabled bool
+	// GlobalMaxRetries is the scheduler-wide cap on genuine-failure retries per
+	// job, on top of every policy. It counts retries, not runs: the initial
+	// failure consumes no budget, only subsequent retries do. Preempted and
+	// lease-returned runs are never charged. A value of 0 is the kill switch:
+	// no job is ever retried by the policy engine. There is no unlimited
+	// setting for the global cap.
+	GlobalMaxRetries uint
+	// DefaultPolicyName is the retry policy applied to jobs whose queue has no
+	// policy of its own. It lets an operator turn on retry policies fleet-wide
+	// with a single named policy before per-queue attachment is configured.
+	// Optional: when empty, only queues with an attached policy get engine
+	// decisions and every other queue keeps the existing behaviour.
+	DefaultPolicyName string
+}
+
 const (
-	DuplicateWellKnownNodeTypeErrorMessage           = "duplicate well-known node type name"
-	AwayNodeTypesWithoutPreemptionErrorMessage       = "priority class has away node types but is not preemptible"
-	UnknownWellKnownNodeTypeErrorMessage             = "priority class refers to unknown well-known node type"
-	WildCardWellKnownNodeTypeValue                   = "*"
-	InvalidAwayNodeTypeConditionOperatorErrorMessage = "away node type condition has invalid operator; must be one of >, <, =="
+	DuplicateWellKnownNodeTypeErrorMessage              = "duplicate well-known node type name"
+	AwayNodeTypesWithoutPreemptionErrorMessage          = "priority class has away node types but is not preemptible"
+	UnknownWellKnownNodeTypeErrorMessage                = "priority class refers to unknown well-known node type"
+	WildCardWellKnownNodeTypeValue                      = "*"
+	InvalidAwayNodeTypeConditionOperatorErrorMessage    = "away node type condition has invalid operator; must be one of >, <, =="
+	PreemptionRateLimitWithMarketSchedulingErrorMessage = "preemption rate limit is not supported with market scheduling enabled on the same pool"
+	NodeIdLabelNotIndexedErrorMessage                   = "nodeIdLabel must be in indexedNodeLabels when the retry policy engine is enabled, so avoidSameNode retries can match nodes efficiently"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
@@ -383,7 +406,7 @@ type WellKnownNodeType struct {
 
 type PoolConfig struct {
 	Name                         string `validate:"required"`
-	AwayPools                    []string
+	AwayPools                    []AwayPoolConfig
 	ProtectedFractionOfFairShare *float64
 	// List of resource names, (e.g. "cpu" or "memory"), to consider when computing DominantResourceFairness costs.
 	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
@@ -405,6 +428,15 @@ type PoolConfig struct {
 	DisableGangAwayScheduling        bool
 	DisableFairshareScheduling       bool
 	DisableUrgencyScheduling         bool
+	FairsharePreemptionRateLimit     *RateLimit
+}
+
+// RateLimit The rate at which an action can happen using a token bucket approach
+type RateLimit struct {
+	// Sustained actions per second (tokens/sec).
+	MaximumRate float64 `validate:"gte=0"`
+	// Bucket capacity: the maximum number of actions that can bunch up in a single scheduling round.
+	MaximumBurst int `validate:"gte=0"`
 }
 
 func (p PoolConfig) GetSubmissionGroup() string {
@@ -412,6 +444,29 @@ func (p PoolConfig) GetSubmissionGroup() string {
 		return p.Name
 	}
 	return p.ExperimentalSubmissionGroup
+}
+
+// AwayPoolNames returns the names of the away pools configured for this pool.
+func (p PoolConfig) AwayPoolNames() []string {
+	names := make([]string, len(p.AwayPools))
+	for i, ap := range p.AwayPools {
+		names[i] = ap.Name
+	}
+	return names
+}
+
+type AwayPoolConfig struct {
+	// Name of the away pool.
+	Name string `validate:"required"`
+}
+
+// UnmarshalConfigString allows an away pool to be specified in config as a plain
+// string (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
+// This preserves backwards compatibility with the deprecated []string form.
+// It opts AwayPoolConfig in to commonconfig.StringConfigUnmarshalerHook during config decode.
+func (a *AwayPoolConfig) UnmarshalConfigString(text string) error {
+	a.Name = text
+	return nil
 }
 
 type MarketSchedulingConfig struct {

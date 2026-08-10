@@ -86,6 +86,10 @@ type ExecutorSettingsDelete struct {
 	ExecutorID string
 }
 
+type ExecutorDelete struct {
+	ExecutorID string
+}
+
 type PreemptOnExecutor struct {
 	Name            string
 	Queues          []string
@@ -199,12 +203,14 @@ type (
 	InsertRuns                 map[string]*JobRunDetails
 	UpdateJobSetPriorities     map[JobSetKey]int64
 	MarkJobSetsCancelRequested struct {
-		cancelUser string
-		jobSets    map[JobSetKey]*JobSetCancelAction
+		cancelUser   string
+		cancelReason string
+		jobSets      map[JobSetKey]*JobSetCancelAction
 	}
 	MarkJobsCancelRequested struct {
-		cancelUser string
-		jobIds     map[JobSetKey][]string
+		cancelUser   string
+		cancelReason string
+		jobIds       map[JobSetKey][]string
 	}
 	MarkJobsCancelled              map[string]time.Time
 	MarkJobsSucceeded              map[string]bool
@@ -229,6 +235,7 @@ type (
 
 	UpsertExecutorSettings map[string]*ExecutorSettingsUpsert
 	DeleteExecutorSettings map[string]*ExecutorSettingsDelete
+	DeleteExecutor         map[string]*ExecutorDelete
 	PreemptExecutor        map[string]*PreemptOnExecutor
 	CancelExecutor         map[string]*CancelOnExecutor
 	PreemptNode            map[NodeOnExecutor]*PreemptOnNode
@@ -271,7 +278,7 @@ func (a UpdateJobSetPriorities) Merge(b DbOperation) bool {
 func (a MarkJobSetsCancelRequested) Merge(b DbOperation) bool {
 	switch op := b.(type) {
 	case MarkJobSetsCancelRequested:
-		if a.cancelUser != op.cancelUser {
+		if a.cancelUser != op.cancelUser || a.cancelReason != op.cancelReason {
 			return false
 		}
 		maps.Copy(a.jobSets, op.jobSets)
@@ -283,7 +290,7 @@ func (a MarkJobSetsCancelRequested) Merge(b DbOperation) bool {
 func (a MarkJobsCancelRequested) Merge(b DbOperation) bool {
 	switch op := b.(type) {
 	case MarkJobsCancelRequested:
-		if a.cancelUser != op.cancelUser {
+		if a.cancelUser != op.cancelUser || a.cancelReason != op.cancelReason {
 			return false
 		}
 		for k, v := range op.jobIds {
@@ -417,6 +424,10 @@ func (a UpsertExecutorSettings) Merge(_ DbOperation) bool {
 }
 
 func (a DeleteExecutorSettings) Merge(_ DbOperation) bool {
+	return false
+}
+
+func (a DeleteExecutor) Merge(_ DbOperation) bool {
 	return false
 }
 
@@ -587,6 +598,18 @@ func (a UpsertExecutorSettings) CanBeAppliedBefore(b DbOperation) bool {
 
 // Can be applied before another operation only if it relates to a different executor
 func (a DeleteExecutorSettings) CanBeAppliedBefore(b DbOperation) bool {
+	switch op := b.(type) {
+	case executorOperation:
+		for executor := range a {
+			if affectsExecutor := op.affectsExecutor(executor); affectsExecutor {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (a DeleteExecutor) CanBeAppliedBefore(b DbOperation) bool {
 	switch op := b.(type) {
 	case executorOperation:
 		for executor := range a {
@@ -810,6 +833,10 @@ func (a DeleteExecutorSettings) GetOperation() Operation {
 	return ControlPlaneOperation
 }
 
+func (a DeleteExecutor) GetOperation() Operation {
+	return ControlPlaneOperation
+}
+
 func (pe PreemptExecutor) GetOperation() Operation {
 	return ControlPlaneOperation
 }
@@ -844,6 +871,11 @@ func (a UpsertExecutorSettings) affectsExecutor(executor string) bool {
 }
 
 func (a DeleteExecutorSettings) affectsExecutor(executor string) bool {
+	_, ok := a[executor]
+	return ok
+}
+
+func (a DeleteExecutor) affectsExecutor(executor string) bool {
 	_, ok := a[executor]
 	return ok
 }

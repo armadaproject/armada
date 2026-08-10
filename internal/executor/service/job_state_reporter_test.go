@@ -159,66 +159,73 @@ func TestJobStateReporter_HandlesFailedPod_WithRetryableError(t *testing.T) {
 	after := copyWithUpdatedPhase(before, v1.PodFailed)
 
 	// Does not send event if issue handler detects an issue
-	jobStateReporter.podIssueHandler = &stubIssueHandler{detectAndRegisterFailedPodIssueResult: true, detectAndRegisterFailedPodIssueError: nil}
+	jobStateReporter.podIssueHandler = &stubIssueHandler{detectResult: true}
 	jobStateReporter.reportStatusUpdate(before, after)
 	assert.Len(t, eventReporter.GetReceivedEvents(), 0)
 
 	// Does not send event if issue handler already knows of issue for run
 	jobStateReporter.podIssueHandler = &stubIssueHandler{
-		runIdsWithIssues:                      map[string]bool{util.ExtractJobRunId(after): true},
-		detectAndRegisterFailedPodIssueResult: false,
-		detectAndRegisterFailedPodIssueError:  nil,
+		runIdsWithIssues: map[string]bool{util.ExtractJobRunId(after): true},
 	}
 	jobStateReporter.reportStatusUpdate(before, after)
 	assert.Len(t, eventReporter.GetReceivedEvents(), 0)
 
 	// Does send event if issue handler errors
-	jobStateReporter.podIssueHandler = &stubIssueHandler{detectAndRegisterFailedPodIssueResult: false, detectAndRegisterFailedPodIssueError: fmt.Errorf("error")}
+	jobStateReporter.podIssueHandler = &stubIssueHandler{detectError: fmt.Errorf("error")}
 	jobStateReporter.reportStatusUpdate(before, after)
 	assert.Len(t, eventReporter.GetReceivedEvents(), 1)
 	assertExpectedEvents(t, before, eventReporter.GetReceivedEvents(), reflect.TypeOf(&armadaevents.EventSequence_Event_JobRunErrors{}))
 }
 
-func TestJobStateReporter_FailedPod_RecordsDebugMessageWhenMainContainerNeverStarted(t *testing.T) {
-	_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTest(t)
-
-	// Main container never started (no ContainerStatuses reached Running/Terminated)
-	pod := makeTestPod(v1.PodStatus{Phase: v1.PodFailed})
-	addPod(t, fakeClusterContext, pod)
-	addPodEvents(fakeClusterContext, pod, []*v1.Event{{Message: "Image pull has failed", Type: "Warning"}})
-
-	fakeClusterContext.SimulatePodAddEvent(pod)
-	time.Sleep(time.Millisecond * 100) // Give time for async routine to process message
-
-	require.Len(t, eventReporter.ReceivedEvents, 1)
-	podError := extractPodError(t, eventReporter.ReceivedEvents[0])
-	assert.Contains(t, podError.DebugMessage, "Image pull has failed")
-}
-
-func TestJobStateReporter_FailedPod_NoDebugMessageWhenMainContainerStarted(t *testing.T) {
-	_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTest(t)
-
-	// Main container started (and later terminated) - so no debug data should be recorded
-	pod := makeTestPod(v1.PodStatus{
-		Phase: v1.PodFailed,
-		ContainerStatuses: []v1.ContainerStatus{
-			{
-				Name: "main",
-				State: v1.ContainerState{
-					Terminated: &v1.ContainerStateTerminated{ExitCode: 1, Reason: "Error"},
+func TestJobStateReporter_FailedPod_DebugMessage(t *testing.T) {
+	tests := map[string]struct {
+		status v1.PodStatus
+		// Empty means the error must carry no debug message at all.
+		expectedDebugMessage string
+	}{
+		"recorded when the main container never started": {
+			status:               v1.PodStatus{Phase: v1.PodFailed},
+			expectedDebugMessage: "Image pull has failed",
+		},
+		"absent when the main container started and terminated": {
+			status: v1.PodStatus{
+				Phase: v1.PodFailed,
+				ContainerStatuses: []v1.ContainerStatus{
+					{
+						Name: "main",
+						State: v1.ContainerState{
+							Terminated: &v1.ContainerStateTerminated{ExitCode: 1, Reason: "Error"},
+						},
+					},
 				},
 			},
+			expectedDebugMessage: "",
 		},
-	})
-	addPod(t, fakeClusterContext, pod)
-	addPodEvents(fakeClusterContext, pod, []*v1.Event{{Message: "Image pull has failed", Type: "Warning"}})
+	}
 
-	fakeClusterContext.SimulatePodAddEvent(pod)
-	time.Sleep(time.Millisecond * 100) // Give time for async routine to process message
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTest(t)
 
-	require.Len(t, eventReporter.ReceivedEvents, 1)
-	podError := extractPodError(t, eventReporter.ReceivedEvents[0])
-	assert.Empty(t, podError.DebugMessage)
+			pod := makeTestPod(tc.status)
+			addPod(t, fakeClusterContext, pod)
+			addPodEvents(fakeClusterContext, pod, []*v1.Event{{Message: "Image pull has failed", Type: "Warning"}})
+
+			fakeClusterContext.SimulatePodAddEvent(pod)
+			assert.Eventually(t, func() bool {
+				return len(eventReporter.GetReceivedEvents()) == 1
+			}, time.Second, 10*time.Millisecond, "the add handler goroutine must report the failed pod")
+
+			events := eventReporter.GetReceivedEvents()
+			require.Len(t, events, 1)
+			podError := extractPodError(t, events[0])
+			if tc.expectedDebugMessage == "" {
+				assert.Empty(t, podError.DebugMessage)
+			} else {
+				assert.Contains(t, podError.DebugMessage, tc.expectedDebugMessage)
+			}
+		})
+	}
 }
 
 func extractPodError(t *testing.T, message reporter.EventMessage) *armadaevents.PodError {
@@ -264,12 +271,17 @@ func makeFailedPodWithExitCode(t *testing.T, exitCode int32) *v1.Pod {
 	return pod
 }
 
-func classifierForExitCode(t *testing.T, category, subcategory string, exitCode int32) *categorizer.Classifier {
+func classifierForExitCode(t *testing.T, category, subcategory string, exitCode int32, deleteOnFailure bool) *categorizer.Classifier {
 	t.Helper()
+	action := categorizer.PodFailureActionRetain
+	if deleteOnFailure {
+		action = categorizer.PodFailureActionDelete
+	}
 	c, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
 		Categories: []categorizer.CategoryConfig{
 			{
-				Name: category,
+				Name:   category,
+				Action: action,
 				Rules: []categorizer.CategoryRule{
 					{
 						OnExitCodes: &errormatch.ExitCodeMatcher{
@@ -295,7 +307,7 @@ func classifierForExitCode(t *testing.T, category, subcategory string, exitCode 
 // so waiting for it through the locked accessor orders the assertions after
 // everything the handler did.
 func TestJobStateReporter_PodFailed_EmitsJobFailedEventWhenClassifierMatches(t *testing.T) {
-	classifier := classifierForExitCode(t, "jsr-emit-cat", "jsr-emit-sub", 42)
+	classifier := classifierForExitCode(t, "jsr-emit-cat", "jsr-emit-sub", 42, false)
 	_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTestWithClassifier(t, classifier, &stubIssueHandler{})
 
 	pod := makeFailedPodWithExitCode(t, 42)
@@ -309,54 +321,76 @@ func TestJobStateReporter_PodFailed_EmitsJobFailedEventWhenClassifierMatches(t *
 	assertExpectedEvents(t, pod, eventReporter.GetReceivedEvents(), reflect.TypeOf(&armadaevents.EventSequence_Event_JobRunErrors{}))
 }
 
-func TestJobStateReporter_PodFailed_SuppressesEmissionWhenRetryableIssueRegistered(t *testing.T) {
-	classifier := classifierForExitCode(t, "jsr-retryable-cat", "jsr-retryable-sub", 42)
-	stateReporter, _, eventReporter, fakeClusterContext := setUpJobStateReporterTestWithClassifier(
-		t, classifier,
-		&stubIssueHandler{detectAndRegisterFailedPodIssueResult: true},
-	)
+// A failed pod normally results in the reporter emitting the terminal failed
+// event. Each case is one condition that must suppress that emission (the
+// issue handler taking or already owning the run, the event reporter failing)
+// or must not (no classifier, a detection error).
+func TestJobStateReporter_PodFailed_EmissionGating(t *testing.T) {
+	tests := map[string]struct {
+		issueHandler           *stubIssueHandler
+		classifier             func(t *testing.T) *categorizer.Classifier
+		errorOnReport          bool
+		runOwnedByIssueHandler bool
+		expectedEvents         int
+	}{
+		"issue registered by the issue handler": {
+			issueHandler:   &stubIssueHandler{detectResult: true},
+			expectedEvents: 0,
+		},
+		"run already owned by the issue handler": {
+			issueHandler:           &stubIssueHandler{},
+			runOwnedByIssueHandler: true,
+			expectedEvents:         0,
+		},
 
-	pod := makeFailedPodWithExitCode(t, 42)
-	addPod(t, fakeClusterContext, pod)
-	stateReporter.reportCurrentStatus(pod)
+		"reporter errors drop the event": {
+			issueHandler:   &stubIssueHandler{},
+			errorOnReport:  true,
+			expectedEvents: 0,
+		},
+		"nil classifier still emits": {
+			issueHandler:   &stubIssueHandler{},
+			expectedEvents: 1,
+		},
+		"detection error falls through to normal emission": {
+			issueHandler:   &stubIssueHandler{detectError: fmt.Errorf("events unavailable")},
+			expectedEvents: 1,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			var classifier *categorizer.Classifier
+			if tc.classifier != nil {
+				classifier = tc.classifier(t)
+			}
+			stateReporter, _, eventReporter, fakeClusterContext := setUpJobStateReporterTestWithClassifier(t, classifier, tc.issueHandler)
+			eventReporter.ErrorOnReport = tc.errorOnReport
 
-	assert.Len(t, eventReporter.GetReceivedEvents(), 0, "retryable issue path emits ReturnLease, not JobFailed")
+			// Reporting marks the pod as reported via its annotations, so a
+			// pod shared across cases would suppress later cases' events.
+			pod := makeFailedPodWithExitCode(t, 42)
+			if tc.runOwnedByIssueHandler {
+				tc.issueHandler.runIdsWithIssues = map[string]bool{util.ExtractJobRunId(pod): true}
+			}
+			addPod(t, fakeClusterContext, pod)
+			stateReporter.reportCurrentStatus(pod)
+
+			assert.Len(t, eventReporter.GetReceivedEvents(), tc.expectedEvents)
+		})
+	}
 }
 
-func TestJobStateReporter_PodFailed_SuppressesEmissionWhenIssueAlreadyExists(t *testing.T) {
-	classifier := classifierForExitCode(t, "jsr-existing-cat", "jsr-existing-sub", 42)
-	pod := makeFailedPodWithExitCode(t, 42)
-	stateReporter, _, eventReporter, fakeClusterContext := setUpJobStateReporterTestWithClassifier(
-		t, classifier,
-		&stubIssueHandler{runIdsWithIssues: map[string]bool{util.ExtractJobRunId(pod): true}},
-	)
-
-	addPod(t, fakeClusterContext, pod)
-	stateReporter.reportCurrentStatus(pod)
-
-	assert.Len(t, eventReporter.GetReceivedEvents(), 0, "run already owned by issue handler - no direct emission from this path")
-}
-
-func TestJobStateReporter_PodFailed_DropsEventWhenReporterErrors(t *testing.T) {
-	classifier := classifierForExitCode(t, "jsr-report-error-cat", "jsr-report-error-sub", 42)
-	stateReporter, _, eventReporter, fakeClusterContext := setUpJobStateReporterTestWithClassifier(t, classifier, &stubIssueHandler{})
-	eventReporter.ErrorOnReport = true
+func TestJobStateReporter_PodFailed_KeepsPodWhenActionRetain(t *testing.T) {
+	classifier := classifierForExitCode(t, "jsr-keep-cat", "jsr-keep-sub", 42, false)
+	stateReporter, _, _, fakeClusterContext := setUpJobStateReporterTestWithClassifier(t, classifier, &stubIssueHandler{})
 
 	pod := makeFailedPodWithExitCode(t, 42)
 	addPod(t, fakeClusterContext, pod)
 	stateReporter.reportCurrentStatus(pod)
 
-	assert.Len(t, eventReporter.GetReceivedEvents(), 0, "event is dropped when reporter errors - counter increment is gated behind successful emission")
-}
-
-func TestJobStateReporter_PodFailed_EmitsEventWithEmptyCategoryWhenClassifierIsNil(t *testing.T) {
-	stateReporter, _, eventReporter, fakeClusterContext := setUpJobStateReporterTestWithClassifier(t, nil, &stubIssueHandler{})
-
-	pod := makeFailedPodWithExitCode(t, 42)
-	addPod(t, fakeClusterContext, pod)
-	stateReporter.reportCurrentStatus(pod)
-
-	assert.Len(t, eventReporter.GetReceivedEvents(), 1, "event still emitted with empty category/subcategory when classification is disabled")
+	assert.Contains(t, fakeClusterContext.Pods, util.ExtractJobId(pod),
+		"a Retain-action failed pod is left in place for debugging")
+	assertExpectedAnnotations(t, pod, fakeClusterContext)
 }
 
 func assertExpectedEvents(t *testing.T, pod *v1.Pod, messages []reporter.EventMessage, expectedType reflect.Type) {
@@ -380,9 +414,9 @@ func assertExpectedAnnotations(t *testing.T, pod *v1.Pod, clusterContext *fakeco
 }
 
 type stubIssueHandler struct {
-	runIdsWithIssues                      map[string]bool
-	detectAndRegisterFailedPodIssueResult bool
-	detectAndRegisterFailedPodIssueError  error
+	runIdsWithIssues map[string]bool
+	detectResult     bool
+	detectError      error
 }
 
 func (s *stubIssueHandler) HasIssue(runId string) bool {
@@ -390,8 +424,8 @@ func (s *stubIssueHandler) HasIssue(runId string) bool {
 	return exists
 }
 
-func (s *stubIssueHandler) DetectAndRegisterFailedPodIssue(pod *v1.Pod) (bool, error) {
-	return s.detectAndRegisterFailedPodIssueResult, s.detectAndRegisterFailedPodIssueError
+func (s *stubIssueHandler) DetectAndRegisterIssuesForFailedPod(pod *v1.Pod) (bool, error) {
+	return s.detectResult, s.detectError
 }
 
 func copyWithUpdatedPhase(pod *v1.Pod, newPhase v1.PodPhase) *v1.Pod {

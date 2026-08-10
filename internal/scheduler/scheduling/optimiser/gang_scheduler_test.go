@@ -447,6 +447,7 @@ func createSctx(t *testing.T, totalResource internaltypes.ResourceList, queues [
 		testfixtures.TestPool,
 		fairnessCostProvider,
 		nil,
+		nil,
 		totalResource,
 	)
 	for _, q := range queues {

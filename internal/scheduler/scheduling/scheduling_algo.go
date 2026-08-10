@@ -57,7 +57,10 @@ type FairSchedulingAlgo struct {
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
 	// Per-queue job scheduling rate-limiters.
-	limiterByQueue               map[string]*rate.Limiter
+	limiterByQueue map[string]*rate.Limiter
+	// Per-pool fairshare preemption rate-limiters
+	// No rate limiter for a pool means no preemption limit
+	preemptionLimiterByPool      map[string]*rate.Limiter
 	lastOptimiserRoundTimeByPool map[string]time.Time
 	// Max amount of time each scheduling round is allowed to take (hard timeout).
 	maxSchedulingDuration time.Duration
@@ -93,6 +96,7 @@ func NewFairSchedulingAlgo(
 		schedulingContextRepository:  schedulingContextRepository,
 		limiter:                      rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		limiterByQueue:               make(map[string]*rate.Limiter),
+		preemptionLimiterByPool:      initialisePerPoolRateLimiters(config.Pools),
 		lastOptimiserRoundTimeByPool: make(map[string]time.Time, len(config.Pools)),
 		maxSchedulingDuration:        maxSchedulingDuration,
 		clock:                        clock.RealClock{},
@@ -456,12 +460,12 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 
 	awayAllocationPools := []string{}
 	for _, otherPool := range l.schedulingConfig.Pools {
-		if slices.Contains(otherPool.AwayPools, currentPool.Name) {
+		if slices.Contains(otherPool.AwayPoolNames(), currentPool.Name) {
 			awayAllocationPools = append(awayAllocationPools, otherPool.Name)
 		}
 	}
 	allPools := []string{currentPool.Name}
-	allPools = append(allPools, currentPool.AwayPools...)
+	allPools = append(allPools, currentPool.AwayPoolNames()...)
 	allPools = append(allPools, awayAllocationPools...)
 	allPools = armadaslices.Unique(allPools)
 
@@ -519,7 +523,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		if currentPool.Name == pool.Name {
 			continue
 		}
-		if slices.Contains(pool.AwayPools, currentPool.Name) {
+		if slices.Contains(pool.AwayPoolNames(), currentPool.Name) {
 			// Jobs from away pools need to be considered in the current scheduling round, so should be added here
 			// This is so the jobs are available for eviction, if a home job needs to take their place
 			currentPoolJobs = append(currentPoolJobs, jobSchedulingInfo.jobsByPool[pool.Name]...)
@@ -534,7 +538,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		}
 	}
 
-	nodePools := append(currentPool.AwayPools, currentPool.Name)
+	nodePools := append(currentPool.AwayPoolNames(), currentPool.Name)
 
 	nodeDb, err := l.constructNodeDb(currentPool, currentPoolJobs, otherPoolsJobs,
 		armadaslices.Filter(nodes, func(node *internaltypes.Node) bool { return slices.Contains(nodePools, node.GetPool()) }))
@@ -747,7 +751,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 	if err != nil {
 		return nil, err
 	}
-	sctx := schedulercontext.NewSchedulingContext(pool, fairnessCostProvider, l.limiter, totalCapacity)
+	sctx := schedulercontext.NewSchedulingContext(pool, fairnessCostProvider, l.limiter, l.preemptionLimiterByPool[pool], totalCapacity)
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalCapacity, l.schedulingConfig, maps.Values(queues))
 
 	for _, queue := range queues {
@@ -818,6 +822,20 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 	sctx.UpdateFairShares()
 
 	return sctx, nil
+}
+
+func initialisePerPoolRateLimiters(pools []configuration.PoolConfig) map[string]*rate.Limiter {
+	limiterByPool := make(map[string]*rate.Limiter, len(pools))
+	for _, pool := range pools {
+		if pool.FairsharePreemptionRateLimit == nil {
+			continue
+		}
+		limiterByPool[pool.Name] = rate.NewLimiter(
+			rate.Limit(pool.FairsharePreemptionRateLimit.MaximumRate),
+			pool.FairsharePreemptionRateLimit.MaximumBurst,
+		)
+	}
+	return limiterByPool
 }
 
 // SchedulePool schedules jobs on nodes that belong to a given pool.

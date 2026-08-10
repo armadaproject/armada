@@ -373,6 +373,21 @@ func TestReportJobPreempted(t *testing.T) {
 	}
 }
 
+func TestReportRetryPolicyDecision(t *testing.T) {
+	job := baseJob.WithUpdatedRun(baseRun)
+
+	metrics := newJobStateMetrics([]v1.ResourceName{"cpu"}, []time.Duration{}, 12*time.Hour)
+	metrics.ReportRetryPolicyDecision(job, "infra-checks", "retry")
+	metrics.ReportRetryPolicyDecision(job, "infra-checks", "retry")
+	metrics.ReportRetryPolicyDecision(job, "infra-checks", "fail_budget_exhausted")
+
+	retried := testutil.ToFloat64(metrics.retryPolicyDecisionsByQueue.WithLabelValues(testQueue, testPool, "infra-checks", "retry"))
+	assert.InDelta(t, 2, retried, epsilon)
+
+	exhausted := testutil.ToFloat64(metrics.retryPolicyDecisionsByQueue.WithLabelValues(testQueue, testPool, "infra-checks", "fail_budget_exhausted"))
+	assert.InDelta(t, 1, exhausted, epsilon)
+}
+
 func TestCategoriseErrors(t *testing.T) {
 	run := baseRun.
 		WithExecutor(testCluster).

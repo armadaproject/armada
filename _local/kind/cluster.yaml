@@ -8,6 +8,16 @@ networking:
 nodes:
 - role: worker
   image: kindest/node:v1.28.15
+- role: worker
+  image: kindest/node:v1.28.15
+  labels:
+    armadaproject.io/node-pool: node-ops
+  kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          register-with-taints: "node-tests=true:NoSchedule"
 - role: control-plane
   image: kindest/node:v1.28.15
   labels:

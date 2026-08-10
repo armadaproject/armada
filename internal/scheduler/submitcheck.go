@@ -313,7 +313,7 @@ poolStart:
 		}
 
 		for _, awayPool := range pool.AwayPools {
-			if successfulPools[awayPool] {
+			if successfulPools[awayPool.Name] {
 				continue poolStart
 			}
 		}
@@ -341,7 +341,7 @@ poolStart:
 
 		executors := maps.Values(state.executorsByPoolAndId[pool.Name])
 		for _, awayPool := range pool.AwayPools {
-			executors = append(executors, maps.Values(state.executorsByPoolAndId[awayPool])...)
+			executors = append(executors, maps.Values(state.executorsByPoolAndId[awayPool.Name])...)
 		}
 
 		for _, ex := range executors {
@@ -360,7 +360,7 @@ poolStart:
 			})
 
 			txn := ex.nodeDb.Txn(true)
-			ok, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
+			ok, _, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
 			txn.Abort()
 
 			sb.WriteString(ex.id)
