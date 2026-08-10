@@ -114,7 +114,7 @@ func NewFairSchedulingAlgo(
 func (l *FairSchedulingAlgo) Schedule(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
-) (schedulerResult *SchedulerResult, err error) {
+) (*SchedulerResult, error) {
 	goCtx, span := otel.Tracer(schedulerTracerName).Start(ctx, "scheduler.schedule", trace.WithAttributes(
 		attribute.Int("armada.scheduler.pool_count", len(l.schedulingConfig.Pools)),
 		attribute.Bool("armada.scheduler.disabled", l.schedulingConfig.DisableScheduling),
@@ -132,7 +132,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		return nil, observe.Error(span, errors.New("queue overrides is not ready"))
 	}
 
-	schedulerResult = &SchedulerResult{
+	schedulerResult := &SchedulerResult{
 		PoolResults: make([]*PoolSchedulingResult, 0, len(l.schedulingConfig.Pools)),
 		StartTime:   l.clock.Now(),
 	}

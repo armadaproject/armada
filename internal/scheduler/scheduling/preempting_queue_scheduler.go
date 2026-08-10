@@ -9,10 +9,6 @@ import (
 	"github.com/benbjohnson/immutable"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"k8s.io/utils/clock"
@@ -85,26 +81,9 @@ func NewPreemptingQueueScheduler(
 // Schedule
 // - preempts jobs belonging to queues with total allocation above their fair share and
 // - schedules new jobs belonging to queues with total allocation less than their fair share.
-func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (result *SchedulingResult, err error) {
-	goCtx, span := otel.Tracer(schedulerTracerName).Start(ctx, "scheduler.preempting_queue.schedule", trace.WithAttributes(
-		attribute.String("armada.scheduler.pool", sch.schedulingContext.Pool),
-		attribute.Bool("armada.scheduler.market_driven", sch.marketDriven),
-		attribute.Bool("armada.scheduler.optimiser_enabled", sch.optimiserConfig != nil && sch.optimiserEnabled && !sch.marketDriven),
-	))
-	ctx = armadacontext.WithContext(ctx, goCtx)
+func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResult, error) {
 	defer func() {
 		sch.schedulingContext.Finished = time.Now()
-		if result != nil {
-			span.SetAttributes(
-				attribute.Int("armada.scheduler.scheduled_jobs", len(result.ScheduledJobs)),
-				attribute.Int("armada.scheduler.preempted_jobs", len(result.PreemptedJobs)),
-			)
-		}
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-		}
-		span.End()
 	}()
 
 	preemptedJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
@@ -158,9 +137,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (resul
 	if err != nil {
 		return nil, err
 	}
-	span.AddEvent("scheduler.evict_preemptible.complete", trace.WithAttributes(
-		attribute.Int("armada.scheduler.evicted_jobs", len(evictorResult.EvictedJctxsByJobId)),
-	))
 	ctx.Logger().WithField("stage", "scheduling-algo").Info("Finished evicting preemptible jobs")
 	for _, jctx := range evictorResult.EvictedJctxsByJobId {
 		preemptedJobsById[jctx.JobId] = jctx
@@ -178,9 +154,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (resul
 	if err != nil {
 		return nil, err
 	}
-	span.AddEvent("scheduler.initial_schedule.complete", trace.WithAttributes(
-		attribute.Int("armada.scheduler.scheduled_jobs", len(schedulerResult.ScheduledJobs)),
-	))
 	ctx.Logger().WithField("stage", "scheduling-algo").Info("Finished initial scheduling of jobs onto nodes")
 	for _, jctx := range schedulerResult.ScheduledJobs {
 		if _, ok := preemptedJobsById[jctx.JobId]; ok {
@@ -203,9 +176,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (resul
 	if err != nil {
 		return nil, err
 	}
-	span.AddEvent("scheduler.evict_oversubscribed.complete", trace.WithAttributes(
-		attribute.Int("armada.scheduler.evicted_jobs", len(reevictResult.EvictedJctxsByJobId)),
-	))
 	ctx.Logger().WithField("stage", "scheduling-algo").Info("Finished evicting jobs from oversubscribed nodes")
 	scheduledAndEvictedJobsById := armadamaps.FilterKeys(
 		reevictResult.EvictedJctxsByJobId,
@@ -237,9 +207,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (resul
 		if rescheduleErr != nil {
 			return nil, rescheduleErr
 		}
-		span.AddEvent("scheduler.second_schedule.complete", trace.WithAttributes(
-			attribute.Int("armada.scheduler.scheduled_jobs", len(rescheduleSchedulerResult.ScheduledJobs)),
-		))
 		ctx.Logger().WithField("stage", "scheduling-algo").Info("Finished second scheduling pass")
 		for _, jctx := range rescheduleSchedulerResult.ScheduledJobs {
 			if _, ok := preemptedJobsById[jctx.JobId]; ok {
@@ -257,10 +224,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (resul
 		if err != nil {
 			return nil, err
 		}
-		span.AddEvent("scheduler.optimiser.complete", trace.WithAttributes(
-			attribute.Int("armada.scheduler.scheduled_jobs", len(optimisingSchedulerResult.ScheduledJobs)),
-			attribute.Int("armada.scheduler.preempted_jobs", len(optimisingSchedulerResult.PreemptedJobs)),
-		))
 		for _, jctx := range optimisingSchedulerResult.ScheduledJobs {
 			if _, ok := preemptedJobsById[jctx.JobId]; ok {
 				// TODO Should this ever happen? We shouldn't ever be rescheduling evicted jobs here
@@ -285,7 +248,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (resul
 		if err != nil {
 			ctx.Logger().WithField("stage", "scheduling-algo").Error("Could not determine indicative prices for pool")
 		}
-		span.AddEvent("scheduler.indicative_pricing.complete")
 	}
 
 	preemptedJobs := maps.Values(preemptedJobsById)
@@ -634,12 +596,12 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 	var candidateGangIterator CandidateGangIterator
 	var err error
 	if sch.marketDriven {
-		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangItByQueue)
+		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, qr, gangItByQueue)
 		if err != nil {
 			return err
 		}
 	} else {
-		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering)
+		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, qr, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering)
 		if err != nil {
 			return err
 		}
@@ -660,7 +622,8 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 				i++
 			}
 			q := qr.queues[gctx.Queue]
-			q.allocation.Add(gctx.TotalResourceRequests)
+			q.allocation = q.allocation.Add(gctx.TotalResourceRequests)
+			qr.queues[gctx.Queue] = q
 		}
 		if err := candidateGangIterator.Clear(); err != nil {
 			return err
@@ -687,7 +650,7 @@ func (sch *PreemptingQueueScheduler) runPricer(ctx *armadacontext.Context) (Indi
 	result, err := marketDrivenPricer.Price(timeoutContext, sch.schedulingContext, sch.jobRepo, sch.marketConfig.GangsToPrice)
 	ctx.Logger().WithField("stage", "scheduling-algo").Infof(
 		"Gang Pricer tooks %.2f seconds to price %d gangs in %s pool",
-		time.Since(before).Seconds(),
+		time.Now().Sub(before).Seconds(),
 		len(sch.marketConfig.GangsToPrice),
 		sch.schedulingContext.Pool,
 	)
@@ -744,7 +707,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 	inMemoryJobRepo *InMemoryJobRepository,
 	jobRepo jobdb.JobRepository,
 	skipUnsuccessfulSchedulingKeyCheck bool,
-	considerPriorityCLassPriority bool,
+	compareSchedulingPriority bool,
 ) (*SchedulingResult, error) {
 	sortOrder := jobdb.FairShareOrder
 	if sch.marketDriven {
@@ -780,7 +743,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 		sch.nodeDb,
 		jobIteratorByQueue,
 		skipUnsuccessfulSchedulingKeyCheck,
-		considerPriorityCLassPriority,
+		compareSchedulingPriority,
 		sch.preferLargeJobOrdering,
 		sch.maxQueueLookBack,
 		sch.marketDriven,
