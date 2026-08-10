@@ -261,8 +261,8 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 	}
 
 	var cancelUser *string
-	if event.CancelUser != "" {
-		cancelUser = &event.CancelUser
+	if event.Requestor != "" {
+		cancelUser = &event.Requestor
 	}
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:                     event.GetJobId(),
@@ -506,6 +506,12 @@ func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armada
 	var terminationReasonArgs map[string]any
 	if event.PreemptingJobId != "" {
 		terminationReasonArgs = map[string]any{"preemptingJobId": event.PreemptingJobId}
+	}
+	if event.Requestor != "" {
+		if terminationReasonArgs == nil {
+			terminationReasonArgs = map[string]any{}
+		}
+		terminationReasonArgs["requestor"] = event.Requestor
 	}
 	var terminationReason map[string]any
 	if event.Reason != "" || terminationReasonArgs != nil {

@@ -340,8 +340,7 @@ var JobCancelRequested = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_CancelJob{
 		CancelJob: &armadaevents.CancelJob{
-			JobId:     JobId,
-			Requestor: UserId,
+			JobId: JobId,
 		},
 	},
 }
@@ -349,7 +348,7 @@ var JobCancelRequested = &armadaevents.EventSequence_Event{
 var JobSetCancelRequested = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_CancelJobSet{
-		CancelJobSet: &armadaevents.CancelJobSet{Requestor: UserId},
+		CancelJobSet: &armadaevents.CancelJobSet{},
 	},
 }
 
@@ -357,8 +356,8 @@ var JobCancelled = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_CancelledJob{
 		CancelledJob: &armadaevents.CancelledJob{
-			JobId:      JobId,
-			CancelUser: CancelUser,
+			JobId:     JobId,
+			Requestor: CancelUser,
 		},
 	},
 }
@@ -428,9 +427,8 @@ var JobReprioritiseRequested = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 		ReprioritiseJob: &armadaevents.ReprioritiseJob{
-			JobId:     JobId,
-			Priority:  NewPriority,
-			Requestor: UserId,
+			JobId:    JobId,
+			Priority: NewPriority,
 		},
 	},
 }
@@ -439,8 +437,7 @@ var JobSetReprioritiseRequested = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_ReprioritiseJobSet{
 		ReprioritiseJobSet: &armadaevents.ReprioritiseJobSet{
-			Priority:  NewPriority,
-			Requestor: UserId,
+			Priority: NewPriority,
 		},
 	},
 }
@@ -796,8 +793,7 @@ func JobSetCancelRequestedWithStateFilter(states ...armadaevents.JobState) *arma
 		Created: testfixtures.BasetimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelJobSet{
 			CancelJobSet: &armadaevents.CancelJobSet{
-				States:    states,
-				Requestor: UserId,
+				States: states,
 			},
 		},
 	}

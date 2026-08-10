@@ -48,9 +48,8 @@ type Job struct {
 	CancelUser              *string   `db:"cancel_user"`
 	PriceBand               int32     `db:"price_band"`
 	Terminated              *bool     `db:"terminated"`
-	PreemptUser             *string   `db:"preempt_user"`
-	ReprioritizeUser        *string   `db:"reprioritize_user"`
 	CancelReason            *string   `db:"cancel_reason"`
+	ReprioritizeUser        *string   `db:"reprioritize_user"`
 }
 
 type JobMetadatum struct {
@@ -100,4 +99,5 @@ type Run struct {
 	Pool                   string     `db:"pool"`
 	Terminated             bool       `db:"terminated"`
 	PreemptReason          *string    `db:"preempt_reason"`
+	PreemptUser            *string    `db:"preempt_user"`
 }

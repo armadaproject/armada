@@ -132,7 +132,7 @@ func FromInternalPreemptionRequested(userId string, queueName string, jobSetName
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
-					Requestor: resolveRequestor(e.GetRequestor(), userId),
+					Requestor: userId,
 					Reason:    e.Reason,
 				},
 			},
@@ -165,7 +165,7 @@ func FromInternalCancelled(userId string, queueName string, jobSetName string, t
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
-					Requestor: resolveRequestor(e.GetRequestor(), e.GetCancelUser(), userId),
+					Requestor: resolveRequestor(e.GetRequestor(), userId),
 				},
 			},
 		},
@@ -182,7 +182,7 @@ func FromInternalReprioritiseJob(userId string, queueName string, jobSetName str
 					Queue:       queueName,
 					Created:     protoutil.ToTimestamp(time),
 					NewPriority: float64(e.Priority),
-					Requestor:   resolveRequestor(e.GetRequestor(), userId),
+					Requestor:   userId,
 				},
 			},
 		},
@@ -401,6 +401,7 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 		RunId:           e.PreemptedRunId,
 		Reason:          e.Reason,
 		PreemptingJobId: e.PreemptingJobId,
+		Requestor:       e.GetRequestor(),
 	}
 
 	return []*api.EventMessage{

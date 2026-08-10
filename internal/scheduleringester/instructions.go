@@ -332,13 +332,10 @@ func (c *JobSetEventsInstructionConverter) handleJobErrors(jobErrors *armadaeven
 }
 
 func (c *JobSetEventsInstructionConverter) handleJobPreemptionRequested(preemptionRequested *armadaevents.JobPreemptionRequested, meta eventSequenceCommon) ([]DbOperation, error) {
-	requestor := strings.TrimSpace(preemptionRequested.GetRequestor())
-	if requestor == "" {
-		requestor = strings.TrimSpace(meta.user)
-	}
-	reasonWithUser := buildPreemptionReason(preemptionRequested.Reason, requestor)
+	preemptUser := strings.TrimSpace(meta.user)
+	reasonWithUser := buildPreemptionReason(preemptionRequested.Reason, preemptUser)
 	return []DbOperation{MarkRunsForJobPreemptRequested{
-		preemptUser: requestor,
+		preemptUser: preemptUser,
 		jobSets: map[JobSetKey]map[string]string{
 			{
 				queue:  meta.queue,
@@ -361,10 +358,7 @@ func buildPreemptionReason(reason, user string) string {
 }
 
 func (c *JobSetEventsInstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaevents.ReprioritiseJob, meta eventSequenceCommon) ([]DbOperation, error) {
-	reprioritizeUser := strings.TrimSpace(reprioritiseJob.GetRequestor())
-	if reprioritizeUser == "" {
-		reprioritizeUser = strings.TrimSpace(meta.user)
-	}
+	reprioritizeUser := strings.TrimSpace(meta.user)
 	return []DbOperation{&UpdateJobPriorities{
 		key: JobReprioritiseKey{
 			JobSetKey: JobSetKey{
@@ -379,10 +373,7 @@ func (c *JobSetEventsInstructionConverter) handleReprioritiseJob(reprioritiseJob
 }
 
 func (c *JobSetEventsInstructionConverter) handleReprioritiseJobSet(reprioritiseJobSet *armadaevents.ReprioritiseJobSet, meta eventSequenceCommon) ([]DbOperation, error) {
-	reprioritizeUser := strings.TrimSpace(reprioritiseJobSet.GetRequestor())
-	if reprioritizeUser == "" {
-		reprioritizeUser = strings.TrimSpace(meta.user)
-	}
+	reprioritizeUser := strings.TrimSpace(meta.user)
 	return []DbOperation{UpdateJobSetPriorities{
 		jobSets: map[JobSetKey]int64{
 			{queue: meta.queue, jobSet: meta.jobset}: int64(reprioritiseJobSet.Priority),
@@ -392,10 +383,7 @@ func (c *JobSetEventsInstructionConverter) handleReprioritiseJobSet(reprioritise
 }
 
 func (c *JobSetEventsInstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob, meta eventSequenceCommon) ([]DbOperation, error) {
-	cancelUser := strings.TrimSpace(cancelJob.GetRequestor())
-	if cancelUser == "" {
-		cancelUser = strings.TrimSpace(meta.user)
-	}
+	cancelUser := strings.TrimSpace(meta.user)
 	cancelReason := cancelJob.Reason
 	if cancelReason == "" {
 		cancelReason = cancelReasonUserInitiated
@@ -415,10 +403,7 @@ func (c *JobSetEventsInstructionConverter) handleCancelJob(cancelJob *armadaeven
 func (c *JobSetEventsInstructionConverter) handleCancelJobSet(cancelJobSet *armadaevents.CancelJobSet, meta eventSequenceCommon) ([]DbOperation, error) {
 	cancelQueued := len(cancelJobSet.States) == 0 || slices.Contains(cancelJobSet.States, armadaevents.JobState_QUEUED)
 	cancelLeased := len(cancelJobSet.States) == 0 || slices.Contains(cancelJobSet.States, armadaevents.JobState_PENDING) || slices.Contains(cancelJobSet.States, armadaevents.JobState_RUNNING)
-	cancelUser := strings.TrimSpace(cancelJobSet.GetRequestor())
-	if cancelUser == "" {
-		cancelUser = strings.TrimSpace(meta.user)
-	}
+	cancelUser := strings.TrimSpace(meta.user)
 
 	cancelReason := cancelJobSet.Reason
 	if cancelReason == "" {

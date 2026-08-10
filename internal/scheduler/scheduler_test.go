@@ -3174,9 +3174,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId:      queuedJobA.JobID,
-									CancelUser: "cancel-user-a",
-									Requestor:  "cancel-user-a",
+									JobId:     queuedJobA.JobID,
+									Requestor: "cancel-user-a",
 								},
 							},
 						},
@@ -3213,9 +3212,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId:      queuedJobA.JobID,
-									CancelUser: "cancel-user-a",
-									Requestor:  "cancel-user-a",
+									JobId:     queuedJobA.JobID,
+									Requestor: "cancel-user-a",
 								},
 							},
 						},
@@ -3259,9 +3257,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId:      queuedJobA.JobID,
-									CancelUser: "cancel-user-a",
-									Requestor:  "cancel-user-a",
+									JobId:     queuedJobA.JobID,
+									Requestor: "cancel-user-a",
 								},
 							},
 						},
@@ -3314,9 +3311,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId:      queuedJobA.JobID,
-									CancelUser: "cancel-user-a",
-									Requestor:  "cancel-user-a",
+									JobId:     queuedJobA.JobID,
+									Requestor: "cancel-user-a",
 								},
 							},
 						},

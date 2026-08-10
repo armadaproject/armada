@@ -266,9 +266,8 @@ func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, job
 			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
 				JobPreemptionRequested: &armadaevents.JobPreemptionRequested{
-					JobId:     jobId,
-					Reason:    reason,
-					Requestor: userId,
+					JobId:  jobId,
+					Reason: reason,
 				},
 			},
 		})
@@ -307,8 +306,7 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJobSet{
 				ReprioritiseJobSet: &armadaevents.ReprioritiseJobSet{
-					Priority:  priority,
-					Requestor: userId,
+					Priority: priority,
 				},
 			},
 		})
@@ -322,9 +320,8 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 				ReprioritiseJob: &armadaevents.ReprioritiseJob{
-					JobId:     jobId,
-					Priority:  priority,
-					Requestor: userId,
+					JobId:    jobId,
+					Priority: priority,
 				},
 			},
 		}
@@ -387,9 +384,8 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 				Created: eventTime,
 				Event: &armadaevents.EventSequence_Event_CancelJobSet{
 					CancelJobSet: &armadaevents.CancelJobSet{
-						States:    states,
-						Reason:    util.Truncate(req.Reason, 512),
-						Requestor: userId,
+						States: states,
+						Reason: util.Truncate(req.Reason, 512),
 					},
 				},
 			},
@@ -422,9 +418,8 @@ func eventSequenceForJobIds(clock clock.Clock, jobIds []string, queue, jobSet, u
 			Created: eventTime,
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{
-					JobId:     jobId,
-					Reason:    truncatedReason,
-					Requestor: userId,
+					JobId:  jobId,
+					Reason: truncatedReason,
 				},
 			},
 		})

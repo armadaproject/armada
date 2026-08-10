@@ -243,7 +243,8 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		}
 	case MarkRunsForJobPreemptRequested:
 		const batchSize = 5000
-		markRunsPreemptRequestedSqlStatement := "UPDATE runs SET preempt_requested = true, preempt_reason = $1 WHERE queue = $2 and job_set = $3 and job_id = ANY($4::text[]) and terminated = false"
+		preemptUser := nullableTrimmedString(o.preemptUser)
+		markRunsPreemptRequestedSqlStatement := "UPDATE runs SET preempt_requested = true, preempt_reason = $1, preempt_user = $2 WHERE queue = $3 and job_set = $4 and job_id = ANY($5::text[]) and terminated = false"
 
 		for key, preemptReason := range o.jobSets {
 			// group by reason
@@ -259,7 +260,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 					end := min(i+batchSize, len(jobIds))
 					jobIdBatch := jobIds[i:end]
 					// Preemption is run-scoped and must only update runs.
-					batch.Queue(markRunsPreemptRequestedSqlStatement, reason, key.queue, key.jobSet, jobIdBatch)
+					batch.Queue(markRunsPreemptRequestedSqlStatement, reason, preemptUser, key.queue, key.jobSet, jobIdBatch)
 				}
 			}
 
@@ -487,8 +488,8 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				}
 			}
 
-			for _, requestPreemptParams := range createMarkRunsPreemptRequestedByJobIdParams(jobs) {
-				err = queries.MarkRunsPreemptRequestedByJobId(ctx, requestPreemptParams.runsParams)
+			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobs, preemptRequest.Requestor) {
+				err = queries.MarkJobRunsPreemptRequestedByJobId(ctx, *requestPreemptParams)
 				if err != nil {
 					return errors.Wrapf(err, "error preempting jobs on executor %s by queue and priority class", executor)
 				}
@@ -523,8 +524,8 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				continue
 			}
 
-			for _, requestPreemptParams := range createMarkRunsPreemptRequestedByJobIdParams(jobs) {
-				err = queries.MarkRunsPreemptRequestedByJobId(ctx, requestPreemptParams.runsParams)
+			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobs, preemptRequest.Requestor) {
+				err = queries.MarkJobRunsPreemptRequestedByJobId(ctx, *requestPreemptParams)
 				if err != nil {
 					return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 				}
@@ -610,8 +611,8 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 					return errors.Wrapf(err, "error preempting jobs by queue, job state and priority class")
 				}
 			}
-			for _, requestPreemptParams := range createMarkRunsPreemptRequestedByJobIdParams(jobs) {
-				err = queries.MarkRunsPreemptRequestedByJobId(ctx, requestPreemptParams.runsParams)
+			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobs, preemptRequest.Requestor) {
+				err = queries.MarkJobRunsPreemptRequestedByJobId(ctx, *requestPreemptParams)
 				if err != nil {
 					return errors.Wrapf(err, "error preempting jobs by queue, job state and priority class")
 				}
@@ -709,31 +710,27 @@ func nullableTrimmedString(value string) *string {
 	return &trimmed
 }
 
-type preemptRequestParams struct {
-	runsParams schedulerdb.MarkRunsPreemptRequestedByJobIdParams
-}
-
-func createMarkRunsPreemptRequestedByJobIdParams(jobs []schedulerdb.Job) []*preemptRequestParams {
-	result := make([]*preemptRequestParams, 0)
-	mapping := map[string]map[string]*preemptRequestParams{}
+// createMarkJobRunsPreemptRequestedByJobIdParams returns []schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams for the specified jobs such
+// that no two MarkJobRunsPreemptRequestedByJobIdParams are for the same queue and jobset.
+func createMarkJobRunsPreemptRequestedByJobIdParams(jobs []schedulerdb.Job, preemptUser string) []*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams {
+	result := make([]*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams, 0)
+	mapping := map[string]map[string]*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{}
 	for _, job := range jobs {
 		if _, ok := mapping[job.Queue]; !ok {
-			mapping[job.Queue] = map[string]*preemptRequestParams{}
+			mapping[job.Queue] = map[string]*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{}
 		}
 		if _, ok := mapping[job.Queue][job.JobSet]; !ok {
-			params := &preemptRequestParams{
-				runsParams: schedulerdb.MarkRunsPreemptRequestedByJobIdParams{
-					PreemptReason: nil,
-					Queue:         job.Queue,
-					JobSet:        job.JobSet,
-					JobIds:        make([]string, 0),
-				},
+			mapping[job.Queue][job.JobSet] = &schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{
+				PreemptUser:   nullableTrimmedString(preemptUser),
+				PreemptReason: nil,
+				Queue:         job.Queue,
+				JobSet:        job.JobSet,
+				JobIds:        make([]string, 0),
 			}
-			mapping[job.Queue][job.JobSet] = params
-			result = append(result, params)
+			result = append(result, mapping[job.Queue][job.JobSet])
 		}
 
-		mapping[job.Queue][job.JobSet].runsParams.JobIds = append(mapping[job.Queue][job.JobSet].runsParams.JobIds, job.JobID)
+		mapping[job.Queue][job.JobSet].JobIds = append(mapping[job.Queue][job.JobSet].JobIds, job.JobID)
 	}
 
 	return result

@@ -14,10 +14,10 @@ SELECT serial FROM jobs ORDER BY serial DESC LIMIT 1;
 SELECT serial FROM runs ORDER BY serial DESC LIMIT 1;
 
 -- name: SelectInitialJobs :many
-SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_reason, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial, preempt_user, reprioritize_user FROM jobs WHERE serial > $1 AND terminated = false ORDER BY serial LIMIT $2;
+SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_reason, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial, reprioritize_user FROM jobs WHERE serial > $1 AND terminated = false ORDER BY serial LIMIT $2;
 
 -- name: SelectUpdatedJobs :many
-SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_reason, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial, preempt_user, reprioritize_user FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
+SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_reason, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial, reprioritize_user FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 
 -- name: UpdateJobPriorityByJobSet :exec
 UPDATE jobs SET priority = $1, reprioritize_user = sqlc.arg(reprioritize_user) WHERE job_set = $2 and queue = $3 and terminated = false;
@@ -55,8 +55,8 @@ SELECT run_id FROM runs;
 -- name: SelectNewRunsForJobs :many
 SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::text[]) ORDER BY serial;
 
--- name: MarkRunsPreemptRequestedByJobId :exec
-UPDATE runs SET preempt_requested = true, preempt_reason = sqlc.arg(preempt_reason) WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]) and terminated = false;
+-- name: MarkJobRunsPreemptRequestedByJobId :exec
+UPDATE runs SET preempt_requested = true, preempt_reason = sqlc.arg(preempt_reason), preempt_user = sqlc.arg(preempt_user) WHERE queue = sqlc.arg(queue) and job_set = sqlc.arg(job_set) and job_id = ANY(sqlc.arg(job_ids)::text[]) and terminated = false;
 
 -- name: MarkJobRunsSucceededById :exec
 UPDATE runs SET succeeded = true WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
