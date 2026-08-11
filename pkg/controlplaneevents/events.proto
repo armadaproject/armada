@@ -17,6 +17,7 @@ message Event {
     CancelOnQueue cancelOnQueue = 7;
     PreemptOnNode preemptOnNode = 8;
     CancelOnNode cancelOnNode = 9;
+    ExecutorDelete executorDelete = 10;
   }
 }
 
@@ -29,6 +30,11 @@ message ExecutorSettingsUpsert {
 
 message ExecutorSettingsDelete {
   string name = 1;
+}
+
+message ExecutorDelete {
+  string name = 1;
+  string requestor = 2;
 }
 
 message PreemptOnExecutor {
@@ -52,6 +58,7 @@ message PreemptOnNode {
   string executor = 2;
   repeated string queues = 3;
   repeated string priorityClasses = 4;
+  string requestor = 5;
 }
 
 message CancelOnNode {
@@ -59,6 +66,7 @@ message CancelOnNode {
   string executor = 2;
   repeated string queues = 3;
   repeated string priorityClasses = 4;
+  string requestor = 5;
 }
 
 // A subset of JobState including only non-terminal states
