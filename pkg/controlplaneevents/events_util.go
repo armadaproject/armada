@@ -6,6 +6,8 @@ func (ev *Event) GetEventName() string {
 		return "ExecutorSettingsUpsert"
 	case *Event_ExecutorSettingsDelete:
 		return "ExecutorSettingsDelete"
+	case *Event_ExecutorDelete:
+		return "ExecutorDelete"
 	}
 	return "Unknown"
 }

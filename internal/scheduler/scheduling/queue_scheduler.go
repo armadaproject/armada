@@ -25,6 +25,8 @@ type CandidateGangIterator interface {
 	GetAllocationForQueue(queue string) (internaltypes.ResourceList, bool)
 	OnlyYieldEvicted() error
 	OnlyYieldEvictedForQueue(queue string) error
+	// ResumeNonEvicted reverses OnlyYieldEvicted, allowing non-evicted (new) jobs to be yielded again.
+	ResumeNonEvicted() error
 	SecondPrice(priceSettingQueue string) float64
 }
 
@@ -46,7 +48,7 @@ func NewQueueScheduler(
 	nodeDb *nodedb.NodeDb,
 	jobIteratorByQueue map[string]JobContextIterator,
 	skipUnsuccessfulSchedulingKeyCheck bool,
-	considerPriorityClassPriority bool,
+	compareSchedulingPriority bool,
 	prioritiseLargerJobs bool,
 	maxQueueLookBack uint,
 	marketDriven bool,
@@ -73,7 +75,7 @@ func NewQueueScheduler(
 			return nil, err
 		}
 	} else {
-		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, considerPriorityClassPriority, prioritiseLargerJobs)
+		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, compareSchedulingPriority, prioritiseLargerJobs)
 		if err != nil {
 			return nil, err
 		}
@@ -97,6 +99,8 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 	scheduledResource := sch.schedulingContext.TotalResources.Factory().MakeAllZero()
 	statsPerQueue := map[string]QueueStats{}
 	loopNumber := 0
+	preemptionRateLimitHit := false
+	evictedJobsRescheduled := false
 	for {
 		// Hard timeout check via context - if exceeded, abort immediately with error.
 		select {
@@ -104,6 +108,15 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 			sctx.TerminationReason = fmt.Sprintf("hard timeout: %s", ctx.Err().Error())
 			return nil, ctx.Err()
 		default:
+		}
+
+		// Once this pool's fairshare preemption budget is exhausted,
+		// reschedule all remaining evicted (preemptable) jobs before considering any more new jobs.
+		if !preemptionRateLimitHit && sctx.AtFairsharePreemptionRateLimit() {
+			preemptionRateLimitHit = true
+			if err := sch.candidateGangIterator.OnlyYieldEvicted(); err != nil {
+				return nil, err
+			}
 		}
 
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
@@ -114,9 +127,27 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 			return nil, err
 		}
 		if gctx == nil {
+			// If we drained evicted jobs due to the preemption rate limit, bring back new jobs now that
+			// all preemptable jobs have been rescheduled. Skip this if a terminal reason (e.g. a global
+			// scheduling rate limit) ended scheduling, since new jobs should stay paused in that case.
+			if preemptionRateLimitHit && !evictedJobsRescheduled && sctx.TerminationReason == "" {
+				evictedJobsRescheduled = true
+				if err := sch.candidateGangIterator.ResumeNonEvicted(); err != nil {
+					return nil, err
+				}
+				continue
+			}
 			break
 		}
 		if gctx.Cardinality() == 0 {
+			if err := sch.candidateGangIterator.Clear(); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
+		// Skip gangs containing a job already preempted this round; they must not be re-scheduled.
+		if gangContainsPreemptedJob(sctx, gctx.JobSchedulingContexts) {
 			if err := sch.candidateGangIterator.Clear(); err != nil {
 				return nil, err
 			}
@@ -287,7 +318,10 @@ type QueuedGangIterator struct {
 	jobsSeen uint
 	// If the iterator should only be yielding evicted jobs
 	onlyYieldEvicted bool
-	next             *schedulercontext.GangSchedulingContext
+	// A non-evicted gang that was already peeked (and so consumed from the underlying iterator) when
+	// OnlyYieldEvicted was set. Stashed rather than dropped so ResumeNonEvicted can yield it again.
+	stashedNonEvicted *schedulercontext.GangSchedulingContext
+	next              *schedulercontext.GangSchedulingContext
 }
 
 func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobContextIterator, maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
@@ -301,15 +335,41 @@ func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobConte
 }
 
 func (it *QueuedGangIterator) OnlyYieldEvicted() {
+	if it.onlyYieldEvicted {
+		return
+	}
 	it.onlyYieldEvicted = true
 	it.queuedJobsIterator.OnlyYieldEvicted()
 	if it.next != nil && !it.next.AllJobsEvicted {
+		// Stash the already-consumed non-evicted gang so ResumeNonEvicted can yield it again,
+		// rather than losing it (the underlying iterator's cursor has already advanced past it).
+		it.stashedNonEvicted = it.next
 		it.Clear()
 	}
 }
 
+func (it *QueuedGangIterator) ResumeNonEvicted() {
+	if !it.onlyYieldEvicted {
+		return
+	}
+	it.onlyYieldEvicted = false
+	it.queuedJobsIterator.ResumeNonEvicted()
+	// Restore any gang stashed by OnlyYieldEvicted so it is yielded before the iterator advances.
+	it.next = it.stashedNonEvicted
+	it.stashedNonEvicted = nil
+}
+
 func (it *QueuedGangIterator) Clear() {
 	it.next = nil
+}
+
+func gangContainsPreemptedJob(sctx *schedulercontext.SchedulingContext, gang []*schedulercontext.JobSchedulingContext) bool {
+	for _, jctx := range gang {
+		if sctx.IsJobPreempted(jctx.JobId) {
+			return true
+		}
+	}
+	return false
 }
 
 func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, error) {
@@ -394,6 +454,9 @@ type CostBasedCandidateGangIterator struct {
 	// If, e.g., onlyYieldEvictedByQueue["A"] is true,
 	// this iterator only yields gangs where all jobs are evicted for queue A.
 	onlyYieldEvictedByQueue map[string]bool
+	// All per-queue iterators, kept so the priority queue can be rebuilt by ResumeNonEvicted
+	// (OnlyYieldEvicted drops items for queues with no remaining evicted jobs).
+	iteratorsByQueue map[string]*QueuedGangIterator
 	// Priority queue containing per-queue iterators.
 	// Determines the order in which queues are processed.
 	pq QueueCandidateGangIteratorPQ
@@ -416,7 +479,7 @@ func NewCostBasedCandidateGangIterator(
 	queueRepository fairness.QueueRepository,
 	fairnessCostProvider fairness.FairnessCostProvider,
 	iteratorsByQueue map[string]*QueuedGangIterator,
-	considerPriority bool,
+	compareSchedulingPriority bool,
 	prioritiseLargerJobs bool,
 ) (*CostBasedCandidateGangIterator, error) {
 	it := &CostBasedCandidateGangIterator{
@@ -424,23 +487,32 @@ func NewCostBasedCandidateGangIterator(
 		queueRepository:         queueRepository,
 		fairnessCostProvider:    fairnessCostProvider,
 		onlyYieldEvictedByQueue: make(map[string]bool),
+		iteratorsByQueue:        iteratorsByQueue,
 		pq: QueueCandidateGangIteratorPQ{
-			considerPriority:     considerPriority,
-			prioritiseLargerJobs: prioritiseLargerJobs,
-			items:                make([]*QueueCandidateGangIteratorItem, 0, len(iteratorsByQueue)),
+			compareSchedulingPriority: compareSchedulingPriority,
+			prioritiseLargerJobs:      prioritiseLargerJobs,
+			items:                     make([]*QueueCandidateGangIteratorItem, 0, len(iteratorsByQueue)),
 		},
 	}
 	for queue, queueIt := range iteratorsByQueue {
-		qctx, present := queueIt.schedulingContext.QueueSchedulingContexts[queue]
-		if !present {
-			return nil, fmt.Errorf("unable to find queue context for queue %s", queue)
-		}
-		queueBudget := qctx.DemandCappedAdjustedFairShare / qctx.Weight
-		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueBudget, queueIt)); err != nil {
+		if err := it.pushQueue(queue, queueIt); err != nil {
 			return nil, err
 		}
 	}
 	return it, nil
+}
+
+// pushQueue adds a per-queue iterator's current head to the priority queue.
+func (it *CostBasedCandidateGangIterator) pushQueue(queue string, queueIt *QueuedGangIterator) error {
+	qctx, present := queueIt.schedulingContext.QueueSchedulingContexts[queue]
+	if !present {
+		return fmt.Errorf("unable to find queue context for queue %s", queue)
+	}
+	queueBudget := qctx.DemandCappedAdjustedFairShare / qctx.Weight
+	if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueBudget, queueIt)); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (it *CostBasedCandidateGangIterator) OnlyYieldEvicted() error {
@@ -487,6 +559,31 @@ func (it *CostBasedCandidateGangIterator) OnlyYieldEvictedForQueue(queue string)
 		}
 	}
 	it.onlyYieldEvictedByQueue[queue] = true
+	return nil
+}
+
+// ResumeNonEvicted reverses OnlyYieldEvicted, allowing non-evicted (new) jobs to be yielded again.
+// It rebuilds the priority queue from all per-queue iterators, since OnlyYieldEvicted drops items
+// for queues that had no remaining evicted jobs. Per-queue evicted-only state set by
+// OnlyYieldEvictedForQueue (e.g. from a per-queue scheduling rate limit) is preserved.
+func (it *CostBasedCandidateGangIterator) ResumeNonEvicted() error {
+	if !it.onlyYieldEvicted {
+		return nil
+	}
+	it.onlyYieldEvicted = false
+
+	// Rebuild the priority queue from scratch so previously-dropped queues are reconsidered.
+	it.pq.items = make([]*QueueCandidateGangIteratorItem, 0, len(it.iteratorsByQueue))
+	for queue, queueIt := range it.iteratorsByQueue {
+		// Leave queues that were individually restricted to evicted-only (e.g. hit their per-queue
+		// scheduling rate limit); only undo the global evicted-only drain.
+		if !it.onlyYieldEvictedByQueue[queue] {
+			queueIt.ResumeNonEvicted()
+		}
+		if err := it.pushQueue(queue, queueIt); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -560,19 +657,24 @@ func (it *CostBasedCandidateGangIterator) updatePQItem(item *QueueCandidateGangI
 	// Gang members may have been scheduled at different priorities due to home/away preemption. We therefore take the
 	// lowest priority across the whole gang
 	item.priorityClassPriority = math.MaxInt32
+	item.schedulingPriority = math.MaxInt32
 	for _, jobCtx := range gctx.JobSchedulingContexts {
-		newPriority := jobCtx.Job.PriorityClass().Priority
+		priorityClassPriority := jobCtx.Job.PriorityClass().Priority
+		schedulingPriority := priorityClassPriority
 		if jobCtx.PodSchedulingContext != nil { // Jobs was already scheduled in this cycle, us the priority from that
-			newPriority = jobCtx.PodSchedulingContext.ScheduledAtPriority
+			schedulingPriority = jobCtx.PodSchedulingContext.ScheduledAtPriority
 		} else {
 			priority, ok := jobCtx.Job.ScheduledAtPriority()
 			if ok { // Job was scheduled in a previous cycle
-				newPriority = priority
+				schedulingPriority = priority
 			}
 		}
 
-		if newPriority < item.priorityClassPriority {
-			item.priorityClassPriority = newPriority
+		if schedulingPriority < item.schedulingPriority {
+			item.schedulingPriority = schedulingPriority
+		}
+		if priorityClassPriority < item.priorityClassPriority {
+			item.priorityClassPriority = priorityClassPriority
 		}
 	}
 
@@ -594,9 +696,9 @@ func (it *CostBasedCandidateGangIterator) getQueue(gctx *schedulercontext.GangSc
 
 // QueueCandidateGangIteratorPQ is a priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
 type QueueCandidateGangIteratorPQ struct {
-	considerPriority     bool
-	prioritiseLargerJobs bool
-	items                []*QueueCandidateGangIteratorItem
+	compareSchedulingPriority bool
+	prioritiseLargerJobs      bool
+	items                     []*QueueCandidateGangIteratorItem
 }
 
 type QueueCandidateGangIteratorItem struct {
@@ -618,6 +720,7 @@ type QueueCandidateGangIteratorItem struct {
 	// Used to determine which job is larger
 	itemSize              float64
 	priorityClassPriority int32
+	schedulingPriority    int32
 	// The index of the item in the heap.
 	// maintained by the heap.Interface methods.
 	index int
@@ -629,9 +732,17 @@ func (pq *QueueCandidateGangIteratorPQ) Less(i, j int) bool {
 	item1 := pq.items[i]
 	item2 := pq.items[j]
 
-	// Consider priority class priority first
-	if pq.considerPriority && item1.priorityClassPriority != item2.priorityClassPriority {
-		return item1.priorityClassPriority > item2.priorityClassPriority
+	// Consider priority first. schedulingPriority is the priority the gang was actually
+	// scheduled at, which is lower than its priority class for jobs scheduled away.
+	// priorityClassPriority is the static priority class value, ignoring where it ran.
+	if pq.compareSchedulingPriority {
+		if item1.schedulingPriority != item2.schedulingPriority {
+			return item1.schedulingPriority > item2.schedulingPriority
+		}
+	} else {
+		if item1.priorityClassPriority != item2.priorityClassPriority {
+			return item1.priorityClassPriority > item2.priorityClassPriority
+		}
 	}
 
 	if pq.prioritiseLargerJobs {
