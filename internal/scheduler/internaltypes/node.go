@@ -2,13 +2,11 @@ package internaltypes
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/label"
@@ -62,6 +60,7 @@ type Node struct {
 	AllocatedByQueue      map[string]ResourceList
 	AllocatedByJobId      map[string]ResourceList
 	EvictedJobRunIds      map[string]bool
+	cutoffByJobId         map[string]int32
 }
 
 func FromSchedulerObjectsNode(node *schedulerobjects.Node,
@@ -196,6 +195,7 @@ func CreateNode(
 		AllocatedByQueue:      maps.Clone(allocatedByQueue),
 		AllocatedByJobId:      maps.Clone(allocatedByJobId),
 		EvictedJobRunIds:      evictedJobRunIds,
+		cutoffByJobId:         map[string]int32{},
 		Keys:                  keys,
 	}
 }
@@ -361,6 +361,7 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		AllocatedByQueue:      maps.Clone(node.AllocatedByQueue),
 		AllocatedByJobId:      maps.Clone(node.AllocatedByJobId),
 		EvictedJobRunIds:      maps.Clone(node.EvictedJobRunIds),
+		cutoffByJobId:         maps.Clone(node.cutoffByJobId),
 	}
 }
 
@@ -393,24 +394,20 @@ func deepCopyLabels(labels map[string]string) map[string]string {
 	return result
 }
 
-// nonPreemptibleCutoff is a sentinel value (not a real priority) passed to
-// markAllocated/markAllocatable to deduct at every priority bucket.
-const nonPreemptibleCutoff = math.MaxInt32
-
 // SchedulableJob is the subset of a job the Node needs to account for its
 // resources. *jobdb.Job satisfies this interface.
 type SchedulableJob interface {
 	Id() string
 	Queue() string
 	KubernetesResourceRequirements() ResourceList
-	PriorityClass() types.PriorityClass
 }
 
-// AddJob binds job to the node at the given scheduled priority. If the job is
-// currently evicted from this node, it is un-evicted and its resources are moved
-// out of the EvictedPriority bucket; ownership (AllocatedByJobId/AllocatedByQueue)
-// is left untouched in that case because an evicted job still owns its resources.
-func (node *Node) AddJob(job SchedulableJob, priority int32) error {
+// AddJob binds job to the node, deducting its resources at every priority bucket
+// at or below cutoff. If the job is currently evicted from this node, it is
+// un-evicted and its resources are moved out of the EvictedPriority bucket;
+// ownership (AllocatedByJobId/AllocatedByQueue) is left untouched in that case
+// because an evicted job still owns its resources.
+func (node *Node) AddJob(job SchedulableJob, cutoff int32) error {
 	jobId := job.Id()
 	requests := job.KubernetesResourceRequirements()
 
@@ -425,18 +422,25 @@ func (node *Node) AddJob(job SchedulableJob, priority int32) error {
 	}
 
 	allocatable := node.AllocatableByPriority
-	markAllocated(allocatable, priorityCutoffFor(job, priority), requests)
+	markAllocated(allocatable, cutoff, requests)
 	if isEvicted {
 		markAllocatable(allocatable, EvictedPriority, requests)
 	}
 
+	if node.cutoffByJobId == nil {
+		node.cutoffByJobId = make(map[string]int32)
+	}
+	node.cutoffByJobId[jobId] = cutoff
+
 	return nil
 }
 
-// EvictJob marks job as evicted from the node: its resources move from the job's
-// scheduled-priority bucket to the EvictedPriority bucket within AllocatableByPriority.
-// Ownership (AllocatedByJobId/AllocatedByQueue) is intentionally left in place.
-func (node *Node) EvictJob(job SchedulableJob, priority int32) error {
+// EvictJob marks job as evicted from the node: its resources move from the bucket
+// at the cutoff it was bound at to the EvictedPriority bucket within
+// AllocatableByPriority. Ownership (AllocatedByJobId/AllocatedByQueue) is
+// intentionally left in place, and the stored cutoff is preserved so a later
+// RemoveJob can still release correctly.
+func (node *Node) EvictJob(job SchedulableJob) error {
 	jobId := job.Id()
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
 		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.GetId())
@@ -457,7 +461,7 @@ func (node *Node) EvictJob(job SchedulableJob, priority int32) error {
 
 	allocatableByPriority := node.AllocatableByPriority
 	jobRequests := job.KubernetesResourceRequirements()
-	markAllocatable(allocatableByPriority, priorityCutoffFor(job, priority), jobRequests)
+	markAllocatable(allocatableByPriority, node.cutoffByJobId[jobId], jobRequests)
 	markAllocated(allocatableByPriority, EvictedPriority, jobRequests)
 
 	return nil
@@ -465,9 +469,9 @@ func (node *Node) EvictJob(job SchedulableJob, priority int32) error {
 
 // RemoveJob unbinds job from the node, releasing its ownership and returning its
 // resources to AllocatableByPriority. If the job was evicted, its resources are
-// released from the EvictedPriority bucket; otherwise from its scheduled-priority
-// bucket. Removing a job that is not bound is a no-op.
-func (node *Node) RemoveJob(job SchedulableJob, priority int32) error {
+// released from the EvictedPriority bucket; otherwise from the bucket at the cutoff
+// it was bound at. Removing a job that is not bound is a no-op.
+func (node *Node) RemoveJob(job SchedulableJob) error {
 	jobId := job.Id()
 	requests := job.KubernetesResourceRequirements()
 
@@ -488,8 +492,9 @@ func (node *Node) RemoveJob(job SchedulableJob, priority int32) error {
 	if isEvicted {
 		markAllocatable(allocatable, EvictedPriority, requests)
 	} else {
-		markAllocatable(allocatable, priorityCutoffFor(job, priority), requests)
+		markAllocatable(allocatable, node.cutoffByJobId[jobId], requests)
 	}
+	delete(node.cutoffByJobId, jobId)
 
 	return nil
 }
@@ -535,17 +540,4 @@ func markAllocatable(allocatableByPriority map[int32]ResourceList, priorityCutof
 	for _, priority := range priorities {
 		allocatableByPriority[priority] = allocatableByPriority[priority].Add(rs)
 	}
-}
-
-// priorityCutoffFor returns the priorityCutoff to use when updating
-// AllocatableByPriority for a job. Preemptible jobs use their scheduled priority;
-// non-preemptible jobs use nonPreemptibleCutoff so their resources are deducted at
-// every real priority. Without this, a higher-priority job could over-pack a node
-// already saturated by non-preemptible incumbents, since both the rebalance and
-// oversubscribed evictors refuse to evict non-preemptible jobs.
-func priorityCutoffFor(job SchedulableJob, scheduledPriority int32) int32 {
-	if job.PriorityClass().Preemptible {
-		return scheduledPriority
-	}
-	return nonPreemptibleCutoff
 }

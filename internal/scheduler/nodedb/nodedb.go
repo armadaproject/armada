@@ -50,7 +50,7 @@ func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs [
 			priorityClass := job.PriorityClass()
 			priority = priorityClass.Priority
 		}
-		if err := entry.AddJob(job, priority); err != nil {
+		if err := entry.AddJob(job, priorityCutoffFor(job, priority)); err != nil {
 			return err
 		}
 		nodeDb.scheduledAtPriorityByJobId[job.Id()] = priority
@@ -908,7 +908,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 			}
 
 			// Remove preempted job from node
-			if err = nodeCopy.RemoveJob(job.JobSchedulingContext.Job, priority); err != nil {
+			if err = nodeCopy.RemoveJob(job.JobSchedulingContext.Job); err != nil {
 				return nil, nil, err
 			}
 			// Remove preempted job from list of evicted jobs
@@ -935,7 +935,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 // BindJobToNode returns a copy of node with job bound to it.
 func (nodeDb *NodeDb) BindJobToNode(node *internaltypes.Node, job *jobdb.Job, priority int32) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
-	if err := node.AddJob(job, priority); err != nil {
+	if err := node.AddJob(job, priorityCutoffFor(job, priority)); err != nil {
 		return nil, err
 	}
 	nodeDb.scheduledAtPriorityByJobId[job.Id()] = priority
@@ -957,11 +957,11 @@ func (nodeDb *NodeDb) EvictJobsFromNode(
 ) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
 	for _, job := range jobs {
-		priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
+		_, ok := nodeDb.GetScheduledAtPriority(job.Id())
 		if !ok {
 			return nil, errors.Errorf("job %s not mapped to a priority", job.Id())
 		}
-		if err := node.EvictJob(job, priority); err != nil {
+		if err := node.EvictJob(job); err != nil {
 			return nil, err
 		}
 	}
@@ -972,7 +972,7 @@ func (nodeDb *NodeDb) EvictJobsFromNode(
 func (nodeDb *NodeDb) UnbindJobsFromNode(jobs []*jobdb.Job, node *internaltypes.Node) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
 	for _, job := range jobs {
-		if err := nodeDb.unbindResolvingPriority(job, node); err != nil {
+		if err := node.RemoveJob(job); err != nil {
 			return nil, err
 		}
 	}
@@ -982,24 +982,10 @@ func (nodeDb *NodeDb) UnbindJobsFromNode(jobs []*jobdb.Job, node *internaltypes.
 // UnbindJobFromNode returns a copy of node with job unbound from it.
 func (nodeDb *NodeDb) UnbindJobFromNode(job *jobdb.Job, node *internaltypes.Node) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
-	if err := nodeDb.unbindResolvingPriority(job, node); err != nil {
+	if err := node.RemoveJob(job); err != nil {
 		return nil, err
 	}
 	return node, nil
-}
-
-// unbindResolvingPriority resolves the scheduled priority for job and removes it from node.
-// A currently-bound, non-evicted job must have a mapped priority; matching the original
-// unbind behavior, its absence is an error. Evicted jobs return their resources at
-// EvictedPriority regardless (RemoveJob ignores the passed priority for them), and an
-// already-unbound job is a no-op, so neither requires a mapping.
-func (nodeDb *NodeDb) unbindResolvingPriority(job *jobdb.Job, node *internaltypes.Node) error {
-	jobId := job.Id()
-	priority, ok := nodeDb.GetScheduledAtPriority(jobId)
-	if !ok && node.HasJobAllocation(jobId) && !node.IsJobEvicted(jobId) {
-		return errors.Errorf("job %s not mapped to a priority", jobId)
-	}
-	return node.RemoveJob(job, priority)
 }
 
 // NodeTypesMatchingJob returns a slice with all node types a pod could be scheduled on.
@@ -1190,4 +1176,26 @@ func (nodeDb *NodeDb) nodeDbKey(out []byte, nodeTypeId uint64, allocatable inter
 		allocatable,
 		nodeIndex,
 	)
+}
+
+// cutoffJob is the subset of a job needed to determine its priority cutoff.
+type cutoffJob interface {
+	PriorityClass() types.PriorityClass
+}
+
+// nonPreemptibleCutoff is a sentinel value (not a real priority) passed to the
+// Node's accounting methods to deduct at every priority bucket.
+const nonPreemptibleCutoff = math.MaxInt32
+
+// priorityCutoffFor returns the cutoff to use when updating a node's
+// AllocatableByPriority for a job. Preemptible jobs use their scheduled priority;
+// non-preemptible jobs use nonPreemptibleCutoff so their resources are deducted at
+// every real priority. Without this, a higher-priority job could over-pack a node
+// already saturated by non-preemptible incumbents, since both the rebalance and
+// oversubscribed evictors refuse to evict non-preemptible jobs.
+func priorityCutoffFor(job cutoffJob, scheduledPriority int32) int32 {
+	if job.PriorityClass().Preemptible {
+		return scheduledPriority
+	}
+	return nonPreemptibleCutoff
 }
