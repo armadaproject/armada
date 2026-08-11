@@ -996,12 +996,8 @@ func (nodeDb *NodeDb) UnbindJobFromNode(job *jobdb.Job, node *internaltypes.Node
 func (nodeDb *NodeDb) unbindResolvingPriority(job *jobdb.Job, node *internaltypes.Node) error {
 	jobId := job.Id()
 	priority, ok := nodeDb.GetScheduledAtPriority(jobId)
-	if !ok {
-		_, isEvicted := node.EvictedJobRunIds[jobId]
-		_, isBound := node.AllocatedByJobId[jobId]
-		if isBound && !isEvicted {
-			return errors.Errorf("job %s not mapped to a priority", jobId)
-		}
+	if !ok && node.HasJobAllocation(jobId) && !node.IsJobEvicted(jobId) {
+		return errors.Errorf("job %s not mapped to a priority", jobId)
 	}
 	return node.RemoveJob(job, priority)
 }

@@ -252,6 +252,19 @@ func (node *Node) GetRunningJobIds() []string {
 	return maps.Keys(node.AllocatedByJobId)
 }
 
+// IsJobEvicted reports whether the job is currently marked as evicted from the node.
+// An evicted job still owns its resources, so this is independent of HasJobAllocation.
+func (node *Node) IsJobEvicted(jobId string) bool {
+	_, ok := node.EvictedJobRunIds[jobId]
+	return ok
+}
+
+// HasJobAllocation reports whether the job currently owns resources on the node.
+func (node *Node) HasJobAllocation(jobId string) bool {
+	_, ok := node.AllocatedByJobId[jobId]
+	return ok
+}
+
 func (node *Node) GetLabelValue(key string) (string, bool) {
 	val, ok := node.labels[key]
 	return val, ok
