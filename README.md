@@ -6,7 +6,7 @@
 
   <p>
     <a href="https://circleci.com/gh/armadaproject/armada"><img src="https://circleci.com/gh/armadaproject/armada.svg?style=shield" alt="CircleCI"></a>
-    <a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a>
+    <!-- <a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a> -->
     <a href="https://artifacthub.io/packages/helm/gresearch/armada" title="Go to Artifact Hub"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/armada" alt="Artifact Hub"></a>
     <a href="https://insights.linuxfoundation.org/project/armada" title="Click to view project insights and health checks"><img src="https://insights.linuxfoundation.org/api/badge/health-score?project=armada" alt="LFX Health Score"></a>
     <a href="https://www.bestpractices.dev/projects/11485"><img src="https://www.bestpractices.dev/projects/11485/badge" alt="OpenSSF Best Practices"></a>
@@ -32,7 +32,7 @@ When your job volume exceeds what a single cluster can handle, you need a contro
 
 - **No job queue** — Kubernetes has no concept of ordering. Jobs compete for resources with no fairness guarantees. Armada adds a proper queue with priority, fair-share, and rate limiting.
 - **No multi-cluster coordination** — Each Kubernetes cluster is an island. Armada routes jobs across as many clusters as you need from a single API.
-- **No gang scheduling** — Distributed jobs that need all workers to start simultaneously (MPI, PyTorch, Spark) have no atomic startup guarantee in vanilla Kubernetes. Armada either starts the whole group or holds it.
+- **Fine grained gang-scheduling** — Distributed jobs that need all workers to start together (MPI, PyTorch, Spark) are either fully scheduled or held in queue. Armada's implementation is battle-tested at scale with deep fairness and preemption integration.
 - **No fairness across teams** — One team can starve everyone else. Armada enforces fair-share scheduling so heavy users don't permanently dominate shared infrastructure.
 
 Armada is used in production at [G-Research](https://www.gresearch.co.uk/) since 2020, processing **millions of batch jobs per day** across tens of thousands of nodes.
@@ -63,17 +63,19 @@ cd armada-operator
 make kind-all
 ```
 
-→ **[Full quickstart guide](https://armadaproject.io/quickstart)** — get up and running in under 15 minutes.
+→ **[Full quickstart guide](https://armadaproject.io/quickstart)** — get up and running in an instant!
+
+
 
 ### armadactl
 
-Armada's CLI for interacting with the system:
+`armadactl` is installed automatically when you run `make kind-all`. To install it standalone or on a machine without the full Armada setup:
 
 ```bash
 # download via script
 scripts/get-armadactl.sh
 
-# or grab the binary from the releases page
+# or grab the binary from the release page
 https://github.com/armadaproject/armada/releases/latest
 ```
 
