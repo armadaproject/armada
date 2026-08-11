@@ -64,8 +64,8 @@ type Job struct {
 	cancelUser *string
 	// The reason for cancelling the job
 	cancelReason *string
-	// The user who requested this action
-	requestor *string
+	// The user who reprioritized this job
+	reprioritizeUser *string
 	// True if the user has requested this job's jobSet be cancelled
 	cancelByJobSetRequested bool
 	// True if the scheduler has cancelled the job
@@ -361,7 +361,7 @@ func (job *Job) Equal(other *Job) bool {
 	if !ptr.Equal(job.cancelUser, other.cancelUser) {
 		return false
 	}
-	if !ptr.Equal(job.requestor, other.requestor) {
+	if !ptr.Equal(job.reprioritizeUser, other.reprioritizeUser) {
 		return false
 	}
 	if job.cancelReason != other.cancelReason {
@@ -677,9 +677,9 @@ func (job *Job) CancelReason() *string {
 	return job.cancelReason
 }
 
-// Requestor returns the user who requested this action.
-func (job *Job) Requestor() *string {
-	return job.requestor
+// ReprioritizeUser returns the user who reprioritized this job.
+func (job *Job) ReprioritizeUser() *string {
+	return job.reprioritizeUser
 }
 
 // CancelByJobsetRequested returns true if the user has requested this job's jobSet be cancelled.
@@ -715,10 +715,10 @@ func (job *Job) WithCancelReason(cancelReason *string) *Job {
 	return j
 }
 
-// WithRequestor returns a copy of the job with the requestor updated.
-func (job *Job) WithRequestor(requestor *string) *Job {
+// WithReprioritizeUser returns a copy of the job with the reprioritize user updated.
+func (job *Job) WithReprioritizeUser(reprioritizeUser *string) *Job {
 	j := shallowCopyJob(*job)
-	j.requestor = requestor
+	j.reprioritizeUser = reprioritizeUser
 	return j
 }
 

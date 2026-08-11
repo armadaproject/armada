@@ -183,9 +183,8 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 		if !ptr.Equal(jobRepoJob.CancelReason, job.CancelReason()) {
 			job = job.WithCancelReason(jobRepoJob.CancelReason)
 		}
-		// Map reprioritize_user to generic requestor field for backwards compat
-		if !ptr.Equal(jobRepoJob.ReprioritizeUser, job.Requestor()) {
-			job = job.WithRequestor(jobRepoJob.ReprioritizeUser)
+		if !ptr.Equal(jobRepoJob.ReprioritizeUser, job.ReprioritizeUser()) {
+			job = job.WithReprioritizeUser(jobRepoJob.ReprioritizeUser)
 		}
 		if jobRepoJob.Cancelled && !job.Cancelled() {
 			job = job.WithCancelled(true)
@@ -366,7 +365,7 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		job = job.WithCancelReason(dbJob.CancelReason)
 	}
 	if dbJob.ReprioritizeUser != nil {
-		job = job.WithRequestor(dbJob.ReprioritizeUser)
+		job = job.WithReprioritizeUser(dbJob.ReprioritizeUser)
 	}
 	return job, nil
 }

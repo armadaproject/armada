@@ -1195,8 +1195,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 
 	if job.RequestedPriority() != job.Priority() {
 		job = job.WithPriority(job.RequestedPriority())
-		if requestorPtr := job.Requestor(); requestorPtr != nil {
-			sequenceUserId = *requestorPtr
+		if reprioritizeUserPtr := job.ReprioritizeUser(); reprioritizeUserPtr != nil {
+			sequenceUserId = *reprioritizeUserPtr
 		}
 		jobReprioritised := &armadaevents.EventSequence_Event{
 			Created: s.now(),
