@@ -500,11 +500,12 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}
 
 	nodePools := append(currentPool.AwayPoolNames(), currentPool.Name)
+	inUsePriorityClasses := l.buildInUsePriorityClasses(jobSchedulingInfo.inUsePriorityClasses)
+	poolNodes := armadaslices.Filter(nodes, func(node *internaltypes.Node) bool {
+		return slices.Contains(nodePools, node.GetPool())
+	})
 
-	nodeDb, err := l.constructNodeDb(
-		l.buildInUsePriorityClasses(jobSchedulingInfo.inUsePriorityClasses),
-		currentPool, currentPoolJobs, otherPoolsJobs,
-		armadaslices.Filter(nodes, func(node *internaltypes.Node) bool { return slices.Contains(nodePools, node.GetPool()) }))
+	nodeDb, err := l.constructNodeDb(inUsePriorityClasses, currentPool, currentPoolJobs, otherPoolsJobs, poolNodes)
 	if err != nil {
 		return nil, err
 	}
