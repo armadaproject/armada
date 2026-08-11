@@ -58,6 +58,16 @@ func (s *Server) PreemptOnNode(grpcCtx context.Context, req *api.NodePreemptRequ
 		return nil, fmt.Errorf("must provide non-empty executor id when determining what to preempt")
 	}
 
+	requestor := auth.GetPrincipal(ctx).GetName()
+
+	ctx.Logger().WithFields(map[string]any{
+		"requestor":       requestor,
+		"node":            req.Name,
+		"executor":        req.Executor,
+		"queueCount":      len(req.Queues),
+		"priorityClasses": req.PriorityClasses,
+	}).Info("PreemptOnNode request received")
+
 	es := &controlplaneevents.Event{
 		Created: protoutil.ToTimestamp(s.clock.Now().UTC()),
 		Event: &controlplaneevents.Event_PreemptOnNode{
@@ -66,6 +76,7 @@ func (s *Server) PreemptOnNode(grpcCtx context.Context, req *api.NodePreemptRequ
 				Executor:        req.Executor,
 				Queues:          req.Queues,
 				PriorityClasses: req.PriorityClasses,
+				Requestor:       requestor,
 			},
 		},
 	}
@@ -97,6 +108,16 @@ func (s *Server) CancelOnNode(grpcCtx context.Context, req *api.NodeCancelReques
 		return nil, fmt.Errorf("must provide non-empty executor id when determining what to cancel")
 	}
 
+	requestor := auth.GetPrincipal(ctx).GetName()
+
+	ctx.Logger().WithFields(map[string]any{
+		"requestor":       requestor,
+		"node":            req.Name,
+		"executor":        req.Executor,
+		"queueCount":      len(req.Queues),
+		"priorityClasses": req.PriorityClasses,
+	}).Info("CancelOnNode request received")
+
 	es := &controlplaneevents.Event{
 		Created: protoutil.ToTimestamp(s.clock.Now().UTC()),
 		Event: &controlplaneevents.Event_CancelOnNode{
@@ -105,6 +126,7 @@ func (s *Server) CancelOnNode(grpcCtx context.Context, req *api.NodeCancelReques
 				Executor:        req.Executor,
 				Queues:          req.Queues,
 				PriorityClasses: req.PriorityClasses,
+				Requestor:       requestor,
 			},
 		},
 	}

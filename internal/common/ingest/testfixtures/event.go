@@ -691,6 +691,7 @@ var PreemptOnNode = &controlplaneevents.Event{
 			Executor:        ExecutorId,
 			Queues:          []string{Queue},
 			PriorityClasses: []string{PriorityClassName},
+			Requestor:       UserId,
 		},
 	},
 }
@@ -702,6 +703,7 @@ var CancelOnNode = &controlplaneevents.Event{
 			Executor:        ExecutorId,
 			Queues:          []string{Queue},
 			PriorityClasses: []string{PriorityClassName},
+			Requestor:       UserId,
 		},
 	},
 }

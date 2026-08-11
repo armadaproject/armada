@@ -98,6 +98,7 @@ type PreemptOnNode struct {
 	Executor        string
 	Queues          []string
 	PriorityClasses []string
+	Requestor       string
 }
 
 type CancelOnNode struct {
@@ -105,6 +106,7 @@ type CancelOnNode struct {
 	Executor        string
 	Queues          []string
 	PriorityClasses []string
+	Requestor       string
 }
 
 type CancelOnExecutor struct {

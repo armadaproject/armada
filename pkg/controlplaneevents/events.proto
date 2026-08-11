@@ -52,6 +52,7 @@ message PreemptOnNode {
   string executor = 2;
   repeated string queues = 3;
   repeated string priorityClasses = 4;
+  string requestor = 5;
 }
 
 message CancelOnNode {
@@ -59,6 +60,7 @@ message CancelOnNode {
   string executor = 2;
   repeated string queues = 3;
   repeated string priorityClasses = 4;
+  string requestor = 5;
 }
 
 // A subset of JobState including only non-terminal states

@@ -540,6 +540,7 @@ func (c *ControlPlaneEventsInstructionConverter) handleCancelOnNode(cancel *cont
 				Executor:        cancel.Executor,
 				Queues:          cancel.Queues,
 				PriorityClasses: cancel.PriorityClasses,
+				Requestor:       cancel.Requestor,
 			},
 		},
 	}, nil
@@ -569,6 +570,7 @@ func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnNode(preempt *co
 				Executor:        preempt.Executor,
 				Queues:          preempt.Queues,
 				PriorityClasses: preempt.PriorityClasses,
+				Requestor:       preempt.Requestor,
 			},
 		},
 	}, nil
