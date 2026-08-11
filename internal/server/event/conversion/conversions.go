@@ -1,7 +1,6 @@
 package conversion
 
 import (
-	"strings"
 	"time"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
@@ -10,17 +9,6 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
-
-// resolveRequestor returns the first non-empty requestor after trim.
-func resolveRequestor(requestors ...string) string {
-	for _, requestor := range requestors {
-		trimmed := strings.TrimSpace(requestor)
-		if trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
 
 // FromEventSequence Converts internal messages to external api messages
 // Note that some internal api messages can result in multiple api messages so we need to
@@ -63,7 +51,7 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, es.JobSetName, eventTs, esEvent.StandaloneIngressInfo)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
-			convertedEvents, err = FromInternalJobRunPreempted(es.Queue, es.JobSetName, eventTs, esEvent.JobRunPreempted)
+			convertedEvents, err = FromInternalJobRunPreempted(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.JobRunPreempted)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_JobRunPreemptionRequested,
 			*armadaevents.EventSequence_Event_JobRunCancelled,
@@ -149,7 +137,7 @@ func FromInternalCancel(userId string, queueName string, jobSetName string, time
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
-					Requestor: resolveRequestor(e.GetRequestor(), userId),
+					Requestor: userId,
 				},
 			},
 		},
@@ -165,7 +153,7 @@ func FromInternalCancelled(userId string, queueName string, jobSetName string, t
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
-					Requestor: resolveRequestor(e.GetRequestor(), userId),
+					Requestor: userId,
 				},
 			},
 		},
@@ -199,7 +187,7 @@ func FromInternalReprioritisedJob(userId string, queueName string, jobSetName st
 					Queue:       queueName,
 					Created:     protoutil.ToTimestamp(time),
 					NewPriority: float64(e.Priority),
-					Requestor:   resolveRequestor(e.GetRequestor(), userId),
+					Requestor:   userId,
 				},
 			},
 		},
@@ -387,7 +375,7 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 	}, nil
 }
 
-func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunPreempted) ([]*api.EventMessage, error) {
+func FromInternalJobRunPreempted(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunPreempted) ([]*api.EventMessage, error) {
 	if e == nil {
 		// We only support PodPreempted right now
 		return nil, nil
@@ -401,7 +389,7 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 		RunId:           e.PreemptedRunId,
 		Reason:          e.Reason,
 		PreemptingJobId: e.PreemptingJobId,
-		Requestor:       e.GetRequestor(),
+		Requestor:       userId,
 	}
 
 	return []*api.EventMessage{

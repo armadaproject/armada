@@ -109,7 +109,7 @@ var expectedJobCancelled = model.UpdateJobInstruction{
 	JobId:                     testfixtures.JobId,
 	State:                     pointer.Int32(lookout.JobCancelledOrdinal),
 	Cancelled:                 &testfixtures.BaseTime,
-	CancelUser:                pointer.String(testfixtures.CancelUser),
+	CancelUser:                pointer.String(testfixtures.UserId),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 }
@@ -179,7 +179,7 @@ var expectedPreemptedRun = model.UpdateJobRunInstruction{
 	Finished:                   &testfixtures.BaseTime,
 	JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
 	Error:                      []byte(testfixtures.PreemptionReason),
-	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, nil),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"requestor": testfixtures.UserId}),
 }
 
 var expectedFairSharePreemptedRun = model.UpdateJobRunInstruction{
@@ -187,7 +187,7 @@ var expectedFairSharePreemptedRun = model.UpdateJobRunInstruction{
 	Finished:                   &testfixtures.BaseTime,
 	JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
 	Error:                      []byte(testfixtures.PreemptionReason),
-	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"preemptingJobId": testfixtures.PreemptingJobId}),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"preemptingJobId": testfixtures.PreemptingJobId, "requestor": testfixtures.UserId}),
 }
 
 var expectedCancelledRun = model.UpdateJobRunInstruction{
@@ -381,7 +381,7 @@ func TestConvert(t *testing.T) {
 					JobId:                     testfixtures.JobId,
 					State:                     pointer.Int32(lookout.JobCancelledOrdinal),
 					CancelReason:              pointer.String(testfixtures.CancelReason),
-					CancelUser:                pointer.String(testfixtures.CancelUser),
+					CancelUser:                pointer.String(testfixtures.UserId),
 					Cancelled:                 &testfixtures.BaseTime,
 					LastTransitionTime:        &testfixtures.BaseTime,
 					LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),

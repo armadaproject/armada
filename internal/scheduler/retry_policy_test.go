@@ -833,7 +833,6 @@ func TestRetryPolicy_FFOff_ApiPreemptionIdentity(t *testing.T) {
 	expected := createEventsForPreemptedJob(
 		job.Id(), job.LatestRun().Id(), "",
 		"Preempted - preemption requested via API",
-		"",
 		sched.clock.Now(),
 	)
 	assert.Equal(t, expected, events.Events)

@@ -406,8 +406,7 @@ func (js *JobSimulator) Cancelled(timestamp time.Time, cancelUser string) *JobSi
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_CancelledJob{
 			CancelledJob: &armadaevents.CancelledJob{
-				JobId:     js.jobId,
-				Requestor: cancelUser,
+				JobId: js.jobId,
 			},
 		},
 	}

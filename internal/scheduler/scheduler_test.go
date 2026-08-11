@@ -1665,15 +1665,8 @@ func subtractEventsFromOutstandingEventsByType(eventSequences []*armadaevents.Ev
 				}
 			}
 
-			if details.requestor != "" {
-				requestor, err := RequestorFromEvent(event)
-				if err != nil {
-					return err
-				}
-
-				if requestor != details.requestor {
-					return errors.Errorf("received expected event for job %s with unexpected requestor %q: %T - %v", jobId, requestor, event.Event, event.Event)
-				}
+			if details.requestor != "" && eventSequence.UserId != details.requestor {
+				return errors.Errorf("received expected event for job %s with unexpected requestor %q: %T - %v", jobId, eventSequence.UserId, event.Event, event.Event)
 			}
 
 			delete(outstandingEventsByType[key], jobId)
@@ -1695,24 +1688,6 @@ func RunIdFromEvent(event *armadaevents.EventSequence_Event) (string, error) {
 			Name:    "event.Event",
 			Value:   e,
 			Message: "event doesn't contain a jobId",
-		})
-		return "", err
-	}
-}
-
-func RequestorFromEvent(event *armadaevents.EventSequence_Event) (string, error) {
-	switch e := event.Event.(type) {
-	case *armadaevents.EventSequence_Event_CancelledJob:
-		return e.CancelledJob.Requestor, nil
-	case *armadaevents.EventSequence_Event_ReprioritisedJob:
-		return e.ReprioritisedJob.Requestor, nil
-	case *armadaevents.EventSequence_Event_CancelJob:
-		return e.CancelJob.Requestor, nil
-	default:
-		err := errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "event.Event",
-			Value:   e,
-			Message: "event doesn't contain a requestor",
 		})
 		return "", err
 	}
@@ -3169,13 +3144,13 @@ func TestCycleConsistency(t *testing.T) {
 				{
 					Queue:      queuedJobA.Queue,
 					JobSetName: queuedJobA.JobSet,
+					UserId:     "cancel-user-a",
 					Events: []*armadaevents.EventSequence_Event{
 						{
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId:     queuedJobA.JobID,
-									Requestor: "cancel-user-a",
+									JobId: queuedJobA.JobID,
 								},
 							},
 						},
@@ -3198,13 +3173,13 @@ func TestCycleConsistency(t *testing.T) {
 				{
 					Queue:      queuedJobA.Queue,
 					JobSetName: queuedJobA.JobSet,
+					UserId:     "cancel-user-a",
 					Events: []*armadaevents.EventSequence_Event{
 						{
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelJob{
 								CancelJob: &armadaevents.CancelJob{
-									JobId:     queuedJobA.JobID,
-									Requestor: "cancel-user-a",
+									JobId: queuedJobA.JobID,
 								},
 							},
 						},
@@ -3212,8 +3187,7 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId:     queuedJobA.JobID,
-									Requestor: "cancel-user-a",
+									JobId: queuedJobA.JobID,
 								},
 							},
 						},
@@ -3242,6 +3216,7 @@ func TestCycleConsistency(t *testing.T) {
 				{
 					Queue:      queuedJobA.Queue,
 					JobSetName: queuedJobA.JobSet,
+					UserId:     "cancel-user-a",
 					Events: []*armadaevents.EventSequence_Event{
 						{
 							Created: &types.Timestamp{},
@@ -3257,8 +3232,7 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId:     queuedJobA.JobID,
-									Requestor: "cancel-user-a",
+									JobId: queuedJobA.JobID,
 								},
 							},
 						},
@@ -3287,13 +3261,13 @@ func TestCycleConsistency(t *testing.T) {
 				{
 					Queue:      queuedJobA.Queue,
 					JobSetName: queuedJobA.JobSet,
+					UserId:     "cancel-user-a",
 					Events: []*armadaevents.EventSequence_Event{
 						{
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelJob{
 								CancelJob: &armadaevents.CancelJob{
-									JobId:     queuedJobA.JobID,
-									Requestor: "cancel-user-a",
+									JobId: queuedJobA.JobID,
 								},
 							},
 						},
@@ -3311,8 +3285,7 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId:     queuedJobA.JobID,
-									Requestor: "cancel-user-a",
+									JobId: queuedJobA.JobID,
 								},
 							},
 						},

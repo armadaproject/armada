@@ -99,7 +99,7 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
 			err = c.handleReprioritiseJob(ts, event.GetReprioritisedJob(), update)
 		case *armadaevents.EventSequence_Event_CancelledJob:
-			err = c.handleCancelledJob(ts, event.GetCancelledJob(), update)
+			err = c.handleCancelledJob(ts, owner, event.GetCancelledJob(), update)
 		case *armadaevents.EventSequence_Event_JobSucceeded:
 			err = c.handleJobSucceeded(ts, event.GetJobSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobErrors:
@@ -117,7 +117,7 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_JobRunErrors:
 			err = c.handleJobRunErrors(ts, event.GetJobRunErrors(), update)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
-			err = c.handleJobRunPreempted(ts, event.GetJobRunPreempted(), update)
+			err = c.handleJobRunPreempted(ts, owner, event.GetJobRunPreempted(), update)
 		case *armadaevents.EventSequence_Event_JobRequeued:
 			err = c.handleJobRequeued(ts, event.GetJobRequeued(), update)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
@@ -254,15 +254,15 @@ func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, event *armadae
 	return nil
 }
 
-func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleCancelledJob(ts time.Time, requestor string, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
 	var reason *string
 	if event.Reason != "" {
 		reason = &event.Reason
 	}
 
 	var cancelUser *string
-	if event.Requestor != "" {
-		cancelUser = &event.Requestor
+	if requestor != "" {
+		cancelUser = &requestor
 	}
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:                     event.GetJobId(),
@@ -502,16 +502,16 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 	return nil
 }
 
-func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, requestor string, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
 	var terminationReasonArgs map[string]any
 	if event.PreemptingJobId != "" {
 		terminationReasonArgs = map[string]any{"preemptingJobId": event.PreemptingJobId}
 	}
-	if event.Requestor != "" {
+	if requestor != "" {
 		if terminationReasonArgs == nil {
 			terminationReasonArgs = map[string]any{}
 		}
-		terminationReasonArgs["requestor"] = event.Requestor
+		terminationReasonArgs["requestor"] = requestor
 	}
 	var terminationReason map[string]any
 	if event.Reason != "" || terminationReasonArgs != nil {
