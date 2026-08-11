@@ -11,11 +11,11 @@ kubernetes:
   nodeIdLabel: "kubernetes.io/hostname"
 nodes:
   - name: "fake-node"
-    count: 2
+    count: 500
     allocatable:
       cpu: "8"
-      memory: "32Gi"
-      ephemeral-storage: "100Gi"
+      memory: "128Gi"
+      ephemeral-storage: "256Gi"
     labels:
       node.kubernetes.io/instance-type: "Standard_D8s_v3"
     taints: []
