@@ -707,7 +707,7 @@ func jobInPriorityClasses(priorityClasses []string) func(schedulerdb.Job) (bool,
 // on row sequence numbers being monotonically increasing.
 func getLockKey(operations []DbOperation) (int, error) {
 	for _, op := range operations {
-		if op.GetOperation() == JobSetOperation {
+		if op.GetOperation() == JobDataImpactingOperation {
 			return JobSetEventsLockKey, nil
 		}
 	}
