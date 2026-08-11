@@ -584,4 +584,5 @@ func TestDeleteExecutor_SuccessPublishesExpectedEvent(t *testing.T) {
 	require.True(t, ok, "expected Event_ExecutorDelete")
 	require.NotNil(t, wrapped.ExecutorDelete)
 	assert.Equal(t, req.Name, wrapped.ExecutorDelete.Name)
+	assert.Equal(t, auth.GetPrincipal(grpcCtx).GetName(), wrapped.ExecutorDelete.Requestor)
 }

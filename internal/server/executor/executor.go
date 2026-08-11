@@ -188,11 +188,20 @@ func (s *Server) DeleteExecutor(grpcCtx context.Context, req *api.ExecutorDelete
 		return nil, fmt.Errorf("must provide non-empty executor name when deleting executor")
 	}
 
+	principal := auth.GetPrincipal(ctx)
+	requestor := principal.GetName()
+
+	ctx.Logger().WithFields(map[string]any{
+		"executor":   req.Name,
+		"authMethod": principal.GetAuthMethod(),
+	}).Info("ExecutorDelete request received")
+
 	es := &controlplaneevents.Event{
 		Created: protoutil.ToTimestamp(s.clock.Now().UTC()),
 		Event: &controlplaneevents.Event_ExecutorDelete{
 			ExecutorDelete: &controlplaneevents.ExecutorDelete{
-				Name: req.Name,
+				Name:      req.Name,
+				Requestor: requestor,
 			},
 		},
 	}

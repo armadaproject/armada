@@ -656,7 +656,8 @@ var DeleteExecutorSettings = &controlplaneevents.Event{
 var DeleteExecutor = &controlplaneevents.Event{
 	Event: &controlplaneevents.Event_ExecutorDelete{
 		ExecutorDelete: &controlplaneevents.ExecutorDelete{
-			Name: ExecutorId,
+			Name:      ExecutorId,
+			Requestor: UserId,
 		},
 	},
 }
@@ -699,6 +700,7 @@ var PreemptOnNode = &controlplaneevents.Event{
 			Executor:        ExecutorId,
 			Queues:          []string{Queue},
 			PriorityClasses: []string{PriorityClassName},
+			Requestor:       UserId,
 		},
 	},
 }
@@ -710,6 +712,7 @@ var CancelOnNode = &controlplaneevents.Event{
 			Executor:        ExecutorId,
 			Queues:          []string{Queue},
 			PriorityClasses: []string{PriorityClassName},
+			Requestor:       UserId,
 		},
 	},
 }
