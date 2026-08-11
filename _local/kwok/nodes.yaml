@@ -1,0 +1,46 @@
+# Reference shape for one KWOK fake node — the actual source of truth for
+# generation is magefiles/kwok.go's kwokApplyNodes(), which builds N of these
+# as corev1.Node Go structs (matching internal/executor/fake/context/context.go's
+# DefaultNodeSpec: 8 CPU / 128Gi memory / 256Gi ephemeral-storage) and marshals
+# them straight to YAML — this file is not read by `mage kwok` itself, it's
+# checked in so the shape is visible without reading Go.
+#
+# KWOK's all-in-one image defaults its bundled kwok-controller to
+# --manage-all-nodes=true, so any Node object applied here gets simulated
+# kubelet heartbeats/Ready status — no join process, no annotation required
+# for that to work. The annotation+taint below are kept anyway for hygiene:
+# they mark the node as obviously fake and stop real (non-tolerating) pods
+# from landing on it by accident.
+apiVersion: v1
+kind: Node
+metadata:
+  name: kwok-node-0
+  annotations:
+    node.alpha.kubernetes.io/ttl: "0"
+    kwok.x-k8s.io/node: fake
+  labels:
+    kubernetes.io/hostname: kwok-node-0
+    kubernetes.io/os: linux
+    type: kwok
+spec:
+  taints:
+    - effect: NoSchedule
+      key: kwok.x-k8s.io/node
+      value: fake
+status:
+  allocatable:
+    cpu: "8"
+    memory: 128Gi
+    ephemeral-storage: 256Gi
+    pods: "110"
+  capacity:
+    cpu: "8"
+    memory: 128Gi
+    ephemeral-storage: 256Gi
+    pods: "110"
+  nodeInfo:
+    architecture: amd64
+    kubeProxyVersion: fake
+    kubeletVersion: fake
+    operatingSystem: linux
+  phase: Running

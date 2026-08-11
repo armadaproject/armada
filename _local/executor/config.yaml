@@ -12,9 +12,11 @@ observability:
     samplerArg: 1.0
 metric:
   port: 9002
+  exposeQueueUsageMetrics: true
 kubernetes:
   toleratedTaints:
     - node-tests
+    - kwok.x-k8s.io/node
   trackedNodeLabels:
     - armadaproject.io/node-pool
 application:

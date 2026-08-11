@@ -180,6 +180,23 @@ func KindTeardown() {
 	mg.Deps(kindTeardown)
 }
 
+// Setup KWOK all-in-one cluster and wait for it to be ready
+func Kwok() {
+	timeTaken := time.Now()
+	mg.Deps(kwokCheck)
+	mg.Deps(kwokInitCluster)
+	mg.Deps(kwokApplyNodes)
+	mg.Deps(kwokApplyManifests)
+	mg.Deps(kwokWaitUntilReady)
+	fmt.Println("Time to setup kwok:", time.Since(timeTaken))
+}
+
+// Teardown KWOK cluster
+func KwokTeardown() {
+	mg.Deps(kwokCheck)
+	mg.Deps(kwokTeardown)
+}
+
 // Generate scheduler SQL.
 func Sql() error {
 	mg.Deps(BootstrapTools)

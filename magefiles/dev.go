@@ -34,6 +34,8 @@ const (
 //   - "auth"          - enables OIDC (Keycloak); sets goreman profile to "auth" and uses the auth compose profile
 //   - "fake-executor" - no Kubernetes needed; sets goreman profile to "fake-executor"
 //   - "hot-cold"      - runs the hot-cold scheduler setup
+//   - "kwok"          - runs the real executor against a KWOK all-in-one cluster instead of kind;
+//     brings up KWOK (mage kwok) and points the executor at .kube/kwok/config
 //   - anything else   - forwarded as a docker-compose --profile flag for extra services
 //
 // The optional -dap flag selects the "-dap" procfile variant, which starts each component
@@ -50,9 +52,13 @@ const (
 //	mage dev:up fake-executor -dap        # fake executor + dap procfile
 //	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
 //	mage dev:up hot-cold                  # hot-cold scheduler setup
+//	mage dev:up kwok                      # real executor against a KWOK cluster instead of kind
+//	mage dev:up kwok,auth -dap            # kwok combined with another profile/flag
+//	mage dev:up kwok,prometheus           # kwok + Prometheus (needed for perf-testing metrics; not on by default)
 func (Dev) Up(profiles string, dap *bool) error {
 	var (
 		profile         = "no-auth"
+		useKwok         = false
 		composeProfiles []string
 	)
 
@@ -68,9 +74,15 @@ func (Dev) Up(profiles string, dap *bool) error {
 			} else {
 				profile = token
 			}
+		case "kwok":
+			useKwok = true
 		default:
 			composeProfiles = append(composeProfiles, token)
 		}
+	}
+
+	if useKwok && profile == "fake-executor" {
+		return fmt.Errorf("kwok and fake-executor are mutually exclusive - fake-executor needs no Kubernetes cluster at all")
 	}
 
 	isDAP := dap != nil
@@ -92,6 +104,14 @@ func (Dev) Up(profiles string, dap *bool) error {
 	if err := devDepsUp(strings.Join(composeProfiles, ",")); err != nil {
 		return err
 	}
+
+	if useKwok {
+		mg.Deps(Kwok)
+		if err := os.Setenv("KUBECONFIG", KWOK_KUBECONFIG); err != nil {
+			return err
+		}
+	}
+
 	initArgs := []string{initScript}
 	if profile == "hot-cold" {
 		initArgs = append(initArgs, "--hotCold")

@@ -1,0 +1,147 @@
+# Passing -c/--config to `kwokctl create cluster` does NOT merge with the built-in Stage set
+# per resource kind - kwok-controller only injects its built-in stages for a kind (Node, Pod)
+# when the merged config supplies zero stages of that kind. Since this file supplies one
+# Pod-kind stage, kwok-controller skips injecting ALL default Pod stages, including pod-ready
+# (Pending -> Running) and pod-delete - confirmed by finding only a single `kind: Stage` doc
+# (ours) in the container's generated kwok.yaml, and by the total absence of a "Watch all pods"
+# log line at startup (contrast with the "Watch all nodes" line that's always present, since
+# node stages DO have a working default-fallback that doesn't require this workaround).
+#
+# So this file must carry the complete Pod-kind stage set, not just the one stage we want to
+# change. pod-ready and pod-delete below are copied verbatim from the image's normal built-in
+# set (extracted from a container run without -c, via `kubectl exec ... cat .../kwok.yaml`).
+# Only pod-complete is intentionally different from the built-in.
+#
+# Loaded via `kwokctl create cluster -c stages.yaml` (see kwokInitCluster in magefiles/kwok.go)
+# at container-create time - Stage is a kwok-controller config construct read from a local
+# file, not a CRD in the apiserver, so this can't be `kubectl apply`-ed.
+apiVersion: kwok.x-k8s.io/v1alpha1
+kind: Stage
+metadata:
+  name: pod-ready
+spec:
+  resourceRef:
+    apiGroup: v1
+    kind: Pod
+  selector:
+    matchExpressions:
+      - key: '.metadata.deletionTimestamp'
+        operator: 'DoesNotExist'
+      - key: '.status.podIP'
+        operator: 'DoesNotExist'
+  next:
+    statusTemplate: |
+      {{ $now := Now }}
+
+      conditions:
+      - lastTransitionTime: {{ $now | Quote }}
+        status: "True"
+        type: Initialized
+      - lastTransitionTime: {{ $now | Quote }}
+        status: "True"
+        type: Ready
+      - lastTransitionTime: {{ $now | Quote }}
+        status: "True"
+        type: ContainersReady
+      {{ range .spec.readinessGates }}
+      - lastTransitionTime: {{ $now | Quote }}
+        status: "True"
+        type: {{ .conditionType | Quote }}
+      {{ end }}
+
+      containerStatuses:
+      {{ range .spec.containers }}
+      - image: {{ .image | Quote }}
+        name: {{ .name | Quote }}
+        ready: true
+        restartCount: 0
+        state:
+          running:
+            startedAt: {{ $now | Quote }}
+      {{ end }}
+
+      initContainerStatuses:
+      {{ range .spec.initContainers }}
+      - image: {{ .image | Quote }}
+        name: {{ .name | Quote }}
+        ready: true
+        restartCount: 0
+        {{ if eq .restartPolicy "Always" }}
+        started: true
+        state:
+          running:
+            startedAt: {{ $now | Quote }}
+        {{ else }}
+        state:
+          terminated:
+            exitCode: 0
+            finishedAt: {{ $now | Quote }}
+            reason: Completed
+            startedAt: {{ $now | Quote }}
+        {{ end }}
+      {{ end }}
+
+      hostIP: {{ NodeIPWith .spec.nodeName | Quote }}
+      podIP: {{ PodIPWith .spec.nodeName ( or .spec.hostNetwork false ) ( or .metadata.uid "" ) ( or .metadata.name "" ) ( or .metadata.namespace "" ) | Quote }}
+      phase: Running
+      startTime: {{ $now | Quote }}
+---
+# Same as the default pod-complete, minus the Job-ownership requirement, plus a randomized
+# delay so concurrently-running pods don't all complete in the same instant (roughly mimicking
+# example-job.yaml's `sleep 10-69s`). Armada's executor submits bare Pods (no ownerReferences),
+# so the default pod-complete (which requires metadata.ownerReferences[].kind == Job) never
+# fires for them - see the module-level comment above.
+apiVersion: kwok.x-k8s.io/v1alpha1
+kind: Stage
+metadata:
+  name: pod-complete-armada
+spec:
+  resourceRef:
+    apiGroup: v1
+    kind: Pod
+  selector:
+    matchExpressions:
+      - key: '.metadata.deletionTimestamp'
+        operator: 'DoesNotExist'
+      - key: '.status.phase'
+        operator: 'In'
+        values:
+          - 'Running'
+  delay:
+    durationMilliseconds: 10000
+    jitterDurationMilliseconds: 60000
+  next:
+    statusTemplate: |
+      {{ $now := Now }}
+      containerStatuses:
+      {{ range $index, $item := .spec.containers }}
+      - image: {{ $item.image | Quote }}
+        name: {{ $item.name | Quote }}
+        ready: false
+        restartCount: 0
+        started: false
+        state:
+          terminated:
+            exitCode: 0
+            finishedAt: {{ $now | Quote }}
+            reason: Completed
+            startedAt: {{ $now | Quote }}
+      {{ end }}
+      phase: Succeeded
+---
+apiVersion: kwok.x-k8s.io/v1alpha1
+kind: Stage
+metadata:
+  name: pod-delete
+spec:
+  resourceRef:
+    apiGroup: v1
+    kind: Pod
+  selector:
+    matchExpressions:
+      - key: '.metadata.deletionTimestamp'
+        operator: 'Exists'
+  next:
+    delete: true
+    finalizers:
+      empty: true

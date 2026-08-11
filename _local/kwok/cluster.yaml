@@ -1,0 +1,15 @@
+# KWOK all-in-one container parameters, read by magefiles/kwok.go (mage kwok).
+#
+# Unlike _local/kind/cluster.yaml, this isn't consumed by a CLI (there's no
+# `kwok create cluster --config` for the all-in-one image) — it's the single
+# source of truth for the constants `mage kwok` uses to run the container.
+#
+# Tag chosen to exact-match kind's k8s patch version (_local/kind/cluster.yaml
+# runs v1.28.15) so apiserver version is never a confounding variable between
+# Base and KWOK. See HPCX-286 plan Block 0.2 for the tag-selection rationale.
+# Port 8080 collides with Armada's own scheduler/server/executor http ports
+# (see config/*/config.yaml and _local/*/config.yaml) when both are running
+# side by side, so KWOK uses 8888 instead.
+image: registry.k8s.io/kwok/cluster:v0.7.0-k8s.v1.28.15
+containerName: armada-kwok
+port: 8888
