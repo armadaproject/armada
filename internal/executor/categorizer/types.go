@@ -55,11 +55,18 @@ const (
 // missing volume, missing config) and Armada-detected conditions (stuck
 // terminating, active deadline exceeded, externally deleted). ContainerName
 // is ignored for OnPodError because the message has no container attribution.
+//
+// OnPodEvents is also pod-level: it matches the pod's Kubernetes events.
+// Events carry failures that often do not reach pod or container status, for
+// example kubelet admission and device-plugin errors. The rule matches only
+// on classification paths that receive the events (failed pod detection). On
+// other paths it never matches. ContainerName is ignored for OnPodEvents.
 type CategoryRule struct {
 	ContainerName        string                      `yaml:"containerName,omitempty"`
 	OnExitCodes          *errormatch.ExitCodeMatcher `yaml:"onExitCodes,omitempty"`
 	OnTerminationMessage *errormatch.RegexMatcher    `yaml:"onTerminationMessage,omitempty"`
 	OnPodError           *errormatch.RegexMatcher    `yaml:"onPodError,omitempty"`
+	OnPodEvents          *errormatch.PodEventMatcher `yaml:"onPodEvents,omitempty"`
 	OnConditions         []string                    `yaml:"onConditions,omitempty"`
 	Subcategory          string                      `yaml:"subcategory,omitempty"`
 	// Hint is operator-supplied user-facing copy describing this failure mode.

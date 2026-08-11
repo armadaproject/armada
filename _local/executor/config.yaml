@@ -12,6 +12,11 @@ observability:
     samplerArg: 1.0
 metric:
   port: 9002
+kubernetes:
+  toleratedTaints:
+    - node-tests
+  trackedNodeLabels:
+    - armadaproject.io/node-pool
 application:
   clusterId: "local-cluster"
   pool: "default"
