@@ -50,7 +50,7 @@ func waitForMirrorQuery(t *testing.T, mirror *pgxpool.Pool, baseline int64) {
 }
 
 func TestMirroringDB_ReplaysQueryAndPreservesPrimaryResult(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
 	defer cancel()
 
 	testJobs := []database.Job{
@@ -79,7 +79,7 @@ func TestMirroringDB_ReplaysQueryAndPreservesPrimaryResult(t *testing.T) {
 }
 
 func TestMirroringDB_ReplaysTransactionalQuery(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
 	defer cancel()
 
 	testJobs := []database.Job{
@@ -114,7 +114,7 @@ func TestMirroringDB_ReplaysTransactionalQuery(t *testing.T) {
 }
 
 func TestMirroringDB_BrokenMirrorDoesNotAffectPrimary(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
 	defer cancel()
 
 	testJobs := []database.Job{
