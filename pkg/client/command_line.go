@@ -183,6 +183,22 @@ func ExtractConfigurationContexts() []string {
 	return contexts
 }
 
+// ResolveNamedContext resolves a named context (as defined under "contexts" in the config loaded
+// into viper) directly into ApiConnectionDetails, without going through the "currentContext" /
+// "armadaUrl" command-line flags. Hence, this function must be called after loading config into
+// viper, e.g., by calling LoadCommandlineArgsFromConfigFile.
+func ResolveNamedContext(contextName string) (*ApiConnectionDetails, error) {
+	subTree := viper.Sub(fmt.Sprintf("contexts.%s", contextName))
+	if subTree == nil {
+		return nil, fmt.Errorf("context %s not found under contexts within the Armada config", contextName)
+	}
+	apiConnectionDetails := &ApiConnectionDetails{}
+	if err := subTree.Unmarshal(apiConnectionDetails); err != nil {
+		return nil, err
+	}
+	return apiConnectionDetails, nil
+}
+
 // ExtractCommandlineArmadaApiConnectionDetails extracts Armada server connection details from the
 // config loaded into viper. Hence, this function must be called after loading config into viper,
 // e.g., by calling LoadCommandlineArgsFromConfigFile.
@@ -191,11 +207,10 @@ func ExtractCommandlineArmadaApiConnectionDetails() (*ApiConnectionDetails, erro
 	var err error
 
 	if context := viper.GetString("currentContext"); context != "" {
-		subTree := viper.Sub(fmt.Sprintf("contexts.%s", context))
-		if subTree == nil {
-			return nil, fmt.Errorf("context %s not found under contexts within the Armada config", context)
+		apiConnectionDetails, err = ResolveNamedContext(context)
+		if err != nil {
+			return nil, err
 		}
-		err = subTree.Unmarshal(apiConnectionDetails)
 		if viper.GetString("armadaUrl") != defaultArmadaConnectionUrl {
 			apiConnectionDetails.ArmadaUrl = viper.GetString("armadaUrl")
 		}

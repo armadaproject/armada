@@ -139,6 +139,47 @@ services:
     command: ./lookout --migrateDatabase --config /config/config.yaml
 
   # =========================================================
+  # OIDC provider, for the rbac test suite only
+  # =========================================================
+  keycloak:
+    container_name: keycloak
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:25.0}
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: 8180
+      KC_HEALTH_ENABLED: "true"
+      # Pins the OIDC issuer to one literal hostname regardless of whether the caller is another
+      # container (reaching it via the "keycloak" service name) or the host (reaching it via the
+      # "keycloak" /etc/hosts alias that `mage dev:full` adds, pointing at 127.0.0.1). go-oidc
+      # requires the discovery document's issuer to exactly match the URL used to fetch it, and
+      # token verification then requires the token's iss claim to match that same issuer, so both
+      # paths must agree on one hostname string.
+      KC_HOSTNAME: keycloak
+    ports:
+      - "8180:8180"
+    command: start-dev --import-realm
+    volumes:
+      - ../keycloak/import:/opt/keycloak/data/import:ro
+    networks: [kind]
+    restart: unless-stopped
+    # server-auth dials Keycloak's discovery endpoint at its own startup and, unlike the
+    # dependency services above, doesn't retry/restart on failure -- so server-auth's
+    # depends_on below needs service_healthy, not just service_started, to not lose the race
+    # against Keycloak's realm import. No curl/wget in this image, so the check uses bash's
+    # /dev/tcp against the KC_HEALTH_ENABLED management endpoint (port 9000) instead.
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9000 && printf \"GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && cat <&3' | grep -q '\"status\": \"UP\"'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  # =========================================================
   # Armada components
   # =========================================================
   scheduler:
@@ -196,6 +237,33 @@ services:
       ARMADA_QUERYAPI_POSTGRES_CONNECTION_HOST: postgres
       ARMADA_PULSAR_URL: pulsar://pulsar:6650
       ARMADA_SCHEDULERAPICONNECTION_ARMADAURL: scheduler:50052
+    command: ./server --config /config/config.yaml
+
+  # Second API server instance, backed by the same scheduler/pulsar/redis/postgres as `server`,
+  # but with OIDC auth enabled (config-auth.yaml). Used only by the rbac test suite, so every
+  # other suite's unauthenticated connection to `server` is unaffected.
+  server-auth:
+    <<: *component
+    container_name: server-auth
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    ports:
+      - "50061:50051"
+      - "8091:8081"
+    depends_on:
+      lookout-migration: {condition: service_completed_successfully}
+      pulsar: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      keycloak: {condition: service_healthy}
+    volumes:
+      - ../server/config-auth.yaml:/config/config.yaml:ro
+    environment:
+      ARMADA_EVENTSAPIREDIS_ADDRS: redis:6379
+      ARMADA_REDIS_ADDRS: redis:6379
+      ARMADA_POSTGRES_CONNECTION_HOST: postgres
+      ARMADA_QUERYAPI_POSTGRES_CONNECTION_HOST: postgres
+      ARMADA_PULSAR_URL: pulsar://pulsar:6650
+      ARMADA_SCHEDULERAPICONNECTION_ARMADAURL: scheduler:50052
+      ARMADA_AUTH_OPENIDAUTH_PROVIDERURL: http://keycloak:8180/realms/armada
     command: ./server --config /config/config.yaml
 
   executor:

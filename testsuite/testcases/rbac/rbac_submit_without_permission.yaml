@@ -1,0 +1,29 @@
+# RBAC: a principal without submit_any_jobs (armada-user) and without a queue-level submit
+# grant cannot submit jobs. Targets the shared rbac-fixture-plain queue (bootstrapped by CI
+# under the admin identity; this test must not create or delete it -- no queueConfig).
+queue: rbac-fixture-plain
+authContext: rbac-user
+numBatches: 1
+batchSize: 1
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: sleep
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          args:
+            - "ls"
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+timeout: "30s"
+expectErrorCode: 7 # PERMISSION_DENIED

@@ -1,0 +1,4 @@
+apiVersion: armadaproject.io/v1beta1
+kind: Queue
+name: rbac-fixture-plain
+priorityFactor: 1.0

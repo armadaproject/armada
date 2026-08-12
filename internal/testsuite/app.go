@@ -317,9 +317,23 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 	wg.Add(len(testSpecs))
 	for i, testSpec := range testSpecs {
 		i := i
+		apiConnectionDetails := a.Params.ApiConnectionDetails
+		if testSpec.AuthContext != "" {
+			resolved, err := client.ResolveNamedContext(testSpec.AuthContext)
+			if err != nil {
+				report := NewTestCaseReport(testSpec)
+				report.Finish = report.Start
+				report.FailureReason = fmt.Sprintf("failed to resolve authContext %q: %s", testSpec.AuthContext, err)
+				report.Out = &bytes.Buffer{}
+				rv.TestCaseReports[i] = report
+				wg.Done()
+				continue
+			}
+			apiConnectionDetails = resolved
+		}
 		testRunner := TestRunner{
 			Out:                  a.Out,
-			apiConnectionDetails: a.Params.ApiConnectionDetails,
+			apiConnectionDetails: apiConnectionDetails,
 			testSpec:             testSpec,
 			eventLogger:          eventLogger,
 		}

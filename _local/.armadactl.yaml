@@ -54,6 +54,26 @@ contexts:
       clientSecret: "admin-secret"
       scopes: ["openid", "profile", "email"]
 
+  # Contexts for the rbac integration test suite, against the containerized full.yaml stack
+  # (server-auth on :50061, keycloak reachable from the host via the /etc/hosts alias that
+  # `mage dev:full` adds -- see magefiles/dev.go's ensureEtcHostsEntry). Same Keycloak realm/
+  # clients as auth-client-creds-admin/-user above; only the network path differs.
+  rbac-admin:
+    armadaUrl: localhost:50061
+    openIdClientCredentialsAuth:
+      providerUrl: "http://keycloak:8180/realms/armada"
+      clientId: "armada-admin"
+      clientSecret: "admin-secret"
+      scopes: ["openid", "profile", "email"]
+
+  rbac-user:
+    armadaUrl: localhost:50061
+    openIdClientCredentialsAuth:
+      providerUrl: "http://keycloak:8180/realms/armada"
+      clientId: "armada-user"
+      clientSecret: "user-secret"
+      scopes: ["openid", "profile", "email"]
+
   # Context with OIDC Password Flow authentication
   auth-password:
     armadaUrl: localhost:50051

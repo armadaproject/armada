@@ -14,13 +14,34 @@ import (
 )
 
 func createQueue() error {
-	out, err := runArmadaCtl("create", "queue", "e2e-test-queue")
-	// check if err text contains "already exists" and ignore if it does
-	if err != nil && !strings.Contains(out, "already exists") {
-		fmt.Println(out)
+	return createQueuesFromDir("", "_local/queues")
+}
+
+// createRbacFixtureQueues bootstraps the queues the rbac test suite's "without permission" cases
+// target, using the rbac-admin context (server-auth, on the containerized full.yaml stack) since
+// armada-user itself lacks create_queue. rbac-fixture-restricted grants the Keycloak "users"
+// group submit-only, so armada-user's negative tests (cancel/reprioritize/watch without
+// permission) can submit a job and prove those specific actions -- not queue ownership -- are
+// what's denied.
+func createRbacFixtureQueues() error {
+	return createQueuesFromDir("rbac-admin", "_local/rbac-queues")
+}
+
+// createQueuesFromDir runs armadactl to create every queue fixture (*.yaml) in dir against the
+// given armadactl context, tolerating "already exists" so repeated CI runs against a stack that
+// wasn't torn down don't fail.
+func createQueuesFromDir(context string, dir string) error {
+	files, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
+	if err != nil {
 		return err
 	}
-
+	for _, file := range files {
+		out, err := runArmadaCtlContext(context, "create", "-f", file)
+		if err != nil && !strings.Contains(out, "already exists") {
+			fmt.Println(out)
+			return err
+		}
+	}
 	return nil
 }
 
@@ -38,7 +59,7 @@ func TestSuite() error {
 	timeTakenTestSuite := time.Now()
 
 	suites := []string{
-		"basic", "categorization", "preemption", "reprioritization", "queue",
+		"basic", "categorization", "preemption", "reprioritization", "queue", "rbac",
 		"testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
 		"testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
 	}
@@ -81,6 +102,7 @@ func CheckForArmadaRunning() error {
 	// TODO Make a good check to confirm the system is ready, such as seeing armadactl get executors return a value
 	mg.Deps(CheckSchedulerReady)
 	mg.Deps(createQueue)
+	mg.Deps(createRbacFixtureQueues)
 
 	// Set high to take compile time into account
 	timeout := time.After(2 * time.Minute)
@@ -142,8 +164,18 @@ func CheckDockerContainerRunning(containerName string, expectedLogRegex string) 
 }
 
 func runArmadaCtl(args ...string) (string, error) {
+	return runArmadaCtlContext("", args...)
+}
+
+// runArmadaCtlContext is runArmadaCtl with an explicit armadactl context override (e.g.
+// "rbac-admin"), needed to bootstrap the rbac suite's fixture queues against server-auth rather
+// than the default unauthenticated "server" connection every other suite uses.
+func runArmadaCtlContext(context string, args ...string) (string, error) {
 	armadaCtlArgs := []string{
 		"--config", "_local/.armadactl.yaml",
+	}
+	if context != "" {
+		armadaCtlArgs = append(armadaCtlArgs, "--context", context)
 	}
 	armadaCtlArgs = append(armadaCtlArgs, args...)
 	outBytes, err := exec.Command(findOrBuildArmadaCtl(), armadaCtlArgs...).CombinedOutput()
