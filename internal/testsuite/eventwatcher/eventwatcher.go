@@ -205,7 +205,7 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 func assertEventErrorString(expected []*api.EventMessage, indexByJobId map[string]int) string {
 	countByIndex := make(map[int]int)
 	for _, i := range indexByJobId {
-		countByIndex[i] = +1
+		countByIndex[i]++
 	}
 	elems := make([]string, 0, len(countByIndex))
 	for i, c := range countByIndex {
@@ -224,9 +224,11 @@ func assertEventErrorString(expected []*api.EventMessage, indexByJobId map[strin
 }
 
 func isTerminalEvent(msg *api.EventMessage) bool {
-	switch msg.Events.(type) {
+	switch e := msg.Events.(type) {
 	case *api.EventMessage_Failed:
-		return true
+		// Retryable failures are intermediate. The scheduler will re-lease
+		// the job, so keep consuming until a truly terminal event arrives.
+		return !e.Failed.GetRetryable()
 	case *api.EventMessage_Succeeded:
 		return true
 	case *api.EventMessage_Cancelled:
@@ -266,6 +268,11 @@ loop:
 				// The job-level JobFailedEvent (from JobErrors/JobRunPreemptedError) always
 				// follows JobPreemptedEvent. Don't count as exited yet.
 			case *api.EventMessage_Failed:
+				// Retryable failures are intermediate. Skip them so the
+				// watcher stays alive past the retry boundary.
+				if e.Failed.GetRetryable() {
+					continue loop
+				}
 				// Failed may come after Preempted for preempted jobs.
 				// Only count as exited once.
 				if _, ok := exitedByJobId[e.Failed.JobId]; !ok {

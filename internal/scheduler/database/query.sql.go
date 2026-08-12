@@ -23,6 +23,15 @@ func (q *Queries) CountGroup(ctx context.Context, groupID uuid.UUID) (int64, err
 	return count, err
 }
 
+const deleteExecutor = `-- name: DeleteExecutor :exec
+DELETE FROM executors WHERE executor_id = $1::text
+`
+
+func (q *Queries) DeleteExecutor(ctx context.Context, executorID string) error {
+	_, err := q.db.Exec(ctx, deleteExecutor, executorID)
+	return err
+}
+
 const deleteExecutorSettings = `-- name: DeleteExecutorSettings :exec
 DELETE FROM executor_settings WHERE executor_id = $1::text
 `

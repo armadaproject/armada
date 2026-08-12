@@ -923,21 +923,93 @@ func TestDetectAndRegisterDeleteActionIssue(t *testing.T) {
 		deleteAction     bool
 		phase            v1.PodPhase
 		podEventsErr     bool
+		classifier       func(t *testing.T) *categorizer.Classifier
+		pod              func(t *testing.T) *v1.Pod
+		podEvents        []*v1.Event
 		expectRegistered bool
 	}{
 		"failed pod in a delete-action category":  {deleteAction: true, phase: v1.PodFailed, expectRegistered: true},
 		"failed pod in a retain category":         {deleteAction: false, phase: v1.PodFailed, expectRegistered: false},
 		"running pod in a delete-action category": {deleteAction: true, phase: v1.PodRunning, expectRegistered: false},
 		"pod events unavailable still registers":  {deleteAction: true, phase: v1.PodFailed, podEventsErr: true, expectRegistered: true},
+		// A kubelet admission rejection has no container statuses. Only the
+		// pod-level failure message can classify it.
+		"rejected pod matches an onPodError delete rule": {
+			phase: v1.PodFailed,
+			classifier: func(t *testing.T) *categorizer.Classifier {
+				c, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+					Categories: []categorizer.CategoryConfig{
+						{
+							Name:   "pih-rejected-cat",
+							Action: categorizer.PodFailureActionDelete,
+							Rules:  []categorizer.CategoryRule{{OnPodError: &errormatch.RegexMatcher{Pattern: "Pod was rejected.*"}}},
+						},
+					},
+				})
+				require.NoError(t, err)
+				return c
+			},
+			pod: func(t *testing.T) *v1.Pod {
+				return makeTestPod(v1.PodStatus{
+					Phase:   v1.PodFailed,
+					Reason:  "UnexpectedAdmissionError",
+					Message: "Pod was rejected: not enough cpus available to satisfy request",
+				})
+			},
+			expectRegistered: true,
+		},
+		// A device-plugin admission failure surfaces only as a Warning event.
+		// Pod and container status carry nothing to classify by.
+		"rejected pod matches an onPodEvents delete rule": {
+			phase: v1.PodFailed,
+			classifier: func(t *testing.T) *categorizer.Classifier {
+				c, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+					Categories: []categorizer.CategoryConfig{
+						{
+							Name:   "pih-gpu-cat",
+							Action: categorizer.PodFailureActionDelete,
+							Rules: []categorizer.CategoryRule{{OnPodEvents: &errormatch.PodEventMatcher{
+								Regexp: "devices unavailable for nvidia.com/gpu",
+								Type:   v1.EventTypeWarning,
+							}}},
+						},
+					},
+				})
+				require.NoError(t, err)
+				return c
+			},
+			pod: func(t *testing.T) *v1.Pod {
+				return makeTestPod(v1.PodStatus{Phase: v1.PodFailed})
+			},
+			podEvents: []*v1.Event{{
+				Type:    v1.EventTypeWarning,
+				Reason:  "UnexpectedAdmissionError",
+				Message: "Pod Allocate failed due to requested number of devices unavailable for nvidia.com/gpu. Requested: 1, Available: 0",
+			}},
+			expectRegistered: true,
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			classifier := classifierForExitCode(t, "pih-del-cat", "pih-del-sub", 42, tc.deleteAction)
+			var classifier *categorizer.Classifier
+			if tc.classifier != nil {
+				classifier = tc.classifier(t)
+			} else {
+				classifier = classifierForExitCode(t, "pih-del-cat", "pih-del-sub", 42, tc.deleteAction)
+			}
 			podIssueService, _, fakeClusterContext, _, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
 			require.NoError(t, err)
-			pod := makeFailedPodWithExitCode(t, 42)
-			pod.Status.Phase = tc.phase
+			var pod *v1.Pod
+			if tc.pod != nil {
+				pod = tc.pod(t)
+			} else {
+				pod = makeFailedPodWithExitCode(t, 42)
+				pod.Status.Phase = tc.phase
+			}
 			addPod(t, fakeClusterContext, pod)
+			if tc.podEvents != nil {
+				addPodEvents(fakeClusterContext, pod, tc.podEvents)
+			}
 			if tc.podEventsErr {
 				fakeClusterContext.GetPodEventsErr = fmt.Errorf("events unavailable")
 			}

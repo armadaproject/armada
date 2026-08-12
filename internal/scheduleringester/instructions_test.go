@@ -347,6 +347,15 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 				},
 			}},
 		},
+		"delete executor": {
+			event: f.DeleteExecutor,
+			expected: []DbOperation{DeleteExecutor{
+				f.ExecutorId: &ExecutorDelete{
+					ExecutorID: f.ExecutorId,
+					Requestor:  f.UserId,
+				},
+			}},
+		},
 		"preempt on executor": {
 			event: f.PreemptOnExecutor,
 			expected: []DbOperation{PreemptExecutor{
@@ -402,6 +411,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Executor:        f.ExecutorId,
 					Queues:          []string{f.Queue},
 					PriorityClasses: []string{f.PriorityClassName},
+					Requestor:       f.UserId,
 				},
 			}},
 		},
@@ -416,6 +426,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Executor:        f.ExecutorId,
 					Queues:          []string{f.Queue},
 					PriorityClasses: []string{f.PriorityClassName},
+					Requestor:       f.UserId,
 				},
 			}},
 		},

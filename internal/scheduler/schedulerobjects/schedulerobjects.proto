@@ -87,6 +87,20 @@ message JobSchedulingInfo {
     // Kubernetes objects that make up this job and their respective scheduling requirements.
     repeated ObjectRequirements object_requirements = 5;
     uint32 version = 9;
+    // resource_mutations records the job's total resource growth from retry
+    // mutations. The scheduler applies it to the pod spec when it serves a
+    // lease, so the executor receives a finished spec.
+    RetryResourceMutations resource_mutations = 11;
+}
+
+// RetryResourceMutations is the total resource growth from a job's retry
+// mutations. At most one field is set. The zero value means no growth.
+message RetryResourceMutations {
+    // memory_factor multiplies the submitted memory. 0 and 1 mean unchanged.
+    double memory_factor = 1;
+    // memory_static adds a fixed amount to the submitted memory, as a
+    // Kubernetes quantity, e.g. "512Mi". Empty means unchanged.
+    string memory_static = 2;
 }
 
 // Message capturing the scheduling requirements of a particular Kubernetes object.
@@ -112,6 +126,10 @@ message PodRequirements {
     string preemptionPolicy = 5;
     // Sum of the resource requirements for all containers that make up this pod.
     k8s.io.api.core.v1.ResourceRequirements resourceRequirements = 6;
+    // resource_mutations is the job's total resource growth from retry
+    // mutations. The scheduler applies it to the pod spec when it serves the
+    // lease. It is set only on the per-run overlay.
+    RetryResourceMutations resource_mutations = 9;
 }
 
 message ExecutorSettings {

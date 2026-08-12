@@ -217,7 +217,7 @@ func (q *OptimisingQueueScheduler) createCandidateGangIterator(
 		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, q.maxQueueLookBack, true)
 	}
 
-	candidateGangIterator, err := NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, true, q.prioritiseLargerJobs)
+	candidateGangIterator, err := NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, false, q.prioritiseLargerJobs)
 	if err != nil {
 		return nil, err
 	}
