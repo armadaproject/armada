@@ -18,11 +18,6 @@ const (
 	urgencyPreemptionMultiJobTemplate      = "Preempted by scheduler using urgency preemption - preemption caused by one of the following jobs %s"
 )
 
-type preemptionInfo struct {
-	preemptedJobId  string
-	preemptingJobId string
-}
-
 func PopulatePreemptionDescriptions(marketBasedScheduling bool, pool string, preemptedJobs []*context.JobSchedulingContext, scheduledJobs []*context.JobSchedulingContext) {
 	jobsScheduledWithUrgencyBasedPreemptionByNode := calculateJobsScheduledWithUrgencyBasedPreemptionByNode(scheduledJobs)
 
