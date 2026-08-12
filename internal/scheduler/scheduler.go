@@ -1196,7 +1196,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 	if job.RequestedPriority() != job.Priority() {
 		job = job.WithPriority(job.RequestedPriority())
 		if reprioritizeUserPtr := job.ReprioritizeUser(); reprioritizeUserPtr != nil {
-			sequenceUserId = *reprioritizeUserPtr
+			if sequenceUserId == "" {
+				sequenceUserId = *reprioritizeUserPtr
+			}
 		}
 		jobReprioritised := &armadaevents.EventSequence_Event{
 			Created: s.now(),
@@ -1216,7 +1218,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
 			cancelUser = *cancelUserPtr
 		}
-		sequenceUserId = cancelUser
+		if sequenceUserId == "" {
+			sequenceUserId = cancelUser
+		}
 		var cancelReason string
 		if cancelReasonPtr := job.CancelReason(); cancelReasonPtr != nil {
 			cancelReason = *cancelReasonPtr
@@ -1253,7 +1257,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
 			cancelUser = *cancelUserPtr
 		}
-		sequenceUserId = cancelUser
+		if sequenceUserId == "" {
+			sequenceUserId = cancelUser
+		}
 		var cancelReason string
 		if cancelReasonPtr := job.CancelReason(); cancelReasonPtr != nil {
 			cancelReason = *cancelReasonPtr
@@ -1489,7 +1495,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				reason = *lastRun.PreemptReason()
 			}
 			if requestorPtr := lastRun.PreemptUser(); requestorPtr != nil {
-				sequenceUserId = *requestorPtr
+				if sequenceUserId == "" {
+					sequenceUserId = *requestorPtr
+				}
 			}
 			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "", reason, s.clock.Now())...)
 			s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaApi)
