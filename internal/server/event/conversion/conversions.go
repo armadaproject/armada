@@ -55,7 +55,7 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_JobRunPreemptionRequested,
 			*armadaevents.EventSequence_Event_JobRunCancelled,
-			*armadaevents.EventSequence_Event_JobCancelledDebugInfo,
+			*armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_JobRunSucceeded,
 			*armadaevents.EventSequence_Event_JobRequeued,
