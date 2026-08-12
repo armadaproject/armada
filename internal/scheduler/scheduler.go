@@ -669,7 +669,7 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
 			Queue:      jctx.Job.Queue(),
 			JobSetName: jctx.Job.Jobset(),
-			Events:     createEventsForPreemptedJob(jctx.JobId, run.Id(), preemptingJobId(jctx.PreemptingJob), jctx.PreemptionDescription, time),
+			Events:     createEventsForPreemptedJob(jctx.JobId, run.Id(), preemptingJobId(jctx.GetPreemptingJob()), jctx.PreemptionDescription, time),
 		})
 	}
 	return eventSequences, nil

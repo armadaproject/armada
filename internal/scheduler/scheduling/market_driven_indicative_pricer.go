@@ -204,7 +204,7 @@ func (ip *MarketDrivenIndicativePricer) gangContextsFromGangDefinitions(
 				UnschedulableReason:            "",
 				PodSchedulingContext:           nil,
 				AssignedNode:                   nil,
-				PreemptingJob:                  nil,
+				PreemptionDetails:              nil,
 				PreemptionType:                 "",
 				PreemptionDescription:          "",
 				Billable:                       false,

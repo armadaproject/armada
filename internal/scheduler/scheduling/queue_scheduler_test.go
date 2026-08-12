@@ -758,11 +758,11 @@ func TestQueueScheduler_PreemptedJobsGetMarkedInSctx(t *testing.T) {
 	preemptedCount := 0
 	for jobId, evictedJctx := range evictedJctxByJobId {
 		markedInSctx := sctx.IsJobPreempted(jobId)
-		markedInJctx := evictedJctx.PreemptingJob != nil
+		markedInJctx := evictedJctx.GetPreemptingJob() != nil
 		require.Equal(t, markedInSctx, markedInJctx, "sctx and jctx preemption marking disagree for job %s", jobId)
 		if markedInJctx {
 			preemptedCount++
-			require.Equal(t, job.Id(), evictedJctx.PreemptingJob.Id())
+			require.Equal(t, job.Id(), evictedJctx.GetPreemptingJob().Id())
 		}
 	}
 	require.Equal(t, 1, preemptedCount, "expected exactly one incumbent to be preempted")
@@ -903,7 +903,7 @@ func TestQueueScheduler_PreemptionRateLimit(t *testing.T) {
 
 			numberPreemptedJobs := 0
 			for _, jctx := range evictedJctxs {
-				if jctx.PreemptingJob != nil {
+				if jctx.GetPreemptingJob() != nil {
 					numberPreemptedJobs++
 				}
 			}

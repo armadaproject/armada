@@ -4095,7 +4095,7 @@ func TestAppendEventSequencesFromPreemptedJobs_PopulatesPreemptingJobId(t *testi
 
 	jctx := &schedulercontext.JobSchedulingContext{
 		Job:                   preemptedJob,
-		PreemptingJob:         preemptingJob,
+		PreemptionDetails:     &schedulercontext.PreemptionDetails{PreemptingJob: preemptingJob},
 		PreemptionDescription: "preempted by fair-share",
 	}
 
@@ -4131,7 +4131,7 @@ func TestAppendEventSequencesFromPreemptedJobs_NilPreemptingJob(t *testing.T) {
 
 	jctx := &schedulercontext.JobSchedulingContext{
 		Job:                   preemptedJob,
-		PreemptingJob:         nil,
+		PreemptionDetails:     nil,
 		PreemptionDescription: "preempted due to node resource change",
 	}
 
