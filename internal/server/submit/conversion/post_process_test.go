@@ -763,15 +763,29 @@ func TestDropPodLevelResourcesIfDisabled(t *testing.T) {
 		Limits:   v1.ResourceList{"cpu": resource.MustParse("2")},
 	}
 
-	t.Run("disabled clears the pod-level block", func(t *testing.T) {
-		spec := &v1.PodSpec{Resources: podLevel.DeepCopy()}
-		dropPodLevelResourcesIfDisabled(spec, configuration.SubmissionConfig{PodLevelResources: false})
-		assert.Nil(t, spec.Resources)
-	})
-
-	t.Run("enabled preserves the pod-level block", func(t *testing.T) {
-		spec := &v1.PodSpec{Resources: podLevel.DeepCopy()}
-		dropPodLevelResourcesIfDisabled(spec, configuration.SubmissionConfig{PodLevelResources: true})
-		assert.Equal(t, podLevel, spec.Resources)
-	})
+	tests := map[string]struct {
+		initialResources  *v1.ResourceRequirements
+		enabled           bool
+		expectedResources *v1.ResourceRequirements
+	}{
+		"disabled clears the pod-level block": {
+			initialResources: podLevel,
+			enabled:          false,
+		},
+		"enabled preserves the pod-level block": {
+			initialResources:  podLevel,
+			enabled:           true,
+			expectedResources: podLevel,
+		},
+		"unset pod-level block is left unset": {
+			enabled: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			spec := &v1.PodSpec{Resources: tc.initialResources.DeepCopy()}
+			dropPodLevelResourcesIfDisabled(spec, configuration.SubmissionConfig{PodLevelResources: tc.enabled})
+			assert.Equal(t, tc.expectedResources, spec.Resources)
+		})
+	}
 }
