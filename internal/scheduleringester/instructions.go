@@ -130,7 +130,7 @@ func (c *JobSetEventsInstructionConverter) dbOperationsFromEventSequence(es *arm
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
 			*armadaevents.EventSequence_Event_JobRunCancelled,
-			*armadaevents.EventSequence_Event_JobCancelledDebugInfo,
+			*armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			// These events can all be safely ignored
 			log.Debugf("Ignoring event type %T", event)
@@ -523,6 +523,7 @@ func (c *ControlPlaneEventsInstructionConverter) handleExecutorDelete(delete *co
 		DeleteExecutor{
 			delete.Name: &ExecutorDelete{
 				ExecutorID: delete.Name,
+				Requestor:  delete.Requestor,
 			},
 		},
 	}, nil
@@ -552,6 +553,7 @@ func (c *ControlPlaneEventsInstructionConverter) handleCancelOnNode(cancel *cont
 				Executor:        cancel.Executor,
 				Queues:          cancel.Queues,
 				PriorityClasses: cancel.PriorityClasses,
+				Requestor:       cancel.Requestor,
 			},
 		},
 	}, nil
@@ -581,6 +583,7 @@ func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnNode(preempt *co
 				Executor:        preempt.Executor,
 				Queues:          preempt.Queues,
 				PriorityClasses: preempt.PriorityClasses,
+				Requestor:       preempt.Requestor,
 			},
 		},
 	}, nil

@@ -13,8 +13,9 @@ import (
 type Operation int
 
 const (
-	JobSetOperation       Operation = iota
-	ControlPlaneOperation Operation = iota
+	// JobDataImpactingOperation are any operations that touch tables containing job data
+	JobDataImpactingOperation      Operation = iota
+	ExecutorDataImpactingOperation Operation = iota
 )
 
 // DbOperationsWithMessageIds bundles a sequence of schedulerdb ops with the ids of all Pulsar
@@ -88,6 +89,7 @@ type ExecutorSettingsDelete struct {
 
 type ExecutorDelete struct {
 	ExecutorID string
+	Requestor  string
 }
 
 type PreemptOnExecutor struct {
@@ -102,6 +104,7 @@ type PreemptOnNode struct {
 	Executor        string
 	Queues          []string
 	PriorityClasses []string
+	Requestor       string
 }
 
 type CancelOnNode struct {
@@ -109,6 +112,7 @@ type CancelOnNode struct {
 	Executor        string
 	Queues          []string
 	PriorityClasses []string
+	Requestor       string
 }
 
 type CancelOnExecutor struct {
@@ -746,119 +750,119 @@ func definesRun[M ~map[string]V, V any](a M, b DbOperation) bool {
 }
 
 func (a InsertJobs) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a InsertRuns) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a UpdateJobSetPriorities) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkJobSetsCancelRequested) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkJobsCancelRequested) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkRunsForJobPreemptRequested) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a UpdateJobSchedulingInfo) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a UpdateJobQueuedState) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkJobsCancelled) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkJobsSucceeded) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkJobsFailed) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a *UpdateJobPriorities) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkRunsSucceeded) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkRunsFailed) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkRunsRunning) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkRunsPending) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkRunsPreempted) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a InsertJobRunErrors) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkJobsValidated) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a *InsertPartitionMarker) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a UpsertExecutorSettings) GetOperation() Operation {
-	return ControlPlaneOperation
+	return ExecutorDataImpactingOperation
 }
 
 func (a DeleteExecutorSettings) GetOperation() Operation {
-	return ControlPlaneOperation
+	return ExecutorDataImpactingOperation
 }
 
 func (a DeleteExecutor) GetOperation() Operation {
-	return ControlPlaneOperation
+	return ExecutorDataImpactingOperation
 }
 
 func (pe PreemptExecutor) GetOperation() Operation {
-	return ControlPlaneOperation
+	return JobDataImpactingOperation
 }
 
 func (ce CancelExecutor) GetOperation() Operation {
-	return ControlPlaneOperation
+	return JobDataImpactingOperation
 }
 
 func (ne PreemptNode) GetOperation() Operation {
-	return ControlPlaneOperation
+	return JobDataImpactingOperation
 }
 
 func (cn CancelNode) GetOperation() Operation {
-	return ControlPlaneOperation
+	return JobDataImpactingOperation
 }
 
 func (pq PreemptQueue) GetOperation() Operation {
-	return ControlPlaneOperation
+	return JobDataImpactingOperation
 }
 
 func (cq CancelQueue) GetOperation() Operation {
-	return ControlPlaneOperation
+	return JobDataImpactingOperation
 }
 
 type executorOperation interface {
