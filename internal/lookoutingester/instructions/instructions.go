@@ -84,7 +84,7 @@ func (c *InstructionConverter) convertSequence(
 ) {
 	queue := util.Truncate(sequence.Queue, maxQueueLen)
 	jobset := util.Truncate(sequence.JobSetName, maxJobSetLen)
-	owner := util.Truncate(sequence.UserId, maxOwnerLen)
+	owner := strings.TrimSpace(util.Truncate(sequence.UserId, maxOwnerLen))
 	for idx, event := range sequence.Events {
 		var err error
 		if event.Created == nil {

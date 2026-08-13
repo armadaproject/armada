@@ -24,10 +24,7 @@ func withRetryPolicyRepo(t *testing.T, action func(ctx *armadacontext.Context, r
 
 func withRetryPolicyRepoAndDb(t *testing.T, action func(ctx *armadacontext.Context, repo *PostgresRetryPolicyRepository, db *pgxpool.Pool)) {
 	t.Helper()
-	// Generous timeout: WithLookoutDb runs the action against two fresh
-	// databases, each applying the full migration chain, which can take a while
-	// when the shared test postgres is under load.
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		action(ctx, NewPostgresRetryPolicyRepository(db), db)
