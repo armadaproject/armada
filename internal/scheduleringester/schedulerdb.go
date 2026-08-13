@@ -425,6 +425,10 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			if err != nil {
 				return errors.Wrapf(err, "error deleting executor %s", executorDelete.ExecutorID)
 			}
+			ctx.Logger().WithFields(map[string]any{
+				"requestor": executorDelete.Requestor,
+				"executor":  executorDelete.ExecutorID,
+			}).Info("ExecutorDelete applied executor delete; a live executor will re-register on its next lease request")
 		}
 		return nil
 	case CancelExecutor:
@@ -493,22 +497,36 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 			}
 
-			if len(jobs) == 0 {
-				continue
-			}
-
-			if len(preemptRequest.PriorityClasses) > 0 {
+			if len(preemptRequest.PriorityClasses) > 0 && len(jobs) > 0 {
 				jobs, err = filterJobsByPriorityClasses(jobs, preemptRequest.PriorityClasses)
 				if err != nil {
 					return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 				}
 			}
+
+			logCtx := ctx.Logger().WithFields(map[string]any{
+				"requestor":       preemptRequest.Requestor,
+				"node":            nodeOnExecutor.Node,
+				"executor":        nodeOnExecutor.Executor,
+				"queueCount":      loggedQueueCount(preemptRequest.Queues),
+				"priorityClasses": preemptRequest.PriorityClasses,
+			})
+			if len(jobs) == 0 {
+				logCtx.Warn("PreemptOnNode matched no active jobs; nothing to preempt")
+				continue
+			}
+
 			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobs) {
 				err = queries.MarkJobRunsPreemptRequestedByJobId(ctx, *requestPreemptParams)
 				if err != nil {
 					return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 				}
 			}
+
+			logCtx.WithFields(map[string]any{
+				"jobCount": len(jobs),
+				"jobIds":   slices.Map(jobs, func(job schedulerdb.Job) string { return job.JobID }),
+			}).Info("PreemptOnNode marked runs preempt-requested")
 		}
 	case CancelNode:
 		for nodeOnExecutor, cancelRequest := range o {
@@ -521,22 +539,36 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				return errors.Wrapf(err, "error cancelling jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 			}
 
-			if len(jobs) == 0 {
-				continue
-			}
-
-			if len(cancelRequest.PriorityClasses) > 0 {
+			if len(cancelRequest.PriorityClasses) > 0 && len(jobs) > 0 {
 				jobs, err = filterJobsByPriorityClasses(jobs, cancelRequest.PriorityClasses)
 				if err != nil {
 					return errors.Wrapf(err, "error cancelling jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 				}
 			}
+
+			logCtx := ctx.Logger().WithFields(map[string]any{
+				"requestor":       cancelRequest.Requestor,
+				"node":            nodeOnExecutor.Node,
+				"executor":        nodeOnExecutor.Executor,
+				"queueCount":      loggedQueueCount(cancelRequest.Queues),
+				"priorityClasses": cancelRequest.PriorityClasses,
+			})
+			if len(jobs) == 0 {
+				logCtx.Warn("CancelOnNode matched no active jobs; nothing to cancel")
+				continue
+			}
+
 			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs, cancelReasonCancelOnNode) {
 				err = queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams)
 				if err != nil {
 					return errors.Wrapf(err, "error cancelling jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 				}
 			}
+
+			logCtx.WithFields(map[string]any{
+				"jobCount": len(jobs),
+				"jobIds":   slices.Map(jobs, func(job schedulerdb.Job) string { return job.JobID }),
+			}).Info("CancelOnNode marked jobs cancel-requested")
 		}
 
 	case CancelQueue:
@@ -707,7 +739,7 @@ func jobInPriorityClasses(priorityClasses []string) func(schedulerdb.Job) (bool,
 // on row sequence numbers being monotonically increasing.
 func getLockKey(operations []DbOperation) (int, error) {
 	for _, op := range operations {
-		if op.GetOperation() == JobSetOperation {
+		if op.GetOperation() == JobDataImpactingOperation {
 			return JobSetEventsLockKey, nil
 		}
 	}
@@ -732,6 +764,13 @@ func multiColumnRunsUpdateStmt(id, phaseColumn, timeStampColumn string) string {
 	as runs_temp(%[1]v, %[2]v, %[3]v)
 	where runs.%[1]v = runs_temp.%[1]v;`,
 		id, phaseColumn, timeStampColumn, "text")
+}
+
+func loggedQueueCount(queues []string) any {
+	if len(queues) == 0 {
+		return "all"
+	}
+	return len(queues)
 }
 
 func filterJobsByPriorityClasses(jobs []schedulerdb.Job, priorityClasses []string) ([]schedulerdb.Job, error) {
