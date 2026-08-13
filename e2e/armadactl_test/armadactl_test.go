@@ -228,8 +228,8 @@ jobs:
 
 	out = buf.String()
 	buf.Reset()
-	for _, s := range []string{"Job ID:", "maximum used resources:", "\n"} {
-		require.True(t, strings.Contains(out, s))
+	for _, s := range []string{"Submitted job with id", "to job set set1\n"} {
+		require.True(t, strings.Contains(out, s), "expected output to contain '%s', but got '%s'", s, out)
 	}
 
 	// reprioritize
@@ -238,7 +238,7 @@ jobs:
 
 	out = buf.String()
 	buf.Reset()
-	for _, s := range []string{"Reprioritized jobs with ID:\n", "user: anonymous\n"} {
+	for _, s := range []string{"Reprioritized jobs with ID:\n"} {
 		require.True(t, strings.Contains(out, s))
 	}
 
@@ -248,8 +248,25 @@ jobs:
 
 	out = buf.String()
 	buf.Reset()
-	for _, s := range []string{"Requested cancellation for jobs", "user: anonymous\n"} {
+	for _, s := range []string{"Requested cancellation for jobs"} {
 		require.True(t, strings.Contains(out, s))
+	}
+
+	// Watch the job set and verify the requestor is surfaced on the
+	// reprioritize/cancel events. exitOnInactive makes the watch replay the
+	// job set's history and return once all jobs are finished.
+	watchBuf := new(bytes.Buffer)
+	watchApp := &armadactl.App{
+		Params: app.Params,
+		Out:    watchBuf,
+		Random: rand.Reader,
+	}
+	err = watchApp.Watch(name, "set1", false, true, false, false)
+	require.NoError(t, err)
+
+	out = watchBuf.String()
+	for _, s := range []string{"user: anonymous\n"} {
+		require.True(t, strings.Contains(out, s), "expected watch output to contain '%s', but got '%s'", s, out)
 	}
 }
 
