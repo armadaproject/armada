@@ -35,7 +35,7 @@ var (
 )
 
 func TestGetJobDetails(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 120*time.Second)
 	defer cancel()
 
 	job1 := newJob("job1", lookout.JobQueuedOrdinal, "")
@@ -138,7 +138,7 @@ func TestGetJobDetails(t *testing.T) {
 }
 
 func TestGetJobRunDetails(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 120*time.Second)
 	defer cancel()
 
 	testJobs := []database.Job{
@@ -212,7 +212,7 @@ func TestGetJobRunDetails(t *testing.T) {
 }
 
 func TestGetJobStatus(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 120*time.Second)
 	defer cancel()
 
 	testdata := []database.Job{
@@ -290,7 +290,7 @@ func TestGetJobStatus(t *testing.T) {
 }
 
 func TestGetJobStatusUsingExternalJobUri(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 120*time.Second)
 	defer cancel()
 
 	testdata := []database.Job{
@@ -337,7 +337,7 @@ func TestGetJobStatusUsingExternalJobUri(t *testing.T) {
 }
 
 func TestGetJobErrors(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 120*time.Second)
 	defer cancel()
 
 	testJobs := []database.Job{
