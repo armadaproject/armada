@@ -20,6 +20,9 @@ type JobStateReporter struct {
 	clusterContext  clusterContext.ClusterContext
 	podIssueHandler IssueHandler
 	classifier      *categorizer.Classifier
+	debugRenderer   *reporter.DebugMessageRenderer
+	// Runtime above which a failed pod's debug data is captured. See shouldCaptureFailureDebug.
+	minAppContainerRuntimeForFailureDebug time.Duration
 }
 
 func NewJobStateReporter(
@@ -27,12 +30,16 @@ func NewJobStateReporter(
 	eventReporter reporter.EventReporter,
 	podIssueHandler IssueHandler,
 	classifier *categorizer.Classifier,
+	debugRenderer *reporter.DebugMessageRenderer,
+	minAppContainerRuntimeForFailureDebug time.Duration,
 ) (*JobStateReporter, error) {
 	stateReporter := &JobStateReporter{
-		eventReporter:   eventReporter,
-		clusterContext:  clusterContext,
-		podIssueHandler: podIssueHandler,
-		classifier:      classifier,
+		eventReporter:                         eventReporter,
+		clusterContext:                        clusterContext,
+		podIssueHandler:                       podIssueHandler,
+		classifier:                            classifier,
+		debugRenderer:                         debugRenderer,
+		minAppContainerRuntimeForFailureDebug: minAppContainerRuntimeForFailureDebug,
 	}
 
 	_, err := clusterContext.AddPodEventHandler(stateReporter.podEventHandler())
@@ -83,6 +90,17 @@ func (stateReporter *JobStateReporter) reportStatusUpdate(old *v1.Pod, new *v1.P
 	stateReporter.reportCurrentStatus(new)
 }
 
+// Two kinds of failure are worth the debug data: a pod whose app container never started, where the
+// reason the workload never ran is otherwise lost, and a pod that failed after running for a while,
+// where the exit code alone does not explain what happened. A container that failed quickly in
+// between is an ordinary application error.
+func (stateReporter *JobStateReporter) shouldCaptureFailureDebug(pod *v1.Pod) bool {
+	if !util.HasAppContainerStarted(pod) {
+		return true
+	}
+	return util.LongestAppContainerRunDuration(pod) >= stateReporter.minAppContainerRuntimeForFailureDebug
+}
+
 func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 	if !util.IsManagedPod(pod) {
 		return
@@ -111,16 +129,13 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 			// Don't return here, as it is very important we don't block reporting a terminal event (failed)
 		}
 
-		// If the pod terminated before its main container ever started, record the k8s events
-		// as debug data to help diagnose why the workload never ran.
-		if !util.HasAppContainerStarted(pod) {
+		if stateReporter.shouldCaptureFailureDebug(pod) {
 			podEvents, err := stateReporter.clusterContext.GetPodEvents(pod)
 			if err != nil {
+				// The pod's own state and its node's are still worth describing without them.
 				log.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
-			} else if len(podEvents) > 0 {
-				// Skip when there are no events - CreateDebugMessage would render just "Events: <none>".
-				debugMessage = reporter.CreateDebugMessage(podEvents)
 			}
+			debugMessage = stateReporter.debugRenderer.Render(pod, podEvents, reporter.TriggerPodFailed)
 		}
 	}
 

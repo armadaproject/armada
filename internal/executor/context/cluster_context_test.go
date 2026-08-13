@@ -8,6 +8,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
@@ -23,9 +24,11 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/constants"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/util"
 )
 
@@ -426,6 +429,84 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_ForceKill(t *testing.T) {
 	assert.Equal(t, len(client.Fake.Actions()), 2)
 }
 
+func TestKubernetesClusterContext_ProcessPodsToDelete_ForceKill_IncrementsCounter(t *testing.T) {
+	clusterContext, client := setupTest()
+
+	pod := createSubmittedBatchPod(t, clusterContext)
+	pod.Annotations = map[string]string{constants.PoolAnnotation: "pool-1"}
+	pod.DeletionTimestamp = &metav1.Time{Time: clusterContext.clock.Now().Add(-6 * time.Minute)}
+	client.Fake.ClearActions()
+
+	before := forceDeletedCount(t, "pool-1")
+	clusterContext.DeletePods([]*v1.Pod{pod})
+	clusterContext.ProcessPodsToDelete()
+
+	assert.Equal(t, before+1, forceDeletedCount(t, "pool-1"))
+}
+
+// The metric is registered against the default registry at init, before setupTest swaps
+// DefaultRegisterer, so it is read from the default gatherer rather than a per-test registry.
+func forceDeletedCount(t *testing.T, pool string) float64 {
+	t.Helper()
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+
+	for _, family := range families {
+		if family.GetName() != metrics.ArmadaExecutorMetricsPrefix+"pod_force_deleted_total" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "pool" && label.GetValue() == pool {
+					return metric.GetCounter().GetValue()
+				}
+			}
+		}
+	}
+	return 0
+}
+
+// The escalation to a force delete is gated on the repeat-deletion cache record expiring, not only
+// on podKillTimeout: doDelete refreshes the record on success, and DeletePods is a no-op while a
+// record is present. This debounce is what actually sets the earliest force kill time, so pin it.
+func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotForceKillUntilRepeatDeletePeriodExpires(t *testing.T) {
+	clusterContext, clientProvider := setupTestWithMinRepeatedDeletePeriod(500 * time.Millisecond)
+	client := clientProvider.FakeClient
+	// Accept deletes without removing the pod, modelling a pod that lingers in terminating.
+	client.Fake.PrependReactor("delete", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
+		return true, nil, nil
+	})
+
+	pod := createSubmittedBatchPod(t, clusterContext)
+	pod.ObjectMeta.Annotations = map[string]string{domain.MarkedForDeletion: "now"}
+	client.Fake.ClearActions()
+
+	// A successful graceful delete leaves a cache record behind.
+	clusterContext.DeletePods([]*v1.Pod{pod})
+	clusterContext.ProcessPodsToDelete()
+	require.Equal(t, 1, len(client.Fake.Actions()))
+
+	// Now past podKillTimeout, so the stuck-terminating detection re-adds the pod on every interval.
+	pod.DeletionTimestamp = &metav1.Time{Time: clusterContext.clock.Now().Add(-6 * time.Minute)}
+	for i := 0; i < 3; i++ {
+		client.Fake.ClearActions()
+		clusterContext.DeletePods([]*v1.Pod{pod})
+		clusterContext.ProcessPodsToDelete()
+		assert.Equal(t, 0, len(client.Fake.Actions()), "no delete should be issued while the repeat-delete record is present")
+	}
+
+	time.Sleep(600 * time.Millisecond)
+
+	client.Fake.ClearActions()
+	clusterContext.DeletePods([]*v1.Pod{pod})
+	clusterContext.ProcessPodsToDelete()
+	require.Equal(t, 1, len(client.Fake.Actions()), "the re-add is accepted once the record expires")
+	deleteAction, ok := client.Fake.Actions()[0].(clientTesting.DeleteAction)
+	require.True(t, ok)
+	assert.Equal(t, pod.Name, deleteAction.GetName())
+	assert.Equal(t, int64(0), *deleteAction.GetDeleteOptions().GracePeriodSeconds, "the escalated delete must be a force delete")
+}
+
 func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedPatchCallsToClient_WhenPodAlreadyMarkedForDeletion(t *testing.T) {
 	clusterContext, client := setupTest()
 
@@ -790,6 +871,39 @@ func waitForIngressContextSync(t *testing.T, context *KubernetesClusterContext, 
 		t.Error("Timed out waiting for context sync. Submitted ingress was never synced to context.")
 		t.Fail()
 	}
+}
+
+func TestKubernetesClusterContext_GetNodeEvents(t *testing.T) {
+	clusterContext, client := setupTest()
+
+	nodeEvent := &v1.Event{
+		ObjectMeta:     metav1.ObjectMeta{Name: "node-event", Namespace: "default"},
+		InvolvedObject: v1.ObjectReference{Kind: "Node", Name: "node-1"},
+		Reason:         "NodeNotReady",
+	}
+	podEvent := &v1.Event{
+		ObjectMeta:     metav1.ObjectMeta{Name: "pod-event", Namespace: "default"},
+		InvolvedObject: v1.ObjectReference{Kind: "Pod", Name: "pod-1", UID: types.UID("pod-uid")},
+		Reason:         "FailedScheduling",
+	}
+	for _, event := range []*v1.Event{nodeEvent, podEvent} {
+		_, err := client.CoreV1().Events("default").Create(armadacontext.Background(), event, metav1.CreateOptions{})
+		require.NoError(t, err)
+	}
+	synced := waitForCondition(func() bool {
+		events, err := clusterContext.GetNodeEvents("node-1")
+		return err == nil && len(events) == 1
+	})
+	require.True(t, synced, "timed out waiting for the node event to sync to the informer")
+
+	events, err := clusterContext.GetNodeEvents("node-1")
+	require.NoError(t, err)
+	require.Len(t, events, 1, "the pod event must not be indexed against the node")
+	assert.Equal(t, "NodeNotReady", events[0].Reason)
+
+	otherNodeEvents, err := clusterContext.GetNodeEvents("node-2")
+	require.NoError(t, err)
+	assert.Empty(t, otherNodeEvents)
 }
 
 func waitForCondition(conditionCheck func() bool) bool {
