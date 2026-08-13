@@ -3,6 +3,8 @@ package retry
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -63,9 +65,39 @@ func convertRule(r *api.RetryRule) (Rule, error) {
 		return Rule{}, fmt.Errorf("action: %w", err)
 	}
 
+	memory, err := convertResourceBump(r.GetMutate().GetResources().GetMemory())
+	if err != nil {
+		return Rule{}, fmt.Errorf("mutate.resources.memory: %w", err)
+	}
+
 	return Rule{
 		Action:        action,
 		OnCategory:    r.OnCategory,
 		OnSubcategory: r.OnSubcategory,
+		Mutation: Mutation{
+			Affinity: AffinityMutation{
+				AvoidSameNode: r.GetMutate().GetAffinity().GetAvoidSameNode(),
+			},
+			Resources: ResourceMutation{
+				Memory: memory,
+			},
+		},
 	}, nil
+}
+
+// convertResourceBump compiles a proto resource bump. It only parses. The
+// CRUD service validates policies at write time, so conversion assumes the
+// stored policy is valid.
+func convertResourceBump(b *api.RetryResourceBump) (ResourceBump, error) {
+	if b == nil {
+		return ResourceBump{}, nil
+	}
+	if b.Static != "" {
+		quantity, err := resource.ParseQuantity(b.Static)
+		if err != nil {
+			return ResourceBump{}, fmt.Errorf("invalid static quantity %q: %w", b.Static, err)
+		}
+		return ResourceBump{Static: &quantity}, nil
+	}
+	return ResourceBump{Factor: b.Factor}, nil
 }

@@ -22,12 +22,13 @@ import {
 import { Analytics, ANALYTICS_EVENTS } from "../../../../analytics"
 import { downloadTextFile } from "../../../../common/downloadTextFile"
 import { SPACING } from "../../../../common/spacing"
+import { getErrorMessage } from "../../../../common/utils"
 import { JobRunLogsTextSizeToggle } from "../../../../components/JobRunLogsTextSizeToggle"
 import { useFormatIsoTimestampWithUserSettings } from "../../../../components/hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../../../components/hooks/useCustomSnackbar"
 import { Job } from "../../../../models/lookoutModels"
 import { useGetJobSpec } from "../../../../services/lookout/useGetJobSpec"
-import { LogLine, useGetLogs } from "../../../../services/lookout/useGetLogs"
+import { LogLine, useFetchAllLogsFromStart, useGetLogs } from "../../../../services/lookout/useGetLogs"
 import {
   JobRunLogsTextSize,
   useJobRunLogsShowTimestamps,
@@ -37,11 +38,24 @@ import {
 
 import { NoRunsAlert } from "./NoRunsAlert"
 
+const LogsControlsContainer = styled("div")(({ theme }) => ({
+  display: "flex",
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignContent: "center",
+  gap: theme.spacing(SPACING.sm),
+  flexWrap: "wrap",
+}))
+
+const DownloadLogsButtonContainer = styled("div")({
+  alignContent: "center",
+})
+
 const LogsSettingsContainer = styled("div")(({ theme }) => ({
   display: "flex",
   flexDirection: "row",
   alignItems: "center",
-  justifyContent: "end",
+  justifyContent: "space-apart",
   gap: theme.spacing(SPACING.sm),
   flexWrap: "wrap",
 }))
@@ -157,17 +171,46 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
   const [showTimestamps, setShowTimestamps] = useJobRunLogsShowTimestamps()
   const [wrapLines, setWrapLines] = useJobRunLogsWrapLines()
 
-  const downloadLogs = useCallback(() => {
+  const fetchAllLogsFromStart = useFetchAllLogsFromStart()
+  const [downloadingLogs, setDownloadingLogs] = useState(false)
+
+  const downloadLogLines = useCallback(
+    (logLinesToDownload: LogLine[]) => {
+      downloadTextFile(
+        logLinesToDownload
+          .flatMap(({ line, timestamp }) => (showTimestamps ? `${timestamp}\t${line}` : line))
+          .join("\n"),
+        `${job.jobId}-${runIndex}-${selectedContainer}.txt`,
+        "text/plain",
+      )
+    },
+    [showTimestamps, job.jobId, runIndex, selectedContainer],
+  )
+
+  const downloadLogs = useCallback(async () => {
     if (getLogsResult.status !== "success") {
       return
     }
 
-    downloadTextFile(
-      logLines.flatMap(({ line, timestamp }) => (showTimestamps ? `${timestamp}\t${line}` : line)).join("\n"),
-      `${job.jobId}-${runIndex}-${selectedContainer}.txt`,
-      "text/plain",
-    )
-  }, [getLogsResult.status, logLines, showTimestamps, job.jobId, runIndex, selectedContainer])
+    setDownloadingLogs(true)
+    try {
+      const allLogLines = await fetchAllLogsFromStart(cluster, namespace, job.jobId, selectedContainer)
+      downloadLogLines(allLogLines)
+    } catch (e) {
+      openSnackbar(`Failed to download logs for Job with ID: ${job.jobId}: ${await getErrorMessage(e)}`, "error")
+    } finally {
+      setDownloadingLogs(false)
+    }
+  }, [
+    getLogsResult.status,
+    downloadLogLines,
+    fetchAllLogsFromStart,
+    cluster,
+    namespace,
+    job.jobId,
+    selectedContainer,
+    openSnackbar,
+  ])
 
   if (job.runs.length === 0) {
     return <NoRunsAlert jobState={job.state} />
@@ -249,7 +292,9 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
             />
           </FormGroup>
         </div>
-        <div>
+      </RunContainerSelectors>
+      <LogsControlsContainer>
+        <DownloadLogsButtonContainer>
           <Tooltip
             arrow
             title={`The file ${showTimestamps ? "will include" : "will not include"} timestamps for each log line. Toggle the 'show timestamps' switch below to change this.`}
@@ -257,40 +302,40 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
             <Analytics
               component={Button}
               eventName={ANALYTICS_EVENTS.DOWNLOAD_LOGS_CLICKED}
-              aria-label="download logs"
-              loading={getLogsResult.status === "pending"}
+              aria-label="download logs from start"
+              loading={getLogsResult.status === "pending" || downloadingLogs}
               disabled={getLogsResult.status !== "success"}
               startIcon={<Download />}
               variant="outlined"
               size="small"
               onClick={downloadLogs}
             >
-              Download logs
+              Download logs from start
             </Analytics>
           </Tooltip>
-        </div>
-      </RunContainerSelectors>
-      <LogsSettingsContainer>
-        <div>
-          <FormGroup>
-            <FormControlLabel
-              control={
-                <Switch checked={showTimestamps} onChange={({ target: { checked } }) => setShowTimestamps(checked)} />
-              }
-              label="Show timestamps"
-            />
-          </FormGroup>
-        </div>
-        <div>
-          <FormGroup>
-            <FormControlLabel
-              control={<Switch checked={wrapLines} onChange={({ target: { checked } }) => setWrapLines(checked)} />}
-              label="Wrap lines"
-            />
-          </FormGroup>
-        </div>
-        <JobRunLogsTextSizeToggle compact />
-      </LogsSettingsContainer>
+        </DownloadLogsButtonContainer>
+        <LogsSettingsContainer>
+          <div>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch checked={showTimestamps} onChange={({ target: { checked } }) => setShowTimestamps(checked)} />
+                }
+                label="Show timestamps"
+              />
+            </FormGroup>
+          </div>
+          <div>
+            <FormGroup>
+              <FormControlLabel
+                control={<Switch checked={wrapLines} onChange={({ target: { checked } }) => setWrapLines(checked)} />}
+                label="Wrap lines"
+              />
+            </FormGroup>
+          </div>
+          <JobRunLogsTextSizeToggle compact />
+        </LogsSettingsContainer>
+      </LogsControlsContainer>
       {getJobSpecResult.status === "pending" ||
         (getLogsResult.status === "pending" && (
           <LogsContainer textSize={textSize}>

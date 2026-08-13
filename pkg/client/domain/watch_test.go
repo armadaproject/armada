@@ -232,6 +232,31 @@ func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 	assert.Equal(t, map[JobStatus]int{Succeeded: 1}, watchContext.stateSummary)
 }
 
+func TestWatchContext_RetryableFailedEventIsNotTerminal(t *testing.T) {
+	watchContext := NewWatchContext()
+
+	watchContext.ProcessEvent(&api.JobRunningEvent{JobId: "1"})
+	watchContext.ProcessEvent(&api.JobFailedEvent{JobId: "1", Retryable: true})
+
+	info := watchContext.GetJobInfo("1")
+	assert.Equal(t, JobStatus(Queued), info.Status, "a retryable failure must leave the job non-terminal")
+	assert.Equal(t, 0, watchContext.GetNumberOfFinishedJobs(), "a retryable failure must not count as finished")
+
+	// A later attempt can still succeed.
+	watchContext.ProcessEvent(&api.JobSucceededEvent{JobId: "1"})
+	assert.Equal(t, JobStatus(Succeeded), watchContext.GetJobInfo("1").Status)
+}
+
+func TestWatchContext_NonRetryableFailedEventIsTerminal(t *testing.T) {
+	watchContext := NewWatchContext()
+
+	watchContext.ProcessEvent(&api.JobRunningEvent{JobId: "1"})
+	watchContext.ProcessEvent(&api.JobFailedEvent{JobId: "1"})
+
+	assert.Equal(t, JobStatus(Failed), watchContext.GetJobInfo("1").Status)
+	assert.Equal(t, 1, watchContext.GetNumberOfFinishedJobs())
+}
+
 func TestWatchContext_UtilisationEvent(t *testing.T) {
 	watchContext := NewWatchContext()
 	oneCpu := resource.MustParse("1")

@@ -219,9 +219,12 @@ func setupExecutorApiComponents(
 		config.Kubernetes.FatalPodSubmissionErrors,
 	)
 
+	debugConfig := config.Application.DebugEvents
+	debugRenderer := reporter.NewDebugMessageRenderer(clusterContext, debugConfig)
+
 	leaseRequester := service.NewJobLeaseRequester(executorApiClient, clusterContext)
-	preemptRunProcessor := processors.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter)
-	removeRunProcessor := processors.NewRemoveRunProcessor(clusterContext, jobRunState, eventReporter)
+	preemptRunProcessor := processors.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter, debugRenderer)
+	removeRunProcessor := processors.NewRemoveRunProcessor(clusterContext, jobRunState, eventReporter, debugRenderer)
 
 	jobRequester := service.NewJobRequester(
 		clusterContext,
@@ -248,7 +251,9 @@ func setupExecutorApiComponents(
 		pendingPodChecker,
 		failedPodChecker,
 		config.Kubernetes.StuckTerminatingPodExpiry,
+		config.Kubernetes.PodKillTimeout,
 		classifier,
+		debugRenderer,
 	)
 	if err != nil {
 		ctx.Fatalf("Failed to create pod issue service: %s", err)
@@ -259,6 +264,8 @@ func setupExecutorApiComponents(
 		eventReporter,
 		podIssueService,
 		classifier,
+		debugRenderer,
+		debugConfig.MinAppContainerRuntimeForFailureDebug,
 	)
 	if err != nil {
 		ctx.Fatalf("Failed to create job state reporter: %s", err)
