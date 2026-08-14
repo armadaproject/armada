@@ -31,6 +31,41 @@ type ApplicationConfiguration struct {
 	// ErrorCategories defines category rules for classifying pod failures.
 	// Set ErrorCategories.Enabled to true to turn classification on.
 	ErrorCategories categorizer.ErrorCategoriesConfig `yaml:"errorCategories"`
+	DebugEvents     DebugEventsConfig                 `yaml:"debugEvents"`
+}
+
+// DebugEventsConfig controls capture of pod diagnostics. Experimental - shape subject to change.
+type DebugEventsConfig struct {
+	// Enabled gates all capture. When false the debug field is left empty, as it was before pod
+	// diagnostics existed. Every event is retained in the event ingester's Redis regardless of type,
+	// so a multi-KiB payload attached per pod is the volume risk that warrants a kill switch.
+	Enabled bool `yaml:"enabled"`
+	// MinAppContainerRuntimeForFailureDebug is the runtime above which a failed pod's debug data is
+	// captured, since a pod that fails after running this long has a failure its exit code alone
+	// does not explain. Below it the failure is most likely the submitted code's own - a bad argument
+	// or an immediate crash - which the exit code and termination message already describe, and which
+	// can arrive a million at a time. This does not gate the capture for a pod whose app container
+	// never started, which always carries debug data.
+	MinAppContainerRuntimeForFailureDebug time.Duration `yaml:"minAppContainerRuntimeForFailureDebug"`
+
+	Pod  PodDebugConfig  `yaml:"pod"`
+	Node NodeDebugConfig `yaml:"node"`
+}
+
+type PodDebugConfig struct {
+	// MaxEvents is the most recent Kubernetes events to capture. Events are the only unbounded part
+	// of the payload, so they are what its size is tuned by: measured against a production node, 10
+	// pod and 10 node events render to ~10 KiB of JSON that compresses to ~1.8 KiB for storage.
+	// Roughly 300 B of raw JSON per event.
+	MaxEvents int `yaml:"maxEvents"`
+}
+
+type NodeDebugConfig struct {
+	MaxEvents int `yaml:"maxEvents"`
+	// Labels and Annotations to capture, by exact name. Allowlisted rather than captured wholesale
+	// because nodes carry a lot of both, most of it irrelevant to why a pod would not terminate.
+	Labels      []string `yaml:"labels"`
+	Annotations []string `yaml:"annotations"`
 }
 
 type PodDefaults struct {

@@ -1,12 +1,14 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -181,7 +183,9 @@ func TestPodIssueService_OnPodErrorClassifies(t *testing.T) {
 	}
 }
 
-func TestPodIssueService_OnlyDeletesPod_IfStuckTerminatingButDeletedByExecutor(t *testing.T) {
+// A pod the executor is deleting itself must not be failed - but it is overdue past its deletion
+// deadline, so the diagnostic debug event is reported.
+func TestPodIssueService_OnlyDeletesPodAndReportsDebug_IfStuckTerminatingButDeletedByExecutor(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
 	require.NoError(t, err)
 	terminatingPod := makeTerminatingPod()
@@ -192,6 +196,60 @@ func TestPodIssueService_OnlyDeletesPod_IfStuckTerminatingButDeletedByExecutor(t
 
 	remainingActivePods := getActivePods(t, fakeClusterContext)
 	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
+
+	require.Len(t, eventsReporter.ReceivedEvents, 1)
+	require.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
+	debugInfo, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo)
+	require.True(t, ok, "expected a JobRunTerminatedDebugInfo event, not a failure")
+
+	payload := &reporter.PodDebugInfo{}
+	require.NoError(t, json.Unmarshal([]byte(debugInfo.JobRunTerminatedDebugInfo.DebugMessage), payload))
+	assert.Equal(t, reporter.TriggerStuckTerminating, payload.Trigger)
+	assert.NotEmpty(t, payload.Pod.DeletionTimestamp)
+}
+
+func TestPodIssueService_ReportsTerminationDebugOncePerRun(t *testing.T) {
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
+	terminatingPod := makeTerminatingPod()
+	terminatingPod.Annotations[domain.MarkedForDeletion] = time.Now().String()
+	addPod(t, fakeClusterContext, terminatingPod)
+
+	// The pod will not go away, so it is re-detected on every pod issue handling interval.
+	podIssueService.HandlePodIssues()
+	addPod(t, fakeClusterContext, terminatingPod)
+	podIssueService.HandlePodIssues()
+
+	assert.Len(t, eventsReporter.ReceivedEvents, 1, "a stuck pod must not report a debug event every tick")
+}
+
+func TestPodIssueService_ReportsNoTerminationDebug_WhenNotPastKillTimeout(t *testing.T) {
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
+	// The pod is detected as stuck (past stuckTerminatingPodExpiry) but Armada has not yet
+	// escalated to a force delete, so there is nothing to report on yet.
+	podIssueService.podKillTimeout = 2 * time.Hour
+	terminatingPod := makeTerminatingPod()
+	terminatingPod.Annotations[domain.MarkedForDeletion] = time.Now().String()
+	addPod(t, fakeClusterContext, terminatingPod)
+
+	podIssueService.HandlePodIssues()
+
+	assert.Len(t, eventsReporter.ReceivedEvents, 0)
+}
+
+// With capture disabled the renderer returns nothing, so the event that exists only to carry the
+// payload is not emitted at all.
+func TestPodIssueService_ReportsNoTerminationDebug_WhenDisabled(t *testing.T) {
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
+	podIssueService.debugRenderer = reporter.NewDebugMessageRenderer(fakeClusterContext, configuration.DebugEventsConfig{Enabled: false})
+	terminatingPod := makeTerminatingPod()
+	terminatingPod.Annotations[domain.MarkedForDeletion] = time.Now().String()
+	addPod(t, fakeClusterContext, terminatingPod)
+
+	podIssueService.HandlePodIssues()
+
 	assert.Len(t, eventsReporter.ReceivedEvents, 0)
 }
 
@@ -379,31 +437,6 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *t
 	}
 }
 
-func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t *testing.T) {
-	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
-	require.NoError(t, err)
-	retryableStuckPod := makeRetryableStuckPod()
-	addPod(t, fakeClusterContext, retryableStuckPod)
-	addPodEvents(fakeClusterContext, retryableStuckPod, []*v1.Event{{Message: "Some other message", Type: "Warning"}})
-
-	podIssueService.HandlePodIssues()
-
-	// Deletes pod
-	remainingActivePods := getActivePods(t, fakeClusterContext)
-	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
-
-	// Reset events
-	eventsReporter.ReceivedEvents = []reporter.EventMessage{}
-	podIssueService.HandlePodIssues()
-
-	assert.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
-	returnedEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
-	assert.True(t, ok)
-	assert.Len(t, returnedEvent.JobRunErrors.Errors, 1)
-	assert.True(t, returnedEvent.JobRunErrors.Errors[0].GetPodLeaseReturned() != nil)
-	assert.Contains(t, returnedEvent.JobRunErrors.Errors[0].GetPodLeaseReturned().DebugMessage, "Some other message")
-}
-
 func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpAfterDeletionCalled(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
 	require.NoError(t, err)
@@ -453,6 +486,126 @@ func TestPodIssueService_ReportsFailed_IfDeletedExternally(t *testing.T) {
 	assert.Equal(t, jobId, failedEvent.JobRunErrors.JobId)
 	assert.Equal(t, errormatch.CategoryInternal, failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
 	assert.Equal(t, errormatch.SubcategoryExternallyDeleted, failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
+}
+
+// Who deleted the pod is answered by its node, so these two failures carry debug data even though the
+// pod is gone (externally deleted) or refusing to die (past its active deadline).
+func TestPodIssueService_ReportsDebug_ForExternallyDeletedAndActiveDeadlineExceeded(t *testing.T) {
+	tests := map[string]struct {
+		expectedTrigger reporter.DebugTrigger
+		run             func(*PodIssueHandler, *fakecontext.SyncFakeClusterContext, *v1.Pod)
+		pod             func() *v1.Pod
+	}{
+		"externally deleted": {
+			expectedTrigger: reporter.TriggerExternallyDeleted,
+			pod:             makeRunningPod,
+			run: func(p *PodIssueHandler, c *fakecontext.SyncFakeClusterContext, pod *v1.Pod) {
+				c.SimulateDeletionEvent(pod)
+				p.HandlePodIssues()
+			},
+		},
+		"active deadline exceeded": {
+			expectedTrigger: reporter.TriggerActiveDeadlineExceeded,
+			pod:             func() *v1.Pod { return makePodWithDeadline(time.Now().Add(-time.Hour), 1, 1) },
+			run: func(p *PodIssueHandler, c *fakecontext.SyncFakeClusterContext, pod *v1.Pod) {
+				addPod(t, c, pod)
+				p.HandlePodIssues()
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+			require.NoError(t, err)
+			pod := tc.pod()
+			fakeClusterContext.NodeEvents[pod.Spec.NodeName] = []*v1.Event{{Reason: "NodeNotReady", Type: "Normal"}}
+
+			tc.run(podIssueService, fakeClusterContext, pod)
+
+			require.Len(t, eventsReporter.ReceivedEvents, 1)
+			failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+			require.True(t, ok)
+			debugMessage := failedEvent.JobRunErrors.Errors[0].GetPodError().DebugMessage
+			require.NotEmpty(t, debugMessage, "the failure must carry debug data")
+
+			payload := &reporter.PodDebugInfo{}
+			require.NoError(t, json.Unmarshal([]byte(debugMessage), payload))
+			assert.Equal(t, tc.expectedTrigger, payload.Trigger)
+			require.NotNil(t, payload.Node)
+			require.Len(t, payload.Node.Events, 1)
+			assert.Equal(t, "NodeNotReady", payload.Node.Events[0].Reason)
+		})
+	}
+}
+
+func TestPodIssueService_RecordsTerminationOverdue_OnPodDeletion(t *testing.T) {
+	tests := map[string]struct {
+		pod            func() *v1.Pod
+		tombstone      bool
+		expectObserved bool
+	}{
+		"terminating managed pod": {
+			pod:            makeTerminatingPod,
+			expectObserved: true,
+		},
+		"terminating managed pod delivered as a tombstone": {
+			pod:            makeTerminatingPod,
+			tombstone:      true,
+			expectObserved: true,
+		},
+		"pod that was never asked to terminate": {
+			pod: makeRunningPod,
+		},
+		"unmanaged pod": {
+			pod: func() *v1.Pod {
+				pod := makeTerminatingPod()
+				pod.Labels = map[string]string{}
+				return pod
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			podIssueService, _, fakeClusterContext, _, err := setupTestComponents([]*job.RunState{})
+			require.NoError(t, err)
+
+			require.NotNil(t, podIssueService)
+
+			before := terminationOverdueObservations(t)
+			if tc.tombstone {
+				fakeClusterContext.SimulateTombstoneDeletionEvent(tc.pod())
+			} else {
+				fakeClusterContext.SimulateDeletionEvent(tc.pod())
+			}
+
+			expected := before
+			if tc.expectObserved {
+				expected++
+			}
+			assert.Equal(t, expected, terminationOverdueObservations(t))
+		})
+	}
+}
+
+// Summed across pools, since the test only cares that an observation happened.
+func terminationOverdueObservations(t *testing.T) uint64 {
+	t.Helper()
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+
+	for _, family := range families {
+		if family.GetName() != "armada_executor_pod_termination_overdue_seconds" {
+			continue
+		}
+		total := uint64(0)
+		for _, metric := range family.GetMetric() {
+			total += metric.GetHistogram().GetSampleCount()
+		}
+		return total
+	}
+	return 0
 }
 
 func TestPodIssueService_ReportsFailed_IfPodOfActiveRunGoesMissing(t *testing.T) {
@@ -563,7 +716,9 @@ func setupTestComponentsWithClassifier(initialRunState []*job.RunState, classifi
 		pendingPodChecker,
 		failedPodChecker,
 		time.Minute*3,
+		time.Second*30,
 		classifier,
+		reporter.NewDebugMessageRenderer(fakeClusterContext, testDebugConfig()),
 	)
 
 	return podIssueHandler, runStateStore, fakeClusterContext, eventReporter, err
@@ -602,8 +757,8 @@ func podErrorClassifier(t *testing.T, category, subcategory, pattern, hint strin
 }
 
 // The metric counter itself is tested in the metrics package. These tests
-// cover the emission gating for the non-retryable issue path: only a
-// successful Report call should have led to a counter increment.
+// cover the emission gating for the non-retryable and retryable issue paths:
+// only a successful Report call should have led to a counter increment.
 
 func TestPodIssueService_EmitsFailedEventWhenClassifierMatches(t *testing.T) {
 	classifier := conditionClassifier(t, "pih-success-cat", "pih-success-sub", errormatch.ConditionOOMKilled)
@@ -651,6 +806,139 @@ func TestPodIssueService_EmitsEventWithEmptyCategoryWhenClassifierIsNil(t *testi
 	podIssueService.HandlePodIssues()
 
 	assert.Len(t, eventReporter.ReceivedEvents, 1, "event still emitted with empty category/subcategory when classification is disabled")
+}
+
+func TestPodIssueService_RetryableIssue_LeaseReturnClassification(t *testing.T) {
+	hint := "Check the image reference and registry availability"
+	tests := map[string]struct {
+		classifier        *categorizer.Classifier
+		expectCategory    string
+		expectSubcategory string
+		expectHint        string
+	}{
+		"matching rule sets category and records failure": {
+			classifier:        podErrorClassifier(t, "pih-retry-cat", "pih-retry-sub", "Unable to start pod", hint),
+			expectCategory:    "pih-retry-cat",
+			expectSubcategory: "pih-retry-sub",
+			expectHint:        hint,
+		},
+		"nil classifier leaves category empty": {},
+		"no matching rule leaves category empty": {
+			classifier: podErrorClassifier(t, "pih-retry-nomatch-cat", "pih-retry-nomatch-sub", "pattern that never matches", ""),
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, tc.classifier)
+			require.NoError(t, err)
+			counterBefore := failureCounterValue(t, tc.expectCategory, tc.expectSubcategory)
+			familyTotalBefore := failureCounterFamilyTotal(t)
+
+			retryableStuckPod := makeRetryableStuckPod()
+			addPod(t, fakeClusterContext, retryableStuckPod)
+			addPodEvents(fakeClusterContext, retryableStuckPod, []*v1.Event{{Message: "Some other message", Type: "Warning"}})
+
+			// First pass deletes the pod, second pass emits the lease return.
+			podIssueService.HandlePodIssues()
+			assert.Equal(t, []*v1.Pod{}, getActivePods(t, fakeClusterContext))
+			podIssueService.HandlePodIssues()
+
+			require.Len(t, eventReporter.ReceivedEvents, 1)
+			returnedEvent, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+			require.True(t, ok)
+			leaseReturnError := returnedEvent.JobRunErrors.Errors[0]
+			require.NotNil(t, leaseReturnError.GetPodLeaseReturned())
+			assert.Contains(t, leaseReturnError.GetPodLeaseReturned().DebugMessage, "Some other message")
+			assert.Equal(t, tc.expectCategory, leaseReturnError.GetFailureCategory())
+			assert.Equal(t, tc.expectSubcategory, leaseReturnError.GetFailureSubcategory())
+
+			message := leaseReturnError.GetPodLeaseReturned().Message
+			rawIdx := strings.Index(message, "Unable to start pod")
+			require.GreaterOrEqual(t, rawIdx, 0, "raw error must appear in message")
+			if tc.expectHint != "" {
+				hintIdx := strings.Index(message, tc.expectHint)
+				require.GreaterOrEqual(t, hintIdx, 0, "hint must appear in message")
+				assert.Greater(t, hintIdx, rawIdx, "hint must come after raw error")
+			}
+
+			if tc.expectCategory != "" {
+				assert.Equal(t, counterBefore+1, failureCounterValue(t, tc.expectCategory, tc.expectSubcategory))
+			} else {
+				assert.Equal(t, familyTotalBefore, failureCounterFamilyTotal(t), "unclassified lease return must not record a failure")
+			}
+		})
+	}
+}
+
+func TestPodIssueService_RetryableIssue_NoRecordWhenReportFails(t *testing.T) {
+	category, subcategory := "pih-retry-report-fail-cat", "pih-retry-report-fail-sub"
+	classifier := podErrorClassifier(t, category, subcategory, "Unable to start pod", "")
+	podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
+	require.NoError(t, err)
+	counterBefore := failureCounterValue(t, category, subcategory)
+
+	retryableStuckPod := makeRetryableStuckPod()
+	addPod(t, fakeClusterContext, retryableStuckPod)
+
+	podIssueService.HandlePodIssues()
+	eventReporter.ErrorOnReport = true
+	podIssueService.HandlePodIssues()
+
+	assert.Len(t, eventReporter.ReceivedEvents, 0)
+	assert.Equal(t, counterBefore, failureCounterValue(t, category, subcategory), "failed sends must not increment the counter")
+
+	// The issue stays registered, so a later pass reports and records.
+	eventReporter.ErrorOnReport = false
+	podIssueService.HandlePodIssues()
+
+	require.Len(t, eventReporter.ReceivedEvents, 1)
+	recoveredEvent, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+	assert.Equal(t, category, recoveredEvent.JobRunErrors.Errors[0].GetFailureCategory())
+	assert.Equal(t, counterBefore+1, failureCounterValue(t, category, subcategory))
+}
+
+// failureCounterValue reads the executor job failure counter for the given
+// label pair from the default prometheus registry, returning 0 when the
+// labelled child does not exist yet.
+func failureCounterValue(t *testing.T, category string, subcategory string) float64 {
+	t.Helper()
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		if family.GetName() != "armada_executor_job_failure_category_total" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			labels := map[string]string{}
+			for _, label := range metric.GetLabel() {
+				labels[label.GetName()] = label.GetValue()
+			}
+			if labels["failure_category"] == category && labels["failure_subcategory"] == subcategory {
+				return metric.GetCounter().GetValue()
+			}
+		}
+	}
+	return 0
+}
+
+// failureCounterFamilyTotal sums the executor job failure counter across all
+// label pairs, so tests can assert that no increment happened at all.
+func failureCounterFamilyTotal(t *testing.T) float64 {
+	t.Helper()
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+	total := float64(0)
+	for _, family := range families {
+		if family.GetName() != "armada_executor_job_failure_category_total" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			total += metric.GetCounter().GetValue()
+		}
+	}
+	return total
 }
 
 func createRunState(jobId string, runId string, phase job.RunPhase) *job.RunState {
@@ -814,21 +1102,93 @@ func TestDetectAndRegisterDeleteActionIssue(t *testing.T) {
 		deleteAction     bool
 		phase            v1.PodPhase
 		podEventsErr     bool
+		classifier       func(t *testing.T) *categorizer.Classifier
+		pod              func(t *testing.T) *v1.Pod
+		podEvents        []*v1.Event
 		expectRegistered bool
 	}{
 		"failed pod in a delete-action category":  {deleteAction: true, phase: v1.PodFailed, expectRegistered: true},
 		"failed pod in a retain category":         {deleteAction: false, phase: v1.PodFailed, expectRegistered: false},
 		"running pod in a delete-action category": {deleteAction: true, phase: v1.PodRunning, expectRegistered: false},
 		"pod events unavailable still registers":  {deleteAction: true, phase: v1.PodFailed, podEventsErr: true, expectRegistered: true},
+		// A kubelet admission rejection has no container statuses. Only the
+		// pod-level failure message can classify it.
+		"rejected pod matches an onPodError delete rule": {
+			phase: v1.PodFailed,
+			classifier: func(t *testing.T) *categorizer.Classifier {
+				c, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+					Categories: []categorizer.CategoryConfig{
+						{
+							Name:   "pih-rejected-cat",
+							Action: categorizer.PodFailureActionDelete,
+							Rules:  []categorizer.CategoryRule{{OnPodError: &errormatch.RegexMatcher{Pattern: "Pod was rejected.*"}}},
+						},
+					},
+				})
+				require.NoError(t, err)
+				return c
+			},
+			pod: func(t *testing.T) *v1.Pod {
+				return makeTestPod(v1.PodStatus{
+					Phase:   v1.PodFailed,
+					Reason:  "UnexpectedAdmissionError",
+					Message: "Pod was rejected: not enough cpus available to satisfy request",
+				})
+			},
+			expectRegistered: true,
+		},
+		// A device-plugin admission failure surfaces only as a Warning event.
+		// Pod and container status carry nothing to classify by.
+		"rejected pod matches an onPodEvents delete rule": {
+			phase: v1.PodFailed,
+			classifier: func(t *testing.T) *categorizer.Classifier {
+				c, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+					Categories: []categorizer.CategoryConfig{
+						{
+							Name:   "pih-gpu-cat",
+							Action: categorizer.PodFailureActionDelete,
+							Rules: []categorizer.CategoryRule{{OnPodEvents: &errormatch.PodEventMatcher{
+								Regexp: "devices unavailable for nvidia.com/gpu",
+								Type:   v1.EventTypeWarning,
+							}}},
+						},
+					},
+				})
+				require.NoError(t, err)
+				return c
+			},
+			pod: func(t *testing.T) *v1.Pod {
+				return makeTestPod(v1.PodStatus{Phase: v1.PodFailed})
+			},
+			podEvents: []*v1.Event{{
+				Type:    v1.EventTypeWarning,
+				Reason:  "UnexpectedAdmissionError",
+				Message: "Pod Allocate failed due to requested number of devices unavailable for nvidia.com/gpu. Requested: 1, Available: 0",
+			}},
+			expectRegistered: true,
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			classifier := classifierForExitCode(t, "pih-del-cat", "pih-del-sub", 42, tc.deleteAction)
+			var classifier *categorizer.Classifier
+			if tc.classifier != nil {
+				classifier = tc.classifier(t)
+			} else {
+				classifier = classifierForExitCode(t, "pih-del-cat", "pih-del-sub", 42, tc.deleteAction)
+			}
 			podIssueService, _, fakeClusterContext, _, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
 			require.NoError(t, err)
-			pod := makeFailedPodWithExitCode(t, 42)
-			pod.Status.Phase = tc.phase
+			var pod *v1.Pod
+			if tc.pod != nil {
+				pod = tc.pod(t)
+			} else {
+				pod = makeFailedPodWithExitCode(t, 42)
+				pod.Status.Phase = tc.phase
+			}
 			addPod(t, fakeClusterContext, pod)
+			if tc.podEvents != nil {
+				addPodEvents(fakeClusterContext, pod, tc.podEvents)
+			}
 			if tc.podEventsErr {
 				fakeClusterContext.GetPodEventsErr = fmt.Errorf("events unavailable")
 			}
@@ -1001,7 +1361,9 @@ func TestPodIssueService_DeleteActionLifecycle(t *testing.T) {
 				makePendingPodChecker(),
 				makeFailedPodChecker(),
 				time.Minute*3,
+				time.Second*30,
 				classifier,
+				reporter.NewDebugMessageRenderer(clusterContext, testDebugConfig()),
 			)
 			require.NoError(t, err)
 			baseTime := time.Now()
@@ -1039,5 +1401,13 @@ func TestPodIssueService_DeleteActionLifecycle(t *testing.T) {
 				assert.Contains(t, jobError.GetPodError().GetMessage(), tc.expectMessage)
 			}
 		})
+	}
+}
+
+func testDebugConfig() configuration.DebugEventsConfig {
+	return configuration.DebugEventsConfig{
+		Enabled: true,
+		Pod:     configuration.PodDebugConfig{MaxEvents: 10},
+		Node:    configuration.NodeDebugConfig{MaxEvents: 10},
 	}
 }

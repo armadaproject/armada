@@ -131,6 +131,9 @@ ON CONFLICT (executor_id) DO UPDATE
 -- name: DeleteExecutorSettings :exec
 DELETE FROM executor_settings WHERE executor_id = @executor_id::text;
 
+-- name: DeleteExecutor :exec
+DELETE FROM executors WHERE executor_id = @executor_id::text;
+
 -- name: SelectAllExecutorSettings :many
 SELECT executor_id, cordoned, cordon_reason, set_by_user, set_at_time FROM executor_settings;
 

@@ -262,6 +262,45 @@ message RetryRule {
     // both must match.
     string on_category = 5;
     string on_subcategory = 6;
+    // mutate describes changes applied to the job when this rule retries it.
+    // Only meaningful when action is Retry.
+    RetryMutation mutate = 7;
+}
+
+// RetryMutation groups the changes applied to a job on a policy-driven retry.
+// Fields are additive: new mutation kinds get new fields over time.
+message RetryMutation {
+    // affinity changes where the retry is allowed to run.
+    RetryAffinityMutation affinity = 1;
+    // resources bumps the retried job's resource requirements. If the bumped
+    // job no longer fits any node, the job fails terminally.
+    RetryResourceMutation resources = 2;
+}
+
+// RetryAffinityMutation groups placement changes applied to a retried job.
+message RetryAffinityMutation {
+    // avoid_same_node, when true, steers the retry away from every node a
+    // previous run attempted. This matches the lease-return retry behaviour:
+    // the job fails if the anti-affinity makes it unschedulable. Default
+    // false: the retry requeues without the per-job scheduling probe.
+    bool avoid_same_node = 1;
+}
+
+// RetryResourceMutation groups per-resource bumps applied to a retried job.
+// New resources get new fields over time.
+message RetryResourceMutation {
+    RetryResourceBump memory = 1;
+}
+
+// RetryResourceBump grows one resource on retry. Set exactly one field.
+// The bump changes requests and limits together, and it compounds across
+// retries: each retry grows the amount the previous retry produced.
+message RetryResourceBump {
+    // static adds a fixed amount, as a Kubernetes quantity, e.g. "512Mi".
+    string static = 1;
+    // factor multiplies the current amount. 1.1 means a 10% increase.
+    // Must be greater than 1.0 when set.
+    double factor = 2;
 }
 
 message RetryPolicyGetRequest {

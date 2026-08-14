@@ -115,6 +115,7 @@ func createSchedulingContext(t *testing.T) *context.SchedulingContext {
 			rate.Limit(testfixtures.TestSchedulingConfig().MaximumSchedulingRate),
 			testfixtures.TestSchedulingConfig().MaximumSchedulingBurst,
 		),
+		nil,
 		testfixtures.Cpu("1"),
 	)
 }
