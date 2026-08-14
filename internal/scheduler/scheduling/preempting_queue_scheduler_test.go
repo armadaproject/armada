@@ -109,7 +109,7 @@ func TestEvict_JobsEvictedInFairshareOrder(t *testing.T) {
 	// Read the evicted jobs back in the order they were added to the NodeDb (by index).
 	readTxn := nodeDb.Txn(false)
 	defer readTxn.Abort()
-	it, err := readTxn.Get("evictedJobs", "index")
+	it, err := readTxn.Get(nodedb.EvictedJobsTable, nodedb.IndexIndex)
 	require.NoError(t, err)
 	var actualQueueOrder []string
 	for obj := it.Next(); obj != nil; obj = it.Next() {
