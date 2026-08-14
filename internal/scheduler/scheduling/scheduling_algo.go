@@ -509,7 +509,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		return slices.Contains(nodePools, node.GetPool())
 	})
 
-	nodeDb, err := l.constructNodeDb(inUsePriorityClasses, currentPool, currentPoolJobs, otherPoolsJobs, poolNodes)
+	nodeDb, err := l.constructNodeDb(inUsePriorityClasses, currentPool, nodeFactory, currentPoolJobs, otherPoolsJobs, poolNodes)
 	if err != nil {
 		return nil, err
 	}
@@ -705,7 +705,14 @@ func (l *FairSchedulingAlgo) buildInUsePriorityClasses(inUse map[string]bool) ma
 	return result
 }
 
-func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]types.PriorityClass, poolConfig configuration.PoolConfig, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
+func (l *FairSchedulingAlgo) constructNodeDb(
+	priorityClasses map[string]types.PriorityClass,
+	poolConfig configuration.PoolConfig,
+	nodeFactory *internaltypes.NodeFactory,
+	currentPoolJobs []*jobdb.Job,
+	otherPoolsJobs []*jobdb.Job,
+	nodes []*internaltypes.Node,
+) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		priorityClasses,
 		l.schedulingConfig.IndexedResources,
@@ -717,7 +724,7 @@ func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]types.Pr
 	if err != nil {
 		return nil, err
 	}
-	if err := populateNodeDb(poolConfig, nodeDb, currentPoolJobs, otherPoolsJobs, nodes); err != nil {
+	if err := populateNodeDb(poolConfig, nodeFactory, nodeDb, currentPoolJobs, otherPoolsJobs, nodes); err != nil {
 		return nil, err
 	}
 
@@ -959,9 +966,14 @@ func (l *FairSchedulingAlgo) updateOptimiserLastRunTime(pool configuration.PoolC
 }
 
 // populateNodeDb adds all the nodes and jobs associated with a particular pool to the nodeDb.
-func populateNodeDb(poolConfig configuration.PoolConfig, nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) error {
+func populateNodeDb(poolConfig configuration.PoolConfig, nodeFactory *internaltypes.NodeFactory, nodeDb *nodedb.NodeDb, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) error {
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
+
+	awayPoolConfigs := make(map[string]configuration.AwayPoolConfig, len(poolConfig.AwayPools))
+	for _, awayPool := range poolConfig.AwayPools {
+		awayPoolConfigs[awayPool.Name] = awayPool
+	}
 	nodesById := armadaslices.GroupByFuncUnique(
 		nodes,
 		func(node *internaltypes.Node) string { return node.GetId() },
@@ -1005,6 +1017,12 @@ func populateNodeDb(poolConfig configuration.PoolConfig, nodeDb *nodedb.NodeDb, 
 	}
 
 	for _, node := range nodes {
+		if config, isAwayNode := awayPoolConfigs[node.GetPool()]; isAwayNode {
+			if len(config.Node.Modifications.Taints) > 0 {
+				node = nodeFactory.WithTaints(node, applyTaintModifications(node.GetTaints(), config.Node.Modifications.Taints))
+			}
+		}
+
 		if node.IsUnschedulable() && len(jobsByNodeId[node.GetId()]) == 0 {
 			// Don't add nodes that cannot be scheduled on into the nodedb
 			// - For efficiency
