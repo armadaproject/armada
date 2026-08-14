@@ -1605,6 +1605,38 @@ func BenchmarkScheduleManyResourceConstrained(b *testing.B) {
 	)
 }
 
+func TestBindUnbind_NonPreemptibleReleasesEveryBucket(t *testing.T) {
+	node := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
+	nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{node})
+	require.NoError(t, err)
+	entry, err := nodeDb.GetNode(node.GetId())
+	require.NoError(t, err)
+
+	job := testfixtures.Test1Cpu4GiJob("queue-a", testfixtures.PriorityClass2NonPreemptible)
+	priority := job.PriorityClass().Priority
+	require.False(t, job.PriorityClass().Preemptible, "this test is only meaningful for a non-preemptible job")
+
+	before := map[int32]internaltypes.ResourceList{}
+	for p, rl := range entry.AllocatableByPriority {
+		before[p] = rl
+	}
+	require.NotEmpty(t, before, "sanity check: the node must have priority buckets to compare")
+
+	boundNode, err := nodeDb.BindJobToNode(entry, job, priority)
+	require.NoError(t, err)
+	for p := range before {
+		assert.False(t, before[p].Equal(boundNode.AllocatableByPriority[p]),
+			"non-preemptible bind must debit every bucket, including %d", p)
+	}
+
+	unboundNode, err := nodeDb.UnbindJobFromNode(job, boundNode)
+	require.NoError(t, err)
+	for p := range before {
+		assert.True(t, before[p].Equal(unboundNode.AllocatableByPriority[p]),
+			"unbind must restore bucket %d exactly", p)
+	}
+}
+
 func newNodeDbWithNodes(nodes []*internaltypes.Node) (*NodeDb, error) {
 	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
