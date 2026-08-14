@@ -95,6 +95,7 @@ func (sch *IdealisedValueScheduler) Schedule(ctx *armadacontext.Context) (*Sched
 		false,
 		false,
 		false,
+		false,
 		sch.schedulingConfig.MaxQueueLookback,
 		true,
 		1.0,

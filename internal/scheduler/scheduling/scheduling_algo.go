@@ -724,6 +724,12 @@ func (l *FairSchedulingAlgo) constructNodeDb(
 	if err != nil {
 		return nil, err
 	}
+	// Only set the pool when cross-pool preemption ordering is enabled for this pool.
+	// Setting this causes nodeDb to consider cross-pool jobs to be scheduled at CrossPoolPriority
+	//  resulting in them being preempted ahead of home jobs
+	if l.schedulingConfig.GetPreemptCrossPoolJobsFirst(poolConfig.Name) {
+		nodeDb.SetPool(poolConfig.Name)
+	}
 	if err := populateNodeDb(poolConfig, nodeFactory, nodeDb, currentPoolJobs, otherPoolsJobs, nodes); err != nil {
 		return nil, err
 	}

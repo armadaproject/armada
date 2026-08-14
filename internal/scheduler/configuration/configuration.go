@@ -430,6 +430,11 @@ type PoolConfig struct {
 	DisableFairshareScheduling       bool
 	DisableUrgencyScheduling         bool
 	FairsharePreemptionRateLimit     *RateLimit
+	// Default (false) - This will cause cross-pool jobs to always be preempted before home-pool jobs,
+	//  regardless of scheduled priority of the jobs
+	// Set to true to fall back to the legacy behaviour
+	//  where preemption ordering is determined purely by scheduled-at priority.
+	DisablePreemptCrossPoolJobsFirst bool
 }
 
 // RateLimit The rate at which an action can happen using a token bucket approach
@@ -565,6 +570,16 @@ func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string)
 		}
 	}
 	return false
+}
+
+func (sc *SchedulingConfig) GetPreemptCrossPoolJobsFirst(poolName string) bool {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return !poolConfig.DisablePreemptCrossPoolJobsFirst
+		}
+	}
+	// Default (including unknown pools): cross-pool preemption ordering is on.
+	return true
 }
 
 func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig {

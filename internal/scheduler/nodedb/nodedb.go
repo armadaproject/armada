@@ -63,10 +63,10 @@ func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs [
 			priorityClass := job.PriorityClass()
 			priority = priorityClass.Priority
 		}
-		if err := entry.AddJob(job, priorityCutoffFor(job, priority)); err != nil {
+
+		if err := nodeDb.bindJobToNodeInPlace(entry, job, priority); err != nil {
 			return err
 		}
-		nodeDb.scheduledAtPriorityByJobId[job.Id()] = priority
 	}
 	if err := nodeDb.UpsertWithTxn(txn, entry); err != nil {
 		return err
@@ -179,6 +179,13 @@ type NodeDb struct {
 	disableGangAwayScheduling  bool
 	disableFairshareScheduling bool
 	disableUrgencyScheduling   bool
+
+	// pool is the pool this NodeDb is scheduling for.
+	// When set (non-empty), jobs whose run pool differs from it (cross-pool "away" jobs)
+	// are accounted at CrossPoolPriority so any home job can urgency-preempt them ahead of home jobs.
+	// Empty string disables cross-pool detection (all jobs treated as home)
+	//  - Callers leave it unset to fall back to the legacy behaviour (see DisablePreemptCrossPoolJobsFirst config).
+	pool string
 }
 
 func NewNodeDb(
@@ -189,7 +196,7 @@ func NewNodeDb(
 	wellKnownNodeTypes []configuration.WellKnownNodeType,
 	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*NodeDb, error) {
-	nodeDbPriorities := []int32{internaltypes.EvictedPriority}
+	nodeDbPriorities := []int32{internaltypes.EvictedPriority, internaltypes.CrossPoolPriority}
 	nodeDbPriorities = append(nodeDbPriorities, types.AllowedPriorities(priorityClasses)...)
 
 	indexedResourceNames := slices.Map(indexedResources, func(v configuration.ResourceType) string { return v.Name })
@@ -252,6 +259,14 @@ func NewNodeDb(
 	}
 
 	return &nodeDb, nil
+}
+
+func (nodeDb *NodeDb) SetPool(pool string) {
+	nodeDb.pool = pool
+}
+
+func (nodeDb *NodeDb) GetPool() string {
+	return nodeDb.pool
 }
 
 func makeIndexedResourceResolution(indexedResourceTypes []configuration.ResourceType, resourceListFactory *internaltypes.ResourceListFactory) ([]int64, error) {
@@ -1022,11 +1037,26 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 // BindJobToNode returns a copy of node with job bound to it.
 func (nodeDb *NodeDb) BindJobToNode(node *internaltypes.Node, job *jobdb.Job, priority int32) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
-	if err := node.AddJob(job, priorityCutoffFor(job, priority)); err != nil {
+	if err := nodeDb.bindJobToNodeInPlace(node, job, priority); err != nil {
 		return nil, err
 	}
-	nodeDb.scheduledAtPriorityByJobId[job.Id()] = priority
 	return node, nil
+}
+
+// BindJobToNode returns a copy of node with job bound to it.
+func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.Job, priority int32) error {
+	if nodeDb.pool != "" && !context.IsHomeJob(job, nodeDb.pool) {
+		// Cross-pool ("away") jobs are accounted at CrossPoolPriority so any home job can
+		// urgency-preempt them first, regardless of their configured away priority.
+		// A cross-pool NodeDb leaves pool unset to opt out of this (legacy behaviour).
+		priority = internaltypes.CrossPoolPriority
+	}
+	err := node.AddJob(job, priorityCutoffFor(job, priority))
+	if err != nil {
+		return err
+	}
+	nodeDb.scheduledAtPriorityByJobId[job.Id()] = priority
+	return nil
 }
 
 // EvictJobsFromNode returns a copy of node with all elements of jobs for which jobFilter returns
