@@ -187,19 +187,17 @@ func TestJobStateReporter_FailedPod_DebugMessage(t *testing.T) {
 			status:               v1.PodStatus{Phase: v1.PodFailed},
 			expectedDebugMessage: "Image pull has failed",
 		},
-		"absent when the main container started and terminated": {
-			status: v1.PodStatus{
-				Phase: v1.PodFailed,
-				ContainerStatuses: []v1.ContainerStatus{
-					{
-						Name: "main",
-						State: v1.ContainerState{
-							Terminated: &v1.ContainerStateTerminated{ExitCode: 1, Reason: "Error"},
-						},
-					},
-				},
-			},
+		"absent when the main container failed quickly": {
+			status:               failedAfterRunningFor(30 * time.Second),
 			expectedDebugMessage: "",
+		},
+		"recorded when the main container ran past the configured runtime": {
+			status:               failedAfterRunningFor(90 * time.Second),
+			expectedDebugMessage: "Image pull has failed",
+		},
+		"recorded when the main container ran for exactly the configured runtime": {
+			status:               failedAfterRunningFor(time.Minute),
+			expectedDebugMessage: "Image pull has failed",
 		},
 	}
 
@@ -228,6 +226,27 @@ func TestJobStateReporter_FailedPod_DebugMessage(t *testing.T) {
 	}
 }
 
+// The reporter under test is configured with a one minute threshold.
+func failedAfterRunningFor(ran time.Duration) v1.PodStatus {
+	startedAt := time.Now().Add(-ran)
+	return v1.PodStatus{
+		Phase: v1.PodFailed,
+		ContainerStatuses: []v1.ContainerStatus{
+			{
+				Name: "main",
+				State: v1.ContainerState{
+					Terminated: &v1.ContainerStateTerminated{
+						ExitCode:   1,
+						Reason:     "Error",
+						StartedAt:  metav1.NewTime(startedAt),
+						FinishedAt: metav1.NewTime(startedAt.Add(ran)),
+					},
+				},
+			},
+		},
+	}
+}
+
 func extractPodError(t *testing.T, message reporter.EventMessage) *armadaevents.PodError {
 	t.Helper()
 	require.Len(t, message.Event.Events, 1)
@@ -250,7 +269,8 @@ func setUpJobStateReporterTestWithClassifier(
 ) (*JobStateReporter, *stubIssueHandler, *mocks.FakeEventReporter, *fakecontext.SyncFakeClusterContext) {
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
 	eventReporter := mocks.NewFakeEventReporter()
-	jobStateReporter, err := NewJobStateReporter(fakeClusterContext, eventReporter, issueHandler, classifier)
+	jobStateReporter, err := NewJobStateReporter(fakeClusterContext, eventReporter, issueHandler, classifier,
+		reporter.NewDebugMessageRenderer(fakeClusterContext, testDebugConfig()), time.Minute)
 	require.NoError(t, err)
 	return jobStateReporter, issueHandler, eventReporter, fakeClusterContext
 }
