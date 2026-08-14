@@ -482,7 +482,7 @@ func (nodeDb *NodeDb) preemptSiblingGangJobs(txn *memdb.Txn, preemptedJobs []*Jo
 			}
 
 			node = node.DeepCopyNilKeys()
-			if err := nodeDb.unbindJobFromNodeInPlace(siblingJctx.Job, node); err != nil {
+			if err := node.RemoveJob(siblingJctx.Job); err != nil {
 				return nil, err
 			}
 			if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
