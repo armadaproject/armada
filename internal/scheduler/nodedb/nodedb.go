@@ -63,17 +63,10 @@ func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs [
 			priorityClass := job.PriorityClass()
 			priority = priorityClass.Priority
 		}
-		if nodeDb.pool != "" && !context.IsHomeJob(job, nodeDb.pool) {
-			// Cross-pool ("away") jobs are accounted at CrossPoolPriority so any home job can
-			// urgency-preempt them first, regardless of their configured away priority.
-			// A cross-pool NodeDb leaves pool unset to opt out of this (legacy behaviour).
-			priority = internaltypes.CrossPoolPriority
-		}
 
-		if err := entry.AddJob(job, priorityCutoffFor(job, priority)); err != nil {
+		if err := nodeDb.bindJobToNodeInPlace(entry, job, priority); err != nil {
 			return err
 		}
-		nodeDb.scheduledAtPriorityByJobId[job.Id()] = priority
 	}
 	if err := nodeDb.UpsertWithTxn(txn, entry); err != nil {
 		return err
@@ -1044,11 +1037,26 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 // BindJobToNode returns a copy of node with job bound to it.
 func (nodeDb *NodeDb) BindJobToNode(node *internaltypes.Node, job *jobdb.Job, priority int32) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
-	if err := node.AddJob(job, priorityCutoffFor(job, priority)); err != nil {
+	if err := nodeDb.bindJobToNodeInPlace(node, job, priority); err != nil {
 		return nil, err
 	}
-	nodeDb.scheduledAtPriorityByJobId[job.Id()] = priority
 	return node, nil
+}
+
+// BindJobToNode returns a copy of node with job bound to it.
+func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.Job, priority int32) error {
+	if nodeDb.pool != "" && !context.IsHomeJob(job, nodeDb.pool) {
+		// Cross-pool ("away") jobs are accounted at CrossPoolPriority so any home job can
+		// urgency-preempt them first, regardless of their configured away priority.
+		// A cross-pool NodeDb leaves pool unset to opt out of this (legacy behaviour).
+		priority = internaltypes.CrossPoolPriority
+	}
+	err := node.AddJob(job, priorityCutoffFor(job, priority))
+	if err != nil {
+		return err
+	}
+	nodeDb.scheduledAtPriorityByJobId[job.Id()] = priority
+	return nil
 }
 
 // EvictJobsFromNode returns a copy of node with all elements of jobs for which jobFilter returns
