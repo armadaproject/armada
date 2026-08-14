@@ -723,10 +723,9 @@ type QueueCandidateGangIteratorItem struct {
 	queueBudget float64
 	// The size of top most gang
 	// Used to determine which job is larger
-	itemSize                  float64
-	priorityClassPriority     int32
-	schedulingPriority        int32
-	compareSchedulingPriority int32
+	itemSize              float64
+	priorityClassPriority int32
+	schedulingPriority    int32
 	// away is true when this item's gang is a cross-pool ("away") gang for the pool being scheduled.
 	away bool
 	// The index of the item in the heap.

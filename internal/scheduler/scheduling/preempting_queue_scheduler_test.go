@@ -3583,7 +3583,7 @@ func TestPreemptingQueueScheduler_CrossPoolPreemptedFirst(t *testing.T) {
 				homeJobDemand = homeJobDemand.Add(j.AllResourceRequirements())
 			}
 
-			sctx := schedulingcontext.NewSchedulingContext(homePool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), totalResources)
+			sctx := schedulingcontext.NewSchedulingContext(homePool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), nil, totalResources)
 			// Home queue for the challengers.
 			require.NoError(t, sctx.AddQueueSchedulingContext(
 				"A", 1, 1,

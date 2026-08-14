@@ -701,7 +701,7 @@ func TestQueueCandidateGangIteratorPQ_HomeBeforeAway(t *testing.T) {
 
 	// With the flag on, home sorts before away regardless of cost or priority-class priority.
 	pq := QueueCandidateGangIteratorPQ{
-		considerPriority:          true,
+		compareSchedulingPriority: true,
 		preemptCrossPoolJobsFirst: true,
 		items:                     []*QueueCandidateGangIteratorItem{home, away},
 	}
@@ -778,7 +778,7 @@ func TestQueueScheduler_PreemptedJobsGetMarkedInSctx(t *testing.T) {
 		"B": jobRepo.GetJobIterator("B"),
 	}
 
-	sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, true, config.EnablePreferLargeJobOrdering, config.MaxQueueLookback, false, 0, clock.RealClock{})
+	sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, true, config.EnablePreferLargeJobOrdering, true, config.MaxQueueLookback, false, 0, clock.RealClock{})
 	require.NoError(t, err)
 
 	result, err := sch.Schedule(armadacontext.Background())
@@ -920,7 +920,7 @@ func TestQueueScheduler_PreemptionRateLimit(t *testing.T) {
 				"B": NewMultiJobsIterator(evictedRepoB, newRepo.GetJobIterator("B")),
 			}
 
-			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, true, config.EnablePreferLargeJobOrdering, config.MaxQueueLookback, false, 0, clock.RealClock{})
+			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, true, config.EnablePreferLargeJobOrdering, true, config.MaxQueueLookback, false, 0, clock.RealClock{})
 			require.NoError(t, err)
 
 			result, err := sch.Schedule(armadacontext.Background())
@@ -967,7 +967,7 @@ func TestQueueScheduler_SkipsPreemptedCandidate(t *testing.T) {
 	jobRepo.EnqueueMany(jctxs)
 	jobIteratorByQueue := map[string]JobContextIterator{"A": jobRepo.GetJobIterator("A")}
 
-	sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, config.EnablePreferLargeJobOrdering, config.MaxQueueLookback, false, 0, clock.RealClock{})
+	sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, config.EnablePreferLargeJobOrdering, true, config.MaxQueueLookback, false, 0, clock.RealClock{})
 	require.NoError(t, err)
 
 	result, err := sch.Schedule(armadacontext.Background())
