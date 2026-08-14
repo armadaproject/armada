@@ -447,6 +447,7 @@ func createSctx(t *testing.T, totalResource internaltypes.ResourceList, queues [
 		testfixtures.TestPool,
 		fairnessCostProvider,
 		nil,
+		nil,
 		totalResource,
 	)
 	for _, q := range queues {
@@ -518,7 +519,7 @@ func assertExpectedSctxUpdates(t *testing.T, sctx *context.SchedulingContext, gc
 	// Assert preempted jobs marked as preempted
 	for _, preemptedJctx := range preemptedJctxs {
 		preemptedJob := preemptedJctx.Job
-		assert.Contains(t, scheduledJobIds, preemptedJctx.PreemptingJob.Id())
+		assert.Contains(t, scheduledJobIds, preemptedJctx.GetPreemptingJob().Id())
 		assert.NotEmpty(t, preemptedJctx.PreemptionDescription)
 		assert.Equal(t, context.PreemptedWithOptimiserPreemption, preemptedJctx.PreemptionType)
 

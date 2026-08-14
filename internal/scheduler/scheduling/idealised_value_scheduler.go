@@ -185,6 +185,10 @@ func (s staticRequirementsIgnoringIterator) OnlyYieldEvicted() {
 	s.iter.OnlyYieldEvicted()
 }
 
+func (s staticRequirementsIgnoringIterator) ResumeNonEvicted() {
+	s.iter.ResumeNonEvicted()
+}
+
 func (s staticRequirementsIgnoringIterator) Next() (*schedulercontext.JobSchedulingContext, error) {
 	next, err := s.iter.Next()
 	if err != nil {

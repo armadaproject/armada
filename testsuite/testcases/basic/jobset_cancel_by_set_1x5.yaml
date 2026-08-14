@@ -1,22 +1,21 @@
-## POST /v1/job/reprioritize
-## Submit a low-priority job, reprioritize it upward, confirm a JobReprioritizedEvent fires
-## 1x5
+## POST/v1/jobset/cancel
+## Submit a jobset, cancel it, verify all jobs receive cancelled 
 
 numBatches: 1
-batchSize: 10
+batchSize: 5
 queue: e2e-test-queue
-jobSetId: reprioritize_by_id
+jobSetId: jobset_cancel_by_filter
 jobs:
-  - namespace: default
-    priority: 0
+  - priority: 0
+    namespace: personal-anonymous
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
       containers:
-        - name: reprioritize-by-id
+        - name: jobset-cancel
           imagePullPolicy: IfNotPresent
           image: alpine:3.20.0
-          args:
+          args: 
             - "sleep"
             - "600s"
           resources:
@@ -27,11 +26,9 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-### Reprioritize the job upward
-action: ACTION_REPRIORITIZE
-selection: SELECTION_BY_IDS
-newPriority: 100
+cancelSet:
+  request:
 timeout: "100s"
 expectedEvents:
   - submitted:
-  - reprioritized:
+  - cancelled:

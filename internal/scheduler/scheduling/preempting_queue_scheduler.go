@@ -598,12 +598,12 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 	var candidateGangIterator CandidateGangIterator
 	var err error
 	if sch.marketDriven {
-		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, sctx, gangItByQueue, sch.preemptCrossPoolJobsFirst)
+		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, qr, gangItByQueue, sch.preemptCrossPoolJobsFirst)
 		if err != nil {
 			return err
 		}
 	} else {
-		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering, sch.preemptCrossPoolJobsFirst)
+		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, qr, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering, sch.preemptCrossPoolJobsFirst)
 		if err != nil {
 			return err
 		}
@@ -624,7 +624,8 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 				i++
 			}
 			q := qr.queues[gctx.Queue]
-			q.allocation.Add(gctx.TotalResourceRequests)
+			q.allocation = q.allocation.Add(gctx.TotalResourceRequests)
+			qr.queues[gctx.Queue] = q
 		}
 		if err := candidateGangIterator.Clear(); err != nil {
 			return err
@@ -708,7 +709,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 	inMemoryJobRepo *InMemoryJobRepository,
 	jobRepo jobdb.JobRepository,
 	skipUnsuccessfulSchedulingKeyCheck bool,
-	considerPriorityCLassPriority bool,
+	compareSchedulingPriority bool,
 ) (*SchedulingResult, error) {
 	sortOrder := jobdb.FairShareOrder
 	if sch.marketDriven {
@@ -744,7 +745,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 		sch.nodeDb,
 		jobIteratorByQueue,
 		skipUnsuccessfulSchedulingKeyCheck,
-		considerPriorityCLassPriority,
+		compareSchedulingPriority,
 		sch.preferLargeJobOrdering,
 		sch.preemptCrossPoolJobsFirst,
 		sch.maxQueueLookBack,

@@ -130,7 +130,7 @@ func (c *JobSetEventsInstructionConverter) dbOperationsFromEventSequence(es *arm
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
 			*armadaevents.EventSequence_Event_JobRunCancelled,
-			*armadaevents.EventSequence_Event_JobCancelledDebugInfo,
+			*armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			// These events can all be safely ignored
 			log.Debugf("Ignoring event type %T", event)
@@ -469,6 +469,8 @@ func (c *ControlPlaneEventsInstructionConverter) dbOperationFromControlPlaneEven
 		operations, err = c.handleExecutorSettingsUpsert(event.GetExecutorSettingsUpsert(), eventTime)
 	case *controlplaneevents.Event_ExecutorSettingsDelete:
 		operations, err = c.handleExecutorSettingsDelete(event.GetExecutorSettingsDelete())
+	case *controlplaneevents.Event_ExecutorDelete:
+		operations, err = c.handleExecutorDelete(event.GetExecutorDelete())
 	case *controlplaneevents.Event_PreemptOnExecutor:
 		operations, err = c.handlePreemptOnExecutor(event.GetPreemptOnExecutor())
 	case *controlplaneevents.Event_CancelOnNode:
@@ -516,6 +518,17 @@ func (c *ControlPlaneEventsInstructionConverter) handleExecutorSettingsDelete(de
 	}, nil
 }
 
+func (c *ControlPlaneEventsInstructionConverter) handleExecutorDelete(delete *controlplaneevents.ExecutorDelete) ([]DbOperation, error) {
+	return []DbOperation{
+		DeleteExecutor{
+			delete.Name: &ExecutorDelete{
+				ExecutorID: delete.Name,
+				Requestor:  delete.Requestor,
+			},
+		},
+	}, nil
+}
+
 func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnExecutor(preempt *controlplaneevents.PreemptOnExecutor) ([]DbOperation, error) {
 	return []DbOperation{
 		PreemptExecutor{
@@ -540,6 +553,7 @@ func (c *ControlPlaneEventsInstructionConverter) handleCancelOnNode(cancel *cont
 				Executor:        cancel.Executor,
 				Queues:          cancel.Queues,
 				PriorityClasses: cancel.PriorityClasses,
+				Requestor:       cancel.Requestor,
 			},
 		},
 	}, nil
@@ -569,6 +583,7 @@ func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnNode(preempt *co
 				Executor:        preempt.Executor,
 				Queues:          preempt.Queues,
 				PriorityClasses: preempt.PriorityClasses,
+				Requestor:       preempt.Requestor,
 			},
 		},
 	}, nil

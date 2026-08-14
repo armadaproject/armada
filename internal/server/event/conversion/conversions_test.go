@@ -359,6 +359,41 @@ func TestConvertJobReconciliationError(t *testing.T) {
 	assert.Empty(t, apiEvents)
 }
 
+func TestConvertRetryableJobError(t *testing.T) {
+	retryableError := &armadaevents.Error{
+		Terminal:           false,
+		FailureCategory:    "oom",
+		FailureSubcategory: "kernel",
+		RetryPolicyName:    "oom-grow",
+		Reason: &armadaevents.Error_PodError{
+			PodError: &armadaevents.PodError{
+				Message:          "out of memory",
+				KubernetesReason: armadaevents.KubernetesReason_OOM,
+			},
+		},
+	}
+
+	retryableJobError := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobErrors{
+			JobErrors: &armadaevents.JobErrors{
+				JobId:  jobId,
+				Errors: []*armadaevents.Error{retryableError},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(retryableJobError))
+	assert.NoError(t, err)
+	assert.Len(t, apiEvents, 1)
+	failed := apiEvents[0].GetFailed()
+	assert.NotNil(t, failed)
+	assert.True(t, failed.Retryable, "a non-terminal error must convert to a retryable failed event")
+	assert.Equal(t, "oom", failed.FailureCategory)
+	assert.Equal(t, "kernel", failed.FailureSubcategory)
+	assert.Equal(t, "out of memory", failed.Reason)
+}
+
 func TestConvertPodLeaseReturned(t *testing.T) {
 	leaseReturned := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,
@@ -459,6 +494,11 @@ func TestConvertJobError(t *testing.T) {
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
+						// A policy-terminated job's terminal MaxRunsExceeded error
+						// carries the category of the failure that tripped the
+						// policy, and it must survive conversion.
+						FailureCategory:    "user_error",
+						FailureSubcategory: "exit_1",
 						Reason: &armadaevents.Error_MaxRunsExceeded{
 							MaxRunsExceeded: &armadaevents.MaxRunsExceeded{
 								Message: "Max runs",
@@ -501,12 +541,14 @@ func TestConvertJobError(t *testing.T) {
 		{
 			Events: &api.EventMessage_Failed{
 				Failed: &api.JobFailedEvent{
-					JobId:    jobId,
-					Reason:   "Max runs",
-					JobSetId: jobSetName,
-					Queue:    queue,
-					Created:  protoutil.ToTimestamp(baseTime),
-					Cause:    api.Cause_Error,
+					JobId:              jobId,
+					Reason:             "Max runs",
+					JobSetId:           jobSetName,
+					Queue:              queue,
+					Created:            protoutil.ToTimestamp(baseTime),
+					Cause:              api.Cause_Error,
+					FailureCategory:    "user_error",
+					FailureSubcategory: "exit_1",
 				},
 			},
 		},

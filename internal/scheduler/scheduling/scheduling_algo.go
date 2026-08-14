@@ -17,6 +17,7 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
@@ -52,7 +53,10 @@ type FairSchedulingAlgo struct {
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
 	// Per-queue job scheduling rate-limiters.
-	limiterByQueue               map[string]*rate.Limiter
+	limiterByQueue map[string]*rate.Limiter
+	// Per-pool fairshare preemption rate-limiters
+	// No rate limiter for a pool means no preemption limit
+	preemptionLimiterByPool      map[string]*rate.Limiter
 	lastOptimiserRoundTimeByPool map[string]time.Time
 	// Max amount of time each scheduling round is allowed to take (hard timeout).
 	maxSchedulingDuration time.Duration
@@ -88,6 +92,7 @@ func NewFairSchedulingAlgo(
 		schedulingContextRepository:  schedulingContextRepository,
 		limiter:                      rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		limiterByQueue:               make(map[string]*rate.Limiter),
+		preemptionLimiterByPool:      initialisePerPoolRateLimiters(config.Pools),
 		lastOptimiserRoundTimeByPool: make(map[string]time.Time, len(config.Pools)),
 		maxSchedulingDuration:        maxSchedulingDuration,
 		clock:                        clock.RealClock{},
@@ -499,9 +504,12 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}
 
 	nodePools := append(currentPool.AwayPoolNames(), currentPool.Name)
+	inUsePriorityClasses := l.buildInUsePriorityClasses(jobSchedulingInfo.inUsePriorityClasses)
+	poolNodes := armadaslices.Filter(nodes, func(node *internaltypes.Node) bool {
+		return slices.Contains(nodePools, node.GetPool())
+	})
 
-	nodeDb, err := l.constructNodeDb(currentPool, currentPoolJobs, otherPoolsJobs,
-		armadaslices.Filter(nodes, func(node *internaltypes.Node) bool { return slices.Contains(nodePools, node.GetPool()) }))
+	nodeDb, err := l.constructNodeDb(inUsePriorityClasses, currentPool, currentPoolJobs, otherPoolsJobs, poolNodes)
 	if err != nil {
 		return nil, err
 	}
@@ -571,6 +579,7 @@ type jobSchedulingInfo struct {
 	allocatedByQueueAndPriorityClass     map[string]map[string]internaltypes.ResourceList
 	awayAllocatedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 	shortJobPenaltyByQueue               map[string]internaltypes.ResourceList
+	inUsePriorityClasses                 map[string]bool
 }
 
 func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
@@ -582,6 +591,7 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	awayAllocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
+	inUsePriorityClasses := make(map[string]bool)
 
 	for _, job := range jobs {
 		queue, present := queues[job.Queue()]
@@ -593,6 +603,8 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		if job.InTerminalState() {
 			continue
 		}
+
+		inUsePriorityClasses[job.PriorityClassName()] = true
 
 		// Mark a queue being active for a given pool.  A queue is defined as being active if it has a job running
 		// on a pool or if a queued job is eligible for that pool
@@ -675,12 +687,27 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		allocatedByQueueAndPriorityClass:     allocatedByQueueAndPriorityClass,
 		awayAllocatedByQueueAndPriorityClass: awayAllocatedByQueueAndPriorityClass,
 		shortJobPenaltyByQueue:               shortJobPenaltyByQueue,
+		inUsePriorityClasses:                 inUsePriorityClasses,
 	}, nil
 }
 
-func (l *FairSchedulingAlgo) constructNodeDb(poolConfig configuration.PoolConfig, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
+func (l *FairSchedulingAlgo) buildInUsePriorityClasses(inUse map[string]bool) map[string]types.PriorityClass {
+	cfg := l.schedulingConfig.PriorityClasses
+	result := make(map[string]types.PriorityClass, len(inUse)+1)
+	if def, ok := cfg[l.schedulingConfig.DefaultPriorityClassName]; ok {
+		result[l.schedulingConfig.DefaultPriorityClassName] = def
+	}
+	for name := range inUse {
+		if pc, ok := cfg[name]; ok {
+			result[name] = pc
+		}
+	}
+	return result
+}
+
+func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]types.PriorityClass, poolConfig configuration.PoolConfig, currentPoolJobs []*jobdb.Job, otherPoolsJobs []*jobdb.Job, nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
-		l.schedulingConfig.PriorityClasses,
+		priorityClasses,
 		l.schedulingConfig.IndexedResources,
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,
@@ -716,7 +743,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 	if err != nil {
 		return nil, err
 	}
-	sctx := schedulercontext.NewSchedulingContext(pool, fairnessCostProvider, l.limiter, totalCapacity)
+	sctx := schedulercontext.NewSchedulingContext(pool, fairnessCostProvider, l.limiter, l.preemptionLimiterByPool[pool], totalCapacity)
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalCapacity, l.schedulingConfig, maps.Values(queues))
 
 	for _, queue := range queues {
@@ -787,6 +814,20 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 	sctx.UpdateFairShares()
 
 	return sctx, nil
+}
+
+func initialisePerPoolRateLimiters(pools []configuration.PoolConfig) map[string]*rate.Limiter {
+	limiterByPool := make(map[string]*rate.Limiter, len(pools))
+	for _, pool := range pools {
+		if pool.FairsharePreemptionRateLimit == nil {
+			continue
+		}
+		limiterByPool[pool.Name] = rate.NewLimiter(
+			rate.Limit(pool.FairsharePreemptionRateLimit.MaximumRate),
+			pool.FairsharePreemptionRateLimit.MaximumBurst,
+		)
+	}
+	return limiterByPool
 }
 
 // SchedulePool schedules jobs on nodes that belong to a given pool.

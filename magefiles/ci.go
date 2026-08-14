@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -23,6 +24,54 @@ func createQueue() error {
 	return nil
 }
 
+// createRetryPolicyAndQueue smoke-tests retry-policy creation and queue
+// attachment against a live server: it creates a policy and a queue bound to
+// it. Driving a retry end to end additionally needs the executor to delete the
+// failed pod so the retry can reuse its name, so no testcase submits to this
+// queue yet.
+func createRetryPolicyAndQueue() error {
+	policyPath, err := writeRetryPolicyFile()
+	if err != nil {
+		return fmt.Errorf("failed to stage retry policy file: %w", err)
+	}
+	defer os.Remove(policyPath)
+
+	out, err := runArmadaCtl("create", "retry-policy", "-f", policyPath)
+	if err != nil && !strings.Contains(out, "already exists") {
+		fmt.Println(out)
+		return err
+	}
+
+	out, err = runArmadaCtl("create", "queue", "e2e-retry-queue", "--retry-policies", "e2e-retry-policy")
+	if err != nil && !strings.Contains(out, "already exists") {
+		fmt.Println(out)
+		return err
+	}
+
+	return nil
+}
+
+func writeRetryPolicyFile() (string, error) {
+	const policy = `apiVersion: armadaproject.io/v1beta1
+kind: RetryPolicy
+name: e2e-retry-policy
+retryLimit: 2
+defaultAction: Fail
+rules:
+  - action: Retry
+    onCategory: "user_error"
+`
+	f, err := os.CreateTemp("", "retry-policy-*.yaml")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	if _, err := f.WriteString(policy); err != nil {
+		return "", err
+	}
+	return f.Name(), nil
+}
+
 // Build images, spin up a test environment, and run the integration tests against it.
 func TestSuite() error {
 	mg.Deps(CheckForArmadaRunning)
@@ -34,20 +83,42 @@ func TestSuite() error {
 	if os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT") == "" {
 		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
 	}
+	timeTakenTestSuite := time.Now()
 
-	timeTaken := time.Now()
-	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
-		"--tests", "testsuite/testcases/basic/*,testsuite/testcases/categorization/*",
-		"--junit", "junit.xml",
-		"--config", "_local/.armadactl.yaml",
-	)
-	if err2 != nil {
-		fmt.Println(out)
-		return err2
+	suites := []string{
+		"basic", "categorization", "preemption", "reprioritization", "queue",
+		"testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
+		"testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
 	}
-	fmt.Printf("(Real) Time to run tests: %s\n\n", time.Since(timeTaken))
 
-	fmt.Println(out)
+	for i, suite := range suites {
+		var tests []string
+		label := suite
+		if info, err := os.Stat(suite); err == nil && !info.IsDir() {
+			tests = []string{suite}
+			label = strings.TrimSuffix(filepath.Base(suite), filepath.Ext(suite))
+		} else {
+			tests = []string{fmt.Sprintf("testsuite/testcases/%s/*", suite)}
+		}
+
+		timeTaken := time.Now()
+		out, err := goOutput("run", "cmd/testsuite/main.go", "test",
+			"--tests", strings.Join(tests, ","),
+			"--junit", fmt.Sprintf("junit-%s.xml", label),
+			"--config", "_local/.armadactl.yaml",
+		)
+		fmt.Println(out)
+		if err != nil {
+			return err
+		}
+		verb := "Time"
+		if i > 0 {
+			verb = "Additional time"
+		}
+		fmt.Printf("(Real) %s to run %s tests: %s\n\n", verb, suite, time.Since(timeTaken))
+	}
+
+	fmt.Printf("(Real) Total time to run all tests: %s\n\n", time.Since(timeTakenTestSuite))
 	return nil
 }
 
@@ -58,6 +129,7 @@ func CheckForArmadaRunning() error {
 	// TODO Make a good check to confirm the system is ready, such as seeing armadactl get executors return a value
 	mg.Deps(CheckSchedulerReady)
 	mg.Deps(createQueue)
+	mg.Deps(createRetryPolicyAndQueue)
 
 	// Set high to take compile time into account
 	timeout := time.After(2 * time.Minute)

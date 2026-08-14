@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
@@ -171,6 +173,13 @@ func (it *MarketBasedCandidateGangIterator) OnlyYieldEvicted() error {
 	}
 	it.onlyYieldEvicted = true
 	return nil
+}
+
+// ResumeNonEvicted is not supported for market-driven scheduling. The preemption rate limit that
+// drives the drain/resume flow is rejected at config validation for market-scheduled pools
+// (see PreemptionRateLimitWithMarketSchedulingErrorMessage), so this should never be called.
+func (it *MarketBasedCandidateGangIterator) ResumeNonEvicted() error {
+	return errors.New("ResumeNonEvicted is not supported for market-driven scheduling")
 }
 
 func (it *MarketBasedCandidateGangIterator) OnlyYieldEvictedForQueue(queue string) error {
