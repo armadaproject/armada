@@ -429,9 +429,8 @@ func (js *JobSimulator) ReprioritizedBy(newPriority uint32, reprioritizeUser str
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 			ReprioritisedJob: &armadaevents.ReprioritisedJob{
-				JobId:     js.jobId,
-				Priority:  newPriority,
-				Requestor: reprioritizeUser,
+				JobId:    js.jobId,
+				Priority: newPriority,
 			},
 		},
 	}
