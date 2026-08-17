@@ -1,16 +1,14 @@
-# Standardized override for comparing against KWOK: matches
-# _local/executor/kwok_config.yaml's values, and swaps the default
-# node shape for the same 40x p6e-gb200.36xlarge shape KWOK defaults to (see gb200Slice
-# in magefiles/kwok.go).
-# Layered on config.yaml via an extra --config flag.
+# Fake-executor side of the KWOK comparison: same node shape and limits as
+# _local/executor/kwok_config.yaml + gb200Slice. Layered on config.yaml via an extra --config.
 nodes:
   - name: "fake-node"
-    count: 40
+    count: 1440 # keep in sync with KWOK_NODE_COUNT_DEFAULT (magefiles/kwok.go) or the comparison measures node count
     allocatable:
       cpu: "144"
       memory: "960Gi"
       ephemeral-storage: "256Gi"
       pods: "3000"
+      nvidia.com/gpu: "4"
     labels:
       node.kubernetes.io/instance-type: "p6e-gb200.36xlarge"
     taints: []

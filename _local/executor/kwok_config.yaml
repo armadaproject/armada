@@ -1,11 +1,9 @@
+# Headroom overrides for KWOK perf runs. None measured as a bottleneck, concurrency tracks
+# node capacity (KWOK_NODE_COUNT).
 application:
-  # Raised from base config/executor/config.yaml's 100 to avoid capping lease-request ingestion below scheduler/node capacity.
-  maxLeasedJobs: 10000
-
-  # Raised from base config/executor/config.yaml's 10 so submit/update isn't the artificial ceiling against KWOK's apiserver.
-  submitConcurrencyLimit: 1000
-  updateConcurrencyLimit: 1000
-
+  maxLeasedJobs: 10000 # base 100; per lease-request cycle, not total concurrent
+  submitConcurrencyLimit: 1000 # base 10
+  updateConcurrencyLimit: 1000 # base 10
 task:
-  # Paired with maxLeasedJobs above: shorter ask interval limits stalled-cycle blocking.
-  jobLeaseRenewalInterval: 2s
+  jobLeaseRenewalInterval: 2s # base 5s
+  allocateSpareClusterCapacityInterval: 1s # base 5s; keep <= jobLeaseRenewalInterval

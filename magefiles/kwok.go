@@ -22,28 +22,24 @@ const (
 	KWOK_NODE_ANNOTATION    = "kwok.x-k8s.io/node"
 	KWOK_NODE_ANNOTATION_OK = "fake"
 
-	// KWOK_NODE_COUNT_DEFAULT is the local dev/CI tier: enough GB200-shaped nodes for a
-	// small-scale concurrency check (thousands of concurrent jobs, real contention on the
-	// lease/submit path) without the cost of standing up thousands of nodes on a dev machine.
-	KWOK_NODE_COUNT_DEFAULT = 40
+	// One GB200 NVL72 rack (72 GPU / 2,592 vCPU / 17,280 GiB) = 18 p6e-gb200.36xlarge slices.
+	NODES_PER_GB200_RACK = 18
+
+	// 80 racks. Sized so node capacity isn't the concurrency ceiling; override with KWOK_NODE_COUNT.
+	KWOK_NODE_COUNT_DEFAULT = 80 * NODES_PER_GB200_RACK
 )
 
 // NodeProfile describes one simulated node shape, modeled on a real hardware SKU so node
-// count maps to a real deployable unit. This is the reusable piece: multiple shapes can
-// coexist on one cluster, and the same struct/plumbing can later target a real EKS cluster
-// instead of kind.
+// count maps to a real deployable unit. Multiple shapes can coexist on one cluster.
 type NodeProfile struct {
 	Name         string // e.g. "gb200-slice", "generic"
 	CPU          string
 	Memory       string
-	GPUCount     int    // recorded, not yet wired to an allocatable/capacity resource
+	GPUCount     int    // advertised as nvidia.com/gpu allocatable/capacity when > 0
 	InstanceType string // node.kubernetes.io/instance-type label value
 }
 
-// gb200Slice models one AWS p6e-gb200.36xlarge instance - one GB200 NVL72 rack
-// (u-p6e-gb200x72 UltraServer: 72 GPU / 2,592 vCPU / 17,280 GiB) sliced into 18
-// instance-sized nodes, which is how every real deployment (cloud or on-prem) actually
-// exposes this hardware to Kubernetes.
+// One AWS p6e-gb200.36xlarge, i.e. 1/18th of an NVL72 rack.
 var gb200Slice = NodeProfile{
 	Name:         "gb200-slice",
 	CPU:          "144",
@@ -151,6 +147,23 @@ func kwokDeleteFakeNodes() error {
 // parameterized by index so multiple profiles/counts can coexist on one cluster.
 func buildFakeNode(profile NodeProfile, index int) *v1.Node {
 	name := fmt.Sprintf("kwok-node-%s-%d", profile.Name, index)
+
+	// Called twice below so Allocatable and Capacity get separate maps rather than aliasing one.
+	resources := func() v1.ResourceList {
+		rl := v1.ResourceList{
+			v1.ResourceCPU:              resource.MustParse(profile.CPU),
+			v1.ResourceMemory:           resource.MustParse(profile.Memory),
+			v1.ResourceEphemeralStorage: resource.MustParse("256Gi"),
+			v1.ResourcePods:             resource.MustParse("3000"),
+		}
+		// Omitted rather than set to 0 when absent: nvidia.com/gpu is an indexedResource
+		// (config/scheduler/config.yaml), so an explicit zero would index CPU-only nodes.
+		if profile.GPUCount > 0 {
+			rl["nvidia.com/gpu"] = resource.MustParse(strconv.Itoa(profile.GPUCount))
+		}
+		return rl
+	}
+
 	return &v1.Node{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -183,18 +196,8 @@ func buildFakeNode(profile NodeProfile, index int) *v1.Node {
 			},
 		},
 		Status: v1.NodeStatus{
-			Allocatable: v1.ResourceList{
-				v1.ResourceCPU:              resource.MustParse(profile.CPU),
-				v1.ResourceMemory:           resource.MustParse(profile.Memory),
-				v1.ResourceEphemeralStorage: resource.MustParse("256Gi"),
-				v1.ResourcePods:             resource.MustParse("3000"),
-			},
-			Capacity: v1.ResourceList{
-				v1.ResourceCPU:              resource.MustParse(profile.CPU),
-				v1.ResourceMemory:           resource.MustParse(profile.Memory),
-				v1.ResourceEphemeralStorage: resource.MustParse("256Gi"),
-				v1.ResourcePods:             resource.MustParse("3000"),
-			},
+			Allocatable: resources(),
+			Capacity:    resources(),
 			NodeInfo: v1.NodeSystemInfo{
 				Architecture:     "amd64",
 				KubeProxyVersion: "fake",
