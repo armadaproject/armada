@@ -180,21 +180,26 @@ func KindTeardown() {
 	mg.Deps(kindTeardown)
 }
 
-// Setup KWOK all-in-one cluster and wait for it to be ready
+// Join KWOK-simulated fake nodes into the existing kind cluster. Requires kind to already be
+// running (mage kind).
 func Kwok() {
 	timeTaken := time.Now()
+	mg.Deps(kindCheck)
 	mg.Deps(kwokCheck)
-	mg.Deps(kwokInitCluster)
-	mg.Deps(kwokApplyNodes)
-	mg.Deps(kwokApplyManifests)
+	mg.Deps(kwokApplyStageCRD)
+	mg.Deps(kwokApplyStages)
+	mg.Deps(kwokControllerRun)
+	mg.Deps(kwokApplyFakeNodes)
 	mg.Deps(kwokWaitUntilReady)
-	fmt.Println("Time to setup kwok:", time.Since(timeTaken))
+	fmt.Println("Time to add kwok nodes to kind:", time.Since(timeTaken))
 }
 
-// Teardown KWOK cluster
+// Remove KWOK-simulated fake nodes and stop the kwok-controller. Leaves kind's own real
+// nodes/cluster untouched.
 func KwokTeardown() {
 	mg.Deps(kwokCheck)
-	mg.Deps(kwokTeardown)
+	mg.Deps(kwokControllerTeardown)
+	mg.Deps(kwokDeleteFakeNodes)
 }
 
 // Generate scheduler SQL.

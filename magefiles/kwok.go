@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,96 +16,141 @@ import (
 )
 
 const (
-	KWOK_IMAGE          = "registry.k8s.io/kwok/cluster:v0.7.0-k8s.v1.28.15" // from _local/kwok/cluster.yaml
-	KWOK_CONTAINER_NAME = "armada-kwok"
-	KWOK_PORT           = "8888" // from _local/kwok/cluster.yaml; avoids colliding with Armada's own 8080-8084/9000-9008 ports
-	KWOK_KUBECONFIG     = ".kube/kwok/config"
-	KWOK_NODE_COUNT     = 500 // matches internal/executor/fake/context/context.go's DefaultNodeSpec
+	KWOK_CONTROLLER_IMAGE   = "registry.k8s.io/kwok/kwok:v0.7.0"
+	KWOK_CONTROLLER_NAME    = "armada-kwok-controller"
+	KWOK_CONTEXT            = "kind-" + KIND_NAME
+	KWOK_NODE_ANNOTATION    = "kwok.x-k8s.io/node"
+	KWOK_NODE_ANNOTATION_OK = "fake"
+
+	// KWOK_NODE_COUNT_DEFAULT is the local dev/CI tier: enough GB200-shaped nodes for a
+	// small-scale concurrency check (thousands of concurrent jobs, real contention on the
+	// lease/submit path) without the cost of standing up thousands of nodes on a dev machine.
+	KWOK_NODE_COUNT_DEFAULT = 40
 )
+
+// NodeProfile describes one simulated node shape, modeled on a real hardware SKU so node
+// count maps to a real deployable unit. This is the reusable piece: multiple shapes can
+// coexist on one cluster, and the same struct/plumbing can later target a real EKS cluster
+// instead of kind.
+type NodeProfile struct {
+	Name         string // e.g. "gb200-slice", "generic"
+	CPU          string
+	Memory       string
+	GPUCount     int    // recorded, not yet wired to an allocatable/capacity resource
+	InstanceType string // node.kubernetes.io/instance-type label value
+}
+
+// gb200Slice models one AWS p6e-gb200.36xlarge instance - one GB200 NVL72 rack
+// (u-p6e-gb200x72 UltraServer: 72 GPU / 2,592 vCPU / 17,280 GiB) sliced into 18
+// instance-sized nodes, which is how every real deployment (cloud or on-prem) actually
+// exposes this hardware to Kubernetes.
+var gb200Slice = NodeProfile{
+	Name:         "gb200-slice",
+	CPU:          "144",
+	Memory:       "960Gi",
+	GPUCount:     4,
+	InstanceType: "p6e-gb200.36xlarge",
+}
+
+// KWOK_NODE_COUNT defaults to the local dev/CI tier (KWOK_NODE_COUNT_DEFAULT) and can be
+// overridden with the KWOK_NODE_COUNT env var, without needing a code change to switch tiers.
+var KWOK_NODE_COUNT = kwokNodeCountFromEnv()
+
+func kwokNodeCountFromEnv() int {
+	if v := os.Getenv("KWOK_NODE_COUNT"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			panic(fmt.Sprintf("invalid KWOK_NODE_COUNT %q: %s", v, err))
+		}
+		return n
+	}
+	return KWOK_NODE_COUNT_DEFAULT
+}
 
 func kwokCheck() error {
 	return dockerCheck()
 }
 
-// Idempotent: no-ops if a container named armada-kwok is already running.
-func kwokInitCluster() error {
-	out, err := dockerOutput("ps", "--filter", "name=^/"+KWOK_CONTAINER_NAME+"$", "--format", "{{.Names}}")
+// kwokApplyStageCRD installs the Stage CRD (stages.kwok.x-k8s.io) into kind's cluster.
+// Out-of-cluster mode needs this as a real CRD - unlike the all-in-one image, which reads
+// Stage definitions from a local -c stages.yaml config file at container-create time.
+func kwokApplyStageCRD() error {
+	crdPath, err := filepath.Abs("_local/kwok/stage-crd.yaml")
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(out) == KWOK_CONTAINER_NAME {
-		return nil
-	}
+	return kubectlRun("apply", "-f", crdPath, "--context", KWOK_CONTEXT)
+}
 
+// kwokApplyStages applies the Stage resources (node-heartbeat plus the Pod-kind stage set
+// carried over from the all-in-one image's stages.yaml - see that file's header comment on
+// why the Pod-kind set must stay complete) as real objects in kind's cluster.
+func kwokApplyStages() error {
 	stagesPath, err := filepath.Abs("_local/kwok/stages.yaml")
 	if err != nil {
 		return err
 	}
+	return kubectlRun("apply", "-f", stagesPath, "--context", KWOK_CONTEXT)
+}
 
-	// The all-in-one image's entrypoint runs `kwokctl create cluster "$@"`, so extra args
-	// after the image name land on that command. -c/--config there is kwokctl's own flag
-	// (not kubectl apply-able - Stage isn't a CRD in the apiserver, it's a kwok-controller
-	// config construct) and gets merged into the cluster's generated kwok.yaml alongside the
-	// built-in stages, which is how we override the default pod-complete's Job-ownership
-	// requirement (see stages.yaml) for Armada's bare Pods.
-	if err := dockerRun(
+// kwokControllerRun starts the standalone kwok-controller against kind's own kubeconfig,
+// restricted to nodes carrying the kwok.x-k8s.io/node=fake annotation so kind's real nodes
+// are never touched. Idempotent: no-op if already running.
+// https://kwok.sigs.k8s.io/docs/user/kwok-out-cluster/
+func kwokControllerRun() error {
+	out, err := dockerOutput("ps", "--filter", "name=^/"+KWOK_CONTROLLER_NAME+"$", "--format", "{{.Names}}")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(out) == KWOK_CONTROLLER_NAME {
+		return nil
+	}
+
+	kubeconfigPath, err := filepath.Abs(KIND_CONFIG_INTERNAL)
+	if err != nil {
+		return err
+	}
+
+	return dockerRun(
 		"run", "--rm", "-d",
-		"-p", KWOK_PORT+":8080",
-		"--name", KWOK_CONTAINER_NAME,
-		"-v", stagesPath+":/stages.yaml:ro",
-		KWOK_IMAGE,
-		"-c", "/stages.yaml",
-	); err != nil {
-		return err
-	}
-
-	if err := kwokWriteKubeConfig(); err != nil {
-		return err
-	}
-
-	return kwokWaitForApiServer()
+		"--name", KWOK_CONTROLLER_NAME,
+		"--network", "kind",
+		"-v", kubeconfigPath+":/kubeconfig:ro",
+		KWOK_CONTROLLER_IMAGE,
+		"--kubeconfig=/kubeconfig",
+		"--manage-all-nodes=false",
+		"--manage-nodes-with-annotation-selector="+KWOK_NODE_ANNOTATION+"="+KWOK_NODE_ANNOTATION_OK,
+		// Without this, kwok-controller ignores our applied Stage CRD objects entirely and
+		// falls back to its built-in pod stages (which is why pod-ready still worked - that's
+		// the built-in default, not our stages.yaml object). Our custom pod-complete-armada
+		// stage has no built-in equivalent, so without --enable-crds=Stage it never fires and
+		// every pod sits in Running forever.
+		"--enable-crds=Stage",
+	)
 }
 
-// Write kubeconfig to disk.
-// The all-in-one image serves plain HTTP with no auth, so this is fully static.
-func kwokWriteKubeConfig() error {
-	kubeconfig := fmt.Sprintf(`apiVersion: v1
-kind: Config
-clusters:
-  - name: kwok
-    cluster:
-      server: http://127.0.0.1:%s
-contexts:
-  - name: kwok
-    context:
-      cluster: kwok
-current-context: kwok
-`, KWOK_PORT)
-
-	if err := os.MkdirAll(filepath.Dir(KWOK_KUBECONFIG), os.ModeDir|0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(KWOK_KUBECONFIG, []byte(kubeconfig), 0o644)
+// kwokControllerTeardown stops the standalone kwok-controller container. Fake nodes are real
+// objects in kind's own etcd (not disposable with the container), so this doesn't remove
+// them - see kwokDeleteFakeNodes.
+func kwokControllerTeardown() error {
+	return dockerRun("rm", "-f", KWOK_CONTROLLER_NAME)
 }
 
-// The all-in-one container needs a moment to come up; retry until the apiserver
-// answers. kubectl proxy (what the container fronts port 8080/8888 with) doesn't
-// forward /healthz at the root, so probe a real resource list instead.
-func kwokWaitForApiServer() error {
-	var lastErr error
-	for i := 0; i < 30; i++ {
-		if _, lastErr = kubectlOutput("--kubeconfig", KWOK_KUBECONFIG, "get", "--raw", "/api/v1/namespaces"); lastErr == nil {
-			return nil
-		}
-		time.Sleep(time.Second)
-	}
-	return fmt.Errorf("kwok apiserver did not become ready: %w", lastErr)
+// kwokDeleteFakeNodes removes the fake v1.Node objects from kind's cluster, leaving kind's
+// real node(s) untouched.
+func kwokDeleteFakeNodes() error {
+	return kubectlRun(
+		"delete", "nodes",
+		"-l", KWOK_NODE_ANNOTATION+"="+KWOK_NODE_ANNOTATION_OK,
+		"--context", KWOK_CONTEXT,
+		"--ignore-not-found",
+	)
 }
 
-// buildFakeNode constructs a single fake v1.Node matching _local/kwok/nodes.yaml's shape,
-// with name/hostname parameterized by index.
-func buildFakeNode(index int) *v1.Node {
-	name := fmt.Sprintf("kwok-node-%d", index)
+// buildFakeNode constructs a single fake v1.Node shaped by profile, with name/hostname
+// parameterized by index so multiple profiles/counts can coexist on one cluster.
+func buildFakeNode(profile NodeProfile, index int) *v1.Node {
+	name := fmt.Sprintf("kwok-node-%s-%d", profile.Name, index)
 	return &v1.Node{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -114,35 +160,40 @@ func buildFakeNode(index int) *v1.Node {
 			Name: name,
 			Annotations: map[string]string{
 				"node.alpha.kubernetes.io/ttl": "0",
-				"kwok.x-k8s.io/node":           "fake",
+				KWOK_NODE_ANNOTATION:           KWOK_NODE_ANNOTATION_OK,
 			},
 			Labels: map[string]string{
-				"kubernetes.io/hostname": name,
-				"kubernetes.io/os":       "linux",
-				"type":                   "kwok",
+				"kubernetes.io/hostname":           name,
+				"kubernetes.io/os":                 "linux",
+				"type":                             "kwok",
+				"node.kubernetes.io/instance-type": profile.InstanceType,
+				// kwok-controller's --manage-nodes-with-annotation-selector matches on the
+				// annotation above; this label is what lets our own kubectl -l queries
+				// (kwokWaitUntilReady, kwokDeleteFakeNodes) target only fake nodes.
+				KWOK_NODE_ANNOTATION: KWOK_NODE_ANNOTATION_OK,
 			},
 		},
 		Spec: v1.NodeSpec{
 			Taints: []v1.Taint{
 				{
-					Key:    "kwok.x-k8s.io/node",
-					Value:  "fake",
+					Key:    KWOK_NODE_ANNOTATION,
+					Value:  KWOK_NODE_ANNOTATION_OK,
 					Effect: v1.TaintEffectNoSchedule,
 				},
 			},
 		},
 		Status: v1.NodeStatus{
 			Allocatable: v1.ResourceList{
-				v1.ResourceCPU:              resource.MustParse("8"),
-				v1.ResourceMemory:           resource.MustParse("128Gi"),
+				v1.ResourceCPU:              resource.MustParse(profile.CPU),
+				v1.ResourceMemory:           resource.MustParse(profile.Memory),
 				v1.ResourceEphemeralStorage: resource.MustParse("256Gi"),
-				v1.ResourcePods:             resource.MustParse("110"),
+				v1.ResourcePods:             resource.MustParse("3000"),
 			},
 			Capacity: v1.ResourceList{
-				v1.ResourceCPU:              resource.MustParse("8"),
-				v1.ResourceMemory:           resource.MustParse("128Gi"),
+				v1.ResourceCPU:              resource.MustParse(profile.CPU),
+				v1.ResourceMemory:           resource.MustParse(profile.Memory),
 				v1.ResourceEphemeralStorage: resource.MustParse("256Gi"),
-				v1.ResourcePods:             resource.MustParse("110"),
+				v1.ResourcePods:             resource.MustParse("3000"),
 			},
 			NodeInfo: v1.NodeSystemInfo{
 				Architecture:     "amd64",
@@ -155,12 +206,13 @@ func buildFakeNode(index int) *v1.Node {
 	}
 }
 
-// kwokApplyNodes expands the single-node seed (_local/kwok/nodes.yaml) to
-// KWOK_NODE_COUNT nodes and applies them, mirroring kindSetup()'s apply step.
-func kwokApplyNodes() error {
+// kwokApplyFakeNodes expands the default node profile to KWOK_NODE_COUNT nodes and applies
+// them to kind's own cluster (kind's real node(s) are untouched, fake nodes are additional
+// objects, not a replacement).
+func kwokApplyFakeNodes() error {
 	var docs []string
 	for i := 0; i < KWOK_NODE_COUNT; i++ {
-		out, err := yaml.Marshal(buildFakeNode(i))
+		out, err := yaml.Marshal(buildFakeNode(gb200Slice, i))
 		if err != nil {
 			return fmt.Errorf("error marshaling node %d: %w", i, err)
 		}
@@ -180,34 +232,22 @@ func kwokApplyNodes() error {
 		return err
 	}
 
-	return kubectlRun("--kubeconfig", KWOK_KUBECONFIG, "apply", "-f", f.Name())
-}
-
-// kwokApplyManifests applies the static, kind-analogous resources (namespace + RBAC for
-// no-auth job submission, priority classes) that mage kind gets from kindSetup(). Unlike
-// nodes, these don't need per-run generation, so they're committed manifests applied as-is.
-// Stage resources (stages.yaml) aren't here - Stage isn't a CRD in the apiserver, it's a
-// kwok-controller config construct loaded via -c at container-create time in kwokInitCluster.
-func kwokApplyManifests() error {
-	resources := []string{
-		"_local/kwok/priorityclasses.yaml",
-		"_local/kwok/namespace.yaml",
-	}
-	for _, f := range resources {
-		if err := kubectlRun("--kubeconfig", KWOK_KUBECONFIG, "apply", "-f", f); err != nil {
-			return err
-		}
-	}
-	return nil
+	return kubectlRun("apply", "-f", f.Name(), "--context", KWOK_CONTEXT)
 }
 
 // kubectl wait --for=condition=ready node --all is unreliable across many
 // objects that are already Ready before the watch attaches (it only reliably
-// catches a live transition, not pre-existing state) — poll instead.
+// catches a live transition, not pre-existing state), poll instead. Only waits on
+// fake-annotated nodes: kind's own real node(s) are already Ready long before this runs.
 func kwokWaitUntilReady() error {
 	var lastErr error
 	for i := 0; i < 60; i++ {
-		out, err := kubectlOutput("--kubeconfig", KWOK_KUBECONFIG, "get", "nodes", "-o", "json")
+		out, err := kubectlOutput(
+			"get", "nodes",
+			"-l", KWOK_NODE_ANNOTATION+"="+KWOK_NODE_ANNOTATION_OK,
+			"--context", KWOK_CONTEXT,
+			"-o", "json",
+		)
 		if err != nil {
 			lastErr = err
 			time.Sleep(time.Second)
@@ -219,7 +259,7 @@ func kwokWaitUntilReady() error {
 			return fmt.Errorf("error parsing node list: %w", err)
 		}
 		if len(nodeList.Items) == 0 {
-			lastErr = fmt.Errorf("no nodes found")
+			lastErr = fmt.Errorf("no fake nodes found")
 			time.Sleep(time.Second)
 			continue
 		}
@@ -234,10 +274,10 @@ func kwokWaitUntilReady() error {
 		if allReady {
 			return nil
 		}
-		lastErr = fmt.Errorf("not all %d nodes are ready yet", len(nodeList.Items))
+		lastErr = fmt.Errorf("not all %d fake nodes are ready yet", len(nodeList.Items))
 		time.Sleep(time.Second)
 	}
-	return fmt.Errorf("timed out waiting for nodes to become ready: %w", lastErr)
+	return fmt.Errorf("timed out waiting for fake nodes to become ready: %w", lastErr)
 }
 
 func isNodeReady(node *v1.Node) bool {
@@ -247,10 +287,4 @@ func isNodeReady(node *v1.Node) bool {
 		}
 	}
 	return false
-}
-
-// No persistent volume in the all-in-one image, so removing the container is a
-// complete teardown — no separate "delete cluster state" step needed.
-func kwokTeardown() error {
-	return dockerRun("rm", "-f", KWOK_CONTAINER_NAME)
 }

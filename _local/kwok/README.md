@@ -1,102 +1,49 @@
-# KWOK all-in-one cluster
+# KWOK-simulated fake nodes (out-of-cluster)
 
-Mirrors `mage kind` — a single mage target stands up a fake Kubernetes API
-server (no real kubelets, no real containers) backed by
-[KWOK](https://kwok.sigs.k8s.io/)'s all-in-one image. Used for HPCX-286's
-executor perf-testing spike to compare against Base (kind) and the Fake
-executor at higher node/pod scale than a real cluster can practically host.
+Joins [KWOK](https://kwok.sigs.k8s.io/)-simulated fake nodes into the existing `kind` cluster, via a standalone `kwok-controller` running against kind's own kubeconfig. Used for executor performance testing to compare against the Fake executor at higher node/pod scale than a real cluster can practically host.
 
 ## Setup
 
+Requires `kind` to already be running (`mage kind`). This is applied on top.
+
 ```sh
+mage kind
 mage kwok
 ```
 
-This is idempotent — running it again while `armada-kwok` is already up just
-no-ops the container-create step and re-applies nodes.
+Idempotent, running `mage kwok` again while `armada-kwok-controller` is already up just no-ops the controller-start step and re-applies fake nodes.
 
 It will:
-1. Start the `armada-kwok` container (`registry.k8s.io/kwok/cluster:v0.7.0-k8s.v1.28.15`, see `cluster.yaml`) on port 8888 (not 8080 — that collides with Armada's own scheduler/server/executor http ports when running side by side).
-2. Write a static kubeconfig to `.kube/kwok/config` (no certs/tokens — the image serves plain HTTP with no auth).
-3. Apply `KWOK_NODE_COUNT` (500, matching `internal/executor/fake/context/context.go`'s `DefaultNodeSpec`) fake nodes, generated from the single-node shape documented in `nodes.yaml`.
-4. Apply `priorityclasses.yaml` and `namespace.yaml` (mirroring `_local/kind/priorityclasses.yaml`/`namespace.yaml`) — the `personal-anonymous` namespace and `job-submitter` RBAC needed to submit jobs under the no-auth profile, and the `armada-default`/`armada-preemptible` priority classes.
-5. Wait for all nodes to report `Ready`.
+1. Apply the `Stage` CRD (`stage-crd.yaml`) and `Stage` resources (`stages.yaml`) into kind's cluster.
+2. Start the `armada-kwok-controller` container (`registry.k8s.io/kwok/kwok:v0.7.0`) against kind's own kubeconfig, restricted to nodes annotated `kwok.x-k8s.io/node=fake` — kind's real node(s) are never touched.
+3. Apply `KWOK_NODE_COUNT` (default 40, override via env var) fake `v1.Node` objects, shaped by a `NodeProfile` (see `magefiles/kwok.go`).
+4. Wait for all fake nodes to report `Ready`.
 
 Check the result:
 
 ```sh
-KUBECONFIG=.kube/kwok/config kubectl get nodes -o wide
+kubectl --context kind-armada get nodes -o wide
 ```
 
 ## Standing up the whole stack against KWOK
-
-The easiest path is the `kwok` `dev:up` profile, which brings up KWOK and
-points the real executor at it, in place of kind:
 
 ```sh
 mage dev:up kwok
 ```
 
-This is mutually exclusive with `fake-executor` (which needs no Kubernetes
-cluster at all). It combines with other profiles/flags, e.g. `mage dev:up
-kwok,auth -dap`.
+This brings up `kind` first, then joins KWOK fake nodes into it (equivalent to running `mage kind && mage kwok` manually), then starts the real executor pointed at kind's own kubeconfig — same kubeconfig, running alongside kind's real node(s). Mutually exclusive with `fake-executor` (which needs no Kubernetes cluster at all). Combines with other profiles/flags, e.g. `mage dev:up kwok,auth -dap`.
 
-Prometheus is **not** brought up by default under any profile — it's its own
-opt-in compose profile. If you need metrics (e.g. for perf-testing), add it
-explicitly:
+The `kwok` profile also layers `_local/scheduler/kwok_config.yaml` and `_local/executor/kwok_config.yaml` on top of whichever base Procfile is selected (see `writeKwokProcfile` in `magefiles/dev.go`) — no separate KWOK-specific Procfile is needed.
+
+With Prometheus:
 
 ```sh
 mage dev:up kwok,prometheus
 ```
 
-## Pointing a standalone executor at it
-
-For running the executor on its own (e.g. against a `dev:up`-brought-up
-control plane started without the `kwok` profile), the real executor needs
-`kubernetes.toleratedTaints` to include `kwok.x-k8s.io/node` (already set in
-`_local/executor/config.yaml`) — every fake node carries that taint, so
-without the toleration every node is permanently unschedulable.
-
-Run the executor with:
-
-```sh
-KUBECONFIG=.kube/kwok/config go run ./cmd/executor --config _local/executor/config.yaml
-```
-
 ## Pod lifecycle simulation (Stage resources)
 
-KWOK has no real kubelet/container runtime — pod phase transitions
-(`Pending → Running → Succeeded`) are simulated by `kwok-controller` reading
-`Stage` resources. `Stage` is **not a CRD registered in the apiserver** (it
-can't be `kubectl apply`-ed); it's a `kwok-controller`-native config construct
-read from a local YAML file, referenced via `kwokctl create cluster -c
-<file>`. `kwokInitCluster` in `magefiles/kwok.go` bind-mounts
-`_local/kwok/stages.yaml` into the container and passes it via `-c` for this
-reason.
-
-The all-in-one image's built-in `pod-complete` stage only fires for pods
-owned by a `Job` (`metadata.ownerReferences[].kind == Job`). Armada's
-executor submits bare `Pod` objects with no owner references, so without an
-override, jobs reach `Running` but then sit there forever — nothing ever
-simulates completion.
-
-**Gotcha:** `-c` does not merge user-supplied stages with the built-in
-defaults per resource kind — supplying *any* `Pod`-kind stage suppresses
-*all* built-in `Pod` stages (`pod-ready`, `pod-delete`), not just the one
-being overridden. (Confirmed by counting `Stage` docs in the container's
-generated `kwok.yaml`: supplying only a custom `pod-complete` override left
-a single `Stage` doc total, instead of the normal five.) `Node`-kind stages
-have a working default-fallback (`kwok-controller` logs `"No node stages
-found, using default node stages"` at startup when none are supplied) but
-`Pod`-kind stages do not get an equivalent fallback log line or behavior.
-
-Because of this, `_local/kwok/stages.yaml` carries the **complete** `Pod`
-stage set: `pod-ready` and `pod-delete` copied verbatim from the built-ins,
-plus `pod-complete-armada` (same as the built-in `pod-complete`, minus the
-Job-ownership selector, plus a randomized delay so concurrently-running
-pods don't all complete in the same instant). If this file is ever edited to
-add another override, keep all three stages in it — don't trim back to just
-the one being changed.
+KWOK has no real kubelet/container runtime, so pod phase transitions (`Pending → Running → Succeeded`) are simulated by `kwok-controller` reading `Stage` resources, applied as real cluster objects (`stage-crd.yaml`, `stages.yaml`) rather than passed via a config file. The controller must be started with `--enable-crds=Stage`, or it silently ignores these and falls back to its built-in pod stages, which have no completion behavior for Armada's bare (ownerless) pods — see `stages.yaml`'s comments.
 
 ## Teardown
 
@@ -104,6 +51,4 @@ the one being changed.
 mage kwokTeardown
 ```
 
-The all-in-one image has no persistent volume, so removing the container is a
-complete teardown — nodes and any cluster state are gone, and the next
-`mage kwok` starts clean.
+Removes the `armada-kwok-controller` container and deletes the fake `v1.Node` objects, leaving kind's own cluster and real node(s) untouched.

@@ -1,0 +1,22 @@
+# Standardized override for comparing against KWOK: matches
+# _local/executor/kwok_config.yaml's values, and swaps the default
+# node shape for the same 40x p6e-gb200.36xlarge shape KWOK defaults to (see gb200Slice
+# in magefiles/kwok.go).
+# Layered on config.yaml via an extra --config flag.
+nodes:
+  - name: "fake-node"
+    count: 40
+    allocatable:
+      cpu: "144"
+      memory: "960Gi"
+      ephemeral-storage: "256Gi"
+      pods: "3000"
+    labels:
+      node.kubernetes.io/instance-type: "p6e-gb200.36xlarge"
+    taints: []
+application:
+  maxLeasedJobs: 10000
+  submitConcurrencyLimit: 1000
+  updateConcurrencyLimit: 1000
+task:
+  jobLeaseRenewalInterval: 2s

@@ -1,0 +1,9 @@
+scheduling:
+  # Raised from base config/scheduler/config.yaml's 5s to lift the steady-state concurrent-job ceiling at KWOK's scale.
+  maxSchedulingDuration: 15s
+
+  # Not the actual bottleneck, but left raised alongside the executor-side caps so it doesn't become the new one.
+  maximumSchedulingRate: 2000.0
+  maximumSchedulingBurst: 20000
+  maximumPerQueueSchedulingRate: 2000.0
+  maximumPerQueueSchedulingBurst: 20000

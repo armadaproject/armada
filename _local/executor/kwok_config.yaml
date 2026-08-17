@@ -1,0 +1,11 @@
+application:
+  # Raised from base config/executor/config.yaml's 100 to avoid capping lease-request ingestion below scheduler/node capacity.
+  maxLeasedJobs: 10000
+
+  # Raised from base config/executor/config.yaml's 10 so submit/update isn't the artificial ceiling against KWOK's apiserver.
+  submitConcurrencyLimit: 1000
+  updateConcurrencyLimit: 1000
+
+task:
+  # Paired with maxLeasedJobs above: shorter ask interval limits stalled-cycle blocking.
+  jobLeaseRenewalInterval: 2s

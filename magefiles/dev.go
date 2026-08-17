@@ -34,8 +34,12 @@ const (
 //   - "auth"          - enables OIDC (Keycloak); sets goreman profile to "auth" and uses the auth compose profile
 //   - "fake-executor" - no Kubernetes needed; sets goreman profile to "fake-executor"
 //   - "hot-cold"      - runs the hot-cold scheduler setup
-//   - "kwok"          - runs the real executor against a KWOK all-in-one cluster instead of kind;
-//     brings up KWOK (mage kwok) and points the executor at .kube/kwok/config
+//   - "kwok"          - brings up kind (if not already up) and joins KWOK-simulated fake nodes
+//     into it (mage kwok); the executor still targets kind's own kubeconfig, alongside its
+//     real node(s)
+//   - "kwok-comparison" - layers _local/fakeexecutor/kwok_comparison_config.yaml on top of the
+//     fake-executor profile's own config, standardizing it against KWOK's node shape and
+//     executor tuning for perf-testing comparisons; only valid together with "fake-executor"
 //   - anything else   - forwarded as a docker-compose --profile flag for extra services
 //
 // The optional -dap flag selects the "-dap" procfile variant, which starts each component
@@ -52,14 +56,16 @@ const (
 //	mage dev:up fake-executor -dap        # fake executor + dap procfile
 //	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
 //	mage dev:up hot-cold                  # hot-cold scheduler setup
-//	mage dev:up kwok                      # real executor against a KWOK cluster instead of kind
+//	mage dev:up kwok                      # real executor against kind + KWOK-joined fake nodes
 //	mage dev:up kwok,auth -dap            # kwok combined with another profile/flag
 //	mage dev:up kwok,prometheus           # kwok + Prometheus (needed for perf-testing metrics; not on by default)
+//	mage dev:up fake-executor,kwok-comparison # fake executor standardized against KWOK's node shape/tuning
 func (Dev) Up(profiles string, dap *bool) error {
 	var (
-		profile         = "no-auth"
-		useKwok         = false
-		composeProfiles []string
+		profile           = "no-auth"
+		useKwok           = false
+		useKwokComparison = false
+		composeProfiles   []string
 	)
 
 	for _, token := range strings.Split(profiles, ",") {
@@ -76,6 +82,8 @@ func (Dev) Up(profiles string, dap *bool) error {
 			}
 		case "kwok":
 			useKwok = true
+		case "kwok-comparison":
+			useKwokComparison = true
 		default:
 			composeProfiles = append(composeProfiles, token)
 		}
@@ -83,6 +91,9 @@ func (Dev) Up(profiles string, dap *bool) error {
 
 	if useKwok && profile == "fake-executor" {
 		return fmt.Errorf("kwok and fake-executor are mutually exclusive - fake-executor needs no Kubernetes cluster at all")
+	}
+	if useKwokComparison && profile != "fake-executor" {
+		return fmt.Errorf("kwok-comparison is only valid together with the fake-executor profile")
 	}
 
 	isDAP := dap != nil
@@ -96,6 +107,24 @@ func (Dev) Up(profiles string, dap *bool) error {
 		return fmt.Errorf("unknown profile %q: %s not found", profile+debugSuffix, procfile)
 	}
 
+	if useKwok {
+		kwokProcfile, err := writeKwokProcfile(procfile)
+		if err != nil {
+			return err
+		}
+		defer os.Remove(kwokProcfile)
+		procfile = kwokProcfile
+	}
+
+	if useKwokComparison {
+		comparisonProcfile, err := writeKwokComparisonProcfile(procfile)
+		if err != nil {
+			return err
+		}
+		defer os.Remove(comparisonProcfile)
+		procfile = comparisonProcfile
+	}
+
 	if profile == "auth" {
 		composeProfiles = append([]string{"auth"}, composeProfiles...)
 	}
@@ -106,10 +135,8 @@ func (Dev) Up(profiles string, dap *bool) error {
 	}
 
 	if useKwok {
+		mg.Deps(Kind)
 		mg.Deps(Kwok)
-		if err := os.Setenv("KUBECONFIG", KWOK_KUBECONFIG); err != nil {
-			return err
-		}
 	}
 
 	initArgs := []string{initScript}
@@ -125,6 +152,67 @@ func (Dev) Up(profiles string, dap *bool) error {
 		}
 	}
 	return sh.RunV(goremanBin(), "-f", procfile, "start")
+}
+
+// writeKwokProcfile copies procfile to a temp file with an extra --config flag appended
+// to the scheduler and executor lines, so KWOK runs layer _local/scheduler/kwok_config.yaml
+// and _local/executor/kwok_config.yaml on top of the profile's own configs without needing
+// separate KWOK-specific Procfiles per profile.
+func writeKwokProcfile(procfile string) (string, error) {
+	return writeProcfileWithOverrides(procfile, "kwok", map[string]string{
+		"scheduler:": " --config ./_local/scheduler/kwok_config.yaml",
+		"executor:":  " --config ./_local/executor/kwok_config.yaml",
+	})
+}
+
+// writeKwokComparisonProcfile copies procfile to a temp file with an extra --config flag
+// appended to the fakeexecutor line, so fake-executor runs layer
+// _local/fakeexecutor/kwok_comparison_config.yaml on top of the profile's own config,
+// standardizing it against KWOK's node shape and executor tuning for perf-testing comparisons.
+func writeKwokComparisonProcfile(procfile string) (string, error) {
+	return writeProcfileWithOverrides(procfile, "kwok-comparison", map[string]string{
+		"fakeexecutor:": " --config ./_local/fakeexecutor/kwok_comparison_config.yaml",
+	})
+}
+
+// writeProcfileWithOverrides copies procfile to a temp file (removed by the caller, rather
+// than checked in, since its content is entirely derived from the chosen profile's Procfile),
+// appending suffix to the first line matching each prefix in overrides. Errors if any override
+// finds no matching line.
+func writeProcfileWithOverrides(procfile, tempFilePrefix string, overrides map[string]string) (string, error) {
+	content, err := os.ReadFile(procfile)
+	if err != nil {
+		return "", err
+	}
+
+	remaining := len(overrides)
+	lines := strings.Split(string(content), "\n")
+	for i, line := range lines {
+		for prefix, suffix := range overrides {
+			if strings.HasPrefix(line, prefix) {
+				lines[i] = line + suffix
+				delete(overrides, prefix)
+				remaining--
+				break
+			}
+		}
+		if remaining == 0 {
+			break
+		}
+	}
+	if remaining != 0 {
+		return "", fmt.Errorf("missing %d expected process line(s) in %s: %v", remaining, procfile, overrides)
+	}
+
+	f, err := os.CreateTemp("", tempFilePrefix+"-*.Procfile")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	if _, err := f.WriteString(strings.Join(lines, "\n")); err != nil {
+		return "", err
+	}
+	return f.Name(), nil
 }
 
 // waitForKeycloak polls keycloak's armada realm endpoint until it serves a 200, so that

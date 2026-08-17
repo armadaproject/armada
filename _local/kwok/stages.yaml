@@ -1,20 +1,33 @@
-# Passing -c/--config to `kwokctl create cluster` does NOT merge with the built-in Stage set
-# per resource kind - kwok-controller only injects its built-in stages for a kind (Node, Pod)
-# when the merged config supplies zero stages of that kind. Since this file supplies one
-# Pod-kind stage, kwok-controller skips injecting ALL default Pod stages, including pod-ready
-# (Pending -> Running) and pod-delete - confirmed by finding only a single `kind: Stage` doc
-# (ours) in the container's generated kwok.yaml, and by the total absence of a "Watch all pods"
-# log line at startup (contrast with the "Watch all nodes" line that's always present, since
-# node stages DO have a working default-fallback that doesn't require this workaround).
-#
-# So this file must carry the complete Pod-kind stage set, not just the one stage we want to
-# change. pod-ready and pod-delete below are copied verbatim from the image's normal built-in
-# set (extracted from a container run without -c, via `kubectl exec ... cat .../kwok.yaml`).
-# Only pod-complete is intentionally different from the built-in.
-#
-# Loaded via `kwokctl create cluster -c stages.yaml` (see kwokInitCluster in magefiles/kwok.go)
-# at container-create time - Stage is a kwok-controller config construct read from a local
-# file, not a CRD in the apiserver, so this can't be `kubectl apply`-ed.
+# Applied as real cluster resources via the Stage CRD (kwokApplyStages in magefiles/kwok.go). Must carry the complete Pod-kind stage set - supplying any Pod-kind Stage suppresses kwok-controller's Pod-kind defaults.
+apiVersion: kwok.x-k8s.io/v1alpha1
+kind: Stage
+metadata:
+  name: node-initialize
+spec:
+  resourceRef:
+    apiGroup: v1
+    kind: Node
+  selector:
+    matchExpressions:
+      - key: '.status.conditions.[] | select( .type == "Ready" ) | .status'
+        operator: 'NotIn'
+        values:
+          - 'True'
+  next:
+    statusTemplate: |
+      {{ $now := Now }}
+      {{ $lastTransitionTime := or .metadata.creationTimestamp $now }}
+      conditions:
+      {{ range NodeConditions }}
+      - lastHeartbeatTime: {{ $now | Quote }}
+        lastTransitionTime: {{ $lastTransitionTime | Quote }}
+        message: {{ .message | Quote }}
+        reason: {{ .reason | Quote }}
+        status: {{ .status | Quote }}
+        type: {{ .type  | Quote}}
+      {{ end }}
+      phase: Running
+---
 apiVersion: kwok.x-k8s.io/v1alpha1
 kind: Stage
 metadata:
@@ -86,11 +99,7 @@ spec:
       phase: Running
       startTime: {{ $now | Quote }}
 ---
-# Same as the default pod-complete, minus the Job-ownership requirement, plus a randomized
-# delay so concurrently-running pods don't all complete in the same instant (roughly mimicking
-# example-job.yaml's `sleep 10-69s`). Armada's executor submits bare Pods (no ownerReferences),
-# so the default pod-complete (which requires metadata.ownerReferences[].kind == Job) never
-# fires for them - see the module-level comment above.
+# Like the built-in pod-complete, minus the Job-ownership requirement, plus a randomized completion delay.
 apiVersion: kwok.x-k8s.io/v1alpha1
 kind: Stage
 metadata:
