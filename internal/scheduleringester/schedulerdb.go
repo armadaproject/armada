@@ -137,7 +137,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 					JobSet:           jobSetInfo.jobSet,
 					Queue:            jobSetInfo.queue,
 					Priority:         priority,
-					ReprioritizeUser: reprioritizeUser,
+					ReprioritiseUser: reprioritizeUser,
 				},
 			)
 			if err != nil {
@@ -288,7 +288,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			JobSet:           o.key.jobSet,
 			Priority:         o.key.Priority,
 			JobIds:           slices.Unique(o.jobIds),
-			ReprioritizeUser: reprioritizeUser,
+			ReprioritiseUser: reprioritizeUser,
 		})
 		if err != nil {
 			return errors.WithStack(err)
