@@ -63,6 +63,7 @@ func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs [
 			priorityClass := job.PriorityClass()
 			priority = priorityClass.Priority
 		}
+
 		if err := nodeDb.bindJobToNodeInPlace(entry, job, priority); err != nil {
 			return err
 		}
@@ -178,6 +179,13 @@ type NodeDb struct {
 	disableGangAwayScheduling  bool
 	disableFairshareScheduling bool
 	disableUrgencyScheduling   bool
+
+	// pool is the pool this NodeDb is scheduling for.
+	// When set (non-empty), jobs whose run pool differs from it (cross-pool "away" jobs)
+	// are accounted at CrossPoolPriority so any home job can urgency-preempt them ahead of home jobs.
+	// Empty string disables cross-pool detection (all jobs treated as home)
+	//  - Callers leave it unset to fall back to the legacy behaviour (see DisablePreemptCrossPoolJobsFirst config).
+	pool string
 }
 
 func NewNodeDb(
@@ -188,7 +196,7 @@ func NewNodeDb(
 	wellKnownNodeTypes []configuration.WellKnownNodeType,
 	resourceListFactory *internaltypes.ResourceListFactory,
 ) (*NodeDb, error) {
-	nodeDbPriorities := []int32{internaltypes.EvictedPriority}
+	nodeDbPriorities := []int32{internaltypes.EvictedPriority, internaltypes.CrossPoolPriority}
 	nodeDbPriorities = append(nodeDbPriorities, types.AllowedPriorities(priorityClasses)...)
 
 	indexedResourceNames := slices.Map(indexedResources, func(v configuration.ResourceType) string { return v.Name })
@@ -251,6 +259,14 @@ func NewNodeDb(
 	}
 
 	return &nodeDb, nil
+}
+
+func (nodeDb *NodeDb) SetPool(pool string) {
+	nodeDb.pool = pool
+}
+
+func (nodeDb *NodeDb) GetPool() string {
+	return nodeDb.pool
 }
 
 func makeIndexedResourceResolution(indexedResourceTypes []configuration.ResourceType, resourceListFactory *internaltypes.ResourceListFactory) ([]int64, error) {
@@ -481,7 +497,7 @@ func (nodeDb *NodeDb) preemptSiblingGangJobs(txn *memdb.Txn, preemptedJobs []*Jo
 			}
 
 			node = node.DeepCopyNilKeys()
-			if err := nodeDb.unbindJobFromNodeInPlace(siblingJctx.Job, node); err != nil {
+			if err := node.RemoveJob(siblingJctx.Job); err != nil {
 				return nil, err
 			}
 			if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
@@ -987,9 +1003,14 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 
 		nodeCopy := node.node.DeepCopyNilKeys()
 		for _, job := range node.evictedJobs {
+			jobId := job.JobSchedulingContext.JobId
+			priority, ok := nodeDb.GetScheduledAtPriority(jobId)
+			if !ok {
+				priority = job.JobSchedulingContext.Job.PriorityClass().Priority
+			}
+
 			// Remove preempted job from node
-			err = nodeDb.unbindJobFromNodeInPlace(job.JobSchedulingContext.Job, nodeCopy)
-			if err != nil {
+			if err = nodeCopy.RemoveJob(job.JobSchedulingContext.Job); err != nil {
 				return nil, nil, err
 			}
 			// Remove preempted job from list of evicted jobs
@@ -997,10 +1018,6 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 				return nil, nil, errors.WithStack(err)
 			}
 
-			priority, ok := nodeDb.GetScheduledAtPriority(job.JobSchedulingContext.JobId)
-			if !ok {
-				priority = job.JobSchedulingContext.Job.PriorityClass().Priority
-			}
 			if priority > maxPriority {
 				maxPriority = priority
 			}
@@ -1026,40 +1043,19 @@ func (nodeDb *NodeDb) BindJobToNode(node *internaltypes.Node, job *jobdb.Job, pr
 	return node, nil
 }
 
-// bindJobToNodeInPlace is like BindJobToNode, but doesn't make a copy of node.
+// BindJobToNode returns a copy of node with job bound to it.
 func (nodeDb *NodeDb) bindJobToNodeInPlace(node *internaltypes.Node, job *jobdb.Job, priority int32) error {
-	jobId := job.Id()
-	requests := job.KubernetesResourceRequirements()
-
-	_, isEvicted := node.EvictedJobRunIds[jobId]
-	delete(node.EvictedJobRunIds, jobId)
-
-	if !isEvicted {
-		if node.AllocatedByJobId == nil {
-			node.AllocatedByJobId = make(map[string]internaltypes.ResourceList)
-		}
-		if allocatedToJob, ok := node.AllocatedByJobId[jobId]; ok {
-			return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.GetId())
-		} else {
-			node.AllocatedByJobId[jobId] = allocatedToJob.Add(requests)
-		}
-
-		if node.AllocatedByQueue == nil {
-			node.AllocatedByQueue = make(map[string]internaltypes.ResourceList)
-		}
-		queue := job.Queue()
-		allocatedToQueue := node.AllocatedByQueue[queue]
-		node.AllocatedByQueue[queue] = allocatedToQueue.Add(requests)
+	if nodeDb.pool != "" && !context.IsHomeJob(job, nodeDb.pool) {
+		// Cross-pool ("away") jobs are accounted at CrossPoolPriority so any home job can
+		// urgency-preempt them first, regardless of their configured away priority.
+		// A cross-pool NodeDb leaves pool unset to opt out of this (legacy behaviour).
+		priority = internaltypes.CrossPoolPriority
 	}
-
-	allocatable := node.AllocatableByPriority
-	markAllocated(allocatable, priorityCutoffFor(job, priority), requests)
-	if isEvicted {
-		markAllocatable(allocatable, internaltypes.EvictedPriority, requests)
+	err := node.AddJob(job, priorityCutoffFor(job, priority))
+	if err != nil {
+		return err
 	}
-
-	nodeDb.scheduledAtPriorityByJobId[jobId] = priority
-
+	nodeDb.scheduledAtPriorityByJobId[job.Id()] = priority
 	return nil
 }
 
@@ -1078,83 +1074,22 @@ func (nodeDb *NodeDb) EvictJobsFromNode(
 ) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
 	for _, job := range jobs {
-		if err := nodeDb.evictJobFromNodeInPlace(job, node); err != nil {
+		_, ok := nodeDb.GetScheduledAtPriority(job.Id())
+		if !ok {
+			return nil, errors.Errorf("job %s not mapped to a priority", job.Id())
+		}
+		if err := node.EvictJob(job); err != nil {
 			return nil, err
 		}
 	}
 	return node, nil
 }
 
-// evictJobFromNodeInPlace is the in-place operation backing EvictJobsFromNode.
-func (nodeDb *NodeDb) evictJobFromNodeInPlace(job *jobdb.Job, node *internaltypes.Node) error {
-	jobId := job.Id()
-	if _, ok := node.AllocatedByJobId[jobId]; !ok {
-		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.GetId())
-	}
-
-	queue := job.Queue()
-	if _, ok := node.AllocatedByQueue[queue]; !ok {
-		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.GetId())
-	}
-
-	if node.EvictedJobRunIds == nil {
-		node.EvictedJobRunIds = make(map[string]bool)
-	}
-	if _, ok := node.EvictedJobRunIds[jobId]; ok {
-		return errors.Errorf("job %s is already evicted from node %s", jobId, node.GetId())
-	}
-	node.EvictedJobRunIds[jobId] = true
-
-	allocatableByPriority := node.AllocatableByPriority
-	priority, ok := nodeDb.GetScheduledAtPriority(jobId)
-	if !ok {
-		return errors.Errorf("job %s not mapped to a priority", jobId)
-	}
-	jobRequests := job.KubernetesResourceRequirements()
-	markAllocatable(allocatableByPriority, priorityCutoffFor(job, priority), jobRequests)
-	markAllocated(allocatableByPriority, internaltypes.EvictedPriority, jobRequests)
-
-	return nil
-}
-
-func markAllocated(allocatableByPriority map[int32]internaltypes.ResourceList, priorityCutoff int32, rs internaltypes.ResourceList) {
-	markAllocatable(allocatableByPriority, priorityCutoff, rs.Negate())
-}
-
-func markAllocatable(allocatableByPriority map[int32]internaltypes.ResourceList, priorityCutoff int32, rs internaltypes.ResourceList) {
-	priorities := make([]int32, 0, len(allocatableByPriority))
-	for priority := range allocatableByPriority {
-		if priority <= priorityCutoff {
-			priorities = append(priorities, priority)
-		}
-	}
-	for _, priority := range priorities {
-		allocatableByPriority[priority] = allocatableByPriority[priority].Add(rs)
-	}
-}
-
-// nonPreemptibleCutoff is a sentinel value (not a real priority) passed to
-// markAllocated/markAllocatable to deduct at every priority bucket.
-const nonPreemptibleCutoff = math.MaxInt32
-
-// priorityCutoffFor returns the priorityCutoff to use when updating
-// AllocatableByPriority for a job. Preemptible jobs use their scheduled priority;
-// non-preemptible jobs use nonPreemptibleCutoff so their resources are deducted at
-// every real priority. Without this, a higher-priority job could over-pack a node
-// already saturated by non-preemptible incumbents, since both the rebalance and
-// oversubscribed evictors refuse to evict non-preemptible jobs.
-func priorityCutoffFor(job *jobdb.Job, scheduledPriority int32) int32 {
-	if job.PriorityClass().Preemptible {
-		return scheduledPriority
-	}
-	return nonPreemptibleCutoff
-}
-
 // UnbindJobsFromNode returns a node with all elements of jobs unbound from it.
 func (nodeDb *NodeDb) UnbindJobsFromNode(jobs []*jobdb.Job, node *internaltypes.Node) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
 	for _, job := range jobs {
-		if err := nodeDb.unbindJobFromNodeInPlace(job, node); err != nil {
+		if err := node.RemoveJob(job); err != nil {
 			return nil, err
 		}
 	}
@@ -1164,52 +1099,10 @@ func (nodeDb *NodeDb) UnbindJobsFromNode(jobs []*jobdb.Job, node *internaltypes.
 // UnbindJobFromNode returns a copy of node with job unbound from it.
 func (nodeDb *NodeDb) UnbindJobFromNode(job *jobdb.Job, node *internaltypes.Node) (*internaltypes.Node, error) {
 	node = node.DeepCopyNilKeys()
-	if err := nodeDb.unbindJobFromNodeInPlace(job, node); err != nil {
+	if err := node.RemoveJob(job); err != nil {
 		return nil, err
 	}
 	return node, nil
-}
-
-// unbindPodFromNodeInPlace is like UnbindJobFromNode, but doesn't make a copy of node.
-func (nodeDb *NodeDb) unbindJobFromNodeInPlace(job *jobdb.Job, node *internaltypes.Node) error {
-	jobId := job.Id()
-	requests := job.KubernetesResourceRequirements()
-
-	_, isEvicted := node.EvictedJobRunIds[jobId]
-	delete(node.EvictedJobRunIds, jobId)
-
-	if _, ok := node.AllocatedByJobId[jobId]; !ok {
-		// Job already unbound; nothing more to do.
-		return nil
-	} else {
-		delete(node.AllocatedByJobId, jobId)
-	}
-
-	queue := job.Queue()
-	if allocatedToQueue, ok := node.AllocatedByQueue[queue]; !ok {
-		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.GetId())
-	} else {
-		allocatedToQueue = allocatedToQueue.Subtract(requests)
-		if allocatedToQueue.AllZero() {
-			delete(node.AllocatedByQueue, queue)
-		} else {
-			node.AllocatedByQueue[queue] = allocatedToQueue
-		}
-	}
-
-	allocatable := node.AllocatableByPriority
-	if isEvicted {
-		// Evicted jobs are always tracked at EvictedPriority regardless of preemptibility.
-		markAllocatable(allocatable, internaltypes.EvictedPriority, requests)
-	} else {
-		priority, ok := nodeDb.GetScheduledAtPriority(jobId)
-		if !ok {
-			return errors.Errorf("job %s not mapped to a priority", jobId)
-		}
-		markAllocatable(allocatable, priorityCutoffFor(job, priority), requests)
-	}
-
-	return nil
 }
 
 // NodeTypesMatchingJob returns a slice with all node types a pod could be scheduled on.
@@ -1408,4 +1301,26 @@ func (nodeDb *NodeDb) nodeDbKey(out []byte, nodeTypeId uint64, allocatable inter
 		allocatable,
 		nodeIndex,
 	)
+}
+
+// cutoffJob is the subset of a job needed to determine its priority cutoff.
+type cutoffJob interface {
+	PriorityClass() types.PriorityClass
+}
+
+// nonPreemptibleCutoff is a sentinel value (not a real priority) passed to the
+// Node's accounting methods to deduct at every priority bucket.
+const nonPreemptibleCutoff = math.MaxInt32
+
+// priorityCutoffFor returns the cutoff to use when updating a node's
+// AllocatableByPriority for a job. Preemptible jobs use their scheduled priority;
+// non-preemptible jobs use nonPreemptibleCutoff so their resources are deducted at
+// every real priority. Without this, a higher-priority job could over-pack a node
+// already saturated by non-preemptible incumbents, since both the rebalance and
+// oversubscribed evictors refuse to evict non-preemptible jobs.
+func priorityCutoffFor(job cutoffJob, scheduledPriority int32) int32 {
+	if job.PriorityClass().Preemptible {
+		return scheduledPriority
+	}
+	return nonPreemptibleCutoff
 }
