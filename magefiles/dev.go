@@ -65,7 +65,7 @@ func (Dev) Up(profiles string, dap *bool) error {
 		switch token {
 		case "auth", "fake-executor", "hot-cold", "auth-fake-executor":
 			if profile != "no-auth" {
-				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold may be used\n", token, profile)
+				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold/auth-fake-executor may be used\n", token, profile)
 			} else {
 				profile = token
 			}
