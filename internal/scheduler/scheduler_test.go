@@ -893,7 +893,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedTerminal:      []string{queuedJob.Id()},
 		},
 		"Postgres job with cancel requested and stale requestor emits cancel-user requestor": {
-			initialJobs: []*jobdb.Job{queuedJob.WithReprioritizeUser(pointer.String("charlie"))},
+			initialJobs: []*jobdb.Job{queuedJob.WithReprioritiseUser(pointer.String("charlie"))},
 			jobUpdates: []database.Job{
 				{
 					JobID:           queuedJob.Id(),
@@ -919,7 +919,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedTerminal:      []string{queuedJob.Id()},
 		},
 		"Postgres job with cancel by job set requested and stale requestor emits cancel-user requestor": {
-			initialJobs: []*jobdb.Job{queuedJob.WithReprioritizeUser(pointer.String("charlie"))},
+			initialJobs: []*jobdb.Job{queuedJob.WithReprioritiseUser(pointer.String("charlie"))},
 			jobUpdates: []database.Job{
 				{
 					JobID:                   queuedJob.Id(),
@@ -956,7 +956,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					JobSet:           "testJobSet",
 					Queue:            "testQueue",
 					Priority:         2,
-					ReprioritizeUser: pointer.String("requestor"),
+					ReprioritiseUser: pointer.String("requestor"),
 					Serial:           1,
 				},
 			},
@@ -976,7 +976,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					JobSet:           "testJobSet",
 					Queue:            "testQueue",
 					Priority:         2,
-					ReprioritizeUser: pointer.String("requestor"),
+					ReprioritiseUser: pointer.String("requestor"),
 					Serial:           1,
 				},
 			},
@@ -3048,8 +3048,8 @@ func jobDbJobFromDbJob(resourceListFactory *internaltypes.ResourceListFactory, j
 	if job.CancelReason != nil {
 		result = result.WithCancelReason(job.CancelReason)
 	}
-	if job.ReprioritizeUser != nil {
-		result = result.WithReprioritizeUser(job.ReprioritizeUser)
+	if job.ReprioritiseUser != nil {
+		result = result.WithReprioritiseUser(job.ReprioritiseUser)
 	}
 	return result
 }
