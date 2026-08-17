@@ -129,7 +129,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return err
 		}
 	case UpdateJobSetPriorities:
-		reprioritizeUser := nullableTrimmedString(o.Requestor)
+		reprioritiseUser := nullableTrimmedString(o.Requestor)
 		for jobSetInfo, priority := range o.jobSets {
 			err := queries.UpdateJobPriorityByJobSet(
 				ctx,
@@ -137,7 +137,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 					JobSet:           jobSetInfo.jobSet,
 					Queue:            jobSetInfo.queue,
 					Priority:         priority,
-					ReprioritiseUser: reprioritizeUser,
+					ReprioritiseUser: reprioritiseUser,
 				},
 			)
 			if err != nil {
@@ -282,13 +282,13 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case *UpdateJobPriorities:
-		reprioritizeUser := nullableTrimmedString(o.Requestor)
+		reprioritiseUser := nullableTrimmedString(o.Requestor)
 		err := queries.UpdateJobPriorityById(ctx, schedulerdb.UpdateJobPriorityByIdParams{
 			Queue:            o.key.queue,
 			JobSet:           o.key.jobSet,
 			Priority:         o.key.Priority,
 			JobIds:           slices.Unique(o.jobIds),
-			ReprioritiseUser: reprioritizeUser,
+			ReprioritiseUser: reprioritiseUser,
 		})
 		if err != nil {
 			return errors.WithStack(err)
