@@ -44,11 +44,6 @@ func (d deadline) exceeded(now time.Time) bool {
 	return !time.Time(d).IsZero() && now.After(time.Time(d))
 }
 
-type executor struct {
-	id     string
-	nodeDb *nodedb.NodeDb
-}
-
 type schedulerState struct {
 	nodeDbByPool              map[string]*nodedb.NodeDb
 	constraintsByPool         map[string]constraints.SchedulingConstraints
@@ -183,6 +178,11 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 		nodeDb, err := scheduling.ConstructNodeDb(nodeDbConfig, srv.resourceListFactory, srv.schedulingConfig.PriorityClasses, pool, nodeFactory, nil, nil, poolNodes)
 		if err != nil {
 			return fmt.Errorf("failed constructing nodedb for pool %s - %s", pool.Name, err)
+		}
+
+		err = nodeDb.ClearAllocated()
+		if err != nil {
+			return fmt.Errorf("failed clearing nodedb for pool %s - %s", pool.Name, err)
 		}
 
 		nodeDbByPool[pool.Name] = nodeDb
@@ -390,36 +390,6 @@ poolStart:
 		return schedulingResult{isSchedulable: true, pools: maps.Keys(successfulPools)}
 	}
 	return schedulingResult{isSchedulable: false, reason: sb.String()}
-}
-
-func (srv *SubmitChecker) constructNodeDb(nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
-	nodeDb, err := nodedb.NewNodeDb(
-		srv.schedulingConfig.PriorityClasses,
-		srv.schedulingConfig.IndexedResources,
-		srv.schedulingConfig.IndexedTaints,
-		srv.schedulingConfig.IndexedNodeLabels,
-		srv.schedulingConfig.WellKnownNodeTypes,
-		srv.resourceListFactory,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	txn := nodeDb.Txn(true)
-	defer txn.Abort()
-	for _, node := range nodes {
-		if err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
-			return nil, err
-		}
-	}
-	txn.Commit()
-
-	err = nodeDb.ClearAllocated()
-	if err != nil {
-		return nil, err
-	}
-
-	return nodeDb, nil
 }
 
 func copyGangContext(gctx *context.GangSchedulingContext) *context.GangSchedulingContext {
