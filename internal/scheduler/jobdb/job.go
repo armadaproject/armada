@@ -677,7 +677,7 @@ func (job *Job) CancelReason() *string {
 	return job.cancelReason
 }
 
-// ReprioritiseUser returns the user who reprioritized this job.
+// ReprioritiseUser returns the user who reprioritised this job.
 func (job *Job) ReprioritiseUser() *string {
 	return job.reprioritiseUser
 }
@@ -715,7 +715,7 @@ func (job *Job) WithCancelReason(cancelReason *string) *Job {
 	return j
 }
 
-// WithReprioritiseUser returns a copy of the job with the reprioritize user updated.
+// WithReprioritiseUser returns a copy of the job with the reprioritise user updated.
 func (job *Job) WithReprioritiseUser(reprioritiseUser *string) *Job {
 	j := shallowCopyJob(*job)
 	j.reprioritiseUser = reprioritiseUser

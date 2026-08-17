@@ -358,7 +358,7 @@ func buildPreemptionReason(reason, user string) string {
 }
 
 func (c *JobSetEventsInstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaevents.ReprioritiseJob, meta eventSequenceCommon) ([]DbOperation, error) {
-	reprioritizeUser := strings.TrimSpace(meta.user)
+	reprioritiseUser := strings.TrimSpace(meta.user)
 	return []DbOperation{&UpdateJobPriorities{
 		key: JobReprioritiseKey{
 			JobSetKey: JobSetKey{
@@ -368,17 +368,17 @@ func (c *JobSetEventsInstructionConverter) handleReprioritiseJob(reprioritiseJob
 			Priority: int64(reprioritiseJob.Priority),
 		},
 		jobIds:    []string{reprioritiseJob.JobId},
-		Requestor: reprioritizeUser,
+		Requestor: reprioritiseUser,
 	}}, nil
 }
 
 func (c *JobSetEventsInstructionConverter) handleReprioritiseJobSet(reprioritiseJobSet *armadaevents.ReprioritiseJobSet, meta eventSequenceCommon) ([]DbOperation, error) {
-	reprioritizeUser := strings.TrimSpace(meta.user)
+	reprioritiseUser := strings.TrimSpace(meta.user)
 	return []DbOperation{UpdateJobSetPriorities{
 		jobSets: map[JobSetKey]int64{
 			{queue: meta.queue, jobSet: meta.jobset}: int64(reprioritiseJobSet.Priority),
 		},
-		Requestor: reprioritizeUser,
+		Requestor: reprioritiseUser,
 	}}, nil
 }
 

@@ -670,7 +670,7 @@ func TestCancelJobSetRequestorPropagation(t *testing.T) {
 	assert.Equal(t, f.UserId, op.cancelUser, "cancelUser should be set from event")
 }
 
-// TestReprioritiseJobRequestorCapture verifies that ReprioritiseJob events capture reprioritizeUser
+// TestReprioritiseJobRequestorCapture verifies that ReprioritiseJob events capture reprioritiseUser
 func TestReprioritiseJobRequestorCapture(t *testing.T) {
 	converter := JobSetEventsInstructionConverter{m, compressor}
 	es := f.NewEventSequence(f.JobReprioritiseRequested)
@@ -682,7 +682,7 @@ func TestReprioritiseJobRequestorCapture(t *testing.T) {
 	assert.Equal(t, f.UserId, op.Requestor, "UpdateJobPriorities should capture Requestor from event")
 }
 
-// TestReprioritiseJobSetRequestorCapture verifies that ReprioritiseJobSet events capture reprioritizeUser
+// TestReprioritiseJobSetRequestorCapture verifies that ReprioritiseJobSet events capture reprioritiseUser
 func TestReprioritiseJobSetRequestorCapture(t *testing.T) {
 	converter := JobSetEventsInstructionConverter{m, compressor}
 	es := f.NewEventSequence(f.JobSetReprioritiseRequested)
