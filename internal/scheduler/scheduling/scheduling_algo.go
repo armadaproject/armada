@@ -243,15 +243,6 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 			}, nil
 	}
 
-	fsctx.nodeDb.ConfigureScheduling(nodedb.SchedulingOptions{
-		DisableHomeScheduling:      pool.DisableHomeScheduling,
-		DisableAwayScheduling:      pool.DisableAwayScheduling,
-		DisableGangAwayScheduling:  pool.DisableGangAwayScheduling,
-		DisableFairshareScheduling: pool.DisableFairshareScheduling,
-		DisableUrgencyScheduling:   pool.DisableUrgencyScheduling,
-		DisallowedJobResources:     pool.ExperimentalUnscheduledResources,
-	})
-
 	start := time.Now()
 	schedulingResult, sctx, err := l.SchedulePool(ctx, fsctx, pool)
 	if err != nil {
@@ -713,23 +704,61 @@ func (l *FairSchedulingAlgo) constructNodeDb(
 	otherPoolsJobs []*jobdb.Job,
 	nodes []*internaltypes.Node,
 ) (*nodedb.NodeDb, error) {
+	nodeDbConfig := NodeDbIndexConfiguration{
+		IndexedResources:   l.schedulingConfig.IndexedResources,
+		IndexedTaints:      l.schedulingConfig.IndexedTaints,
+		IndexedNodeLabels:  l.schedulingConfig.IndexedNodeLabels,
+		WellKnownNodeTypes: l.schedulingConfig.WellKnownNodeTypes,
+	}
+
+	return ConstructNodeDb(nodeDbConfig, l.resourceListFactory, priorityClasses, poolConfig, nodeFactory, currentPoolJobs, otherPoolsJobs, nodes)
+}
+
+type NodeDbIndexConfiguration struct {
+	IndexedResources   []configuration.ResourceType
+	IndexedTaints      []string
+	IndexedNodeLabels  []string
+	WellKnownNodeTypes []configuration.WellKnownNodeType
+}
+
+func ConstructNodeDb(
+	config NodeDbIndexConfiguration,
+	resourceListFactory *internaltypes.ResourceListFactory,
+	priorityClasses map[string]types.PriorityClass,
+	poolConfig configuration.PoolConfig,
+	nodeFactory *internaltypes.NodeFactory,
+	currentPoolJobs []*jobdb.Job,
+	otherPoolsJobs []*jobdb.Job,
+	nodes []*internaltypes.Node,
+) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		priorityClasses,
-		l.schedulingConfig.IndexedResources,
-		l.schedulingConfig.IndexedTaints,
-		l.schedulingConfig.IndexedNodeLabels,
-		l.schedulingConfig.WellKnownNodeTypes,
-		l.resourceListFactory,
+		config.IndexedResources,
+		config.IndexedTaints,
+		config.IndexedNodeLabels,
+		config.WellKnownNodeTypes,
+		resourceListFactory,
 	)
 	if err != nil {
 		return nil, err
 	}
+
 	// Only set the pool when cross-pool preemption ordering is enabled for this pool.
 	// Setting this causes nodeDb to consider cross-pool jobs to be scheduled at CrossPoolPriority
 	//  resulting in them being preempted ahead of home jobs
-	if l.schedulingConfig.GetPreemptCrossPoolJobsFirst(poolConfig.Name) {
+	if !poolConfig.DisablePreemptCrossPoolJobsFirst {
 		nodeDb.SetPool(poolConfig.Name)
 	}
+
+	nodeDb.ConfigureScheduling(nodedb.SchedulingOptions{
+		DisableHomeScheduling:      poolConfig.DisableHomeScheduling,
+		DisableAwayScheduling:      poolConfig.DisableAwayScheduling,
+		DisableGangAwayScheduling:  poolConfig.DisableGangAwayScheduling,
+		DisableFairshareScheduling: poolConfig.DisableFairshareScheduling,
+		DisableUrgencyScheduling:   poolConfig.DisableUrgencyScheduling,
+		DisallowedJobResources:     poolConfig.ExperimentalUnscheduledResources,
+	})
+
 	if err := populateNodeDb(poolConfig, nodeFactory, nodeDb, currentPoolJobs, otherPoolsJobs, nodes); err != nil {
 		return nil, err
 	}
