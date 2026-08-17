@@ -130,6 +130,48 @@ func TestSchedule_DisableSchedulingSkipsReconciliation(t *testing.T) {
 	require.False(t, txn.GetById(job.Id()).Failed())
 }
 
+func TestSchedule_QueuedJobWithOnlyQueuedPriorityClassSchedules(t *testing.T) {
+	ctx := armadacontext.Background()
+	ctrl := gomock.NewController(t)
+
+	executors := []*schedulerobjects.Executor{makeTestExecutor("executor1", testfixtures.TestPool)}
+
+	queuedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass1).
+		WithQueued(true).
+		WithPools([]string{testfixtures.TestPool})
+
+	mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
+	mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(executors, nil).AnyTimes()
+	mockExecutorRepo.EXPECT().GetExecutorSettings(ctx).Return([]*schedulerobjects.ExecutorSettings{}, nil).AnyTimes()
+
+	mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
+	mockQueueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{testfixtures.MakeTestQueue()}, nil).AnyTimes()
+
+	schedulingConfig := testfixtures.TestSchedulingConfig()
+	sch, err := NewFairSchedulingAlgo(
+		schedulingConfig,
+		0,
+		mockExecutorRepo,
+		mockQueueCache,
+		reports.NewSchedulingContextRepository(),
+		testfixtures.TestResourceListFactory,
+		testfixtures.TestEmptyFloatingResources,
+		priorityoverride.NewNoOpProvider(),
+		nil,
+		&testRunReconciler{},
+	)
+	require.NoError(t, err)
+	sch.clock = clock.NewFakeClock(testfixtures.BaseTime)
+
+	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*jobdb.Job{queuedJob}))
+
+	schedulerResult, err := sch.Schedule(ctx, txn)
+	require.NoError(t, err)
+	require.Len(t, ScheduledJobsFromSchedulerResult(schedulerResult), 1)
+}
+
 func TestSchedule_PoolFailureIsolation(t *testing.T) {
 	type poolSchedulingInfo struct {
 		name                            string
@@ -1287,11 +1329,18 @@ func TestPopulateNodeDb(t *testing.T) {
 			)
 			require.NoError(t, err)
 
+			nodeFactory := internaltypes.NewNodeFactory(
+				schedulingConfig.IndexedTaints,
+				schedulingConfig.IndexedNodeLabels,
+				schedulingConfig.PriorityClasses,
+				testfixtures.TestResourceListFactory,
+			)
+
 			for i, job := range tc.Jobs {
 				tc.Jobs[i] = tc.Jobs[i].WithNewRun("executor-01", tc.Node.GetId(), tc.Node.GetName(), tc.Node.GetPool(), job.PriorityClass().Priority)
 			}
 
-			err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeDb, tc.Jobs, []*jobdb.Job{}, []*internaltypes.Node{tc.Node})
+			err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeFactory, nodeDb, tc.Jobs, []*jobdb.Job{}, []*internaltypes.Node{tc.Node})
 			require.NoError(t, err)
 
 			nodes, err := nodeDb.GetNodes()
@@ -1312,6 +1361,90 @@ func TestPopulateNodeDb(t *testing.T) {
 			} else {
 				assert.Len(t, nodes, 0)
 			}
+		})
+	}
+}
+
+func TestPopulateNodeDb_AwayPoolTaintModifications(t *testing.T) {
+	const awayPool = "away-pool"
+	initialTaint := v1.Taint{Key: "remove-me", Value: "x", Effect: v1.TaintEffectNoSchedule}
+
+	tests := map[string]struct {
+		modifications configuration.NodeModifications
+		// expectedAwayTaints is the away node's taint set after populateNodeDb.
+		expectedAwayTaints []v1.Taint
+	}{
+		"applies add and delete": {
+			modifications: configuration.NodeModifications{
+				Taints: []configuration.TaintModification{
+					{Operation: configuration.TaintOperationDelete, Taint: v1.Taint{Key: "remove-me", Value: "*", Effect: v1.TaintEffectNoSchedule}},
+					{Operation: configuration.TaintOperationAdd, Taint: v1.Taint{Key: "added", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+				},
+			},
+			expectedAwayTaints: []v1.Taint{{Key: "added", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+		},
+		"empty modifications is a no-op": {
+			modifications:      configuration.NodeModifications{},
+			expectedAwayTaints: []v1.Taint{initialTaint},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			poolConfig := configuration.PoolConfig{
+				Name: testfixtures.TestPool,
+				AwayPools: []configuration.AwayPoolConfig{
+					{
+						Name: awayPool,
+						Node: configuration.NodeConfig{Modifications: tc.modifications},
+					},
+				},
+			}
+
+			schedulingConfig := testfixtures.TestSchedulingConfig()
+			nodeFactory := internaltypes.NewNodeFactory(
+				schedulingConfig.IndexedTaints,
+				schedulingConfig.IndexedNodeLabels,
+				schedulingConfig.PriorityClasses,
+				testfixtures.TestResourceListFactory,
+			)
+
+			rl := internaltypes.ResourceList{}
+			awayNode := nodeFactory.CreateNodeAndType(
+				"away-node", "exec-1", "away-node", awayPool, "type",
+				false,
+				[]v1.Taint{initialTaint},
+				map[string]string{}, rl, rl, map[int32]internaltypes.ResourceList{},
+			)
+			homeNode := nodeFactory.CreateNodeAndType(
+				"home-node", "exec-1", "home-node", testfixtures.TestPool, "type",
+				false,
+				[]v1.Taint{initialTaint},
+				map[string]string{}, rl, rl, map[int32]internaltypes.ResourceList{},
+			)
+
+			nodeDb, err := nodedb.NewNodeDb(
+				schedulingConfig.PriorityClasses,
+				schedulingConfig.IndexedResources,
+				schedulingConfig.IndexedTaints,
+				schedulingConfig.IndexedNodeLabels,
+				schedulingConfig.WellKnownNodeTypes,
+				testfixtures.TestResourceListFactory,
+			)
+			require.NoError(t, err)
+
+			err = populateNodeDb(poolConfig, nodeFactory, nodeDb, []*jobdb.Job{}, []*jobdb.Job{}, []*internaltypes.Node{awayNode, homeNode})
+			require.NoError(t, err)
+
+			gotAway, err := nodeDb.GetNode("away-node")
+			require.NoError(t, err)
+			gotHome, err := nodeDb.GetNode("home-node")
+			require.NoError(t, err)
+
+			// Away node: modifications applied (or unchanged when there are none).
+			assert.Equal(t, tc.expectedAwayTaints, gotAway.GetTaints())
+			// Home node: always untouched, regardless of the away pool's modifications.
+			assert.Equal(t, []v1.Taint{initialTaint}, gotHome.GetTaints())
 		})
 	}
 }
@@ -1343,12 +1476,19 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 				)
 				require.NoError(b, err)
 
+				nodeFactory := internaltypes.NewNodeFactory(
+					schedulingConfig.IndexedTaints,
+					schedulingConfig.IndexedNodeLabels,
+					schedulingConfig.PriorityClasses,
+					testfixtures.TestResourceListFactory,
+				)
+
 				dbNodes := []*internaltypes.Node{}
 				for _, node := range nodes {
 					dbNodes = append(dbNodes, node.DeepCopyNilKeys())
 				}
 
-				err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeDb, jobs, []*jobdb.Job{}, dbNodes)
+				err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeFactory, nodeDb, jobs, []*jobdb.Job{}, dbNodes)
 				require.NoError(b, err)
 			}
 		})
@@ -1427,6 +1567,42 @@ func test32CpuNode(priorities []int32) *schedulerobjects.Node {
 			"memory": pointer.MustParseResource("256Gi"),
 		},
 	)
+}
+
+func TestBuildInUsePriorityClasses(t *testing.T) {
+	schedulingConfig := testfixtures.TestSchedulingConfig()
+	sch := &FairSchedulingAlgo{schedulingConfig: schedulingConfig}
+
+	tests := map[string]struct {
+		inUse    map[string]bool
+		expected []string
+	}{
+		"empty in-use returns only default": {
+			inUse:    map[string]bool{},
+			expected: []string{testfixtures.TestDefaultPriorityClass},
+		},
+		"subset plus default": {
+			inUse:    map[string]bool{testfixtures.PriorityClass0: true, testfixtures.PriorityClass1: true},
+			expected: []string{testfixtures.PriorityClass0, testfixtures.PriorityClass1, testfixtures.TestDefaultPriorityClass},
+		},
+		"default already in use is not duplicated": {
+			inUse:    map[string]bool{testfixtures.TestDefaultPriorityClass: true},
+			expected: []string{testfixtures.TestDefaultPriorityClass},
+		},
+		"unknown name is ignored but default kept": {
+			inUse:    map[string]bool{"does-not-exist": true},
+			expected: []string{testfixtures.TestDefaultPriorityClass},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := sch.buildInUsePriorityClasses(tc.inUse)
+			assert.ElementsMatch(t, tc.expected, maps.Keys(result))
+			for _, pcName := range tc.expected {
+				assert.Equal(t, schedulingConfig.PriorityClasses[pcName], result[pcName])
+			}
+		})
+	}
 }
 
 type testRunReconciler struct {

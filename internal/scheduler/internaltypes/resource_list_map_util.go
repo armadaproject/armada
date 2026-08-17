@@ -59,6 +59,7 @@ func NewAllocatableByPriorityAndResourceType(priorities []int32, rl ResourceList
 		result[priority] = rl
 	}
 	result[EvictedPriority] = rl
+	result[CrossPoolPriority] = rl
 	return result
 }
 
