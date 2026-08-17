@@ -1399,8 +1399,8 @@ func TestPreemptRequestUpdatesRunsOnly(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestReprioritizeActorLastWriteWins verifies that reprioritize_user is overwritten by latest actor
-func TestReprioritizeActorLastWriteWins(t *testing.T) {
+// TestReprioritiseActorLastWriteWins verifies that reprioritize_user is overwritten by latest actor
+func TestReprioritiseActorLastWriteWins(t *testing.T) {
 	jobIds := []string{util.NewULID(), util.NewULID()}
 	const alice = "alice"
 	const bob = "bob"
@@ -1420,7 +1420,7 @@ func TestReprioritizeActorLastWriteWins(t *testing.T) {
 		require.NoError(t, err)
 
 		// Alice reprioritizes (first write)
-		aliceReprioritizeOp := &UpdateJobPriorities{
+		aliceReprioritiseOp := &UpdateJobPriorities{
 			key: JobReprioritiseKey{
 				JobSetKey: JobSetKey{queue: testQueueName, jobSet: "set1"},
 				Priority:  10,
@@ -1428,11 +1428,11 @@ func TestReprioritizeActorLastWriteWins(t *testing.T) {
 			jobIds:    []string{jobIds[0], jobIds[1]},
 			Requestor: alice,
 		}
-		err = assertOpSuccess(t, schedulerDb, map[string]int64{}, aliceReprioritizeOp)
+		err = assertOpSuccess(t, schedulerDb, map[string]int64{}, aliceReprioritiseOp)
 		require.NoError(t, err)
 
 		// Bob reprioritizes (second write should overwrite alice)
-		bobReprioritizeOp := &UpdateJobPriorities{
+		bobReprioritiseOp := &UpdateJobPriorities{
 			key: JobReprioritiseKey{
 				JobSetKey: JobSetKey{queue: testQueueName, jobSet: "set1"},
 				Priority:  20,
@@ -1440,11 +1440,11 @@ func TestReprioritizeActorLastWriteWins(t *testing.T) {
 			jobIds:    []string{jobIds[0], jobIds[1]},
 			Requestor: bob,
 		}
-		err = assertOpSuccess(t, schedulerDb, map[string]int64{}, bobReprioritizeOp)
+		err = assertOpSuccess(t, schedulerDb, map[string]int64{}, bobReprioritiseOp)
 		require.NoError(t, err)
 
 		// Charlie reprioritizes (third write should overwrite bob)
-		charlieReprioritizeOp := &UpdateJobPriorities{
+		charlieReprioritiseOp := &UpdateJobPriorities{
 			key: JobReprioritiseKey{
 				JobSetKey: JobSetKey{queue: testQueueName, jobSet: "set1"},
 				Priority:  30,
@@ -1452,7 +1452,7 @@ func TestReprioritizeActorLastWriteWins(t *testing.T) {
 			jobIds:    []string{jobIds[0], jobIds[1]},
 			Requestor: charlie,
 		}
-		err = assertOpSuccess(t, schedulerDb, map[string]int64{}, charlieReprioritizeOp)
+		err = assertOpSuccess(t, schedulerDb, map[string]int64{}, charlieReprioritiseOp)
 		require.NoError(t, err)
 
 		// Verify that charlie's reprioritize_user is stored (last-write-wins)
@@ -1462,8 +1462,8 @@ func TestReprioritizeActorLastWriteWins(t *testing.T) {
 
 		for _, job := range jobs {
 			assert.Equal(t, int64(30), job.Priority, "priority should be 30 (charlie's value)")
-			if assert.NotNil(t, job.ReprioritizeUser, "reprioritize_user should be present") {
-				assert.Equal(t, charlie, *job.ReprioritizeUser, "reprioritize_user should be charlie (last writer), not alice or bob")
+			if assert.NotNil(t, job.ReprioritiseUser, "reprioritize_user should be present") {
+				assert.Equal(t, charlie, *job.ReprioritiseUser, "reprioritize_user should be charlie (last writer), not alice or bob")
 			}
 		}
 
@@ -1520,7 +1520,7 @@ func TestActorEmptyValueHandling(t *testing.T) {
 		err = assertOpSuccess(t, schedulerDb, map[string]int64{}, alicePreemptOp)
 		require.NoError(t, err)
 
-		aliceReprioritizeOp := &UpdateJobPriorities{
+		aliceReprioritiseOp := &UpdateJobPriorities{
 			key: JobReprioritiseKey{
 				JobSetKey: JobSetKey{queue: testQueueName, jobSet: "set1"},
 				Priority:  10,
@@ -1528,7 +1528,7 @@ func TestActorEmptyValueHandling(t *testing.T) {
 			jobIds:    []string{jobIds[0], jobIds[1]},
 			Requestor: alice,
 		}
-		err = assertOpSuccess(t, schedulerDb, map[string]int64{}, aliceReprioritizeOp)
+		err = assertOpSuccess(t, schedulerDb, map[string]int64{}, aliceReprioritiseOp)
 		require.NoError(t, err)
 
 		// Try to overwrite with empty string for cancel (should NOT overwrite)
@@ -1555,7 +1555,7 @@ func TestActorEmptyValueHandling(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to overwrite with empty string for reprioritize (should overwrite with NULL - last-write-wins)
-		emptyReprioritizeOp := &UpdateJobPriorities{
+		emptyReprioritiseOp := &UpdateJobPriorities{
 			key: JobReprioritiseKey{
 				JobSetKey: JobSetKey{queue: testQueueName, jobSet: "set1"},
 				Priority:  20,
@@ -1563,7 +1563,7 @@ func TestActorEmptyValueHandling(t *testing.T) {
 			jobIds:    []string{jobIds[0], jobIds[1]},
 			Requestor: "",
 		}
-		err = assertOpSuccess(t, schedulerDb, map[string]int64{}, emptyReprioritizeOp)
+		err = assertOpSuccess(t, schedulerDb, map[string]int64{}, emptyReprioritiseOp)
 		require.NoError(t, err)
 
 		// Verify that cancel_user persists for first-write field and reprioritize_user is NULL.
@@ -1575,7 +1575,7 @@ func TestActorEmptyValueHandling(t *testing.T) {
 			if assert.NotNil(t, job.CancelUser, "cancel_user should be present") {
 				assert.Equal(t, alice, *job.CancelUser, "cancel_user should still be alice (empty string should not overwrite)")
 			}
-			assert.Nil(t, job.ReprioritizeUser, "reprioritize_user should be nil (last-write-wins with empty requestor)")
+			assert.Nil(t, job.ReprioritiseUser, "reprioritize_user should be nil (last-write-wins with empty requestor)")
 			assert.Equal(t, int64(20), job.Priority, "priority should be updated to 20")
 		}
 
