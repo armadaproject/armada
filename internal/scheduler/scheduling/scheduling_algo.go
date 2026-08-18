@@ -746,7 +746,7 @@ func ConstructNodeDb(
 	// Only set the pool when cross-pool preemption ordering is enabled for this pool.
 	// Setting this causes nodeDb to consider cross-pool jobs to be scheduled at CrossPoolPriority
 	//  resulting in them being preempted ahead of home jobs
-	if !poolConfig.DisablePreemptCrossPoolJobsFirst {
+	if !poolConfig.ShouldPreemptCrossPoolJobsFirst() {
 		nodeDb.SetPool(poolConfig.Name)
 	}
 
