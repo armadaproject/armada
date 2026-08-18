@@ -445,6 +445,10 @@ type RateLimit struct {
 	MaximumBurst int `validate:"gte=0"`
 }
 
+func (p PoolConfig) ShouldPreemptCrossPoolJobsFirst() bool {
+	return !p.DisablePreemptCrossPoolJobsFirst
+}
+
 func (p PoolConfig) GetSubmissionGroup() string {
 	if p.ExperimentalSubmissionGroup == "" {
 		return p.Name
