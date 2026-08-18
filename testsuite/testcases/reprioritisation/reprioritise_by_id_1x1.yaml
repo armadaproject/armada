@@ -1,11 +1,11 @@
-## POST /v1/job/reprioritize
-## Submit a low-priority job, reprioritize it upward, confirm a JobReprioritizedEvent fires
+## POST /v1/job/reprioritise
+## Submit a low-priority job, reprioritise it upward, confirm a JobReprioritisedEvent fires
 ## 1x1
 
 numBatches: 1
 batchSize: 1
 queue: e2e-test-queue
-jobSetId: reprioritize_by_id
+jobSetId: reprioritise_by_id
 jobs:
   - namespace: default
     priority: 0
@@ -13,7 +13,7 @@ jobs:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
       containers:
-        - name: reprioritize-by-id
+        - name: reprioritise-by-id
           imagePullPolicy: IfNotPresent
           image: alpine:3.20.0
           args:
@@ -27,12 +27,12 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-### Reprioritize the job upward
+### Reprioritise the job upward
 triggerEvent: running
-reprioritize:
+reprioritise:
   request:
     newPriority: 100
 timeout: "100s"
 expectedEvents:
   - submitted:
-  - reprioritized:
+  - reprioritised:

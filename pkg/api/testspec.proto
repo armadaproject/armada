@@ -1,143 +1,144 @@
 syntax = 'proto3';
 
 package api;
-option go_package = "github.com/armadaproject/armada/pkg/api";
-option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/duration.proto";
-import "pkg/api/submit.proto";
 import "pkg/api/event.proto";
 import "pkg/api/node.proto";
+import "pkg/api/submit.proto";
+
+option csharp_namespace = "ArmadaProject.Io.Api";
+option go_package = "github.com/armadaproject/armada/pkg/api";
 
 // Defines a test case for the Armada test suite.
 // Defined as a proto message to enable unmarshalling oneof fields.
 message TestSpec {
-    // Jobs to submit.
-    // The n jobs herein are copied BatchSize times to produce n*BatchSize jobs.
-    // A batch of n*BatchSize such jobs are submitted in each API call.
-    // NumBatches such batches are submitted in total.
-    repeated JobSubmitRequestItem jobs = 1;
-    // Events expected in response to submitting each job.
-    repeated EventMessage expected_events = 2;
-    // Queue to submit jobs to.
-    string queue = 3;
-    // Job set to submit jobs to.
-    string job_set_id = 4;
-    // Number of batches of jobs to submit.
-    // If 0, will submit forever.
-    uint32 num_batches = 5;
-    // Number of copies of the provided jobs to submit per batch.
-    uint32 batch_size = 6;
-    // Time between batches.
-    // If 0, jobs are submitted as quickly as possible.
-    google.protobuf.Duration interval = 7;
-    // Number of seconds to wait for jobs to finish.
-    google.protobuf.Duration timeout = 8;
-    // Test name. Defaults to the filename if not provided.
-    string name = 10;
-    // Randomize clientId if not provided
-    bool random_client_id = 11;
-    // Toggle should testsuite scrape Armada Job (pod) logs
-    bool get_logs = 12;
-    // Value of the environment label set on exported Prometheus metrics.
-    string environment = 13;
-    // Value of the target label set on exported Prometheus metrics.
-    string target = 14;
-    // Node-scoped cancel operation
-    NodeCancelConfig cancel_on_node = 18;
-    // Node-scoped preempt operation
-    NodePreemptConfig preempt_on_node = 19;
-    // Event name that triggers the configured action once observed for all submitted jobs.
-    // If unset, defaults to running for prempt, reprioritized and node-scoped actions
-    // and queued for cancel via the submit API, matching prior behavior.
-    string trigger_event = 20;
-    // Cancel jobs by id/ids
-    JobCancelConfig cancel = 21;
-    // Preempt jobs by id/ids
-    JobPreemptConfig preempt = 23;
-    // Reprioritize jobs by id/ids/job set
-    JobReprioritizeConfig reprioritize = 24;
-    // Optional queue lifecycle phases.
-    QueueConfig queue_config = 25;
-    // Cancel jobs by job set.
-    JobSetCancelConfig cancel_job_set = 26;
+  // Jobs to submit.
+  // The n jobs herein are copied BatchSize times to produce n*BatchSize jobs.
+  // A batch of n*BatchSize such jobs are submitted in each API call.
+  // NumBatches such batches are submitted in total.
+  repeated JobSubmitRequestItem jobs = 1;
+  // Events expected in response to submitting each job.
+  repeated EventMessage expected_events = 2;
+  // Queue to submit jobs to.
+  string queue = 3;
+  // Job set to submit jobs to.
+  string job_set_id = 4;
+  // Number of batches of jobs to submit.
+  // If 0, will submit forever.
+  uint32 num_batches = 5;
+  // Number of copies of the provided jobs to submit per batch.
+  uint32 batch_size = 6;
+  // Time between batches.
+  // If 0, jobs are submitted as quickly as possible.
+  google.protobuf.Duration interval = 7;
+  // Number of seconds to wait for jobs to finish.
+  google.protobuf.Duration timeout = 8;
+  // Test name. Defaults to the filename if not provided.
+  string name = 10;
+  // Randomize clientId if not provided
+  bool random_client_id = 11;
+  // Toggle should testsuite scrape Armada Job (pod) logs
+  bool get_logs = 12;
+  // Value of the environment label set on exported Prometheus metrics.
+  string environment = 13;
+  // Value of the target label set on exported Prometheus metrics.
+  string target = 14;
+  // Node-scoped cancel operation
+  NodeCancelConfig cancel_on_node = 18;
+  // Node-scoped preempt operation
+  NodePreemptConfig preempt_on_node = 19;
+  // Event name that triggers the configured action once observed for all submitted jobs.
+  // If unset, defaults to running for prempt, reprioritised and node-scoped actions
+  // and queued for cancel via the submit API, matching prior behavior.
+  string trigger_event = 20;
+  // Cancel jobs by id/ids
+  JobCancelConfig cancel = 21;
+  // Preempt jobs by id/ids
+  JobPreemptConfig preempt = 23;
+  // Reprioritise jobs by id/ids/job set
+  JobReprioritiseConfig reprioritise = 24;
+  // Optional queue lifecycle phases.
+  QueueConfig queue_config = 25;
+  // Cancel jobs by job set.
+  JobSetCancelConfig cancel_job_set = 26;
 }
 
 message NodeCancelConfig {
-    NodeCancelRequest request = 1;
-    // value of the armadaproject.io/node-pool label used to resolve the target node at runtime
-    string node_pool_tag = 2;
+  NodeCancelRequest request = 1;
+  // value of the armadaproject.io/node-pool label used to resolve the target node at runtime
+  string node_pool_tag = 2;
 }
 
 message NodePreemptConfig {
-    NodePreemptRequest request = 1;
-    // value of the armadaproject.io/node-pool label used to resolve the target node at runtime
-    string node_pool_tag = 2;
+  NodePreemptRequest request = 1;
+  // value of the armadaproject.io/node-pool label used to resolve the target node at runtime
+  string node_pool_tag = 2;
 }
 
 message JobPreemptConfig {
-    JobPreemptRequest request = 1;
-    // If true, documents intent to preempt the whole job set. PreemptJobs has no job-set-wide
-    // primitive, so the runner still populates request.job_ids with every submitted job's id.
-    bool by_job_set = 2;
+  JobPreemptRequest request = 1;
+  // If true, documents intent to preempt the whole job set. PreemptJobs has no job-set-wide
+  // primitive, so the runner still populates request.job_ids with every submitted job's id.
+  bool by_job_set = 2;
 }
 
 message JobCancelConfig {
-    JobCancelRequest request = 1;
+  JobCancelRequest request = 1;
 }
 
 message JobSetCancelConfig {
-    // The api request itself. Queue and job_set_id are injected from the top-level
-    // TestSpec at runtime, so a test only needs to set request-specific extras (e.g. filter).
-    JobSetCancelRequest request = 1;
-    // If true, once all jobs in the set are terminal (the set has no active jobs) the job set
-    // is cancelled again; the test fails only if that cancel errors. Verifies that cancelling
-    // a job set with no active jobs is a successful no-op.
-    bool assert_inactive_succeeds = 2;
+  // The api request itself. Queue and job_set_id are injected from the top-level
+  // TestSpec at runtime, so a test only needs to set request-specific extras (e.g. filter).
+  JobSetCancelRequest request = 1;
+  // If true, once all jobs in the set are terminal (the set has no active jobs) the job set
+  // is cancelled again; the test fails only if that cancel errors. Verifies that cancelling
+  // a job set with no active jobs is a successful no-op.
+  bool assert_inactive_succeeds = 2;
 }
 
-message JobReprioritizeConfig {
-    JobReprioritizeRequest request = 1;
-    // If true, reprioritize the whole job set (request.job_ids left empty) instead of the submitted jobs.
-    bool by_job_set = 2;
+message JobReprioritiseConfig {
+  JobReprioritiseRequest request = 1;
+  // If true, reprioritise the whole job set (request.job_ids left empty) instead of the submitted jobs.
+  bool by_job_set = 2;
 }
 
 // Queue lifecycle configuration for a test.
 message QueueConfig {
-    QueueSetup setup = 1;
-    repeated QueueAssertion assertions = 2;
-    Queue update = 4;
+  QueueSetup setup = 1;
+  repeated QueueAssertion assertions = 2;
+  Queue update = 4;
 }
 
 // Queue setup to run before job submission. If present, the queue named by TestSpec.queue
 // is created before running the test.
 message QueueSetup {
-    // Number of batches of queues to create.
-    // If 0, defaults to 1.
-    uint32 num_batches = 5;
-    // Number of queues to create per batch.
-    // If 0, defaults to 1.
-    uint32 batch_size = 6;
-    // Time between batches.
-    // If 0, queues are created as quickly as possible.
-    google.protobuf.Duration interval = 7;
-    // Queue to create, as a template. Allows creating queues with a non-default priority factor,
-    // permissions, labels, etc. (anything on api.Queue) in a single test.
-    Queue queue_spec = 8;
+  // Number of batches of queues to create.
+  // If 0, defaults to 1.
+  uint32 num_batches = 5;
+  // Number of queues to create per batch.
+  // If 0, defaults to 1.
+  uint32 batch_size = 6;
+  // Time between batches.
+  // If 0, queues are created as quickly as possible.
+  google.protobuf.Duration interval = 7;
+  // Queue to create, as a template. Allows creating queues with a non-default priority factor,
+  // permissions, labels, etc. (anything on api.Queue) in a single test.
+  Queue queue_spec = 8;
 }
 
 // A single assertion to run against queue state after jobs finish.
 message QueueAssertion {
-    // If non-empty, assert that TestSpec.queue appears in GetActiveQueues for this pool name.
-    string active_in_pool = 1;
-    // If true, assert that TestSpec.queue appears in the GetQueues streaming response.
-    bool appears_in_stream = 2;
-    // If set, fetch TestSpec.queue via GetQueue and assert that its properties match this
-    // template (name is ignored; compares priority_factor, user_owners, group_owners,
-    // permissions, cordoned, labels, and resource_limits_by_priority_class_name).
-    // Useful for verifying that a QueueUpdate was actually applied.
-    Queue matches = 3;
-    // If true, after the queue(s) are deleted at the end of the test, assert that GetQueue on
-    // the deleted queue(s) returns NOT_FOUND.
-    bool deleted = 4;
+  // If non-empty, assert that TestSpec.queue appears in GetActiveQueues for this pool name.
+  string active_in_pool = 1;
+  // If true, assert that TestSpec.queue appears in the GetQueues streaming response.
+  bool appears_in_stream = 2;
+  // If set, fetch TestSpec.queue via GetQueue and assert that its properties match this
+  // template (name is ignored; compares priority_factor, user_owners, group_owners,
+  // permissions, cordoned, labels, and resource_limits_by_priority_class_name).
+  // Useful for verifying that a QueueUpdate was actually applied.
+  Queue matches = 3;
+  // If true, after the queue(s) are deleted at the end of the test, assert that GetQueue on
+  // the deleted queue(s) returns NOT_FOUND.
+  bool deleted = 4;
 }

@@ -278,24 +278,24 @@ async def test_update_queues_full(aio_client):
 
 
 @pytest.mark.asyncio
-async def test_reprioritize_jobs(aio_client):
-    resp = await aio_client.reprioritize_jobs(
+async def test_reprioritise_jobs(aio_client):
+    resp = await aio_client.reprioritise_jobs(
         queue="test",
         job_ids=["job-1"],
         job_set_id="job-set-1",
         new_priority=1,
     )
 
-    assert resp.reprioritization_results == {"job-1": "1.0"}
+    assert resp.reprioritisation_results == {"job-1": "1.0"}
 
-    resp = await aio_client.reprioritize_jobs(
+    resp = await aio_client.reprioritise_jobs(
         queue="test",
         job_ids=None,
         job_set_id="job-set-1",
         new_priority=1,
     )
 
-    assert resp.reprioritization_results == {"test/job-set-1": "1.0"}
+    assert resp.reprioritisation_results == {"test/job-set-1": "1.0"}
 
 
 @pytest.mark.asyncio

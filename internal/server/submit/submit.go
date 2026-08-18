@@ -275,14 +275,14 @@ func preemptJobEventSequenceForJobIds(clock clock.Clock, jobIds []string, q, job
 	return sequence, nil
 }
 
-func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
+func (s *Server) ReprioritiseJobs(grpcCtx context.Context, req *api.JobReprioritiseRequest) (*api.JobReprioritiseResponse, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := validation.ValidateQueueAndJobSet(req)
 	if err != nil {
 		return nil, err
 	}
 
-	userId, groups, err := s.authorize(ctx, req.Queue, permissions.ReprioritizeAnyJobs, queue.PermissionVerbReprioritize)
+	userId, groups, err := s.authorize(ctx, req.Queue, permissions.ReprioritiseAnyJobs, queue.PermissionVerbReprioritise)
 	if err != nil {
 		return nil, err
 	}
@@ -335,8 +335,8 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 
-	return &api.JobReprioritizeResponse{
-		ReprioritizationResults: results,
+	return &api.JobReprioritiseResponse{
+		ReprioritisationResults: results,
 	}, nil
 }
 

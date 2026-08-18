@@ -9,7 +9,7 @@ import (
 
 var permissionVerbsToTest = []PermissionVerb{
 	PermissionVerbCancel,
-	PermissionVerbReprioritize,
+	PermissionVerbReprioritise,
 	PermissionVerbPreempt,
 	PermissionVerbSubmit,
 	PermissionVerbWatch,

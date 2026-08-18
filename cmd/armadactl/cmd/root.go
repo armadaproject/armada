@@ -23,7 +23,7 @@ func RootCmd() *cobra.Command {
 		deleteCmd(),
 		updateCmd(),
 		getCmd(),
-		reprioritizeCmd(),
+		reprioritiseCmd(),
 		submitCmd(),
 		versionCmd(),
 		watchCmd(),

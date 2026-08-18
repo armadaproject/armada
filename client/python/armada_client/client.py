@@ -310,29 +310,29 @@ class ArmadaClient:
         response = self.submit_stub.CancelJobSet(request)
         return response
 
-    def reprioritize_jobs(
+    def reprioritise_jobs(
         self,
         new_priority: float,
         job_ids: Optional[List[str]],
         job_set_id: str,
         queue: str,
-    ) -> submit_pb2.JobReprioritizeResponse:
-        """Reprioritize jobs with new_priority value.
+    ) -> submit_pb2.JobReprioritiseResponse:
+        """Reprioritise jobs with new_priority value.
 
-        Uses ReprioritizeJobs RPC to set a new priority on a list of jobs
+        Uses ReprioritiseJobs RPC to set a new priority on a list of jobs
         or job set (if job_ids are set to None or empty).
 
         :param new_priority: The new priority value for the jobs
         :param job_ids: A list of job ids to change priority of
         :param job_set_id: A job set id including jobs to change priority of
         :param queue: The queue the jobs are in
-        :return: JobReprioritizeResponse object. It is a map of strings.
+        :return: JobReprioritiseResponse object. It is a map of strings.
         """
         if not queue or not job_set_id:
             raise ValueError("Both queue and job_set_id must be provided.")
 
         if job_ids:
-            request = submit_pb2.JobReprioritizeRequest(
+            request = submit_pb2.JobReprioritiseRequest(
                 queue=queue,
                 job_set_id=job_set_id,
                 job_ids=job_ids,
@@ -340,13 +340,13 @@ class ArmadaClient:
             )
 
         else:
-            request = submit_pb2.JobReprioritizeRequest(
+            request = submit_pb2.JobReprioritiseRequest(
                 queue=queue,
                 job_set_id=job_set_id,
                 new_priority=new_priority,
             )
 
-        return self.submit_stub.ReprioritizeJobs(request)
+        return self.submit_stub.ReprioritiseJobs(request)
 
     def preempt_jobs(
         self,

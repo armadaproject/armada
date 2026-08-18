@@ -80,7 +80,7 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
     def PreemptJobs(self, request, context):
         return empty_pb2.Empty()
 
-    def ReprioritizeJobs(self, request, context):
+    def ReprioritiseJobs(self, request, context):
         new_priority = request.new_priority
         if len(request.job_ids) > 0:
             job_id = request.job_ids[0]
@@ -101,7 +101,7 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
 
         results = [(k, str(v)) for k, v in results.items()]
 
-        return submit_pb2.JobReprioritizeResponse(reprioritization_results=results)
+        return submit_pb2.JobReprioritiseResponse(reprioritisation_results=results)
 
     def Health(self, request, context):
         return health_pb2.HealthCheckResponse(

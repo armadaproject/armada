@@ -29,7 +29,7 @@ interface JobSetsProps {
   canCancel: boolean
   getJobSetsRequestStatus: RequestStatus
   autoRefresh: boolean
-  canReprioritize: boolean
+  canReprioritise: boolean
   orderByColumn: JobSetsOrderByColumn
   orderByDesc: boolean
   activeOnly: boolean
@@ -41,7 +41,7 @@ interface JobSetsProps {
   onSelectAllClick: () => void
   onCancelJobSetsClick: () => void
   onToggleAutoRefresh: ((autoRefresh: boolean) => void) | undefined
-  onReprioritizeJobSetsClick: () => void
+  onReprioritiseJobSetsClick: () => void
   onOrderChange: (orderByColumn: JobSetsOrderByColumn, orderByDesc: boolean) => void
   onActiveOnlyChange: (activeOnly: boolean) => void
   onJobSetStateClick(rowIndex: number, state: string): void
@@ -78,15 +78,15 @@ export default function JobSets(props: JobSetsProps) {
         </HeaderStartContainer>
         <div className="job-sets-actions">
           <ErrorBoundary FallbackComponent={AlertErrorFallback}>
-            <div className="reprioritize-button">
+            <div className="reprioritise-button">
               <Button
-                disabled={!props.canReprioritize}
+                disabled={!props.canReprioritise}
                 variant="contained"
                 color="primary"
                 startIcon={<LowPriority />}
-                onClick={props.onReprioritizeJobSetsClick}
+                onClick={props.onReprioritiseJobSetsClick}
               >
-                Reprioritize
+                Reprioritise
               </Button>
             </div>
             <div className="cancel-button">

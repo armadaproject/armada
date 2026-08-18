@@ -136,7 +136,7 @@ func CreateCancelJobSetSequenceEvent() *armadaevents.EventSequence_Event {
 	}
 }
 
-func CreateReprioritizeJobSequenceEvents(jobIds []string, newPriority float64) []*armadaevents.EventSequence_Event {
+func CreateReprioritiseJobSequenceEvents(jobIds []string, newPriority float64) []*armadaevents.EventSequence_Event {
 	events := make([]*armadaevents.EventSequence_Event, len(jobIds))
 	for i, jobId := range jobIds {
 		events[i] = &armadaevents.EventSequence_Event{
@@ -152,7 +152,7 @@ func CreateReprioritizeJobSequenceEvents(jobIds []string, newPriority float64) [
 	return events
 }
 
-func CreateReprioritizedJobSetSequenceEvent(newPriority float64) *armadaevents.EventSequence_Event {
+func CreateReprioritisedJobSetSequenceEvent(newPriority float64) *armadaevents.EventSequence_Event {
 	return &armadaevents.EventSequence_Event{
 		Created: DefaultTimeProto,
 		Event: &armadaevents.EventSequence_Event_ReprioritiseJobSet{

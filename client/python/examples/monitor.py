@@ -131,7 +131,7 @@ def run_workflow(client, queue, job_set_id, job_request_items):
     job_id_to_cancel = resp.job_response_items[0].job_id
     client.cancel_jobs(queue=queue, job_id=job_id_to_cancel, job_set_id=job_set_id)
 
-    client.reprioritize_jobs(new_priority=2, queue=queue, job_set_id=job_set_id)
+    client.reprioritise_jobs(new_priority=2, queue=queue, job_set_id=job_set_id)
 
 
 def main():

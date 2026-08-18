@@ -172,7 +172,7 @@ message JobUtilisationEvent {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> AvgResourcesForPeriod = 13;
 }
 
-message JobReprioritizingEvent {
+message JobReprioritisingEvent {
     string job_id = 1;
     string job_set_id = 2;
     string queue = 3;
@@ -181,7 +181,7 @@ message JobReprioritizingEvent {
     string requestor = 6;
 }
 
-message JobReprioritizedEvent {
+message JobReprioritisedEvent {
     string job_id = 1;
     string job_set_id = 2;
     string queue = 3;
@@ -234,12 +234,12 @@ message EventMessage {
         JobRunningEvent running = 7;
         JobFailedEvent failed = 9;
         JobSucceededEvent succeeded = 10;
-        JobReprioritizedEvent reprioritized = 11;
+        JobReprioritisedEvent reprioritised = 11;
         JobCancellingEvent cancelling = 12;
         JobCancelledEvent cancelled = 13;
         JobUtilisationEvent utilisation = 15;
         JobIngressInfoEvent ingress_info = 17;
-        JobReprioritizingEvent reprioritizing = 18;
+        JobReprioritisingEvent reprioritising = 18;
         JobPreemptedEvent preempted = 21;
         JobPreemptingEvent preempting = 22;
     }

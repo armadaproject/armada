@@ -258,24 +258,24 @@ def test_update_queues_full():
     assert len(resp.failed_queues) == 2
 
 
-def test_reprioritize_jobs():
-    resp = tester.reprioritize_jobs(
+def test_reprioritise_jobs():
+    resp = tester.reprioritise_jobs(
         queue="test",
         job_ids=["job-1"],
         job_set_id="job-set-1",
         new_priority=1,
     )
 
-    assert resp.reprioritization_results == {"job-1": "1.0"}
+    assert resp.reprioritisation_results == {"job-1": "1.0"}
 
-    resp = tester.reprioritize_jobs(
+    resp = tester.reprioritise_jobs(
         queue="test",
         job_ids=None,
         job_set_id="job-set-1",
         new_priority=1,
     )
 
-    assert resp.reprioritization_results == {"test/job-set-1": "1.0"}
+    assert resp.reprioritisation_results == {"test/job-set-1": "1.0"}
 
 
 def test_get_job_events_stream():

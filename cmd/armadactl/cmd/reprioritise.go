@@ -9,21 +9,21 @@ import (
 	"github.com/armadaproject/armada/internal/armadactl"
 )
 
-func reprioritizeCmd() *cobra.Command {
+func reprioritiseCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "reprioritize",
-		Short: "Reprioritize jobs in Armada",
+		Use:   "reprioritise",
+		Short: "Reprioritise jobs in Armada",
 		Long:  `Change the priority of a single job or entire job-set. Supported: job, job-set`,
 	}
 	cmd.AddCommand(
-		reprioritizeJobCmd(),
-		reprioritizeJobSetCmd(),
+		reprioritiseJobCmd(),
+		reprioritiseJobSetCmd(),
 	)
 
 	return cmd
 }
 
-func reprioritizeJobCmd() *cobra.Command {
+func reprioritiseJobCmd() *cobra.Command {
 	a := armadactl.New()
 	cmd := &cobra.Command{
 		Use:   "job <queue> <job-set> <job-id> <priority>",
@@ -43,13 +43,13 @@ func reprioritizeJobCmd() *cobra.Command {
 				return fmt.Errorf("error converting %s to float64: %s", priorityString, err)
 			}
 
-			return a.ReprioritizeJob(queue, jobSet, jobId, priorityFactor)
+			return a.ReprioritiseJob(queue, jobSet, jobId, priorityFactor)
 		},
 	}
 	return cmd
 }
 
-func reprioritizeJobSetCmd() *cobra.Command {
+func reprioritiseJobSetCmd() *cobra.Command {
 	a := armadactl.New()
 	cmd := &cobra.Command{
 		Use:   "job-set <queue> <job-set> <priority>",
@@ -68,7 +68,7 @@ func reprioritizeJobSetCmd() *cobra.Command {
 				return fmt.Errorf("error converting %s to float64: %s", priorityString, err)
 			}
 
-			return a.ReprioritizeJobSet(queue, jobSet, priorityFactor)
+			return a.ReprioritiseJobSet(queue, jobSet, priorityFactor)
 		},
 	}
 	return cmd

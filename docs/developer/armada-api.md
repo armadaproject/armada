@@ -97,7 +97,7 @@ These are defined as global or on a per-queue basis.
 * `create_queue`
 * `delete_queue`
 * `cancel_any_jobs`
-* `reprioritize_any_jobs`
+* `reprioritise_any_jobs`
 * `watch_all_events`
 
 [Learn more about global Armada permissions](https://github.com/armadaproject/armada/blob/master/internal/server/permissions/permissions.go).
@@ -108,7 +108,7 @@ The following queue-specific permission verbs control what actions can be taken 
 
 * `submit`
 * `cancel`
-* `reprioritize`
+* `reprioritise`
 * `watch`
 
 [Learn more about permission verbs](https://github.com/armadaproject/armada/blob/master/pkg/client/queue/permission_verb.go).
@@ -122,7 +122,7 @@ Note that queue-specific permission require a user to be bound to a global permi
 |--------------------|-------------------------|-------------------|
 | `SubmitJobs`       | `submit_any_jobs`       | `submit`          |
 | `CancelJobs`       | `cancel_any_jobs`       | `cancel`          |
-| `ReprioritizeJobs` | `reprioritize_any_jobs` | `reprioritize`    |
+| `ReprioritiseJobs` | `reprioritise_any_jobs` | `reprioritise`    |
 | `CreateQueue`      | `create_queue`          |                   |
 | `UpdateQueue`      | `create_queue`          |                   |
 | `DeleteQueue`      | `delete_queue`          |                   |

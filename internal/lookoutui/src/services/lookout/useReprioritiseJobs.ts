@@ -18,7 +18,7 @@ export type UpdateJobsResponse = {
   }[]
 }
 
-export interface ReprioritizeJobsVariables {
+export interface ReprioritiseJobsVariables {
   jobs: Job[]
   newPriority: number
 }
@@ -45,11 +45,11 @@ function createJobBatches(jobs: Job[], batchSize: number): Map<string, Map<strin
   return result
 }
 
-export const useReprioritizeJobs = () => {
+export const useReprioritiseJobs = () => {
   const { submitApi } = useApiClients()
 
-  return useMutation<UpdateJobsResponse, string, ReprioritizeJobsVariables>({
-    mutationFn: async ({ jobs, newPriority }: ReprioritizeJobsVariables) => {
+  return useMutation<UpdateJobsResponse, string, ReprioritiseJobsVariables>({
+    mutationFn: async ({ jobs, newPriority }: ReprioritiseJobsVariables) => {
       if (config.fakeDataEnabled) {
         await new Promise((r) => setTimeout(r, 1_000))
         return {
@@ -68,7 +68,7 @@ export const useReprioritizeJobs = () => {
           for (const [jobSet, batches] of jobSetMap) {
             for (const batch of batches) {
               apiResponsePromises.push({
-                promise: submitApi.reprioritizeJobs({
+                promise: submitApi.reprioritiseJobs({
                   body: {
                     jobIds: batch,
                     queue: queue,
@@ -84,10 +84,10 @@ export const useReprioritizeJobs = () => {
 
         for (const apiResponsePromise of apiResponsePromises) {
           try {
-            const apiResponse = (await apiResponsePromise.promise)?.reprioritizationResults
+            const apiResponse = (await apiResponsePromise.promise)?.reprioritisationResults
 
             if (_.isNil(apiResponse)) {
-              const errorMessage = "No reprioritization results found in response body"
+              const errorMessage = "No reprioritisation results found in response body"
               for (const jobId of apiResponsePromise.jobIds) {
                 response.failedJobIds.push({ jobId: jobId, errorReason: errorMessage })
               }

@@ -12,7 +12,7 @@ const (
 	PermissionVerbSubmit       PermissionVerb = "submit"
 	PermissionVerbCancel       PermissionVerb = "cancel"
 	PermissionVerbPreempt      PermissionVerb = "preempt"
-	PermissionVerbReprioritize PermissionVerb = "reprioritize"
+	PermissionVerbReprioritise PermissionVerb = "reprioritise"
 	PermissionVerbWatch        PermissionVerb = "watch"
 )
 
@@ -60,7 +60,7 @@ func AllPermissionVerbs() PermissionVerbs {
 		PermissionVerbSubmit,
 		PermissionVerbCancel,
 		PermissionVerbPreempt,
-		PermissionVerbReprioritize,
+		PermissionVerbReprioritise,
 		PermissionVerbWatch,
 	}
 }

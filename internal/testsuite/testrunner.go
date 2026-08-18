@@ -209,22 +209,22 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	return queue.RunAssertions(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out)
 }
 
-// hasConfiguredAction reports whether testSpec configures a cancel/preempt/reprioritize action,
+// hasConfiguredAction reports whether testSpec configures a cancel/preempt/reprioritise action,
 // i.e. whether an action should be triggered once all jobs reach the configured trigger event.
 func hasConfiguredAction(testSpec *api.TestSpec) bool {
 	return testSpec.Cancel != nil || testSpec.CancelJobSet != nil || testSpec.Preempt != nil ||
-		testSpec.Reprioritize != nil || testSpec.CancelOnNode != nil || testSpec.PreemptOnNode != nil
+		testSpec.Reprioritise != nil || testSpec.CancelOnNode != nil || testSpec.PreemptOnNode != nil
 }
 
 // triggerEventExtractor resolves testSpec.TriggerEvent to an extractor function.
 // If TriggerEvent is unset, falls back to the default behavior:
-//   - Running for PREEMPT/REPRIORITIZE and node-scoped operations (CancelOnNode/PreemptOnNode)
+//   - Running for PREEMPT/REPRIORITISE and node-scoped operations (CancelOnNode/PreemptOnNode)
 //   - Queued for CANCEL via the submit API (BY_ID, BY_IDS, BY_SET, CancelJobSet), which works from any state.
 func triggerEventExtractor(testSpec *api.TestSpec) (func(*api.EventMessage) string, error) {
 	name := testSpec.TriggerEvent
 	if name == "" {
 		if testSpec.CancelOnNode != nil || testSpec.PreemptOnNode != nil ||
-			testSpec.Preempt != nil || testSpec.Reprioritize != nil {
+			testSpec.Preempt != nil || testSpec.Reprioritise != nil {
 			name = "running"
 		} else {
 			name = "queued"
@@ -339,7 +339,7 @@ func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testS
 }
 
 // dispatchAction issues the action configured on testSpec (Cancel, CancelJobSet, Preempt,
-// Reprioritize, CancelOnNode, or PreemptOnNode). nodeName is only relevant for node-scoped actions.
+// Reprioritise, CancelOnNode, or PreemptOnNode). nodeName is only relevant for node-scoped actions.
 func dispatchAction(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string) error {
 	switch {
 	case testSpec.CancelJobSet != nil:
@@ -397,18 +397,18 @@ func dispatchAction(ctx context.Context, testSpec *api.TestSpec, conn *client.Ap
 			_, err := sc.PreemptJobs(ctx, req)
 			return errors.WithStack(err)
 		})
-	case testSpec.Reprioritize != nil:
+	case testSpec.Reprioritise != nil:
 		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
-			req := testSpec.Reprioritize.GetRequest()
+			req := testSpec.Reprioritise.GetRequest()
 			if req == nil {
-				req = &api.JobReprioritizeRequest{}
+				req = &api.JobReprioritiseRequest{}
 			}
 			req.Queue = testSpec.GetQueue()
 			req.JobSetId = testSpec.GetJobSetId()
-			if !testSpec.Reprioritize.GetByJobSet() {
+			if !testSpec.Reprioritise.GetByJobSet() {
 				req.JobIds = jobIds
 			}
-			_, err := sc.ReprioritizeJobs(ctx, req)
+			_, err := sc.ReprioritiseJobs(ctx, req)
 			return errors.WithStack(err)
 		})
 	default:

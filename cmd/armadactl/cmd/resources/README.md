@@ -84,14 +84,14 @@ armadactl [subcommand] [flags]
   ```bash
   armadactl update queue <queue-name> [flags]
   ```
-- **reprioritize** : The reprioritize subcommand can be used to change the priority of a running Armada resource.
+- **reprioritise** : The reprioritise subcommand can be used to change the priority of a running Armada resource.
   - **job** : Allows users to change the priority of an individual job
   ```bash
-  armadactl reprioritize job <queue> <job-set> <job-id> <new-priority> [flags]
+  armadactl reprioritise job <queue> <job-set> <job-id> <new-priority> [flags]
   ```
   - **job-set** : Allows users to change the priority of all jobs in a job-set
   ```bash
-  armadactl reprioritize job-set <queue> <job-set> <new-priority> [flags]
+  armadactl reprioritise job-set <queue> <job-set> <new-priority> [flags]
   ```
 - **submit** : The submit subcommand can be used to submit a set of manifests to an existing Armada deployment.
 ```bash

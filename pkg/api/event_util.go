@@ -53,10 +53,10 @@ func UnwrapEvent(message *EventMessage) (Event, error) {
 		return event.Failed, nil
 	case *EventMessage_Succeeded:
 		return event.Succeeded, nil
-	case *EventMessage_Reprioritizing:
-		return event.Reprioritizing, nil
-	case *EventMessage_Reprioritized:
-		return event.Reprioritized, nil
+	case *EventMessage_Reprioritising:
+		return event.Reprioritising, nil
+	case *EventMessage_Reprioritised:
+		return event.Reprioritised, nil
 	case *EventMessage_Cancelling:
 		return event.Cancelling, nil
 	case *EventMessage_Cancelled:

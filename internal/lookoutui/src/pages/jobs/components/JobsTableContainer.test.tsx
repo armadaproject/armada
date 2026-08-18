@@ -290,7 +290,7 @@ describe("JobsTableContainer", () => {
       await groupByColumn("Queue")
 
       expect(await findByRole("button", { name: "Cancel selected" })).toBeDisabled()
-      expect(await findByRole("button", { name: "Reprioritize selected" })).toBeDisabled()
+      expect(await findByRole("button", { name: "Reprioritise selected" })).toBeDisabled()
 
       await toggleSelectedRow("queue", "queue-1")
       await toggleSelectedRow("queue", "queue-2")

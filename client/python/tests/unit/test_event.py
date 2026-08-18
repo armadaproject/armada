@@ -39,12 +39,12 @@ class FakeEventStreamMessage:
         ("running", EventType.running),
         ("failed", EventType.failed),
         ("succeeded", EventType.succeeded),
-        ("reprioritized", EventType.reprioritized),
+        ("reprioritised", EventType.reprioritised),
         ("cancelling", EventType.cancelling),
         ("cancelled", EventType.cancelled),
         ("utilisation", EventType.utilisation),
         ("ingress_info", EventType.ingress_info),
-        ("reprioritizing", EventType.reprioritizing),
+        ("reprioritising", EventType.reprioritising),
     ],
 )
 def test_event_class(name, event_type):
@@ -70,12 +70,12 @@ def test_event_class(name, event_type):
         "running",
         "failed",
         "succeeded",
-        "reprioritized",
+        "reprioritised",
         "cancelling",
         "cancelled",
         "utilisation",
         "ingress_info",
-        "reprioritizing",
+        "reprioritising",
     ],
 )
 def test_unmarshal_event_response(name):

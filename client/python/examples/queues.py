@@ -15,7 +15,7 @@ def create_queue_request(client, queue):
     """
 
     subject = Subject(kind="Group", name="group1")
-    permissions = Permissions(subjects=[subject], verbs=["cancel", "reprioritize"])
+    permissions = Permissions(subjects=[subject], verbs=["cancel", "reprioritise"])
 
     resource_limits = {"cpu": 1.0, "memory": 1.0}
 

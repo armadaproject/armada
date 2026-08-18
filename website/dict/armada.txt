@@ -7,8 +7,8 @@ gitter
 unported
 LGBTQ
 Metaflow
-reprioritize
-reprioritizing
+reprioritise
+reprioritising
 xzvf
 golangci-lint
 sqlc

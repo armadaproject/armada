@@ -3,31 +3,31 @@ import { Button, List, ListItem, ListItemText, Paper, TextField } from "@mui/mat
 import { Analytics, ANALYTICS_EVENTS } from "../../../../analytics"
 import { JobSet } from "../../../../models/lookoutModels"
 
-import "./ReprioritizeJobSets.css"
+import "./ReprioritiseJobSets.css"
 import "../Dialog.css"
 import "../Text.css"
 
-type ReprioritizeJobSetsProps = {
+type ReprioritiseJobSetsProps = {
   queue: string
   jobSets: JobSet[]
   isLoading: boolean
   isValid: boolean
-  onReprioritizeJobsSets: () => void
+  onReprioritiseJobsSets: () => void
   onPriorityChange: (priority: string) => void
 }
 
-export default function ReprioritizeJobSets(props: ReprioritizeJobSetsProps) {
+export default function ReprioritiseJobSets(props: ReprioritiseJobSetsProps) {
   return (
     <div className="lookout-dialog-container">
-      <p className="lookout-dialog-fixed">The following Job Sets in queue {props.queue} will be reprioritized:</p>
-      <List component={Paper} className="lookout-dialog-varying reprioritize-job-sets">
+      <p className="lookout-dialog-fixed">The following Job Sets in queue {props.queue} will be reprioritised:</p>
+      <List component={Paper} className="lookout-dialog-varying reprioritise-job-sets">
         {props.jobSets.map((jobSet) => (
           <ListItem key={jobSet.jobSetId}>
             <ListItemText className="lookout-word-wrapped">{jobSet.jobSetId}</ListItemText>
           </ListItem>
         ))}
       </List>
-      <div className="lookout-dialog-centred lookout-dialog-fixed reprioritize-job-sets-options">
+      <div className="lookout-dialog-centred lookout-dialog-fixed reprioritise-job-sets-options">
         <div>
           <TextField
             autoFocus={true}
@@ -41,12 +41,12 @@ export default function ReprioritizeJobSets(props: ReprioritizeJobSetsProps) {
         <div>
           <Analytics
             component={Button}
-            eventName={ANALYTICS_EVENTS.REPRIORITIZE_JOB_SETS_CLICKED}
+            eventName={ANALYTICS_EVENTS.REPRIORITISE_JOB_SETS_CLICKED}
             disabled={!props.isValid}
             loading={props.isLoading}
-            onClick={props.onReprioritizeJobsSets}
+            onClick={props.onReprioritiseJobsSets}
           >
-            Reprioritize Job Sets
+            Reprioritise Job Sets
           </Analytics>
         </div>
       </div>

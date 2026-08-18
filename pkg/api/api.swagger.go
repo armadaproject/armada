@@ -309,19 +309,19 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"/v1/job/reprioritize\": {\n" +
+		"    \"/v1/job/reprioritise\": {\n" +
 		"      \"post\": {\n" +
 		"        \"tags\": [\n" +
 		"          \"Submit\"\n" +
 		"        ],\n" +
-		"        \"operationId\": \"ReprioritizeJobs\",\n" +
+		"        \"operationId\": \"ReprioritiseJobs\",\n" +
 		"        \"parameters\": [\n" +
 		"          {\n" +
 		"            \"name\": \"body\",\n" +
 		"            \"in\": \"body\",\n" +
 		"            \"required\": true,\n" +
 		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiJobReprioritizeRequest\"\n" +
+		"              \"$ref\": \"#/definitions/apiJobReprioritiseRequest\"\n" +
 		"            }\n" +
 		"          }\n" +
 		"        ],\n" +
@@ -329,7 +329,7 @@ func SwaggerJsonTemplate() string {
 		"          \"200\": {\n" +
 		"            \"description\": \"A successful response.\",\n" +
 		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiJobReprioritizeResponse\"\n" +
+		"              \"$ref\": \"#/definitions/apiJobReprioritiseResponse\"\n" +
 		"            }\n" +
 		"          },\n" +
 		"          \"default\": {\n" +
@@ -1012,11 +1012,11 @@ func SwaggerJsonTemplate() string {
 		"        \"queued\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobQueuedEvent\"\n" +
 		"        },\n" +
-		"        \"reprioritized\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobReprioritizedEvent\"\n" +
+		"        \"reprioritised\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobReprioritisedEvent\"\n" +
 		"        },\n" +
-		"        \"reprioritizing\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobReprioritizingEvent\"\n" +
+		"        \"reprioritising\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobReprioritisingEvent\"\n" +
 		"        },\n" +
 		"        \"running\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobRunningEvent\"\n" +
@@ -1688,7 +1688,7 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"apiJobReprioritizeRequest\": {\n" +
+		"    \"apiJobReprioritiseRequest\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
@@ -1710,11 +1710,11 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"apiJobReprioritizeResponse\": {\n" +
+		"    \"apiJobReprioritiseResponse\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
-		"        \"reprioritizationResults\": {\n" +
+		"        \"reprioritisationResults\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -1722,7 +1722,7 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"apiJobReprioritizedEvent\": {\n" +
+		"    \"apiJobReprioritisedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"created\": {\n" +
@@ -1747,7 +1747,7 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"apiJobReprioritizingEvent\": {\n" +
+		"    \"apiJobReprioritisingEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"created\": {\n" +

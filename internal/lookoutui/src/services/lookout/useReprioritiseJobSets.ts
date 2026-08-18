@@ -6,42 +6,42 @@ import { JobSet } from "../../models/lookoutModels"
 
 import { useApiClients } from "../apiClients"
 
-export interface ReprioritizeJobSetsResponse {
-  reprioritizedJobSets: JobSet[]
-  failedJobSetReprioritizations: {
+export interface ReprioritiseJobSetsResponse {
+  reprioritisedJobSets: JobSet[]
+  failedJobSetReprioritisations: {
     jobSet: JobSet
     error: string
   }[]
 }
 
-export interface ReprioritizeJobSetsVariables {
+export interface ReprioritiseJobSetsVariables {
   queue: string
   jobSets: JobSet[]
   newPriority: number
 }
 
-export const useReprioritizeJobSets = () => {
+export const useReprioritiseJobSets = () => {
   const config = getConfig()
   const { submitApi } = useApiClients()
 
-  return useMutation<ReprioritizeJobSetsResponse, string, ReprioritizeJobSetsVariables>({
+  return useMutation<ReprioritiseJobSetsResponse, string, ReprioritiseJobSetsVariables>({
     mutationFn: async ({ queue, jobSets, newPriority }) => {
       if (config.fakeDataEnabled) {
         await new Promise((r) => setTimeout(r, 1_000))
         return {
-          reprioritizedJobSets: jobSets,
-          failedJobSetReprioritizations: [],
+          reprioritisedJobSets: jobSets,
+          failedJobSetReprioritisations: [],
         }
       }
 
-      const response: ReprioritizeJobSetsResponse = {
-        reprioritizedJobSets: [],
-        failedJobSetReprioritizations: [],
+      const response: ReprioritiseJobSetsResponse = {
+        reprioritisedJobSets: [],
+        failedJobSetReprioritisations: [],
       }
 
       for (const jobSet of jobSets) {
         try {
-          const apiResponse = await submitApi.reprioritizeJobs({
+          const apiResponse = await submitApi.reprioritiseJobs({
             body: {
               queue,
               jobSetId: jobSet.jobSetId,
@@ -49,18 +49,18 @@ export const useReprioritizeJobSets = () => {
             },
           })
 
-          if (apiResponse == null || apiResponse.reprioritizationResults == null) {
-            const errorMessage = "No reprioritizationResults found in response body"
+          if (apiResponse == null || apiResponse.reprioritisationResults == null) {
+            const errorMessage = "No reprioritisationResults found in response body"
             // eslint-disable-next-line no-console
             console.error(errorMessage)
-            response.failedJobSetReprioritizations.push({ jobSet, error: errorMessage })
+            response.failedJobSetReprioritisations.push({ jobSet, error: errorMessage })
             continue
           }
 
           let errorCount = 0
           let successCount = 0
           let error = ""
-          for (const e of Object.values(apiResponse.reprioritizationResults)) {
+          for (const e of Object.values(apiResponse.reprioritisationResults)) {
             if (e !== "") {
               errorCount++
               error = e
@@ -70,16 +70,16 @@ export const useReprioritizeJobSets = () => {
           }
 
           if (errorCount === 0) {
-            response.reprioritizedJobSets.push(jobSet)
+            response.reprioritisedJobSets.push(jobSet)
           } else {
-            const message = `Reprioritized: ${successCount}  Failed: ${errorCount}  Reason: ${error}`
-            response.failedJobSetReprioritizations.push({ jobSet, error: message })
+            const message = `Reprioritised: ${successCount}  Failed: ${errorCount}  Reason: ${error}`
+            response.failedJobSetReprioritisations.push({ jobSet, error: message })
           }
         } catch (e) {
           // eslint-disable-next-line no-console
           console.error(e)
           const text = await getErrorMessage(e)
-          response.failedJobSetReprioritizations.push({ jobSet, error: text })
+          response.failedJobSetReprioritisations.push({ jobSet, error: text })
         }
       }
 

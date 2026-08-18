@@ -439,21 +439,21 @@ func TestCancelJobSet_ReasonTooLong(t *testing.T) {
 	assert.Equal(t, codes.InvalidArgument, armadaerrors.CodeFromError(err))
 }
 
-func TestReprioritizeJobs(t *testing.T) {
+func TestReprioritiseJobs(t *testing.T) {
 	jobId1 := util.ULID().String()
 	jobId2 := util.ULID().String()
 	newPriority := float64(5)
 	tests := map[string]struct {
-		req            *api.JobReprioritizeRequest
+		req            *api.JobReprioritiseRequest
 		expectedEvents []*armadaevents.EventSequence_Event
 	}{
-		"Reprioritize jobs using JobIds": {
-			req:            &api.JobReprioritizeRequest{JobIds: []string{jobId1, jobId2}, Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset, NewPriority: newPriority},
-			expectedEvents: testfixtures.CreateReprioritizeJobSequenceEvents([]string{jobId1, jobId2}, newPriority),
+		"Reprioritise jobs using JobIds": {
+			req:            &api.JobReprioritiseRequest{JobIds: []string{jobId1, jobId2}, Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset, NewPriority: newPriority},
+			expectedEvents: testfixtures.CreateReprioritiseJobSequenceEvents([]string{jobId1, jobId2}, newPriority),
 		},
-		"Reprioritize jobSet": {
-			req:            &api.JobReprioritizeRequest{Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset, NewPriority: newPriority},
-			expectedEvents: []*armadaevents.EventSequence_Event{testfixtures.CreateReprioritizedJobSetSequenceEvent(newPriority)},
+		"Reprioritise jobSet": {
+			req:            &api.JobReprioritiseRequest{Queue: testfixtures.DefaultQueue.Name, JobSetId: testfixtures.DefaultJobset, NewPriority: newPriority},
+			expectedEvents: []*armadaevents.EventSequence_Event{testfixtures.CreateReprioritisedJobSetSequenceEvent(newPriority)},
 		},
 	}
 	for name, tc := range tests {
@@ -471,7 +471,7 @@ func TestReprioritizeJobs(t *testing.T) {
 
 			mockedObjects.authorizer.
 				EXPECT().
-				AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permission.Permission(permissions.ReprioritizeAnyJobs), queue.PermissionVerbReprioritize).
+				AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permission.Permission(permissions.ReprioritiseAnyJobs), queue.PermissionVerbReprioritise).
 				Return(nil).
 				Times(1)
 
@@ -491,7 +491,7 @@ func TestReprioritizeJobs(t *testing.T) {
 					capturedEventSequence = es
 				})
 
-			_, err := server.ReprioritizeJobs(ctx, tc.req)
+			_, err := server.ReprioritiseJobs(ctx, tc.req)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedEventSequence, capturedEventSequence)
 			cancel()
@@ -499,16 +499,16 @@ func TestReprioritizeJobs(t *testing.T) {
 	}
 }
 
-func TestReprioritizeJobs_FailedValidation(t *testing.T) {
+func TestReprioritiseJobs_FailedValidation(t *testing.T) {
 	jobId1 := util.ULID().String()
 	tests := map[string]struct {
-		req *api.JobReprioritizeRequest
+		req *api.JobReprioritiseRequest
 	}{
 		"Queue is empty": {
-			req: &api.JobReprioritizeRequest{JobIds: []string{jobId1}, JobSetId: testfixtures.DefaultJobset},
+			req: &api.JobReprioritiseRequest{JobIds: []string{jobId1}, JobSetId: testfixtures.DefaultJobset},
 		},
 		"Job set is empty": {
-			req: &api.JobReprioritizeRequest{JobIds: []string{jobId1}, Queue: testfixtures.DefaultQueue.Name},
+			req: &api.JobReprioritiseRequest{JobIds: []string{jobId1}, Queue: testfixtures.DefaultQueue.Name},
 		},
 	}
 	for name, tc := range tests {
@@ -516,7 +516,7 @@ func TestReprioritizeJobs_FailedValidation(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			server, _ := createTestServer(t)
 
-			resp, err := server.ReprioritizeJobs(ctx, tc.req)
+			resp, err := server.ReprioritiseJobs(ctx, tc.req)
 			assert.Error(t, err)
 			assert.Nil(t, resp)
 			cancel()

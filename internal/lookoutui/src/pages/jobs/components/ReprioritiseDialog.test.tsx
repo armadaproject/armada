@@ -13,11 +13,11 @@ import {
   FORMAT_TIMESTAMP_SHOULD_FORMAT_KEY,
 } from "../../../userSettings/localStorageKeys"
 
-import { ReprioritizeDialog } from "./ReprioritizeDialog"
+import { ReprioritiseDialog } from "./ReprioritiseDialog"
 
 const mockServer = new MockServer()
 
-describe("ReprioritizeDialog", () => {
+describe("ReprioritiseDialog", () => {
   const numJobs = 5
   const numFinishedJobs = 0
   let jobs: Job[]
@@ -62,7 +62,7 @@ describe("ReprioritizeDialog", () => {
       <QueryClientProvider client={queryClient}>
         <ApiClientsProvider>
           <SnackbarProvider>
-            <ReprioritizeDialog onClose={onClose} selectedItemFilters={selectedItemFilters} />
+            <ReprioritiseDialog onClose={onClose} selectedItemFilters={selectedItemFilters} />
           </SnackbarProvider>
         </ApiClientsProvider>
       </QueryClientProvider>,
@@ -73,10 +73,10 @@ describe("ReprioritizeDialog", () => {
     const { getByRole, findByRole, getByText } = renderComponent()
 
     // Initial render
-    getByRole("heading", { name: "Reprioritize jobs" })
+    getByRole("heading", { name: "Reprioritise jobs" })
 
     // Once job details are fetched
-    await findByRole("heading", { name: "Reprioritize 1 job" })
+    await findByRole("heading", { name: "Reprioritise 1 job" })
 
     // Check basic job information is displayed
     getByText("job-id-0")
@@ -113,7 +113,7 @@ describe("ReprioritizeDialog", () => {
     // 6000 total jobs, split between 2 queues = 3000 jobs per queue
     // But only a subset will be in a non-terminated state
     // These will always be the same numbers as long as the makeJobs random seed is the same
-    await findByRole("heading", { name: "Reprioritize 1480 jobs" }, { timeout: 3000 })
+    await findByRole("heading", { name: "Reprioritise 1480 jobs" }, { timeout: 3000 })
     getByText("6000 jobs are selected, but only 1480 jobs are in a non-terminated state.")
   })
 
@@ -121,8 +121,8 @@ describe("ReprioritizeDialog", () => {
     {
       method: "clicking the button",
       action: async (getByRole: ReturnType<typeof render>["getByRole"]) => {
-        const reprioritizeButton = await waitFor(() => getByRole("button", { name: /Reprioritize 1 job/i }))
-        await userEvent.click(reprioritizeButton)
+        const reprioritiseButton = await waitFor(() => getByRole("button", { name: /Reprioritise 1 job/i }))
+        await userEvent.click(reprioritiseButton)
       },
     },
     {
@@ -131,11 +131,11 @@ describe("ReprioritizeDialog", () => {
         await userEvent.keyboard("{Enter}")
       },
     },
-  ])("allows the user to reprioritize jobs by $method", async ({ action }) => {
+  ])("allows the user to reprioritise jobs by $method", async ({ action }) => {
     mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByText } = renderComponent()
 
-    mockServer.setReprioritizeJobsResponse([jobs[0].jobId], [])
+    mockServer.setReprioritiseJobsResponse([jobs[0].jobId], [])
 
     await enterPriority("2")
 
@@ -147,7 +147,7 @@ describe("ReprioritizeDialog", () => {
   it("does not allow the user to enter an invalid priority", async () => {
     const { getByRole } = renderComponent()
     await enterPriority("abc")
-    expect(getByRole("button", { name: /Reprioritize/ })).toBeDisabled()
+    expect(getByRole("button", { name: /Reprioritise/ })).toBeDisabled()
   })
 
   it("allows user to refetch jobs", async () => {
@@ -172,18 +172,18 @@ describe("ReprioritizeDialog", () => {
     await findByRole("cell", { name: "1234" })
   })
 
-  it("shows error reasons if reprioritization fails", async () => {
+  it("shows error reasons if reprioritisation fails", async () => {
     const { getByRole, findByText } = renderComponent()
 
-    mockServer.setReprioritizeJobsResponse([], [{ jobId: jobs[0].jobId, errorReason: "This is a test" }])
+    mockServer.setReprioritiseJobsResponse([], [{ jobId: jobs[0].jobId, errorReason: "This is a test" }])
 
     await enterPriority("3")
 
-    const reprioritizeButton = await waitFor(() => getByRole("button", { name: /Reprioritize 1 job/i }))
-    await userEvent.click(reprioritizeButton)
+    const reprioritiseButton = await waitFor(() => getByRole("button", { name: /Reprioritise 1 job/i }))
+    await userEvent.click(reprioritiseButton)
 
     // Snackbar popup
-    await findByText(/All jobs failed to reprioritize/i)
+    await findByText(/All jobs failed to reprioritise/i)
 
     // Verify reason is shown in table
     await findByText("This is a test", {}, { timeout: 3000 })
@@ -220,15 +220,15 @@ describe("ReprioritizeDialog", () => {
     const { getByRole, findByText, findByRole } = renderComponent()
 
     // Fail 1, succeed the other
-    mockServer.setReprioritizeJobsResponse([jobs[0].jobId], [{ jobId: jobs[1].jobId, errorReason: "This is a test" }])
+    mockServer.setReprioritiseJobsResponse([jobs[0].jobId], [{ jobId: jobs[1].jobId, errorReason: "This is a test" }])
 
     await enterPriority("0")
 
-    const reprioritizeButton = await waitFor(() => getByRole("button", { name: /Reprioritize 2 jobs/i }))
-    await userEvent.click(reprioritizeButton)
+    const reprioritiseButton = await waitFor(() => getByRole("button", { name: /Reprioritise 2 jobs/i }))
+    await userEvent.click(reprioritiseButton)
 
     // Snackbar popup
-    await findByText(/Some jobs failed to reprioritize/i)
+    await findByText(/Some jobs failed to reprioritise/i)
 
     // Verify reason is shown in table
     await findByText("Success", {}, { timeout: 3000 })
@@ -240,7 +240,7 @@ describe("ReprioritizeDialog", () => {
     // Check the user can re-attempt the request after a refetch
     await userEvent.click(getByRole("button", { name: /Refetch jobs/i }))
     waitFor(async () => {
-      expect(await findByRole("button", { name: /Reprioritize 2 jobs/i })).toBeEnabled()
+      expect(await findByRole("button", { name: /Reprioritise 2 jobs/i })).toBeEnabled()
     })
   })
 

@@ -153,7 +153,7 @@ message Job {
 
 
 // swagger:model
-message JobReprioritizeRequest {
+message JobReprioritiseRequest {
     repeated string job_ids = 1;
     string job_set_id = 2;
     string queue = 3;
@@ -161,8 +161,8 @@ message JobReprioritizeRequest {
 }
 
 // swagger:model
-message JobReprioritizeResponse {
-    map<string, string> reprioritization_results = 1;
+message JobReprioritiseResponse {
+    map<string, string> reprioritisation_results = 1;
 }
 
 message JobSubmitResponseItem {
@@ -455,9 +455,9 @@ service Submit {
             body: "*"
         };
     }
-    rpc ReprioritizeJobs (JobReprioritizeRequest) returns (JobReprioritizeResponse) {
+    rpc ReprioritiseJobs (JobReprioritiseRequest) returns (JobReprioritiseResponse) {
         option (google.api.http) = {
-            post: "/v1/job/reprioritize"
+            post: "/v1/job/reprioritise"
             body: "*"
         };
     }

@@ -163,8 +163,8 @@ func FromInternalCancelled(userId string, queueName string, jobSetName string, t
 func FromInternalReprioritiseJob(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.ReprioritiseJob) ([]*api.EventMessage, error) {
 	return []*api.EventMessage{
 		{
-			Events: &api.EventMessage_Reprioritizing{
-				Reprioritizing: &api.JobReprioritizingEvent{
+			Events: &api.EventMessage_Reprioritising{
+				Reprioritising: &api.JobReprioritisingEvent{
 					JobId:       e.JobId,
 					JobSetId:    jobSetName,
 					Queue:       queueName,
@@ -180,8 +180,8 @@ func FromInternalReprioritiseJob(userId string, queueName string, jobSetName str
 func FromInternalReprioritisedJob(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.ReprioritisedJob) ([]*api.EventMessage, error) {
 	return []*api.EventMessage{
 		{
-			Events: &api.EventMessage_Reprioritized{
-				Reprioritized: &api.JobReprioritizedEvent{
+			Events: &api.EventMessage_Reprioritised{
+				Reprioritised: &api.JobReprioritisedEvent{
 					JobId:       e.JobId,
 					JobSetId:    jobSetName,
 					Queue:       queueName,

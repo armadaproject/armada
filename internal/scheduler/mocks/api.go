@@ -224,24 +224,24 @@ func (mr *MockSubmitClientMockRecorder) PreemptJobs(ctx, in any, opts ...any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PreemptJobs", reflect.TypeOf((*MockSubmitClient)(nil).PreemptJobs), varargs...)
 }
 
-// ReprioritizeJobs mocks base method.
-func (m *MockSubmitClient) ReprioritizeJobs(ctx context.Context, in *api.JobReprioritizeRequest, opts ...grpc.CallOption) (*api.JobReprioritizeResponse, error) {
+// ReprioritiseJobs mocks base method.
+func (m *MockSubmitClient) ReprioritiseJobs(ctx context.Context, in *api.JobReprioritiseRequest, opts ...grpc.CallOption) (*api.JobReprioritiseResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
-	ret := m.ctrl.Call(m, "ReprioritizeJobs", varargs...)
-	ret0, _ := ret[0].(*api.JobReprioritizeResponse)
+	ret := m.ctrl.Call(m, "ReprioritiseJobs", varargs...)
+	ret0, _ := ret[0].(*api.JobReprioritiseResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ReprioritizeJobs indicates an expected call of ReprioritizeJobs.
-func (mr *MockSubmitClientMockRecorder) ReprioritizeJobs(ctx, in any, opts ...any) *gomock.Call {
+// ReprioritiseJobs indicates an expected call of ReprioritiseJobs.
+func (mr *MockSubmitClientMockRecorder) ReprioritiseJobs(ctx, in any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, in}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReprioritizeJobs", reflect.TypeOf((*MockSubmitClient)(nil).ReprioritizeJobs), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReprioritiseJobs", reflect.TypeOf((*MockSubmitClient)(nil).ReprioritiseJobs), varargs...)
 }
 
 // SubmitJobs mocks base method.

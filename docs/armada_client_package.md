@@ -239,11 +239,11 @@ Uses the PreemptJobs RPC to preempt jobs.
 * **Return type:**
   google.protobuf.empty_pb2.Empty
 
-#### reprioritize_jobs(new_priority, job_ids, job_set_id, queue)
+#### reprioritise_jobs(new_priority, job_ids, job_set_id, queue)
 
-Reprioritize jobs with new_priority value.
+Reprioritise jobs with new_priority value.
 
-Uses ReprioritizeJobs RPC to set a new priority on a list of jobs or job set (if job_ids are set to None or empty).
+Uses ReprioritiseJobs RPC to set a new priority on a list of jobs or job set (if job_ids are set to None or empty).
 
 * **Parameters:**
   * **new_priority** (*float*) – The new priority value for the jobs
@@ -251,9 +251,9 @@ Uses ReprioritizeJobs RPC to set a new priority on a list of jobs or job set (if
   * **job_set_id** (*str*) – A job set id including jobs to change priority of
   * **queue** (*str*) – The queue the jobs are in
 * **Returns:**
-  JobReprioritizeResponse object. It is a map of strings.
+  JobReprioritiseResponse object. It is a map of strings.
 * **Return type:**
-  armada.submit_pb2.JobReprioritizeResponse
+  armada.submit_pb2.JobReprioritiseResponse
 
 #### submit_health()
 

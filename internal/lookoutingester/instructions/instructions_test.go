@@ -419,7 +419,7 @@ func TestConvert(t *testing.T) {
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
-		"reprioritized": {
+		"reprioritised": {
 			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
 				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobReprioritised)},
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},

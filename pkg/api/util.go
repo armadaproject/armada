@@ -166,8 +166,8 @@ func JobIdFromApiEvent(msg *EventMessage) string {
 		return e.Failed.JobId
 	case *EventMessage_Succeeded:
 		return e.Succeeded.JobId
-	case *EventMessage_Reprioritized:
-		return e.Reprioritized.JobId
+	case *EventMessage_Reprioritised:
+		return e.Reprioritised.JobId
 	case *EventMessage_Cancelling:
 		return e.Cancelling.JobId
 	case *EventMessage_Cancelled:
@@ -176,8 +176,8 @@ func JobIdFromApiEvent(msg *EventMessage) string {
 		return e.Utilisation.JobId
 	case *EventMessage_IngressInfo:
 		return e.IngressInfo.JobId
-	case *EventMessage_Reprioritizing:
-		return e.Reprioritizing.JobId
+	case *EventMessage_Reprioritising:
+		return e.Reprioritising.JobId
 	case *EventMessage_Preempted:
 		return e.Preempted.JobId
 	}
@@ -204,8 +204,8 @@ func JobSetIdFromApiEvent(msg *EventMessage) string {
 		return e.Failed.JobSetId
 	case *EventMessage_Succeeded:
 		return e.Succeeded.JobSetId
-	case *EventMessage_Reprioritized:
-		return e.Reprioritized.JobSetId
+	case *EventMessage_Reprioritised:
+		return e.Reprioritised.JobSetId
 	case *EventMessage_Cancelling:
 		return e.Cancelling.JobSetId
 	case *EventMessage_Cancelled:
@@ -214,8 +214,8 @@ func JobSetIdFromApiEvent(msg *EventMessage) string {
 		return e.Utilisation.JobSetId
 	case *EventMessage_IngressInfo:
 		return e.IngressInfo.JobSetId
-	case *EventMessage_Reprioritizing:
-		return e.Reprioritizing.JobSetId
+	case *EventMessage_Reprioritising:
+		return e.Reprioritising.JobSetId
 	case *EventMessage_Preempted:
 		return e.Preempted.JobSetId
 	}

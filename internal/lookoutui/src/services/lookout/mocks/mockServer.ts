@@ -13,7 +13,7 @@ const POST_JOBS_ENDPOINT = "/api/v1/jobs"
 const POST_JOB_GROUPS_ENDPOINT = "/api/v1/jobGroups"
 const POST_JOB_SPEC_ENDPOINT = "/api/v1/jobSpec"
 const CANCEL_JOBS_ENDPOINT = `${FAKE_ARMADA_API_BASE_URL}/v1/job/cancel`
-const REPRIORITIZE_JOBS_ENDPOINT = `${FAKE_ARMADA_API_BASE_URL}/v1/job/reprioritize`
+const REPRIORITISE_JOBS_ENDPOINT = `${FAKE_ARMADA_API_BASE_URL}/v1/job/reprioritise`
 const PREEMPT_JOBS_ENDPOINT = `${FAKE_ARMADA_API_BASE_URL}/v1/job/preempt`
 
 interface GroupedField {
@@ -280,18 +280,18 @@ export class MockServer {
     )
   }
 
-  setReprioritizeJobsResponse(successfulJobIds: JobId[], failedJobIds: { jobId: JobId; errorReason: string }[] = []) {
+  setReprioritiseJobsResponse(successfulJobIds: JobId[], failedJobIds: { jobId: JobId; errorReason: string }[] = []) {
     this.server.use(
-      http.post(REPRIORITIZE_JOBS_ENDPOINT, async () => {
-        const reprioritizationResults: Record<JobId, string> = {}
+      http.post(REPRIORITISE_JOBS_ENDPOINT, async () => {
+        const reprioritisationResults: Record<JobId, string> = {}
         for (const jobId of successfulJobIds) {
-          reprioritizationResults[jobId] = ""
+          reprioritisationResults[jobId] = ""
         }
         for (const { jobId, errorReason } of failedJobIds) {
-          reprioritizationResults[jobId] = errorReason
+          reprioritisationResults[jobId] = errorReason
         }
         return HttpResponse.json({
-          reprioritizationResults,
+          reprioritisationResults,
         })
       }),
     )

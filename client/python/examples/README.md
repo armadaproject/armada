@@ -85,7 +85,7 @@ A more fledged out version of `simple.py` where we create a queue only if it doe
 
 > As the code documents, we need the sleep to wait for the job_set to be created, allowing for `client.get_job_events_stream` to not fail.
 > ```py
-> client.reprioritize_jobs(new_priority=2, queue=queue, job_set_id=job_set_id)
+> client.reprioritise_jobs(new_priority=2, queue=queue, job_set_id=job_set_id)
 >
 > # Needed to allow for the delay in the job_set being created
 > time.sleep(2)
@@ -123,7 +123,7 @@ A full example of creating a queue with all options.
 > Permissions are used to control who can do what with the queue.
 > ```py
 > subject = Subject(type="Group", name="group1")
-> permissions = Permissions(subjects=[subject], verbs=["cancel", "reprioritize"])
+> permissions = Permissions(subjects=[subject], verbs=["cancel", "reprioritise"])
 > ```
 
 > Resource limits are set similarly to [Kubernetes](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container)
@@ -213,18 +213,18 @@ Demonstrates how to run jobs, and also log all changes to that job or job_set in
 > Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.submitted
 > Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.queued
 > Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.cancelling
-> Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.reprioritizing
-> Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.reprioritized
+> Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.reprioritising
+> Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.reprioritised
 > Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.submitted
 > Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.queued
-> Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.reprioritizing
+> Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.reprioritising
 > Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.updated
 > Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.submitted
 > Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.queued
 > Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.cancelled
 > Job 01g9j3wmggqmw2vmmj96cfkzh9 Terminated
 > Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.updated
-> Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.reprioritized
+> Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.reprioritised
 > Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.pending
 > Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.leased
 > Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.pending

@@ -1,5 +1,5 @@
-## POST /v1/job/reprioritize
-## Reprioritize an entire job set and confirm all jobs receive the update.
+## POST /v1/job/reprioritise
+## Reprioritise an entire job set and confirm all jobs receive the update.
 ## 1x1
 numBatches: 1
 batchSize: 1
@@ -11,7 +11,7 @@ jobs:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
       containers:
-        - name: reprioritize-by-jobset
+        - name: reprioritise-by-jobset
           imagePullPolicy: IfNotPresent
           image: alpine:3.20.0
           args:
@@ -25,14 +25,14 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-## Reprioritize the job set upward
+## Reprioritise the job set upward
 triggerEvent: running
-reprioritize:
+reprioritise:
   byJobSet: true
   request:
     newPriority: 100
 timeout: "100s"
 expectedEvents:
   - submitted:
-  - reprioritized:
+  - reprioritised:
 

@@ -180,8 +180,8 @@ func TestConvertReprioritising(t *testing.T) {
 
 	expected := []*api.EventMessage{
 		{
-			Events: &api.EventMessage_Reprioritizing{
-				Reprioritizing: &api.JobReprioritizingEvent{
+			Events: &api.EventMessage_Reprioritising{
+				Reprioritising: &api.JobReprioritisingEvent{
 					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queue,
@@ -209,8 +209,8 @@ func TestConvertReprioritised(t *testing.T) {
 
 	expected := []*api.EventMessage{
 		{
-			Events: &api.EventMessage_Reprioritized{
-				Reprioritized: &api.JobReprioritizedEvent{
+			Events: &api.EventMessage_Reprioritised{
+				Reprioritised: &api.JobReprioritisedEvent{
 					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queue,

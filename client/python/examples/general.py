@@ -90,7 +90,7 @@ def creating_jobs_example(client, queue, job_set_id):
     # Gets the job_id of the first job in the job_request_items
     job_id = resp.job_response_items[0].job_id
 
-    client.reprioritize_jobs(new_priority=2, queue=queue, job_set_id=job_set_id)
+    client.reprioritise_jobs(new_priority=2, queue=queue, job_set_id=job_set_id)
 
     # Needed to allow for the delay in the job_set being created
     time.sleep(2)

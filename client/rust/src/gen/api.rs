@@ -256,7 +256,7 @@ pub struct Job {
 }
 /// swagger:model
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct JobReprioritizeRequest {
+pub struct JobReprioritiseRequest {
     #[prost(string, repeated, tag = "1")]
     pub job_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, tag = "2")]
@@ -268,9 +268,9 @@ pub struct JobReprioritizeRequest {
 }
 /// swagger:model
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct JobReprioritizeResponse {
+pub struct JobReprioritiseResponse {
     #[prost(map = "string, string", tag = "1")]
-    pub reprioritization_results: ::std::collections::HashMap<
+    pub reprioritisation_results: ::std::collections::HashMap<
         ::prost::alloc::string::String,
         ::prost::alloc::string::String,
     >,
@@ -1407,11 +1407,11 @@ pub mod submit_client {
             req.extensions_mut().insert(GrpcMethod::new("api.Submit", "CancelJobSet"));
             self.inner.unary(req, path, codec).await
         }
-        pub async fn reprioritize_jobs(
+        pub async fn reprioritise_jobs(
             &mut self,
-            request: impl tonic::IntoRequest<super::JobReprioritizeRequest>,
+            request: impl tonic::IntoRequest<super::JobReprioritiseRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::JobReprioritizeResponse>,
+            tonic::Response<super::JobReprioritiseResponse>,
             tonic::Status,
         > {
             self.inner
@@ -1424,11 +1424,11 @@ pub mod submit_client {
                 })?;
             let codec = tonic_prost::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/api.Submit/ReprioritizeJobs",
+                "/api.Submit/ReprioritiseJobs",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("api.Submit", "ReprioritizeJobs"));
+                .insert(GrpcMethod::new("api.Submit", "ReprioritiseJobs"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn preempt_jobs(
@@ -1897,7 +1897,7 @@ pub struct JobUtilisationEvent {
     >,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct JobReprioritizingEvent {
+pub struct JobReprioritisingEvent {
     #[prost(string, tag = "1")]
     pub job_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
@@ -1912,7 +1912,7 @@ pub struct JobReprioritizingEvent {
     pub requestor: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct JobReprioritizedEvent {
+pub struct JobReprioritisedEvent {
     #[prost(string, tag = "1")]
     pub job_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
@@ -2010,7 +2010,7 @@ pub mod event_message {
         #[prost(message, tag = "10")]
         Succeeded(super::JobSucceededEvent),
         #[prost(message, tag = "11")]
-        Reprioritized(super::JobReprioritizedEvent),
+        Reprioritised(super::JobReprioritisedEvent),
         #[prost(message, tag = "12")]
         Cancelling(super::JobCancellingEvent),
         #[prost(message, tag = "13")]
@@ -2020,7 +2020,7 @@ pub mod event_message {
         #[prost(message, tag = "17")]
         IngressInfo(super::JobIngressInfoEvent),
         #[prost(message, tag = "18")]
-        Reprioritizing(super::JobReprioritizingEvent),
+        Reprioritising(super::JobReprioritisingEvent),
         #[prost(message, tag = "21")]
         Preempted(super::JobPreemptedEvent),
         #[prost(message, tag = "22")]

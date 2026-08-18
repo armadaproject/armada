@@ -25,7 +25,7 @@ auth:
     delete_retry_policy: ["everyone"]
     delete_queue: ["everyone"]
     cancel_any_jobs: ["everyone"]
-    reprioritize_any_jobs: ["everyone"]
+    reprioritise_any_jobs: ["everyone"]
     preempt_any_jobs: ["everyone"]
     watch_all_events: ["everyone"]
 eventsApiRedis:

@@ -7,8 +7,8 @@ import api.submit.{
   Job,
   JobCancelRequest,
   JobPreemptRequest,
-  JobReprioritizeRequest,
-  JobReprioritizeResponse,
+  JobReprioritiseRequest,
+  JobReprioritiseResponse,
   JobSetCancelRequest,
   JobState,
   JobSubmitRequest,
@@ -273,10 +273,10 @@ private class SubmitMockServer(
     Future.successful(new PreemptionResult)
   }
 
-  def reprioritizeJobs(
-      request: JobReprioritizeRequest
-  ): scala.concurrent.Future[JobReprioritizeResponse] = {
-    Future.successful(new JobReprioritizeResponse)
+  def reprioritiseJobs(
+      request: JobReprioritiseRequest
+  ): scala.concurrent.Future[JobReprioritiseResponse] = {
+    Future.successful(new JobReprioritiseResponse)
   }
 
   def submitJobs(

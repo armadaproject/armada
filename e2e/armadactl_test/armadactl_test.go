@@ -232,13 +232,13 @@ jobs:
 		require.True(t, strings.Contains(out, s))
 	}
 
-	// reprioritize
-	err = app.ReprioritizeJobSet(name, "set1", 2)
+	// reprioritise
+	err = app.ReprioritiseJobSet(name, "set1", 2)
 	require.NoError(t, err)
 
 	out = buf.String()
 	buf.Reset()
-	for _, s := range []string{"Reprioritized jobs with ID:\n"} {
+	for _, s := range []string{"Reprioritised jobs with ID:\n"} {
 		require.True(t, strings.Contains(out, s))
 	}
 

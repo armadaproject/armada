@@ -20,7 +20,7 @@ import { useGetJobSets } from "../../../services/lookout/useGetJobSets"
 
 import CancelJobSetsDialog, { getCancellableJobSets } from "./CancelJobSetsDialog"
 import JobSets from "./JobSets"
-import ReprioritizeJobSetsDialog, { getReprioritizableJobSets } from "./ReprioritizeJobSetsDialog"
+import ReprioritiseJobSetsDialog, { getReprioritisableJobSets } from "./ReprioritiseJobSetsDialog"
 
 export interface JobSetsContainerProps {
   jobSetsAutoRefreshMs: number | undefined
@@ -57,7 +57,7 @@ export default function JobSetsContainer({ jobSetsAutoRefreshMs }: JobSetsContai
   const [selectedJobSets, setSelectedJobSets] = useState<Map<string, JobSet>>(new Map())
   const [lastSelectedIndex, setLastSelectedIndex] = useState(0)
   const [cancelJobSetsIsOpen, setCancelJobSetsIsOpen] = useState(false)
-  const [reprioritizeJobSetsIsOpen, setReprioritizeJobSetsIsOpen] = useState(false)
+  const [reprioritiseJobSetsIsOpen, setReprioritiseJobSetsIsOpen] = useState(false)
 
   const { data, error, errorUpdatedAt, isFetching, refetch } = useGetJobSets({
     queue,
@@ -166,17 +166,17 @@ export default function JobSetsContainer({ jobSetsAutoRefreshMs }: JobSetsContai
         onResult={handleApiResult}
         onClose={() => setCancelJobSetsIsOpen(false)}
       />
-      <ReprioritizeJobSetsDialog
-        isOpen={reprioritizeJobSetsIsOpen}
+      <ReprioritiseJobSetsDialog
+        isOpen={reprioritiseJobSetsIsOpen}
         queue={queue}
         selectedJobSets={selectedJobSetsArray}
         onResult={handleApiResult}
-        onClose={() => setReprioritizeJobSetsIsOpen(false)}
+        onClose={() => setReprioritiseJobSetsIsOpen(false)}
       />
       <ErrorBoundary FallbackComponent={AlertErrorFallback}>
         <JobSets
           canCancel={getCancellableJobSets(selectedJobSetsArray).length > 0}
-          canReprioritize={getReprioritizableJobSets(selectedJobSetsArray).length > 0}
+          canReprioritise={getReprioritisableJobSets(selectedJobSetsArray).length > 0}
           queue={queue}
           jobSets={jobSets}
           selectedJobSets={selectedJobSets}
@@ -198,7 +198,7 @@ export default function JobSetsContainer({ jobSetsAutoRefreshMs }: JobSetsContai
           onSelectAllClick={selectAll}
           onCancelJobSetsClick={() => setCancelJobSetsIsOpen(true)}
           onToggleAutoRefresh={jobSetsAutoRefreshMs !== undefined ? setAutoRefresh : undefined}
-          onReprioritizeJobSetsClick={() => setReprioritizeJobSetsIsOpen(true)}
+          onReprioritiseJobSetsClick={() => setReprioritiseJobSetsIsOpen(true)}
           onJobSetStateClick={onJobSetStateClick}
         />
       </ErrorBoundary>

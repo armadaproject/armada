@@ -81,13 +81,13 @@ export default tseslint.config(
               "refetches",
               "refetching",
 
-              // Use the American spelling of these words for consistency with the Armada API
-              "reprioritize",
-              "reprioritized",
-              "reprioritizing",
-              "reprioritization",
-              "reprioritizations",
-              "reprioritizable",
+              // Reprioritise (British spelling, consistent across the project)
+              "reprioritise",
+              "reprioritised",
+              "reprioritising",
+              "reprioritisation",
+              "reprioritisations",
+              "reprioritisable",
 
               // Maintainers whose names may appear in comments
               "mauriceyap",
@@ -96,16 +96,6 @@ export default tseslint.config(
               "ltta", // last transition time aggregate
             ],
 
-            /* eslint-disable @cspell/spellchecker */
-            flagWords: [
-              // Use the American spelling of these words for consistency with the Armada API
-              "reprioritise",
-              "reprioritised",
-              "reprioritising",
-              "reprioritisation",
-              "reprioritisations",
-              "reprioritisable",
-            ],
             /* eslint-disable @cspell/spellchecker */
           },
         },

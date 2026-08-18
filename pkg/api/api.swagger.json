@@ -298,19 +298,19 @@
         }
       }
     },
-    "/v1/job/reprioritize": {
+    "/v1/job/reprioritise": {
       "post": {
         "tags": [
           "Submit"
         ],
-        "operationId": "ReprioritizeJobs",
+        "operationId": "ReprioritiseJobs",
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiJobReprioritizeRequest"
+              "$ref": "#/definitions/apiJobReprioritiseRequest"
             }
           }
         ],
@@ -318,7 +318,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apiJobReprioritizeResponse"
+              "$ref": "#/definitions/apiJobReprioritiseResponse"
             }
           },
           "default": {
@@ -1001,11 +1001,11 @@
         "queued": {
           "$ref": "#/definitions/apiJobQueuedEvent"
         },
-        "reprioritized": {
-          "$ref": "#/definitions/apiJobReprioritizedEvent"
+        "reprioritised": {
+          "$ref": "#/definitions/apiJobReprioritisedEvent"
         },
-        "reprioritizing": {
-          "$ref": "#/definitions/apiJobReprioritizingEvent"
+        "reprioritising": {
+          "$ref": "#/definitions/apiJobReprioritisingEvent"
         },
         "running": {
           "$ref": "#/definitions/apiJobRunningEvent"
@@ -1677,7 +1677,7 @@
         }
       }
     },
-    "apiJobReprioritizeRequest": {
+    "apiJobReprioritiseRequest": {
       "type": "object",
       "title": "swagger:model",
       "properties": {
@@ -1699,11 +1699,11 @@
         }
       }
     },
-    "apiJobReprioritizeResponse": {
+    "apiJobReprioritiseResponse": {
       "type": "object",
       "title": "swagger:model",
       "properties": {
-        "reprioritizationResults": {
+        "reprioritisationResults": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
@@ -1711,7 +1711,7 @@
         }
       }
     },
-    "apiJobReprioritizedEvent": {
+    "apiJobReprioritisedEvent": {
       "type": "object",
       "properties": {
         "created": {
@@ -1736,7 +1736,7 @@
         }
       }
     },
-    "apiJobReprioritizingEvent": {
+    "apiJobReprioritisingEvent": {
       "type": "object",
       "properties": {
         "created": {

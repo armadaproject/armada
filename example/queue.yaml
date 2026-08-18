@@ -10,14 +10,14 @@ permissions:
   verbs:
   - submit
   - cancel
-  - reprioritize
+  - reprioritise
   - watch
 - subjects: 
   - name: group2
     kind: Group
   verbs:
   - cancel
-  - reprioritize
+  - reprioritise
   - watch
 priorityFactor: 1.0
 resourceLimits:
