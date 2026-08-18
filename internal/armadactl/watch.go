@@ -80,6 +80,8 @@ func requestorFromEvent(e api.Event) string {
 		return event.GetRequestor()
 	case *api.JobPreemptingEvent:
 		return event.GetRequestor()
+	case *api.JobPreemptedEvent:
+		return event.GetRequestor()
 	default:
 		return ""
 	}
