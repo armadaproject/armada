@@ -30,6 +30,31 @@ func TestNodeDbSchema(t *testing.T) {
 	assert.NoError(t, schema.Validate())
 }
 
+func TestNodeDbIncludesCrossPoolPriority(t *testing.T) {
+	nodeDb, err := newNodeDbWithNodes(nil)
+	require.NoError(t, err)
+	require.Contains(t, nodeDb.nodeDbPriorities, internaltypes.CrossPoolPriority)
+	require.Contains(t, nodeDb.nodeDbPriorities, internaltypes.EvictedPriority)
+	// Priorities must be ascending: EvictedPriority (-2) then CrossPoolPriority (-1) then reals.
+	require.Equal(t, internaltypes.EvictedPriority, nodeDb.nodeDbPriorities[0])
+	require.Equal(t, internaltypes.CrossPoolPriority, nodeDb.nodeDbPriorities[1])
+	// Schema index maps must have entries for the new bucket.
+	_, ok := nodeDb.indexNameByPriority[internaltypes.CrossPoolPriority]
+	require.True(t, ok)
+	_, ok = nodeDb.keyIndexByPriority[internaltypes.CrossPoolPriority]
+	require.True(t, ok)
+}
+
+func TestNodeDbPoolSetter(t *testing.T) {
+	nodeDb, err := newNodeDbWithNodes(nil)
+	require.NoError(t, err)
+	// Default (unset) disables cross-pool detection.
+	require.Equal(t, "", nodeDb.GetPool())
+
+	nodeDb.SetPool("gpu")
+	require.Equal(t, "gpu", nodeDb.GetPool())
+}
+
 // Test the accounting of total resources across all nodes.
 func TestTotalResources(t *testing.T) {
 	nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{})
@@ -233,6 +258,56 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	assert.Empty(t, unboundNode.EvictedJobRunIds)
 }
 
+// When the NodeDb's pool is set, a job whose run pool differs from it (a cross-pool
+// "away" job) is tracked at CrossPoolPriority so any home job can urgency-preempt it
+// first, regardless of the priority it was bound at. A home job (run pool == NodeDb
+// pool) keeps its real priority, and an unset pool disables cross-pool detection
+// entirely (all jobs treated as home).
+func TestBindCrossPoolJobBucketing(t *testing.T) {
+	// The job's run always lives in pool "cpu"; the NodeDb pool determines home/away.
+	const jobRunPool = "cpu"
+	tests := map[string]struct {
+		nodeDbPool       string
+		expectedPriority int32
+	}{
+		"away when nodeDb pool differs": {
+			nodeDbPool:       "gpu",
+			expectedPriority: internaltypes.CrossPoolPriority,
+		},
+		"home when nodeDb pool matches run pool": {
+			nodeDbPool:       jobRunPool,
+			expectedPriority: testfixtures.TestPriorityClasses[testfixtures.PriorityClass0].Priority,
+		},
+		"home when nodeDb pool unset (cross-pool detection off)": {
+			nodeDbPool:       "",
+			expectedPriority: testfixtures.TestPriorityClasses[testfixtures.PriorityClass0].Priority,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+			nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{node})
+			require.NoError(t, err)
+			if tc.nodeDbPool != "" {
+				nodeDb.SetPool(tc.nodeDbPool)
+			}
+
+			entry, err := nodeDb.GetNode(node.GetId())
+			require.NoError(t, err)
+
+			job := testfixtures.Test1Cpu4GiJob("queue-a", testfixtures.PriorityClass0)
+			job = job.WithQueued(false).WithNewRun("executor-01", node.GetId(), node.GetName(), jobRunPool, job.PriorityClass().Priority)
+
+			_, err = nodeDb.BindJobToNode(entry, job, job.PriorityClass().Priority)
+			require.NoError(t, err)
+
+			priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
+			require.True(t, ok)
+			require.Equal(t, tc.expectedPriority, priority)
+		})
+	}
+}
+
 // Covers the pods resource path, which TestNodeBindingEvictionUnbinding does not exercise.
 // Bind, evict, and unbind flow resource requirements through KubernetesResourceRequirements,
 // so a regression in pod-slot accounting would surface here even though the cpu/memory/GPU
@@ -382,14 +457,15 @@ func TestEviction(t *testing.T) {
 	// PriorityClass3 is non-preemptible, so its 1cpu/4Gi is deducted at every
 	// priority including 28000+, not just <= 3.
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
-		-1:    testfixtures.CpuMem("30", "248Gi"),
-		0:     testfixtures.CpuMem("30", "248Gi"),
-		1:     testfixtures.CpuMem("31", "252Gi"),
-		2:     testfixtures.CpuMem("31", "252Gi"),
-		3:     testfixtures.CpuMem("31", "252Gi"),
-		28000: testfixtures.CpuMem("31", "252Gi"),
-		29000: testfixtures.CpuMem("31", "252Gi"),
-		30000: testfixtures.CpuMem("31", "252Gi"),
+		internaltypes.EvictedPriority:   testfixtures.CpuMem("30", "248Gi"),
+		internaltypes.CrossPoolPriority: testfixtures.CpuMem("30", "248Gi"),
+		0:                               testfixtures.CpuMem("30", "248Gi"),
+		1:                               testfixtures.CpuMem("31", "252Gi"),
+		2:                               testfixtures.CpuMem("31", "252Gi"),
+		3:                               testfixtures.CpuMem("31", "252Gi"),
+		28000:                           testfixtures.CpuMem("31", "252Gi"),
+		29000:                           testfixtures.CpuMem("31", "252Gi"),
+		30000:                           testfixtures.CpuMem("31", "252Gi"),
 	}, node.AllocatableByPriority)
 
 	returnedNode, err := nodeDb.EvictJobsFromNode(jobs, node)
@@ -399,25 +475,27 @@ func TestEviction(t *testing.T) {
 
 	// EvictJobsFromNode returns a copy; the original node is unchanged.
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
-		-1:    testfixtures.CpuMem("30", "248Gi"),
-		0:     testfixtures.CpuMem("30", "248Gi"),
-		1:     testfixtures.CpuMem("31", "252Gi"),
-		2:     testfixtures.CpuMem("31", "252Gi"),
-		3:     testfixtures.CpuMem("31", "252Gi"),
-		28000: testfixtures.CpuMem("31", "252Gi"),
-		29000: testfixtures.CpuMem("31", "252Gi"),
-		30000: testfixtures.CpuMem("31", "252Gi"),
+		internaltypes.EvictedPriority:   testfixtures.CpuMem("30", "248Gi"),
+		internaltypes.CrossPoolPriority: testfixtures.CpuMem("30", "248Gi"),
+		0:                               testfixtures.CpuMem("30", "248Gi"),
+		1:                               testfixtures.CpuMem("31", "252Gi"),
+		2:                               testfixtures.CpuMem("31", "252Gi"),
+		3:                               testfixtures.CpuMem("31", "252Gi"),
+		28000:                           testfixtures.CpuMem("31", "252Gi"),
+		29000:                           testfixtures.CpuMem("31", "252Gi"),
+		30000:                           testfixtures.CpuMem("31", "252Gi"),
 	}, node.AllocatableByPriority)
 
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
-		-1:    testfixtures.CpuMem("30", "248Gi"),
-		0:     testfixtures.CpuMem("32", "256Gi"),
-		1:     testfixtures.CpuMem("32", "256Gi"),
-		2:     testfixtures.CpuMem("32", "256Gi"),
-		3:     testfixtures.CpuMem("32", "256Gi"),
-		28000: testfixtures.CpuMem("32", "256Gi"),
-		29000: testfixtures.CpuMem("32", "256Gi"),
-		30000: testfixtures.CpuMem("32", "256Gi"),
+		internaltypes.EvictedPriority:   testfixtures.CpuMem("30", "248Gi"),
+		internaltypes.CrossPoolPriority: testfixtures.CpuMem("32", "256Gi"),
+		0:                               testfixtures.CpuMem("32", "256Gi"),
+		1:                               testfixtures.CpuMem("32", "256Gi"),
+		2:                               testfixtures.CpuMem("32", "256Gi"),
+		3:                               testfixtures.CpuMem("32", "256Gi"),
+		28000:                           testfixtures.CpuMem("32", "256Gi"),
+		29000:                           testfixtures.CpuMem("32", "256Gi"),
+		30000:                           testfixtures.CpuMem("32", "256Gi"),
 	}, returnedNode.AllocatableByPriority)
 }
 
@@ -1017,7 +1095,7 @@ func TestPreemptedJobIsNotRescheduled(t *testing.T) {
 			job := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)[0]
 			jctx := context.JobSchedulingContextFromJob(job)
 			if tc.alreadyPreempted {
-				jctx.PreemptingJob = testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass1, 1)[0]
+				jctx.PreemptionDetails = &context.PreemptionDetails{PreemptingJob: testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass1, 1)[0]}
 			}
 			gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
 
@@ -1605,6 +1683,38 @@ func BenchmarkScheduleManyResourceConstrained(b *testing.B) {
 	)
 }
 
+func TestBindUnbind_NonPreemptibleReleasesEveryBucket(t *testing.T) {
+	node := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
+	nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{node})
+	require.NoError(t, err)
+	entry, err := nodeDb.GetNode(node.GetId())
+	require.NoError(t, err)
+
+	job := testfixtures.Test1Cpu4GiJob("queue-a", testfixtures.PriorityClass2NonPreemptible)
+	priority := job.PriorityClass().Priority
+	require.False(t, job.PriorityClass().Preemptible, "this test is only meaningful for a non-preemptible job")
+
+	before := map[int32]internaltypes.ResourceList{}
+	for p, rl := range entry.AllocatableByPriority {
+		before[p] = rl
+	}
+	require.NotEmpty(t, before, "sanity check: the node must have priority buckets to compare")
+
+	boundNode, err := nodeDb.BindJobToNode(entry, job, priority)
+	require.NoError(t, err)
+	for p := range before {
+		assert.False(t, before[p].Equal(boundNode.AllocatableByPriority[p]),
+			"non-preemptible bind must debit every bucket, including %d", p)
+	}
+
+	unboundNode, err := nodeDb.UnbindJobFromNode(job, boundNode)
+	require.NoError(t, err)
+	for p := range before {
+		assert.True(t, before[p].Equal(unboundNode.AllocatableByPriority[p]),
+			"unbind must restore bucket %d exactly", p)
+	}
+}
+
 func newNodeDbWithNodes(nodes []*internaltypes.Node) (*NodeDb, error) {
 	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
@@ -1647,4 +1757,173 @@ func randomString(n int) string {
 		s += fmt.Sprint(i)
 	}
 	return s
+}
+
+func evictJobs(t *testing.T, nodeDb *NodeDb, jobs []*jobdb.Job, nodeId string, startIndex int) int {
+	t.Helper()
+	node, err := nodeDb.GetNode(nodeId)
+	require.NoError(t, err)
+	evictedNode, err := nodeDb.EvictJobsFromNode(jobs, node)
+	require.NoError(t, err)
+
+	txn := nodeDb.Txn(true)
+	require.NoError(t, nodeDb.UpsertWithTxn(txn, evictedNode))
+	idx := startIndex
+	for _, job := range jobs {
+		jctx := context.JobSchedulingContextFromJob(job)
+		jctx.SetAssignedNode(evictedNode)
+		require.NoError(t, nodeDb.AddEvictedJobSchedulingContextWithTxn(txn, idx, jctx))
+		idx++
+	}
+	txn.Commit()
+	return idx
+}
+
+func TestFairsharePreemption_PreemptGangSiblings(t *testing.T) {
+	gang1 := testfixtures.WithGangJobDetails(
+		testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 3), "gang-1", 3, "",
+	)
+	gang1Job1, gang1Job2, gang1Job3 := gang1[0], gang1[1], gang1[2]
+
+	gang2 := testfixtures.WithGangJobDetails(
+		testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 3), "gang-1", 2, "",
+	)
+	gang2Job1, gang2Job2 := gang2[0], gang2[1]
+
+	type nodeWithJobs struct {
+		node *internaltypes.Node
+		jobs []*jobdb.Job
+	}
+
+	tests := map[string]struct {
+		// Jobs will be evicted in the order they are declared here
+		setup []*nodeWithJobs
+
+		newJobs                           []*jobdb.Job
+		expectedPreemptedJobIds           []string
+		expectedPreemptedViaSiblingJobIds []string
+	}{
+		"preempt sibling on another node": {
+			setup: []*nodeWithJobs{
+				{
+					node: testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+					jobs: []*jobdb.Job{
+						gang2Job2,
+					},
+				},
+				{
+					node: testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+					jobs: []*jobdb.Job{
+						gang2Job1,
+					},
+				},
+			},
+			newJobs:                           []*jobdb.Job{testfixtures.Test32Cpu256GiJob("B", testfixtures.PriorityClass0)},
+			expectedPreemptedJobIds:           []string{gang2Job1.Id()},
+			expectedPreemptedViaSiblingJobIds: []string{gang2Job2.Id()},
+		},
+		"preempt sibling on another node - 2 jobs on same node": {
+			setup: []*nodeWithJobs{
+				{
+					node: testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+					jobs: []*jobdb.Job{
+						testfixtures.Test16Cpu128GiJob("A", testfixtures.PriorityClass0), // used to fill the node
+						gang1Job2,
+					},
+				},
+				{
+					node: testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+					jobs: []*jobdb.Job{
+						gang1Job3,
+						gang1Job1,
+					},
+				},
+			},
+			newJobs:                           []*jobdb.Job{testfixtures.Test32Cpu256GiJob("B", testfixtures.PriorityClass0)},
+			expectedPreemptedJobIds:           []string{gang1Job1.Id(), gang1Job3.Id()},
+			expectedPreemptedViaSiblingJobIds: []string{gang1Job2.Id()},
+		},
+		"preempted sibling - makes space for next scheduled job": {
+			setup: []*nodeWithJobs{
+				{
+					node: testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+					jobs: []*jobdb.Job{
+						gang1Job2,
+						// This job will get preempted if the other gang job on this node isn't evicted by sibling gang preemption
+						// The other gang job on the node however should get preempted when the first job schedules
+						testfixtures.Test16Cpu128GiJob("A", testfixtures.PriorityClass0),
+					},
+				},
+				{
+					node: testfixtures.Test32CpuNode(testfixtures.TestPriorities),
+					jobs: []*jobdb.Job{
+						gang1Job3,
+						gang1Job1,
+					},
+				},
+			},
+			newJobs: []*jobdb.Job{
+				testfixtures.Test32Cpu256GiJob("B", testfixtures.PriorityClass0),
+				testfixtures.Test16Cpu128GiJob("B", testfixtures.PriorityClass0),
+			},
+			expectedPreemptedJobIds:           []string{gang1Job1.Id(), gang1Job3.Id()},
+			expectedPreemptedViaSiblingJobIds: []string{gang1Job2.Id()},
+		},
+	}
+
+	for testName, tc := range tests {
+		t.Run(testName, func(t *testing.T) {
+			nodeDb, err := newNodeDbWithNodes(nil)
+			require.NoError(t, err)
+			nodeDb.ConfigureScheduling(SchedulingOptions{DisableUrgencyScheduling: true})
+
+			evictionIndex := 0
+			for _, nodeDetails := range tc.setup {
+				txn := nodeDb.Txn(true)
+				require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nodeDetails.jobs, nodeDetails.node))
+				txn.Commit()
+
+				evictionIndex = evictJobs(t, nodeDb, nodeDetails.jobs, nodeDetails.node.GetId(), evictionIndex)
+			}
+
+			preemptedJobIds := []string{}
+			preemptedBySiblingJobIds := []string{}
+
+			for _, job := range tc.newJobs {
+				jctx := context.JobSchedulingContextFromJob(job)
+				gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
+
+				txn := nodeDb.Txn(true)
+				ok, preemptedJobs, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
+				require.NoError(t, err)
+				require.True(t, ok)
+
+				for _, preemptedJob := range preemptedJobs {
+					if preemptedJob.PreemptionDetails.CausedBySiblingPreemption() {
+						preemptedBySiblingJobIds = append(preemptedBySiblingJobIds, preemptedJob.PreemptedJob.JobId)
+					} else {
+						preemptedJobIds = append(preemptedJobIds, preemptedJob.PreemptedJob.JobId)
+					}
+				}
+				txn.Commit()
+			}
+			slices.Sort(preemptedJobIds)
+			slices.Sort(preemptedBySiblingJobIds)
+			slices.Sort(tc.expectedPreemptedJobIds)
+			slices.Sort(tc.expectedPreemptedViaSiblingJobIds)
+
+			assert.Equal(t, tc.expectedPreemptedJobIds, preemptedJobIds)
+			assert.Equal(t, tc.expectedPreemptedViaSiblingJobIds, preemptedBySiblingJobIds)
+
+			// Every preempted job must have been removed from the evicted index, so it
+			// cannot be offered for preemption again.
+			readTxn := nodeDb.Txn(false)
+			defer readTxn.Abort()
+			for _, jobId := range append(append([]string{}, preemptedJobIds...), preemptedBySiblingJobIds...) {
+				evicted, err := readTxn.First(EvictedJobsTable, IdIndex, jobId)
+				require.NoError(t, err)
+				assert.Nil(t, evicted, "preempted job %s should no longer be in the evicted index", jobId)
+			}
+		})
+	}
 }
