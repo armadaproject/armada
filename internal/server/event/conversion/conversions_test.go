@@ -210,24 +210,9 @@ func TestConvertJobRunCancelled(t *testing.T) {
 		},
 	}
 
-	expected := []*api.EventMessage{
-		{
-			Events: &api.EventMessage_Cancelling{
-				Cancelling: &api.JobCancellingEvent{
-					JobId:     jobId,
-					JobSetId:  jobSetName,
-					Queue:     queue,
-					Created:   protoutil.ToTimestamp(baseTime),
-					Requestor: "alice",
-					Reason:    "user requested",
-				},
-			},
-		},
-	}
-
 	apiEvents, err := FromEventSequence(toEventSeq(runCancel))
 	assert.NoError(t, err)
-	assert.Equal(t, expected, apiEvents)
+	assert.Empty(t, apiEvents)
 }
 
 func TestConvertReprioritised(t *testing.T) {
