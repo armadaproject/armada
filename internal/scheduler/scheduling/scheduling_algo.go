@@ -755,6 +755,7 @@ func ConstructNodeDb(
 		DisableFairshareScheduling: poolConfig.DisableFairshareScheduling,
 		DisableUrgencyScheduling:   poolConfig.DisableUrgencyScheduling,
 		DisallowedJobResources:     poolConfig.ExperimentalUnscheduledResources,
+		DefaultTolerations:         poolConfig.GetDefaultJobTolerations(),
 	})
 
 	if err := populateNodeDb(poolConfig, nodeDb, currentPoolJobs, otherPoolsJobs, nodes); err != nil {

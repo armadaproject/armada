@@ -180,6 +180,8 @@ type NodeDb struct {
 	disableFairshareScheduling bool
 	disableUrgencyScheduling   bool
 
+	defaultTolerations []v1.Toleration
+
 	// pool is the pool this NodeDb is scheduling for.
 	// When set (non-empty), jobs whose run pool differs from it (cross-pool "away" jobs)
 	// are accounted at CrossPoolPriority so any home job can urgency-preempt them ahead of home jobs.
@@ -378,6 +380,7 @@ type SchedulingOptions struct {
 	DisableFairshareScheduling bool
 	DisableUrgencyScheduling   bool
 	DisallowedJobResources     []string
+	DefaultTolerations         []v1.Toleration
 }
 
 func (nodeDb *NodeDb) ConfigureScheduling(opts SchedulingOptions) {
@@ -387,6 +390,7 @@ func (nodeDb *NodeDb) ConfigureScheduling(opts SchedulingOptions) {
 	nodeDb.disableFairshareScheduling = opts.DisableFairshareScheduling
 	nodeDb.disableUrgencyScheduling = opts.DisableUrgencyScheduling
 	nodeDb.disallowedJobResources = opts.DisallowedJobResources
+	nodeDb.defaultTolerations = opts.DefaultTolerations
 }
 
 func (nodeDb *NodeDb) GetNodes() ([]*internaltypes.Node, error) {
@@ -554,6 +558,8 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 		NumNodes:                 int(nodeDb.numNodes),
 		NumExcludedNodesByReason: make(map[string]int),
 	}
+	originalNumberOfTolerations := len(jctx.AdditionalTolerations)
+	jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, nodeDb.defaultTolerations...)
 	jctx.PodSchedulingContext = pctx
 
 	// For pods that failed to schedule, add an exclusion reason for implicitly excluded nodes.
@@ -561,6 +567,8 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 		if pctx.NodeId != "" {
 			return
 		}
+		// Remove added tolerations if not scheduled
+		jctx.AdditionalTolerations = jctx.AdditionalTolerations[:originalNumberOfTolerations]
 		numExplicitlyExcludedNodes := 0
 		for _, count := range pctx.NumExcludedNodesByReason {
 			numExplicitlyExcludedNodes += count

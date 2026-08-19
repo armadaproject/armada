@@ -434,6 +434,18 @@ type PoolConfig struct {
 	// Set to true to fall back to the legacy behaviour
 	//  where preemption ordering is determined purely by scheduled-at priority.
 	DisablePreemptCrossPoolJobsFirst bool
+	JobDefaults                      *JobDefaults
+}
+
+func (p PoolConfig) GetDefaultJobTolerations() []v1.Toleration {
+	if p.JobDefaults == nil || p.JobDefaults.Tolerations == nil {
+		return nil
+	}
+	return p.JobDefaults.Tolerations
+}
+
+type JobDefaults struct {
+	Tolerations []v1.Toleration
 }
 
 // RateLimit The rate at which an action can happen using a token bucket approach
