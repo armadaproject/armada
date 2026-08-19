@@ -730,11 +730,11 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 		{
 			Events: &api.EventMessage_Preempted{
 				Preempted: &api.JobPreemptedEvent{
-					JobId:    jobId,
-					JobSetId: jobSetName,
-					Queue:    queue,
-					Created:  protoutil.ToTimestamp(baseTime),
-					RunId:    runId,
+					JobId:     jobId,
+					JobSetId:  jobSetName,
+					Queue:     queue,
+					Created:   protoutil.ToTimestamp(baseTime),
+					RunId:     runId,
 					Requestor: "testUser",
 				},
 			},
