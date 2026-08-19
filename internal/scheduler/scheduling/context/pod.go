@@ -5,8 +5,6 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
-
-	v1 "k8s.io/api/core/v1"
 )
 
 type SchedulingType string
@@ -55,8 +53,6 @@ type PodSchedulingContext struct {
 	ScheduledAway bool
 	// The method of scheduling that was used to schedule this job
 	SchedulingMethod SchedulingType
-	// Additional tolerations used just for this scheduling round
-	AdditionalTolerations []v1.Toleration
 }
 
 func (pctx *PodSchedulingContext) IsSuccessful() bool {
