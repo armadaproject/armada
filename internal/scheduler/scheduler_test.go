@@ -1665,8 +1665,19 @@ func subtractEventsFromOutstandingEventsByType(eventSequences []*armadaevents.Ev
 				}
 			}
 
-			if details.requestor != "" && eventSequence.UserId != details.requestor {
-				return errors.Errorf("received expected event for job %s with unexpected requestor %q: %T - %v", jobId, eventSequence.UserId, event.Event, event.Event)
+			requestor := eventSequence.UserId
+			switch e := event.Event.(type) {
+			case *armadaevents.EventSequence_Event_CancelledJob:
+				requestor = e.CancelledJob.Requestor
+			case *armadaevents.EventSequence_Event_ReprioritisedJob:
+				requestor = e.ReprioritisedJob.Requestor
+			case *armadaevents.EventSequence_Event_JobRunPreempted:
+				requestor = e.JobRunPreempted.Requestor
+			case *armadaevents.EventSequence_Event_JobRunCancelled:
+				requestor = e.JobRunCancelled.Requestor
+			}
+			if details.requestor != "" && requestor != details.requestor {
+				return errors.Errorf("received expected event for job %s with unexpected requestor %q: %T - %v", jobId, requestor, event.Event, event.Event)
 			}
 
 			delete(outstandingEventsByType[key], jobId)
@@ -3150,7 +3161,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId: queuedJobA.JobID,
+									JobId:     queuedJobA.JobID,
+									Requestor: "cancel-user-a",
 								},
 							},
 						},
@@ -3187,7 +3199,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId: queuedJobA.JobID,
+									JobId:     queuedJobA.JobID,
+									Requestor: "cancel-user-a",
 								},
 							},
 						},
@@ -3232,7 +3245,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId: queuedJobA.JobID,
+									JobId:     queuedJobA.JobID,
+									Requestor: "cancel-user-a",
 								},
 							},
 						},
@@ -3285,7 +3299,8 @@ func TestCycleConsistency(t *testing.T) {
 							Created: &types.Timestamp{},
 							Event: &armadaevents.EventSequence_Event_CancelledJob{
 								CancelledJob: &armadaevents.CancelledJob{
-									JobId: queuedJobA.JobID,
+									JobId:     queuedJobA.JobID,
+									Requestor: "cancel-user-a",
 								},
 							},
 						},
@@ -4229,6 +4244,8 @@ func TestAppendEventSequencesFromPreemptedJobs_PopulatesPreemptingJobId(t *testi
 		1,
 		true,
 	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
+	requestor := "preempt-requestor"
+	preemptedJob = preemptedJob.WithUpdatedRun(preemptedJob.LatestRun().WithPreemptUser(&requestor))
 	preemptedRun := preemptedJob.LatestRun()
 
 	jctx := &schedulercontext.JobSchedulingContext{
@@ -4240,6 +4257,7 @@ func TestAppendEventSequencesFromPreemptedJobs_PopulatesPreemptingJobId(t *testi
 	sequences, err := AppendEventSequencesFromPreemptedJobs(nil, []*schedulercontext.JobSchedulingContext{jctx}, time.Now())
 	assert.NoError(t, err)
 	assert.Len(t, sequences, 1)
+	assert.Equal(t, requestor, sequences[0].UserId)
 
 	events := sequences[0].Events
 	assert.Len(t, events, 3) // JobRunPreempted + JobRunErrors + JobErrors
@@ -4248,6 +4266,7 @@ func TestAppendEventSequencesFromPreemptedJobs_PopulatesPreemptingJobId(t *testi
 	assert.NotNil(t, preemptedEvent)
 	assert.Equal(t, preemptedRun.Id(), preemptedEvent.PreemptedRunId)
 	assert.Equal(t, preemptingJobId, preemptedEvent.PreemptingJobId)
+	assert.Equal(t, requestor, preemptedEvent.Requestor)
 }
 
 func TestAppendEventSequencesFromPreemptedJobs_NilPreemptingJob(t *testing.T) {

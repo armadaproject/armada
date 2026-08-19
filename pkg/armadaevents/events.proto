@@ -235,6 +235,7 @@ message ReprioritisedJob {
     reserved 1;
     uint32 priority = 2;
     string job_id = 3;
+    string requestor = 4;
 }
 
 // A request to cancel a particular job.
@@ -272,6 +273,7 @@ message CancelledJob {
     reserved 1;
     string reason = 2;
     string job_id = 3;
+    string requestor = 4;
 }
 
 message JobSucceeded {
@@ -549,6 +551,7 @@ message JobRunPreempted{
     string preempted_run_id = 6;
     string reason = 7;
     string preempting_job_id = 8;
+    string requestor = 9;
 }
 
 // Message used internally by Armada to see if messages can be propagated through a pulsar partition

@@ -109,7 +109,7 @@ var expectedJobCancelled = model.UpdateJobInstruction{
 	JobId:                     testfixtures.JobId,
 	State:                     pointer.Int32(lookout.JobCancelledOrdinal),
 	Cancelled:                 &testfixtures.BaseTime,
-	CancelUser:                pointer.String(testfixtures.UserId),
+	CancelUser:                pointer.String(testfixtures.CancelUser),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
 }
@@ -381,7 +381,7 @@ func TestConvert(t *testing.T) {
 					JobId:                     testfixtures.JobId,
 					State:                     pointer.Int32(lookout.JobCancelledOrdinal),
 					CancelReason:              pointer.String(testfixtures.CancelReason),
-					CancelUser:                pointer.String(testfixtures.UserId),
+					CancelUser:                pointer.String(testfixtures.CancelUser),
 					Cancelled:                 &testfixtures.BaseTime,
 					LastTransitionTime:        &testfixtures.BaseTime,
 					LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),

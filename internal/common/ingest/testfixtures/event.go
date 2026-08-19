@@ -356,7 +356,8 @@ var JobCancelled = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_CancelledJob{
 		CancelledJob: &armadaevents.CancelledJob{
-			JobId: JobId,
+			JobId:     JobId,
+			Requestor: CancelUser,
 		},
 	},
 }
@@ -445,8 +446,9 @@ var JobReprioritised = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 		ReprioritisedJob: &armadaevents.ReprioritisedJob{
-			JobId:    JobId,
-			Priority: NewPriority,
+			JobId:     JobId,
+			Priority:  NewPriority,
+			Requestor: UserId,
 		},
 	},
 }
@@ -487,6 +489,7 @@ var JobRunPreempted = &armadaevents.EventSequence_Event{
 			PreemptedJobId: JobId,
 			PreemptedRunId: RunId,
 			Reason:         PreemptionReason,
+			Requestor:      UserId,
 		},
 	},
 }
@@ -500,6 +503,7 @@ var JobRunPreemptedFairShare = &armadaevents.EventSequence_Event{
 			PreemptedRunId:  RunId,
 			PreemptingJobId: PreemptingJobId,
 			Reason:          PreemptionReason,
+			Requestor:       UserId,
 		},
 	},
 }

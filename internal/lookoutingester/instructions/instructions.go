@@ -255,6 +255,9 @@ func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, event *armadae
 }
 
 func (c *InstructionConverter) handleCancelledJob(ts time.Time, requestor string, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
+	if event.Requestor != "" {
+		requestor = event.Requestor
+	}
 	var reason *string
 	if event.Reason != "" {
 		reason = &event.Reason
@@ -503,6 +506,9 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 }
 
 func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, requestor string, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+	if event.Requestor != "" {
+		requestor = event.Requestor
+	}
 	var terminationReasonArgs map[string]any
 	if event.PreemptingJobId != "" {
 		terminationReasonArgs = map[string]any{"preemptingJobId": event.PreemptingJobId}

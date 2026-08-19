@@ -813,6 +813,7 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 				run.Id(),
 				preemptingJobId(jctx.GetPreemptingJob()),
 				jctx.PreemptionDescription,
+				requestor,
 				time,
 			),
 		})
@@ -899,7 +900,7 @@ func createEventsForLeaseExpiredRetry(job *jobdb.Job, leaseExpiredError *armadae
 	}
 }
 
-func createEventsForPreemptedJob(jobId string, runId string, preemptingJobId string, reason string, time time.Time) []*armadaevents.EventSequence_Event {
+func createEventsForPreemptedJob(jobId string, runId string, preemptingJobId string, reason string, requestor string, time time.Time) []*armadaevents.EventSequence_Event {
 	return []*armadaevents.EventSequence_Event{
 		{
 			Created: protoutil.ToTimestamp(time),
@@ -909,6 +910,7 @@ func createEventsForPreemptedJob(jobId string, runId string, preemptingJobId str
 					PreemptedJobId:  jobId,
 					Reason:          reason,
 					PreemptingJobId: preemptingJobId,
+					Requestor:       requestor,
 				},
 			},
 		},
@@ -990,7 +992,7 @@ func AppendEventSequencesFromReconciliationFailureJobs(eventSequences []*armadae
 			Queue:      jobInfo.Job.Queue(),
 			JobSetName: jobInfo.Job.Jobset(),
 			UserId:     requestor,
-			Events:     createEventsForPreemptedJob(jobInfo.Job.Id(), run.Id(), "", jobInfo.Reason, time),
+			Events:     createEventsForPreemptedJob(jobInfo.Job.Id(), run.Id(), "", jobInfo.Reason, requestor, time),
 		}
 		eventSequences = append(eventSequences, es)
 	}
@@ -1204,8 +1206,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 				ReprioritisedJob: &armadaevents.ReprioritisedJob{
-					JobId:    job.Id(),
-					Priority: job.Priority(),
+					JobId:     job.Id(),
+					Priority:  job.Priority(),
+					Requestor: sequenceUserId,
 				},
 			},
 		}
@@ -1246,7 +1249,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
 				CancelledJob: &armadaevents.CancelledJob{
-					JobId: job.Id(),
+					JobId:     job.Id(),
+					Requestor: cancelUser,
 				},
 			},
 		}
@@ -1293,7 +1297,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
 				CancelledJob: &armadaevents.CancelledJob{
-					JobId: job.Id(),
+					JobId:     job.Id(),
+					Requestor: cancelUser,
 				},
 			},
 		}
@@ -1494,12 +1499,14 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			if lastRun.PreemptReason() != nil && *lastRun.PreemptReason() != "" {
 				reason = *lastRun.PreemptReason()
 			}
+			var requestor string
 			if requestorPtr := lastRun.PreemptUser(); requestorPtr != nil {
+				requestor = *requestorPtr
 				if sequenceUserId == "" {
-					sequenceUserId = *requestorPtr
+					sequenceUserId = requestor
 				}
 			}
-			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "", reason, s.clock.Now())...)
+			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "", reason, requestor, s.clock.Now())...)
 			s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaApi)
 		}
 	}
