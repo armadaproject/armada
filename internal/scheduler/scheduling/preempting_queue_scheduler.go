@@ -255,9 +255,11 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	preemptedJobs := maps.Values(preemptedJobsById)
 	scheduledJobs := maps.Values(scheduledJobsById)
 	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Unbinding %d preempted and %d evicted jobs", len(preemptedJobs), len(maps.Values(scheduledAndEvictedJobsById)))
-	if err := sch.unbindJobs(append(
-		slices.Clone(preemptedJobs),
-		maps.Values(scheduledAndEvictedJobsById)...),
+	if err := sch.unbindJobs(
+		append(
+			slices.Clone(preemptedJobs),
+			maps.Values(scheduledAndEvictedJobsById)...,
+		),
 	); err != nil {
 		return nil, err
 	}
@@ -483,7 +485,8 @@ func (sch *PreemptingQueueScheduler) setEvictedGangCardinality(evictorResult *Ev
 func (sch *PreemptingQueueScheduler) evictionAssertions(evictorResult *EvictorResult) error {
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		if internaltypes.RlMapHasNegativeValues(qctx.AllocatedByPriorityClass) {
-			return errors.Errorf("negative allocation for queue %s after eviction: %s",
+			return errors.Errorf(
+				"negative allocation for queue %s after eviction: %s",
 				qctx.Queue,
 				internaltypes.RlMapToString(qctx.AllocatedByPriorityClass),
 			)
@@ -642,7 +645,8 @@ func (sch *PreemptingQueueScheduler) runPricer(ctx *armadacontext.Context) (Indi
 		sch.jobRepo,
 		gangScheduler,
 		sch.constraints,
-		sch.floatingResourceTypes)
+		sch.floatingResourceTypes,
+	)
 	sch.schedulingContext.ClearUnfeasibleSchedulingKeys()
 
 	timeoutContext, cancel := armadacontext.WithTimeout(ctx, sch.marketConfig.GangIndicativePricingTimeout)
@@ -683,7 +687,8 @@ func (sch *PreemptingQueueScheduler) runOptimiser(ctx *armadacontext.Context) (*
 		sch.preferLargeJobOrdering,
 		minimumJobSizeToSchedule,
 		sch.optimiserConfig.MaximumJobsPerRound,
-		sch.optimiserConfig.MaximumResourceFractionToSchedule)
+		sch.optimiserConfig.MaximumResourceFractionToSchedule,
+	)
 	sch.schedulingContext.ClearUnfeasibleSchedulingKeys()
 
 	timeoutContext, cancel := armadacontext.WithTimeout(ctx, sch.optimiserConfig.Timeout)
