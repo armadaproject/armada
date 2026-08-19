@@ -175,7 +175,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 			WellKnownNodeTypes: srv.schedulingConfig.WellKnownNodeTypes,
 		}
 
-		nodeDb, err := scheduling.ConstructNodeDb(nodeDbConfig, srv.resourceListFactory, srv.schedulingConfig.PriorityClasses, pool, nodeFactory, nil, nil, poolNodes)
+		nodeDb, err := scheduling.ConstructNodeDb(nodeDbConfig, srv.resourceListFactory, srv.schedulingConfig.PriorityClasses, pool, nil, nil, poolNodes)
 		if err != nil {
 			return fmt.Errorf("failed constructing nodedb for pool %s - %s", pool.Name, err)
 		}
