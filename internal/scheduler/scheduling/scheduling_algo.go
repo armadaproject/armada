@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
@@ -15,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/common/observability/observe"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -64,6 +68,7 @@ type FairSchedulingAlgo struct {
 	resourceListFactory   *internaltypes.ResourceListFactory
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
 	shortJobPenalty       *ShortJobPenalty
+	tracer                trace.Tracer
 }
 
 func NewFairSchedulingAlgo(
@@ -100,6 +105,7 @@ func NewFairSchedulingAlgo(
 		floatingResourceTypes:        floatingResourceTypes,
 		shortJobPenalty:              shortJobPenalty,
 		stateValidator:               stateValidator,
+		tracer:                       otel.Tracer("armada.scheduler.fair_scheduling_algo"),
 	}, nil
 }
 
@@ -115,15 +121,21 @@ func (l *FairSchedulingAlgo) Schedule(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
 ) (*SchedulerResult, error) {
+	goCtx, span := l.tracer.Start(ctx, "scheduler.schedule", trace.WithAttributes(
+		attribute.Int("armada.scheduler.pool_count", len(l.schedulingConfig.Pools)),
+		attribute.Bool("armada.scheduler.disabled", l.schedulingConfig.DisableScheduling),
+	))
+	defer span.End()
+
 	var cancel context.CancelFunc
 	if l.maxSchedulingDuration != 0 {
-		ctx, cancel = armadacontext.WithTimeout(ctx, l.maxSchedulingDuration)
+		ctx, cancel = armadacontext.WithTimeout(armadacontext.WithContext(ctx, goCtx), l.maxSchedulingDuration)
 		defer cancel()
 	}
 
 	// Error immediately if priority overrides are not ready
 	if !l.queueOverrideProvider.Ready() {
-		return nil, fmt.Errorf("queue overrides is not ready")
+		return nil, observe.Error(span, errors.New("queue overrides is not ready"))
 	}
 
 	schedulerResult := &SchedulerResult{
@@ -134,26 +146,27 @@ func (l *FairSchedulingAlgo) Schedule(
 	// Exit immediately if scheduling is disabled.
 	if l.schedulingConfig.DisableScheduling {
 		l.appendSchedulingDisabledResults(ctx, schedulerResult)
+		span.SetAttributes(attribute.Int("armada.scheduler.pool_results", len(schedulerResult.PoolResults)))
 		return schedulerResult, nil
 	}
 
 	executors, err := l.executorRepository.GetExecutors(ctx)
 	if err != nil {
-		return nil, err
+		return nil, observe.Error(span, err)
 	}
 
 	shortJobPenalty := l.shortJobPenalty.Snapshot()
 
 	reconciliationByPool, err := l.reconcilePools(ctx, txn, executors)
 	if err != nil {
-		return nil, err
+		return nil, observe.Error(span, err)
 	}
 
 	for _, pool := range l.schedulingConfig.Pools {
 		startTime := l.clock.Now()
 		reconciliation, ok := reconciliationByPool[pool.Name]
 		if !ok {
-			return nil, fmt.Errorf("no reconciliation result for pool %s", pool.Name)
+			return nil, observe.Error(span, fmt.Errorf("no reconciliation result for pool %s", pool.Name))
 		}
 		var outcome *PoolSchedulingOutcome
 		var schedulingResult *SchedulingResult
@@ -162,19 +175,19 @@ func (l *FairSchedulingAlgo) Schedule(
 		} else {
 			outcome, schedulingResult, err = l.runPoolSchedulingRound(ctx, pool, txn, executors, shortJobPenalty)
 			if err != nil {
-				return nil, err
+				return nil, observe.Error(span, err)
 			}
 		}
 		endTime := l.clock.Now()
 
 		if outcome == nil {
-			return nil, fmt.Errorf("unexpectedly got nil scheduling result for pool %s", pool.Name)
+			return nil, observe.Errorf(span, "unexpectedly got nil scheduling result for pool %s", pool.Name)
 		}
 
 		// If pools are not configured to fail independently, cause total scheduling round failure on pool failure
 		if !outcome.Success() {
 			if l.schedulingConfig.DisableIndependentPoolFailures {
-				return nil, outcome.Error()
+				return nil, observe.Error(span, outcome.Error())
 			} else {
 				ctx.Logger().WithStacktrace(err).Errorf("scheduling on pool %s failed but continuing as the error was non-fatal - error %s", pool.Name, outcome.Error())
 			}
@@ -192,6 +205,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		schedulerResult.PoolResults = append(schedulerResult.PoolResults, poolResult)
 	}
 	schedulerResult.EndTime = l.clock.Now()
+	span.SetAttributes(attribute.Int("armada.scheduler.pool_results", len(schedulerResult.PoolResults)))
 	return schedulerResult, nil
 }
 
@@ -515,7 +529,8 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		jobSchedulingInfo.allocatedByQueueAndPriorityClass,
 		jobSchedulingInfo.awayAllocatedByQueueAndPriorityClass,
 		jobSchedulingInfo.shortJobPenaltyByQueue,
-		queueByName)
+		queueByName,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -925,7 +940,8 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		l.clock,
 	)
 
-	ctx.Infof("Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f protectUncappedAdjustedFairShare %t",
+	ctx.Infof(
+		"Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f protectUncappedAdjustedFairShare %t",
 		pool.Name,
 		fsctx.nodeDb.TotalKubernetesResources().Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name)).String(),
 		l.schedulingConfig.GetProtectedFractionOfFairShare(pool.Name),
