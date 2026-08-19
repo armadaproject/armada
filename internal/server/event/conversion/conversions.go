@@ -50,10 +50,11 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalResourceUtilisation(es.Queue, es.JobSetName, eventTs, esEvent.ResourceUtilisation)
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, es.JobSetName, eventTs, esEvent.StandaloneIngressInfo)
+		case *armadaevents.EventSequence_Event_JobRunPreempted:
+			convertedEvents, err = FromInternalJobRunPreempted(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.JobRunPreempted)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_JobRunPreemptionRequested,
 			*armadaevents.EventSequence_Event_JobRunCancelled,
-			*armadaevents.EventSequence_Event_JobRunPreempted,
 			*armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_JobRunSucceeded,
@@ -377,6 +378,37 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 		{
 			Events: &api.EventMessage_Pending{
 				Pending: apiEvent,
+			},
+		},
+	}, nil
+}
+
+func FromInternalJobRunPreempted(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunPreempted) ([]*api.EventMessage, error) {
+	if e == nil {
+		// We only support PodPreempted right now
+		return nil, nil
+	}
+
+	requestor := userId
+	if e.Requestor != "" {
+		requestor = e.Requestor
+	}
+
+	apiEvent := &api.JobPreemptedEvent{
+		JobId:           e.PreemptedJobId,
+		JobSetId:        jobSetName,
+		Queue:           queueName,
+		Created:         protoutil.ToTimestamp(time),
+		RunId:           e.PreemptedRunId,
+		Reason:          e.Reason,
+		PreemptingJobId: e.PreemptingJobId,
+		Requestor:       requestor,
+	}
+
+	return []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Preempted{
+				Preempted: apiEvent,
 			},
 		},
 	}, nil

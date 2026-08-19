@@ -727,6 +727,18 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 				},
 			},
 		},
+		{
+			Events: &api.EventMessage_Preempted{
+				Preempted: &api.JobPreemptedEvent{
+					JobId:    jobId,
+					JobSetId: jobSetName,
+					Queue:    queue,
+					Created:  protoutil.ToTimestamp(baseTime),
+					RunId:    runId,
+					Requestor: "testUser",
+				},
+			},
+		},
 	}
 
 	apiEvents, err := FromEventSequence(toEventSeq(leaseExpired, preempted, cancel))
