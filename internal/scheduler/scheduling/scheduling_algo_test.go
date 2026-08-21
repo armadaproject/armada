@@ -253,7 +253,7 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 					break
 				}
 			}
-			mockExecutorRepo.EXPECT().GetExecutors(ctx).DoAndReturn(
+			mockExecutorRepo.EXPECT().GetExecutors(gomock.AssignableToTypeOf(ctx)).DoAndReturn(
 				func(ctx *armadacontext.Context) ([]*schedulerobjects.Executor, error) {
 					if anyUnrecoverable {
 						return nil, fmt.Errorf("simulated critical failure for pool")
@@ -261,7 +261,7 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 					return executors, nil
 				},
 			).AnyTimes()
-			mockExecutorRepo.EXPECT().GetExecutorSettings(ctx).Return([]*schedulerobjects.ExecutorSettings{}, nil).AnyTimes()
+			mockExecutorRepo.EXPECT().GetExecutorSettings(gomock.AssignableToTypeOf(ctx)).Return([]*schedulerobjects.ExecutorSettings{}, nil).AnyTimes()
 			mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
 			queueCacheCallCount := 0
 			// TODO This is a hack, we should refactor so we can inject a failing scheduler and simulate scheduling failing directly
@@ -1067,10 +1067,10 @@ func TestSchedule(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
-			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
-			mockExecutorRepo.EXPECT().GetExecutorSettings(ctx).Return(defaultExecutorSettings, nil).AnyTimes()
+			mockExecutorRepo.EXPECT().GetExecutors(gomock.AssignableToTypeOf(ctx)).Return(tc.executors, nil).AnyTimes()
+			mockExecutorRepo.EXPECT().GetExecutorSettings(gomock.AssignableToTypeOf(ctx)).Return(defaultExecutorSettings, nil).AnyTimes()
 			mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
-			mockQueueCache.EXPECT().GetAll(ctx).Return(tc.queues, nil).AnyTimes()
+			mockQueueCache.EXPECT().GetAll(gomock.AssignableToTypeOf(ctx)).Return(tc.queues, nil).AnyTimes()
 
 			schedulingContextRepo := reports.NewSchedulingContextRepository()
 			runReconciler := &testRunReconciler{}
@@ -1329,18 +1329,11 @@ func TestPopulateNodeDb(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			nodeFactory := internaltypes.NewNodeFactory(
-				schedulingConfig.IndexedTaints,
-				schedulingConfig.IndexedNodeLabels,
-				schedulingConfig.PriorityClasses,
-				testfixtures.TestResourceListFactory,
-			)
-
 			for i, job := range tc.Jobs {
 				tc.Jobs[i] = tc.Jobs[i].WithNewRun("executor-01", tc.Node.GetId(), tc.Node.GetName(), tc.Node.GetPool(), job.PriorityClass().Priority)
 			}
 
-			err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeFactory, nodeDb, tc.Jobs, []*jobdb.Job{}, []*internaltypes.Node{tc.Node})
+			err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeDb, tc.Jobs, []*jobdb.Job{}, []*internaltypes.Node{tc.Node})
 			require.NoError(t, err)
 
 			nodes, err := nodeDb.GetNodes()
@@ -1361,90 +1354,6 @@ func TestPopulateNodeDb(t *testing.T) {
 			} else {
 				assert.Len(t, nodes, 0)
 			}
-		})
-	}
-}
-
-func TestPopulateNodeDb_AwayPoolTaintModifications(t *testing.T) {
-	const awayPool = "away-pool"
-	initialTaint := v1.Taint{Key: "remove-me", Value: "x", Effect: v1.TaintEffectNoSchedule}
-
-	tests := map[string]struct {
-		modifications configuration.NodeModifications
-		// expectedAwayTaints is the away node's taint set after populateNodeDb.
-		expectedAwayTaints []v1.Taint
-	}{
-		"applies add and delete": {
-			modifications: configuration.NodeModifications{
-				Taints: []configuration.TaintModification{
-					{Operation: configuration.TaintOperationDelete, Taint: v1.Taint{Key: "remove-me", Value: "*", Effect: v1.TaintEffectNoSchedule}},
-					{Operation: configuration.TaintOperationAdd, Taint: v1.Taint{Key: "added", Value: "true", Effect: v1.TaintEffectNoSchedule}},
-				},
-			},
-			expectedAwayTaints: []v1.Taint{{Key: "added", Value: "true", Effect: v1.TaintEffectNoSchedule}},
-		},
-		"empty modifications is a no-op": {
-			modifications:      configuration.NodeModifications{},
-			expectedAwayTaints: []v1.Taint{initialTaint},
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			poolConfig := configuration.PoolConfig{
-				Name: testfixtures.TestPool,
-				AwayPools: []configuration.AwayPoolConfig{
-					{
-						Name: awayPool,
-						Node: configuration.NodeConfig{Modifications: tc.modifications},
-					},
-				},
-			}
-
-			schedulingConfig := testfixtures.TestSchedulingConfig()
-			nodeFactory := internaltypes.NewNodeFactory(
-				schedulingConfig.IndexedTaints,
-				schedulingConfig.IndexedNodeLabels,
-				schedulingConfig.PriorityClasses,
-				testfixtures.TestResourceListFactory,
-			)
-
-			rl := internaltypes.ResourceList{}
-			awayNode := nodeFactory.CreateNodeAndType(
-				"away-node", "exec-1", "away-node", awayPool, "type",
-				false,
-				[]v1.Taint{initialTaint},
-				map[string]string{}, rl, rl, map[int32]internaltypes.ResourceList{},
-			)
-			homeNode := nodeFactory.CreateNodeAndType(
-				"home-node", "exec-1", "home-node", testfixtures.TestPool, "type",
-				false,
-				[]v1.Taint{initialTaint},
-				map[string]string{}, rl, rl, map[int32]internaltypes.ResourceList{},
-			)
-
-			nodeDb, err := nodedb.NewNodeDb(
-				schedulingConfig.PriorityClasses,
-				schedulingConfig.IndexedResources,
-				schedulingConfig.IndexedTaints,
-				schedulingConfig.IndexedNodeLabels,
-				schedulingConfig.WellKnownNodeTypes,
-				testfixtures.TestResourceListFactory,
-			)
-			require.NoError(t, err)
-
-			err = populateNodeDb(poolConfig, nodeFactory, nodeDb, []*jobdb.Job{}, []*jobdb.Job{}, []*internaltypes.Node{awayNode, homeNode})
-			require.NoError(t, err)
-
-			gotAway, err := nodeDb.GetNode("away-node")
-			require.NoError(t, err)
-			gotHome, err := nodeDb.GetNode("home-node")
-			require.NoError(t, err)
-
-			// Away node: modifications applied (or unchanged when there are none).
-			assert.Equal(t, tc.expectedAwayTaints, gotAway.GetTaints())
-			// Home node: always untouched, regardless of the away pool's modifications.
-			assert.Equal(t, []v1.Taint{initialTaint}, gotHome.GetTaints())
 		})
 	}
 }
@@ -1476,19 +1385,12 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 				)
 				require.NoError(b, err)
 
-				nodeFactory := internaltypes.NewNodeFactory(
-					schedulingConfig.IndexedTaints,
-					schedulingConfig.IndexedNodeLabels,
-					schedulingConfig.PriorityClasses,
-					testfixtures.TestResourceListFactory,
-				)
-
 				dbNodes := []*internaltypes.Node{}
 				for _, node := range nodes {
 					dbNodes = append(dbNodes, node.DeepCopyNilKeys())
 				}
 
-				err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeFactory, nodeDb, jobs, []*jobdb.Job{}, dbNodes)
+				err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeDb, jobs, []*jobdb.Job{}, dbNodes)
 				require.NoError(b, err)
 			}
 		})
@@ -1610,7 +1512,7 @@ type testRunReconciler struct {
 }
 
 func (t *testRunReconciler) ReconcileJobRuns(txn *jobdb.Txn, _ []*schedulerobjects.Executor) []*FailedReconciliationResult {
-	if t.jobIdsToFailReconciliation == nil || len(t.jobIdsToFailReconciliation) == 0 {
+	if len(t.jobIdsToFailReconciliation) == 0 {
 		return nil
 	}
 	jobs := txn.GetAll()

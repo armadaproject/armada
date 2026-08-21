@@ -800,6 +800,7 @@ func TestDisallowedJobResources(t *testing.T) {
 func TestHomeNodeScheduling(t *testing.T) {
 	tests := map[string]struct {
 		disableHomeScheduling bool
+		defaultToleration     *v1.Toleration
 		addNodeTaint          bool
 		addJobToleration      bool
 		jobPriorityClassName  string
@@ -808,6 +809,24 @@ func TestHomeNodeScheduling(t *testing.T) {
 	}{
 		"should schedule home jobs": {
 			expectSuccess: true,
+		},
+		"should schedule home jobs - when default toleration matches node taint": {
+			addNodeTaint: true,
+			defaultToleration: &v1.Toleration{
+				Key:      "largeJobsOnly",
+				Operator: v1.TolerationOpExists,
+				Effect:   v1.TaintEffectNoSchedule,
+			},
+			expectSuccess: true,
+		},
+		"should schedule home jobs - when default toleration does not match node taint": {
+			addNodeTaint: true,
+			defaultToleration: &v1.Toleration{
+				Key:      "non-matching",
+				Operator: v1.TolerationOpExists,
+				Effect:   v1.TaintEffectNoSchedule,
+			},
+			expectSuccess: false,
 		},
 		"should schedule home jobs - when job toleration matches node taint": {
 			expectSuccess:    true,
@@ -844,8 +863,15 @@ func TestHomeNodeScheduling(t *testing.T) {
 				testfixtures.TestResourceListFactory,
 			)
 			require.NoError(t, err)
-			if tc.disableHomeScheduling {
-				nodeDb.ConfigureScheduling(SchedulingOptions{DisableHomeScheduling: true})
+			if tc.disableHomeScheduling || tc.defaultToleration != nil {
+				options := SchedulingOptions{}
+				if tc.disableHomeScheduling {
+					options.DisableHomeScheduling = true
+				}
+				if tc.defaultToleration != nil {
+					options.DefaultTolerations = []v1.Toleration{*tc.defaultToleration}
+				}
+				nodeDb.ConfigureScheduling(options)
 			}
 
 			nodeDbTxn := nodeDb.Txn(true)
@@ -880,6 +906,9 @@ func TestHomeNodeScheduling(t *testing.T) {
 				assert.NotNil(t, jctx.PodSchedulingContext)
 				assert.True(t, jctx.PodSchedulingContext.IsSuccessful())
 				assert.Equal(t, node.GetId(), jctx.PodSchedulingContext.NodeId)
+				if tc.defaultToleration != nil {
+					assert.Equal(t, *tc.defaultToleration, jctx.AdditionalTolerations[0])
+				}
 				if tc.expectScheduledAway {
 					assert.Equal(t, context.ScheduledAsAwayJob, jctx.PodSchedulingContext.SchedulingMethod)
 					assert.Equal(t, int32(29000), jctx.PodSchedulingContext.ScheduledAtPriority)
