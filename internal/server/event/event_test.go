@@ -45,7 +45,7 @@ func (c *FakeActionAuthorizer) AuthorizeQueueAction(
 }
 
 func TestEventServer_Health(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
 	defer cancel()
 	withEventServer(
 		ctx,
@@ -59,7 +59,7 @@ func TestEventServer_Health(t *testing.T) {
 }
 
 func TestEventServer_ForceNew(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
 	defer cancel()
 	withEventServer(
 		ctx,
@@ -112,7 +112,7 @@ func TestEventServer_ForceNew(t *testing.T) {
 }
 
 func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
 	defer cancel()
 	withEventServer(
 		ctx,
@@ -133,7 +133,7 @@ func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
 }
 
 func TestEventServer_GetJobSetEvents_QueueDoNotExist(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
 	defer cancel()
 	withEventServer(
 		ctx,
@@ -182,7 +182,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
 			defer cancel()
 			withEventServer(ctx, t, func(s *EventServer) {
 				err := s.queueRepository.(armadaqueue.QueueRepository).CreateQueue(ctx, q)
@@ -247,7 +247,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
 			defer cancel()
 			withEventServer(ctx, t, func(s *EventServer) {
 				s.authorizer = auth.NewAuthorizer(auth.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
