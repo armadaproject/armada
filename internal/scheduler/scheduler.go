@@ -15,6 +15,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"
+	"k8s.io/utils/ptr"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/constants"
@@ -800,10 +801,7 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 		if run == nil {
 			return nil, errors.Errorf("attempting to generate preempted eventSequences for job %s with no associated runs", jctx.JobId)
 		}
-		var requestor string
-		if requestorPtr := run.PreemptUser(); requestorPtr != nil {
-			requestor = *requestorPtr
-		}
+		requestor := ptr.Deref(run.PreemptUser(), "")
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
 			Queue:      jctx.Job.Queue(),
 			JobSetName: jctx.Job.Jobset(),
@@ -984,10 +982,7 @@ func AppendEventSequencesFromReconciliationFailureJobs(eventSequences []*armadae
 		if run == nil {
 			return nil, errors.Errorf("attempting to generate reconciliation preemption eventSequences for job %s with no associated runs", jobInfo.Job.Id())
 		}
-		var requestor string
-		if requestorPtr := run.PreemptUser(); requestorPtr != nil {
-			requestor = *requestorPtr
-		}
+		requestor := ptr.Deref(run.PreemptUser(), "")
 		es := &armadaevents.EventSequence{
 			Queue:      jobInfo.Job.Queue(),
 			JobSetName: jobInfo.Job.Jobset(),
@@ -1186,7 +1181,6 @@ func (s *Scheduler) buildQueueRetryPolicyMap(ctx *armadacontext.Context) map[str
 // If there are no state changes it returns nil.
 func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrors map[string]*armadaevents.Error, queueRetryPolicies map[string]string, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
-	var sequenceUserId string
 
 	// Is the job already in a terminal state? If so then don't send any more messages
 	if job.InTerminalState() {
@@ -1197,18 +1191,14 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 
 	if job.RequestedPriority() != job.Priority() {
 		job = job.WithPriority(job.RequestedPriority())
-		if reprioritiseUserPtr := job.ReprioritiseUser(); reprioritiseUserPtr != nil {
-			if sequenceUserId == "" {
-				sequenceUserId = *reprioritiseUserPtr
-			}
-		}
+		requestor := ptr.Deref(job.ReprioritiseUser(), "")
 		jobReprioritised := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 				ReprioritisedJob: &armadaevents.ReprioritisedJob{
 					JobId:     job.Id(),
 					Priority:  job.Priority(),
-					Requestor: sequenceUserId,
+					Requestor: requestor,
 				},
 			},
 		}
@@ -1217,13 +1207,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 
 	// Has the job been requested cancelled. If so, cancel the job
 	if job.CancelRequested() {
-		var cancelUser string
-		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
-			cancelUser = *cancelUserPtr
-		}
-		if sequenceUserId == "" {
-			sequenceUserId = cancelUser
-		}
+		requestor := ptr.Deref(job.CancelUser(), "")
 		var cancelReason string
 		if cancelReasonPtr := job.CancelReason(); cancelReasonPtr != nil {
 			cancelReason = *cancelReasonPtr
@@ -1238,7 +1222,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 					JobRunCancelled: &armadaevents.JobRunCancelled{
 						RunId:     lastRun.Id(),
 						JobId:     job.Id(),
-						Requestor: cancelUser,
+						Requestor: requestor,
 						Reason:    cancelReason,
 					},
 				},
@@ -1250,20 +1234,14 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
 				CancelledJob: &armadaevents.CancelledJob{
 					JobId:     job.Id(),
-					Requestor: cancelUser,
+					Requestor: requestor,
 				},
 			},
 		}
 		events = append(events, cancel)
 	} else if job.CancelByJobsetRequested() {
 		job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
-		var cancelUser string
-		if cancelUserPtr := job.CancelUser(); cancelUserPtr != nil {
-			cancelUser = *cancelUserPtr
-		}
-		if sequenceUserId == "" {
-			sequenceUserId = cancelUser
-		}
+		requestor := ptr.Deref(job.CancelUser(), "")
 		var cancelReason string
 		if cancelReasonPtr := job.CancelReason(); cancelReasonPtr != nil {
 			cancelReason = *cancelReasonPtr
@@ -1286,7 +1264,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 					JobRunCancelled: &armadaevents.JobRunCancelled{
 						RunId:     lastRun.Id(),
 						JobId:     job.Id(),
-						Requestor: cancelUser,
+						Requestor: requestor,
 						Reason:    cancelReason,
 					},
 				},
@@ -1298,7 +1276,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
 				CancelledJob: &armadaevents.CancelledJob{
 					JobId:     job.Id(),
-					Requestor: cancelUser,
+					Requestor: requestor,
 				},
 			},
 		}
@@ -1499,13 +1477,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			if lastRun.PreemptReason() != nil && *lastRun.PreemptReason() != "" {
 				reason = *lastRun.PreemptReason()
 			}
-			var requestor string
-			if requestorPtr := lastRun.PreemptUser(); requestorPtr != nil {
-				requestor = *requestorPtr
-				if sequenceUserId == "" {
-					sequenceUserId = requestor
-				}
-			}
+			requestor := ptr.Deref(lastRun.PreemptUser(), "")
 			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "", reason, requestor, s.clock.Now())...)
 			s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaApi)
 		}
@@ -1524,7 +1496,6 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		return &armadaevents.EventSequence{
 			Queue:      job.Queue(),
 			JobSetName: job.Jobset(),
-			UserId:     sequenceUserId,
 			Events:     events,
 		}, nil
 	}
