@@ -179,7 +179,7 @@ var expectedPreemptedRun = model.UpdateJobRunInstruction{
 	Finished:                   &testfixtures.BaseTime,
 	JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
 	Error:                      []byte(testfixtures.PreemptionReason),
-	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, nil),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"requestor": testfixtures.UserId}),
 }
 
 var expectedFairSharePreemptedRun = model.UpdateJobRunInstruction{
@@ -187,7 +187,7 @@ var expectedFairSharePreemptedRun = model.UpdateJobRunInstruction{
 	Finished:                   &testfixtures.BaseTime,
 	JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
 	Error:                      []byte(testfixtures.PreemptionReason),
-	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"preemptingJobId": testfixtures.PreemptingJobId}),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"preemptingJobId": testfixtures.PreemptingJobId, "requestor": testfixtures.UserId}),
 }
 
 var expectedCancelledRun = model.UpdateJobRunInstruction{
