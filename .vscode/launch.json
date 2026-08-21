@@ -228,6 +228,61 @@
       "cwd": "${workspaceFolder}"
     },
     {
+      "name": "Attach Scheduler (kwok)",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2346,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-scheduler",
+      "args": [
+        "run",
+        "--config",
+        "${workspaceFolder}/_local/scheduler/config.yaml",
+        "--config",
+        "${workspaceFolder}/_local/scheduler/kwok_config.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Attach Executor (kwok)",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2349,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-executor",
+      "args": [
+        "--config",
+        "${workspaceFolder}/_local/executor/config.yaml",
+        "--config",
+        "${workspaceFolder}/_local/executor/kwok_config.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Attach Fake Executor (kwok-comparison)",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2353,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-fakeexecutor",
+      "args": [
+        "--config",
+        "${workspaceFolder}/_local/fakeexecutor/config.yaml",
+        "--config",
+        "${workspaceFolder}/_local/fakeexecutor/kwok_comparison_config.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
       "name": "Attach Lookout HC",
       "type": "go",
       "request": "launch",
@@ -380,6 +435,40 @@
       "presentation": { "order": 6 }
     },
     {
+      "name": "Armada (kwok with prometheus)",
+      "configurations": [
+        "Attach Server",
+        "Attach Scheduler (kwok)",
+        "Attach Scheduler Ingester",
+        "Attach Event Ingester",
+        "Attach Executor (kwok)",
+        "Attach Lookout",
+        "Attach Lookout Ingester",
+        "Attach Binoculars",
+        "LookoutUI"
+      ],
+      "preLaunchTask": "Set up and start (kwok with prometheus)",
+      "stopAll": true,
+      "presentation": { "order": 7 }
+    },
+    {
+      "name": "Armada (fake-executor, kwok-comparison, with prometheus)",
+      "configurations": [
+        "Attach Server",
+        "Attach Scheduler",
+        "Attach Scheduler Ingester",
+        "Attach Event Ingester",
+        "Attach Fake Executor (kwok-comparison)",
+        "Attach Lookout",
+        "Attach Lookout Ingester",
+        "Attach Binoculars",
+        "LookoutUI"
+      ],
+      "preLaunchTask": "Set up and start (fake-executor, kwok-comparison, with prometheus)",
+      "stopAll": true,
+      "presentation": { "order": 8 }
+    },
+    {
       "name": "Armada (hot-cold)",
       "configurations": [
         "Attach Server",
@@ -397,7 +486,7 @@
       ],
       "preLaunchTask": "Set up and start (hot-cold)",
       "stopAll": true,
-      "presentation": { "order": 7 }
+      "presentation": { "order": 9 }
     }
   ]
 }

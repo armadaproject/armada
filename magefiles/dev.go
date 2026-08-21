@@ -158,6 +158,10 @@ func (Dev) Up(profiles string, dap *bool) error {
 // to the scheduler and executor lines, so KWOK runs layer _local/scheduler/kwok_config.yaml
 // and _local/executor/kwok_config.yaml on top of the profile's own configs without needing
 // separate KWOK-specific Procfiles per profile.
+//
+// In -dap procfiles these lines run "dlv dap --listen=..." with no program/args of its own -
+// VS Code supplies those over the DAP protocol from launch.json - so the override is skipped
+// there; the matching "Attach ... (kwok)" launch configs carry the kwok config path instead.
 func writeKwokProcfile(procfile string) (string, error) {
 	return writeProcfileWithOverrides(procfile, "kwok", map[string]string{
 		"scheduler:": " --config ./_local/scheduler/kwok_config.yaml",
@@ -179,6 +183,11 @@ func writeKwokComparisonProcfile(procfile string) (string, error) {
 // than checked in, since its content is entirely derived from the chosen profile's Procfile),
 // appending suffix to the first line matching each prefix in overrides. Errors if any override
 // finds no matching line.
+//
+// A matching line that invokes "dlv dap" is left untouched: in that mode the line has no
+// program/args of its own for the suffix to attach to (VS Code supplies them separately over
+// the DAP protocol), so appending there would corrupt the dlv dap command line itself rather
+// than reach the target program.
 func writeProcfileWithOverrides(procfile, tempFilePrefix string, overrides map[string]string) (string, error) {
 	content, err := os.ReadFile(procfile)
 	if err != nil {
@@ -190,7 +199,9 @@ func writeProcfileWithOverrides(procfile, tempFilePrefix string, overrides map[s
 	for i, line := range lines {
 		for prefix, suffix := range overrides {
 			if strings.HasPrefix(line, prefix) {
-				lines[i] = line + suffix
+				if !strings.Contains(line, "dlv dap") {
+					lines[i] = line + suffix
+				}
 				delete(overrides, prefix)
 				remaining--
 				break

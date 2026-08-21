@@ -209,6 +209,56 @@
       ]
     },
     {
+      "label": "Start dependencies with KWOK and Prometheus",
+      "type": "shell",
+      "command": "mage dev:up kwok,prometheus -dap",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "initialized successfully",
+          "endsPattern": "DAP server listening at"
+        }
+      }
+    },
+    {
+      "label": "Start dependencies with Fake Executor, KWOK comparison, and Prometheus",
+      "type": "shell",
+      "command": "mage dev:up fake-executor,kwok-comparison,prometheus -dap",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "armada-deps",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "initialized successfully",
+          "endsPattern": "DAP server listening at"
+        }
+      }
+    },
+    {
+      "label": "Set up and start (kwok with prometheus)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Pre-build Go services",
+        "Check for port conflicts",
+        "Start dependencies with KWOK and Prometheus",
+        "Wait for dlv (standard)"
+      ]
+    },
+    {
+      "label": "Set up and start (fake-executor, kwok-comparison, with prometheus)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Pre-build Go services",
+        "Check for port conflicts",
+        "Start dependencies with Fake Executor, KWOK comparison, and Prometheus",
+        "Wait for dlv (fake-executor)"
+      ]
+    },
+    {
       "label": "Start dependencies (hot-cold)",
       "type": "shell",
       "command": "mage kind && mage dev:up hot-cold -dap",
