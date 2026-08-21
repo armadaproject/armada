@@ -373,6 +373,39 @@ func TestSchedulingResourceRequirementsFromPodSpec(t *testing.T) {
 				},
 			},
 		},
+		// Pod-level resources (KEP-2837).
+		"pod-level only (empty containers) uses the pod-level value": {
+			input: &v1.PodSpec{
+				Containers: []v1.Container{{}},
+				Resources: &v1.ResourceRequirements{
+					Requests: v1.ResourceList{"cpu": QuantityWithMilliValue(4000)},
+					Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(4000)},
+				},
+			},
+			expected: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{"cpu": QuantityWithMilliValue(4000)},
+				Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(4000)},
+			},
+		},
+		"pod-level is max'd with the container sum": {
+			input: &v1.PodSpec{
+				Containers: []v1.Container{{
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{"cpu": QuantityWithMilliValue(1000)},
+						Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(1000)},
+					},
+				}},
+				Resources: &v1.ResourceRequirements{
+					Requests: v1.ResourceList{"cpu": QuantityWithMilliValue(4000)},
+					Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(4000)},
+				},
+			},
+			// max(container-sum 1000, pod-level 4000) = 4000
+			expected: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{"cpu": QuantityWithMilliValue(4000)},
+				Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(4000)},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
