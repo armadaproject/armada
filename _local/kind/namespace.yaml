@@ -41,8 +41,8 @@ subjects:
     name: default
     namespace: personal-anonymous
   - kind: ServiceAccount
-    name: ingress-nginx
-    namespace: ingress-nginx
+    name: traefik
+    namespace: traefik
 roleRef:
   kind: ClusterRole
   name: job-submitter
