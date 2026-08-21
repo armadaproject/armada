@@ -470,6 +470,9 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedQueuedVersion              int32                                 // expected queued version of jobs at the end of the cycle
 		cordonedQueues                     []string                              // queues that are cordoned
 		queueCacheError                    bool                                  // if true then the queue cache will throw an error
+		retryPolicyEnabled                 bool                                  // if true then the retry policy engine runs with a global cap of 10 retries
+		retryPolicies                      fakePolicyCache                       // policies served to the retry engine, keyed by name
+		queuesWithRetryPolicies            map[string][]string                   // queue name -> attached policy names, added to the queue cache
 		expectedPreemptReasons             map[string]string                     // map of job id to expected preempt reason on the latest run
 		expectedShortJobPenalties          map[string]internaltypes.ResourceList // map of queue to the short-job penalty resources expected for testPool
 	}{
@@ -649,6 +652,33 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedNodeAntiAffinities:       []string{leasedJob.LatestRun().NodeName()},
 			expectedJobSchedulingInfoVersion: 2,
 			expectedQueuedVersion:            leasedJob.QueuedVersion() + 1,
+		},
+		"Failed categorized run requeued by retry policy": {
+			initialJobs:        []*jobdb.Job{leasedJob},
+			retryPolicyEnabled: true,
+			retryPolicies: fakePolicyCache{"test-policy": mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{
+				Action:     api.RetryAction_RETRY_ACTION_RETRY,
+				OnCategory: "app-error",
+			})},
+			queuesWithRetryPolicies: map[string][]string{"testQueue": {"test-policy"}},
+			runUpdates: []database.Run{
+				{
+					RunID:        leasedJob.LatestRun().Id(),
+					JobID:        leasedJob.Id(),
+					JobSet:       "testJobSet",
+					Executor:     "testExecutor",
+					Failed:       true,
+					RunAttempted: true,
+					Serial:       1,
+				},
+			},
+			jobRunErrors: map[string]*armadaevents.Error{
+				leasedJob.LatestRun().Id(): categorizedError("app-error"),
+			},
+			expectedJobErrors:     []string{leasedJob.Id()},
+			expectedQueued:        []string{leasedJob.Id()},
+			expectedRequeued:      []string{leasedJob.Id()},
+			expectedQueuedVersion: leasedJob.QueuedVersion() + 1,
 		},
 		"Lease returned and re-queued when run not attempted": {
 			initialJobs: []*jobdb.Job{leasedJob},
@@ -1204,7 +1234,16 @@ func TestScheduler_TestCycle(t *testing.T) {
 			for _, name := range tc.cordonedQueues {
 				queues = append(queues, &api.Queue{Name: name, Cordoned: true})
 			}
+			for queueName, policyNames := range tc.queuesWithRetryPolicies {
+				queues = append(queues, &api.Queue{Name: queueName, RetryPolicies: policyNames})
+			}
 			queueCache := &testQueueCache{queues: queues, shouldError: tc.queueCacheError}
+			retryPolicyConfig := schedulerconfig.RetryPolicyConfig{}
+			var retryPolicyCache retry.PolicyCache = retry.NoopPolicyCache{}
+			if tc.retryPolicyEnabled {
+				retryPolicyConfig = schedulerconfig.RetryPolicyConfig{Enabled: true, GlobalMaxRetries: 10}
+				retryPolicyCache = tc.retryPolicies
+			}
 			shortJobPenalty := scheduling.NewShortJobPenalty(map[string]time.Duration{"pool": time.Minute})
 			shortJobPenalty.SetNow(shortJobRunningTime.Add(time.Second))
 			sched, err := NewScheduler(
@@ -1226,8 +1265,8 @@ func TestScheduler_TestCycle(t *testing.T) {
 				pricing.NoopBidPriceProvider{},
 				[]string{},
 				queueCache,
-				schedulerconfig.RetryPolicyConfig{},
-				retry.NoopPolicyCache{},
+				retryPolicyConfig,
+				retryPolicyCache,
 			)
 			require.NoError(t, err)
 			sched.EnableAssertions()
@@ -2499,12 +2538,24 @@ func (t *testGangValidator) Validate(txn *jobdb.Txn, jobs []*jobdb.Job) ([]*inva
 }
 
 type testSubmitChecker struct {
-	checkSuccess bool
+	checkSuccess   bool
+	checkCalls     int
+	checkJobCounts []int
+	// skipJobChecks simulates the checker's time limits. The real checker
+	// leaves a job it does not reach out of the result map. The value counts
+	// the calls that skip the job. The next call answers for it.
+	skipJobChecks map[string]int
 }
 
 func (t *testSubmitChecker) Check(_ *armadacontext.Context, jobs []*jobdb.Job) (map[string]schedulingResult, map[string]time.Duration, error) {
+	t.checkCalls++
+	t.checkJobCounts = append(t.checkJobCounts, len(jobs))
 	result := make(map[string]schedulingResult)
 	for _, job := range jobs {
+		if t.skipJobChecks[job.Id()] > 0 {
+			t.skipJobChecks[job.Id()]--
+			continue
+		}
 		if t.checkSuccess {
 			result[job.Id()] = schedulingResult{isSchedulable: true}
 		} else {
