@@ -240,6 +240,17 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				largeGangJob[3].Id(): {isSchedulable: true, pools: []string{"cpu"}},
 			},
 		},
+		"Gang Schedules - multiple cluster": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu")), Executor(SmallNode("cpu"))},
+			jobs:            largeGangJob,
+			expectedResult: map[string]schedulingResult{
+				largeGangJob[0].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				largeGangJob[1].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				largeGangJob[2].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				largeGangJob[3].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
 		"Individual jobs fit but gang doesn't": {
 			executorTimeout: defaultTimeout,
 			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
