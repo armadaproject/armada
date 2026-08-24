@@ -1249,7 +1249,10 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 		cancelRequest := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
-				CancelJob: &armadaevents.CancelJob{JobId: job.Id()},
+				CancelJob: &armadaevents.CancelJob{
+					JobId:     job.Id(),
+					Requestor: requestor,
+				},
 			},
 		}
 		events = append(events, cancelRequest)
@@ -1277,6 +1280,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				CancelledJob: &armadaevents.CancelledJob{
 					JobId:     job.Id(),
 					Requestor: requestor,
+					Reason:    cancelReason,
 				},
 			},
 		}
