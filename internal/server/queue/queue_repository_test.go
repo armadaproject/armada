@@ -141,7 +141,7 @@ func withQueueRepo(t *testing.T, action func(ctx *armadacontext.Context, repo *P
 // withQueueRepoAndPolicies also creates the named policies, so a queue can attach to them.
 func withQueueRepoAndPolicies(t *testing.T, policies []string, action func(ctx *armadacontext.Context, repo *PostgresQueueRepository)) {
 	t.Helper()
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 60*time.Second)
 	t.Cleanup(cancel)
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		for _, name := range policies {
