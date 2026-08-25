@@ -1280,7 +1280,6 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				CancelledJob: &armadaevents.CancelledJob{
 					JobId:     job.Id(),
 					Requestor: requestor,
-					Reason:    cancelReason,
 				},
 			},
 		}
