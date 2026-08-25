@@ -131,7 +131,11 @@ func (s *Scanner) executePipelineBatch(ctx context.Context, keys []string) ([]St
 
 		info, err := infoCmd.Result()
 		if err != nil {
-			if err == redis.Nil || strings.Contains(err.Error(), "NOSTREAM") || strings.Contains(err.Error(), "WRONGTYPE") {
+			errMsg := strings.ToLower(err.Error())
+			if err == redis.Nil ||
+				strings.Contains(errMsg, "nostream") ||
+				strings.Contains(errMsg, "wrongtype") ||
+				strings.Contains(errMsg, "no such key") {
 				continue
 			}
 			return nil, fmt.Errorf("xinfo stream error for key %q: %w", key, err)
