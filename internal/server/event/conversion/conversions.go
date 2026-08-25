@@ -129,6 +129,10 @@ func FromInternalPreemptionRequested(userId string, queueName string, jobSetName
 }
 
 func FromInternalCancel(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.CancelJob) ([]*api.EventMessage, error) {
+	requestor := userId
+	if e.Requestor != "" {
+		requestor = e.Requestor
+	}
 	return []*api.EventMessage{
 		{
 			Events: &api.EventMessage_Cancelling{
@@ -137,7 +141,7 @@ func FromInternalCancel(userId string, queueName string, jobSetName string, time
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
-					Requestor: userId,
+					Requestor: requestor,
 				},
 			},
 		},

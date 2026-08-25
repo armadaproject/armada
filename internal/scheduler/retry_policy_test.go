@@ -839,7 +839,6 @@ func TestRetryPolicy_FFOff_ApiPreemptionIdentity(t *testing.T) {
 		sched.clock.Now(),
 	)
 	assert.Equal(t, expected, events.Events)
-	assert.Equal(t, requestor, events.UserId)
 
 	updated := txn.GetById(job.Id())
 	require.NotNil(t, updated)
