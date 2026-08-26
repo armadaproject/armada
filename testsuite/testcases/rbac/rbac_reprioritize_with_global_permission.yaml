@@ -25,9 +25,9 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-action: ACTION_REPRIORITIZE
-selection: SELECTION_BY_ID
-newPriority: 100
+reprioritize:
+  request:
+    newPriority: 100
 timeout: "100s"
 expectedEvents:
   - submitted:
