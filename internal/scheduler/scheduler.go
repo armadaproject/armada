@@ -460,13 +460,13 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		s.metrics.ReportSchedulerResult(ctx, *schedulerResult)
 
 		for _, jctx := range schedulerResult.GetAllScheduledJobs() {
-			s.metrics.ReportJobLeased(jctx.Job)
+			s.metrics.ReportJobLeasedStateTransition(jctx.Job)
 		}
 		for _, jctx := range schedulerResult.GetAllPreemptedJobs() {
-			s.metrics.ReportJobPreempted(jctx.Job)
+			s.metrics.ReportJobPreemptedStateTransition(jctx.Job, jctx.PreemptionType)
 		}
 		for _, jctx := range schedulerResult.GetCombinedReconciliationResult().PreemptedJobs {
-			s.metrics.ReportJobPreempted(jctx.Job)
+			s.metrics.ReportJobPreemptedStateTransition(jctx.Job, schedulercontext.PreemptedViaNodeReconciler)
 		}
 	}
 
@@ -1482,6 +1482,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			}
 			requestor := ptr.Deref(lastRun.PreemptUser(), "")
 			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "", reason, requestor, s.clock.Now())...)
+			s.metrics.ReportJobPreemptedStateTransition(job, schedulercontext.PreemptedViaApi)
 			s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaApi)
 		}
 	}
