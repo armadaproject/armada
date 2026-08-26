@@ -33,21 +33,6 @@ message TestSpec {
     google.protobuf.Duration interval = 7;
     // Number of seconds to wait for jobs to finish.
     google.protobuf.Duration timeout = 8;
-    // Action type for jobs in this spec.
-    enum ActionType {
-        ACTION_NONE = 0; // No action.
-        ACTION_CANCEL = 1; // Cancel jobs.
-        ACTION_PREEMPT = 2; // Preempt jobs.
-        ACTION_REPRIORITIZE = 3; // Reprioritize jobs.
-    }
-    ActionType action = 9;
-    // Selection method for the action.
-    enum SelectionType {
-        SELECTION_NO = 0; // No selection (no action).
-        SELECTION_BY_ID = 1; // Select jobs individually.
-        SELECTION_BY_SET = 2; // Select all jobs in the job set in bulk.
-        SELECTION_BY_IDS = 3; // Select all jobs in the job set by multiple ids.
-    }
     // Test name. Defaults to the filename if not provided.
     string name = 10;
     // Randomize clientId if not provided
@@ -58,11 +43,6 @@ message TestSpec {
     string environment = 13;
     // Value of the target label set on exported Prometheus metrics.
     string target = 14;
-    // New priority to apply when reprioritizing jobs (if reprioritization is configured).
-    double new_priority = 15;
-    // Reason for preempting jobs (if preemption is configured).
-    string preempt_reason = 16;
-    SelectionType selection = 17;
     // Node-scoped cancel operation
     NodeCancelConfig cancel_on_node = 18;
     // Node-scoped preempt operation
@@ -71,15 +51,23 @@ message TestSpec {
     // If unset, defaults to running for prempt, reprioritized and node-scoped actions
     // and queued for cancel via the submit API, matching prior behavior.
     string trigger_event = 20;
+    // Cancel jobs by id/ids
+    JobCancelConfig cancel = 21;
+    // Preempt jobs by id/ids
+    JobPreemptConfig preempt = 23;
+    // Reprioritize jobs by id/ids/job set
+    JobReprioritizeConfig reprioritize = 24;
     // Optional queue lifecycle phases.
-    QueueConfig queue_config = 21;
+    QueueConfig queue_config = 25;
+    // Cancel jobs by job set.
+    JobSetCancelConfig cancel_job_set = 26;
     // Named armadactl context (see client.ApiConnectionDetails) to authenticate this test's
     // API calls with. If empty, falls back to the connection details the suite was invoked with.
-    string auth_context = 22;
+    string auth_context = 27;
     // If non-zero, the test expects job submission/cancellation/reprioritization or queue
     // create/update/delete to fail with this gRPC status code (see google.golang.org/grpc/codes)
     // rather than succeed. Mutually exclusive with expecting expected_events to be observed.
-    int32 expect_error_code = 23;
+    int32 expect_error_code = 28;
 }
 
 message NodeCancelConfig {
@@ -92,6 +80,33 @@ message NodePreemptConfig {
     NodePreemptRequest request = 1;
     // value of the armadaproject.io/node-pool label used to resolve the target node at runtime
     string node_pool_tag = 2;
+}
+
+message JobPreemptConfig {
+    JobPreemptRequest request = 1;
+    // If true, documents intent to preempt the whole job set. PreemptJobs has no job-set-wide
+    // primitive, so the runner still populates request.job_ids with every submitted job's id.
+    bool by_job_set = 2;
+}
+
+message JobCancelConfig {
+    JobCancelRequest request = 1;
+}
+
+message JobSetCancelConfig {
+    // The api request itself. Queue and job_set_id are injected from the top-level
+    // TestSpec at runtime, so a test only needs to set request-specific extras (e.g. filter).
+    JobSetCancelRequest request = 1;
+    // If true, once all jobs in the set are terminal (the set has no active jobs) the job set
+    // is cancelled again; the test fails only if that cancel errors. Verifies that cancelling
+    // a job set with no active jobs is a successful no-op.
+    bool assert_inactive_succeeds = 2;
+}
+
+message JobReprioritizeConfig {
+    JobReprioritizeRequest request = 1;
+    // If true, reprioritize the whole job set (request.job_ids left empty) instead of the submitted jobs.
+    bool by_job_set = 2;
 }
 
 // Queue lifecycle configuration for a test.

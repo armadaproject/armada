@@ -9,6 +9,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/utils/ptr"
 
 	"github.com/armadaproject/armada/internal/common/constants"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
@@ -63,6 +64,8 @@ type Job struct {
 	cancelUser *string
 	// The reason for cancelling the job
 	cancelReason *string
+	// The user who reprioritised this job
+	reprioritiseUser *string
 	// True if the user has requested this job's jobSet be cancelled
 	cancelByJobSetRequested bool
 	// True if the scheduler has cancelled the job
@@ -355,7 +358,10 @@ func (job *Job) Equal(other *Job) bool {
 	if job.cancelByJobSetRequested != other.cancelByJobSetRequested {
 		return false
 	}
-	if job.cancelUser != other.cancelUser {
+	if !ptr.Equal(job.cancelUser, other.cancelUser) {
+		return false
+	}
+	if !ptr.Equal(job.reprioritiseUser, other.reprioritiseUser) {
 		return false
 	}
 	if job.cancelReason != other.cancelReason {
@@ -671,6 +677,11 @@ func (job *Job) CancelReason() *string {
 	return job.cancelReason
 }
 
+// ReprioritiseUser returns the user who reprioritised this job.
+func (job *Job) ReprioritiseUser() *string {
+	return job.reprioritiseUser
+}
+
 // CancelByJobsetRequested returns true if the user has requested this job's jobSet be cancelled.
 func (job *Job) CancelByJobsetRequested() bool {
 	return job.cancelByJobSetRequested
@@ -701,6 +712,13 @@ func (job *Job) WithCancelUser(cancelUser *string) *Job {
 func (job *Job) WithCancelReason(cancelReason *string) *Job {
 	j := shallowCopyJob(*job)
 	j.cancelReason = cancelReason
+	return j
+}
+
+// WithReprioritiseUser returns a copy of the job with the reprioritise user updated.
+func (job *Job) WithReprioritiseUser(reprioritiseUser *string) *Job {
+	j := shallowCopyJob(*job)
+	j.reprioritiseUser = reprioritiseUser
 	return j
 }
 
@@ -786,6 +804,7 @@ func (job *Job) ValidateResourceRequests() error {
 }
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
+// Each run gets a fresh id. Runs are ordered by their creation time.
 func (job *Job) WithNewRun(executor, nodeId, nodeName, pool string, scheduledAtPriority int32) *Job {
 	now := job.jobDb.clock.Now()
 	return job.WithUpdatedRun(job.jobDb.CreateRun(
@@ -859,6 +878,22 @@ func (job *Job) NumAttempts() uint {
 // AllRuns returns all runs associated with job.
 func (job *Job) AllRuns() []*JobRun {
 	return maps.Values(job.runsById)
+}
+
+// FailureCount returns the number of runs of this job that genuinely failed.
+// The retry engine charges this count against a policy's retry budgets.
+// Preempted and lease-returned runs are marked failed but never ran to a
+// genuine failure, so they do not count: neither is something the job did.
+// The count derives from run history, which keeps it correct across
+// scheduler restarts.
+func (job *Job) FailureCount() uint32 {
+	count := uint32(0)
+	for _, run := range job.runsById {
+		if run.failed && !run.everPreempted && !run.returned {
+			count++
+		}
+	}
+	return count
 }
 
 // LatestRun returns the currently active job run or nil if there are no runs yet.

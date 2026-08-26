@@ -130,7 +130,7 @@ func (c *JobSetEventsInstructionConverter) dbOperationsFromEventSequence(es *arm
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
 			*armadaevents.EventSequence_Event_JobRunCancelled,
-			*armadaevents.EventSequence_Event_JobCancelledDebugInfo,
+			*armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			// These events can all be safely ignored
 			log.Debugf("Ignoring event type %T", event)
@@ -332,13 +332,17 @@ func (c *JobSetEventsInstructionConverter) handleJobErrors(jobErrors *armadaeven
 }
 
 func (c *JobSetEventsInstructionConverter) handleJobPreemptionRequested(preemptionRequested *armadaevents.JobPreemptionRequested, meta eventSequenceCommon) ([]DbOperation, error) {
-	reasonWithUser := buildPreemptionReason(preemptionRequested.Reason, meta.user)
+	preemptUser := strings.TrimSpace(meta.user)
+	reasonWithUser := buildPreemptionReason(preemptionRequested.Reason, preemptUser)
 	return []DbOperation{MarkRunsForJobPreemptRequested{
-		JobSetKey{
-			queue:  meta.queue,
-			jobSet: meta.jobset,
-		}: map[string]string{
-			preemptionRequested.JobId: reasonWithUser,
+		preemptUser: preemptUser,
+		jobSets: map[JobSetKey]map[string]string{
+			{
+				queue:  meta.queue,
+				jobSet: meta.jobset,
+			}: {
+				preemptionRequested.JobId: reasonWithUser,
+			},
 		},
 	}}, nil
 }
@@ -354,6 +358,7 @@ func buildPreemptionReason(reason, user string) string {
 }
 
 func (c *JobSetEventsInstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaevents.ReprioritiseJob, meta eventSequenceCommon) ([]DbOperation, error) {
+	reprioritiseUser := strings.TrimSpace(meta.user)
 	return []DbOperation{&UpdateJobPriorities{
 		key: JobReprioritiseKey{
 			JobSetKey: JobSetKey{
@@ -362,23 +367,29 @@ func (c *JobSetEventsInstructionConverter) handleReprioritiseJob(reprioritiseJob
 			},
 			Priority: int64(reprioritiseJob.Priority),
 		},
-		jobIds: []string{reprioritiseJob.JobId},
+		jobIds:    []string{reprioritiseJob.JobId},
+		Requestor: reprioritiseUser,
 	}}, nil
 }
 
 func (c *JobSetEventsInstructionConverter) handleReprioritiseJobSet(reprioritiseJobSet *armadaevents.ReprioritiseJobSet, meta eventSequenceCommon) ([]DbOperation, error) {
+	reprioritiseUser := strings.TrimSpace(meta.user)
 	return []DbOperation{UpdateJobSetPriorities{
-		JobSetKey{queue: meta.queue, jobSet: meta.jobset}: int64(reprioritiseJobSet.Priority),
+		jobSets: map[JobSetKey]int64{
+			{queue: meta.queue, jobSet: meta.jobset}: int64(reprioritiseJobSet.Priority),
+		},
+		Requestor: reprioritiseUser,
 	}}, nil
 }
 
 func (c *JobSetEventsInstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob, meta eventSequenceCommon) ([]DbOperation, error) {
+	cancelUser := strings.TrimSpace(meta.user)
 	cancelReason := cancelJob.Reason
 	if cancelReason == "" {
 		cancelReason = cancelReasonUserInitiated
 	}
 	return []DbOperation{MarkJobsCancelRequested{
-		cancelUser:   meta.user,
+		cancelUser:   cancelUser,
 		cancelReason: cancelReason,
 		jobIds: map[JobSetKey][]string{
 			{
@@ -392,13 +403,14 @@ func (c *JobSetEventsInstructionConverter) handleCancelJob(cancelJob *armadaeven
 func (c *JobSetEventsInstructionConverter) handleCancelJobSet(cancelJobSet *armadaevents.CancelJobSet, meta eventSequenceCommon) ([]DbOperation, error) {
 	cancelQueued := len(cancelJobSet.States) == 0 || slices.Contains(cancelJobSet.States, armadaevents.JobState_QUEUED)
 	cancelLeased := len(cancelJobSet.States) == 0 || slices.Contains(cancelJobSet.States, armadaevents.JobState_PENDING) || slices.Contains(cancelJobSet.States, armadaevents.JobState_RUNNING)
+	cancelUser := strings.TrimSpace(meta.user)
 
 	cancelReason := cancelJobSet.Reason
 	if cancelReason == "" {
 		cancelReason = cancelReasonUserInitiated
 	}
 	return []DbOperation{MarkJobSetsCancelRequested{
-		cancelUser:   meta.user,
+		cancelUser:   cancelUser,
 		cancelReason: cancelReason,
 		jobSets: map[JobSetKey]*JobSetCancelAction{
 			{
@@ -469,6 +481,8 @@ func (c *ControlPlaneEventsInstructionConverter) dbOperationFromControlPlaneEven
 		operations, err = c.handleExecutorSettingsUpsert(event.GetExecutorSettingsUpsert(), eventTime)
 	case *controlplaneevents.Event_ExecutorSettingsDelete:
 		operations, err = c.handleExecutorSettingsDelete(event.GetExecutorSettingsDelete())
+	case *controlplaneevents.Event_ExecutorDelete:
+		operations, err = c.handleExecutorDelete(event.GetExecutorDelete())
 	case *controlplaneevents.Event_PreemptOnExecutor:
 		operations, err = c.handlePreemptOnExecutor(event.GetPreemptOnExecutor())
 	case *controlplaneevents.Event_CancelOnNode:
@@ -516,6 +530,17 @@ func (c *ControlPlaneEventsInstructionConverter) handleExecutorSettingsDelete(de
 	}, nil
 }
 
+func (c *ControlPlaneEventsInstructionConverter) handleExecutorDelete(delete *controlplaneevents.ExecutorDelete) ([]DbOperation, error) {
+	return []DbOperation{
+		DeleteExecutor{
+			delete.Name: &ExecutorDelete{
+				ExecutorID: delete.Name,
+				Requestor:  delete.Requestor,
+			},
+		},
+	}, nil
+}
+
 func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnExecutor(preempt *controlplaneevents.PreemptOnExecutor) ([]DbOperation, error) {
 	return []DbOperation{
 		PreemptExecutor{
@@ -524,6 +549,7 @@ func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnExecutor(preempt
 				Queues:          preempt.Queues,
 				PriorityClasses: preempt.PriorityClasses,
 				Pools:           preempt.Pools,
+				Requestor:       preempt.GetRequestor(),
 			},
 		},
 	}, nil
@@ -540,6 +566,7 @@ func (c *ControlPlaneEventsInstructionConverter) handleCancelOnNode(cancel *cont
 				Executor:        cancel.Executor,
 				Queues:          cancel.Queues,
 				PriorityClasses: cancel.PriorityClasses,
+				Requestor:       cancel.GetRequestor(),
 			},
 		},
 	}, nil
@@ -553,6 +580,7 @@ func (c *ControlPlaneEventsInstructionConverter) handleCancelOnExecutor(cancel *
 				Queues:          cancel.Queues,
 				PriorityClasses: cancel.PriorityClasses,
 				Pools:           cancel.Pools,
+				Requestor:       cancel.GetRequestor(),
 			},
 		},
 	}, nil
@@ -569,6 +597,7 @@ func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnNode(preempt *co
 				Executor:        preempt.Executor,
 				Queues:          preempt.Queues,
 				PriorityClasses: preempt.PriorityClasses,
+				Requestor:       preempt.GetRequestor(),
 			},
 		},
 	}, nil
@@ -581,6 +610,7 @@ func (c *ControlPlaneEventsInstructionConverter) handlePreemptOnQueue(preempt *c
 				Name:            preempt.Name,
 				PriorityClasses: preempt.PriorityClasses,
 				Pools:           preempt.Pools,
+				Requestor:       preempt.GetRequestor(),
 			},
 		},
 	}, nil
@@ -594,6 +624,7 @@ func (c *ControlPlaneEventsInstructionConverter) handleCancelOnQueue(cancel *con
 				PriorityClasses: cancel.PriorityClasses,
 				JobStates:       cancel.JobStates,
 				Pools:           cancel.Pools,
+				Requestor:       cancel.GetRequestor(),
 			},
 		},
 	}, nil

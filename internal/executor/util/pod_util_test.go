@@ -799,3 +799,66 @@ func TestGroupByQueue_EmptyList(t *testing.T) {
 	result := GroupByQueue([]*v1.Pod{})
 	assert.Len(t, result, 0)
 }
+
+func TestLongestAppContainerRunDuration(t *testing.T) {
+	terminated := func(startedAt time.Time, ran time.Duration) v1.ContainerState {
+		return v1.ContainerState{Terminated: &v1.ContainerStateTerminated{
+			StartedAt:  metav1.NewTime(startedAt),
+			FinishedAt: metav1.NewTime(startedAt.Add(ran)),
+		}}
+	}
+	start := time.Now()
+
+	tests := map[string]struct {
+		pod      *v1.Pod
+		expected time.Duration
+	}{
+		"no container statuses": {
+			pod:      &v1.Pod{},
+			expected: 0,
+		},
+		"running container has no measurable runtime": {
+			pod: &v1.Pod{Status: v1.PodStatus{ContainerStatuses: []v1.ContainerStatus{
+				{State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+			}}},
+			expected: 0,
+		},
+		"terminated container": {
+			pod: &v1.Pod{Status: v1.PodStatus{ContainerStatuses: []v1.ContainerStatus{
+				{State: terminated(start, 90*time.Second)},
+			}}},
+			expected: 90 * time.Second,
+		},
+		"longest of several containers": {
+			pod: &v1.Pod{Status: v1.PodStatus{ContainerStatuses: []v1.ContainerStatus{
+				{State: terminated(start, 10*time.Second)},
+				{State: terminated(start, 2*time.Minute)},
+			}}},
+			expected: 2 * time.Minute,
+		},
+		"falls back to the previous termination of a restarted container": {
+			pod: &v1.Pod{Status: v1.PodStatus{ContainerStatuses: []v1.ContainerStatus{
+				{LastTerminationState: terminated(start, time.Minute)},
+			}}},
+			expected: time.Minute,
+		},
+		"init containers are ignored": {
+			pod: &v1.Pod{Status: v1.PodStatus{InitContainerStatuses: []v1.ContainerStatus{
+				{State: terminated(start, time.Hour)},
+			}}},
+			expected: 0,
+		},
+		"zero timestamps are not measurable": {
+			pod: &v1.Pod{Status: v1.PodStatus{ContainerStatuses: []v1.ContainerStatus{
+				{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{ExitCode: 1}}},
+			}}},
+			expected: 0,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, LongestAppContainerRunDuration(tc.pod))
+		})
+	}
+}

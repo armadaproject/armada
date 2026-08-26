@@ -4,7 +4,6 @@
 package api
 
 import (
-	encoding_binary "encoding/binary"
 	fmt "fmt"
 	io "io"
 	math "math"
@@ -24,70 +23,6 @@ var _ = math.Inf
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
-
-// Action type for jobs in this spec.
-type TestSpec_ActionType int32
-
-const (
-	TestSpec_ACTION_NONE         TestSpec_ActionType = 0
-	TestSpec_ACTION_CANCEL       TestSpec_ActionType = 1
-	TestSpec_ACTION_PREEMPT      TestSpec_ActionType = 2
-	TestSpec_ACTION_REPRIORITIZE TestSpec_ActionType = 3
-)
-
-var TestSpec_ActionType_name = map[int32]string{
-	0: "ACTION_NONE",
-	1: "ACTION_CANCEL",
-	2: "ACTION_PREEMPT",
-	3: "ACTION_REPRIORITIZE",
-}
-
-var TestSpec_ActionType_value = map[string]int32{
-	"ACTION_NONE":         0,
-	"ACTION_CANCEL":       1,
-	"ACTION_PREEMPT":      2,
-	"ACTION_REPRIORITIZE": 3,
-}
-
-func (x TestSpec_ActionType) String() string {
-	return proto.EnumName(TestSpec_ActionType_name, int32(x))
-}
-
-func (TestSpec_ActionType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_38d601305b414287, []int{0, 0}
-}
-
-// Selection method for the action.
-type TestSpec_SelectionType int32
-
-const (
-	TestSpec_SELECTION_NO     TestSpec_SelectionType = 0
-	TestSpec_SELECTION_BY_ID  TestSpec_SelectionType = 1
-	TestSpec_SELECTION_BY_SET TestSpec_SelectionType = 2
-	TestSpec_SELECTION_BY_IDS TestSpec_SelectionType = 3
-)
-
-var TestSpec_SelectionType_name = map[int32]string{
-	0: "SELECTION_NO",
-	1: "SELECTION_BY_ID",
-	2: "SELECTION_BY_SET",
-	3: "SELECTION_BY_IDS",
-}
-
-var TestSpec_SelectionType_value = map[string]int32{
-	"SELECTION_NO":     0,
-	"SELECTION_BY_ID":  1,
-	"SELECTION_BY_SET": 2,
-	"SELECTION_BY_IDS": 3,
-}
-
-func (x TestSpec_SelectionType) String() string {
-	return proto.EnumName(TestSpec_SelectionType_name, int32(x))
-}
-
-func (TestSpec_SelectionType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_38d601305b414287, []int{0, 1}
-}
 
 // Defines a test case for the Armada test suite.
 // Defined as a proto message to enable unmarshalling oneof fields.
@@ -112,8 +47,7 @@ type TestSpec struct {
 	// If 0, jobs are submitted as quickly as possible.
 	Interval *types.Duration `protobuf:"bytes,7,opt,name=interval,proto3" json:"interval,omitempty"`
 	// Number of seconds to wait for jobs to finish.
-	Timeout *types.Duration     `protobuf:"bytes,8,opt,name=timeout,proto3" json:"timeout,omitempty"`
-	Action  TestSpec_ActionType `protobuf:"varint,9,opt,name=action,proto3,enum=api.TestSpec_ActionType" json:"action,omitempty"`
+	Timeout *types.Duration `protobuf:"bytes,8,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	// Test name. Defaults to the filename if not provided.
 	Name string `protobuf:"bytes,10,opt,name=name,proto3" json:"name,omitempty"`
 	// Randomize clientId if not provided
@@ -124,11 +58,6 @@ type TestSpec struct {
 	Environment string `protobuf:"bytes,13,opt,name=environment,proto3" json:"environment,omitempty"`
 	// Value of the target label set on exported Prometheus metrics.
 	Target string `protobuf:"bytes,14,opt,name=target,proto3" json:"target,omitempty"`
-	// New priority to apply when reprioritizing jobs (if reprioritization is configured).
-	NewPriority float64 `protobuf:"fixed64,15,opt,name=new_priority,json=newPriority,proto3" json:"newPriority,omitempty"`
-	// Reason for preempting jobs (if preemption is configured).
-	PreemptReason string                 `protobuf:"bytes,16,opt,name=preempt_reason,json=preemptReason,proto3" json:"preemptReason,omitempty"`
-	Selection     TestSpec_SelectionType `protobuf:"varint,17,opt,name=selection,proto3,enum=api.TestSpec_SelectionType" json:"selection,omitempty"`
 	// Node-scoped cancel operation
 	CancelOnNode *NodeCancelConfig `protobuf:"bytes,18,opt,name=cancel_on_node,json=cancelOnNode,proto3" json:"cancelOnNode,omitempty"`
 	// Node-scoped preempt operation
@@ -137,15 +66,23 @@ type TestSpec struct {
 	// If unset, defaults to running for prempt, reprioritized and node-scoped actions
 	// and queued for cancel via the submit API, matching prior behavior.
 	TriggerEvent string `protobuf:"bytes,20,opt,name=trigger_event,json=triggerEvent,proto3" json:"triggerEvent,omitempty"`
+	// Cancel jobs by id/ids
+	Cancel *JobCancelConfig `protobuf:"bytes,21,opt,name=cancel,proto3" json:"cancel,omitempty"`
+	// Preempt jobs by id/ids
+	Preempt *JobPreemptConfig `protobuf:"bytes,23,opt,name=preempt,proto3" json:"preempt,omitempty"`
+	// Reprioritize jobs by id/ids/job set
+	Reprioritize *JobReprioritizeConfig `protobuf:"bytes,24,opt,name=reprioritize,proto3" json:"reprioritize,omitempty"`
 	// Optional queue lifecycle phases.
-	QueueConfig *QueueConfig `protobuf:"bytes,21,opt,name=queue_config,json=queueConfig,proto3" json:"queueConfig,omitempty"`
+	QueueConfig *QueueConfig `protobuf:"bytes,25,opt,name=queue_config,json=queueConfig,proto3" json:"queueConfig,omitempty"`
+	// Cancel jobs by job set.
+	CancelJobSet *JobSetCancelConfig `protobuf:"bytes,26,opt,name=cancel_job_set,json=cancelJobSet,proto3" json:"cancelJobSet,omitempty"`
 	// Named armadactl context (see client.ApiConnectionDetails) to authenticate this test's
 	// API calls with. If empty, falls back to the connection details the suite was invoked with.
-	AuthContext string `protobuf:"bytes,22,opt,name=auth_context,json=authContext,proto3" json:"authContext,omitempty"`
+	AuthContext string `protobuf:"bytes,27,opt,name=auth_context,json=authContext,proto3" json:"authContext,omitempty"`
 	// If non-zero, the test expects job submission/cancellation/reprioritization or queue
 	// create/update/delete to fail with this gRPC status code (see google.golang.org/grpc/codes)
 	// rather than succeed. Mutually exclusive with expecting expected_events to be observed.
-	ExpectErrorCode int32 `protobuf:"varint,23,opt,name=expect_error_code,json=expectErrorCode,proto3" json:"expectErrorCode,omitempty"`
+	ExpectErrorCode int32 `protobuf:"varint,28,opt,name=expect_error_code,json=expectErrorCode,proto3" json:"expectErrorCode,omitempty"`
 }
 
 func (m *TestSpec) Reset()         { *m = TestSpec{} }
@@ -237,13 +174,6 @@ func (m *TestSpec) GetTimeout() *types.Duration {
 	return nil
 }
 
-func (m *TestSpec) GetAction() TestSpec_ActionType {
-	if m != nil {
-		return m.Action
-	}
-	return TestSpec_ACTION_NONE
-}
-
 func (m *TestSpec) GetName() string {
 	if m != nil {
 		return m.Name
@@ -279,27 +209,6 @@ func (m *TestSpec) GetTarget() string {
 	return ""
 }
 
-func (m *TestSpec) GetNewPriority() float64 {
-	if m != nil {
-		return m.NewPriority
-	}
-	return 0
-}
-
-func (m *TestSpec) GetPreemptReason() string {
-	if m != nil {
-		return m.PreemptReason
-	}
-	return ""
-}
-
-func (m *TestSpec) GetSelection() TestSpec_SelectionType {
-	if m != nil {
-		return m.Selection
-	}
-	return TestSpec_SELECTION_NO
-}
-
 func (m *TestSpec) GetCancelOnNode() *NodeCancelConfig {
 	if m != nil {
 		return m.CancelOnNode
@@ -321,9 +230,37 @@ func (m *TestSpec) GetTriggerEvent() string {
 	return ""
 }
 
+func (m *TestSpec) GetCancel() *JobCancelConfig {
+	if m != nil {
+		return m.Cancel
+	}
+	return nil
+}
+
+func (m *TestSpec) GetPreempt() *JobPreemptConfig {
+	if m != nil {
+		return m.Preempt
+	}
+	return nil
+}
+
+func (m *TestSpec) GetReprioritize() *JobReprioritizeConfig {
+	if m != nil {
+		return m.Reprioritize
+	}
+	return nil
+}
+
 func (m *TestSpec) GetQueueConfig() *QueueConfig {
 	if m != nil {
 		return m.QueueConfig
+	}
+	return nil
+}
+
+func (m *TestSpec) GetCancelJobSet() *JobSetCancelConfig {
+	if m != nil {
+		return m.CancelJobSet
 	}
 	return nil
 }
@@ -448,6 +385,214 @@ func (m *NodePreemptConfig) GetNodePoolTag() string {
 	return ""
 }
 
+type JobPreemptConfig struct {
+	Request *JobPreemptRequest `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
+	// If true, documents intent to preempt the whole job set. PreemptJobs has no job-set-wide
+	// primitive, so the runner still populates request.job_ids with every submitted job's id.
+	ByJobSet bool `protobuf:"varint,2,opt,name=by_job_set,json=byJobSet,proto3" json:"byJobSet,omitempty"`
+}
+
+func (m *JobPreemptConfig) Reset()         { *m = JobPreemptConfig{} }
+func (m *JobPreemptConfig) String() string { return proto.CompactTextString(m) }
+func (*JobPreemptConfig) ProtoMessage()    {}
+func (*JobPreemptConfig) Descriptor() ([]byte, []int) {
+	return fileDescriptor_38d601305b414287, []int{3}
+}
+func (m *JobPreemptConfig) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *JobPreemptConfig) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_JobPreemptConfig.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *JobPreemptConfig) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JobPreemptConfig.Merge(m, src)
+}
+func (m *JobPreemptConfig) XXX_Size() int {
+	return m.Size()
+}
+func (m *JobPreemptConfig) XXX_DiscardUnknown() {
+	xxx_messageInfo_JobPreemptConfig.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_JobPreemptConfig proto.InternalMessageInfo
+
+func (m *JobPreemptConfig) GetRequest() *JobPreemptRequest {
+	if m != nil {
+		return m.Request
+	}
+	return nil
+}
+
+func (m *JobPreemptConfig) GetByJobSet() bool {
+	if m != nil {
+		return m.ByJobSet
+	}
+	return false
+}
+
+type JobCancelConfig struct {
+	Request *JobCancelRequest `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
+}
+
+func (m *JobCancelConfig) Reset()         { *m = JobCancelConfig{} }
+func (m *JobCancelConfig) String() string { return proto.CompactTextString(m) }
+func (*JobCancelConfig) ProtoMessage()    {}
+func (*JobCancelConfig) Descriptor() ([]byte, []int) {
+	return fileDescriptor_38d601305b414287, []int{4}
+}
+func (m *JobCancelConfig) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *JobCancelConfig) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_JobCancelConfig.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *JobCancelConfig) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JobCancelConfig.Merge(m, src)
+}
+func (m *JobCancelConfig) XXX_Size() int {
+	return m.Size()
+}
+func (m *JobCancelConfig) XXX_DiscardUnknown() {
+	xxx_messageInfo_JobCancelConfig.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_JobCancelConfig proto.InternalMessageInfo
+
+func (m *JobCancelConfig) GetRequest() *JobCancelRequest {
+	if m != nil {
+		return m.Request
+	}
+	return nil
+}
+
+type JobSetCancelConfig struct {
+	// The api request itself. Queue and job_set_id are injected from the top-level
+	// TestSpec at runtime, so a test only needs to set request-specific extras (e.g. filter).
+	Request *JobSetCancelRequest `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
+	// If true, once all jobs in the set are terminal (the set has no active jobs) the job set
+	// is cancelled again; the test fails only if that cancel errors. Verifies that cancelling
+	// a job set with no active jobs is a successful no-op.
+	AssertInactiveSucceeds bool `protobuf:"varint,2,opt,name=assert_inactive_succeeds,json=assertInactiveSucceeds,proto3" json:"assertInactiveSucceeds,omitempty"`
+}
+
+func (m *JobSetCancelConfig) Reset()         { *m = JobSetCancelConfig{} }
+func (m *JobSetCancelConfig) String() string { return proto.CompactTextString(m) }
+func (*JobSetCancelConfig) ProtoMessage()    {}
+func (*JobSetCancelConfig) Descriptor() ([]byte, []int) {
+	return fileDescriptor_38d601305b414287, []int{5}
+}
+func (m *JobSetCancelConfig) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *JobSetCancelConfig) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_JobSetCancelConfig.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *JobSetCancelConfig) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JobSetCancelConfig.Merge(m, src)
+}
+func (m *JobSetCancelConfig) XXX_Size() int {
+	return m.Size()
+}
+func (m *JobSetCancelConfig) XXX_DiscardUnknown() {
+	xxx_messageInfo_JobSetCancelConfig.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_JobSetCancelConfig proto.InternalMessageInfo
+
+func (m *JobSetCancelConfig) GetRequest() *JobSetCancelRequest {
+	if m != nil {
+		return m.Request
+	}
+	return nil
+}
+
+func (m *JobSetCancelConfig) GetAssertInactiveSucceeds() bool {
+	if m != nil {
+		return m.AssertInactiveSucceeds
+	}
+	return false
+}
+
+type JobReprioritizeConfig struct {
+	Request *JobReprioritizeRequest `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
+	// If true, reprioritize the whole job set (request.job_ids left empty) instead of the submitted jobs.
+	ByJobSet bool `protobuf:"varint,2,opt,name=by_job_set,json=byJobSet,proto3" json:"byJobSet,omitempty"`
+}
+
+func (m *JobReprioritizeConfig) Reset()         { *m = JobReprioritizeConfig{} }
+func (m *JobReprioritizeConfig) String() string { return proto.CompactTextString(m) }
+func (*JobReprioritizeConfig) ProtoMessage()    {}
+func (*JobReprioritizeConfig) Descriptor() ([]byte, []int) {
+	return fileDescriptor_38d601305b414287, []int{6}
+}
+func (m *JobReprioritizeConfig) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *JobReprioritizeConfig) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_JobReprioritizeConfig.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *JobReprioritizeConfig) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JobReprioritizeConfig.Merge(m, src)
+}
+func (m *JobReprioritizeConfig) XXX_Size() int {
+	return m.Size()
+}
+func (m *JobReprioritizeConfig) XXX_DiscardUnknown() {
+	xxx_messageInfo_JobReprioritizeConfig.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_JobReprioritizeConfig proto.InternalMessageInfo
+
+func (m *JobReprioritizeConfig) GetRequest() *JobReprioritizeRequest {
+	if m != nil {
+		return m.Request
+	}
+	return nil
+}
+
+func (m *JobReprioritizeConfig) GetByJobSet() bool {
+	if m != nil {
+		return m.ByJobSet
+	}
+	return false
+}
+
 // Queue lifecycle configuration for a test.
 type QueueConfig struct {
 	Setup      *QueueSetup       `protobuf:"bytes,1,opt,name=setup,proto3" json:"setup,omitempty"`
@@ -459,7 +604,7 @@ func (m *QueueConfig) Reset()         { *m = QueueConfig{} }
 func (m *QueueConfig) String() string { return proto.CompactTextString(m) }
 func (*QueueConfig) ProtoMessage()    {}
 func (*QueueConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_38d601305b414287, []int{3}
+	return fileDescriptor_38d601305b414287, []int{7}
 }
 func (m *QueueConfig) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -530,7 +675,7 @@ func (m *QueueSetup) Reset()         { *m = QueueSetup{} }
 func (m *QueueSetup) String() string { return proto.CompactTextString(m) }
 func (*QueueSetup) ProtoMessage()    {}
 func (*QueueSetup) Descriptor() ([]byte, []int) {
-	return fileDescriptor_38d601305b414287, []int{4}
+	return fileDescriptor_38d601305b414287, []int{8}
 }
 func (m *QueueSetup) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -607,7 +752,7 @@ func (m *QueueAssertion) Reset()         { *m = QueueAssertion{} }
 func (m *QueueAssertion) String() string { return proto.CompactTextString(m) }
 func (*QueueAssertion) ProtoMessage()    {}
 func (*QueueAssertion) Descriptor() ([]byte, []int) {
-	return fileDescriptor_38d601305b414287, []int{5}
+	return fileDescriptor_38d601305b414287, []int{9}
 }
 func (m *QueueAssertion) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -665,11 +810,13 @@ func (m *QueueAssertion) GetDeleted() bool {
 }
 
 func init() {
-	proto.RegisterEnum("api.TestSpec_ActionType", TestSpec_ActionType_name, TestSpec_ActionType_value)
-	proto.RegisterEnum("api.TestSpec_SelectionType", TestSpec_SelectionType_name, TestSpec_SelectionType_value)
 	proto.RegisterType((*TestSpec)(nil), "api.TestSpec")
 	proto.RegisterType((*NodeCancelConfig)(nil), "api.NodeCancelConfig")
 	proto.RegisterType((*NodePreemptConfig)(nil), "api.NodePreemptConfig")
+	proto.RegisterType((*JobPreemptConfig)(nil), "api.JobPreemptConfig")
+	proto.RegisterType((*JobCancelConfig)(nil), "api.JobCancelConfig")
+	proto.RegisterType((*JobSetCancelConfig)(nil), "api.JobSetCancelConfig")
+	proto.RegisterType((*JobReprioritizeConfig)(nil), "api.JobReprioritizeConfig")
 	proto.RegisterType((*QueueConfig)(nil), "api.QueueConfig")
 	proto.RegisterType((*QueueSetup)(nil), "api.QueueSetup")
 	proto.RegisterType((*QueueAssertion)(nil), "api.QueueAssertion")
@@ -678,87 +825,87 @@ func init() {
 func init() { proto.RegisterFile("pkg/api/testspec.proto", fileDescriptor_38d601305b414287) }
 
 var fileDescriptor_38d601305b414287 = []byte{
-	// 1274 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xdc, 0x96, 0xcf, 0x6e, 0x1b, 0xd5,
-	0x17, 0xc7, 0x33, 0x49, 0x93, 0x38, 0xc7, 0xb1, 0x3d, 0xb9, 0xce, 0x9f, 0x69, 0xfb, 0xfb, 0xd9,
-	0x96, 0x17, 0x60, 0xa4, 0xca, 0x46, 0x05, 0x21, 0xa0, 0x20, 0xb0, 0x5d, 0x17, 0x5c, 0x35, 0x89,
-	0xb1, 0x23, 0x51, 0x8a, 0xd0, 0x68, 0x6c, 0x9f, 0x4e, 0x27, 0x78, 0xe6, 0x4e, 0x67, 0xae, 0xd3,
-	0x3f, 0xaf, 0xc0, 0x06, 0xb1, 0x44, 0x3c, 0x01, 0x4f, 0xc2, 0xb2, 0x42, 0x2c, 0x58, 0x59, 0xa8,
-	0xdd, 0xf9, 0x29, 0xd0, 0x9c, 0x7b, 0x27, 0xbe, 0x76, 0x16, 0xec, 0x58, 0xb0, 0xf4, 0xe7, 0x7b,
-	0xce, 0x99, 0x33, 0xf7, 0x7b, 0x7c, 0xee, 0xc0, 0x61, 0xf8, 0xbd, 0xdb, 0x70, 0x42, 0xaf, 0x21,
-	0x30, 0x16, 0x71, 0x88, 0xa3, 0x7a, 0x18, 0x71, 0xc1, 0xd9, 0x86, 0x13, 0x7a, 0x37, 0x4a, 0x2e,
-	0xe7, 0xee, 0x04, 0x1b, 0x84, 0x86, 0xd3, 0xc7, 0x8d, 0xf1, 0x34, 0x72, 0x84, 0xc7, 0x03, 0x19,
-	0x74, 0x63, 0x3f, 0x4d, 0x8e, 0xa7, 0x43, 0xdf, 0x13, 0x8a, 0x16, 0x53, 0x8a, 0x17, 0x18, 0xa4,
-	0x90, 0xa5, 0x30, 0xe0, 0x63, 0x94, 0xac, 0xfa, 0x47, 0x0e, 0x32, 0x67, 0x18, 0x8b, 0x41, 0x88,
-	0x23, 0xd6, 0x84, 0x6b, 0xe7, 0x7c, 0x18, 0x5b, 0x46, 0x65, 0xa3, 0x96, 0xbd, 0x7d, 0xbd, 0xee,
-	0x84, 0x5e, 0xfd, 0x3e, 0x1f, 0x0e, 0xa8, 0x72, 0x1f, 0x9f, 0x4e, 0x31, 0x16, 0x5d, 0x81, 0x7e,
-	0x8b, 0xcd, 0x67, 0xe5, 0x7c, 0x12, 0x7a, 0x8b, 0xfb, 0x9e, 0x40, 0x3f, 0x14, 0x2f, 0xfa, 0x94,
-	0xca, 0x1e, 0x42, 0x01, 0x9f, 0x87, 0x38, 0x12, 0x38, 0xb6, 0xe9, 0xd9, 0xb1, 0xb5, 0x4e, 0xd5,
-	0xf6, 0xa8, 0x5a, 0x27, 0x41, 0xc7, 0x18, 0xc7, 0x8e, 0x8b, 0xad, 0xff, 0xcd, 0x67, 0x65, 0x2b,
-	0x8d, 0x26, 0x45, 0xaf, 0x97, 0x5f, 0x56, 0xd8, 0x3b, 0xb0, 0xf9, 0x74, 0x8a, 0x53, 0xb4, 0x36,
-	0x2a, 0x46, 0x6d, 0xa7, 0x55, 0x9c, 0xcf, 0xca, 0x05, 0x02, 0x5a, 0x8e, 0x8c, 0x60, 0xef, 0x03,
-	0x9c, 0xf3, 0xa1, 0x1d, 0xa3, 0xb0, 0xbd, 0xb1, 0x75, 0x8d, 0xe2, 0x0f, 0xe7, 0xb3, 0x32, 0x3b,
-	0xe7, 0xc3, 0x01, 0x8a, 0xee, 0x58, 0x4b, 0xc9, 0xa4, 0x8c, 0x7d, 0x04, 0xd9, 0x60, 0xea, 0xdb,
-	0x43, 0x47, 0x8c, 0x9e, 0x60, 0x6c, 0x6d, 0x56, 0x8c, 0x5a, 0xae, 0x65, 0xcd, 0x67, 0xe5, 0xfd,
-	0x60, 0xea, 0xb7, 0x24, 0xd5, 0x12, 0x61, 0x41, 0xd9, 0x07, 0x00, 0x94, 0x66, 0xc7, 0xde, 0x4b,
-	0xb4, 0xb6, 0x28, 0xf3, 0x68, 0x3e, 0x2b, 0x17, 0x89, 0x0e, 0xbc, 0x97, 0x7a, 0x93, 0x3b, 0x97,
-	0x90, 0x1d, 0x43, 0xc6, 0x0b, 0x04, 0x46, 0x17, 0xce, 0xc4, 0xda, 0xae, 0x18, 0x74, 0xe8, 0xd2,
-	0xef, 0x7a, 0xea, 0x77, 0xfd, 0xae, 0xf2, 0x5b, 0xbe, 0x41, 0x1a, 0xae, 0xbf, 0x41, 0xca, 0xd8,
-	0x7d, 0xd8, 0x16, 0x9e, 0x8f, 0x7c, 0x2a, 0xac, 0xcc, 0x3f, 0x55, 0x3b, 0x98, 0xcf, 0xca, 0x7b,
-	0x2a, 0x5a, 0x2b, 0x96, 0x16, 0x60, 0xf7, 0x60, 0xcb, 0x19, 0x25, 0x91, 0xd6, 0x4e, 0xc5, 0xa8,
-	0xe5, 0x6f, 0x5b, 0xe4, 0x5f, 0x3a, 0x2a, 0xf5, 0x26, 0x69, 0x67, 0x2f, 0x42, 0x6c, 0xed, 0xcf,
-	0x67, 0x65, 0x53, 0xc6, 0x6a, 0x85, 0x54, 0x36, 0x7b, 0x0b, 0xae, 0x05, 0x8e, 0x8f, 0x16, 0x90,
-	0x0b, 0x34, 0x38, 0xc9, 0x6f, 0x7d, 0x70, 0x92, 0xdf, 0xec, 0x1e, 0x98, 0x91, 0x13, 0x8c, 0xb9,
-	0x6f, 0x8f, 0x26, 0x1e, 0x06, 0xe4, 0x5c, 0xb6, 0x62, 0xd4, 0x32, 0x72, 0x4c, 0xa4, 0xd6, 0x26,
-	0x69, 0xc9, 0xbf, 0xfc, 0xb2, 0xc2, 0xde, 0x85, 0x8c, 0x8b, 0xc2, 0x9e, 0x70, 0x37, 0xb6, 0x76,
-	0x29, 0x9f, 0xde, 0xd4, 0x45, 0xf1, 0x80, 0xbb, 0xba, 0x7f, 0xdb, 0x0a, 0xb1, 0x3b, 0x90, 0xc5,
-	0xe0, 0xc2, 0x8b, 0x78, 0xe0, 0x63, 0x20, 0xac, 0x1c, 0x35, 0x7a, 0x7d, 0x3e, 0x2b, 0x1f, 0x68,
-	0x58, 0x4b, 0xd4, 0xa3, 0xd9, 0x2d, 0xd8, 0x12, 0x4e, 0xe4, 0xa2, 0xb0, 0xf2, 0x94, 0x47, 0x87,
-	0x21, 0x89, 0x7e, 0x18, 0x92, 0xb0, 0x4f, 0x60, 0x37, 0xc0, 0x67, 0x76, 0x18, 0x79, 0x3c, 0xf2,
-	0xc4, 0x0b, 0xab, 0x50, 0x31, 0x6a, 0x86, 0x7c, 0x56, 0x80, 0xcf, 0x7a, 0x0a, 0xeb, 0xcf, 0xd2,
-	0x30, 0x6b, 0x41, 0x3e, 0x8c, 0x30, 0x11, 0xec, 0x08, 0x9d, 0x98, 0x07, 0x96, 0x49, 0xcf, 0xbc,
-	0x39, 0x9f, 0x95, 0x8f, 0x94, 0xd2, 0x27, 0x41, 0xab, 0x90, 0x5b, 0x12, 0x58, 0x1f, 0x76, 0x62,
-	0x9c, 0xa0, 0x74, 0x76, 0x8f, 0x9c, 0xbd, 0xb9, 0xec, 0xec, 0x20, 0x95, 0xc9, 0x5c, 0x9a, 0xe2,
-	0xcb, 0x0c, 0x7d, 0x8a, 0x2f, 0x21, 0xfb, 0x1a, 0xf2, 0x23, 0x27, 0x18, 0xe1, 0xc4, 0xe6, 0x81,
-	0x9d, 0xec, 0x16, 0x8b, 0xd1, 0xf4, 0x1d, 0x50, 0xe1, 0x13, 0x3e, 0xc6, 0x36, 0xc9, 0x6d, 0x1e,
-	0x3c, 0xf6, 0xdc, 0xd6, 0x8d, 0xf9, 0xac, 0x7c, 0x28, 0x13, 0x4e, 0x83, 0x44, 0xd5, 0xaa, 0xee,
-	0xea, 0x9c, 0x7d, 0x0b, 0x85, 0xf4, 0x85, 0xd3, 0xca, 0x45, 0xaa, 0x7c, 0x78, 0x59, 0xb9, 0x27,
-	0x75, 0x55, 0x5a, 0x3f, 0x89, 0x2b, 0xb5, 0x73, 0x4b, 0x02, 0xfb, 0x0c, 0x72, 0x22, 0xf2, 0x5c,
-	0x17, 0x23, 0xb9, 0xa8, 0xac, 0x7d, 0x3a, 0x4c, 0xea, 0x4e, 0x09, 0xb4, 0x79, 0xf4, 0xee, 0x74,
-	0xce, 0x4e, 0x60, 0x97, 0xd6, 0x8d, 0x3d, 0xa2, 0x87, 0x5b, 0x07, 0xd4, 0x9a, 0x49, 0xad, 0x7d,
-	0x95, 0x08, 0xaa, 0x29, 0xb2, 0xf7, 0xe9, 0x02, 0xe8, 0xf6, 0x6a, 0x38, 0x19, 0x0e, 0x67, 0x2a,
-	0x9e, 0x24, 0xe5, 0x04, 0x3e, 0x17, 0xd6, 0xe1, 0x62, 0x10, 0x13, 0xde, 0x96, 0x58, 0xcf, 0xd6,
-	0x30, 0xeb, 0xc2, 0x9e, 0x5c, 0x98, 0x36, 0x46, 0x11, 0x8f, 0xec, 0x51, 0x72, 0x5a, 0x47, 0x15,
-	0xa3, 0xb6, 0xd9, 0xfa, 0xff, 0x7c, 0x56, 0xbe, 0x2e, 0xc5, 0x4e, 0xa2, 0xb5, 0x97, 0xcf, 0xa5,
-	0xb0, 0x22, 0x55, 0xbf, 0x03, 0x58, 0xfc, 0xbd, 0x59, 0x01, 0xb2, 0xcd, 0xf6, 0x59, 0xf7, 0xf4,
-	0xc4, 0x3e, 0x39, 0x3d, 0xe9, 0x98, 0x6b, 0x6c, 0x0f, 0x72, 0x0a, 0xb4, 0x9b, 0x27, 0xed, 0xce,
-	0x03, 0xd3, 0x60, 0x0c, 0xf2, 0x0a, 0xf5, 0xfa, 0x9d, 0xce, 0x71, 0xef, 0xcc, 0x5c, 0x67, 0x47,
-	0x50, 0x54, 0xac, 0xdf, 0xe9, 0xf5, 0xbb, 0xa7, 0xfd, 0xee, 0x59, 0xf7, 0x51, 0xc7, 0xdc, 0xa8,
-	0x0e, 0x21, 0xb7, 0x34, 0x63, 0xcc, 0x84, 0xdd, 0x41, 0xe7, 0x41, 0x27, 0x7d, 0x88, 0xb9, 0xc6,
-	0x8a, 0x50, 0x58, 0x90, 0xd6, 0x37, 0x76, 0xf7, 0xae, 0x69, 0xb0, 0x7d, 0x30, 0x97, 0xe0, 0xa0,
-	0x93, 0x3c, 0x66, 0x95, 0x76, 0xef, 0x0e, 0xcc, 0x8d, 0xea, 0xcf, 0x06, 0x98, 0xab, 0x83, 0xc7,
-	0xbe, 0x80, 0xed, 0x48, 0x5e, 0x62, 0x96, 0xb1, 0x32, 0x46, 0x32, 0x4e, 0x5d, 0x71, 0x72, 0x63,
-	0xa8, 0x50, 0x7d, 0x63, 0x28, 0xc4, 0x3e, 0x85, 0x5c, 0x32, 0x8c, 0x76, 0xc8, 0xf9, 0xc4, 0x16,
-	0x8e, 0x6b, 0xad, 0x2f, 0xac, 0x4a, 0x84, 0x1e, 0xe7, 0x93, 0x33, 0x67, 0xc9, 0x68, 0x0d, 0x57,
-	0x7f, 0x31, 0x60, 0xef, 0xca, 0xec, 0xb2, 0x2f, 0x57, 0xbb, 0x3b, 0x5a, 0x1d, 0xf2, 0x7f, 0xa9,
-	0xbd, 0xdf, 0x0d, 0xc8, 0x6a, 0xf3, 0xcb, 0x3e, 0x86, 0xcd, 0x18, 0xc5, 0x34, 0x54, 0x6d, 0x15,
-	0x16, 0x03, 0x3e, 0x48, 0xb0, 0xbc, 0x89, 0x29, 0x42, 0xbf, 0x89, 0x09, 0xb0, 0x63, 0x00, 0x27,
-	0x8e, 0x31, 0x4a, 0xbc, 0x4e, 0xbf, 0x04, 0x8a, 0x8b, 0x02, 0xcd, 0x54, 0x93, 0xf7, 0xec, 0x22,
-	0x54, 0xbf, 0x67, 0x17, 0x94, 0x7d, 0x08, 0x5b, 0xd3, 0x70, 0xec, 0x08, 0xa4, 0x4b, 0x3d, 0x7b,
-	0x1b, 0x16, 0xa5, 0xe4, 0xe6, 0x95, 0xaa, 0xbe, 0x79, 0x25, 0xa9, 0xfe, 0xb4, 0x0e, 0xb0, 0xe8,
-	0xf9, 0x3f, 0x70, 0xd7, 0xb7, 0x00, 0xe4, 0xf6, 0x49, 0x3e, 0x18, 0xd5, 0x75, 0xaf, 0x1f, 0x07,
-	0xb5, 0x44, 0x11, 0xc9, 0x56, 0xd7, 0x5b, 0xba, 0x84, 0xd5, 0x1f, 0xd6, 0x21, 0xbf, 0xec, 0x03,
-	0xfb, 0x1c, 0xf2, 0xc9, 0xc5, 0x7d, 0x81, 0xb6, 0x17, 0xd0, 0x00, 0x91, 0xeb, 0x6a, 0x2d, 0x4a,
-	0xa5, 0x1b, 0x24, 0x93, 0xa2, 0xaf, 0x45, 0x9d, 0x27, 0x8b, 0xc8, 0x09, 0x43, 0x74, 0xa2, 0x38,
-	0x29, 0x11, 0x8b, 0x08, 0x1d, 0x9f, 0x26, 0x30, 0x23, 0x17, 0x91, 0x12, 0xbb, 0xc1, 0x80, 0x24,
-	0x7d, 0x11, 0xad, 0x48, 0xec, 0x0e, 0x6c, 0xfb, 0xca, 0xa1, 0x8d, 0x2b, 0x2f, 0x48, 0xff, 0x02,
-	0xff, 0x8a, 0x55, 0x69, 0x06, 0x6b, 0xc0, 0xf6, 0x18, 0x27, 0x28, 0x50, 0x7e, 0x01, 0xaa, 0xef,
-	0x00, 0x85, 0xf4, 0x04, 0x85, 0x5a, 0x0f, 0x7f, 0x7b, 0x5d, 0x32, 0x5e, 0xbd, 0x2e, 0x19, 0x7f,
-	0xbd, 0x2e, 0x19, 0x3f, 0xbe, 0x29, 0xad, 0xbd, 0x7a, 0x53, 0x5a, 0xfb, 0xf3, 0x4d, 0x69, 0xed,
-	0xd1, 0xdb, 0xae, 0x27, 0x9e, 0x4c, 0x87, 0xf5, 0x11, 0xf7, 0x1b, 0x4e, 0xe4, 0x3b, 0x63, 0x27,
-	0x8c, 0xf8, 0x39, 0x8e, 0x84, 0xfa, 0xd5, 0x50, 0x1f, 0xd6, 0xbf, 0xae, 0xef, 0x37, 0x09, 0xf4,
-	0xa4, 0x5c, 0xef, 0xf2, 0x7a, 0x33, 0xf4, 0x86, 0x5b, 0x64, 0xf0, 0x7b, 0x7f, 0x07, 0x00, 0x00,
-	0xff, 0xff, 0x32, 0x83, 0xc3, 0xa5, 0xe9, 0x0b, 0x00, 0x00,
+	// 1277 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xdc, 0x57, 0xcf, 0x8e, 0x1b, 0xc5,
+	0x13, 0xce, 0xec, 0x66, 0x77, 0x9d, 0xda, 0x5d, 0xef, 0x6e, 0xef, 0xbf, 0xde, 0x4d, 0x7e, 0xb6,
+	0x65, 0xfd, 0x04, 0x8b, 0x14, 0xd9, 0x28, 0x44, 0x08, 0x08, 0x08, 0xd6, 0x4b, 0x02, 0x8e, 0x92,
+	0x10, 0xe2, 0x48, 0x24, 0x41, 0x62, 0x34, 0x1e, 0x57, 0x26, 0xb3, 0x78, 0xa6, 0x27, 0x33, 0x3d,
+	0xab, 0x24, 0xaf, 0xc0, 0x05, 0x38, 0x02, 0x4f, 0xc0, 0x03, 0x70, 0xe5, 0xca, 0x31, 0xe2, 0xc4,
+	0x69, 0x84, 0x92, 0xdb, 0x3c, 0x05, 0x9a, 0xea, 0x1e, 0xbb, 0x6d, 0x27, 0x22, 0x17, 0x38, 0x70,
+	0x9c, 0xef, 0xab, 0xfa, 0x5c, 0x5d, 0x55, 0x5d, 0x5d, 0x86, 0x9d, 0xe8, 0x6b, 0xaf, 0xed, 0x44,
+	0x7e, 0x5b, 0x62, 0x22, 0x93, 0x08, 0xdd, 0x56, 0x14, 0x0b, 0x29, 0xd8, 0xbc, 0x13, 0xf9, 0xfb,
+	0x35, 0x4f, 0x08, 0x6f, 0x88, 0x6d, 0x82, 0xfa, 0xe9, 0xfd, 0xf6, 0x20, 0x8d, 0x1d, 0xe9, 0x8b,
+	0x50, 0x19, 0xed, 0x6f, 0x95, 0xce, 0x49, 0xda, 0x0f, 0x7c, 0xa9, 0xd1, 0xcd, 0x12, 0xc5, 0x13,
+	0x0c, 0x4b, 0x90, 0x95, 0x60, 0x28, 0x06, 0xa8, 0xb0, 0xe6, 0x2f, 0x2b, 0x50, 0xb9, 0x8d, 0x89,
+	0xec, 0x45, 0xe8, 0xb2, 0x43, 0x38, 0x7d, 0x2c, 0xfa, 0x09, 0xb7, 0x1a, 0xf3, 0x07, 0xcb, 0x17,
+	0xf6, 0x5a, 0x4e, 0xe4, 0xb7, 0xae, 0x8a, 0x7e, 0x8f, 0x94, 0x6f, 0xe1, 0xc3, 0x14, 0x13, 0xd9,
+	0x95, 0x18, 0x74, 0x58, 0x9e, 0xd5, 0xab, 0x85, 0xe9, 0x79, 0x11, 0xf8, 0x12, 0x83, 0x48, 0x3e,
+	0xbe, 0x45, 0xae, 0xec, 0x0e, 0xac, 0xe1, 0xa3, 0x08, 0x5d, 0x89, 0x03, 0x9b, 0x7e, 0x3b, 0xe1,
+	0x73, 0xa4, 0xb6, 0x41, 0x6a, 0x97, 0x0b, 0xe8, 0x3a, 0x26, 0x89, 0xe3, 0x61, 0xe7, 0x5c, 0x9e,
+	0xd5, 0x79, 0x69, 0x4d, 0x8c, 0xa9, 0x57, 0x9d, 0x64, 0xd8, 0x1b, 0xb0, 0xf0, 0x30, 0xc5, 0x14,
+	0xf9, 0x7c, 0xc3, 0x3a, 0x38, 0xd3, 0xd9, 0xcc, 0xb3, 0xfa, 0x1a, 0x01, 0x86, 0x8f, 0xb2, 0x60,
+	0x17, 0x01, 0x8e, 0x45, 0xdf, 0x4e, 0x50, 0xda, 0xfe, 0x80, 0x9f, 0x26, 0xfb, 0x9d, 0x3c, 0xab,
+	0xb3, 0x63, 0xd1, 0xef, 0xa1, 0xec, 0x0e, 0x0c, 0x97, 0x4a, 0x89, 0xb1, 0x77, 0x61, 0x39, 0x4c,
+	0x03, 0xbb, 0xef, 0x48, 0xf7, 0x01, 0x26, 0x7c, 0xa1, 0x61, 0x1d, 0xac, 0x76, 0x78, 0x9e, 0xd5,
+	0xb7, 0xc2, 0x34, 0xe8, 0x28, 0xd4, 0x70, 0x84, 0x31, 0xca, 0xde, 0x06, 0x20, 0x37, 0x3b, 0xf1,
+	0x9f, 0x20, 0x5f, 0x24, 0xcf, 0xdd, 0x3c, 0xab, 0x6f, 0x12, 0xda, 0xf3, 0x9f, 0x98, 0x41, 0x9e,
+	0x19, 0x81, 0xec, 0x3a, 0x54, 0xfc, 0x50, 0x62, 0x7c, 0xe2, 0x0c, 0xf9, 0x52, 0xc3, 0xa2, 0xa4,
+	0xab, 0x7a, 0xb7, 0xca, 0x7a, 0xb7, 0x3e, 0xd6, 0xf5, 0x56, 0x27, 0x28, 0xcd, 0xcd, 0x13, 0x94,
+	0x18, 0xbb, 0x0a, 0x4b, 0xd2, 0x0f, 0x50, 0xa4, 0x92, 0x57, 0xfe, 0x4e, 0x6d, 0x3b, 0xcf, 0xea,
+	0x1b, 0xda, 0xda, 0x10, 0x2b, 0x05, 0xd8, 0x6b, 0x70, 0x3a, 0x74, 0x02, 0xe4, 0x40, 0xd9, 0xa3,
+	0x82, 0x17, 0xdf, 0x66, 0xc1, 0x8b, 0x6f, 0x76, 0x05, 0xd6, 0x63, 0x27, 0x1c, 0x88, 0xc0, 0x76,
+	0x87, 0x3e, 0x86, 0x94, 0xf1, 0xe5, 0x86, 0x75, 0x50, 0x51, 0xe5, 0x55, 0xdc, 0x11, 0x51, 0x13,
+	0x79, 0xaf, 0x4e, 0x32, 0xec, 0x4d, 0xa8, 0x78, 0x28, 0xed, 0xa1, 0xf0, 0x12, 0xbe, 0x42, 0xfe,
+	0x14, 0xa1, 0x87, 0xf2, 0x9a, 0xf0, 0xcc, 0xbc, 0x2f, 0x69, 0x88, 0x5d, 0x82, 0x65, 0x0c, 0x4f,
+	0xfc, 0x58, 0x84, 0x01, 0x86, 0x92, 0xaf, 0x52, 0xa0, 0x7b, 0x79, 0x56, 0xdf, 0x36, 0x60, 0xc3,
+	0xd1, 0xb4, 0x66, 0xe7, 0x61, 0x51, 0x3a, 0xb1, 0x87, 0x92, 0x57, 0xc9, 0x6f, 0x2b, 0xcf, 0xea,
+	0xeb, 0x0a, 0x31, 0x5c, 0xb4, 0x0d, 0xfb, 0x02, 0xaa, 0xae, 0x13, 0xba, 0x38, 0xb4, 0x45, 0x68,
+	0x17, 0xb7, 0x87, 0x33, 0xca, 0xef, 0x36, 0x35, 0xf5, 0x0d, 0x31, 0xc0, 0x23, 0xa2, 0x8f, 0x44,
+	0x78, 0xdf, 0xf7, 0x3a, 0xfb, 0x79, 0x56, 0xdf, 0x51, 0x0e, 0x9f, 0x85, 0x05, 0x6b, 0x48, 0xae,
+	0x98, 0x38, 0xfb, 0x12, 0xd6, 0xa2, 0x18, 0x0b, 0x66, 0xa4, 0xbc, 0x49, 0xca, 0x3b, 0x23, 0xe5,
+	0x9b, 0x8a, 0xd7, 0xd2, 0x67, 0xf3, 0xac, 0xbe, 0xab, 0x5d, 0x66, 0xb4, 0x57, 0x27, 0x08, 0xf6,
+	0x21, 0xac, 0xca, 0xd8, 0xf7, 0x3c, 0x8c, 0xd5, 0x55, 0xe4, 0x5b, 0x74, 0x54, 0x8a, 0x4e, 0x13,
+	0x74, 0xb7, 0xcc, 0xe8, 0x4c, 0x9c, 0x75, 0x60, 0x51, 0x45, 0xcb, 0xb7, 0x29, 0xa8, 0xad, 0x72,
+	0x22, 0x4c, 0x9c, 0x96, 0x52, 0xa7, 0xec, 0xcc, 0xd4, 0x29, 0x84, 0x5d, 0x81, 0x25, 0x1d, 0x15,
+	0xdf, 0x35, 0x72, 0x76, 0x55, 0xf4, 0x27, 0x0f, 0x46, 0xd5, 0xd6, 0x96, 0x66, 0xb5, 0x35, 0xc4,
+	0xee, 0xc1, 0x4a, 0x8c, 0x51, 0xec, 0x8b, 0xd8, 0x97, 0xc5, 0x25, 0xe3, 0x24, 0xb6, 0x5f, 0x8a,
+	0xdd, 0x32, 0x38, 0xb3, 0x0a, 0xa6, 0x8f, 0x79, 0x4e, 0x13, 0x67, 0x37, 0x60, 0x85, 0x06, 0x87,
+	0xed, 0x92, 0x27, 0xdf, 0x23, 0xed, 0x75, 0xd2, 0xfe, 0xbc, 0x20, 0xb4, 0x22, 0x35, 0xd7, 0xc3,
+	0x31, 0x60, 0x36, 0x97, 0x01, 0xb3, 0xbb, 0xa3, 0x76, 0xd1, 0x63, 0x88, 0xef, 0x93, 0xe2, 0xee,
+	0x68, 0xa2, 0xa2, 0x7c, 0x59, 0xc3, 0x28, 0x76, 0xb6, 0x61, 0x14, 0xce, 0xde, 0x87, 0x15, 0x27,
+	0x95, 0x0f, 0x8a, 0x48, 0x25, 0x3e, 0x92, 0xfc, 0xec, 0xb8, 0xeb, 0x0b, 0xfc, 0x48, 0xc1, 0x66,
+	0x60, 0x06, 0xcc, 0xba, 0xb0, 0xa1, 0xa6, 0xaa, 0x8d, 0x71, 0x2c, 0x62, 0xdb, 0x2d, 0x1a, 0xee,
+	0x5c, 0xc3, 0x3a, 0x58, 0xe8, 0xfc, 0x2f, 0xcf, 0xea, 0x7b, 0x8a, 0xbc, 0x5c, 0x70, 0x47, 0x93,
+	0xad, 0xb5, 0x36, 0x45, 0x35, 0x7f, 0xb0, 0x60, 0x7d, 0xba, 0xf1, 0xd9, 0x27, 0xb0, 0x14, 0xab,
+	0x67, 0x82, 0x5b, 0x53, 0x6d, 0xac, 0xec, 0xf4, 0x23, 0xa2, 0xaa, 0xad, 0x4d, 0xcd, 0x6a, 0x6b,
+	0x88, 0x7d, 0x00, 0xab, 0xc5, 0x65, 0xb0, 0x23, 0x21, 0x86, 0xb6, 0x74, 0x3c, 0x3e, 0x37, 0x3e,
+	0x67, 0x41, 0xdc, 0x14, 0x62, 0x78, 0xdb, 0x99, 0x28, 0x80, 0x01, 0x37, 0x7f, 0xb2, 0x60, 0x63,
+	0xe6, 0xee, 0xb0, 0x4f, 0xa7, 0xa3, 0xdb, 0x9d, 0xbe, 0x64, 0xff, 0x52, 0x78, 0xdf, 0x59, 0xb0,
+	0x3e, 0x7d, 0x01, 0x5e, 0x96, 0xbb, 0xb1, 0xdd, 0xab, 0x06, 0x77, 0x11, 0xa0, 0xff, 0x78, 0xd4,
+	0x79, 0x73, 0x34, 0x4b, 0xe9, 0xed, 0xe8, 0x3f, 0x9e, 0x69, 0xae, 0x4a, 0x89, 0x35, 0xef, 0xc2,
+	0xda, 0xd4, 0xc5, 0x2e, 0xae, 0xee, 0x64, 0x44, 0xdb, 0x93, 0xf7, 0xff, 0x15, 0x03, 0x6a, 0xfe,
+	0x6a, 0x01, 0x9b, 0x6d, 0x7a, 0xd6, 0x9d, 0x96, 0xe7, 0x33, 0xd7, 0xe3, 0x55, 0x8f, 0xfc, 0x15,
+	0x70, 0x27, 0x49, 0x30, 0x96, 0xb6, 0x1f, 0x3a, 0xae, 0xf4, 0x4f, 0xd0, 0x4e, 0x52, 0xd7, 0x45,
+	0x1c, 0x24, 0x3a, 0x01, 0xff, 0xcf, 0xb3, 0x7a, 0x43, 0xd9, 0x74, 0xb5, 0x49, 0x4f, 0x5b, 0x18,
+	0x82, 0x3b, 0x2f, 0xb6, 0x68, 0xfe, 0x68, 0xc1, 0xf6, 0x0b, 0x87, 0x0c, 0xbb, 0x36, 0x7d, 0x88,
+	0xb3, 0x2f, 0x9a, 0x48, 0xff, 0x6c, 0xe9, 0x7e, 0xb7, 0x60, 0xd9, 0x18, 0x53, 0xec, 0x3d, 0x58,
+	0x48, 0x50, 0xa6, 0x91, 0x8e, 0x68, 0x6d, 0x3c, 0xc7, 0x7a, 0x05, 0xac, 0x56, 0x27, 0xb2, 0x30,
+	0x57, 0x27, 0x02, 0xd8, 0x75, 0x00, 0x95, 0x03, 0x5f, 0x84, 0xe5, 0xea, 0xb6, 0x39, 0x16, 0x38,
+	0x2c, 0x39, 0xb5, 0x18, 0x8d, 0x4d, 0xcd, 0xc5, 0x68, 0x8c, 0xb2, 0x77, 0x60, 0x31, 0x8d, 0x06,
+	0x8e, 0x44, 0xda, 0xc2, 0x96, 0x2f, 0xc0, 0x58, 0x4a, 0xbd, 0x1b, 0x8a, 0x35, 0xdf, 0x0d, 0x85,
+	0x34, 0xbf, 0x9f, 0x03, 0x18, 0xc7, 0xfc, 0x1f, 0x58, 0xce, 0x3a, 0x00, 0xea, 0x91, 0x29, 0x36,
+	0x7c, 0xbd, 0x9f, 0x99, 0xe9, 0xa0, 0x90, 0xc8, 0xa2, 0xd8, 0xc5, 0xcd, 0x90, 0x46, 0x60, 0xf3,
+	0x9b, 0x39, 0xa8, 0x4e, 0xd6, 0x81, 0x7d, 0x04, 0x55, 0xdd, 0xf1, 0x7e, 0x48, 0xf3, 0x88, 0xaa,
+	0xae, 0x5f, 0x79, 0xc5, 0x74, 0xc3, 0x62, 0xf0, 0x98, 0x4f, 0x8a, 0x89, 0x17, 0x8f, 0x82, 0x13,
+	0x45, 0xe8, 0xc4, 0x49, 0x21, 0x91, 0xc8, 0x18, 0x9d, 0x40, 0xf7, 0x1e, 0x3d, 0x0a, 0x9a, 0xec,
+	0x86, 0x3d, 0xa2, 0xcc, 0x47, 0x61, 0x8a, 0x62, 0x97, 0x60, 0x29, 0xd0, 0x15, 0x9a, 0x9f, 0x39,
+	0x20, 0x35, 0x7f, 0x30, 0x53, 0xaa, 0xd2, 0x83, 0xb5, 0x61, 0x69, 0x80, 0x43, 0x94, 0xa8, 0x56,
+	0x76, 0xbd, 0x00, 0x6a, 0xc8, 0x74, 0xd0, 0x50, 0xe7, 0xce, 0x6f, 0xcf, 0x6a, 0xd6, 0xd3, 0x67,
+	0x35, 0xeb, 0xcf, 0x67, 0x35, 0xeb, 0xdb, 0xe7, 0xb5, 0x53, 0x4f, 0x9f, 0xd7, 0x4e, 0xfd, 0xf1,
+	0xbc, 0x76, 0xea, 0xde, 0xeb, 0x9e, 0x2f, 0x1f, 0xa4, 0xfd, 0x96, 0x2b, 0x82, 0xb6, 0x13, 0x07,
+	0xce, 0xc0, 0x89, 0x62, 0x71, 0x8c, 0xae, 0xd4, 0x5f, 0x6d, 0xfd, 0x4f, 0xe8, 0xe7, 0xb9, 0xad,
+	0x43, 0x02, 0x6e, 0x2a, 0xba, 0xd5, 0x15, 0xad, 0xc3, 0xc8, 0xef, 0x2f, 0x52, 0x81, 0xdf, 0xfa,
+	0x2b, 0x00, 0x00, 0xff, 0xff, 0xe0, 0xce, 0xe3, 0x64, 0x9a, 0x0d, 0x00, 0x00,
 }
 
 func (m *TestSpec) Marshal() (dAtA []byte, err error) {
@@ -786,7 +933,7 @@ func (m *TestSpec) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x1
 		i--
-		dAtA[i] = 0xb8
+		dAtA[i] = 0xe0
 	}
 	if len(m.AuthContext) > 0 {
 		i -= len(m.AuthContext)
@@ -795,11 +942,67 @@ func (m *TestSpec) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x1
 		i--
-		dAtA[i] = 0xb2
+		dAtA[i] = 0xda
+	}
+	if m.CancelJobSet != nil {
+		{
+			size, err := m.CancelJobSet.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTestspec(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xd2
 	}
 	if m.QueueConfig != nil {
 		{
 			size, err := m.QueueConfig.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTestspec(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xca
+	}
+	if m.Reprioritize != nil {
+		{
+			size, err := m.Reprioritize.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTestspec(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xc2
+	}
+	if m.Preempt != nil {
+		{
+			size, err := m.Preempt.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTestspec(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xba
+	}
+	if m.Cancel != nil {
+		{
+			size, err := m.Cancel.MarshalToSizedBuffer(dAtA[:i])
 			if err != nil {
 				return 0, err
 			}
@@ -848,28 +1051,6 @@ func (m *TestSpec) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x92
 	}
-	if m.Selection != 0 {
-		i = encodeVarintTestspec(dAtA, i, uint64(m.Selection))
-		i--
-		dAtA[i] = 0x1
-		i--
-		dAtA[i] = 0x88
-	}
-	if len(m.PreemptReason) > 0 {
-		i -= len(m.PreemptReason)
-		copy(dAtA[i:], m.PreemptReason)
-		i = encodeVarintTestspec(dAtA, i, uint64(len(m.PreemptReason)))
-		i--
-		dAtA[i] = 0x1
-		i--
-		dAtA[i] = 0x82
-	}
-	if m.NewPriority != 0 {
-		i -= 8
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.NewPriority))))
-		i--
-		dAtA[i] = 0x79
-	}
 	if len(m.Target) > 0 {
 		i -= len(m.Target)
 		copy(dAtA[i:], m.Target)
@@ -910,11 +1091,6 @@ func (m *TestSpec) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i = encodeVarintTestspec(dAtA, i, uint64(len(m.Name)))
 		i--
 		dAtA[i] = 0x52
-	}
-	if m.Action != 0 {
-		i = encodeVarintTestspec(dAtA, i, uint64(m.Action))
-		i--
-		dAtA[i] = 0x48
 	}
 	if m.Timeout != nil {
 		{
@@ -1063,6 +1239,176 @@ func (m *NodePreemptConfig) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i = encodeVarintTestspec(dAtA, i, uint64(len(m.NodePoolTag)))
 		i--
 		dAtA[i] = 0x12
+	}
+	if m.Request != nil {
+		{
+			size, err := m.Request.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTestspec(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *JobPreemptConfig) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *JobPreemptConfig) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *JobPreemptConfig) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.ByJobSet {
+		i--
+		if m.ByJobSet {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x10
+	}
+	if m.Request != nil {
+		{
+			size, err := m.Request.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTestspec(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *JobCancelConfig) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *JobCancelConfig) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *JobCancelConfig) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Request != nil {
+		{
+			size, err := m.Request.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTestspec(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *JobSetCancelConfig) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *JobSetCancelConfig) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *JobSetCancelConfig) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.AssertInactiveSucceeds {
+		i--
+		if m.AssertInactiveSucceeds {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x10
+	}
+	if m.Request != nil {
+		{
+			size, err := m.Request.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintTestspec(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *JobReprioritizeConfig) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *JobReprioritizeConfig) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *JobReprioritizeConfig) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.ByJobSet {
+		i--
+		if m.ByJobSet {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x10
 	}
 	if m.Request != nil {
 		{
@@ -1310,9 +1656,6 @@ func (m *TestSpec) Size() (n int) {
 		l = m.Timeout.Size()
 		n += 1 + l + sovTestspec(uint64(l))
 	}
-	if m.Action != 0 {
-		n += 1 + sovTestspec(uint64(m.Action))
-	}
 	l = len(m.Name)
 	if l > 0 {
 		n += 1 + l + sovTestspec(uint64(l))
@@ -1331,16 +1674,6 @@ func (m *TestSpec) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovTestspec(uint64(l))
 	}
-	if m.NewPriority != 0 {
-		n += 9
-	}
-	l = len(m.PreemptReason)
-	if l > 0 {
-		n += 2 + l + sovTestspec(uint64(l))
-	}
-	if m.Selection != 0 {
-		n += 2 + sovTestspec(uint64(m.Selection))
-	}
 	if m.CancelOnNode != nil {
 		l = m.CancelOnNode.Size()
 		n += 2 + l + sovTestspec(uint64(l))
@@ -1353,8 +1686,24 @@ func (m *TestSpec) Size() (n int) {
 	if l > 0 {
 		n += 2 + l + sovTestspec(uint64(l))
 	}
+	if m.Cancel != nil {
+		l = m.Cancel.Size()
+		n += 2 + l + sovTestspec(uint64(l))
+	}
+	if m.Preempt != nil {
+		l = m.Preempt.Size()
+		n += 2 + l + sovTestspec(uint64(l))
+	}
+	if m.Reprioritize != nil {
+		l = m.Reprioritize.Size()
+		n += 2 + l + sovTestspec(uint64(l))
+	}
 	if m.QueueConfig != nil {
 		l = m.QueueConfig.Size()
+		n += 2 + l + sovTestspec(uint64(l))
+	}
+	if m.CancelJobSet != nil {
+		l = m.CancelJobSet.Size()
 		n += 2 + l + sovTestspec(uint64(l))
 	}
 	l = len(m.AuthContext)
@@ -1397,6 +1746,67 @@ func (m *NodePreemptConfig) Size() (n int) {
 	l = len(m.NodePoolTag)
 	if l > 0 {
 		n += 1 + l + sovTestspec(uint64(l))
+	}
+	return n
+}
+
+func (m *JobPreemptConfig) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Request != nil {
+		l = m.Request.Size()
+		n += 1 + l + sovTestspec(uint64(l))
+	}
+	if m.ByJobSet {
+		n += 2
+	}
+	return n
+}
+
+func (m *JobCancelConfig) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Request != nil {
+		l = m.Request.Size()
+		n += 1 + l + sovTestspec(uint64(l))
+	}
+	return n
+}
+
+func (m *JobSetCancelConfig) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Request != nil {
+		l = m.Request.Size()
+		n += 1 + l + sovTestspec(uint64(l))
+	}
+	if m.AssertInactiveSucceeds {
+		n += 2
+	}
+	return n
+}
+
+func (m *JobReprioritizeConfig) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Request != nil {
+		l = m.Request.Size()
+		n += 1 + l + sovTestspec(uint64(l))
+	}
+	if m.ByJobSet {
+		n += 2
 	}
 	return n
 }
@@ -1747,25 +2157,6 @@ func (m *TestSpec) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 9:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Action", wireType)
-			}
-			m.Action = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowTestspec
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Action |= TestSpec_ActionType(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
 		case 10:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
@@ -1902,68 +2293,6 @@ func (m *TestSpec) Unmarshal(dAtA []byte) error {
 			}
 			m.Target = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 15:
-			if wireType != 1 {
-				return fmt.Errorf("proto: wrong wireType = %d for field NewPriority", wireType)
-			}
-			var v uint64
-			if (iNdEx + 8) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
-			iNdEx += 8
-			m.NewPriority = float64(math.Float64frombits(v))
-		case 16:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field PreemptReason", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowTestspec
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthTestspec
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthTestspec
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.PreemptReason = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 17:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Selection", wireType)
-			}
-			m.Selection = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowTestspec
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Selection |= TestSpec_SelectionType(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
 		case 18:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field CancelOnNode", wireType)
@@ -2070,6 +2399,114 @@ func (m *TestSpec) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 21:
 			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Cancel", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Cancel == nil {
+				m.Cancel = &JobCancelConfig{}
+			}
+			if err := m.Cancel.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 23:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Preempt", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Preempt == nil {
+				m.Preempt = &JobPreemptConfig{}
+			}
+			if err := m.Preempt.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 24:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Reprioritize", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Reprioritize == nil {
+				m.Reprioritize = &JobReprioritizeConfig{}
+			}
+			if err := m.Reprioritize.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 25:
+			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field QueueConfig", wireType)
 			}
 			var msglen int
@@ -2104,7 +2541,43 @@ func (m *TestSpec) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 22:
+		case 26:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CancelJobSet", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.CancelJobSet == nil {
+				m.CancelJobSet = &JobSetCancelConfig{}
+			}
+			if err := m.CancelJobSet.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 27:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field AuthContext", wireType)
 			}
@@ -2136,7 +2609,7 @@ func (m *TestSpec) Unmarshal(dAtA []byte) error {
 			}
 			m.AuthContext = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 23:
+		case 28:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ExpectErrorCode", wireType)
 			}
@@ -2391,6 +2864,410 @@ func (m *NodePreemptConfig) Unmarshal(dAtA []byte) error {
 			}
 			m.NodePoolTag = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTestspec(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *JobPreemptConfig) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTestspec
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: JobPreemptConfig: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: JobPreemptConfig: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Request", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Request == nil {
+				m.Request = &JobPreemptRequest{}
+			}
+			if err := m.Request.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ByJobSet", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.ByJobSet = bool(v != 0)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTestspec(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *JobCancelConfig) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTestspec
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: JobCancelConfig: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: JobCancelConfig: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Request", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Request == nil {
+				m.Request = &JobCancelRequest{}
+			}
+			if err := m.Request.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTestspec(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *JobSetCancelConfig) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTestspec
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: JobSetCancelConfig: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: JobSetCancelConfig: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Request", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Request == nil {
+				m.Request = &JobSetCancelRequest{}
+			}
+			if err := m.Request.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AssertInactiveSucceeds", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.AssertInactiveSucceeds = bool(v != 0)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTestspec(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *JobReprioritizeConfig) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTestspec
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: JobReprioritizeConfig: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: JobReprioritizeConfig: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Request", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTestspec
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Request == nil {
+				m.Request = &JobReprioritizeRequest{}
+			}
+			if err := m.Request.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ByJobSet", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTestspec
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.ByJobSet = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTestspec(dAtA[iNdEx:])

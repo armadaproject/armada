@@ -20,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
@@ -43,13 +44,8 @@ func (d deadline) exceeded(now time.Time) bool {
 	return !time.Time(d).IsZero() && now.After(time.Time(d))
 }
 
-type executor struct {
-	id     string
-	nodeDb *nodedb.NodeDb
-}
-
 type schedulerState struct {
-	executorsByPoolAndId      map[string]map[string]*executor
+	nodeDbByPool              map[string]*nodedb.NodeDb
 	constraintsByPool         map[string]constraints.SchedulingConstraints
 	jobSchedulingResultsCache *lru.Cache
 }
@@ -148,48 +144,53 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 		srv.schedulingConfig.PriorityClasses,
 		srv.resourceListFactory)
 
-	executorsByPoolAndId := map[string]map[string]*executor{}
-	totalResourcesByPool := map[string]internaltypes.ResourceList{}
+	nodeDbByPool := map[string]*nodedb.NodeDb{}
+	constraintsByPool := map[string]constraints.SchedulingConstraints{}
+
+	allNodes := []*internaltypes.Node{}
 	for _, ex := range executors {
 		nodes := nodeFactory.FromSchedulerObjectsExecutors(
 			[]*schedulerobjects.Executor{ex},
 			func(s string) { ctx.Error(s) })
 		// Treat cordoned nodes as available.
 		nodes = nodeFactory.RemoveCordonTaint(nodes)
-		nodesByPool := armadaslices.GroupByFunc(nodes, func(n *internaltypes.Node) string {
-			return n.GetPool()
-		})
-		for pool, nodes := range nodesByPool {
+		allNodes = append(allNodes, nodes...)
+	}
 
-			nodeDb, err := srv.constructNodeDb(nodes)
+	nodesByPool := armadaslices.GroupByFunc(allNodes, func(n *internaltypes.Node) string {
+		return n.GetPool()
+	})
 
-			if _, present := executorsByPoolAndId[pool]; !present {
-				executorsByPoolAndId[pool] = map[string]*executor{}
-			}
+	for _, pool := range srv.schedulingConfig.Pools {
+		poolNodes := nodesByPool[pool.Name]
 
-			if err == nil {
-				totalResourcesByPool[pool] = totalResourcesByPool[pool].Add(nodeDb.TotalKubernetesResources())
-
-				executorsByPoolAndId[pool][ex.Id] = &executor{
-					id:     ex.Id,
-					nodeDb: nodeDb,
-				}
-			} else {
-				ctx.Logger().
-					WithStacktrace(err).
-					Warnf("Error constructing nodedb for executor: %s", ex.Id)
-			}
+		for _, awayPool := range pool.AwayPools {
+			poolNodes = append(poolNodes, nodesByPool[awayPool.Name]...)
 		}
-	}
 
-	for _, pool := range srv.floatingResourceTypes.AllPools() {
-		totalResourcesByPool[pool] = totalResourcesByPool[pool].Add(srv.floatingResourceTypes.GetTotalAvailableForPool(pool))
-	}
+		nodeDbConfig := scheduling.NodeDbIndexConfiguration{
+			IndexedResources:   srv.schedulingConfig.IndexedResources,
+			IndexedNodeLabels:  srv.schedulingConfig.IndexedNodeLabels,
+			IndexedTaints:      srv.schedulingConfig.IndexedTaints,
+			WellKnownNodeTypes: srv.schedulingConfig.WellKnownNodeTypes,
+		}
 
-	constraintsByPool := map[string]constraints.SchedulingConstraints{}
-	for pool, totalResources := range totalResourcesByPool {
-		constraintsByPool[pool] = constraints.NewSchedulingConstraints(
-			pool,
+		nodeDb, err := scheduling.ConstructNodeDb(nodeDbConfig, srv.resourceListFactory, srv.schedulingConfig.PriorityClasses, pool, nil, nil, poolNodes)
+		if err != nil {
+			return fmt.Errorf("failed constructing nodedb for pool %s - %s", pool.Name, err)
+		}
+
+		err = nodeDb.ClearAllocated()
+		if err != nil {
+			return fmt.Errorf("failed clearing nodedb for pool %s - %s", pool.Name, err)
+		}
+
+		nodeDbByPool[pool.Name] = nodeDb
+
+		totalResources := nodeDb.TotalKubernetesResources()
+		totalResources = totalResources.Add(srv.floatingResourceTypes.GetTotalAvailableForPool(pool.Name))
+		constraintsByPool[pool.Name] = constraints.NewSchedulingConstraints(
+			pool.Name,
 			totalResources,
 			srv.schedulingConfig,
 			queues,
@@ -197,7 +198,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 	}
 
 	srv.state.Store(&schedulerState{
-		executorsByPoolAndId:      executorsByPoolAndId,
+		nodeDbByPool:              nodeDbByPool,
 		constraintsByPool:         constraintsByPool,
 		jobSchedulingResultsCache: jobSchedulingResultsCache,
 	})
@@ -299,7 +300,6 @@ func (srv *SubmitChecker) getGangSchedulingResult(gangJobs []*jobdb.Job, state *
 
 // Check if a set of jobs can be scheduled onto some cluster.
 // TODO: there are a number of things this won't catch:
-//   - Node Uniformity Label (although it will work if this is per cluster)
 //   - Gang jobs that will use more than the allowed capacity limit
 func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSchedulingContext, state *schedulerState) schedulingResult {
 	successfulPools := map[string]bool{}
@@ -318,10 +318,11 @@ poolStart:
 			}
 		}
 
+		sb.WriteString(fmt.Sprintf("pool %s:\n", pool.Name))
+
 		if originalGangCtx.RequestsFloatingResources {
 			rr := originalGangCtx.TotalResourceRequests
 			if ok, reason := srv.floatingResourceTypes.WithinLimits(pool.Name, rr); !ok {
-				sb.WriteString(fmt.Sprintf("pool %s:\n", pool.Name))
 				sb.WriteString(fmt.Sprintf("job/gang requests floating resources %s but %s\n", rr.OfType(internaltypes.Floating).String(), reason))
 				sb.WriteString("\n---\n")
 				continue
@@ -332,114 +333,63 @@ poolStart:
 		if c != nil {
 			queueLimit := c.GetQueueResourceLimit(originalGangCtx.Queue, originalGangCtx.PriorityClassName())
 			if !queueLimit.IsEmpty() && originalGangCtx.TotalResourceRequests.Exceeds(queueLimit) {
-				sb.WriteString(fmt.Sprintf("pool %s:\n", pool.Name))
 				sb.WriteString(fmt.Sprintf("job/gang requests resources %s which exceeds the total limit of %s for its queue/priority class\n", originalGangCtx.TotalResourceRequests, queueLimit))
 				sb.WriteString("\n---\n")
 				continue
 			}
 		}
 
-		executors := maps.Values(state.executorsByPoolAndId[pool.Name])
-		for _, awayPool := range pool.AwayPools {
-			executors = append(executors, maps.Values(state.executorsByPoolAndId[awayPool.Name])...)
+		gctx := copyGangContext(originalGangCtx)
+		nodeDb := state.nodeDbByPool[pool.Name]
+
+		txn := nodeDb.Txn(true)
+		ok, _, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
+		txn.Abort()
+
+		if err != nil {
+			sb.WriteString(err.Error())
+			sb.WriteString("\n")
+			continue
 		}
 
-		for _, ex := range executors {
+		if ok {
+			if !gctx.JobSchedulingContexts[0].PodSchedulingContext.ScheduledAway || len(pool.AwayPools) > 0 {
+				for _, pool := range srv.getPoolsBySubmissionGroup(pool.GetSubmissionGroup()) {
+					successfulPools[pool] = true
+				}
+			}
+			continue
+		}
 
-			// copy the gctx here, as we are going to mutate it
-			gctx := copyGangContext(originalGangCtx)
+		numSuccessfullyScheduled := 0
+		for _, jctx := range gctx.JobSchedulingContexts {
+			if jctx.PodSchedulingContext.IsSuccessful() {
+				numSuccessfullyScheduled++
+			}
+		}
 
-			// TODO construct nodedb per synthetic pool to avoid needing to set this dynamically
-			ex.nodeDb.ConfigureScheduling(nodedb.SchedulingOptions{
-				DisableHomeScheduling:      pool.DisableHomeScheduling,
-				DisableAwayScheduling:      pool.DisableAwayScheduling,
-				DisableGangAwayScheduling:  pool.DisableGangAwayScheduling,
-				DisableFairshareScheduling: pool.DisableFairshareScheduling,
-				DisableUrgencyScheduling:   pool.DisableUrgencyScheduling,
-				DisallowedJobResources:     pool.ExperimentalUnscheduledResources,
-			})
-
-			txn := ex.nodeDb.Txn(true)
-			ok, _, err := ex.nodeDb.ScheduleManyWithTxn(txn, gctx)
-			txn.Abort()
-
-			sb.WriteString(ex.id)
-			if err != nil {
-				sb.WriteString(err.Error())
-				sb.WriteString("\n")
+		if len(gctx.JobSchedulingContexts) == 1 {
+			pctx := gctx.JobSchedulingContexts[0].PodSchedulingContext
+			if pctx == nil {
 				continue
 			}
-
-			if ok {
-				if !gctx.JobSchedulingContexts[0].PodSchedulingContext.ScheduledAway || len(pool.AwayPools) > 0 {
-					for _, pool := range srv.getPoolsBySubmissionGroup(pool.GetSubmissionGroup()) {
-						successfulPools[pool] = true
-					}
-				}
-				continue
-			}
-
-			numSuccessfullyScheduled := 0
-			for _, jctx := range gctx.JobSchedulingContexts {
-				if jctx.PodSchedulingContext.IsSuccessful() {
-					numSuccessfullyScheduled++
-				}
-			}
-
-			if len(gctx.JobSchedulingContexts) == 1 {
-				sb.WriteString(":\n")
-				pctx := gctx.JobSchedulingContexts[0].PodSchedulingContext
-				if pctx == nil {
-					continue
-				}
-				sb.WriteString(pctx.String())
-				sb.WriteString("\n")
-				sb.WriteString("---")
-				sb.WriteString("\n")
-			} else {
-				sb.WriteString(
-					fmt.Sprintf(
-						": %d out of %d pods schedulable\n",
-						numSuccessfullyScheduled, len(gctx.JobSchedulingContexts),
-					),
-				)
-			}
+			sb.WriteString(pctx.String())
+			sb.WriteString("\n")
+			sb.WriteString("---")
+			sb.WriteString("\n")
+		} else {
+			sb.WriteString(
+				fmt.Sprintf(
+					": %d out of %d pods schedulable\n",
+					numSuccessfullyScheduled, len(gctx.JobSchedulingContexts),
+				),
+			)
 		}
 	}
 	if len(successfulPools) > 0 {
 		return schedulingResult{isSchedulable: true, pools: maps.Keys(successfulPools)}
 	}
 	return schedulingResult{isSchedulable: false, reason: sb.String()}
-}
-
-func (srv *SubmitChecker) constructNodeDb(nodes []*internaltypes.Node) (*nodedb.NodeDb, error) {
-	nodeDb, err := nodedb.NewNodeDb(
-		srv.schedulingConfig.PriorityClasses,
-		srv.schedulingConfig.IndexedResources,
-		srv.schedulingConfig.IndexedTaints,
-		srv.schedulingConfig.IndexedNodeLabels,
-		srv.schedulingConfig.WellKnownNodeTypes,
-		srv.resourceListFactory,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	txn := nodeDb.Txn(true)
-	defer txn.Abort()
-	for _, node := range nodes {
-		if err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
-			return nil, err
-		}
-	}
-	txn.Commit()
-
-	err = nodeDb.ClearAllocated()
-	if err != nil {
-		return nil, err
-	}
-
-	return nodeDb, nil
 }
 
 func copyGangContext(gctx *context.GangSchedulingContext) *context.GangSchedulingContext {

@@ -27,7 +27,7 @@ expectedEvents:
   - submitted:
   - running:
 queueConfig:
-  setup: {}
+  setup:
   assertions:
     - activeInPool: "default"
     - deleted: true

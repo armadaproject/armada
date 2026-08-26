@@ -91,7 +91,7 @@ message EventSequence {
             JobPreemptionRequested jobPreemptionRequested = 23;
             JobRunCancelled jobRunCancelled = 24;
             JobValidated jobValidated = 25;
-            JobCancelledDebugInfo jobCancelledDebugInfo = 26;
+            JobRunTerminatedDebugInfo jobRunTerminatedDebugInfo = 26;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -235,6 +235,7 @@ message ReprioritisedJob {
     reserved 1;
     uint32 priority = 2;
     string job_id = 3;
+    string requestor = 4;
 }
 
 // A request to cancel a particular job.
@@ -244,6 +245,7 @@ message CancelJob {
     reserved 1;
     string reason = 2;
     string job_id = 3;
+    string requestor = 4;
 }
 
 
@@ -272,7 +274,7 @@ message CancelledJob {
     reserved 1;
     string reason = 2;
     string job_id = 3;
-    string cancel_user = 4;
+    string requestor = 4;
 }
 
 message JobSucceeded {
@@ -445,6 +447,9 @@ message Error {
     string failure_category = 16;
     // Optional tag from the matching classifier rule for drill-down.
     string failure_subcategory = 17;
+    // Name of the retry policy that decided this run's retry or terminal
+    // failure. Empty when no retry policy applied.
+    string retry_policy_name = 18;
 }
 
 // Represents an error associated with a particular Kubernetes resource.
@@ -547,6 +552,7 @@ message JobRunPreempted{
     string preempted_run_id = 6;
     string reason = 7;
     string preempting_job_id = 8;
+    string requestor = 9;
 }
 
 // Message used internally by Armada to see if messages can be propagated through a pulsar partition
@@ -590,11 +596,13 @@ message JobRunCancelled {
     string requestor = 6;
 }
 
-// Emitted by the executor when a job run is cancelled before its main container ever started,
-// carrying the rendered Kubernetes pod events so the reason the workload never ran is not lost.
+// Emitted by the executor when a job run is torn down without the workload having run to
+// completion - cancelled before its main container ever started, or stuck terminating. debugMessage
+// is a JSON document describing the pod, its node and their recent Kubernetes events, carrying a
+// schemaVersion and the trigger that produced it, so the reason is not lost.
 // This is purely diagnostic: it does NOT represent an error and does NOT change the run's state.
 // Only Lookout consumes it, to populate the run's debug column; all other consumers ignore it.
-message JobCancelledDebugInfo {
+message JobRunTerminatedDebugInfo {
     string job_id = 1;
     string run_id = 2;
     string debugMessage = 3;

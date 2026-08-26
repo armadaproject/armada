@@ -37,6 +37,7 @@ type PreemptingQueueScheduler struct {
 	protectedFractionOfFairShare     float64
 	maxQueueLookBack                 uint
 	preferLargeJobOrdering           bool
+	preemptCrossPoolJobsFirst        bool
 	protectUncappedAdjustedFairShare bool
 	jobRepo                          jobdb.JobRepository
 	nodeDb                           *nodedb.NodeDb
@@ -66,6 +67,7 @@ func NewPreemptingQueueScheduler(
 		floatingResourceTypes:            floatingResourceTypes,
 		protectedFractionOfFairShare:     config.GetProtectedFractionOfFairShare(sctx.Pool),
 		preferLargeJobOrdering:           config.EnablePreferLargeJobOrdering,
+		preemptCrossPoolJobsFirst:        config.GetPreemptCrossPoolJobsFirst(sctx.Pool),
 		protectUncappedAdjustedFairShare: config.GetProtectUncappedAdjustedFairShare(sctx.Pool),
 		maxQueueLookBack:                 config.MaxQueueLookback,
 		jobRepo:                          jobRepo,
@@ -149,7 +151,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		inMemoryJobRepo,
 		sch.jobRepo,
 		false,
-		true,
+		false,
 	)
 	if err != nil {
 		return nil, err
@@ -253,9 +255,11 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	preemptedJobs := maps.Values(preemptedJobsById)
 	scheduledJobs := maps.Values(scheduledJobsById)
 	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Unbinding %d preempted and %d evicted jobs", len(preemptedJobs), len(maps.Values(scheduledAndEvictedJobsById)))
-	if err := sch.unbindJobs(append(
-		slices.Clone(preemptedJobs),
-		maps.Values(scheduledAndEvictedJobsById)...),
+	if err := sch.unbindJobs(
+		append(
+			slices.Clone(preemptedJobs),
+			maps.Values(scheduledAndEvictedJobsById)...,
+		),
 	); err != nil {
 		return nil, err
 	}
@@ -481,7 +485,8 @@ func (sch *PreemptingQueueScheduler) setEvictedGangCardinality(evictorResult *Ev
 func (sch *PreemptingQueueScheduler) evictionAssertions(evictorResult *EvictorResult) error {
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		if internaltypes.RlMapHasNegativeValues(qctx.AllocatedByPriorityClass) {
-			return errors.Errorf("negative allocation for queue %s after eviction: %s",
+			return errors.Errorf(
+				"negative allocation for queue %s after eviction: %s",
 				qctx.Queue,
 				internaltypes.RlMapToString(qctx.AllocatedByPriorityClass),
 			)
@@ -596,12 +601,12 @@ func (sch *PreemptingQueueScheduler) addEvictedJobsToNodeDb(_ *armadacontext.Con
 	var candidateGangIterator CandidateGangIterator
 	var err error
 	if sch.marketDriven {
-		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, qr, gangItByQueue)
+		candidateGangIterator, err = NewMarketCandidateGangIterator(sctx.Pool, qr, gangItByQueue, sch.preemptCrossPoolJobsFirst)
 		if err != nil {
 			return err
 		}
 	} else {
-		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, qr, sctx.FairnessCostProvider, gangItByQueue, true, sch.preferLargeJobOrdering)
+		candidateGangIterator, err = NewCostBasedCandidateGangIterator(sctx.Pool, qr, sctx.FairnessCostProvider, gangItByQueue, false, sch.preferLargeJobOrdering, sch.preemptCrossPoolJobsFirst)
 		if err != nil {
 			return err
 		}
@@ -640,7 +645,8 @@ func (sch *PreemptingQueueScheduler) runPricer(ctx *armadacontext.Context) (Indi
 		sch.jobRepo,
 		gangScheduler,
 		sch.constraints,
-		sch.floatingResourceTypes)
+		sch.floatingResourceTypes,
+	)
 	sch.schedulingContext.ClearUnfeasibleSchedulingKeys()
 
 	timeoutContext, cancel := armadacontext.WithTimeout(ctx, sch.marketConfig.GangIndicativePricingTimeout)
@@ -681,7 +687,8 @@ func (sch *PreemptingQueueScheduler) runOptimiser(ctx *armadacontext.Context) (*
 		sch.preferLargeJobOrdering,
 		minimumJobSizeToSchedule,
 		sch.optimiserConfig.MaximumJobsPerRound,
-		sch.optimiserConfig.MaximumResourceFractionToSchedule)
+		sch.optimiserConfig.MaximumResourceFractionToSchedule,
+	)
 	sch.schedulingContext.ClearUnfeasibleSchedulingKeys()
 
 	timeoutContext, cancel := armadacontext.WithTimeout(ctx, sch.optimiserConfig.Timeout)
@@ -707,7 +714,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 	inMemoryJobRepo *InMemoryJobRepository,
 	jobRepo jobdb.JobRepository,
 	skipUnsuccessfulSchedulingKeyCheck bool,
-	considerPriorityCLassPriority bool,
+	compareSchedulingPriority bool,
 ) (*SchedulingResult, error) {
 	sortOrder := jobdb.FairShareOrder
 	if sch.marketDriven {
@@ -743,8 +750,9 @@ func (sch *PreemptingQueueScheduler) schedule(
 		sch.nodeDb,
 		jobIteratorByQueue,
 		skipUnsuccessfulSchedulingKeyCheck,
-		considerPriorityCLassPriority,
+		compareSchedulingPriority,
 		sch.preferLargeJobOrdering,
+		sch.preemptCrossPoolJobsFirst,
 		sch.maxQueueLookBack,
 		sch.marketDriven,
 		spotPriceCutoff,

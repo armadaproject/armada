@@ -28,6 +28,8 @@ const (
 	unschedulableReasonLabel = "unschedulable_reason"
 	outcomeLabel             = "outcome"
 	terminationReasonLabel   = "termination_reason"
+	retryPolicyLabel         = "policy"
+	retryDecisionLabel       = "decision"
 
 	SchedulingOutcomeSuccess = "success"
 	SchedulingOutcomeFailure = "failure"

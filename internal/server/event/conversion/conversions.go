@@ -51,11 +51,11 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, es.JobSetName, eventTs, esEvent.StandaloneIngressInfo)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
-			convertedEvents, err = FromInternalJobRunPreempted(es.Queue, es.JobSetName, eventTs, esEvent.JobRunPreempted)
+			convertedEvents, err = FromInternalJobRunPreempted(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.JobRunPreempted)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_JobRunPreemptionRequested,
 			*armadaevents.EventSequence_Event_JobRunCancelled,
-			*armadaevents.EventSequence_Event_JobCancelledDebugInfo,
+			*armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_JobRunSucceeded,
 			*armadaevents.EventSequence_Event_JobRequeued,
@@ -129,6 +129,10 @@ func FromInternalPreemptionRequested(userId string, queueName string, jobSetName
 }
 
 func FromInternalCancel(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.CancelJob) ([]*api.EventMessage, error) {
+	requestor := userId
+	if e.Requestor != "" {
+		requestor = e.Requestor
+	}
 	return []*api.EventMessage{
 		{
 			Events: &api.EventMessage_Cancelling{
@@ -137,7 +141,7 @@ func FromInternalCancel(userId string, queueName string, jobSetName string, time
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
-					Requestor: userId,
+					Requestor: requestor,
 				},
 			},
 		},
@@ -145,6 +149,10 @@ func FromInternalCancel(userId string, queueName string, jobSetName string, time
 }
 
 func FromInternalCancelled(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.CancelledJob) ([]*api.EventMessage, error) {
+	requestor := userId
+	if e.Requestor != "" {
+		requestor = e.Requestor
+	}
 	return []*api.EventMessage{
 		{
 			Events: &api.EventMessage_Cancelled{
@@ -153,7 +161,7 @@ func FromInternalCancelled(userId string, queueName string, jobSetName string, t
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
-					Requestor: userId,
+					Requestor: requestor,
 				},
 			},
 		},
@@ -178,6 +186,10 @@ func FromInternalReprioritiseJob(userId string, queueName string, jobSetName str
 }
 
 func FromInternalReprioritisedJob(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.ReprioritisedJob) ([]*api.EventMessage, error) {
+	requestor := userId
+	if e.Requestor != "" {
+		requestor = e.Requestor
+	}
 	return []*api.EventMessage{
 		{
 			Events: &api.EventMessage_Reprioritized{
@@ -187,7 +199,7 @@ func FromInternalReprioritisedJob(userId string, queueName string, jobSetName st
 					Queue:       queueName,
 					Created:     protoutil.ToTimestamp(time),
 					NewPriority: float64(e.Priority),
-					Requestor:   userId,
+					Requestor:   requestor,
 				},
 			},
 		},
@@ -282,100 +294,41 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, e *armadaevents.JobErrors) ([]*api.EventMessage, error) {
 	events := make([]*api.EventMessage, 0)
 	for _, msgErr := range e.GetErrors() {
-		if !msgErr.Terminal {
-			continue
-		}
+		var failed *api.JobFailedEvent
 		switch reason := msgErr.Reason.(type) {
 		case *armadaevents.Error_PodError:
-			failed := makeJobFailed(e.JobId, queueName, jobSetName, time, reason)
-			failed.FailureCategory = msgErr.GetFailureCategory()
-			failed.FailureSubcategory = msgErr.GetFailureSubcategory()
-			event := &api.EventMessage{
-				Events: &api.EventMessage_Failed{
-					Failed: failed,
-				},
-			}
-			events = append(events, event)
+			failed = makeJobFailed(e.JobId, queueName, jobSetName, time, reason)
 		case *armadaevents.Error_JobRunPreemptedError:
-			event := &api.EventMessage{
-				Events: &api.EventMessage_Failed{
-					Failed: &api.JobFailedEvent{
-						JobId:    e.JobId,
-						JobSetId: jobSetName,
-						Queue:    queueName,
-						Created:  protoutil.ToTimestamp(time),
-						Reason:   reason.JobRunPreemptedError.Reason,
-					},
-				},
-			}
-			events = append(events, event)
+			failed = newJobFailed(e.JobId, queueName, jobSetName, time, reason.JobRunPreemptedError.Reason)
+		case *armadaevents.Error_LeaseExpired:
+			// Every terminal lease expiry reaches here, with or without the
+			// retry policy feature. Without this case it would fall to default
+			// and emit a JobFailedEvent with an empty Reason.
+			failed = newJobFailed(e.JobId, queueName, jobSetName, time, "Lease expired")
 		case *armadaevents.Error_MaxRunsExceeded:
-			event := &api.EventMessage{
-				Events: &api.EventMessage_Failed{
-					Failed: &api.JobFailedEvent{
-						JobId:    e.JobId,
-						JobSetId: jobSetName,
-						Queue:    queueName,
-						Created:  protoutil.ToTimestamp(time),
-						Reason:   reason.MaxRunsExceeded.Message,
-					},
-				},
-			}
-			events = append(events, event)
+			failed = newJobFailed(e.JobId, queueName, jobSetName, time, reason.MaxRunsExceeded.Message)
 		case *armadaevents.Error_GangJobUnschedulable:
-			event := &api.EventMessage{
-				Events: &api.EventMessage_Failed{
-					Failed: &api.JobFailedEvent{
-						JobId:    e.JobId,
-						JobSetId: jobSetName,
-						Queue:    queueName,
-						Created:  protoutil.ToTimestamp(time),
-						Reason:   reason.GangJobUnschedulable.Message,
-					},
-				},
-			}
-			events = append(events, event)
+			failed = newJobFailed(e.JobId, queueName, jobSetName, time, reason.GangJobUnschedulable.Message)
 		case *armadaevents.Error_JobRejected:
-			event := &api.EventMessage{
-				Events: &api.EventMessage_Failed{
-					Failed: &api.JobFailedEvent{
-						JobId:    e.JobId,
-						JobSetId: jobSetName,
-						Queue:    queueName,
-						Created:  protoutil.ToTimestamp(time),
-						Reason:   reason.JobRejected.Message,
-						Cause:    api.Cause_Rejected,
-					},
-				},
-			}
-			events = append(events, event)
+			failed = newJobFailed(e.JobId, queueName, jobSetName, time, reason.JobRejected.Message)
+			failed.Cause = api.Cause_Rejected
 		case *armadaevents.Error_ReconciliationError:
-			event := &api.EventMessage{
-				Events: &api.EventMessage_Failed{
-					Failed: &api.JobFailedEvent{
-						JobId:    e.JobId,
-						JobSetId: jobSetName,
-						Queue:    queueName,
-						Created:  protoutil.ToTimestamp(time),
-						Reason:   reason.ReconciliationError.Message,
-					},
-				},
-			}
-			events = append(events, event)
+			failed = newJobFailed(e.JobId, queueName, jobSetName, time, reason.ReconciliationError.Message)
 		default:
 			log.Warnf("unknown error %T for job %s", reason, e.JobId)
-			event := &api.EventMessage{
-				Events: &api.EventMessage_Failed{
-					Failed: &api.JobFailedEvent{
-						JobId:    e.JobId,
-						JobSetId: jobSetName,
-						Queue:    queueName,
-						Created:  protoutil.ToTimestamp(time),
-					},
-				},
-			}
-			events = append(events, event)
+			failed = newJobFailed(e.JobId, queueName, jobSetName, time, "")
 		}
+		// Carry the failure category so a policy-terminated job's terminal
+		// event matches the category on its intermediate failure events.
+		failed.FailureCategory = msgErr.GetFailureCategory()
+		failed.FailureSubcategory = msgErr.GetFailureSubcategory()
+		// Terminal=false means the scheduler will spin up another run for this
+		// job. Only the retry-policy engine emits that flavour. Every other
+		// emitter keeps Terminal=true.
+		failed.Retryable = !msgErr.Terminal
+		events = append(events, &api.EventMessage{
+			Events: &api.EventMessage_Failed{Failed: failed},
+		})
 	}
 	return events, nil
 }
@@ -434,10 +387,15 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 	}, nil
 }
 
-func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunPreempted) ([]*api.EventMessage, error) {
+func FromInternalJobRunPreempted(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunPreempted) ([]*api.EventMessage, error) {
 	if e == nil {
 		// We only support PodPreempted right now
 		return nil, nil
+	}
+
+	requestor := userId
+	if e.Requestor != "" {
+		requestor = e.Requestor
 	}
 
 	apiEvent := &api.JobPreemptedEvent{
@@ -448,6 +406,7 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 		RunId:           e.PreemptedRunId,
 		Reason:          e.Reason,
 		PreemptingJobId: e.PreemptingJobId,
+		Requestor:       requestor,
 	}
 
 	return []*api.EventMessage{
@@ -507,6 +466,18 @@ func FromInternalStandaloneIngressInfo(queueName string, jobSetName string, time
 			},
 		},
 	}, nil
+}
+
+// newJobFailed builds a JobFailedEvent with the common identity fields and a
+// reason. Callers set failure category, retryability, and any cause afterwards.
+func newJobFailed(jobId string, queueName string, jobSetName string, time time.Time, reason string) *api.JobFailedEvent {
+	return &api.JobFailedEvent{
+		JobId:    jobId,
+		JobSetId: jobSetName,
+		Queue:    queueName,
+		Created:  protoutil.ToTimestamp(time),
+		Reason:   reason,
+	}
 }
 
 func makeJobFailed(jobId string, queueName string, jobSetName string, time time.Time, podErrorEvent *armadaevents.Error_PodError) *api.JobFailedEvent {

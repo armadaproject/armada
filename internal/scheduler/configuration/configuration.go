@@ -293,6 +293,8 @@ type SchedulingConfig struct {
 	MaximumPerQueueSchedulingBurst int `validate:"gt=0"`
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
+	// RetryPolicy controls the policy-based retry engine (disabled by default).
+	RetryPolicy RetryPolicyConfig
 	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness costs.
 	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
 	DominantResourceFairnessResourcesToConsider []string
@@ -347,6 +349,25 @@ type SchedulingConfig struct {
 	ExperimentalIndicativeShare ExperimentalIndicativeShare
 }
 
+// RetryPolicyConfig controls the scheduler's retry policy behavior.
+type RetryPolicyConfig struct {
+	// Enabled controls whether the retry policy engine is active.
+	Enabled bool
+	// GlobalMaxRetries is the scheduler-wide cap on genuine-failure retries per
+	// job, on top of every policy. It counts retries, not runs: the initial
+	// failure consumes no budget, only subsequent retries do. Preempted and
+	// lease-returned runs are never charged. A value of 0 is the kill switch:
+	// no job is ever retried by the policy engine. There is no unlimited
+	// setting for the global cap.
+	GlobalMaxRetries uint
+	// DefaultPolicyName is the retry policy applied to jobs whose queue has no
+	// policy of its own. It lets an operator turn on retry policies fleet-wide
+	// with a single named policy before per-queue attachment is configured.
+	// Optional: when empty, only queues with an attached policy get engine
+	// decisions and every other queue keeps the existing behaviour.
+	DefaultPolicyName string
+}
+
 const (
 	DuplicateWellKnownNodeTypeErrorMessage              = "duplicate well-known node type name"
 	AwayNodeTypesWithoutPreemptionErrorMessage          = "priority class has away node types but is not preemptible"
@@ -354,6 +375,7 @@ const (
 	WildCardWellKnownNodeTypeValue                      = "*"
 	InvalidAwayNodeTypeConditionOperatorErrorMessage    = "away node type condition has invalid operator; must be one of >, <, =="
 	PreemptionRateLimitWithMarketSchedulingErrorMessage = "preemption rate limit is not supported with market scheduling enabled on the same pool"
+	NodeIdLabelNotIndexedErrorMessage                   = "nodeIdLabel must be in indexedNodeLabels when the retry policy engine is enabled, so avoidSameNode retries can match nodes efficiently"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
@@ -407,6 +429,23 @@ type PoolConfig struct {
 	DisableFairshareScheduling       bool
 	DisableUrgencyScheduling         bool
 	FairsharePreemptionRateLimit     *RateLimit
+	// Default (false) - This will cause cross-pool jobs to always be preempted before home-pool jobs,
+	//  regardless of scheduled priority of the jobs
+	// Set to true to fall back to the legacy behaviour
+	//  where preemption ordering is determined purely by scheduled-at priority.
+	DisablePreemptCrossPoolJobsFirst bool
+	JobDefaults                      *JobDefaults
+}
+
+func (p PoolConfig) GetDefaultJobTolerations() []v1.Toleration {
+	if p.JobDefaults == nil || p.JobDefaults.Tolerations == nil {
+		return nil
+	}
+	return p.JobDefaults.Tolerations
+}
+
+type JobDefaults struct {
+	Tolerations []v1.Toleration
 }
 
 // RateLimit The rate at which an action can happen using a token bucket approach
@@ -417,11 +456,24 @@ type RateLimit struct {
 	MaximumBurst int `validate:"gte=0"`
 }
 
+func (p PoolConfig) ShouldPreemptCrossPoolJobsFirst() bool {
+	return !p.DisablePreemptCrossPoolJobsFirst
+}
+
 func (p PoolConfig) GetSubmissionGroup() string {
 	if p.ExperimentalSubmissionGroup == "" {
 		return p.Name
 	}
 	return p.ExperimentalSubmissionGroup
+}
+
+// UnmarshalConfigString allows an away pool to be specified in config as a plain
+// string (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
+// This preserves backwards compatibility with the deprecated []string form.
+// It opts AwayPoolConfig in to commonconfig.StringConfigUnmarshalerHook during config decode.
+func (a *AwayPoolConfig) UnmarshalConfigString(text string) error {
+	a.Name = text
+	return nil
 }
 
 // AwayPoolNames returns the names of the away pools configured for this pool.
@@ -436,15 +488,6 @@ func (p PoolConfig) AwayPoolNames() []string {
 type AwayPoolConfig struct {
 	// Name of the away pool.
 	Name string `validate:"required"`
-}
-
-// UnmarshalConfigString allows an away pool to be specified in config as a plain
-// string (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
-// This preserves backwards compatibility with the deprecated []string form.
-// It opts AwayPoolConfig in to commonconfig.StringConfigUnmarshalerHook during config decode.
-func (a *AwayPoolConfig) UnmarshalConfigString(text string) error {
-	a.Name = text
-	return nil
 }
 
 type MarketSchedulingConfig struct {
@@ -509,6 +552,16 @@ func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string)
 		}
 	}
 	return false
+}
+
+func (sc *SchedulingConfig) GetPreemptCrossPoolJobsFirst(poolName string) bool {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return !poolConfig.DisablePreemptCrossPoolJobsFirst
+		}
+	}
+	// Default (including unknown pools): cross-pool preemption ordering is on.
+	return true
 }
 
 func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig {

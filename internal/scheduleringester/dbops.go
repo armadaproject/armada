@@ -13,8 +13,9 @@ import (
 type Operation int
 
 const (
-	JobSetOperation       Operation = iota
-	ControlPlaneOperation Operation = iota
+	// JobDataImpactingOperation are any operations that touch tables containing job data
+	JobDataImpactingOperation      Operation = iota
+	ExecutorDataImpactingOperation Operation = iota
 )
 
 // DbOperationsWithMessageIds bundles a sequence of schedulerdb ops with the ids of all Pulsar
@@ -86,11 +87,17 @@ type ExecutorSettingsDelete struct {
 	ExecutorID string
 }
 
+type ExecutorDelete struct {
+	ExecutorID string
+	Requestor  string
+}
+
 type PreemptOnExecutor struct {
 	Name            string
 	Queues          []string
 	PriorityClasses []string
 	Pools           []string
+	Requestor       string
 }
 
 type PreemptOnNode struct {
@@ -98,6 +105,7 @@ type PreemptOnNode struct {
 	Executor        string
 	Queues          []string
 	PriorityClasses []string
+	Requestor       string
 }
 
 type CancelOnNode struct {
@@ -105,6 +113,7 @@ type CancelOnNode struct {
 	Executor        string
 	Queues          []string
 	PriorityClasses []string
+	Requestor       string
 }
 
 type CancelOnExecutor struct {
@@ -112,12 +121,14 @@ type CancelOnExecutor struct {
 	Queues          []string
 	PriorityClasses []string
 	Pools           []string
+	Requestor       string
 }
 
 type PreemptOnQueue struct {
 	Name            string
 	PriorityClasses []string
 	Pools           []string
+	Requestor       string
 }
 
 type CancelOnQueue struct {
@@ -125,6 +136,7 @@ type CancelOnQueue struct {
 	PriorityClasses []string
 	JobStates       []controlplaneevents.ActiveJobState
 	Pools           []string
+	Requestor       string
 }
 
 // DbOperation captures a generic batch database operation.
@@ -195,9 +207,12 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 }
 
 type (
-	InsertJobs                 map[string]*JobInsertion
-	InsertRuns                 map[string]*JobRunDetails
-	UpdateJobSetPriorities     map[JobSetKey]int64
+	InsertJobs             map[string]*JobInsertion
+	InsertRuns             map[string]*JobRunDetails
+	UpdateJobSetPriorities struct {
+		jobSets   map[JobSetKey]int64
+		Requestor string
+	}
 	MarkJobSetsCancelRequested struct {
 		cancelUser   string
 		cancelReason string
@@ -215,14 +230,18 @@ type (
 	UpdateJobQueuedState           map[string]*JobQueuedStateUpdate
 	MarkRunsSucceeded              map[string]time.Time
 	MarkRunsFailed                 map[string]*JobRunFailed
-	MarkRunsForJobPreemptRequested map[JobSetKey]map[string]string
-	MarkRunsRunning                map[string]time.Time
-	MarkRunsPending                map[string]time.Time
-	MarkRunsPreempted              map[string]time.Time
-	InsertJobRunErrors             map[string]*schedulerdb.JobRunError
-	UpdateJobPriorities            struct {
-		key    JobReprioritiseKey
-		jobIds []string
+	MarkRunsForJobPreemptRequested struct {
+		preemptUser string
+		jobSets     map[JobSetKey]map[string]string
+	}
+	MarkRunsRunning     map[string]time.Time
+	MarkRunsPending     map[string]time.Time
+	MarkRunsPreempted   map[string]time.Time
+	InsertJobRunErrors  map[string]*schedulerdb.JobRunError
+	UpdateJobPriorities struct {
+		key       JobReprioritiseKey
+		jobIds    []string
+		Requestor string
 	}
 	MarkJobsValidated     map[string][]string
 	InsertPartitionMarker struct {
@@ -231,6 +250,7 @@ type (
 
 	UpsertExecutorSettings map[string]*ExecutorSettingsUpsert
 	DeleteExecutorSettings map[string]*ExecutorSettingsDelete
+	DeleteExecutor         map[string]*ExecutorDelete
 	PreemptExecutor        map[string]*PreemptOnExecutor
 	CancelExecutor         map[string]*CancelOnExecutor
 	PreemptNode            map[NodeOnExecutor]*PreemptOnNode
@@ -249,7 +269,7 @@ type jobSetOperation interface {
 }
 
 func (a UpdateJobSetPriorities) AffectsJobSet(queue string, jobSet string) bool {
-	_, ok := a[JobSetKey{queue: queue, jobSet: jobSet}]
+	_, ok := a.jobSets[JobSetKey{queue: queue, jobSet: jobSet}]
 	return ok
 }
 
@@ -267,7 +287,15 @@ func (a InsertRuns) Merge(b DbOperation) bool {
 }
 
 func (a UpdateJobSetPriorities) Merge(b DbOperation) bool {
-	return mergeInMap(a, b)
+	switch op := b.(type) {
+	case UpdateJobSetPriorities:
+		if a.Requestor != op.Requestor {
+			return false
+		}
+		maps.Copy(a.jobSets, op.jobSets)
+		return true
+	}
+	return false
 }
 
 func (a MarkJobSetsCancelRequested) Merge(b DbOperation) bool {
@@ -303,14 +331,16 @@ func (a MarkJobsCancelRequested) Merge(b DbOperation) bool {
 func (a MarkRunsForJobPreemptRequested) Merge(b DbOperation) bool {
 	switch op := b.(type) {
 	case MarkRunsForJobPreemptRequested:
-		for k, v := range op {
-			if _, present := a[k]; present {
-				// merge the inner maps
+		if a.preemptUser != op.preemptUser {
+			return false
+		}
+		for k, v := range op.jobSets {
+			if _, present := a.jobSets[k]; present {
 				for jobId, reason := range v {
-					a[k][jobId] = reason
+					a.jobSets[k][jobId] = reason
 				}
 			} else {
-				a[k] = v
+				a.jobSets[k] = v
 			}
 		}
 		return true
@@ -369,7 +399,7 @@ func (a MarkJobsFailed) Merge(b DbOperation) bool {
 func (a *UpdateJobPriorities) Merge(b DbOperation) bool {
 	switch op := b.(type) {
 	case *UpdateJobPriorities:
-		if a.key == op.key {
+		if a.key == op.key && a.Requestor == op.Requestor {
 			a.jobIds = append(a.jobIds, op.jobIds...)
 			return true
 		}
@@ -419,6 +449,10 @@ func (a UpsertExecutorSettings) Merge(_ DbOperation) bool {
 }
 
 func (a DeleteExecutorSettings) Merge(_ DbOperation) bool {
+	return false
+}
+
+func (a DeleteExecutor) Merge(_ DbOperation) bool {
 	return false
 }
 
@@ -496,7 +530,8 @@ func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
 
 func (a UpdateJobSetPriorities) CanBeAppliedBefore(b DbOperation) bool {
 	_, isUpdateJobPriorities := b.(*UpdateJobPriorities)
-	return !isUpdateJobPriorities && !definesJobInSet(a, b)
+	_, isUpdateJobSetPriorities := b.(UpdateJobSetPriorities)
+	return !isUpdateJobPriorities && !isUpdateJobSetPriorities && !definesJobInSet(a.jobSets, b)
 }
 
 func (a MarkJobSetsCancelRequested) CanBeAppliedBefore(b DbOperation) bool {
@@ -508,7 +543,7 @@ func (a MarkJobsCancelRequested) CanBeAppliedBefore(b DbOperation) bool {
 }
 
 func (a MarkRunsForJobPreemptRequested) CanBeAppliedBefore(b DbOperation) bool {
-	return !definesJobInSet(a, b) && !definesRunInSet(a, b)
+	return !definesJobInSet(a.jobSets, b) && !definesRunInSet(a.jobSets, b)
 }
 
 func (a MarkJobsSucceeded) CanBeAppliedBefore(b DbOperation) bool {
@@ -589,6 +624,18 @@ func (a UpsertExecutorSettings) CanBeAppliedBefore(b DbOperation) bool {
 
 // Can be applied before another operation only if it relates to a different executor
 func (a DeleteExecutorSettings) CanBeAppliedBefore(b DbOperation) bool {
+	switch op := b.(type) {
+	case executorOperation:
+		for executor := range a {
+			if affectsExecutor := op.affectsExecutor(executor); affectsExecutor {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (a DeleteExecutor) CanBeAppliedBefore(b DbOperation) bool {
 	switch op := b.(type) {
 	case executorOperation:
 		for executor := range a {
@@ -725,115 +772,119 @@ func definesRun[M ~map[string]V, V any](a M, b DbOperation) bool {
 }
 
 func (a InsertJobs) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a InsertRuns) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a UpdateJobSetPriorities) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkJobSetsCancelRequested) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkJobsCancelRequested) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkRunsForJobPreemptRequested) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a UpdateJobSchedulingInfo) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a UpdateJobQueuedState) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkJobsCancelled) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkJobsSucceeded) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkJobsFailed) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a *UpdateJobPriorities) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkRunsSucceeded) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkRunsFailed) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkRunsRunning) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkRunsPending) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkRunsPreempted) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a InsertJobRunErrors) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a MarkJobsValidated) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a *InsertPartitionMarker) GetOperation() Operation {
-	return JobSetOperation
+	return JobDataImpactingOperation
 }
 
 func (a UpsertExecutorSettings) GetOperation() Operation {
-	return ControlPlaneOperation
+	return ExecutorDataImpactingOperation
 }
 
 func (a DeleteExecutorSettings) GetOperation() Operation {
-	return ControlPlaneOperation
+	return ExecutorDataImpactingOperation
+}
+
+func (a DeleteExecutor) GetOperation() Operation {
+	return ExecutorDataImpactingOperation
 }
 
 func (pe PreemptExecutor) GetOperation() Operation {
-	return ControlPlaneOperation
+	return JobDataImpactingOperation
 }
 
 func (ce CancelExecutor) GetOperation() Operation {
-	return ControlPlaneOperation
+	return JobDataImpactingOperation
 }
 
 func (ne PreemptNode) GetOperation() Operation {
-	return ControlPlaneOperation
+	return JobDataImpactingOperation
 }
 
 func (cn CancelNode) GetOperation() Operation {
-	return ControlPlaneOperation
+	return JobDataImpactingOperation
 }
 
 func (pq PreemptQueue) GetOperation() Operation {
-	return ControlPlaneOperation
+	return JobDataImpactingOperation
 }
 
 func (cq CancelQueue) GetOperation() Operation {
-	return ControlPlaneOperation
+	return JobDataImpactingOperation
 }
 
 type executorOperation interface {
@@ -846,6 +897,11 @@ func (a UpsertExecutorSettings) affectsExecutor(executor string) bool {
 }
 
 func (a DeleteExecutorSettings) affectsExecutor(executor string) bool {
+	_, ok := a[executor]
+	return ok
+}
+
+func (a DeleteExecutor) affectsExecutor(executor string) bool {
 	_, ok := a[executor]
 	return ok
 }

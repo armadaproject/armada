@@ -179,7 +179,7 @@ var expectedPreemptedRun = model.UpdateJobRunInstruction{
 	Finished:                   &testfixtures.BaseTime,
 	JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
 	Error:                      []byte(testfixtures.PreemptionReason),
-	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, nil),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"requestor": testfixtures.UserId}),
 }
 
 var expectedFairSharePreemptedRun = model.UpdateJobRunInstruction{
@@ -187,7 +187,7 @@ var expectedFairSharePreemptedRun = model.UpdateJobRunInstruction{
 	Finished:                   &testfixtures.BaseTime,
 	JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
 	Error:                      []byte(testfixtures.PreemptionReason),
-	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"preemptingJobId": testfixtures.PreemptingJobId}),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"preemptingJobId": testfixtures.PreemptingJobId, "requestor": testfixtures.UserId}),
 }
 
 var expectedCancelledRun = model.UpdateJobRunInstruction{
@@ -693,24 +693,24 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 	assert.Len(t, *actual.JobRunsToUpdate[1].Node, 512)
 }
 
-func TestHandleJobCancelledDebugInfo_PersistsOnlyDebug(t *testing.T) {
+func TestHandleJobRunTerminatedDebugInfo_PersistsOnlyDebug(t *testing.T) {
 	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
 
-	event := &armadaevents.JobCancelledDebugInfo{
+	event := &armadaevents.JobRunTerminatedDebugInfo{
 		JobId:        testfixtures.JobId,
 		RunId:        testfixtures.RunId,
 		DebugMessage: testfixtures.DebugMsg,
 	}
 
 	update := &model.InstructionSet{}
-	err := converter.handleJobCancelledDebugInfo(event, update)
+	err := converter.handleJobRunTerminatedDebugInfo(event, update)
 	require.NoError(t, err)
 
 	require.Len(t, update.JobRunsToUpdate, 1)
 	got := update.JobRunsToUpdate[0]
 	assert.Equal(t, testfixtures.RunId, got.RunId)
 	assert.Equal(t, []byte(testfixtures.DebugMsg), got.Debug)
-	// JobCancelledDebugInfo is purely diagnostic - it must not change the run's state; the
+	// JobRunTerminatedDebugInfo is purely diagnostic - it must not change the run's state; the
 	// JobRunCancelled event owns the state and Lookout coalesces the two updates.
 	assert.Nil(t, got.JobRunState, "debug info must not set run state")
 	assert.Nil(t, got.Finished, "debug info must not mark the run finished")

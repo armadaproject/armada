@@ -273,6 +273,52 @@ func TestValidate_PreemptionRateLimitWithMarketScheduling(t *testing.T) {
 	}
 }
 
+func TestValidate_RetryPolicyRequiresIndexedNodeIdLabel(t *testing.T) {
+	tests := map[string]struct {
+		retryPolicyEnabled bool
+		indexedNodeLabels  []string
+		expectErr          bool
+	}{
+		"retry policy disabled without indexed nodeIdLabel is allowed": {
+			retryPolicyEnabled: false,
+			indexedNodeLabels:  nil,
+			expectErr:          false,
+		},
+		"retry policy enabled with indexed nodeIdLabel is allowed": {
+			retryPolicyEnabled: true,
+			indexedNodeLabels:  []string{"nodeid"},
+			expectErr:          false,
+		},
+		"retry policy enabled without indexed nodeIdLabel is rejected": {
+			retryPolicyEnabled: true,
+			indexedNodeLabels:  []string{"zone"},
+			expectErr:          true,
+		},
+		"retry policy enabled with empty indexedNodeLabels is rejected": {
+			retryPolicyEnabled: true,
+			indexedNodeLabels:  nil,
+			expectErr:          true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			c := createValidMinimalConfig()
+			c.Scheduling.RetryPolicy.Enabled = tc.retryPolicyEnabled
+			c.Scheduling.IndexedNodeLabels = tc.indexedNodeLabels
+
+			err := c.Validate()
+
+			if tc.expectErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), NodeIdLabelNotIndexedErrorMessage)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestSchedulingConfigValidate(t *testing.T) {
 	c := Configuration{
 		Scheduling: SchedulingConfig{
