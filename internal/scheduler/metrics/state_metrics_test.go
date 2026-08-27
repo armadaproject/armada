@@ -463,7 +463,7 @@ func TestDisable(t *testing.T) {
 	byNodeLabels := []string{testNode, testPool, testCluster, "running", "pending"}
 	byQueueResourceLabels := append(byQueueAndStateLabels, "cpu")
 	byNodeResourceLabels := append(byNodeLabels, "cpu")
-	resourceSecondsLostToPreemptionLabels := append(byQueueLabels, "none", "cpu")
+	resourceSecondsLostToPreemptionLabels := append(byQueueLabels, "none", "cpu", "urgency")
 
 	collect := func(m *jobStateMetrics) []prometheus.Metric {
 		m.jobStateCounterByQueue.WithLabelValues(byQueueAndStateLabels...).Inc()
