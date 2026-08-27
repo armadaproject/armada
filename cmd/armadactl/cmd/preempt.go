@@ -54,15 +54,6 @@ func preemptExecutorCmd() *cobra.Command {
 		Long:  `Preempts jobs on executor with provided executor name, priority classes, queues, and pools.`,
 		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			all, err := cmd.Flags().GetBool("all-priority-classes")
-			if err != nil {
-				return fmt.Errorf("error reading all-priority-classes flag: %s", err)
-			}
-			if !all {
-				if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
-					return fmt.Errorf("error marking priority-class flag as required: %s", err)
-				}
-			}
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -71,11 +62,6 @@ func preemptExecutorCmd() *cobra.Command {
 			priorityClasses, err := cmd.Flags().GetStringSlice("priority-classes")
 			if err != nil {
 				return fmt.Errorf("error reading priority-class selection: %s", err)
-			}
-
-			allPriorityClasses, _ := cmd.Flags().GetBool("all-priority-classes")
-			if allPriorityClasses {
-				priorityClasses = nil
 			}
 
 			queues, err := cmd.Flags().GetStringSlice("queues")
@@ -101,13 +87,7 @@ func preemptExecutorCmd() *cobra.Command {
 		"priority-classes",
 		"p",
 		[]string{},
-		"Preempt jobs on executor matching the specified priority classes. Provided priority classes should be comma separated, as in the following example: armada-default,armada-preemptible.",
-	)
-	cmd.Flags().BoolP(
-		"all-priority-classes",
-		"a",
-		false,
-		"Preempt jobs on executor for all priority classes.",
+		"Preempt jobs on executor matching the specified priority classes, comma separated (e.g. armada-default,armada-preemptible). If no priority classes are provided, jobs across all priority classes will be preempted.",
 	)
 	cmd.Flags().StringSlice(
 		"pools",
@@ -125,15 +105,6 @@ func preemptNodeCmd() *cobra.Command {
 		Long:  `Preempts jobs on node for specified executor with provided node name, executor name, priority classes and queues.`,
 		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			all, err := cmd.Flags().GetBool("all-priority-classes")
-			if err != nil {
-				return fmt.Errorf("error reading all-priority-classes flag: %s", err)
-			}
-			if !all {
-				if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
-					return fmt.Errorf("error marking priority-class flag as required: %s", err)
-				}
-			}
 			if err := cmd.MarkFlagRequired("executor"); err != nil {
 				return fmt.Errorf("error marking executor flag as required: %s", err)
 			}
@@ -145,11 +116,6 @@ func preemptNodeCmd() *cobra.Command {
 			priorityClasses, err := cmd.Flags().GetStringSlice("priority-classes")
 			if err != nil {
 				return fmt.Errorf("error reading priority-class selection: %s", err)
-			}
-
-			allPriorityClasses, _ := cmd.Flags().GetBool("all-priority-classes")
-			if allPriorityClasses {
-				priorityClasses = nil
 			}
 
 			queues, err := cmd.Flags().GetStringSlice("queues")
@@ -175,13 +141,7 @@ func preemptNodeCmd() *cobra.Command {
 		"priority-classes",
 		"p",
 		[]string{},
-		"Preempt jobs on node for specified executor matching the specified priority classes. Provided priority classes should be comma separated, as in the following example: armada-default,armada-preemptible.",
-	)
-	cmd.Flags().BoolP(
-		"all-priority-classes",
-		"a",
-		false,
-		"Preempt jobs on node for specified executor for all priority classes.",
+		"Preempt jobs on node for specified executor matching the specified priority classes, comma separated (e.g. armada-default,armada-preemptible). If no priority classes are provided, jobs across all priority classes will be preempted.",
 	)
 	cmd.Flags().StringP(
 		"executor",
@@ -200,15 +160,6 @@ func preemptQueuesCmd() *cobra.Command {
 		Long:    `Preempts jobs on selected queues in specified priority classes and pools. Allows selecting of queues by label or name, one of which must be provided. All flags with multiple values must be comma separated.`,
 		Aliases: []string{"queue"},
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			all, err := cmd.Flags().GetBool("all-priority-classes")
-			if err != nil {
-				return fmt.Errorf("error reading all-priority-classes flag: %s", err)
-			}
-			if !all {
-				if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
-					return fmt.Errorf("error marking priority-class flag as required: %s", err)
-				}
-			}
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, queues []string) error {
@@ -235,11 +186,6 @@ func preemptQueuesCmd() *cobra.Command {
 			priorityClasses, err := cmd.Flags().GetStringSlice("priority-classes")
 			if err != nil {
 				return fmt.Errorf("error reading priority-classes flag: %s", err)
-			}
-
-			allPriorityClasses, _ := cmd.Flags().GetBool("all-priority-classes")
-			if allPriorityClasses {
-				priorityClasses = nil
 			}
 
 			pools, err := cmd.Flags().GetStringSlice("pools")
@@ -271,13 +217,7 @@ func preemptQueuesCmd() *cobra.Command {
 		"priority-classes",
 		"p",
 		[]string{},
-		"Jobs matching the provided priority classes will be preempted.",
-	)
-	cmd.Flags().BoolP(
-		"all-priority-classes",
-		"a",
-		false,
-		"Preempt jobs in all priority classes. Cannot be used with the priority-classes flag.",
+		"Jobs matching the provided priority classes will be preempted. If no priority classes are provided, jobs across all priority classes will be preempted.",
 	)
 	cmd.Flags().StringSliceP(
 		"selector",
