@@ -9,6 +9,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/utils/ptr"
 
 	"github.com/armadaproject/armada/internal/common/constants"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
@@ -63,6 +64,8 @@ type Job struct {
 	cancelUser *string
 	// The reason for cancelling the job
 	cancelReason *string
+	// The user who reprioritised this job
+	reprioritiseUser *string
 	// True if the user has requested this job's jobSet be cancelled
 	cancelByJobSetRequested bool
 	// True if the scheduler has cancelled the job
@@ -355,7 +358,10 @@ func (job *Job) Equal(other *Job) bool {
 	if job.cancelByJobSetRequested != other.cancelByJobSetRequested {
 		return false
 	}
-	if job.cancelUser != other.cancelUser {
+	if !ptr.Equal(job.cancelUser, other.cancelUser) {
+		return false
+	}
+	if !ptr.Equal(job.reprioritiseUser, other.reprioritiseUser) {
 		return false
 	}
 	if job.cancelReason != other.cancelReason {
@@ -671,6 +677,11 @@ func (job *Job) CancelReason() *string {
 	return job.cancelReason
 }
 
+// ReprioritiseUser returns the user who reprioritised this job.
+func (job *Job) ReprioritiseUser() *string {
+	return job.reprioritiseUser
+}
+
 // CancelByJobsetRequested returns true if the user has requested this job's jobSet be cancelled.
 func (job *Job) CancelByJobsetRequested() bool {
 	return job.cancelByJobSetRequested
@@ -701,6 +712,13 @@ func (job *Job) WithCancelUser(cancelUser *string) *Job {
 func (job *Job) WithCancelReason(cancelReason *string) *Job {
 	j := shallowCopyJob(*job)
 	j.cancelReason = cancelReason
+	return j
+}
+
+// WithReprioritiseUser returns a copy of the job with the reprioritise user updated.
+func (job *Job) WithReprioritiseUser(reprioritiseUser *string) *Job {
+	j := shallowCopyJob(*job)
+	j.reprioritiseUser = reprioritiseUser
 	return j
 }
 

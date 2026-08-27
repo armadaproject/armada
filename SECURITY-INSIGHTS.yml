@@ -2,7 +2,7 @@ header:
   schema-version: 2.2.0
   last-updated: '2026-08-24'
   last-reviewed: '2026-08-24'
-  url: https://github.com/armadaproject/armada/raw/master/security-insights.yml
+  url: https://github.com/armadaproject/armada/raw/master/SECURITY-INSIGHTS.yml
 
 project:
   name: armada

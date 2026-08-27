@@ -51,7 +51,7 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, es.JobSetName, eventTs, esEvent.StandaloneIngressInfo)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
-			convertedEvents, err = FromInternalJobRunPreempted(es.Queue, es.JobSetName, eventTs, esEvent.JobRunPreempted)
+			convertedEvents, err = FromInternalJobRunPreempted(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.JobRunPreempted)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_JobRunPreemptionRequested,
 			*armadaevents.EventSequence_Event_JobRunCancelled,
@@ -129,6 +129,10 @@ func FromInternalPreemptionRequested(userId string, queueName string, jobSetName
 }
 
 func FromInternalCancel(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.CancelJob) ([]*api.EventMessage, error) {
+	requestor := userId
+	if e.Requestor != "" {
+		requestor = e.Requestor
+	}
 	return []*api.EventMessage{
 		{
 			Events: &api.EventMessage_Cancelling{
@@ -137,7 +141,7 @@ func FromInternalCancel(userId string, queueName string, jobSetName string, time
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
-					Requestor: userId,
+					Requestor: requestor,
 				},
 			},
 		},
@@ -145,6 +149,10 @@ func FromInternalCancel(userId string, queueName string, jobSetName string, time
 }
 
 func FromInternalCancelled(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.CancelledJob) ([]*api.EventMessage, error) {
+	requestor := userId
+	if e.Requestor != "" {
+		requestor = e.Requestor
+	}
 	return []*api.EventMessage{
 		{
 			Events: &api.EventMessage_Cancelled{
@@ -153,7 +161,7 @@ func FromInternalCancelled(userId string, queueName string, jobSetName string, t
 					JobSetId:  jobSetName,
 					Queue:     queueName,
 					Created:   protoutil.ToTimestamp(time),
-					Requestor: userId,
+					Requestor: requestor,
 				},
 			},
 		},
@@ -178,6 +186,10 @@ func FromInternalReprioritiseJob(userId string, queueName string, jobSetName str
 }
 
 func FromInternalReprioritisedJob(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.ReprioritisedJob) ([]*api.EventMessage, error) {
+	requestor := userId
+	if e.Requestor != "" {
+		requestor = e.Requestor
+	}
 	return []*api.EventMessage{
 		{
 			Events: &api.EventMessage_Reprioritized{
@@ -187,7 +199,7 @@ func FromInternalReprioritisedJob(userId string, queueName string, jobSetName st
 					Queue:       queueName,
 					Created:     protoutil.ToTimestamp(time),
 					NewPriority: float64(e.Priority),
-					Requestor:   userId,
+					Requestor:   requestor,
 				},
 			},
 		},
@@ -375,10 +387,15 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 	}, nil
 }
 
-func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunPreempted) ([]*api.EventMessage, error) {
+func FromInternalJobRunPreempted(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunPreempted) ([]*api.EventMessage, error) {
 	if e == nil {
 		// We only support PodPreempted right now
 		return nil, nil
+	}
+
+	requestor := userId
+	if e.Requestor != "" {
+		requestor = e.Requestor
 	}
 
 	apiEvent := &api.JobPreemptedEvent{
@@ -389,6 +406,7 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 		RunId:           e.PreemptedRunId,
 		Reason:          e.Reason,
 		PreemptingJobId: e.PreemptingJobId,
+		Requestor:       requestor,
 	}
 
 	return []*api.EventMessage{
