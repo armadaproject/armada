@@ -34,6 +34,8 @@ var (
 	loopTypeAndOutcomeLabels               = []string{typeLabel, outcomeLabel}
 	nodeLabels                             = []string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, schedulableLabel, overAllocatedLabel, physicalPoolLabel, capacityClassLabel, scalableUnitLabel}
 	defaultType                            = "unknown"
+	homePlacementType                      = "home"
+	awayPlacementType                      = "away"
 	reconcilerFailureType                  = "reconciler"
 )
 
@@ -407,7 +409,7 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event], scala
 			Name: ArmadaSchedulerMetricsPrefix + "scheduled_jobs",
 			Help: "Number of events scheduled",
 		},
-		poolAndQueueAndPriorityClassTypeLabels,
+		append(poolAndQueueAndPriorityClassTypeLabels, "placement_type"),
 	)
 
 	preemptedJobs := prometheus.NewCounterVec(
@@ -722,10 +724,18 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 
 			for _, jobCtx := range schedulingResult.ScheduledJobs {
 				schedulingType := defaultType
-				if jobCtx.PodSchedulingContext != nil && jobCtx.PodSchedulingContext.SchedulingMethod != "" {
-					schedulingType = string(jobCtx.PodSchedulingContext.SchedulingMethod)
+				placementType := defaultType
+				if jobCtx.PodSchedulingContext != nil {
+					if jobCtx.PodSchedulingContext.SchedulingMethod != "" {
+						schedulingType = string(jobCtx.PodSchedulingContext.SchedulingMethod)
+					}
+					placementType = homePlacementType
+					if jobCtx.PodSchedulingContext.ScheduledAway {
+						placementType = awayPlacementType
+					}
 				}
-				m.scheduledJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.Job.PriorityClassName(), schedulingType).Inc()
+
+				m.scheduledJobs.WithLabelValues(pool, jobCtx.Job.Queue(), jobCtx.Job.PriorityClassName(), schedulingType, placementType).Inc()
 			}
 
 			for _, jobCtx := range schedulingResult.PreemptedJobs {
