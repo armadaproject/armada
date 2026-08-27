@@ -245,6 +245,7 @@ message CancelJob {
     reserved 1;
     string reason = 2;
     string job_id = 3;
+    string requestor = 4;
 }
 
 

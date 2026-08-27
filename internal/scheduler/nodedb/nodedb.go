@@ -619,7 +619,6 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 			}
 			if node != nil {
 				pctx.WellKnownNodeTypeName = awayNodeType.WellKnownNodeTypeName
-				pctx.SchedulingMethod = context.ScheduledAsAwayJob
 				pctx.ScheduledAway = true
 				return node, preemptedJobs, nil
 			}
