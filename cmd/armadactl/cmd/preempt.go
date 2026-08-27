@@ -18,9 +18,9 @@ func preemptCmd() *cobra.Command {
 	}
 	cmd.AddCommand(
 		preemptJobCmd(),
-		preemptExecutorCmd(),
-		preemptNodeCmd(),
-		preemptQueuesCmd(),
+		preemptExecutorCmd(armadactl.New()),
+		preemptNodeCmd(armadactl.New()),
+		preemptQueuesCmd(armadactl.New()),
 	)
 	return cmd
 }
@@ -46,8 +46,7 @@ func preemptJobCmd() *cobra.Command {
 	return cmd
 }
 
-func preemptExecutorCmd() *cobra.Command {
-	a := armadactl.New()
+func preemptExecutorCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "executor <executor>",
 		Short: "Preempts jobs on executor.",
@@ -97,8 +96,7 @@ func preemptExecutorCmd() *cobra.Command {
 	return cmd
 }
 
-func preemptNodeCmd() *cobra.Command {
-	a := armadactl.New()
+func preemptNodeCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "node <name>",
 		Short: "Preempts jobs on node for specified executor.",
@@ -152,8 +150,7 @@ func preemptNodeCmd() *cobra.Command {
 	return cmd
 }
 
-func preemptQueuesCmd() *cobra.Command {
-	a := armadactl.New()
+func preemptQueuesCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "queues <queue_1> <queue_2> <queue_3> ...",
 		Short:   "Preempts jobs on queues.",

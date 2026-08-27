@@ -20,9 +20,9 @@ func cancelCmd() *cobra.Command {
 	cmd.AddCommand(
 		cancelJobCmd(),
 		cancelJobSetCmd(),
-		cancelExecutorCmd(),
-		cancelNodeCmd(),
-		cancelQueueCmd(),
+		cancelExecutorCmd(armadactl.New()),
+		cancelNodeCmd(armadactl.New()),
+		cancelQueueCmd(armadactl.New()),
 	)
 	return cmd
 }
@@ -66,8 +66,7 @@ func cancelJobSetCmd() *cobra.Command {
 	return cmd
 }
 
-func cancelExecutorCmd() *cobra.Command {
-	a := armadactl.New()
+func cancelExecutorCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "executor <executor>",
 		Short: "Cancels jobs on executor.",
@@ -118,8 +117,7 @@ func cancelExecutorCmd() *cobra.Command {
 	return cmd
 }
 
-func cancelNodeCmd() *cobra.Command {
-	a := armadactl.New()
+func cancelNodeCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "node <name>",
 		Short: "Cancels jobs on node for specified executor.",
@@ -174,8 +172,7 @@ func cancelNodeCmd() *cobra.Command {
 	return cmd
 }
 
-func cancelQueueCmd() *cobra.Command {
-	a := armadactl.New()
+func cancelQueueCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "queues <queue_1> <queue_2> <queue_3> ...",
 		Short:   "Cancels jobs on queues.",
