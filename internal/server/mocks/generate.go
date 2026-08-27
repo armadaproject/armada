@@ -4,3 +4,4 @@ package mocks
 //go:generate mockgen -destination=./mock_deduplicator.go -package=mocks "github.com/armadaproject/armada/internal/server/submit" Deduplicator
 //go:generate mockgen -destination=./mock_authorizer.go -package=mocks "github.com/armadaproject/armada/internal/common/auth" ActionAuthorizer
 //go:generate mockgen -destination=./mock_repository.go -package=mocks "github.com/armadaproject/armada/internal/server/queue" QueueRepository
+//go:generate mockgen -destination=./mock_retry_policy_repository.go -package=mocks "github.com/armadaproject/armada/internal/server/retrypolicy" RetryPolicyRepository

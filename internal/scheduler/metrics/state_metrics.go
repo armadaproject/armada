@@ -29,6 +29,7 @@ type jobStateMetrics struct {
 	jobErrorsByQueue                          *prometheus.CounterVec
 	jobErrorsByNode                           *prometheus.CounterVec
 	jobResourceSecondsLostToPreemptionByQueue *prometheus.CounterVec
+	retryPolicyDecisionsByQueue               *prometheus.CounterVec
 	allMetrics                                []resettableMetric
 }
 
@@ -108,6 +109,13 @@ func newJobStateMetrics(
 		},
 		[]string{queueLabel, poolLabel, checkpointLabel, resourceLabel},
 	)
+	retryPolicyDecisionsByQueue := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: ArmadaSchedulerMetricsPrefix + "retry_policy_decisions_total",
+			Help: "Retry policy engine decisions at the queue level",
+		},
+		[]string{queueLabel, poolLabel, retryPolicyLabel, retryDecisionLabel},
+	)
 	return &jobStateMetrics{
 		trackedResourceNames:                      trackedResourceNames,
 		jobCheckpointIntervals:                    jobCheckpointIntervals,
@@ -124,6 +132,7 @@ func newJobStateMetrics(
 		jobErrorsByQueue:                          jobErrorsByQueue,
 		jobErrorsByNode:                           jobErrorsByNode,
 		jobResourceSecondsLostToPreemptionByQueue: jobResourceSecondsLostToPreemptionByQueue,
+		retryPolicyDecisionsByQueue:               retryPolicyDecisionsByQueue,
 		allMetrics: []resettableMetric{
 			completedRunDurations,
 			jobStateCounterByQueue,
@@ -135,6 +144,7 @@ func newJobStateMetrics(
 			jobErrorsByQueue,
 			jobErrorsByNode,
 			jobResourceSecondsLostToPreemptionByQueue,
+			retryPolicyDecisionsByQueue,
 		},
 	}
 }
@@ -178,6 +188,14 @@ func (m *jobStateMetrics) ReportJobPreempted(job *jobdb.Job) {
 		timeSinceCheckpoint := math.Min(duration, checkpointDuration.Seconds())
 		m.recordPreemptedSecondsLost(job, timeSinceCheckpoint, durationToShortString(checkpointDuration))
 	}
+}
+
+// ReportRetryPolicyDecision records the final outcome of a retry engine
+// decision. The scheduler reports after the mutation gates, so a granted retry
+// it abandoned counts as what actually happened, not as a retry.
+func (m *jobStateMetrics) ReportRetryPolicyDecision(job *jobdb.Job, policyName string, decision string) {
+	run := job.LatestRun()
+	m.retryPolicyDecisionsByQueue.WithLabelValues(job.Queue(), run.Pool(), policyName, decision).Inc()
 }
 
 func (m *jobStateMetrics) recordPreemptedSecondsLost(job *jobdb.Job, duration float64, checkpointLabel string) {

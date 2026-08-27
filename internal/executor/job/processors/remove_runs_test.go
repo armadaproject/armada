@@ -7,8 +7,10 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/executor/configuration"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -102,9 +104,9 @@ func TestRun_RemoveRunProcessor_ReportsDebugWhenMainContainerNeverStarted(t *tes
 	assert.Len(t, executorContext.Pods, 0, "pod should still be deleted")
 	require.Len(t, eventReporter.ReceivedEvents, 1)
 	require.Len(t, eventReporter.ReceivedEvents[0].Event.Events, 1)
-	debugInfo, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobCancelledDebugInfo)
-	require.True(t, ok, "expected a JobCancelledDebugInfo event")
-	assert.Contains(t, debugInfo.JobCancelledDebugInfo.DebugMessage, "0/8 nodes are available")
+	debugInfo, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo)
+	require.True(t, ok, "expected a JobRunTerminatedDebugInfo event")
+	assert.Contains(t, debugInfo.JobRunTerminatedDebugInfo.DebugMessage, "0/8 nodes are available")
 }
 
 func TestRun_RemoveRunProcessor_NoDebugWhenNoPodEvents(t *testing.T) {
@@ -140,6 +142,50 @@ func TestRun_RemoveRunProcessor_NoDebugWhenMainContainerStarted(t *testing.T) {
 	assert.Len(t, eventReporter.ReceivedEvents, 0, "no debug event should be emitted when the main container started")
 }
 
+// A cancelled pod that is still terminating stays in the cancel-requested set, and Run is called
+// every stateProcessorInterval, so without a guard the debug event is emitted on every tick.
+func TestRun_RemoveRunProcessor_ReportsDebugOncePerRun(t *testing.T) {
+	pod := createPod()
+	runMeta, err := job.ExtractJobRunMeta(pod)
+	require.NoError(t, err)
+	cancelledJobRun := &job.RunState{Meta: runMeta, Phase: job.Active, CancelRequested: true}
+
+	runProcessor, executorContext, _, eventReporter := setupRemoveRunProcessorTest(t, pod, cancelledJobRun)
+	executorContext.Events[util.ExtractJobId(pod)] = []*v1.Event{{Message: "0/8 nodes are available", Type: "Warning"}}
+
+	runProcessor.Run()
+	// The pod is still terminating, so it is seen again on the next tick.
+	_, err = executorContext.SubmitPod(pod, "test", []string{})
+	require.NoError(t, err)
+	runProcessor.Run()
+
+	assert.Len(t, eventReporter.ReceivedEvents, 1, "a terminating cancelled pod must not report a debug event every tick")
+}
+
+func TestRun_RemoveRunProcessor_NoDebugWhenDisabled(t *testing.T) {
+	pod := createPod()
+	runMeta, err := job.ExtractJobRunMeta(pod)
+	require.NoError(t, err)
+	cancelledJobRun := &job.RunState{Meta: runMeta, Phase: job.Active, CancelRequested: true}
+
+	executorContext := fakecontext.NewSyncFakeClusterContext()
+	_, err = executorContext.SubmitPod(pod, "test", []string{})
+	require.NoError(t, err)
+	executorContext.Events[util.ExtractJobId(pod)] = []*v1.Event{{Message: "0/8 nodes are available", Type: "Warning"}}
+	eventReporter := mocks.NewFakeEventReporter()
+	runProcessor := NewRemoveRunProcessor(
+		executorContext,
+		job.NewJobRunStateStoreWithInitialState([]*job.RunState{cancelledJobRun}),
+		eventReporter,
+		reporter.NewDebugMessageRenderer(executorContext, disabledDebugConfig()),
+	)
+
+	runProcessor.Run()
+
+	assert.Len(t, executorContext.Pods, 0, "pod should still be deleted")
+	assert.Len(t, eventReporter.ReceivedEvents, 0)
+}
+
 func setupRemoveRunProcessorTest(
 	t *testing.T,
 	existingPod *v1.Pod,
@@ -153,6 +199,18 @@ func setupRemoveRunProcessorTest(
 	}
 
 	eventReporter := mocks.NewFakeEventReporter()
-	removeRunProcessor := NewRemoveRunProcessor(executorContext, jobRunState, eventReporter)
+	removeRunProcessor := NewRemoveRunProcessor(executorContext, jobRunState, eventReporter, reporter.NewDebugMessageRenderer(executorContext, testDebugConfig()))
 	return removeRunProcessor, executorContext, jobRunState, eventReporter
+}
+
+func testDebugConfig() configuration.DebugEventsConfig {
+	return configuration.DebugEventsConfig{
+		Enabled: true,
+		Pod:     configuration.PodDebugConfig{MaxEvents: 10},
+		Node:    configuration.NodeDebugConfig{MaxEvents: 10},
+	}
+}
+
+func disabledDebugConfig() configuration.DebugEventsConfig {
+	return configuration.DebugEventsConfig{Enabled: false}
 }

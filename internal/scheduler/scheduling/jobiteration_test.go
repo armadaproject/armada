@@ -122,6 +122,31 @@ func TestMultiJobsIterator_OnlyYieldEvicted(t *testing.T) {
 	require.Nil(t, v)
 }
 
+func TestMultiJobsIterator_ResumeNonEvictedIsNoopWhenNotRestricted(t *testing.T) {
+	// New jobs come from a jobdb-backed iterator (pauses without consuming); evicted from in-memory.
+	evictedRepo := NewInMemoryJobRepository(testfixtures.TestPool, jobdb.JobPriorityComparer{})
+	evictedRepo.EnqueueMany([]*schedulercontext.JobSchedulingContext{
+		createJctxCreatedTimeAndPriority("B", 0, 1, true),
+	})
+	newRepo := newMockJobRepository()
+	for _, req := range testfixtures.N1CpuPodReqs(2) {
+		newRepo.Enqueue(jobFromPodSpec("A", req))
+	}
+	newIt := NewQueuedJobsIterator("A", testfixtures.TestPool, jobdb.FairShareOrder, newRepo)
+	multiIt := NewMultiJobsIterator(evictedRepo.GetJobIterator("B"), newIt)
+
+	// Consume the first job, then ResumeNonEvicted without ever restricting to evicted-only.
+	// This must be a no-op: it must NOT rewind the iterator back to the start.
+	first, err := multiIt.Next()
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	multiIt.ResumeNonEvicted()
+
+	// Iteration continues after `first`, without re-yielding it.
+	rest := getAllJobIdsFromIterator(t, multiIt)
+	assert.NotContains(t, rest, first.JobId, "ResumeNonEvicted must not rewind the iterator")
+}
+
 func TestMarketDrivenMultiJobsIterator(t *testing.T) {
 	newJctxs := []*schedulercontext.JobSchedulingContext{
 		createJctxWithPrice("A", bidstore.PriceBand_PRICE_BAND_H, false),
@@ -229,6 +254,25 @@ func TestQueuedJobsIterator_OnlyYieldEvicted(t *testing.T) {
 	expected := make([]string, 0)
 	actual := getAllJobIdsFromIterator(t, it)
 	assert.Equal(t, expected, actual)
+}
+
+func TestQueuedJobsIterator_ResumeNonEvicted(t *testing.T) {
+	repo := newMockJobRepository()
+	expected := make([]string, 0)
+	for _, req := range testfixtures.N1CpuPodReqs(10) {
+		job := jobFromPodSpec("A", req)
+		repo.Enqueue(job)
+		expected = append(expected, job.Id())
+	}
+	it := NewQueuedJobsIterator("A", testfixtures.TestPool, jobdb.FairShareOrder, repo)
+
+	// Pause new jobs: nothing is yielded and the underlying cursor is not advanced.
+	it.OnlyYieldEvicted()
+	assert.Empty(t, getAllJobIdsFromIterator(t, it))
+
+	// Resume: all new jobs are yielded from where iteration left off (none were consumed while paused).
+	it.ResumeNonEvicted()
+	assert.Equal(t, expected, getAllJobIdsFromIterator(t, it))
 }
 
 func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {

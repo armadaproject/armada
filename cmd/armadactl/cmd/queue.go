@@ -12,6 +12,8 @@ import (
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
+const retryPoliciesFlag = "retry-policies"
+
 func queueCreateCmd() *cobra.Command {
 	return queueCreateCmdWithApp(armadactl.New())
 }
@@ -63,6 +65,11 @@ Job priority is evaluated inside queue, queue has its own priority.  Any labels 
 				return fmt.Errorf("error converting queue labels to map: %s", err)
 			}
 
+			retryPolicies, err := cmd.Flags().GetStringSlice(retryPoliciesFlag)
+			if err != nil {
+				return fmt.Errorf("error reading retry-policies: %s", err)
+			}
+
 			newQueue, err := queue.NewQueue(&api.Queue{
 				Name:           name,
 				PriorityFactor: priorityFactor,
@@ -70,6 +77,7 @@ Job priority is evaluated inside queue, queue has its own priority.  Any labels 
 				GroupOwners:    groups,
 				Cordoned:       cordoned,
 				Labels:         labelsAsMap,
+				RetryPolicies:  retryPolicies,
 			})
 			if err != nil {
 				return fmt.Errorf("invalid queue data: %s", err)
@@ -83,6 +91,7 @@ Job priority is evaluated inside queue, queue has its own priority.  Any labels 
 	cmd.Flags().StringSlice("group-owners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
 	cmd.Flags().Bool("cordon", false, "Used to pause scheduling on specified queue. Defaults to false.")
 	cmd.Flags().StringSliceP("labels", "l", []string{}, "Comma separated list of key-value queue labels, for example: armadaproject.io/submitter=airflow. Defaults to empty list.")
+	cmd.Flags().StringSlice(retryPoliciesFlag, []string{}, "Comma separated list of retry policy names to assign to this queue, in evaluation order. Defaults to empty list.")
 	return cmd
 }
 
@@ -192,8 +201,14 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "queue <queue-name>",
 		Short: "Update an existing queue",
-		Long:  "Update settings of an existing queue",
-		Args:  cobra.ExactArgs(1),
+		Long: `Update settings of an existing queue.
+
+This is a full replace, not a partial patch. Every queue attribute is set from
+the flags on this command, and any flag you omit resets that attribute to its
+default. If the queue has retry policies attached, pass --retry-policies on
+every update, otherwise the attachment is cleared and the queue falls back to
+the default retry behaviour.`,
+		Args: cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
@@ -230,6 +245,11 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 				return fmt.Errorf("error converting queue labels to map: %s", err)
 			}
 
+			retryPolicies, err := cmd.Flags().GetStringSlice(retryPoliciesFlag)
+			if err != nil {
+				return fmt.Errorf("error reading retry-policies: %s", err)
+			}
+
 			newQueue, err := queue.NewQueue(&api.Queue{
 				Name:           name,
 				PriorityFactor: priorityFactor,
@@ -237,6 +257,7 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 				GroupOwners:    groups,
 				Cordoned:       cordoned,
 				Labels:         labelsAsMap,
+				RetryPolicies:  retryPolicies,
 			})
 			if err != nil {
 				return fmt.Errorf("invalid queue data: %s", err)
@@ -251,5 +272,6 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd.Flags().StringSlice("group-owners", []string{}, "Comma separated list of queue group owners, defaults to empty list.")
 	cmd.Flags().Bool("cordon", false, "Used to pause scheduling on specified queue. Defaults to false.")
 	cmd.Flags().StringSliceP("labels", "l", []string{}, "Comma separated list of key-value queue labels, for example: armadaproject.io/submitter=airflow. Defaults to empty list.")
+	cmd.Flags().StringSlice(retryPoliciesFlag, []string{}, "Comma separated list of retry policy names to assign to this queue, in evaluation order. Defaults to empty list.")
 	return cmd
 }

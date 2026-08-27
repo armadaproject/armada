@@ -30,10 +30,14 @@ import (
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/util"
 )
 
-const podByUIDIndex = "podUID"
+const (
+	podByUIDIndex    = "podUID"
+	eventByNodeIndex = "eventNode"
+)
 
 type ClusterIdentity interface {
 	GetClusterId() string
@@ -51,6 +55,7 @@ type ClusterContext interface {
 	GetNode(nodeName string) (*v1.Node, error)
 	GetNodeStatsSummary(*armadacontext.Context, *v1.Node) (*v1alpha1.Summary, error)
 	GetPodEvents(pod *v1.Pod) ([]*v1.Event, error)
+	GetNodeEvents(nodeName string) ([]*v1.Event, error)
 	GetServices(pod *v1.Pod) ([]*v1.Service, error)
 	GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error)
 	GetEndpointSlices(namespace string, labelName string, labelValue string) ([]*discovery.EndpointSlice, error)
@@ -144,7 +149,10 @@ func NewClusterContext(
 	context.ingressInformer.Lister()
 	context.endpointSliceInformer.Lister()
 
-	err = context.eventInformer.Informer().AddIndexers(cache.Indexers{podByUIDIndex: indexPodByUID})
+	err = context.eventInformer.Informer().AddIndexers(cache.Indexers{
+		podByUIDIndex:    indexPodByUID,
+		eventByNodeIndex: indexEventByNode,
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -161,6 +169,15 @@ func indexPodByUID(obj interface{}) (strings []string, err error) {
 		return []string{}, nil
 	}
 	return []string{string(event.InvolvedObject.UID)}, nil
+}
+
+// Indexed by name rather than UID because the pod refers to its node by name only.
+func indexEventByNode(obj interface{}) (strings []string, err error) {
+	event := obj.(*v1.Event)
+	if event.InvolvedObject.Kind != "Node" || event.InvolvedObject.Name == "" {
+		return []string{}, nil
+	}
+	return []string{event.InvolvedObject.Name}, nil
 }
 
 func (c *KubernetesClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) (cache.ResourceEventHandlerRegistration, error) {
@@ -198,7 +215,15 @@ func (c *KubernetesClusterContext) GetAllPods() ([]*v1.Pod, error) {
 }
 
 func (c *KubernetesClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
-	events, err := c.eventInformer.Informer().GetIndexer().ByIndex(podByUIDIndex, string(pod.UID))
+	return c.getEventsByIndex(podByUIDIndex, string(pod.UID))
+}
+
+func (c *KubernetesClusterContext) GetNodeEvents(nodeName string) ([]*v1.Event, error) {
+	return c.getEventsByIndex(eventByNodeIndex, nodeName)
+}
+
+func (c *KubernetesClusterContext) getEventsByIndex(indexName string, indexValue string) ([]*v1.Event, error) {
+	events, err := c.eventInformer.Informer().GetIndexer().ByIndex(indexName, indexValue)
 	if err != nil {
 		return nil, err
 	}
@@ -321,15 +346,16 @@ func (c *KubernetesClusterContext) DeletePodWithCondition(pod *v1.Pod, condition
 	if currentPod.DeletionTimestamp != nil {
 		killTime := currentPod.DeletionTimestamp.Add(c.podKillTimeout)
 		if c.clock.Now().After(killTime) {
-			log.Infof("Pod %s/%s was requested deleted by %s, but is still present. Force killing.", currentPod.Namespace, currentPod.Name, currentPod.DeletionTimestamp)
+			log.Infof("Pod %s/%s (%s) was requested deleted by %s, but is still present. Force killing.", currentPod.Namespace, currentPod.Name, podIdentifiers(currentPod), currentPod.DeletionTimestamp)
 			deleteOptions.GracePeriodSeconds = pointer.Int64(0)
+			metrics.RecordPodForceDeleted(util.ExtractPool(currentPod))
 		} else {
 			log.Debugf("Asked to delete pod %s/%s but this pod is already being deleted", currentPod.Namespace, currentPod.Name)
 			return nil
 		}
 	}
 
-	log.Infof("Calling delete on pod %s/%s", currentPod.Namespace, currentPod.Name)
+	log.Infof("Calling delete on pod %s/%s (%s)", currentPod.Namespace, currentPod.Name, podIdentifiers(currentPod))
 	err = c.deletePod(currentPod, deleteOptions)
 	if err != nil && k8s_errors.IsNotFound(err) {
 		return nil
@@ -375,7 +401,7 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 			// else it's a no-op
 			killTime := podToDelete.DeletionTimestamp.Add(c.podKillTimeout)
 			if c.clock.Now().After(killTime) {
-				log.Infof("Pod %s/%s was requested deleted by %s, but is still present.  Force killing.", podToDelete.Namespace, podToDelete.Name, podToDelete.DeletionTimestamp)
+				log.Infof("Pod %s/%s (%s) was requested deleted by %s, but is still present.  Force killing.", podToDelete.Namespace, podToDelete.Name, podIdentifiers(podToDelete), podToDelete.DeletionTimestamp)
 				c.doDelete(podToDelete, true)
 			} else {
 				log.Debugf("Asked to delete pod %s/%s but this pod is already being deleted", podToDelete.Namespace, podToDelete.Name)
@@ -400,9 +426,10 @@ func (c *KubernetesClusterContext) doDelete(pod *v1.Pod, force bool) {
 		deleteOptions := metav1.DeleteOptions{GracePeriodSeconds: nil}
 		if force {
 			deleteOptions.GracePeriodSeconds = pointer.Int64(0)
-			log.Infof("Calling delete on pod %s/%s - with force", pod.Namespace, pod.Name)
+			log.Infof("Calling delete on pod %s/%s (%s) - with force", pod.Namespace, pod.Name, podIdentifiers(pod))
+			metrics.RecordPodForceDeleted(util.ExtractPool(pod))
 		} else {
-			log.Infof("Calling delete on pod %s/%s", pod.Namespace, pod.Name)
+			log.Infof("Calling delete on pod %s/%s (%s)", pod.Namespace, pod.Name, podIdentifiers(pod))
 		}
 		err = c.deletePod(pod, deleteOptions)
 	}
@@ -496,6 +523,11 @@ func createPodAssociationSelector(pod *v1.Pod) (*labels.Selector, error) {
 
 	selector := labels.NewSelector().Add(*jobIdMatchesSelector, *queueMatchesSelector, *podNumberMatchesSelector)
 	return &selector, nil
+}
+
+// Logged so a delete or force kill can be joined back to a job.
+func podIdentifiers(pod *v1.Pod) string {
+	return fmt.Sprintf("jobId: %s runId: %s", util.ExtractJobId(pod), util.ExtractJobRunId(pod))
 }
 
 func createDeleteOptions() metav1.DeleteOptions {

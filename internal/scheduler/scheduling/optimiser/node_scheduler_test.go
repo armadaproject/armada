@@ -217,6 +217,7 @@ func setUpSctx(t *testing.T, queues []*api.Queue, existingJobs []*jobdb.Job, tot
 		testfixtures.TestPool,
 		fairnessCostProvider,
 		nil,
+		nil,
 		totalResource,
 	)
 

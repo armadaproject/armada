@@ -20,17 +20,20 @@ type RunPreemptedProcessor struct {
 	clusterContext   executorContext.ClusterContext
 	jobRunStateStore job.RunStateStore
 	eventReporter    reporter.EventReporter
+	debugRenderer    *reporter.DebugMessageRenderer
 }
 
 func NewRunPreemptedProcessor(
 	clusterContext executorContext.ClusterContext,
 	jobRunStateStore job.RunStateStore,
 	eventReporter reporter.EventReporter,
+	debugRenderer *reporter.DebugMessageRenderer,
 ) *RunPreemptedProcessor {
 	return &RunPreemptedProcessor{
 		clusterContext:   clusterContext,
 		jobRunStateStore: jobRunStateStore,
 		eventReporter:    eventReporter,
+		debugRenderer:    debugRenderer,
 	}
 }
 
@@ -107,8 +110,9 @@ func (j *RunPreemptedProcessor) reportPodPreempted(run *job.RunState, pod *v1.Po
 	return nil
 }
 
-// debugMessageIfMainContainerNeverStarted returns the rendered k8s pod events when the pod's
-// main container never started, otherwise an empty string.
+// Returns the debug payload when the pod's main container never started, otherwise an empty string.
+// A pod with no events of its own is still worth describing: preemption commonly produces none, and
+// the pod's own state and its node's conditions are what explain it.
 func (j *RunPreemptedProcessor) debugMessageIfMainContainerNeverStarted(pod *v1.Pod) string {
 	if util.HasAppContainerStarted(pod) {
 		return ""
@@ -116,12 +120,6 @@ func (j *RunPreemptedProcessor) debugMessageIfMainContainerNeverStarted(pod *v1.
 	podEvents, err := j.clusterContext.GetPodEvents(pod)
 	if err != nil {
 		log.Errorf("Failed retrieving pod events for preempted pod %s: %v", pod.Name, err)
-		return ""
 	}
-	// No k8s events means there is nothing useful to record - avoid a debug string that would
-	// render to just "Events: <none>" (common for preemption, where the pod is killed to free capacity).
-	if len(podEvents) == 0 {
-		return ""
-	}
-	return reporter.CreateDebugMessage(podEvents)
+	return j.debugRenderer.Render(pod, podEvents, reporter.TriggerPreempted)
 }

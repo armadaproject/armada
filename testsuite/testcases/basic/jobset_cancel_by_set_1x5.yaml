@@ -1,22 +1,23 @@
-## POST /v1/job/reprioritize
-## Reprioritize an entire job set and confirm all jobs receive the update.
-## 1x1
+## POST/v1/jobset/cancel
+## Submit a jobset, cancel it, verify all jobs receive cancelled 
+
 numBatches: 1
-batchSize: 1
+batchSize: 5
 queue: e2e-test-queue
+jobSetId: jobset_cancel_by_filter
 jobs:
   - priority: 0
-    namespace: default
+    namespace: personal-anonymous
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
       containers:
-        - name: reprioritize-by-jobset
+        - name: jobset-cancel
           imagePullPolicy: IfNotPresent
           image: alpine:3.20.0
-          args:
+          args: 
             - "sleep"
-            - "100s"
+            - "600s"
           resources:
             limits:
               memory: 25Mi
@@ -25,12 +26,9 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-## Reprioritize the job set upward
-action: ACTION_REPRIORITIZE
-selection: SELECTION_BY_SET
-newPriority: 100
+cancelJobSet:
+  request:
 timeout: "100s"
 expectedEvents:
   - submitted:
-  - reprioritized:
-
+  - cancelled:

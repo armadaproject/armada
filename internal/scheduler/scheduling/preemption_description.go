@@ -9,50 +9,42 @@ import (
 )
 
 const (
-	unknownPreemptionCause            = "Preempted by scheduler due to the job failing to reschedule - possibly node resource changed causing this job to be unschedulable\nNode Summary:\n%s"
-	unknownGangPreemptionCause        = "Preempted by scheduler due to the job failing to reschedule - possibly another job in the gang was preempted or the node resource changed causing this job to be unschedulable"
-	fairSharePreemptionTemplate       = "Preempted by scheduler using fair share preemption - preempting job %s"
-	marketBasedPreemptionTemplate     = "Preempted by scheduler using market based preemption - current job has a bid of %f - preempting job %s has a bid of %f"
-	urgencyPreemptionTemplate         = "Preempted by scheduler using urgency preemption - preempting job %s"
-	urgencyPreemptionMultiJobTemplate = "Preempted by scheduler using urgency preemption - preemption caused by one of the following jobs %s"
+	unknownPreemptionCause                 = "Preempted by scheduler due to the job failing to reschedule - possibly node resource changed causing this job to be unschedulable\nNode Summary:\n%s"
+	unknownGangPreemptionCause             = "Preempted by scheduler due to the job failing to reschedule - possibly another job in the gang was preempted or the node resource changed causing this job to be unschedulable"
+	gangSiblingFairSharePreemptionTemplate = "Preempted by scheduler using fair share preemption because the fellow gang member %s was preempted by %s"
+	fairSharePreemptionTemplate            = "Preempted by scheduler using fair share preemption - preempting job %s"
+	marketBasedPreemptionTemplate          = "Preempted by scheduler using market based preemption - current job has a bid of %f - preempting job %s has a bid of %f"
+	urgencyPreemptionTemplate              = "Preempted by scheduler using urgency preemption - preempting job %s"
+	urgencyPreemptionMultiJobTemplate      = "Preempted by scheduler using urgency preemption - preemption caused by one of the following jobs %s"
 )
 
 func PopulatePreemptionDescriptions(marketBasedScheduling bool, pool string, preemptedJobs []*context.JobSchedulingContext, scheduledJobs []*context.JobSchedulingContext) {
-	jobsScheduledWithUrgencyBasedPreemptionByNode := map[string][]*context.JobSchedulingContext{}
-	for _, schedJctx := range scheduledJobs {
-		if schedJctx.PodSchedulingContext == nil {
-			continue
-		}
-		if schedJctx.PodSchedulingContext.SchedulingMethod != context.ScheduledWithUrgencyBasedPreemption {
-			continue
-		}
-
-		nodeId := schedJctx.PodSchedulingContext.NodeId
-		if _, ok := jobsScheduledWithUrgencyBasedPreemptionByNode[nodeId]; !ok {
-			jobsScheduledWithUrgencyBasedPreemptionByNode[nodeId] = []*context.JobSchedulingContext{}
-		}
-		jobsScheduledWithUrgencyBasedPreemptionByNode[nodeId] = append(jobsScheduledWithUrgencyBasedPreemptionByNode[nodeId], schedJctx)
-	}
+	jobsScheduledWithUrgencyBasedPreemptionByNode := calculateJobsScheduledWithUrgencyBasedPreemptionByNode(scheduledJobs)
 
 	for _, preemptedJctx := range preemptedJobs {
 		if preemptedJctx.PreemptionDescription != "" {
 			continue
 		}
-		if preemptedJctx.PreemptingJob != nil {
-			if marketBasedScheduling {
-				preemptedJctx.PreemptionDescription = fmt.Sprintf(marketBasedPreemptionTemplate,
-					preemptedJctx.Job.GetBidPrice(pool), preemptedJctx.PreemptingJob.Id(), preemptedJctx.PreemptingJob.GetBidPrice(pool))
-				preemptedJctx.PreemptionType = context.PreemptedWithFairsharePreemption
+		if preemptedJctx.PreemptionDetails != nil && preemptedJctx.PreemptionDetails.PreemptingJob != nil {
+			preemptingJob := preemptedJctx.PreemptionDetails.PreemptingJob
+			causedBySiblingPreemption := preemptedJctx.PreemptionDetails.CausedBySiblingPreemption()
+			preemptedJctx.PreemptionType = context.PreemptedWithFairsharePreemption
+
+			if causedBySiblingPreemption {
+				preemptedJctx.PreemptionDescription = fmt.Sprintf(gangSiblingFairSharePreemptionTemplate, preemptedJctx.PreemptionDetails.PreemptedSiblingJob.Id(), preemptingJob.Id())
 			} else {
-				preemptedJctx.PreemptionDescription = fmt.Sprintf(fairSharePreemptionTemplate, preemptedJctx.PreemptingJob.Id())
-				preemptedJctx.PreemptionType = context.PreemptedWithFairsharePreemption
+				if marketBasedScheduling {
+					preemptedJctx.PreemptionDescription = fmt.Sprintf(marketBasedPreemptionTemplate,
+						preemptedJctx.Job.GetBidPrice(pool), preemptingJob.Id(), preemptingJob.GetBidPrice(pool))
+				} else {
+					preemptedJctx.PreemptionDescription = fmt.Sprintf(fairSharePreemptionTemplate, preemptingJob.Id())
+				}
 			}
 		} else {
 			potentialPreemptingJobs := jobsScheduledWithUrgencyBasedPreemptionByNode[preemptedJctx.GetAssignedNodeId()]
-
 			if len(potentialPreemptingJobs) == 0 {
 				if preemptedJctx.Job.IsInGang() {
-					preemptedJctx.PreemptionDescription = fmt.Sprintf(unknownGangPreemptionCause)
+					preemptedJctx.PreemptionDescription = unknownGangPreemptionCause
 					preemptedJctx.PreemptionType = context.UnknownGangJob
 				} else {
 					preemptedJctx.PreemptionDescription = fmt.Sprintf(unknownPreemptionCause, preemptedJctx.GetAssignedNode().SummaryString())
@@ -70,4 +62,20 @@ func PopulatePreemptionDescriptions(marketBasedScheduling bool, pool string, pre
 			}
 		}
 	}
+}
+
+func calculateJobsScheduledWithUrgencyBasedPreemptionByNode(scheduledJobs []*context.JobSchedulingContext) map[string][]*context.JobSchedulingContext {
+	jobsScheduledWithUrgencyBasedPreemptionByNode := map[string][]*context.JobSchedulingContext{}
+	for _, schedJctx := range scheduledJobs {
+		if schedJctx.PodSchedulingContext == nil {
+			continue
+		}
+		if schedJctx.PodSchedulingContext.SchedulingMethod != context.ScheduledWithUrgencyBasedPreemption {
+			continue
+		}
+
+		nodeId := schedJctx.PodSchedulingContext.NodeId
+		jobsScheduledWithUrgencyBasedPreemptionByNode[nodeId] = append(jobsScheduledWithUrgencyBasedPreemptionByNode[nodeId], schedJctx)
+	}
+	return jobsScheduledWithUrgencyBasedPreemptionByNode
 }

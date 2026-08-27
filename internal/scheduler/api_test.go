@@ -465,6 +465,97 @@ func TestAddNodeSelector(t *testing.T) {
 	}
 }
 
+func TestApplyResourceMutations(t *testing.T) {
+	container := func(name, memory string) v1.Container {
+		q := resource.MustParse(memory)
+		return v1.Container{
+			Name: name,
+			Resources: v1.ResourceRequirements{
+				Requests: v1.ResourceList{v1.ResourceMemory: q},
+				Limits:   v1.ResourceList{v1.ResourceMemory: q.DeepCopy()},
+			},
+		}
+	}
+	tests := map[string]struct {
+		mutations      *schedulerobjects.RetryResourceMutations
+		containers     []v1.Container
+		initContainers []v1.Container
+		// container name -> memory it must end up with; a container absent
+		// from the map must end up with no memory value at all.
+		expected  map[string]string
+		expectErr bool
+	}{
+		"factor multiplies every container": {
+			mutations:  &schedulerobjects.RetryResourceMutations{MemoryFactor: 1.5},
+			containers: []v1.Container{container("a", "1Gi"), container("b", "2Gi")},
+			expected:   map[string]string{"a": "1536Mi", "b": "3Gi"},
+		},
+		"static distributes proportionally across main containers": {
+			// 300Mi split over a 1Gi and a 2Gi container: 100Mi and 200Mi.
+			mutations:  &schedulerobjects.RetryResourceMutations{MemoryStatic: "300Mi"},
+			containers: []v1.Container{container("a", "1Gi"), container("b", "2Gi")},
+			expected:   map[string]string{"a": "1124Mi", "b": "2248Mi"},
+		},
+		"init containers receive the full static amount": {
+			mutations:      &schedulerobjects.RetryResourceMutations{MemoryStatic: "100Mi"},
+			containers:     []v1.Container{container("a", "1Gi")},
+			initContainers: []v1.Container{container("init", "256Mi")},
+			expected:       map[string]string{"a": "1124Mi", "init": "356Mi"},
+		},
+		"container without memory stays unchanged": {
+			mutations:  &schedulerobjects.RetryResourceMutations{MemoryFactor: 2},
+			containers: []v1.Container{container("a", "1Gi"), {Name: "sidecar"}},
+			expected:   map[string]string{"a": "2Gi"},
+		},
+		"nil mutations change nothing": {
+			mutations:  nil,
+			containers: []v1.Container{container("a", "1Gi")},
+			expected:   map[string]string{"a": "1Gi"},
+		},
+		"invalid static quantity errors": {
+			mutations:  &schedulerobjects.RetryResourceMutations{MemoryStatic: "not-a-quantity"},
+			containers: []v1.Container{container("a", "1Gi")},
+			expectErr:  true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			job := &armadaevents.SubmitJob{
+				MainObject: &armadaevents.KubernetesMainObject{
+					Object: &armadaevents.KubernetesMainObject_PodSpec{
+						PodSpec: &armadaevents.PodSpecWithAvoidList{PodSpec: &v1.PodSpec{
+							Containers:     tc.containers,
+							InitContainers: tc.initContainers,
+						}},
+					},
+				},
+			}
+			err := applyResourceMutations(job, tc.mutations)
+			if tc.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			podSpec := job.MainObject.GetPodSpec().GetPodSpec()
+			all := append(append([]v1.Container{}, podSpec.Containers...), podSpec.InitContainers...)
+			for _, c := range all {
+				want, ok := tc.expected[c.Name]
+				if !ok {
+					assert.NotContains(t, c.Resources.Requests, v1.ResourceMemory, "container %s gained memory", c.Name)
+					continue
+				}
+				wantQuantity := resource.MustParse(want)
+				wantValue := wantQuantity.Value()
+				request := c.Resources.Requests[v1.ResourceMemory]
+				limit := c.Resources.Limits[v1.ResourceMemory]
+				assert.Equal(t, wantValue, request.Value(), "container %s requests", c.Name)
+				assert.Equal(t, wantValue, limit.Value(), "container %s limits", c.Name)
+			}
+		})
+	}
+}
+
 func TestExecutorApi_Publish(t *testing.T) {
 	tests := map[string]struct {
 		sequences []*armadaevents.EventSequence

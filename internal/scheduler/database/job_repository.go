@@ -124,6 +124,8 @@ func (r *PostgresJobRepository) FetchInitialJobs(ctx *armadacontext.Context) ([]
 				QueuedVersion:           row.QueuedVersion,
 				CancelRequested:         row.CancelRequested,
 				CancelUser:              row.CancelUser,
+				CancelReason:            row.CancelReason,
+				ReprioritiseUser:        row.ReprioritiseUser,
 				Cancelled:               row.Cancelled,
 				CancelByJobsetRequested: row.CancelByJobsetRequested,
 				Succeeded:               row.Succeeded,
@@ -272,6 +274,8 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 				Cancelled:               row.Cancelled,
 				CancelByJobsetRequested: row.CancelByJobsetRequested,
 				CancelUser:              row.CancelUser,
+				CancelReason:            row.CancelReason,
+				ReprioritiseUser:        row.ReprioritiseUser,
 				Succeeded:               row.Succeeded,
 				Failed:                  row.Failed,
 				SchedulingInfo:          row.SchedulingInfo,
@@ -431,7 +435,8 @@ func insertRunIdsToTmpTable(ctx *armadacontext.Context, tx pgx.Tx, runIds []stri
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
-	_, err = tx.CopyFrom(ctx,
+	_, err = tx.CopyFrom(
+		ctx,
 		pgx.Identifier{tmpTable},
 		[]string{"run_id"},
 		pgx.CopyFromSlice(len(runIds), func(i int) ([]interface{}, error) {

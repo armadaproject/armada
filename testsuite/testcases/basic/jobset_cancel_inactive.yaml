@@ -1,23 +1,23 @@
+## POST /v1/jobset/cancel
+## Drive the jobset to have no active jobs (all jobs terminal), then cancel the
+## jobset and assert that cancelling a jobset with no active jobs is a successful no-op.
+
 numBatches: 1
 batchSize: 5
 queue: e2e-test-queue
-jobSetId: job-set-preemptible
 jobs:
-  - namespace: default
-    priority: 0
+  - priority: 0
+    namespace: personal-anonymous
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
-      priorityClassName: armada-preemptible
       containers:
-        - name: sleeper
+        - name: jobset-cancel-inactive
           imagePullPolicy: IfNotPresent
           image: alpine:3.20.0
-          command:
-            - sh
           args:
-            - -c
-            - sleep 600
+            - "sleep"
+            - "600s"
           resources:
             limits:
               memory: 25Mi
@@ -26,10 +26,10 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-action: ACTION_PREEMPT
-selection: SELECTION_BY_IDS
-preemptReason: "Test job preemption for validation"
+cancelJobSet:
+  request:
+  assertInactiveSucceeds: true
 timeout: "100s"
 expectedEvents:
   - submitted:
-  - preempted:
+  - cancelled:

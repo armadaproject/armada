@@ -2,6 +2,7 @@ package configuration
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/go-playground/validator/v10"
 
@@ -22,6 +23,10 @@ func (c *Configuration) Mutate() (config.Config, error) {
 		c.Scheduling.MaxNewJobSchedulingDuration = c.NewJobsSchedulingTimeout
 	}
 
+	if c.Scheduling.RetryPolicy.Enabled && c.Scheduling.RetryPolicy.GlobalMaxRetries == 0 {
+		log.Warnf("scheduling.retryPolicy.enabled is true but globalMaxRetries is 0: the retry engine is active but will never grant a retry (kill-switch semantics). Set globalMaxRetries above 0 to allow policy retries.")
+	}
+
 	return c, nil
 }
 
@@ -33,6 +38,22 @@ func (c *Configuration) Validate() error {
 
 func SchedulingConfigValidation(sl validator.StructLevel) {
 	c := sl.Current().Interface().(SchedulingConfig)
+
+	// avoidSameNode retries express node avoidance through nodeIdLabel, and an
+	// unindexed label forces a per-node scan for every job that carries the
+	// anti-affinity. Reject the config instead of running slow.
+	if c.RetryPolicy.Enabled && !slices.Contains(c.IndexedNodeLabels, c.NodeIdLabel) {
+		sl.ReportError(c.IndexedNodeLabels, "IndexedNodeLabels", "", NodeIdLabelNotIndexedErrorMessage, "")
+	}
+
+	for i, pool := range c.Pools {
+		// The preemption rate limit relies on rescheduling evicted jobs before new jobs, which the
+		// market-driven scheduler does not support. Reject the combination rather than silently no-op.
+		if pool.FairsharePreemptionRateLimit != nil && pool.ExperimentalMarketScheduling != nil && pool.ExperimentalMarketScheduling.Enabled {
+			fieldName := fmt.Sprintf("Pools[%d].FairsharePreemptionRateLimit", i)
+			sl.ReportError(pool.FairsharePreemptionRateLimit, fieldName, "", PreemptionRateLimitWithMarketSchedulingErrorMessage, "")
+		}
+	}
 
 	wellKnownNodeTypes := make(map[string]bool)
 	for i, wellKnownNodeType := range c.WellKnownNodeTypes {

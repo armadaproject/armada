@@ -1,23 +1,19 @@
+queue: e2e-test-queue-active
 numBatches: 1
 batchSize: 1
-queue: e2e-test-queue
-jobSetId: job-set-preemptible
 jobs:
-  - namespace: default
-    priority: 0
+  - priority: 0
+    namespace: personal-anonymous
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
-      priorityClassName: armada-preemptible
       containers:
-        - name: sleeper
+        - name: sleep
           imagePullPolicy: IfNotPresent
           image: alpine:3.20.0
-          command:
-            - sh
           args:
-            - -c
-            - sleep 600
+            - "sleep"
+            - "30"
           resources:
             limits:
               memory: 25Mi
@@ -26,10 +22,12 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-action: ACTION_PREEMPT
-selection: SELECTION_BY_ID
-preemptReason: "Test job preemption for validation"
-timeout: "100s"
+timeout: "120s"
 expectedEvents:
   - submitted:
-  - preempted:
+  - running:
+queueConfig:
+  setup:
+  assertions:
+    - activeInPool: "default"
+    - deleted: true

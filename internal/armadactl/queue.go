@@ -55,6 +55,15 @@ func (a *App) CreateResource(fileName string, dryRun bool) error {
 		if !dryRun {
 			return a.Params.QueueAPI.Create(queue)
 		}
+	case client.ResourceKindRetryPolicy:
+		// Parse the file even on a dry run so a malformed policy is caught.
+		policy, err := retryPolicyFromFile(fileName)
+		if err != nil {
+			return err
+		}
+		if !dryRun {
+			return a.CreateRetryPolicy(policy)
+		}
 	default:
 		return errors.Errorf("invalid resource kind: %s", resource.Kind)
 	}

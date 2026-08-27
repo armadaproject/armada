@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	"k8s.io/utils/ptr"
 )
 
 // JobRun is the scheduler-internal representation of a job run.
@@ -46,10 +47,18 @@ type JobRun struct {
 	runningTime *time.Time
 	// True if a user has requested this run be preempted.
 	preemptRequested bool
+	// The user who requested this run be preempted.
+	preemptUser *string
 	// The reason provided when preemption was requested.
 	preemptReason *string
 	// True if the run has been reported as preempted by the executor.
 	preempted bool
+	// True if the run was ever preempted, even after another terminal state
+	// takes precedence over preempted during reconciliation. Job.FailureCount
+	// reads this to exclude a run that is both failed and preempted (the
+	// API-preemption path marks preempted runs failed to terminate them on the
+	// executor) from the job's genuine-failure count.
+	everPreempted bool
 	// The time at which the run was reported as preempted by the executor.
 	preemptedTime *time.Time
 	// True if the job has been reported as succeeded by the executor.
@@ -159,6 +168,9 @@ func (run *JobRun) Equal(other *JobRun) bool {
 	if run.id != other.id {
 		return false
 	}
+	if run.everPreempted != other.everPreempted {
+		return false
+	}
 	if run.jobId != other.jobId {
 		return false
 	}
@@ -199,6 +211,9 @@ func (run *JobRun) Equal(other *JobRun) bool {
 		return false
 	}
 	if run.runAttempted != other.runAttempted {
+		return false
+	}
+	if !ptr.Equal(run.preemptUser, other.preemptUser) {
 		return false
 	}
 	return true
@@ -254,6 +269,7 @@ func (jobDb *JobDb) CreateRun(
 		preemptRequested:    preemptRequested,
 		preemptReason:       preemptReason,
 		preempted:           preempted,
+		everPreempted:       preempted,
 		succeeded:           succeeded,
 		failed:              failed,
 		cancelled:           cancelled,
@@ -438,6 +454,18 @@ func (run *JobRun) WithPreemptRequested(preemptRequested bool) *JobRun {
 	return run
 }
 
+// PreemptUser returns the user who requested this run be preempted, or nil if no user was provided.
+func (run *JobRun) PreemptUser() *string {
+	return run.preemptUser
+}
+
+// WithPreemptUser returns a copy of the job run with the preemptUser updated.
+func (run *JobRun) WithPreemptUser(preemptUser *string) *JobRun {
+	run = run.DeepCopy()
+	run.preemptUser = preemptUser
+	return run
+}
+
 // PreemptReason returns the reason provided when preemption was requested, or nil if no reason was provided.
 func (run *JobRun) PreemptReason() *string {
 	return run.preemptReason
@@ -463,7 +491,17 @@ func (run *JobRun) PreemptedTime() *time.Time {
 func (run *JobRun) WithPreempted(preempted bool) *JobRun {
 	run = run.DeepCopy()
 	run.preempted = preempted
+	if preempted {
+		run.everPreempted = true
+	}
 	return run
+}
+
+// EverPreempted returns true if the run was preempted at any point, even when
+// a later terminal state (typically failed) replaced preempted as the run's
+// single terminal state. Unlike Preempted, this survives WithoutTerminal.
+func (run *JobRun) EverPreempted() bool {
+	return run.everPreempted
 }
 
 func (run *JobRun) WithPreemptedTime(preemptedTime *time.Time) *JobRun {

@@ -29,6 +29,13 @@ try:
 except ImportError:
     from airflow.operators.python import get_current_context  # Airflow 2.x
 
+# AirflowFailException's canonical home moved to airflow.sdk.exceptions in
+# Airflow 3.0 (airflow.exceptions re-exports the same class on 3.x).
+try:
+    from airflow.sdk.exceptions import AirflowFailException  # Airflow >= 3.0
+except ImportError:
+    from airflow.exceptions import AirflowFailException  # Airflow 2.x
+
 # Context moved to airflow.sdk.definitions.context in Airflow 3.0. The shim at
 # airflow.utils.context.Context still resolves on 3.x, but it is exposed via a
 # module-level __getattr__ that returns the *module*, not the class - which
@@ -57,6 +64,7 @@ __all__ = [
     "deserialize",
     "_extra_allowed",
     "get_current_context",
+    "AirflowFailException",
     "Context",
     "AIRFLOW_V_3_0_PLUS",
 ]

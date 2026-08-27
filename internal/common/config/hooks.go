@@ -18,6 +18,33 @@ var CustomHooks = []viper.DecoderConfigOption{
 	addDecodeHook(PulsarCompressionTypeHookFunc()),
 	addDecodeHook(PulsarCompressionLevelHookFunc()),
 	addDecodeHook(QuantityDecodeHook()),
+	addDecodeHook(StringConfigUnmarshalerHook()),
+}
+
+type StringConfigUnmarshaler interface {
+	UnmarshalConfigString(string) error
+}
+
+// StringConfigUnmarshalerHook decodes a YAML/env string into any target type that opts in via StringConfigUnmarshaler.
+func StringConfigUnmarshalerHook() mapstructure.DecodeHookFuncType {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{},
+	) (interface{}, error) {
+		if f.Kind() != reflect.String {
+			return data, nil
+		}
+		result := reflect.New(t).Interface()
+		unmarshaler, ok := result.(StringConfigUnmarshaler)
+		if !ok {
+			return data, nil
+		}
+		if err := unmarshaler.UnmarshalConfigString(data.(string)); err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
 }
 
 func PulsarCompressionTypeHookFunc() mapstructure.DecodeHookFuncType {

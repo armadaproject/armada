@@ -143,6 +143,7 @@ func TestCalculateIdealisedValue(t *testing.T) {
 				testfixtures.TestPool,
 				fairnessCostProvider,
 				noOpRateLimiter,
+				nil,
 				totalResources)
 
 			for _, q := range tc.queues {

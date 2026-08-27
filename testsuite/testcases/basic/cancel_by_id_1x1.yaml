@@ -22,8 +22,9 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-action: ACTION_CANCEL
-selection: SELECTION_BY_ID
+triggerEvent: queued
+cancel:
+  request:
 timeout: "100s"
 expectedEvents:
   - submitted:

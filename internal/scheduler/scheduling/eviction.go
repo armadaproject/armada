@@ -145,8 +145,8 @@ func NewOversubscribedEvictor(
 		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) (bool, string) {
 			overSubscribedPriorities = make(map[int32]bool)
 			for p, rl := range node.AllocatableByPriority {
-				if p < 0 {
-					// Negative priorities correspond to already evicted jobs.
+				if p == internaltypes.EvictedPriority {
+					// These jobs are already evicted jobs.
 					continue
 				}
 				if rl.HasNegativeValues() {

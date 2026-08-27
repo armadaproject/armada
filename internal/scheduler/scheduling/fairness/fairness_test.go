@@ -31,7 +31,7 @@ func TestNewDominantResourceFairness_InvalidConfig(t *testing.T) {
 		"must not provide both types of config": {
 			config: configuration.SchedulingConfig{
 				DominantResourceFairnessResourcesToConsider:             []string{"foo", "bar"},
-				ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 1}, {"bar", 1}},
+				ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{Name: "foo", Multiplier: 1}, {Name: "bar", Multiplier: 1}},
 			},
 		},
 		"pool override - invalid combination": {
@@ -40,7 +40,7 @@ func TestNewDominantResourceFairness_InvalidConfig(t *testing.T) {
 				Pools: []configuration.PoolConfig{
 					{
 						Name: poolName,
-						DominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 1}, {"bar", 0.5}},
+						DominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{Name: "foo", Multiplier: 1}, {Name: "bar", Multiplier: 0.5}},
 					},
 				},
 			},
@@ -121,21 +121,21 @@ func TestDominantResourceFairness(t *testing.T) {
 		},
 		"experimental config": {
 			totalResources: fooBarBaz(rlFactory, "1", "2", "3"),
-			config:         configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 1}, {"bar", 1}}},
+			config:         configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{Name: "foo", Multiplier: 1}, {Name: "bar", Multiplier: 1}}},
 			allocation:     fooBarBaz(rlFactory, "0.5", "1.1", "0"),
 			weight:         1.0,
 			expectedCost:   1.1 / 2,
 		},
 		"experimental config defaults multipliers to one": {
 			totalResources: fooBarBaz(rlFactory, "1", "2", "3"),
-			config:         configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 0}, {"bar", 0}}},
+			config:         configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{Name: "foo", Multiplier: 0}, {Name: "bar", Multiplier: 0}}},
 			allocation:     fooBarBaz(rlFactory, "0.5", "1.1", "0"),
 			weight:         1.0,
 			expectedCost:   1.1 / 2,
 		},
 		"experimental config non-unit multiplier": {
 			totalResources: fooBarBaz(rlFactory, "1", "2", "3"),
-			config:         configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 4}, {"bar", 1}}},
+			config:         configuration.SchedulingConfig{ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{Name: "foo", Multiplier: 4}, {Name: "bar", Multiplier: 1}}},
 			allocation:     fooBarBaz(rlFactory, "0.5", "1.1", "0"),
 			weight:         1.0,
 			expectedCost:   2,
@@ -143,11 +143,11 @@ func TestDominantResourceFairness(t *testing.T) {
 		"pool override - experimental config": {
 			totalResources: fooBarBaz(rlFactory, "1", "2", "3"),
 			config: configuration.SchedulingConfig{
-				ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 1}, {"bar", 1}},
+				ExperimentalDominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{Name: "foo", Multiplier: 1}, {Name: "bar", Multiplier: 1}},
 				Pools: []configuration.PoolConfig{
 					{
 						Name: poolName,
-						DominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{"foo", 1}, {"bar", 0.5}},
+						DominantResourceFairnessResourcesToConsider: []configuration.DominantResourceFairnessResource{{Name: "foo", Multiplier: 1}, {Name: "bar", Multiplier: 0.5}},
 					},
 				},
 			},

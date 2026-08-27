@@ -114,6 +114,57 @@ func TestQuantityDecodeHook(t *testing.T) {
 	}
 }
 
+// optInType opts in to string decoding via StringConfigUnmarshaler.
+type optInType struct{ Name string }
+
+func (o *optInType) UnmarshalConfigString(s string) error {
+	o.Name = s
+	return nil
+}
+
+// textOnlyType implements encoding.TextUnmarshaler (e.g. for JSON/proto) but does
+// NOT opt in to StringConfigUnmarshaler, so the hook must leave it untouched.
+type textOnlyType struct{ Name string }
+
+func (o *textOnlyType) UnmarshalText(text []byte) error {
+	o.Name = string(text)
+	return nil
+}
+
+func TestStringConfigUnmarshalerHook(t *testing.T) {
+	tests := map[string]struct {
+		value     interface{}
+		convertTo reflect.Type
+		expected  interface{}
+	}{
+		"decodes opt-in type": {
+			value:     "poolA",
+			convertTo: reflect.TypeOf(optInType{}),
+			expected:  &optInType{Name: "poolA"},
+		},
+		// textOnlyType implements encoding.TextUnmarshaler but does not opt in, so
+		// the string passes through unchanged and its UnmarshalText is not invoked.
+		"ignores plain TextUnmarshaler type": {
+			value:     "poolA",
+			convertTo: reflect.TypeOf(textOnlyType{}),
+			expected:  "poolA",
+		},
+		"ignores non-string source": {
+			value:     1,
+			convertTo: reflect.TypeOf(optInType{}),
+			expected:  1,
+		},
+	}
+	hook := StringConfigUnmarshalerHook()
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			out, err := hook(reflect.TypeOf(tc.value), tc.convertTo, tc.value)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, out)
+		})
+	}
+}
+
 func runHookTest(t *testing.T, tc HookTest, convertTo reflect.Type, hookFunc mapstructure.DecodeHookFuncType) {
 	parsed, err := hookFunc(reflect.TypeOf(tc.value), convertTo, tc.value)
 	if tc.expectError {

@@ -565,6 +565,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			pool,
 			fairnessCostProvider,
 			s.limiter,
+			nil, // no fairshare preemption rate limit in the simulator
 			totalResources,
 		)
 

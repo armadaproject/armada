@@ -27,7 +27,7 @@ func UpdateQueue(submitClient api.SubmitClient, queue *api.Queue) error {
 func DeleteQueue(submitClient api.SubmitClient, name string) error {
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
-	_, e := submitClient.DeleteQueue(ctx, &api.QueueDeleteRequest{name})
+	_, e := submitClient.DeleteQueue(ctx, &api.QueueDeleteRequest{Name: name})
 	return e
 }
 

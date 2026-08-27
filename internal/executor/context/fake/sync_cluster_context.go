@@ -1,13 +1,14 @@
 package fake
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
+	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
@@ -19,7 +20,9 @@ import (
 
 type SyncFakeClusterContext struct {
 	Pods             map[string]*v1.Pod
+	Nodes            map[string]*v1.Node
 	Events           map[string][]*v1.Event
+	NodeEvents       map[string][]*v1.Event
 	AnnotationsAdded map[string]map[string]string
 	podEventHandlers []*cache.ResourceEventHandlerFuncs
 	GetPodEventsErr  error
@@ -29,7 +32,9 @@ type SyncFakeClusterContext struct {
 func NewSyncFakeClusterContext() *SyncFakeClusterContext {
 	c := &SyncFakeClusterContext{
 		Pods:             map[string]*v1.Pod{},
+		Nodes:            map[string]*v1.Node{},
 		Events:           map[string][]*v1.Event{},
+		NodeEvents:       map[string][]*v1.Event{},
 		AnnotationsAdded: map[string]map[string]string{},
 	}
 	return c
@@ -59,11 +64,19 @@ func (c *SyncFakeClusterContext) GetActiveBatchPods() ([]*v1.Pod, error) {
 }
 
 func (c *SyncFakeClusterContext) GetNodes() ([]*v1.Node, error) {
-	return make([]*v1.Node, 0), nil
+	nodes := make([]*v1.Node, 0, len(c.Nodes))
+	for _, n := range c.Nodes {
+		nodes = append(nodes, n.DeepCopy())
+	}
+	return nodes, nil
 }
 
 func (c *SyncFakeClusterContext) GetNode(nodeName string) (*v1.Node, error) {
-	return nil, errors.New("GetNode Not implemented")
+	node, exists := c.Nodes[nodeName]
+	if !exists {
+		return nil, k8s_errors.NewNotFound(schema.GroupResource{Resource: "nodes"}, nodeName)
+	}
+	return node.DeepCopy(), nil
 }
 
 func (c *SyncFakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
@@ -72,6 +85,10 @@ func (c *SyncFakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) 
 	}
 	jobId := util2.ExtractJobId(pod)
 	return c.Events[jobId], nil
+}
+
+func (c *SyncFakeClusterContext) GetNodeEvents(nodeName string) ([]*v1.Event, error) {
+	return c.NodeEvents[nodeName], nil
 }
 
 func (c *SyncFakeClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
@@ -160,9 +177,19 @@ func (c *SyncFakeClusterContext) GetNodeStatsSummary(ctx *armadacontext.Context,
 }
 
 func (c *SyncFakeClusterContext) SimulateDeletionEvent(pod *v1.Pod) {
+	c.simulateDeletion(pod)
+}
+
+// Delivers the pod wrapped in a DeletedFinalStateUnknown tombstone, as the informer does for a
+// deletion its watch missed.
+func (c *SyncFakeClusterContext) SimulateTombstoneDeletionEvent(pod *v1.Pod) {
+	c.simulateDeletion(cache.DeletedFinalStateUnknown{Key: util2.ExtractPodKey(pod), Obj: pod})
+}
+
+func (c *SyncFakeClusterContext) simulateDeletion(obj interface{}) {
 	for _, h := range c.podEventHandlers {
 		if h.DeleteFunc != nil {
-			h.DeleteFunc(pod)
+			h.DeleteFunc(obj)
 		}
 	}
 }

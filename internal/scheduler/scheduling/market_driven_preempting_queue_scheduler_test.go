@@ -131,15 +131,9 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(
-							testfixtures.N1Cpu4GiJobsWithPriceBand("A", bidstore.PriceBand_PRICE_BAND_A, 21),
-						),
-						"B": append(
-							testfixtures.N1Cpu4GiJobsWithPriceBand("B", bidstore.PriceBand_PRICE_BAND_A, 21),
-						),
-						"C": append(
-							testfixtures.N1Cpu4GiJobsWithPriceBand("C", bidstore.PriceBand_PRICE_BAND_A, 21),
-						),
+						"A": testfixtures.N1Cpu4GiJobsWithPriceBand("A", bidstore.PriceBand_PRICE_BAND_A, 21),
+						"B": testfixtures.N1Cpu4GiJobsWithPriceBand("B", bidstore.PriceBand_PRICE_BAND_A, 21),
+						"C": testfixtures.N1Cpu4GiJobsWithPriceBand("C", bidstore.PriceBand_PRICE_BAND_A, 21),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 10),
@@ -390,7 +384,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					// Schedule a gang filling the remaining space on both node
-					// Queue A is preeempted despite having a higher price, because the jobs are scheduled as away jobs
+					// Queue A is preempted despite having a higher price, because the jobs are scheduled as away jobs
 					JobsByQueue: map[string][]*jobdb.Job{
 						"B": testfixtures.N1GpuJobsWithPriceBandAndPriorityClass("B", bidstore.PriceBand_PRICE_BAND_A, testfixtures.PriorityClass6Preemptible, 16),
 					},
@@ -728,6 +722,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					testfixtures.TestPool,
 					fairnessCostProvider,
 					limiter,
+					nil,
 					totalResources,
 				)
 				sctx.Started = schedulingStarted.Add(time.Duration(i) * schedulingInterval)

@@ -82,7 +82,9 @@ var loadtestCmd = &cobra.Command{
 
 		loadTestTimeout := context.Background()
 		if timeout != defaultTimeout {
-			loadTestTimeout, _ = context.WithTimeout(context.Background(), timeout)
+			var cancel context.CancelFunc
+			loadTestTimeout, cancel = context.WithTimeout(context.Background(), timeout)
+			defer cancel()
 		}
 		apiConnectionDetails, err := client.ExtractCommandlineArmadaApiConnectionDetails()
 		if err != nil {

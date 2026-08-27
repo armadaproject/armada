@@ -628,7 +628,7 @@ func createSctx(t *testing.T, scheduledJobs []*jobdb.Job, preemptedJobs []*jobdb
 	totalResources := testfixtures.TestResourceListFactory.MakeAllZero()
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, reconcileTestPool, testfixtures.TestSchedulingConfig())
 	require.NoError(t, err)
-	sctx := schedulercontext.NewSchedulingContext(reconcileTestPool, fairnessCostProvider, nil, totalResources)
+	sctx := schedulercontext.NewSchedulingContext(reconcileTestPool, fairnessCostProvider, nil, nil, totalResources)
 
 	demand := internaltypes.ResourceList{}
 	for _, job := range append(scheduledJobs, preemptedJobs...) {

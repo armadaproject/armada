@@ -436,3 +436,73 @@ func TestCordonQueue_SuccessCallsRepository(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &types.Empty{}, resp)
 }
+
+// The repository reports unknown policies with a typed error; both write paths
+// must surface it as InvalidArgument naming them.
+func TestQueueRetryPolicies_UnknownPolicyRejected(t *testing.T) {
+	rejection := &ErrUnknownRetryPolicies{Names: []string{"ghost"}}
+	req := &api.Queue{Name: "q1", PriorityFactor: 1, RetryPolicies: []string{"ghost"}}
+
+	tests := map[string]struct {
+		expectRepo func(m *queueServiceTestMocks, ctx *armadacontext.Context)
+		call       func(s *Server, ctx *armadacontext.Context) error
+	}{
+		"create": {
+			expectRepo: func(m *queueServiceTestMocks, ctx *armadacontext.Context) {
+				m.repo.EXPECT().CreateQueue(ctx, gomock.Any()).Return(rejection).Times(1)
+			},
+			call: func(s *Server, ctx *armadacontext.Context) error {
+				_, err := s.CreateQueue(ctx, req)
+				return err
+			},
+		},
+		"update": {
+			expectRepo: func(m *queueServiceTestMocks, ctx *armadacontext.Context) {
+				m.repo.EXPECT().UpdateQueue(ctx, gomock.Any()).Return(rejection).Times(1)
+			},
+			call: func(s *Server, ctx *armadacontext.Context) error {
+				_, err := s.UpdateQueue(ctx, req)
+				return err
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			s, m := newTestQueueServer(t)
+			ctx := armadacontext.Background()
+			m.authorizer.
+				EXPECT().
+				AuthorizeAction(ctx, permission.Permission(permissions.CreateQueue)).
+				Return(nil).
+				Times(1)
+			tc.expectRepo(m, ctx)
+
+			err := tc.call(s, ctx)
+			require.Error(t, err)
+			requireGrpcCode(t, err, codes.InvalidArgument)
+			assert.Contains(t, err.Error(), "ghost")
+		})
+	}
+}
+
+func TestCreateQueue_MultipleRetryPoliciesAccepted(t *testing.T) {
+	s, m := newTestQueueServer(t)
+	ctx := armadacontext.Background()
+
+	m.authorizer.
+		EXPECT().
+		AuthorizeAction(ctx, permission.Permission(permissions.CreateQueue)).
+		Return(nil).
+		Times(1)
+	var created queue.Queue
+	m.repo.
+		EXPECT().
+		CreateQueue(ctx, gomock.Any()).
+		Do(func(_ *armadacontext.Context, q queue.Queue) { created = q }).
+		Return(nil).
+		Times(1)
+
+	_, err := s.CreateQueue(ctx, &api.Queue{Name: "q1", PriorityFactor: 1, RetryPolicies: []string{"a", "b"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a", "b"}, created.RetryPolicies)
+}

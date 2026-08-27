@@ -274,6 +274,26 @@ func HasAppContainerStarted(pod *v1.Pod) bool {
 	return false
 }
 
+// LongestAppContainerRunDuration returns how long the pod's longest-running app container ran for, or
+// zero if none of them ran to completion - only terminated containers have a measurable runtime. Init
+// containers are ignored, matching HasAppContainerStarted.
+func LongestAppContainerRunDuration(pod *v1.Pod) time.Duration {
+	longest := time.Duration(0)
+	for _, container := range pod.Status.ContainerStatuses {
+		terminated := container.State.Terminated
+		if terminated == nil {
+			terminated = container.LastTerminationState.Terminated
+		}
+		if terminated == nil || terminated.StartedAt.IsZero() || terminated.FinishedAt.IsZero() {
+			continue
+		}
+		if ran := terminated.FinishedAt.Sub(terminated.StartedAt.Time); ran > longest {
+			longest = ran
+		}
+	}
+	return longest
+}
+
 func IsMarkedForDeletion(pod *v1.Pod) bool {
 	_, exists := pod.Annotations[domain.MarkedForDeletion]
 	return exists

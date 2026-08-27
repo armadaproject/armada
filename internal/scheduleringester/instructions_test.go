@@ -110,8 +110,11 @@ func TestConvertEventSequence(t *testing.T) {
 			expected: []DbOperation{MarkRunsPending{f.RunId: f.BaseTime}},
 		},
 		"job preemption requested": {
-			events:   []*armadaevents.EventSequence_Event{f.JobPreemptionRequested},
-			expected: []DbOperation{MarkRunsForJobPreemptRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: map[string]string{f.JobId: "Preempted by " + f.UserId}}},
+			events: []*armadaevents.EventSequence_Event{f.JobPreemptionRequested},
+			expected: []DbOperation{MarkRunsForJobPreemptRequested{
+				preemptUser: f.UserId,
+				jobSets:     map[JobSetKey]map[string]string{{queue: f.Queue, jobSet: f.JobsetName}: {f.JobId: "Preempted by " + f.UserId}},
+			}},
 		},
 		"job preemption requested with reason": {
 			events: []*armadaevents.EventSequence_Event{
@@ -125,7 +128,10 @@ func TestConvertEventSequence(t *testing.T) {
 					},
 				},
 			},
-			expected: []DbOperation{MarkRunsForJobPreemptRequested{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: map[string]string{f.JobId: "Preempted by " + f.UserId + " - low priority"}}},
+			expected: []DbOperation{MarkRunsForJobPreemptRequested{
+				preemptUser: f.UserId,
+				jobSets:     map[JobSetKey]map[string]string{{queue: f.Queue, jobSet: f.JobsetName}: {f.JobId: "Preempted by " + f.UserId + " - low priority"}},
+			}},
 		},
 		"job run preempted": {
 			events:   []*armadaevents.EventSequence_Event{f.JobRunPreempted},
@@ -173,21 +179,26 @@ func TestConvertEventSequence(t *testing.T) {
 						JobSetKey: JobSetKey{queue: f.Queue, jobSet: f.JobsetName},
 						Priority:  f.NewPriority,
 					},
-					jobIds: []string{f.JobId},
+					jobIds:    []string{f.JobId},
+					Requestor: f.UserId,
 				},
 			},
 		},
 		"reprioritise jobset": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetReprioritiseRequested},
 			expected: []DbOperation{
-				UpdateJobSetPriorities{JobSetKey{queue: f.Queue, jobSet: f.JobsetName}: f.NewPriority},
+				UpdateJobSetPriorities{
+					jobSets:   map[JobSetKey]int64{{queue: f.Queue, jobSet: f.JobsetName}: f.NewPriority},
+					Requestor: f.UserId,
+				},
 			},
 		},
 		"JobCancelRequested": {
 			events: []*armadaevents.EventSequence_Event{f.JobCancelRequested},
 			expected: []DbOperation{
 				MarkJobsCancelRequested{
-					cancelUser: f.UserId,
+					cancelUser:   f.UserId,
+					cancelReason: cancelReasonUserInitiated,
 					jobIds: map[JobSetKey][]string{
 						{queue: f.Queue, jobSet: f.JobsetName}: {f.JobId},
 					},
@@ -198,7 +209,8 @@ func TestConvertEventSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested},
 			expected: []DbOperation{
 				MarkJobSetsCancelRequested{
-					cancelUser: f.UserId,
+					cancelUser:   f.UserId,
+					cancelReason: cancelReasonUserInitiated,
 					jobSets: map[JobSetKey]*JobSetCancelAction{
 						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: true, cancelLeased: true},
 					},
@@ -209,7 +221,8 @@ func TestConvertEventSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_QUEUED)},
 			expected: []DbOperation{
 				MarkJobSetsCancelRequested{
-					cancelUser: f.UserId,
+					cancelUser:   f.UserId,
+					cancelReason: cancelReasonUserInitiated,
 					jobSets: map[JobSetKey]*JobSetCancelAction{
 						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: true, cancelLeased: false},
 					},
@@ -220,7 +233,8 @@ func TestConvertEventSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_PENDING)},
 			expected: []DbOperation{
 				MarkJobSetsCancelRequested{
-					cancelUser: f.UserId,
+					cancelUser:   f.UserId,
+					cancelReason: cancelReasonUserInitiated,
 					jobSets: map[JobSetKey]*JobSetCancelAction{
 						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: false, cancelLeased: true},
 					},
@@ -231,7 +245,8 @@ func TestConvertEventSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_RUNNING)},
 			expected: []DbOperation{
 				MarkJobSetsCancelRequested{
-					cancelUser: f.UserId,
+					cancelUser:   f.UserId,
+					cancelReason: cancelReasonUserInitiated,
 					jobSets: map[JobSetKey]*JobSetCancelAction{
 						{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: false, cancelLeased: true},
 					},
@@ -279,8 +294,9 @@ func TestConvertEventSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested, f.Running, f.JobSucceeded},
 			expected: []DbOperation{
 				MarkJobSetsCancelRequested{
-					cancelUser: f.UserId,
-					jobSets:    map[JobSetKey]*JobSetCancelAction{{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: true, cancelLeased: true}},
+					cancelUser:   f.UserId,
+					cancelReason: cancelReasonUserInitiated,
+					jobSets:      map[JobSetKey]*JobSetCancelAction{{queue: f.Queue, jobSet: f.JobsetName}: {cancelQueued: true, cancelLeased: true}},
 				},
 				MarkRunsRunning{f.RunId: f.BaseTime},
 				MarkJobsSucceeded{f.JobId: true},
@@ -341,6 +357,15 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 				},
 			}},
 		},
+		"delete executor": {
+			event: f.DeleteExecutor,
+			expected: []DbOperation{DeleteExecutor{
+				f.ExecutorId: &ExecutorDelete{
+					ExecutorID: f.ExecutorId,
+					Requestor:  f.UserId,
+				},
+			}},
+		},
 		"preempt on executor": {
 			event: f.PreemptOnExecutor,
 			expected: []DbOperation{PreemptExecutor{
@@ -349,6 +374,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Queues:          []string{f.Queue},
 					PriorityClasses: []string{f.PriorityClassName},
 					Pools:           nil,
+					Requestor:       f.UserId,
 				},
 			}},
 		},
@@ -360,6 +386,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Queues:          []string{f.Queue},
 					PriorityClasses: []string{f.PriorityClassName},
 					Pools:           []string{f.Pool},
+					Requestor:       f.UserId,
 				},
 			}},
 		},
@@ -371,6 +398,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Queues:          []string{f.Queue},
 					PriorityClasses: []string{f.PriorityClassName},
 					Pools:           nil,
+					Requestor:       f.UserId,
 				},
 			}},
 		},
@@ -382,6 +410,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Queues:          []string{f.Queue},
 					PriorityClasses: []string{f.PriorityClassName},
 					Pools:           []string{f.Pool},
+					Requestor:       f.UserId,
 				},
 			}},
 		},
@@ -396,6 +425,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Executor:        f.ExecutorId,
 					Queues:          []string{f.Queue},
 					PriorityClasses: []string{f.PriorityClassName},
+					Requestor:       f.UserId,
 				},
 			}},
 		},
@@ -410,6 +440,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Executor:        f.ExecutorId,
 					Queues:          []string{f.Queue},
 					PriorityClasses: []string{f.PriorityClassName},
+					Requestor:       f.UserId,
 				},
 			}},
 		},
@@ -420,6 +451,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Name:            f.Queue,
 					PriorityClasses: []string{f.PriorityClassName},
 					Pools:           nil,
+					Requestor:       f.UserId,
 				},
 			}},
 		},
@@ -430,6 +462,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					Name:            f.Queue,
 					PriorityClasses: []string{f.PriorityClassName},
 					Pools:           []string{f.Pool},
+					Requestor:       f.UserId,
 				},
 			}},
 		},
@@ -441,6 +474,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					PriorityClasses: []string{f.PriorityClassName},
 					JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_QUEUED},
 					Pools:           nil,
+					Requestor:       f.UserId,
 				},
 			}},
 		},
@@ -452,6 +486,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					PriorityClasses: []string{f.PriorityClassName},
 					JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_QUEUED},
 					Pools:           []string{f.Pool},
+					Requestor:       f.UserId,
 				},
 			}},
 		},
@@ -463,6 +498,7 @@ func TestConvertControlPlaneEvent(t *testing.T) {
 					PriorityClasses: []string{f.PriorityClassName},
 					JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_RUNNING},
 					Pools:           nil,
+					Requestor:       f.UserId,
 				},
 			}},
 		},
@@ -608,4 +644,103 @@ func TestBuildPreemptionReason(t *testing.T) {
 			assert.Equal(t, tc.expected, buildPreemptionReason(tc.reason, tc.user))
 		})
 	}
+}
+
+// TestCancelJobCancelUserPropagation verifies that CancelJob events propagate cancel_user to DB operations
+func TestCancelJobRequestorPropagation(t *testing.T) {
+	converter := JobSetEventsInstructionConverter{m, compressor}
+	es := f.NewEventSequence(f.JobCancelRequested)
+	results := converter.dbOperationsFromEventSequence(es)
+
+	require.Equal(t, 1, len(results))
+	op, ok := results[0].(MarkJobsCancelRequested)
+	require.True(t, ok, "expected MarkJobsCancelRequested operation")
+	assert.Equal(t, f.UserId, op.cancelUser, "cancelUser should be set from event")
+}
+
+// TestCancelJobSetCancelUserPropagation verifies that CancelJobSet events propagate cancel_user to DB operations
+func TestCancelJobSetRequestorPropagation(t *testing.T) {
+	converter := JobSetEventsInstructionConverter{m, compressor}
+	es := f.NewEventSequence(f.JobSetCancelRequested)
+	results := converter.dbOperationsFromEventSequence(es)
+
+	require.Equal(t, 1, len(results))
+	op, ok := results[0].(MarkJobSetsCancelRequested)
+	require.True(t, ok, "expected MarkJobSetsCancelRequested operation")
+	assert.Equal(t, f.UserId, op.cancelUser, "cancelUser should be set from event")
+}
+
+// TestReprioritiseJobRequestorCapture verifies that ReprioritiseJob events capture reprioritiseUser
+func TestReprioritiseJobRequestorCapture(t *testing.T) {
+	converter := JobSetEventsInstructionConverter{m, compressor}
+	es := f.NewEventSequence(f.JobReprioritiseRequested)
+	results := converter.dbOperationsFromEventSequence(es)
+
+	require.Equal(t, 1, len(results))
+	op, ok := results[0].(*UpdateJobPriorities)
+	require.True(t, ok, "expected UpdateJobPriorities operation")
+	assert.Equal(t, f.UserId, op.Requestor, "UpdateJobPriorities should capture Requestor from event")
+}
+
+// TestReprioritiseJobSetRequestorCapture verifies that ReprioritiseJobSet events capture reprioritiseUser
+func TestReprioritiseJobSetRequestorCapture(t *testing.T) {
+	converter := JobSetEventsInstructionConverter{m, compressor}
+	es := f.NewEventSequence(f.JobSetReprioritiseRequested)
+	results := converter.dbOperationsFromEventSequence(es)
+
+	require.Equal(t, 1, len(results))
+	op, ok := results[0].(UpdateJobSetPriorities)
+	require.True(t, ok, "expected UpdateJobSetPriorities operation")
+	assert.Equal(t, f.UserId, op.Requestor, "UpdateJobSetPriorities should capture Requestor from event/meta")
+}
+
+// TestCancelOnNodeRequestorCapture verifies that CancelOnNode control-plane events capture cancelUser
+func TestCancelOnNodeRequestorCapture(t *testing.T) {
+	converter := ControlPlaneEventsInstructionConverter{m}
+	results := converter.dbOperationFromControlPlaneEvent(f.CancelOnNode)
+
+	require.Equal(t, 1, len(results))
+	cancelOp, ok := results[0].(CancelNode)
+	require.True(t, ok, "expected CancelNode operation")
+	var actualCancel *CancelOnNode
+	for _, v := range cancelOp {
+		actualCancel = v
+		break
+	}
+	require.NotNil(t, actualCancel)
+	assert.Equal(t, f.UserId, actualCancel.Requestor, "CancelOnNode should have Requestor field from event")
+}
+
+// TestCancelOnExecutorRequestorCapture verifies that CancelOnExecutor control-plane events capture cancelUser
+func TestCancelOnExecutorRequestorCapture(t *testing.T) {
+	converter := ControlPlaneEventsInstructionConverter{m}
+	results := converter.dbOperationFromControlPlaneEvent(f.CancelOnExecutor)
+
+	require.Equal(t, 1, len(results))
+	cancelOp, ok := results[0].(CancelExecutor)
+	require.True(t, ok, "expected CancelExecutor operation")
+	var actualCancel *CancelOnExecutor
+	for _, v := range cancelOp {
+		actualCancel = v
+		break
+	}
+	require.NotNil(t, actualCancel)
+	assert.Equal(t, f.UserId, actualCancel.Requestor, "CancelOnExecutor should have Requestor field from event")
+}
+
+// TestCancelOnQueueRequestorCapture verifies that CancelOnQueue control-plane events capture cancelUser
+func TestCancelOnQueueRequestorCapture(t *testing.T) {
+	converter := ControlPlaneEventsInstructionConverter{m}
+	results := converter.dbOperationFromControlPlaneEvent(f.CancelQueuedOnQueue)
+
+	require.Equal(t, 1, len(results))
+	cancelOp, ok := results[0].(CancelQueue)
+	require.True(t, ok, "expected CancelQueue operation")
+	var actualCancel *CancelOnQueue
+	for _, v := range cancelOp {
+		actualCancel = v
+		break
+	}
+	require.NotNil(t, actualCancel)
+	assert.Equal(t, f.UserId, actualCancel.Requestor, "CancelOnQueue should have Requestor field from event")
 }

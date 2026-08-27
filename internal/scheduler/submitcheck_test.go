@@ -51,7 +51,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		{Name: "cpu2"},
 		{Name: "cpu-disallowed-resources", ExperimentalUnscheduledResources: []string{"cpu"}},
 		{Name: "gpu"},
-		{Name: "cpu-away", AwayPools: []string{"gpu"}},
+		{Name: "cpu-away", AwayPools: []configuration.AwayPoolConfig{{Name: "gpu"}}},
 		{Name: "cpu-grouped-1", ExperimentalSubmissionGroup: "group-1"},
 		{Name: "cpu-grouped-2", ExperimentalSubmissionGroup: "group-1"},
 	}
@@ -232,6 +232,17 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		"Gang Schedules - one cluster multiple node": {
 			executorTimeout: defaultTimeout,
 			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"), SmallNode("cpu"))},
+			jobs:            largeGangJob,
+			expectedResult: map[string]schedulingResult{
+				largeGangJob[0].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				largeGangJob[1].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				largeGangJob[2].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				largeGangJob[3].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
+		"Gang Schedules - multiple cluster": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu")), Executor(SmallNode("cpu"))},
 			jobs:            largeGangJob,
 			expectedResult: map[string]schedulingResult{
 				largeGangJob[0].Id(): {isSchedulable: true, pools: []string{"cpu"}},

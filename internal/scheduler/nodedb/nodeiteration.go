@@ -22,7 +22,7 @@ type NodesIterator struct {
 }
 
 func NewNodesIterator(txn *memdb.Txn) (*NodesIterator, error) {
-	it, err := txn.LowerBound("nodes", "id", "")
+	it, err := txn.LowerBound(NodesTable, IdIndex, "")
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

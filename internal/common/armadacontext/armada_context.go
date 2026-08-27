@@ -151,6 +151,14 @@ func WithLogFields(parent *Context, fields map[string]any) *Context {
 	}
 }
 
+// WithContext returns a copy of parent using the supplied context while preserving the logger.
+func WithContext(parent *Context, ctx context.Context) *Context {
+	return &Context{
+		Context: ctx,
+		logger:  parent.logger,
+	}
+}
+
 // WithValue returns a copy of parent in which the value associated with key is
 // val. It is analogous to context.WithValue()
 func WithValue(parent *Context, key, val any) *Context {

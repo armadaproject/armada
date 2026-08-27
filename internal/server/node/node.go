@@ -39,6 +39,13 @@ func New(
 	}
 }
 
+func loggedQueueCount(queues []string) any {
+	if len(queues) == 0 {
+		return "all"
+	}
+	return len(queues)
+}
+
 // PreemptOnNode implements api.NodeServer.
 func (s *Server) PreemptOnNode(grpcCtx context.Context, req *api.NodePreemptRequest) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
@@ -58,6 +65,17 @@ func (s *Server) PreemptOnNode(grpcCtx context.Context, req *api.NodePreemptRequ
 		return nil, fmt.Errorf("must provide non-empty executor id when determining what to preempt")
 	}
 
+	principal := auth.GetPrincipal(ctx)
+	requestor := principal.GetName()
+
+	ctx.Logger().WithFields(map[string]any{
+		"node":            req.Name,
+		"executor":        req.Executor,
+		"queueCount":      loggedQueueCount(req.Queues),
+		"priorityClasses": req.PriorityClasses,
+		"authMethod":      principal.GetAuthMethod(),
+	}).Info("PreemptOnNode request received")
+
 	es := &controlplaneevents.Event{
 		Created: protoutil.ToTimestamp(s.clock.Now().UTC()),
 		Event: &controlplaneevents.Event_PreemptOnNode{
@@ -66,6 +84,7 @@ func (s *Server) PreemptOnNode(grpcCtx context.Context, req *api.NodePreemptRequ
 				Executor:        req.Executor,
 				Queues:          req.Queues,
 				PriorityClasses: req.PriorityClasses,
+				Requestor:       requestor,
 			},
 		},
 	}
@@ -97,6 +116,17 @@ func (s *Server) CancelOnNode(grpcCtx context.Context, req *api.NodeCancelReques
 		return nil, fmt.Errorf("must provide non-empty executor id when determining what to cancel")
 	}
 
+	principal := auth.GetPrincipal(ctx)
+	requestor := principal.GetName()
+
+	ctx.Logger().WithFields(map[string]any{
+		"node":            req.Name,
+		"executor":        req.Executor,
+		"queueCount":      loggedQueueCount(req.Queues),
+		"priorityClasses": req.PriorityClasses,
+		"authMethod":      principal.GetAuthMethod(),
+	}).Info("CancelOnNode request received")
+
 	es := &controlplaneevents.Event{
 		Created: protoutil.ToTimestamp(s.clock.Now().UTC()),
 		Event: &controlplaneevents.Event_CancelOnNode{
@@ -105,6 +135,7 @@ func (s *Server) CancelOnNode(grpcCtx context.Context, req *api.NodeCancelReques
 				Executor:        req.Executor,
 				Queues:          req.Queues,
 				PriorityClasses: req.PriorityClasses,
+				Requestor:       requestor,
 			},
 		},
 	}

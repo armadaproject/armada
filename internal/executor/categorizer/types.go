@@ -22,7 +22,25 @@ type ErrorCategoriesConfig struct {
 type CategoryConfig struct {
 	Name  string         `yaml:"name"`
 	Rules []CategoryRule `yaml:"rules"`
+	// Action is what the executor does with a failed pod in this category.
+	// Empty (the default) means Retain.
+	Action PodFailureAction `yaml:"action"`
 }
+
+// PodFailureAction is the executor's disposition of a failed pod in a category.
+type PodFailureAction string
+
+const (
+	// PodFailureActionRetain keeps the failed pod in place until normal GC, so
+	// its logs remain available for debugging.
+	PodFailureActionRetain PodFailureAction = "Retain"
+	// PodFailureActionDelete deletes the failed pod and reports the failure
+	// once the pod is gone, freeing the pod name for a retry of the same job.
+	// Whether the job is retried stays with the scheduler's retry policy.
+	// Intended for narrow infrastructure-failure categories replacing failed
+	// pod checks, not for broad categories like user errors.
+	PodFailureActionDelete PodFailureAction = "Delete"
+)
 
 // CategoryRule defines a single matching condition. Exactly one matcher must
 // be set per rule (validated by NewClassifier). Rules within a category are OR'd.
@@ -37,11 +55,18 @@ type CategoryConfig struct {
 // missing volume, missing config) and Armada-detected conditions (stuck
 // terminating, active deadline exceeded, externally deleted). ContainerName
 // is ignored for OnPodError because the message has no container attribution.
+//
+// OnPodEvents is also pod-level: it matches the pod's Kubernetes events.
+// Events carry failures that often do not reach pod or container status, for
+// example kubelet admission and device-plugin errors. The rule matches only
+// on classification paths that receive the events (failed pod detection). On
+// other paths it never matches. ContainerName is ignored for OnPodEvents.
 type CategoryRule struct {
 	ContainerName        string                      `yaml:"containerName,omitempty"`
 	OnExitCodes          *errormatch.ExitCodeMatcher `yaml:"onExitCodes,omitempty"`
 	OnTerminationMessage *errormatch.RegexMatcher    `yaml:"onTerminationMessage,omitempty"`
 	OnPodError           *errormatch.RegexMatcher    `yaml:"onPodError,omitempty"`
+	OnPodEvents          *errormatch.PodEventMatcher `yaml:"onPodEvents,omitempty"`
 	OnConditions         []string                    `yaml:"onConditions,omitempty"`
 	Subcategory          string                      `yaml:"subcategory,omitempty"`
 	// Hint is operator-supplied user-facing copy describing this failure mode.

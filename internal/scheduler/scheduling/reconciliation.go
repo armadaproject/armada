@@ -104,7 +104,7 @@ func (r *RunNodeReconciler) checkJobNodeMatch(job *jobdb.Job, node *schedulerobj
 
 	runPools := []string{run.Pool()}
 	if len(config.AwayPools) > 0 {
-		runPools = append(runPools, config.AwayPools...)
+		runPools = append(runPools, config.AwayPoolNames()...)
 	}
 
 	if !slices.Contains(runPools, node.GetPool()) {

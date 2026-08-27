@@ -221,6 +221,14 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 		return nil, err
 	}
 
+	ctx.Logger().WithFields(map[string]any{
+		"queue":    req.Queue,
+		"jobSet":   req.JobSetId,
+		"jobCount": len(req.JobIds),
+		"jobIds":   req.JobIds,
+		"reason":   req.Reason,
+	}).Info("PreemptJobs request received")
+
 	// results maps job ids to strings containing error messages.
 	results := make(map[string]string)
 

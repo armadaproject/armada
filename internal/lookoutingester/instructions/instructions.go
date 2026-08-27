@@ -24,14 +24,15 @@ import (
 )
 
 const (
-	maxQueueLen         = 512
-	maxOwnerLen         = 512
-	maxJobSetLen        = 1024
-	maxAnnotationKeyLen = 1024
-	maxAnnotationValLen = 1024
-	maxPriorityClassLen = 63
-	maxClusterLen       = 512
-	maxNodeLen          = 512
+	maxQueueLen          = 512
+	maxOwnerLen          = 512
+	maxJobSetLen         = 1024
+	maxAnnotationKeyLen  = 1024
+	maxAnnotationValLen  = 1024
+	maxPriorityClassLen  = 63
+	maxClusterLen        = 512
+	maxNodeLen           = 512
+	cancelReasonFallback = "no reason provided"
 )
 
 type HasNodeName interface {
@@ -83,7 +84,7 @@ func (c *InstructionConverter) convertSequence(
 ) {
 	queue := util.Truncate(sequence.Queue, maxQueueLen)
 	jobset := util.Truncate(sequence.JobSetName, maxJobSetLen)
-	owner := util.Truncate(sequence.UserId, maxOwnerLen)
+	owner := strings.TrimSpace(util.Truncate(sequence.UserId, maxOwnerLen))
 	for idx, event := range sequence.Events {
 		var err error
 		if event.Created == nil {
@@ -98,7 +99,7 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
 			err = c.handleReprioritiseJob(ts, event.GetReprioritisedJob(), update)
 		case *armadaevents.EventSequence_Event_CancelledJob:
-			err = c.handleCancelledJob(ts, event.GetCancelledJob(), update)
+			err = c.handleCancelledJob(ts, owner, event.GetCancelledJob(), update)
 		case *armadaevents.EventSequence_Event_JobSucceeded:
 			err = c.handleJobSucceeded(ts, event.GetJobSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobErrors:
@@ -109,14 +110,14 @@ func (c *InstructionConverter) convertSequence(
 			err = c.handleJobRunRunning(ts, event.GetJobRunRunning(), update)
 		case *armadaevents.EventSequence_Event_JobRunCancelled:
 			err = c.handleJobRunCancelled(ts, event.GetJobRunCancelled(), update)
-		case *armadaevents.EventSequence_Event_JobCancelledDebugInfo:
-			err = c.handleJobCancelledDebugInfo(event.GetJobCancelledDebugInfo(), update)
+		case *armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo:
+			err = c.handleJobRunTerminatedDebugInfo(event.GetJobRunTerminatedDebugInfo(), update)
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
 			err = c.handleJobRunSucceeded(ts, event.GetJobRunSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
 			err = c.handleJobRunErrors(ts, event.GetJobRunErrors(), update)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
-			err = c.handleJobRunPreempted(ts, event.GetJobRunPreempted(), update)
+			err = c.handleJobRunPreempted(ts, owner, event.GetJobRunPreempted(), update)
 		case *armadaevents.EventSequence_Event_JobRequeued:
 			err = c.handleJobRequeued(ts, event.GetJobRequeued(), update)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
@@ -253,15 +254,18 @@ func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, event *armadae
 	return nil
 }
 
-func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleCancelledJob(ts time.Time, requestor string, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
+	if event.Requestor != "" {
+		requestor = event.Requestor
+	}
 	var reason *string
 	if event.Reason != "" {
 		reason = &event.Reason
 	}
 
 	var cancelUser *string
-	if event.CancelUser != "" {
-		cancelUser = &event.CancelUser
+	if requestor != "" {
+		cancelUser = &requestor
 	}
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:                     event.GetJobId(),
@@ -400,20 +404,31 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 }
 
 func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armadaevents.JobRunCancelled, update *model.InstructionSet) error {
+	var args map[string]any
+	if event.Requestor != "" {
+		args = map[string]any{"requestor": event.Requestor}
+	}
+	// fallback for events that arrive without a reason; event should set one otherwise.
+	reason := event.Reason
+	if reason == "" {
+		reason = cancelReasonFallback
+	}
+	terminationReason := BuildTerminationReason(reason, args)
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:       event.RunId,
-		Finished:    &ts,
-		JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
+		RunId:                      event.RunId,
+		Finished:                   &ts,
+		JobRunState:                pointer.Int32(lookout.JobRunCancelledOrdinal),
+		SchedulerTerminationReason: terminationReason,
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
 }
 
-// handleJobCancelledDebugInfo persists only the debug message (rendered k8s events) for a run that
+// handleJobRunTerminatedDebugInfo persists only the debug message (rendered k8s events) for a run that
 // was cancelled before its main container started. It leaves the run's state untouched - the
 // JobRunCancelled event owns the state, and Lookout coalesces column updates so arrival order does
 // not matter.
-func (c *InstructionConverter) handleJobCancelledDebugInfo(event *armadaevents.JobCancelledDebugInfo, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobRunTerminatedDebugInfo(event *armadaevents.JobRunTerminatedDebugInfo, update *model.InstructionSet) error {
 	jobRun := model.UpdateJobRunInstruction{
 		RunId: event.RunId,
 		Debug: tryCompressError(event.JobId, event.DebugMessage, c.compressor),
@@ -490,10 +505,19 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 	return nil
 }
 
-func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, requestor string, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+	if event.Requestor != "" {
+		requestor = event.Requestor
+	}
 	var terminationReasonArgs map[string]any
 	if event.PreemptingJobId != "" {
 		terminationReasonArgs = map[string]any{"preemptingJobId": event.PreemptingJobId}
+	}
+	if requestor != "" {
+		if terminationReasonArgs == nil {
+			terminationReasonArgs = map[string]any{}
+		}
+		terminationReasonArgs["requestor"] = requestor
 	}
 	var terminationReason map[string]any
 	if event.Reason != "" || terminationReasonArgs != nil {
