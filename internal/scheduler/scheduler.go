@@ -249,8 +249,10 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				schedulingAttempted, err := s.cycle(ctx, fullUpdate, leaderToken, shouldGetSchedulerResult, cycleNumber)
 
 				cycleTime := s.clock.Since(start)
+				loopType := metrics.Reconciliation
 
 				if schedulingAttempted {
+					loopType = metrics.Scheduling
 					// Only the leader does real scheduling rounds.
 					s.metrics.ReportScheduleCycleTime(cycleTime)
 					s.metrics.ReportScheduleCycleOutcome(err == nil)
@@ -259,6 +261,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 					s.metrics.ReportReconcileCycleTime(cycleTime)
 					ctx.Infof("reconciliation cycle completed in %s", cycleTime)
 				}
+				s.metrics.ReportMainLoopCycleCompleted(cycleTime, err == nil, loopType)
 
 				if err != nil {
 					// If there is an error, we can't guarantee that the scheduler-internal state is consistent
