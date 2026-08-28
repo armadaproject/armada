@@ -31,11 +31,19 @@ var (
 	poolAndShapeAndReasonLabels            = []string{poolLabel, jobShapeLabel, unschedulableReasonLabel}
 	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
 	poolAndOutcomeLabels                   = []string{poolLabel, outcomeLabel, terminationReasonLabel}
+	loopTypeAndOutcomeLabels               = []string{typeLabel, outcomeLabel}
 	nodeLabels                             = []string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, schedulableLabel, overAllocatedLabel, physicalPoolLabel, capacityClassLabel, scalableUnitLabel}
 	defaultType                            = "unknown"
 	homePlacementType                      = "home"
 	awayPlacementType                      = "away"
 	reconcilerFailureType                  = "reconciler"
+)
+
+type LoopType string
+
+const (
+	Reconciliation LoopType = "reconciliation"
+	Scheduling     LoopType = "scheduling"
 )
 
 type perCycleMetrics struct {
@@ -388,6 +396,7 @@ type cycleMetrics struct {
 	schedulingDuration      prometheus.Histogram
 	scheduleCycleOutcome    *prometheus.CounterVec
 	scheduleCycleTime       prometheus.Histogram
+	mainLoopCycleTime       *prometheus.HistogramVec
 	reconciliationCycleTime prometheus.Histogram
 	submitCheckDuration     *prometheus.HistogramVec
 	latestCycleMetrics      atomic.Pointer[perCycleMetrics]
@@ -433,6 +442,15 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event], scala
 			Help: "Count of scheduling cycles completed by outcome",
 		},
 		[]string{outcomeLabel},
+	)
+
+	mainLoopCycleTime := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    ArmadaSchedulerMetricsPrefix + "main_loop_cycle_time",
+			Help:    "Time taken for a main loop iteration, by loop type and outcome, in milliseconds.",
+			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
+		},
+		loopTypeAndOutcomeLabels,
 	)
 
 	reconciliationCycleTime := prometheus.NewHistogram(
@@ -488,6 +506,7 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event], scala
 		schedulingDuration:      schedulingDuration,
 		scheduleCycleTime:       scheduleCycleTime,
 		scheduleCycleOutcome:    scheduleCycleOutcome,
+		mainLoopCycleTime:       mainLoopCycleTime,
 		reconciliationCycleTime: reconciliationCycleTime,
 		submitCheckDuration:     submitCheckDuration,
 		latestCycleMetrics:      atomic.Pointer[perCycleMetrics]{},
@@ -512,6 +531,14 @@ func (m *cycleMetrics) resetLeaderMetrics() {
 	m.failedJobs.Reset()
 	m.poolSchedulingOutcome.Reset()
 	m.latestCycleMetrics.Store(newPerCycleMetrics())
+}
+
+func (m *cycleMetrics) ReportMainLoopCycleCompleted(cycleTime time.Duration, success bool, loopType LoopType) {
+	result := SchedulingOutcomeSuccess
+	if !success {
+		result = SchedulingOutcomeFailure
+	}
+	m.mainLoopCycleTime.WithLabelValues(string(loopType), result).Observe(float64(cycleTime.Milliseconds()))
 }
 
 func (m *cycleMetrics) ReportScheduleCycleTime(cycleTime time.Duration) {
@@ -779,6 +806,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		cycleMetrics.nodePoolSize.Describe(ch)
 	}
 
+	m.mainLoopCycleTime.Describe(ch)
 	m.reconciliationCycleTime.Describe(ch)
 }
 
@@ -830,6 +858,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		currentCycle.nodePoolSize.Collect(ch)
 	}
 
+	m.mainLoopCycleTime.Collect(ch)
 	m.reconciliationCycleTime.Collect(ch)
 }
 
