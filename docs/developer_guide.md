@@ -86,7 +86,7 @@ Two smaller targets support these: `mage dev:deps` runs only the dependency cont
 
 The `no-auth` and `auth` profiles run a real executor, which needs a Kubernetes cluster. Create one with `mage kind`, which writes its kubeconfig to `.kube/external/config`, and start the stack with `KUBECONFIG=.kube/external/config mage dev:up no-auth`. Without `KUBECONFIG` set, the executor falls back to your default kubeconfig and connects to whatever cluster that selects. Use the `fake-executor` profile if you do not want a cluster at all.
 
-The profile argument is required and is a comma-separated list of tokens: `no-auth`, `auth`, `fake-executor`, and `hot-cold` pick the procfile, and any other token (for example `prometheus`) is passed to docker compose as a `--profile` flag. The optional `-dap` flag starts every component under a headless [Delve](https://github.com/go-delve/delve) DAP server so your editor can attach a debugger, e.g. `mage dev:up auth,prometheus -dap`.
+The profile argument is required and is a comma-separated list of tokens: `no-auth`, `auth`, `fake-executor`, `auth-fake-executor`, and `hot-cold` pick the procfile, and any other token (for example `prometheus`) is passed to docker compose as a `--profile` flag. Use `auth-fake-executor` to run the OIDC-enabled server without a Kubernetes cluster. The optional `-dap` flag starts every component under a headless [Delve](https://github.com/go-delve/delve) DAP server so your editor can attach a debugger, e.g. `mage dev:up auth,prometheus -dap`.
 
 If `mage dev:up no-auth` reports `Unknown target`, your mage binary is too old for optional flags (`mage checkDeps` verifies this). Upgrade it, or use `go run github.com/magefile/mage@v1.17.2 <target>`, which also works without installing mage at all.
 
@@ -140,6 +140,7 @@ All Procfiles are located in `_local/procfiles/`:
 | `no-auth.Procfile`       | Standard setup without authentication             |
 | `auth.Procfile`          | Standard setup with OIDC authentication           |
 | `fake-executor.Procfile` | Uses fake executor for testing without Kubernetes |
+| `auth-fake-executor.Procfile` | OIDC authentication with the fake executor, no Kubernetes |
 | `hot-cold.Procfile`      | Runs the parallel hot/cold Lookout stack          |
 
 Each profile also has a `-dap` variant, described under [Debugging](#debugging). Restart individual processes with `goreman restart <component>` (e.g., `goreman restart server`).
