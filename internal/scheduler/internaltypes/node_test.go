@@ -71,14 +71,6 @@ func TestNode(t *testing.T) {
 			},
 		),
 	}
-	allocatedByQueue := map[string]ResourceList{
-		"queue": resourceListFactory.FromJobResourceListIgnoreUnknown(
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("8"),
-				"memory": resource.MustParse("16Gi"),
-			},
-		),
-	}
 	allocatedByJobId := map[string]ResourceList{
 		"jobId": resourceListFactory.FromJobResourceListIgnoreUnknown(
 			map[string]resource.Quantity{
@@ -118,7 +110,6 @@ func TestNode(t *testing.T) {
 		totalResources,
 		allocatableResources,
 		allocatableByPriority,
-		allocatedByQueue,
 		allocatedByJobId,
 		evictedJobRunIds,
 		keys,
@@ -135,7 +126,6 @@ func TestNode(t *testing.T) {
 	assert.Equal(t, labels, node.GetLabels())
 	assert.Equal(t, totalResources, node.GetTotalResources())
 	assert.Equal(t, allocatableByPriority, node.AllocatableByPriority)
-	assert.Equal(t, allocatedByQueue, node.AllocatedByQueue)
 	assert.Equal(t, allocatedByJobId, node.AllocatedByJobId)
 	assert.Equal(t, keys, node.Keys)
 
@@ -282,7 +272,6 @@ func testAccountingNode(t *testing.T, factory *ResourceListFactory) *Node {
 		nil, nil, false, total, total,
 		allocatableByPriority,
 		map[string]ResourceList{},
-		map[string]ResourceList{},
 		map[string]bool{},
 		nil,
 	)
@@ -298,7 +287,6 @@ func TestNode_AddJob_TracksOwnershipAndAllocatable(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, requests, node.AllocatedByJobId["job-1"])
-	assert.Equal(t, requests, node.AllocatedByQueue["queue-a"])
 }
 
 func TestNode_AddJob_DuplicateReturnsError(t *testing.T) {
@@ -349,8 +337,6 @@ func TestNode_RemoveJob_ReleasesOwnershipAndAllocatable(t *testing.T) {
 
 	_, hasJob := node.AllocatedByJobId["job-1"]
 	assert.False(t, hasJob)
-	_, hasQueue := node.AllocatedByQueue["queue-a"]
-	assert.False(t, hasQueue, "queue entry must be deleted when it reaches zero")
 	assert.Equal(t, before.Add(requests), node.AllocatableByPriority[10])
 }
 
@@ -437,7 +423,6 @@ func createNode(allocatableResource ResourceList, allocatableByPriority map[int3
 		allocatableResource,
 		allocatableResource,
 		allocatableByPriority,
-		nil,
 		nil,
 		nil,
 		nil,
