@@ -1261,8 +1261,7 @@ func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, map[
 }
 
 func nodesTableSchema(priorities []int32) (*memdb.TableSchema, map[int32]string, map[int32]int, map[int32]string, map[int32]int) {
-	// TODO check this calculation
-	n := len(priorities) + 1
+	n := len(priorities)
 	indexes := make(map[string]*memdb.IndexSchema, 2*n+1)
 	indexes[IdIndex] = &memdb.IndexSchema{
 		Name:    IdIndex,

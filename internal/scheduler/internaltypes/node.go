@@ -5,6 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/util"
@@ -66,7 +67,12 @@ type Node struct {
 	AllocatedByJobId                map[string]ResourceList
 	EvictedJobIds                   map[string]bool
 	priorityByJobId                 map[string]int32
-	knownPriorities                 []int32
+	// Priorities present in AllocatableByPriority, sorted ascending.
+	// recomputeUrgencyPreemptableFlag relies on the ordering to find the lowest
+	// and highest priority, so this must stay sorted.
+	// The key set never changes after construction: markAllocatable only updates
+	// existing buckets, it never adds or removes any.
+	knownPriorities []int32
 
 	hasUrgencyPreemptableResources bool
 }
@@ -189,6 +195,11 @@ func CreateNode(
 ) *Node {
 	// TODO handle empty maps - set to default empty
 	reservation := util.GetReservationName(taints)
+	// maps.Keys returns keys in an unspecified order; sort so that
+	// recomputeUrgencyPreemptableFlag can read the lowest and highest priority
+	// off the ends of the slice.
+	knownPriorities := maps.Keys(allocatableByPriority)
+	slices.Sort(knownPriorities)
 	node := &Node{
 		id:                              id,
 		nodeType:                        nodeType,
@@ -208,7 +219,7 @@ func CreateNode(
 		AllocatedByJobId:                maps.Clone(allocatedByJobId),
 		EvictedJobIds:                   evictedJobIds,
 		priorityByJobId:                 map[string]int32{},
-		knownPriorities:                 maps.Keys(allocatableByPriority),
+		knownPriorities:                 knownPriorities,
 		Keys:                            keys,
 	}
 	node.recomputeUrgencyPreemptableFlag()
@@ -463,14 +474,12 @@ func (node *Node) AddJob(job SchedulableJob, priority int32) error {
 			return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.GetId())
 		}
 		node.AllocatedByJobId[jobId] = requests
-	}
-
-	markAllocated(node.AllocatableByPriority, priority, requests)
-	markAllocated(node.AllocatableByPriorityNoEviction, priority, requests)
-	node.recomputeUrgencyPreemptableFlag()
-	if isEvicted {
+		markAllocated(node.AllocatableByPriorityNoEviction, priority, requests)
+		node.recomputeUrgencyPreemptableFlag()
+	} else {
 		markAllocatable(node.AllocatableByPriority, EvictedPriority, requests)
 	}
+	markAllocated(node.AllocatableByPriority, priority, requests)
 	node.priorityByJobId[jobId] = priority
 
 	return nil
@@ -522,7 +531,7 @@ func (node *Node) RemoveJob(job SchedulableJob) error {
 	} else {
 		markAllocatable(node.AllocatableByPriority, node.priorityByJobId[jobId], requests)
 	}
-	markAllocated(node.AllocatableByPriorityNoEviction, node.priorityByJobId[jobId], requests)
+	markAllocatable(node.AllocatableByPriorityNoEviction, node.priorityByJobId[jobId], requests)
 	node.recomputeUrgencyPreemptableFlag()
 	delete(node.priorityByJobId, jobId)
 
