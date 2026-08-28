@@ -81,6 +81,7 @@ func (f *NodeFactory) CreateNodeAndType(
 		totalResources,
 		allocatableResources,
 		allocatableByPriority,
+		allocatableByPriority,
 	)
 }
 
@@ -130,6 +131,7 @@ func (f *NodeFactory) AddLabels(nodes []*Node, extraLabels map[string]string) []
 			node.GetTotalResources(),
 			node.GetAllocatableResources(),
 			node.AllocatableByPriority,
+			node.AllocatableByPriorityNoEviction,
 		)
 	}
 	return result
@@ -152,6 +154,7 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 			node.GetTotalResources(),
 			node.GetAllocatableResources(),
 			node.AllocatableByPriority,
+			node.AllocatableByPriorityNoEviction,
 		)
 	}
 	return result
@@ -197,6 +200,7 @@ func (f *NodeFactory) RemoveCordonTaint(nodes []*Node) []*Node {
 			node.GetTotalResources(),
 			node.GetAllocatableResources(),
 			node.AllocatableByPriority,
+			node.AllocatableByPriorityNoEviction,
 		)
 	}
 	return result

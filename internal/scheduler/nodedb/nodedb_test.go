@@ -253,29 +253,13 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 		),
 	)
 
-	assert.True(
-		t,
-		armadamaps.DeepEqual(
-			map[string]internaltypes.ResourceList{"A": request},
-			boundNode.AllocatedByQueue,
-		),
-	)
-	assert.True(
-		t,
-		armadamaps.DeepEqual(
-			map[string]internaltypes.ResourceList{"A": request},
-			evictedNode.AllocatedByQueue,
-		),
-	)
-
 	expectedAllocatable := boundNode.GetTotalResources()
 	expectedAllocatable = expectedAllocatable.Subtract(request)
 	priority := testfixtures.TestPriorityClasses[job.PriorityClassName()].Priority
 	assert.True(t, expectedAllocatable.Equal(boundNode.AllocatableByPriority[priority]))
 
 	assert.Empty(t, unboundNode.AllocatedByJobId)
-	assert.Empty(t, unboundNode.AllocatedByQueue)
-	assert.Empty(t, unboundNode.EvictedJobRunIds)
+	assert.Empty(t, unboundNode.EvictedJobIds)
 }
 
 // When the NodeDb's pool is set, a job whose run pool differs from it (a cross-pool
@@ -348,7 +332,7 @@ func TestUrgencyMapUnaffectedByEviction(t *testing.T) {
 	priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
 	require.True(t, ok)
 
-	boundUrgency := maps.Clone(node.UrgencyPreemptableByPriority)
+	boundUrgency := maps.Clone(node.AllocatableByPriorityNoEviction)
 	boundAllocatable := maps.Clone(node.AllocatableByPriority)
 	require.True(t, boundAllocatable[priority].Equal(boundUrgency[priority]),
 		"genuine bind should deduct both maps identically")
@@ -356,7 +340,7 @@ func TestUrgencyMapUnaffectedByEviction(t *testing.T) {
 	// Evict: real map gives resources back at the job priority; urgency map must NOT.
 	evicted, err := nodeDb.EvictJobsFromNode([]*jobdb.Job{job}, node)
 	require.NoError(t, err)
-	require.True(t, boundUrgency[priority].Equal(evicted.UrgencyPreemptableByPriority[priority]),
+	require.True(t, boundUrgency[priority].Equal(evicted.AllocatableByPriorityNoEviction[priority]),
 		"urgency map changed on eviction")
 	require.False(t, boundAllocatable[priority].Equal(evicted.AllocatableByPriority[priority]),
 		"allocatable map should give resources back on eviction")
@@ -364,7 +348,7 @@ func TestUrgencyMapUnaffectedByEviction(t *testing.T) {
 	// Re-bind the evicted job: real map deducts again; urgency map still unchanged.
 	rebound, err := nodeDb.BindJobToNode(evicted, job, priority)
 	require.NoError(t, err)
-	require.True(t, boundUrgency[priority].Equal(rebound.UrgencyPreemptableByPriority[priority]),
+	require.True(t, boundUrgency[priority].Equal(rebound.AllocatableByPriorityNoEviction[priority]),
 		"urgency map changed on evicted re-bind")
 	require.True(t, boundAllocatable[priority].Equal(rebound.AllocatableByPriority[priority]),
 		"allocatable map should return to bound state on re-bind")
@@ -372,7 +356,7 @@ func TestUrgencyMapUnaffectedByEviction(t *testing.T) {
 	// Unbind for real: both maps return to the fully-free state.
 	unbound, err := nodeDb.UnbindJobFromNode(job, rebound)
 	require.NoError(t, err)
-	require.True(t, unbound.AllocatableByPriority[priority].Equal(unbound.UrgencyPreemptableByPriority[priority]),
+	require.True(t, unbound.AllocatableByPriority[priority].Equal(unbound.AllocatableByPriorityNoEviction[priority]),
 		"both maps should agree once the node is empty")
 }
 
@@ -399,9 +383,9 @@ func TestUrgencyMapReconciledOnUnbindWhileEvicted(t *testing.T) {
 	unbound, err := nodeDb.UnbindJobFromNode(job, evicted)
 	require.NoError(t, err)
 
-	require.True(t, unbound.UrgencyPreemptableByPriority[priority].Equal(unbound.AllocatableByPriority[priority]),
+	require.True(t, unbound.AllocatableByPriorityNoEviction[priority].Equal(unbound.AllocatableByPriority[priority]),
 		"urgency map should reconcile with allocatable map once the evicted job is unbound")
-	require.True(t, unbound.UrgencyPreemptableByPriority[priority].Equal(freeAllocatable[priority]),
+	require.True(t, unbound.AllocatableByPriorityNoEviction[priority].Equal(freeAllocatable[priority]),
 		"urgency map should return to the fully-free state once the evicted job is unbound")
 }
 
@@ -512,23 +496,13 @@ func assertNodeAccountingEqual(t *testing.T, node1, node2 *internaltypes.Node) {
 	)
 	assert.True(
 		t,
-		armadamaps.DeepEqual(
-			node1.AllocatedByQueue,
-			node2.AllocatedByQueue,
-		),
-		"expected %v, but got %v",
-		node1.AllocatedByQueue,
-		node2.AllocatedByQueue,
-	)
-	assert.True(
-		t,
 		maps.Equal(
-			node1.EvictedJobRunIds,
-			node2.EvictedJobRunIds,
+			node1.EvictedJobIds,
+			node2.EvictedJobIds,
 		),
 		"expected %v, but got %v",
-		node1.EvictedJobRunIds,
-		node2.EvictedJobRunIds,
+		node1.EvictedJobIds,
+		node2.EvictedJobIds,
 	)
 }
 
@@ -550,7 +524,7 @@ func TestEviction(t *testing.T) {
 
 	node, err = nodeDb.GetNode(node.GetId())
 	require.NoError(t, err)
-	assert.Equal(t, 0, len(node.EvictedJobRunIds))
+	assert.Equal(t, 0, len(node.EvictedJobIds))
 	// PriorityClass3 is non-preemptible, so its 1cpu/4Gi is deducted at every
 	// priority including 28000+, not just <= 3.
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
@@ -567,8 +541,8 @@ func TestEviction(t *testing.T) {
 
 	returnedNode, err := nodeDb.EvictJobsFromNode(jobs, node)
 	assert.Nil(t, err)
-	assert.Equal(t, 0, len(node.EvictedJobRunIds))
-	assert.Equal(t, len(jobs), len(returnedNode.EvictedJobRunIds))
+	assert.Equal(t, 0, len(node.EvictedJobIds))
+	assert.Equal(t, len(jobs), len(returnedNode.EvictedJobIds))
 
 	// EvictJobsFromNode returns a copy; the original node is unchanged.
 	assert.Equal(t, map[int32]internaltypes.ResourceList{

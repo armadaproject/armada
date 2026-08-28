@@ -71,14 +71,6 @@ func TestNode(t *testing.T) {
 			},
 		),
 	}
-	allocatedByQueue := map[string]ResourceList{
-		"queue": resourceListFactory.FromJobResourceListIgnoreUnknown(
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("8"),
-				"memory": resource.MustParse("16Gi"),
-			},
-		),
-	}
 	allocatedByJobId := map[string]ResourceList{
 		"jobId": resourceListFactory.FromJobResourceListIgnoreUnknown(
 			map[string]resource.Quantity{
@@ -118,7 +110,7 @@ func TestNode(t *testing.T) {
 		totalResources,
 		allocatableResources,
 		allocatableByPriority,
-		allocatedByQueue,
+		allocatableByPriority,
 		allocatedByJobId,
 		evictedJobRunIds,
 		keys,
@@ -135,7 +127,6 @@ func TestNode(t *testing.T) {
 	assert.Equal(t, labels, node.GetLabels())
 	assert.Equal(t, totalResources, node.GetTotalResources())
 	assert.Equal(t, allocatableByPriority, node.AllocatableByPriority)
-	assert.Equal(t, allocatedByQueue, node.AllocatedByQueue)
 	assert.Equal(t, allocatedByJobId, node.AllocatedByJobId)
 	assert.Equal(t, keys, node.Keys)
 
@@ -215,30 +206,6 @@ func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
 	assert.Equal(t, expectedAllocatableByPriority, result.AllocatableByPriority)
 }
 
-func TestUrgencyPreemptableByPriorityInitializedEqualToAllocatable(t *testing.T) {
-	resourceListFactory, err := NewResourceListFactory(
-		[]schedulerconfiguration.ResourceType{
-			{Name: "cpu", Resolution: resource.MustParse("1m")},
-		},
-		nil,
-	)
-	require.Nil(t, err)
-
-	allocatableResources := makeCpuResourceList(resourceListFactory, "10")
-	allocatableByPriority := map[int32]ResourceList{
-		1: makeCpuResourceList(resourceListFactory, "8"),
-		2: makeCpuResourceList(resourceListFactory, "6"),
-	}
-
-	node := createNode(allocatableResources, allocatableByPriority)
-
-	require.NotNil(t, node.UrgencyPreemptableByPriority)
-	require.Equal(t, len(node.AllocatableByPriority), len(node.UrgencyPreemptableByPriority))
-	for p, rl := range node.AllocatableByPriority {
-		require.True(t, rl.Equal(node.UrgencyPreemptableByPriority[p]), "priority %d", p)
-	}
-}
-
 func TestDeepCopyNilKeysClonesUrgencyMap(t *testing.T) {
 	resourceListFactory, err := NewResourceListFactory(
 		[]schedulerconfiguration.ResourceType{
@@ -255,13 +222,18 @@ func TestDeepCopyNilKeysClonesUrgencyMap(t *testing.T) {
 	}
 
 	node := createNode(allocatableResources, allocatableByPriority)
+	require.Equal(t, node.AllocatableByPriority, node.AllocatableByPriorityNoEviction)
+
 	cp := node.DeepCopyNilKeys()
-	require.NotNil(t, cp.UrgencyPreemptableByPriority)
-	for p := range cp.UrgencyPreemptableByPriority {
-		delete(cp.UrgencyPreemptableByPriority, p)
+	for p := range cp.AllocatableByPriorityNoEviction {
+		delete(cp.AllocatableByPriorityNoEviction, p)
 		break
 	}
-	require.Equal(t, len(node.AllocatableByPriority), len(node.UrgencyPreemptableByPriority))
+
+	// Mutated copy is mutated
+	require.NotEqual(t, cp.AllocatableByPriority, cp.AllocatableByPriorityNoEviction)
+	// Original still intact as copy was a deep copy and shouldn't mutate the original
+	require.Equal(t, node.AllocatableByPriority, node.AllocatableByPriorityNoEviction)
 }
 
 func makeCpuResourceList(factory *ResourceListFactory, cpu string) ResourceList {
@@ -330,7 +302,7 @@ func testAccountingNode(t *testing.T, factory *ResourceListFactory) *Node {
 		"node-1", nodeType, 1, "executor", "node-1", "pool", "type",
 		nil, nil, false, total, total,
 		allocatableByPriority,
-		map[string]ResourceList{},
+		allocatableByPriority,
 		map[string]ResourceList{},
 		map[string]bool{},
 		nil,
@@ -347,7 +319,6 @@ func TestNode_AddJob_TracksOwnershipAndAllocatable(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, requests, node.AllocatedByJobId["job-1"])
-	assert.Equal(t, requests, node.AllocatedByQueue["queue-a"])
 }
 
 func TestNode_AddJob_DuplicateReturnsError(t *testing.T) {
@@ -371,7 +342,7 @@ func TestNode_EvictJob_MovesResourcesToEvictedPriority(t *testing.T) {
 	require.NoError(t, node.AddJob(job, 10))
 	require.NoError(t, node.EvictJob(job))
 
-	assert.True(t, node.EvictedJobRunIds["job-1"])
+	assert.True(t, node.EvictedJobIds["job-1"])
 	assert.Equal(t, requests, node.AllocatedByJobId["job-1"], "eviction must not release ownership")
 }
 
@@ -398,8 +369,6 @@ func TestNode_RemoveJob_ReleasesOwnershipAndAllocatable(t *testing.T) {
 
 	_, hasJob := node.AllocatedByJobId["job-1"]
 	assert.False(t, hasJob)
-	_, hasQueue := node.AllocatedByQueue["queue-a"]
-	assert.False(t, hasQueue, "queue entry must be deleted when it reaches zero")
 	assert.Equal(t, before.Add(requests), node.AllocatableByPriority[10])
 }
 
@@ -461,7 +430,7 @@ func TestNode_EvictThenRemove_ReleasesAtEvictedPriority(t *testing.T) {
 
 	assert.Equal(t, beforeEvicted, node.AllocatableByPriority[EvictedPriority])
 	assert.Equal(t, beforeTen, node.AllocatableByPriority[10])
-	assert.Empty(t, node.EvictedJobRunIds)
+	assert.Empty(t, node.EvictedJobIds)
 	assert.Empty(t, node.AllocatedByJobId)
 }
 
@@ -486,7 +455,7 @@ func createNode(allocatableResource ResourceList, allocatableByPriority map[int3
 		allocatableResource,
 		allocatableResource,
 		allocatableByPriority,
-		nil,
+		allocatableByPriority,
 		nil,
 		nil,
 		nil,

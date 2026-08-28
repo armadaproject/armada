@@ -412,9 +412,9 @@ func WithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltypes.
 			node.GetTotalResources(),
 			node.GetAllocatableResources(),
 			node.AllocatableByPriority,
-			node.AllocatedByQueue,
+			node.AllocatableByPriorityNoEviction,
 			node.AllocatedByJobId,
-			node.EvictedJobRunIds,
+			node.EvictedJobIds,
 			nil)
 	}
 	return result
@@ -436,9 +436,9 @@ func WithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.No
 			node.GetTotalResources(),
 			node.GetAllocatableResources(),
 			node.AllocatableByPriority,
-			node.AllocatedByQueue,
+			node.AllocatableByPriorityNoEviction,
 			node.AllocatedByJobId,
-			node.EvictedJobRunIds,
+			node.EvictedJobIds,
 			nil,
 		)
 	}
@@ -459,9 +459,9 @@ func WithIndexNode(idx uint64, node *internaltypes.Node) *internaltypes.Node {
 		node.GetTotalResources(),
 		node.GetAllocatableResources(),
 		node.AllocatableByPriority,
-		node.AllocatedByQueue,
+		node.AllocatableByPriorityNoEviction,
 		node.AllocatedByJobId,
-		node.EvictedJobRunIds,
+		node.EvictedJobIds,
 		nil,
 	)
 }

@@ -923,12 +923,12 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 			if node.IsUnschedulable() && node.IsOverAllocated() {
 				matches = true
 			} else if urgency {
-				matches, reason = DynamicJobRequirementsMet(node.UrgencyPreemptableByPriority[priority], jctx)
+				matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriorityNoEviction[priority], jctx)
 			} else {
 				matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
 			}
 		} else if urgency {
-			matches, reason, err = JobRequirementsMetForView(node, node.UrgencyPreemptableByPriority[priority], jctx)
+			matches, reason, err = JobRequirementsMetForView(node, node.AllocatableByPriorityNoEviction[priority], jctx)
 		} else {
 			matches, reason, err = JobRequirementsMet(node, priority, jctx)
 		}
@@ -1187,13 +1187,11 @@ func (nodeDb *NodeDb) Upsert(node *internaltypes.Node) error {
 }
 
 func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *internaltypes.Node) error {
-	node.RecomputeUrgencyPreemptableFlag(nodeDb.realPriorities)
-
 	keys := make([][]byte, 2*nodeDb.numPriorities)
 	for i, p := range nodeDb.nodeDbPriorities {
 		keys[i] = nodeDb.nodeDbKey(keys[i], node.GetNodeTypeId(), node.AllocatableByPriority[p], node.GetIndex())
 		urgencyKeyIndex := nodeDb.numPriorities + i
-		keys[urgencyKeyIndex] = nodeDb.nodeDbKey(keys[urgencyKeyIndex], node.GetNodeTypeId(), node.UrgencyPreemptableByPriority[p], node.GetIndex())
+		keys[urgencyKeyIndex] = nodeDb.nodeDbKey(keys[urgencyKeyIndex], node.GetNodeTypeId(), node.AllocatableByPriorityNoEviction[p], node.GetIndex())
 	}
 	node.Keys = keys
 
@@ -1218,7 +1216,7 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 			nodeDb.nodeDbPriorities,
 			node.GetAllocatableResources(),
 		)
-		node.UrgencyPreemptableByPriority = newAllocatableByPriorityAndResourceType(
+		node.AllocatableByPriorityNoEviction = newAllocatableByPriorityAndResourceType(
 			nodeDb.nodeDbPriorities,
 			node.GetAllocatableResources(),
 		)

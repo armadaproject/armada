@@ -3416,9 +3416,9 @@ func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internalty
 		node.GetTotalResources(),
 		node.GetAllocatableResources(),
 		node.AllocatableByPriority,
-		node.AllocatedByQueue,
+		node.AllocatableByPriorityNoEviction,
 		node.AllocatedByJobId,
-		node.EvictedJobRunIds,
+		node.EvictedJobIds,
 		node.Keys,
 	)
 }

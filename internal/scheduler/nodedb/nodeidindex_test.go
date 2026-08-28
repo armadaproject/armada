@@ -60,7 +60,7 @@ func makeTestNode(id string) *internaltypes.Node {
 		internaltypes.ResourceList{},
 		internaltypes.ResourceList{},
 		map[int32]internaltypes.ResourceList{},
-		map[string]internaltypes.ResourceList{},
+		map[int32]internaltypes.ResourceList{},
 		map[string]internaltypes.ResourceList{},
 		map[string]bool{},
 		[][]byte{},
