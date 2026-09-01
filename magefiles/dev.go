@@ -166,8 +166,9 @@ func (Dev) Full() error {
 		return err
 	}
 	// keycloak has its own compose healthcheck, so --wait already blocks until it (and every
-	// other service, including server-auth which depends on it) is ready.
-	return sh.RunV("docker", "compose", "-f", fullComposeFile, "up", "-d", "--wait")
+	// other service) is ready. --remove-orphans clears containers from services removed or
+	// renamed since a stack was last brought up (e.g. the old server-auth container).
+	return sh.RunV("docker", "compose", "-f", fullComposeFile, "up", "-d", "--wait", "--remove-orphans")
 }
 
 // ensureEtcHostsEntry makes the literal hostname host resolve to ip from the host machine, by

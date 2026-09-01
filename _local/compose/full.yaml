@@ -163,11 +163,12 @@ services:
       - ../keycloak/import:/opt/keycloak/data/import:ro
     networks: [kind]
     restart: unless-stopped
-    # server-auth dials Keycloak's discovery endpoint at its own startup and, unlike the
-    # dependency services above, doesn't retry/restart on failure -- so server-auth's
-    # depends_on below needs service_healthy, not just service_started, to not lose the race
-    # against Keycloak's realm import. No curl/wget in this image, so the check uses bash's
-    # /dev/tcp against the KC_HEALTH_ENABLED management endpoint (port 9000) instead.
+    # `server`, once switched to the auth config, dials Keycloak's discovery endpoint at its own
+    # startup and, unlike the dependency services above, doesn't retry/restart on failure -- so
+    # CI's switchServerConfig only recreates `server` with the auth config after this healthcheck
+    # passes (keycloak is already up and --wait'ed on well before the rbac suite runs). No
+    # curl/wget in this image, so the check uses bash's /dev/tcp against the KC_HEALTH_ENABLED
+    # management endpoint (port 9000) instead.
     healthcheck:
       test:
         [
@@ -214,6 +215,10 @@ services:
       ARMADA_PULSAR_RESTURL: http://pulsar:8080
     command: ./scheduleringester --config /config/config.yaml
 
+  # ARMADA_SERVER_CONFIG/ARMADA_SERVER_OIDC_PROVIDER_URL let CI switch this single server
+  # between the default (anonymous auth) and auth (config-auth.yaml, OIDC via Keycloak) configs
+  # by recreating just this service -- see magefiles/ci.go's switchServerConfig. The rbac test
+  # suite runs while it's on the auth config; every other suite runs while it's on the default.
   server:
     <<: *component
     container_name: server
@@ -229,7 +234,7 @@ services:
       pulsar: {condition: service_healthy}
       redis: {condition: service_healthy}
     volumes:
-      - ../server/config.yaml:/config/config.yaml:ro
+      - ${ARMADA_SERVER_CONFIG:-../server/config.yaml}:/config/config.yaml:ro
     environment:
       ARMADA_EVENTSAPIREDIS_ADDRS: redis:6379
       ARMADA_REDIS_ADDRS: redis:6379
@@ -237,33 +242,7 @@ services:
       ARMADA_QUERYAPI_POSTGRES_CONNECTION_HOST: postgres
       ARMADA_PULSAR_URL: pulsar://pulsar:6650
       ARMADA_SCHEDULERAPICONNECTION_ARMADAURL: scheduler:50052
-    command: ./server --config /config/config.yaml
-
-  # Second API server instance, backed by the same scheduler/pulsar/redis/postgres as `server`,
-  # but with OIDC auth enabled (config-auth.yaml). Used only by the rbac test suite, so every
-  # other suite's unauthenticated connection to `server` is unaffected.
-  server-auth:
-    <<: *component
-    container_name: server-auth
-    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
-    ports:
-      - "50061:50051"
-      - "8091:8081"
-    depends_on:
-      lookout-migration: {condition: service_completed_successfully}
-      pulsar: {condition: service_healthy}
-      redis: {condition: service_healthy}
-      keycloak: {condition: service_healthy}
-    volumes:
-      - ../server/config-auth.yaml:/config/config.yaml:ro
-    environment:
-      ARMADA_EVENTSAPIREDIS_ADDRS: redis:6379
-      ARMADA_REDIS_ADDRS: redis:6379
-      ARMADA_POSTGRES_CONNECTION_HOST: postgres
-      ARMADA_QUERYAPI_POSTGRES_CONNECTION_HOST: postgres
-      ARMADA_PULSAR_URL: pulsar://pulsar:6650
-      ARMADA_SCHEDULERAPICONNECTION_ARMADAURL: scheduler:50052
-      ARMADA_AUTH_OPENIDAUTH_PROVIDERURL: http://keycloak:8180/realms/armada
+      ARMADA_AUTH_OPENIDAUTH_PROVIDERURL: ${ARMADA_SERVER_OIDC_PROVIDER_URL:-}
     command: ./server --config /config/config.yaml
 
   executor:

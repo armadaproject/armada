@@ -74,26 +74,19 @@ rules:
 	return f.Name(), nil
 }
 
-// Build images, spin up a test environment, and run the integration tests against it.
-func TestSuite() error {
-	mg.Deps(CheckForArmadaRunning)
-
-	// Only set these if they have not already been set
-	if os.Getenv("ARMADA_EXECUTOR_INGRESS_URL") == "" {
-		os.Setenv("ARMADA_EXECUTOR_INGRESS_URL", "http://localhost")
+// switchServiceConfig recreates the specified compose service with different environment variables and
+// waits for it to come back up. Used to move the single `server` container between the default and auth configs between suites.
+func switchServiceConfig(serviceName string, envVars map[string]string, stringMatch string) error {
+	for k, v := range envVars {
+		os.Setenv(k, v)
 	}
-	if os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT") == "" {
-		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
+	if err := dockerRun("compose", "-f", fullComposeFile, "up", "-d", "--force-recreate", serviceName); err != nil {
+		return err
 	}
-	timeTakenTestSuite := time.Now()
+	return CheckDockerContainerRunning(serviceName, stringMatch)
+}
 
-	suites := []string{
-		// "basic", "categorization","retry", "preemption", "reprioritization", "queue",
-		"rbac",
-		// "testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
-		// "testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
-	}
-
+func runTests(suites []string) error {
 	for i, suite := range suites {
 		var tests []string
 		label := suite
@@ -103,7 +96,6 @@ func TestSuite() error {
 		} else {
 			tests = []string{fmt.Sprintf("testsuite/testcases/%s/*", suite)}
 		}
-
 		timeTaken := time.Now()
 		out, err := goOutput("run", "cmd/testsuite/main.go", "test",
 			"--tests", strings.Join(tests, ","),
@@ -119,6 +111,51 @@ func TestSuite() error {
 			verb = "Additional time"
 		}
 		fmt.Printf("(Real) %s to run %s tests: %s\n\n", verb, suite, time.Since(timeTaken))
+	}
+	return nil
+}
+
+// Build images, spin up a test environment, and run the integration tests against it.
+func TestSuite() error {
+	mg.Deps(CheckForArmadaRunning)
+
+	// Only set these if they have not already been set
+	if os.Getenv("ARMADA_EXECUTOR_INGRESS_URL") == "" {
+		os.Setenv("ARMADA_EXECUTOR_INGRESS_URL", "http://localhost")
+	}
+	if os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT") == "" {
+		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
+	}
+	timeTakenTestSuite := time.Now()
+
+	suites := []string{
+		"basic",
+		// "categorization", "retry",
+		"preemption", "reprioritization", "queue",
+		"testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
+		"testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
+	}
+
+	if err := runTests(suites); err != nil {
+		return err
+	}
+
+	authSuites := []string{
+		"rbac",
+	}
+
+	if err := switchServiceConfig("server", map[string]string{"ARMADA_SERVER_CONFIG": "../server/config-auth.yaml", "ARMADA_SERVER_OIDC_PROVIDER_URL": "http://keycloak:8180/realms/armada"}, "Armada gRPC server listening on"); err != nil {
+		return err
+	}
+	err := runTests(authSuites)
+	if revertErr := switchServiceConfig("server", map[string]string{"ARMADA_SERVER_CONFIG": "../server/config.yaml", "ARMADA_SERVER_OIDC_PROVIDER_URL": ""}, "Armada gRPC server listening on"); revertErr != nil {
+		fmt.Println("failed to restore default server config:", revertErr)
+		if err == nil {
+			err = revertErr
+		}
+	}
+	if err != nil {
+		return err
 	}
 
 	fmt.Printf("(Real) Total time to run all tests: %s\n\n", time.Since(timeTakenTestSuite))
@@ -199,8 +236,8 @@ func runArmadaCtl(args ...string) (string, error) {
 }
 
 // runArmadaCtlContext is runArmadaCtl with an explicit armadactl context override (e.g.
-// "rbac-admin"), needed to bootstrap the rbac suite's fixture queues against server-auth rather
-// than the default unauthenticated "server" connection every other suite uses.
+// "rbac-admin"), needed to talk to `server` while it's running the auth config rather than the
+// default unauthenticated config every other suite uses -- see switchServiceConfig.
 func runArmadaCtlContext(context string, args ...string) (string, error) {
 	armadaCtlArgs := []string{
 		"--config", "_local/.armadactl.yaml",
