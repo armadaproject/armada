@@ -300,17 +300,10 @@ func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSched
 	successfulPools := map[string]bool{}
 	var sb strings.Builder
 
-poolStart:
 	for _, pool := range srv.schedulingConfig.Pools {
 
 		if successfulPools[pool.Name] {
 			continue
-		}
-
-		for _, awayPool := range pool.AwayPools {
-			if successfulPools[awayPool.Name] {
-				continue poolStart
-			}
 		}
 
 		sb.WriteString(fmt.Sprintf("pool %s:\n", pool.Name))
