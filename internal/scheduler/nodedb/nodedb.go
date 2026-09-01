@@ -1173,38 +1173,6 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *internaltypes.Node) er
 	return nil
 }
 
-// ClearAllocated zeroes out allocated resources on all nodes in the NodeDb.
-func (nodeDb *NodeDb) ClearAllocated() error {
-	txn := nodeDb.db.Txn(true)
-	defer txn.Abort()
-	it, err := NewNodesIterator(txn)
-	if err != nil {
-		return err
-	}
-	newNodes := make([]*internaltypes.Node, 0)
-	for node := it.NextNode(); node != nil; node = it.NextNode() {
-		node = node.DeepCopyNilKeys()
-		node.AllocatableByPriority = newAllocatableByPriorityAndResourceType(
-			nodeDb.nodeDbPriorities,
-			node.GetAllocatableResources(),
-		)
-		newNodes = append(newNodes, node)
-	}
-	if err := nodeDb.UpsertManyWithTxn(txn, newNodes); err != nil {
-		return err
-	}
-	txn.Commit()
-	return nil
-}
-
-func newAllocatableByPriorityAndResourceType(priorities []int32, rl internaltypes.ResourceList) map[int32]internaltypes.ResourceList {
-	rv := make(map[int32]internaltypes.ResourceList, len(priorities))
-	for _, priority := range priorities {
-		rv[priority] = rl
-	}
-	return rv
-}
-
 func (nodeDb *NodeDb) AddEvictedJobSchedulingContextWithTxn(txn *memdb.Txn, index int, jctx *context.JobSchedulingContext) error {
 	if it, err := txn.Get(EvictedJobsTable, IdIndex, jctx.JobId); err != nil {
 		return errors.WithStack(err)
