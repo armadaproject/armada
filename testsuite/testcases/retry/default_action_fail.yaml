@@ -1,0 +1,33 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-retry-queue
+jobs:
+  - priority: 0
+    namespace: default
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: fail-unmatched
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          # Exit code 3 matches no category rule. The executor thus applies the
+          # default category uncategorized. The policy has no rule for that
+          # category, so the scheduler applies the defaultAction Fail.
+          command: ["sh", "-c", "exit 3"]
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+timeout: "300s"
+expectedEvents:
+  - submitted:
+  - queued:
+  - leased:
+  - pending:
+  - failed:
+      failureCategory: "uncategorized"
