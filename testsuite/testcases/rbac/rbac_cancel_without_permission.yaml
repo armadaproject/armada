@@ -4,7 +4,7 @@
 # so submission succeeds via the queue-level grant but the subsequent cancel is denied.
 # ExpectedEvents is deliberately empty -- see testrunner.go's Run() for why a short list would
 # race the denied action.
-queue: rbac-fixture-restricted
+queue: rbac-queue
 authContext: rbac-user
 numBatches: 1
 batchSize: 1

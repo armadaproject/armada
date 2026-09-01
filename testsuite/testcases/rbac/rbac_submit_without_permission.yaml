@@ -1,7 +1,7 @@
 # RBAC: a principal without submit_any_jobs (armada-user) and without a queue-level submit
 # grant cannot submit jobs. Targets the shared rbac-fixture-plain queue (bootstrapped by CI
 # under the admin identity; this test must not create or delete it -- no queueConfig).
-queue: rbac-fixture-plain
+queue: rbac-queue
 authContext: rbac-user
 numBatches: 1
 batchSize: 1

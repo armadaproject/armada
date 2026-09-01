@@ -6,7 +6,7 @@
 # ExpectedEvents is deliberately empty -- see testrunner.go's Run() for why a short list would
 # race the denied watch (eventwatcher.EventWatcher.Run returns PermissionDenied immediately,
 # without retrying, cancelling the errgroup's shared ctx).
-queue: rbac-fixture-restricted
+queue: rbac-queue
 authContext: rbac-user
 numBatches: 1
 batchSize: 1

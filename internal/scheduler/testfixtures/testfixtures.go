@@ -412,7 +412,6 @@ func WithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltypes.
 			node.GetTotalResources(),
 			node.GetAllocatableResources(),
 			node.AllocatableByPriority,
-			node.AllocatedByQueue,
 			node.AllocatedByJobId,
 			node.EvictedJobRunIds,
 			nil)
@@ -436,7 +435,6 @@ func WithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.No
 			node.GetTotalResources(),
 			node.GetAllocatableResources(),
 			node.AllocatableByPriority,
-			node.AllocatedByQueue,
 			node.AllocatedByJobId,
 			node.EvictedJobRunIds,
 			nil,
@@ -459,7 +457,6 @@ func WithIndexNode(idx uint64, node *internaltypes.Node) *internaltypes.Node {
 		node.GetTotalResources(),
 		node.GetAllocatableResources(),
 		node.AllocatableByPriority,
-		node.AllocatedByQueue,
 		node.AllocatedByJobId,
 		node.EvictedJobRunIds,
 		nil,
@@ -749,6 +746,11 @@ func Test1Cpu4GiJob(queue string, priorityClassName string) *jobdb.Job {
 	return TestJob(queue, jobId, priorityClassName, Test1Cpu4GiPodReqs())
 }
 
+func Test1Cpu4GiJobWithGpuToleration(queue string, priorityClassName string) *jobdb.Job {
+	jobId := util.ULID()
+	return TestJob(queue, jobId, priorityClassName, Test1Cpu4GiPodReqsWithGpuToleration())
+}
+
 func Test1Cpu4GiJobQueuedWithPrice(queue string, priorityClassName string, price float64) *jobdb.Job {
 	jobId := util.ULID()
 	return TestJobQueuedWithPrice(queue, jobId, priorityClassName, price, Test1Cpu4GiPodReqs())
@@ -820,6 +822,19 @@ func Test1Cpu4GiPodReqs() *internaltypes.PodRequirements {
 		"cpu":    resource.MustParse("1"),
 		"memory": resource.MustParse("4Gi"),
 	})
+}
+
+// Test1Cpu4GiPodReqsWithGpuToleration requests no GPU but tolerates the gpu taint, so it
+// can be placed on a GPU node as a home job rather than as an away job.
+func Test1Cpu4GiPodReqsWithGpuToleration() *internaltypes.PodRequirements {
+	req := Test1Cpu4GiPodReqs()
+	req.Tolerations = []v1.Toleration{
+		{
+			Key:   "gpu",
+			Value: "true",
+		},
+	}
+	return req
 }
 
 func Test1Cpu16GiPodReqs() *internaltypes.PodRequirements {
@@ -975,7 +990,6 @@ func TestSimpleNode(id string) *internaltypes.Node {
 		false,
 		internaltypes.ResourceList{},
 		internaltypes.ResourceList{},
-		nil,
 		nil,
 		nil,
 		nil,
