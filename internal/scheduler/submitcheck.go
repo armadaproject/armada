@@ -180,11 +180,6 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 			return fmt.Errorf("failed constructing nodedb for pool %s - %s", pool.Name, err)
 		}
 
-		err = nodeDb.ClearAllocated()
-		if err != nil {
-			return fmt.Errorf("failed clearing nodedb for pool %s - %s", pool.Name, err)
-		}
-
 		nodeDbByPool[pool.Name] = nodeDb
 
 		totalResources := nodeDb.TotalKubernetesResources()
