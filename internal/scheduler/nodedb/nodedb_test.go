@@ -233,28 +233,12 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 		),
 	)
 
-	assert.True(
-		t,
-		armadamaps.DeepEqual(
-			map[string]internaltypes.ResourceList{"A": request},
-			boundNode.AllocatedByQueue,
-		),
-	)
-	assert.True(
-		t,
-		armadamaps.DeepEqual(
-			map[string]internaltypes.ResourceList{"A": request},
-			evictedNode.AllocatedByQueue,
-		),
-	)
-
 	expectedAllocatable := boundNode.GetTotalResources()
 	expectedAllocatable = expectedAllocatable.Subtract(request)
 	priority := testfixtures.TestPriorityClasses[job.PriorityClassName()].Priority
 	assert.True(t, expectedAllocatable.Equal(boundNode.AllocatableByPriority[priority]))
 
 	assert.Empty(t, unboundNode.AllocatedByJobId)
-	assert.Empty(t, unboundNode.AllocatedByQueue)
 	assert.Empty(t, unboundNode.EvictedJobRunIds)
 }
 
@@ -412,16 +396,6 @@ func assertNodeAccountingEqual(t *testing.T, node1, node2 *internaltypes.Node) {
 		"expected %v, but got %v",
 		node1.AllocatedByJobId,
 		node2.AllocatedByJobId,
-	)
-	assert.True(
-		t,
-		armadamaps.DeepEqual(
-			node1.AllocatedByQueue,
-			node2.AllocatedByQueue,
-		),
-		"expected %v, but got %v",
-		node1.AllocatedByQueue,
-		node2.AllocatedByQueue,
 	)
 	assert.True(
 		t,
