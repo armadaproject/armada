@@ -13,32 +13,56 @@ import (
 	"github.com/magefile/mage/sh"
 )
 
+const e2eTestQueue = `apiVersion: armadaproject.io/v1beta1
+kind: Queue
+name: e2e-test-queue
+priorityFactor: 1.0
+`
+
+const rbacFixturePlainQueue = `apiVersion: armadaproject.io/v1beta1
+kind: Queue
+name: rbac-fixture-plain
+priorityFactor: 1.0
+`
+
+// rbacFixtureRestrictedQueue grants the Keycloak "users" group submit-only, so armada-user's
+// negative tests (cancel/reprioritize/watch without permission) can submit a job and prove those
+// specific actions -- not queue ownership -- are what's denied.
+const rbacFixtureRestrictedQueue = `apiVersion: armadaproject.io/v1beta1
+kind: Queue
+name: rbac-fixture-restricted
+priorityFactor: 1.0
+permissions:
+  - subjects:
+      - name: users
+        kind: Group
+    verbs:
+      - submit
+`
+
 func createQueue() error {
-	return createQueuesFromDir("", "_local/queues")
+	return createQueuesFromStrings("", e2eTestQueue)
 }
 
 // createRbacFixtureQueues bootstraps the queues the rbac test suite's "without permission" cases
 // target, using the rbac-admin context (server-auth, on the containerized full.yaml stack) since
-// armada-user itself lacks create_queue. rbac-fixture-restricted grants the Keycloak "users"
-// group submit-only, so armada-user's negative tests (cancel/reprioritize/watch without
-// permission) can submit a job and prove those specific actions -- not queue ownership -- are
-// what's denied.
+// armada-user itself lacks create_queue.
 func createRbacFixtureQueues() error {
-	return createQueuesFromDir("rbac-admin", "_local/rbac-queues")
+	return createQueuesFromStrings("rbac-admin", rbacFixturePlainQueue, rbacFixtureRestrictedQueue)
 }
 
-// createQueuesFromDir runs armadactl to create every queue fixture (*.yaml) in dir against the
-// given armadactl context, tolerating "already exists" so repeated CI runs against a stack that
-// wasn't torn down don't fail.
-func createQueuesFromDir(context string, dir string) error {
-	files, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
-	if err != nil {
-		return err
-	}
-	for _, file := range files {
-		out, err := runArmadaCtlContext(context, "create", "-f", file)
-		if err != nil && !strings.Contains(out, "already exists") {
-			fmt.Println(out)
+// createQueuesFromStrings runs armadactl to create each given queue fixture against the given
+// armadactl context, tolerating "already exists" so repeated CI runs against a stack that wasn't
+// torn down don't fail.
+func createQueuesFromStrings(context string, queues ...string) error {
+	for _, queue := range queues {
+		queuePath, err := writeTempFile("queue-*.yaml", queue)
+		if err != nil {
+			return fmt.Errorf("failed to stage queue file: %w", err)
+		}
+		defer os.Remove(queuePath)
+
+		if err := createResource(context, "-f", queuePath); err != nil {
 			return err
 		}
 	}
@@ -57,18 +81,21 @@ func createRetryPolicyAndQueue() error {
 	}
 	defer os.Remove(policyPath)
 
-	out, err := runArmadaCtl("create", "retry-policy", "-f", policyPath)
+	if err := createResource("", "retry-policy", "-f", policyPath); err != nil {
+		return err
+	}
+	return createResource("", "queue", "e2e-retry-queue", "--retry-policies", "e2e-retry-policy")
+}
+
+// createResource runs `armadactl create <args...>` against the given armadactl context,
+// tolerating "already exists" so repeated CI runs against a stack that wasn't torn down don't
+// fail.
+func createResource(context string, args ...string) error {
+	out, err := runArmadaCtlContext(context, append([]string{"create"}, args...)...)
 	if err != nil && !strings.Contains(out, "already exists") {
 		fmt.Println(out)
 		return err
 	}
-
-	out, err = runArmadaCtl("create", "queue", "e2e-retry-queue", "--retry-policies", "e2e-retry-policy")
-	if err != nil && !strings.Contains(out, "already exists") {
-		fmt.Println(out)
-		return err
-	}
-
 	return nil
 }
 
@@ -82,12 +109,16 @@ rules:
   - action: Retry
     onCategory: "user_error"
 `
-	f, err := os.CreateTemp("", "retry-policy-*.yaml")
+	return writeTempFile("retry-policy-*.yaml", policy)
+}
+
+func writeTempFile(pattern string, contents string) (string, error) {
+	f, err := os.CreateTemp("", pattern)
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
-	if _, err := f.WriteString(policy); err != nil {
+	if _, err := f.WriteString(contents); err != nil {
 		return "", err
 	}
 	return f.Name(), nil

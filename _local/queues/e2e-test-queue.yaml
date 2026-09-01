@@ -1,4 +1,0 @@
-apiVersion: armadaproject.io/v1beta1
-kind: Queue
-name: e2e-test-queue
-priorityFactor: 1.0
