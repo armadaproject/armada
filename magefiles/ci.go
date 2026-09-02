@@ -62,6 +62,12 @@ defaultAction: Fail
 rules:
   - action: Retry
     onCategory: "user_error"
+  - action: Retry
+    onCategory: "oom"
+    mutate:
+      resources:
+        memory:
+          factor: 2.0
 `
 	f, err := os.CreateTemp("", "retry-policy-*.yaml")
 	if err != nil {
