@@ -75,7 +75,7 @@ rules:
 }
 
 // switchToAuthConfig moves `server`, `scheduler`, and `executor` onto the auth config before the
-// rbac suite runs.
+// rbac suite runs
 func switchToAuthConfig() error {
 	envVars := map[string]string{
 		"ARMADA_SERVER_CONFIG":               "../server/config-auth.yaml",
