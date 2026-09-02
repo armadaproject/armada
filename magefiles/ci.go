@@ -74,16 +74,33 @@ rules:
 	return f.Name(), nil
 }
 
-// switchServiceConfig recreates the specified compose service with different environment variables and
-// waits for it to come back up. Used to move the single `server` container between the default and auth configs between suites.
-func switchServiceConfig(serviceName string, envVars map[string]string, stringMatch string) error {
+// switchToAuthConfig moves `server`, `scheduler`, and `executor` onto the auth config before the
+// rbac suite runs.
+func switchToAuthConfig() error {
+	envVars := map[string]string{
+		"ARMADA_SERVER_CONFIG":               "../server/config-auth.yaml",
+		"ARMADA_SCHEDULER_CONFIG":            "../scheduler/config-auth.yaml",
+		"ARMADA_EXECUTOR_CONFIG":             "../executor/config-auth.yaml",
+		"ARMADA_SERVER_OIDC_PROVIDER_URL":    "http://keycloak:8180/realms/armada",
+		"ARMADA_SCHEDULER_OIDC_PROVIDER_URL": "http://keycloak:8180/realms/armada",
+		"ARMADA_EXECUTOR_OIDC_PROVIDER_URL":  "http://keycloak:8180/realms/armada",
+	}
 	for k, v := range envVars {
 		os.Setenv(k, v)
 	}
-	if err := dockerRun("compose", "-f", fullComposeFile, "up", "-d", "--force-recreate", serviceName); err != nil {
+	if err := dockerRun("compose", "-f", fullComposeFile, "up", "-d", "--force-recreate", "--wait", "server", "scheduler", "executor"); err != nil {
 		return err
 	}
-	return CheckDockerContainerRunning(serviceName, stringMatch)
+	if err := CheckDockerContainerRunning("server", "Armada gRPC server listening on"); err != nil {
+		return err
+	}
+	if err := CheckDockerContainerRunning("scheduler", "Retrieved [1-9]+ executors"); err != nil {
+		return err
+	}
+	if err := CheckDockerContainerRunning("executor", "Reporting current free resource"); err != nil {
+		return err
+	}
+	return nil
 }
 
 func runTests(suites []string) error {
@@ -129,8 +146,7 @@ func TestSuite() error {
 	timeTakenTestSuite := time.Now()
 
 	suites := []string{
-		"basic",
-		// "categorization", "retry",
+		"basic", "categorization", "retry",
 		"preemption", "reprioritization", "queue",
 		"testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
 		"testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
@@ -144,16 +160,10 @@ func TestSuite() error {
 		"rbac",
 	}
 
-	if err := switchServiceConfig("server", map[string]string{"ARMADA_SERVER_CONFIG": "../server/config-auth.yaml", "ARMADA_SERVER_OIDC_PROVIDER_URL": "http://keycloak:8180/realms/armada"}, "Armada gRPC server listening on"); err != nil {
+	if err := switchToAuthConfig(); err != nil {
 		return err
 	}
 	err := runTests(authSuites)
-	if revertErr := switchServiceConfig("server", map[string]string{"ARMADA_SERVER_CONFIG": "../server/config.yaml", "ARMADA_SERVER_OIDC_PROVIDER_URL": ""}, "Armada gRPC server listening on"); revertErr != nil {
-		fmt.Println("failed to restore default server config:", revertErr)
-		if err == nil {
-			err = revertErr
-		}
-	}
 	if err != nil {
 		return err
 	}

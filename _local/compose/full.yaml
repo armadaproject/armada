@@ -30,6 +30,11 @@ networks:
 x-component: &component
   networks: [kind]
   working_dir: /app
+  # Pulsar's healthcheck passes as soon as the broker is up, but in standalone mode the
+  # public/default namespace is provisioned a moment later -- any component that tries to
+  # create its first producer/consumer in that window gets a hard TopicNotFound and exits.
+  # Restart on failure so that one-time race self-heals instead of leaving the component down.
+  restart: on-failure
 
 services:
   # =========================================================
@@ -83,7 +88,8 @@ services:
     networks: [kind]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/admin/v2/brokers/health"]
+      test:
+        ["CMD", "curl", "-f", "http://localhost:8080/admin/v2/brokers/health"]
       interval: 10s
       timeout: 10s
       retries: 10
@@ -119,7 +125,7 @@ services:
     container_name: scheduler-migration
     image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     depends_on:
-      postgres: {condition: service_healthy}
+      postgres: { condition: service_healthy }
     volumes:
       - ../scheduler/config.yaml:/config/config.yaml:ro
     environment:
@@ -131,7 +137,7 @@ services:
     container_name: lookout-migration
     image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
     depends_on:
-      postgres: {condition: service_healthy}
+      postgres: { condition: service_healthy }
     volumes:
       - ../lookout/config.yaml:/config/config.yaml:ro
     environment:
@@ -183,18 +189,30 @@ services:
   # =========================================================
   # Armada components
   # =========================================================
+  # ARMADA_SCHEDULER_OIDC_CLIENT_SECRET (unset by default, so armadaApi::openIdClientCredentialsAuth::providerUrl
+  # is empty and armadaApi::openIdClientCredentialsAuth::clientSecret decodes as an unused key -- fine, since
+  # OpenIdClientCredentialsAuth.ProviderUrl == "" makes CreateApiConnection skip client-credentials auth) lets CI
+  # switch the scheduler's own client to `server` between anonymous and OIDC in lockstep with switchServiceConfig's
+  # `server` switch -- see magefiles/ci.go. Without this, the scheduler's queue/retry-policy caches keep calling
+  # `server` unauthenticated once `server` requires auth, so queues created for the rbac suite are never seen and
+  # jobs in them never get scheduled.
   scheduler:
     <<: *component
     container_name: scheduler
     image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     depends_on:
-      scheduler-migration: {condition: service_completed_successfully}
+      scheduler-migration: { condition: service_completed_successfully }
     volumes:
-      - ../scheduler/config.yaml:/config/config.yaml:ro
+      - ${ARMADA_SCHEDULER_CONFIG:-../scheduler/config.yaml}:/config/config.yaml:ro
     environment:
       ARMADA_PULSAR_URL: pulsar://pulsar:6650
       ARMADA_POSTGRES_CONNECTION_HOST: postgres
       ARMADA_ARMADAAPI_ARMADAURL: server:50051
+      # config-auth.yaml hardcodes providerUrl as localhost, correct for the host-process dev:up
+      # flow but not inside a container -- this override lets CI point it at the "keycloak" service
+      # name instead. Viper env vars take precedence over config file values, so this is a no-op
+      # unless ARMADA_SCHEDULER_OIDC_PROVIDER_URL is set (see magefiles/ci.go's switchToAuthConfig).
+      ARMADA_ARMADAAPI_OPENIDCLIENTCREDENTIALSAUTH_PROVIDERURL: ${ARMADA_SCHEDULER_OIDC_PROVIDER_URL:-}
       # Refresh the executor list every 1s (default 60s) so newly-started executors are
       # picked up quickly; the integration test readiness check waits on this.
       ARMADA_SCHEDULING_EXECUTORUPDATEFREQUENCY: 1s
@@ -205,8 +223,8 @@ services:
     container_name: scheduleringester
     image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     depends_on:
-      scheduler-migration: {condition: service_completed_successfully}
-      pulsar: {condition: service_healthy}
+      scheduler-migration: { condition: service_completed_successfully }
+      pulsar: { condition: service_healthy }
     volumes:
       - ../scheduleringester/config.yaml:/config/config.yaml:ro
     environment:
@@ -230,9 +248,9 @@ services:
       - "50051:50051"
       - "8081:8081"
     depends_on:
-      lookout-migration: {condition: service_completed_successfully}
-      pulsar: {condition: service_healthy}
-      redis: {condition: service_healthy}
+      lookout-migration: { condition: service_completed_successfully }
+      pulsar: { condition: service_healthy }
+      redis: { condition: service_healthy }
     volumes:
       - ${ARMADA_SERVER_CONFIG:-../server/config.yaml}:/config/config.yaml:ro
     environment:
@@ -242,6 +260,10 @@ services:
       ARMADA_QUERYAPI_POSTGRES_CONNECTION_HOST: postgres
       ARMADA_PULSAR_URL: pulsar://pulsar:6650
       ARMADA_SCHEDULERAPICONNECTION_ARMADAURL: scheduler:50052
+      # config-auth.yaml hardcodes providerUrl as localhost, correct for the host-process dev:up
+      # flow but not inside a container -- this override lets CI point it at the "keycloak" service
+      # name instead. Viper env vars take precedence over config file values, so this is a no-op
+      # unless ARMADA_SERVER_OIDC_PROVIDER_URL is set (see magefiles/ci.go's switchToAuthConfig).
       ARMADA_AUTH_OPENIDAUTH_PROVIDERURL: ${ARMADA_SERVER_OIDC_PROVIDER_URL:-}
     command: ./server --config /config/config.yaml
 
@@ -252,13 +274,18 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      scheduler: {condition: service_started}
+      scheduler: { condition: service_started }
     volumes:
-      - ../executor/config.yaml:/config/config.yaml:ro
+      - ${ARMADA_EXECUTOR_CONFIG:-../executor/config.yaml}:/config/config.yaml:ro
       - ../../.kube/internal:/.kube:ro
     environment:
       KUBECONFIG: /.kube/config
       ARMADA_EXECUTORAPICONNECTION_ARMADAURL: scheduler:50052
+      # config-auth.yaml hardcodes providerUrl as localhost, correct for the host-process dev:up
+      # flow but not inside a container -- this override lets CI point it at the "keycloak" service
+      # name instead. Viper env vars take precedence over config file values, so this is a no-op
+      # unless ARMADA_EXECUTOR_OIDC_PROVIDER_URL is set (see magefiles/ci.go's switchToAuthConfig).
+      ARMADA_EXECUTORAPICONNECTION_OPENIDCLIENTCREDENTIALSAUTH_PROVIDERURL: ${ARMADA_EXECUTOR_OIDC_PROVIDER_URL:-}
     command: ./executor --config /config/config.yaml
 
   eventingester:
@@ -266,8 +293,8 @@ services:
     container_name: eventingester
     image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     depends_on:
-      pulsar: {condition: service_healthy}
-      redis: {condition: service_healthy}
+      pulsar: { condition: service_healthy }
+      redis: { condition: service_healthy }
     volumes:
       - ../eventingester/config.yaml:/config/config.yaml:ro
     environment:
@@ -281,8 +308,8 @@ services:
     container_name: lookoutingester
     image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
     depends_on:
-      lookout-migration: {condition: service_completed_successfully}
-      pulsar: {condition: service_healthy}
+      lookout-migration: { condition: service_completed_successfully }
+      pulsar: { condition: service_healthy }
     volumes:
       - ../lookoutingester/config.yaml:/config/config.yaml:ro
     environment:
@@ -299,7 +326,7 @@ services:
     ports:
       - "8089:8089"
     depends_on:
-      lookout-migration: {condition: service_completed_successfully}
+      lookout-migration: { condition: service_completed_successfully }
     volumes:
       - ../lookout/config.yaml:/config/config.yaml:ro
     environment:
