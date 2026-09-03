@@ -60,10 +60,12 @@ var KnownConditions = map[string]bool{
 	ConditionDeadlineExceeded: true,
 }
 
-// CategoryInternal is the failure category for Armada-generated failures.
-// It is hard-coded at the Error-construction site,
-// not assigned by the operator categorizer.
-const CategoryInternal = "internal"
+// Failure categories that Armada hard-codes at the Error-construction
+// site. The operator categorizer does not assign them.
+const (
+	CategoryInternal   = "internal"   // Armada-generated failures
+	CategoryPreemption = "preemption" // runs that Armada preempts
+)
 
 const (
 	SubcategoryJobCreationFailed = "job-creation-failed" // executor failed to build the runnable job from the lease
