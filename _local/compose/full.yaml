@@ -32,9 +32,10 @@ x-component: &component
   working_dir: /app
   # Pulsar's healthcheck passes as soon as the broker is up, but in standalone mode the
   # public/default namespace is provisioned a moment later -- any component that tries to
-  # create its first producer/consumer in that window gets a hard TopicNotFound and exits.
-  # Restart on failure so that one-time race self-heals instead of leaving the component down.
-  restart: on-failure
+  # create its first producer/consumer in that window gets a hard TopicNotFound and its
+  # errgroup returns, which these components treat as a normal (exit 0) shutdown. "always"
+  # restarts regardless of exit code, since "on-failure" never triggers for that case.
+  restart: always
 
 services:
   # =========================================================
@@ -124,6 +125,7 @@ services:
     <<: *component
     container_name: scheduler-migration
     image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    restart: on-failure
     depends_on:
       postgres: { condition: service_healthy }
     volumes:
@@ -136,6 +138,7 @@ services:
     <<: *component
     container_name: lookout-migration
     image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    restart: on-failure
     depends_on:
       postgres: { condition: service_healthy }
     volumes:
