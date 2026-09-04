@@ -17,6 +17,10 @@ func createQueue() error {
 	return runArmadaCtlIgnoreExists("create", "queue", "e2e-test-queue")
 }
 
+func createRbacQueue() error {
+	return runArmadaCtlIgnoreExists("create", "queue", "rbac-queue", "--owners", "nobody")
+}
+
 // createRetryPolicyAndQueue creates the retry policy and the queue that uses
 // it. The retry/ testcases submit to this queue. The executor config sets the
 // action Delete on the categories that this policy retries. The executor thus
@@ -42,7 +46,6 @@ func createRetryPolicyAndQueue() error {
 	if err := runArmadaCtlIgnoreExists("create", "queue", "e2e-retry-queue", "--retry-policies", "e2e-retry-policy"); err != nil {
 		return err
 	}
-
 	// The scheduler's queue and policy caches poll on queueRefreshPeriod
 	// (3s in the local config) and do not observe creations. Wait one
 	// period, so the first testcase always finds the policy in the cache.
@@ -77,25 +80,36 @@ rules:
 	return f.Name(), nil
 }
 
-// Build images, spin up a test environment, and run the integration tests against it.
-func TestSuite() error {
-	mg.Deps(CheckForArmadaRunning)
-
-	// Only set these if they have not already been set
-	if os.Getenv("ARMADA_EXECUTOR_INGRESS_URL") == "" {
-		os.Setenv("ARMADA_EXECUTOR_INGRESS_URL", "http://localhost")
+// switchToAuthConfig moves `server`, `scheduler`, and `executor` onto the auth config before the
+// rbac suite runs
+func switchToAuthConfig() error {
+	envVars := map[string]string{
+		"ARMADA_SERVER_CONFIG":               "../server/config-auth.yaml",
+		"ARMADA_SCHEDULER_CONFIG":            "../scheduler/config-auth.yaml",
+		"ARMADA_EXECUTOR_CONFIG":             "../executor/config-auth.yaml",
+		"ARMADA_SERVER_OIDC_PROVIDER_URL":    "http://keycloak:8180/realms/armada",
+		"ARMADA_SCHEDULER_OIDC_PROVIDER_URL": "http://keycloak:8180/realms/armada",
+		"ARMADA_EXECUTOR_OIDC_PROVIDER_URL":  "http://keycloak:8180/realms/armada",
 	}
-	if os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT") == "" {
-		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
+	for k, v := range envVars {
+		os.Setenv(k, v)
 	}
-	timeTakenTestSuite := time.Now()
-
-	suites := []string{
-		"basic", "categorization", "retry", "preemption", "reprioritization", "queue",
-		"testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
-		"testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
+	if err := dockerRun("compose", "-f", fullComposeFile, "up", "-d", "--force-recreate", "--wait", "server", "scheduler", "executor"); err != nil {
+		return err
 	}
+	if err := CheckDockerContainerRunning("server", "Armada gRPC server listening on"); err != nil {
+		return err
+	}
+	if err := CheckDockerContainerRunning("scheduler", "Retrieved [1-9]+ executors"); err != nil {
+		return err
+	}
+	if err := CheckDockerContainerRunning("executor", "Reporting current free resource"); err != nil {
+		return err
+	}
+	return nil
+}
 
+func runTests(suites []string) error {
 	for i, suite := range suites {
 		var tests []string
 		label := suite
@@ -105,7 +119,6 @@ func TestSuite() error {
 		} else {
 			tests = []string{fmt.Sprintf("testsuite/testcases/%s/*", suite)}
 		}
-
 		timeTaken := time.Now()
 		out, err := goOutput("run", "cmd/testsuite/main.go", "test",
 			"--tests", strings.Join(tests, ","),
@@ -122,6 +135,44 @@ func TestSuite() error {
 		}
 		fmt.Printf("(Real) %s to run %s tests: %s\n\n", verb, suite, time.Since(timeTaken))
 	}
+	return nil
+}
+
+// Build images, spin up a test environment, and run the integration tests against it.
+func TestSuite() error {
+	mg.Deps(CheckForArmadaRunning)
+
+	// Only set these if they have not already been set
+	if os.Getenv("ARMADA_EXECUTOR_INGRESS_URL") == "" {
+		os.Setenv("ARMADA_EXECUTOR_INGRESS_URL", "http://localhost")
+	}
+	if os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT") == "" {
+		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
+	}
+	timeTakenTestSuite := time.Now()
+
+	suites := []string{
+		"basic", "categorization", "retry",
+		"preemption", "reprioritization", "queue",
+		"testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
+		"testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
+	}
+
+	if err := runTests(suites); err != nil {
+		return err
+	}
+
+	authSuites := []string{
+		"rbac",
+	}
+
+	if err := switchToAuthConfig(); err != nil {
+		return err
+	}
+	err := runTests(authSuites)
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf("(Real) Total time to run all tests: %s\n\n", time.Since(timeTakenTestSuite))
 	return nil
@@ -135,6 +186,7 @@ func CheckForArmadaRunning() error {
 	mg.Deps(CheckSchedulerReady)
 	mg.Deps(createQueue)
 	mg.Deps(createRetryPolicyAndQueue)
+	mg.Deps(createRbacQueue)
 
 	// Set high to take compile time into account
 	timeout := time.After(2 * time.Minute)
@@ -196,8 +248,18 @@ func CheckDockerContainerRunning(containerName string, expectedLogRegex string) 
 }
 
 func runArmadaCtl(args ...string) (string, error) {
+	return runArmadaCtlContext("", args...)
+}
+
+// runArmadaCtlContext is runArmadaCtl with an explicit armadactl context override (e.g.
+// "rbac-admin"), needed to talk to `server` while it's running the auth config rather than the
+// default unauthenticated config every other suite uses -- see switchServiceConfig.
+func runArmadaCtlContext(context string, args ...string) (string, error) {
 	armadaCtlArgs := []string{
 		"--config", "_local/.armadactl.yaml",
+	}
+	if context != "" {
+		armadaCtlArgs = append(armadaCtlArgs, "--context", context)
 	}
 	armadaCtlArgs = append(armadaCtlArgs, args...)
 	outBytes, err := exec.Command(findOrBuildArmadaCtl(), armadaCtlArgs...).CombinedOutput()

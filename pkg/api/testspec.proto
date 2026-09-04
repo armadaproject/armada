@@ -61,6 +61,13 @@ message TestSpec {
     QueueConfig queue_config = 25;
     // Cancel jobs by job set.
     JobSetCancelConfig cancel_job_set = 26;
+    // Named armadactl context (see client.ApiConnectionDetails) to authenticate this test's
+    // API calls with. If empty, falls back to the connection details the suite was invoked with.
+    string auth_context = 27;
+    // If non-zero, the test expects job submission/cancellation/reprioritization or queue
+    // create/update/delete to fail with this gRPC status code (see google.golang.org/grpc/codes)
+    // rather than succeed. Mutually exclusive with expecting expected_events to be observed.
+    int32 expect_error_code = 28;
 }
 
 message NodeCancelConfig {
