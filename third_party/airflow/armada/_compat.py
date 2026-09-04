@@ -36,12 +36,12 @@ try:
 except ImportError:
     from airflow.exceptions import AirflowFailException  # Airflow 2.x
 
-# Context moved to airflow.sdk.definitions.context in Airflow 3.0. The shim at
+# Context moved to the Task SDK in Airflow 3.0. The shim at
 # airflow.utils.context.Context still resolves on 3.x, but it is exposed via a
 # module-level __getattr__ that returns the *module*, not the class - which
 # breaks Sphinx autodoc rendering. Import the real class directly.
 try:
-    from airflow.sdk.definitions.context import Context  # Airflow >= 3.0
+    from airflow.sdk import Context  # Airflow >= 3.0
 except ImportError:
     from airflow.utils.context import Context  # Airflow 2.x
 
