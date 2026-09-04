@@ -587,18 +587,21 @@ func getJobResources(job *api.Job) jobResources {
 
 	podSpec := job.GetMainPodSpec()
 
-	for _, container := range podSpec.Containers {
-		resources.Cpu += getResource(container, v1.ResourceCPU, true)
-		resources.Memory += getResource(container, v1.ResourceMemory, false)
-		resources.EphemeralStorage += getResource(container, v1.ResourceEphemeralStorage, false)
-		resources.Gpu += getResource(container, "nvidia.com/gpu", false)
-	}
+	// Use the canonical effective-request computation so the reported footprint
+	// matches what the scheduler bills: sum of main containers + native sidecars,
+	// max over classic init containers, and max with the pod-level block (KEP-2837).
+	// This also fixes the prior undercount that summed only main containers.
+	requests := api.SchedulingResourceRequirementsFromPodSpec(podSpec).Requests
+	resources.Cpu = getResourceFromList(requests, v1.ResourceCPU, true)
+	resources.Memory = getResourceFromList(requests, v1.ResourceMemory, false)
+	resources.EphemeralStorage = getResourceFromList(requests, v1.ResourceEphemeralStorage, false)
+	resources.Gpu = getResourceFromList(requests, "nvidia.com/gpu", false)
 
 	return resources
 }
 
-func getResource(container v1.Container, resourceName v1.ResourceName, useMillis bool) int64 {
-	resource, ok := container.Resources.Requests[resourceName]
+func getResourceFromList(rl v1.ResourceList, resourceName v1.ResourceName, useMillis bool) int64 {
+	resource, ok := rl[resourceName]
 	if !ok {
 		return 0
 	}
