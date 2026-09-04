@@ -1,0 +1,89 @@
+# Helm values used to render _local/kind/traefik.yaml
+# Committed so the vendored manifest can be regenerated rather than hand-edited.
+# See _local/kind/traefik.yaml header for the exact command.
+
+deployment:
+  kind: Deployment
+  replicas: 1
+
+# Pin Traefik to the kind control-plane node, which is the only node carrying the
+# extraPortMappings (see _local/kind/cluster.yaml).
+nodeSelector:
+  ingress-ready: "true"
+  kubernetes.io/os: linux
+
+# The control-plane node is tainted; mirror the tolerations the ingress-nginx
+# manifest used so Traefik can actually schedule there.
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Equal
+    effect: NoSchedule
+  - key: node-role.kubernetes.io/master
+    operator: Equal
+    effect: NoSchedule
+
+# kind has no cloud load-balancer; reach Traefik through hostPort instead.
+service:
+  enabled: true
+  spec:
+    type: NodePort
+
+ports:
+  web:
+    # hostPort 80 on the control-plane node maps to localhost:5001 via
+    # extraPortMappings. containerPort stays at the chart default 8000 because
+    # Traefik runs unprivileged and cannot bind 80 in-container.
+    hostPort: 80
+    expose:
+      default: true
+    exposedPort: 80
+  websecure:
+    expose:
+      default: true
+    exposedPort: 443
+  traefik:
+    # Dashboard/API entrypoint, exposed on localhost:5002 for local debugging.
+    hostPort: 8080
+
+api:
+  dashboard: true
+  # Local dev only: unauthenticated dashboard over plain HTTP.
+  insecure: true
+
+# Traefik claims Ingresses that omit ingressClassName as long as
+# providers.kubernetesIngress.ingressClass is left unset. Armada's generated
+# Ingresses never set a class, so this must stay unset. isDefaultClass gives a
+# second, independent guarantee via API-server defaulting.
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+  name: traefik
+
+providers:
+  kubernetesIngress:
+    enabled: true
+    allowEmptyServices: true
+  kubernetesCRD:
+    enabled: false
+  kubernetesGateway:
+    enabled: false
+
+# Keep the bootstrap CRD-free: no IngressRoute for the dashboard, it is reached
+# directly over the traefik entrypoint hostPort.
+ingressRoute:
+  dashboard:
+    enabled: false
+  healthcheck:
+    enabled: false
+
+log:
+  level: INFO
+
+# Access logs make Host-matching failures diagnosable.
+accessLog:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 90Mi
