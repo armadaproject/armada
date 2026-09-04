@@ -419,6 +419,24 @@ func (js *JobSimulator) Cancelled(timestamp time.Time, cancelUser string) *JobSi
 	return js
 }
 
+func (js *JobSimulator) Requeued(timestamp time.Time) *JobSimulator {
+	ts := timestampOrNow(timestamp)
+	requeuedTime := protoutil.ToStdTime(ts)
+	requeued := &armadaevents.EventSequence_Event{
+		Created: ts,
+		Event: &armadaevents.EventSequence_Event_JobRequeued{
+			JobRequeued: &armadaevents.JobRequeued{
+				JobId: js.jobId,
+			},
+		},
+	}
+	js.events = append(js.events, requeued)
+
+	js.job.State = string(lookout.JobQueued)
+	js.job.LastTransitionTime = requeuedTime
+	return js
+}
+
 func (js *JobSimulator) Reprioritized(newPriority uint32, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	reprioritized := &armadaevents.EventSequence_Event{
