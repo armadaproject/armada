@@ -2,8 +2,9 @@
 // hot-cold phase of Lookout. The partitioner converts the unpartitioned
 // job table (produced by the lookout migration chain) into a LIST-partitioned
 // shape with job_active and job_terminated partitions, in a single
-// PostgreSQL transaction. On an already-partitioned database it is a no-op.
-// On an unexpected shape it refuses.
+// PostgreSQL transaction. On an already-partitioned database it backfills
+// any indexes added to the partitioned shape since that database was first
+// partitioned, then returns. On an unexpected shape it refuses.
 //
 // Callers should apply the lookout migration chain first, then call
 // ApplyPartitioner.

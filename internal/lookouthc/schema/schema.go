@@ -53,6 +53,9 @@ func ApplyPartitioner(ctx *armadacontext.Context, db TxBeginner) error {
 
 		switch state {
 		case jobStateAlreadyPartitioned:
+			if err := backfillQueueJobIDIndex(ctx, tx); err != nil {
+				return errors.Wrap(err, "backfill idx_job_queue_job_id")
+			}
 			return nil
 		case jobStateUnpartitioned:
 			if err := convertUnpartitionedToPartitioned(ctx, tx); err != nil {
@@ -251,7 +254,6 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 
 	expectedParentIndexes := []string{
 		"idx_job_queue_last_transition_time_seconds",
-		"idx_job_queue_job_id",
 		"idx_job_queue_jobset_state",
 		"idx_job_state",
 		"idx_job_submitted",
@@ -307,6 +309,18 @@ func extractInts(s string) ([]int, error) {
 		result = append(result, n)
 	}
 	return result, nil
+}
+
+// backfillQueueJobIDIndex creates idx_job_queue_job_id on an already
+// partitioned job table if it is missing. This index was added after the
+// partitioner had already shipped, so a database partitioned by an earlier
+// version of this package would otherwise be rejected as the wrong shape on
+// every subsequent run. It is intentionally excluded from
+// expectedParentIndexes for that reason.
+func backfillQueueJobIDIndex(ctx *armadacontext.Context, tx pgx.Tx) error {
+	_, err := tx.Exec(ctx,
+		`CREATE INDEX IF NOT EXISTS idx_job_queue_job_id ON job (queue, job_id) WITH (fillfactor = 80)`)
+	return err
 }
 
 // convertUnpartitionedToPartitioned is the conversion branch: it creates
