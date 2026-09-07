@@ -43,6 +43,7 @@ import {
   DEFAULT_COLUMN_ORDER,
   DEFAULT_COLUMN_VISIBILITY,
   getAnnotationKeyCols,
+  getColumnMetadata,
   INPUT_PARSERS,
   GET_JOB_COLUMNS,
   JobTableColumn,
@@ -53,12 +54,14 @@ import {
   JobColumnsOptions,
   LookoutColumnOrder,
 } from "../../../common/jobsTableColumns"
+import { formatColumnList } from "../../../common/jobsTableFormatters"
 import {
   LookoutColumnFilter,
   diffOfKeys,
   getFiltersForRowsSelection,
   PendingData,
   pendingDataForAllVisibleData,
+  pruneUnsatisfiedFilters,
   updaterToValue,
 } from "../../../common/jobsTableUtils"
 import { fromRowId, RowId } from "../../../common/reactTableUtils"
@@ -189,7 +192,11 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
   }
 
   // Filtering
-  const [columnFilterState, setColumnFilterState] = useState<ColumnFiltersState>(initialPrefs.filters)
+  const [columnFilterState, setColumnFilterState] = useState<ColumnFiltersState>(
+    // Filters may arrive from the query string with their prerequisites missing, e.g. from a stale
+    // or hand-edited link
+    pruneUnsatisfiedFilters(initialPrefs.filters).filters,
+  )
   const [lookoutFilters, setLookoutFilters] = useState<LookoutColumnFilter[]>([]) // Parsed later
   const [columnMatches, setColumnMatches] = useState<Record<string, Match>>(initialPrefs.columnMatches)
   const [parseErrors, setParseErrors] = useState<Record<string, string | undefined>>({})
@@ -301,8 +308,9 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
     setLookoutOrder(prefs.order)
     setSorting(fromLookoutOrder(prefs.order))
     setColumnSizing(prefs.columnSizing ?? {})
-    setColumnFilterState(prefs.filters)
-    setLookoutFilters(parseLookoutFilters(prefs.filters))
+    const { filters: prunedFilters } = pruneUnsatisfiedFilters(prefs.filters)
+    setColumnFilterState(prunedFilters)
+    setLookoutFilters(parseLookoutFilters(prunedFilters))
     setColumnMatches(prefs.columnMatches)
     const cols = GET_JOB_COLUMNS(jobColumnsOptions).concat(...prefs.annotationColumnKeys.map(createAnnotationColumn))
     setAllColumns(cols)
@@ -322,7 +330,7 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
     }
 
     // Have to manually set text fields to the filter values since they are uncontrolled
-    setTextFields(prefs.filters)
+    setTextFields(prunedFilters)
 
     // Load data
     setRowsToFetch(pendingDataForAllVisibleData(prefs.expandedState, data, prefs.pageSize))
@@ -431,11 +439,17 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
     if (columnIsAggregatable(colIdToToggle) && grouping.length > 0 && !visibleColumnIds.includes(colIdToToggle)) {
       shouldRefresh = true
     }
+    const isBeingHidden = Boolean(columnVisibility[colIdToToggle])
     setColumnVisibility({
       ...columnVisibility,
       [colIdToToggle]: !columnVisibility[colIdToToggle],
     })
-    if (shouldRefresh) {
+
+    // Hiding a column also removes its filter input, so clear any filter on it to avoid leaving a
+    // filter applied with no means of removing it. This refetches the data itself.
+    if (isBeingHidden && columnFilterState.some(({ id }) => id === colIdToToggle)) {
+      onFilterChange(columnFilterState.filter(({ id }) => id !== colIdToToggle))
+    } else if (shouldRefresh) {
       setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
     }
   }
@@ -680,19 +694,48 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
     })
   }
 
+  const applyFilterState = (newFilterState: ColumnFiltersState, syncTextFields = false) => {
+    setToFirstPage()
+    setLookoutFilters(parseLookoutFilters(newFilterState))
+    setColumnFilterState(newFilterState)
+    if (syncTextFields) {
+      // The text field inputs are uncontrolled, so they only need updating when the filter state
+      // changes other than by the user typing into them
+      setTextFields(newFilterState)
+    }
+    setSelectedRows({})
+    setSidebarJobId(undefined)
+    setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
+  }
+
   const onFilterChange = (updater: Updater<ColumnFiltersState>) => {
-    const newFilterState = updaterToValue(updater, columnFilterState)
+    const requestedFilterState = updaterToValue(updater, columnFilterState)
+
+    // Removing a filter can leave filters on dependent columns applied but unreachable, since their
+    // inputs are replaced by a message prompting for the prerequisite filter. Such filters are
+    // dropped so that no filter can be in effect without a control to remove it.
+    const { filters: newFilterState, removedColumnIds } = pruneUnsatisfiedFilters(requestedFilterState)
 
     if (_.isEqual(newFilterState, columnFilterState)) {
       return
     }
 
-    setToFirstPage()
-    setLookoutFilters(parseLookoutFilters(newFilterState))
-    setColumnFilterState(newFilterState)
-    setSelectedRows({})
-    setSidebarJobId(undefined)
-    setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
+    const previousFilterState = columnFilterState
+    // Any pruned filter may have had a text input, which must be cleared along with it
+    applyFilterState(newFilterState, removedColumnIds.length > 0)
+
+    if (removedColumnIds.length > 0) {
+      const removedNames = removedColumnIds.map((colId) => {
+        const column = allColumns.find(({ id }) => id === colId)
+        return (column ? getColumnMetadata(column).displayName : undefined) ?? colId
+      })
+      openUndoableSnackbar(
+        `${formatColumnList(removedNames)} ${removedNames.length === 1 ? "filter" : "filters"} cleared, as ${
+          removedNames.length === 1 ? "it requires" : "they require"
+        } a filter on another column.`,
+        () => applyFilterState(previousFilterState, true),
+      )
+    }
   }
 
   const onColumnMatchChange = (columnId: string, newMatch: Match) => {

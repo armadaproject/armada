@@ -12,6 +12,7 @@ import {
   DEFAULT_COLUMN_MATCHES,
   fromAnnotationColId,
   isStandardColId,
+  prerequisiteFilterColumns,
   StandardColumnId,
   TIME_RANGE_FILTER_COLUMNS,
   VALID_COLUMN_MATCHES,
@@ -28,6 +29,35 @@ export interface PendingData {
   skip: number
   take?: number
   append?: boolean
+}
+
+export const isEmptyFilterValue = (value: unknown): boolean =>
+  value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0)
+
+// Whether a column may be filtered on, i.e. every one of its prerequisite columns is itself
+// filtered on by a non-empty filter.
+export const canFilterOnColumn = (columnId: string, filters: { id: string; value: unknown }[]): boolean =>
+  prerequisiteFilterColumns(columnId).every((prerequisiteId) =>
+    filters.some(({ id, value }) => id === prerequisiteId && !isEmptyFilterValue(value)),
+  )
+
+// A filter on a column is only meaningful if every one of that column's prerequisite columns is
+// itself filtered on. Filters which do not meet this condition are removed, along with any filters
+// which in turn depend on them.
+export const pruneUnsatisfiedFilters = <T extends { id: string; value: unknown }>(
+  filters: T[],
+): { filters: T[]; removedColumnIds: string[] } => {
+  const removedColumnIds: string[] = []
+  let remaining = filters
+
+  for (;;) {
+    const kept = remaining.filter((filter) => canFilterOnColumn(filter.id, remaining))
+    if (kept.length === remaining.length) {
+      return { filters: remaining, removedColumnIds }
+    }
+    removedColumnIds.push(...remaining.filter((filter) => !kept.includes(filter)).map(({ id }) => id))
+    remaining = kept
+  }
 }
 
 export const pendingDataForAllVisibleData = (

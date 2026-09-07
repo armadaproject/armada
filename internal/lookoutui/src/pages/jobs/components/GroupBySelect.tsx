@@ -14,12 +14,12 @@ import {
 import {
   ColumnId,
   getColumnMetadata,
-  isStandardColId,
   JobTableColumn,
-  PREREQUISITE_FILTER_COLUMNS,
+  prerequisiteGroupingColumns,
   STANDARD_COLUMN_DISPLAY_NAMES,
   toColId,
 } from "../../../common/jobsTableColumns"
+import { formatColumnList } from "../../../common/jobsTableFormatters"
 
 const DIVIDER_WIDTH = 10
 
@@ -81,9 +81,9 @@ function GroupColumnSelect({ columns, groups, currentlySelected, onSelect, onDel
       >
         {columns.map((col) => {
           const colId = toColId(col.id)
-          const ungroupedPreRequisiteColumns = (
-            isStandardColId(colId) ? PREREQUISITE_FILTER_COLUMNS[colId] : []
-          ).filter((preReqCol) => !groups.includes(preReqCol))
+          const ungroupedPreRequisiteColumns = prerequisiteGroupingColumns(colId).filter(
+            (preReqCol) => !groups.includes(preReqCol),
+          )
 
           return (
             <MenuItem
@@ -97,7 +97,9 @@ function GroupColumnSelect({ columns, groups, currentlySelected, onSelect, onDel
                 <>
                   {" "}
                   (requires grouping by{" "}
-                  {ungroupedPreRequisiteColumns.map((preReqCol) => STANDARD_COLUMN_DISPLAY_NAMES[preReqCol]).join(", ")}
+                  {formatColumnList(
+                    ungroupedPreRequisiteColumns.map((preReqCol) => STANDARD_COLUMN_DISPLAY_NAMES[preReqCol]),
+                  )}
                   )
                 </>
               )}
@@ -154,10 +156,8 @@ export default function GroupBySelect({ groups, columns, onGroupsChanged }: Grou
                   onGroupsChanged(
                     groups
                       .filter((_, idx) => idx !== i)
-                      .filter(
-                        (colId) =>
-                          !isStandardColId(colId) ||
-                          PREREQUISITE_FILTER_COLUMNS[colId].every((preReqCol) => alreadyListed.includes(preReqCol)),
+                      .filter((colId) =>
+                        prerequisiteGroupingColumns(colId).every((preReqCol) => alreadyListed.includes(preReqCol)),
                       ),
                   )
                 }}

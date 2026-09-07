@@ -380,6 +380,84 @@ describe("JobsTableContainer", () => {
       await assertNumDataRowsShown(30)
     })
 
+    it("should clear a dependent filter when its prerequisite filter is cleared", async () => {
+      const jobs = [
+        ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
+        ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
+        ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
+      ]
+
+      mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
+      mockServer.setPostJobsResponse(jobs)
+
+      const { baseElement, router } = renderComponent()
+      await waitForFinishedLoading()
+
+      await filterAutocompleteTextColumnTo("Queue", "queue-1", baseElement)
+      await assertNumDataRowsShown(20)
+
+      await filterTextColumnTo("Job Set", "job-set-2")
+      await assertNumDataRowsShown(15)
+
+      // Clearing the Queue filter removes the Job Set filter's input, so the Job Set filter must be
+      // dropped rather than remain applied with no way to remove it
+      await filterAutocompleteTextColumnTo("Queue", "", baseElement)
+
+      await assertNumDataRowsShown(30)
+      await waitFor(() => {
+        expect(router.state.location.search).not.toContain("jobSet")
+      })
+    })
+
+    it("should not offer the cell filter action when prerequisite filters are not applied", async () => {
+      const jobs = makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued)
+
+      mockServer.setGetQueuesResponse(["queue-1"])
+      mockServer.setPostJobsResponse(jobs)
+
+      const { baseElement } = renderComponent()
+      await clearAllGroupings()
+      await waitForFinishedLoading()
+
+      // Filtering by Job Set requires a Queue filter, so the cell's filter action would be
+      // discarded as soon as it was applied. The button is queried by label rather than by role,
+      // since it carries the HTML hidden attribute until the cell is hovered.
+      const jobSetCell = await findCellByText("job-set-1")
+      expect(within(jobSetCell).queryByLabelText("Filter by this value")).toBeNull()
+
+      // Once a Queue filter is applied, the Job Set cell's filter action becomes available
+      await filterAutocompleteTextColumnTo("Queue", "queue-1", baseElement)
+      await waitForFinishedLoading()
+
+      const jobSetCellAfter = await findCellByText("job-set-1")
+      await within(jobSetCellAfter).findByLabelText("Filter by this value")
+    })
+
+    it("should restore a cascade-cleared filter when the change is undone", async () => {
+      const jobs = [
+        ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
+        ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
+        ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
+      ]
+
+      mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
+      mockServer.setPostJobsResponse(jobs)
+
+      const { baseElement } = renderComponent()
+      await waitForFinishedLoading()
+
+      await filterAutocompleteTextColumnTo("Queue", "queue-1", baseElement)
+      await filterTextColumnTo("Job Set", "job-set-2")
+      await assertNumDataRowsShown(15)
+
+      await filterAutocompleteTextColumnTo("Queue", "", baseElement)
+      await assertNumDataRowsShown(30)
+
+      await userEvent.click(await screen.findByRole("button", { name: "Undo" }))
+
+      await assertNumDataRowsShown(15)
+    })
+
     it("should allow enum filtering", async () => {
       const jobs = [
         ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
@@ -655,14 +733,38 @@ describe("JobsTableContainer", () => {
       mockServer.setPostJobsResponse(jobs)
 
       renderComponent(
+        // The Job Set filter requires a Queue filter, so both are included here
         // eslint-disable-next-line @cspell/spellchecker
-        `?page=0&g[0]=jobSet&sort[id]=jobId&sort[desc]=true&pS=50&f[0][id]=jobSet&f[0][value]=job-set-1&f[0][match]=startsWith&e[0]=jobSet%3Ajob-set-1`,
+        `?page=0&g[0]=jobSet&sort[id]=jobId&sort[desc]=true&pS=50&f[0][id]=queue&f[0][value]=queue-1&f[0][match]=anyOf&f[1][id]=jobSet&f[1][value]=job-set-1&f[1][match]=startsWith&e[0]=jobSet%3Ajob-set-1`,
       )
 
       await waitForFinishedLoading()
 
       // 1 job set + jobs for expanded job set
       await assertNumDataRowsShown(1 + 5)
+    })
+
+    it("should drop filters from query params whose prerequisite filters are absent", async () => {
+      const jobs = [
+        ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
+        ...makeTestJobs(10, "queue-2", "job-set-2", JobState.Pending),
+      ]
+
+      mockServer.setPostJobsResponse(jobs)
+
+      // A Job Set filter with no Queue filter is unreachable through the UI, so it must not be
+      // applied, and must not appear in the query params
+      const { router } = renderComponent(
+        `?page=0&sort[id]=jobId&sort[desc]=true&pS=50&f[0][id]=jobSet&f[0][value]=job-set-1&f[0][match]=startsWith`,
+      )
+
+      await waitForFinishedLoading()
+
+      // All jobs are shown, rather than only those in job-set-1
+      await assertNumDataRowsShown(15)
+      await waitFor(() => {
+        expect(router.state.location.search).not.toContain("jobSet")
+      })
     })
 
     it("should populate page index from query params", async () => {
@@ -732,6 +834,15 @@ describe("JobsTableContainer", () => {
 
   async function getHeaderCell(columnDisplayName: string) {
     return await screen.findByRole("columnheader", { name: columnDisplayName })
+  }
+
+  async function findCellByText(text: string) {
+    const cells = await screen.findAllByRole("cell")
+    const matchingCell = cells.find((cell) => cell.textContent === text)
+    if (!matchingCell) {
+      throw new Error(`no cell found with text content "${text}"`)
+    }
+    return matchingCell
   }
 
   async function filterTextColumnTo(columnDisplayName: string, filterText: string) {
