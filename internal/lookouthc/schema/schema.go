@@ -251,6 +251,7 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 
 	expectedParentIndexes := []string{
 		"idx_job_queue_last_transition_time_seconds",
+		"idx_job_queue_job_id",
 		"idx_job_queue_jobset_state",
 		"idx_job_state",
 		"idx_job_submitted",
@@ -367,6 +368,7 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx) er
 		`ALTER TABLE job_new_terminated RENAME TO job_terminated`,
 		`ALTER INDEX job_new_pkey RENAME TO job_pkey`,
 		`ALTER INDEX idx_job_new_queue_last_transition_time_seconds RENAME TO idx_job_queue_last_transition_time_seconds`,
+		`ALTER INDEX idx_job_new_queue_job_id RENAME TO idx_job_queue_job_id`,
 		`ALTER INDEX idx_job_new_queue_jobset_state RENAME TO idx_job_queue_jobset_state`,
 		`ALTER INDEX idx_job_new_state RENAME TO idx_job_state`,
 		`ALTER INDEX idx_job_new_submitted RENAME TO idx_job_submitted`,
