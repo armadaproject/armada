@@ -57,6 +57,7 @@ import {
 import { formatColumnList } from "../../../common/jobsTableFormatters"
 import {
   LookoutColumnFilter,
+  changedFilterColumnIds,
   diffOfKeys,
   getFiltersForRowsSelection,
   PendingData,
@@ -197,6 +198,10 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
     // or hand-edited link
     pruneUnsatisfiedFilters(initialPrefs.filters).filters,
   )
+  // Tracks the current filter state for callbacks which may outlive the render they were created in,
+  // such as the undo action of a snackbar
+  const columnFilterStateRef = useRef(columnFilterState)
+  columnFilterStateRef.current = columnFilterState
   const [lookoutFilters, setLookoutFilters] = useState<LookoutColumnFilter[]>([]) // Parsed later
   const [columnMatches, setColumnMatches] = useState<Record<string, Match>>(initialPrefs.columnMatches)
   const [parseErrors, setParseErrors] = useState<Record<string, string | undefined>>({})
@@ -708,23 +713,34 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
   }
 
-  const onFilterChange = (updater: Updater<ColumnFiltersState>) => {
-    const requestedFilterState = updaterToValue(updater, columnFilterState)
+  const onFilterChange = (updater: Updater<ColumnFiltersState>, syncTextFields = false) => {
+    const requestedFilterState = updaterToValue(updater, columnFilterStateRef.current)
 
     // Removing a filter can leave filters on dependent columns applied but unreachable, since their
     // inputs are replaced by a message prompting for the prerequisite filter. Such filters are
     // dropped so that no filter can be in effect without a control to remove it.
     const { filters: newFilterState, removedColumnIds } = pruneUnsatisfiedFilters(requestedFilterState)
 
-    if (_.isEqual(newFilterState, columnFilterState)) {
+    if (_.isEqual(newFilterState, columnFilterStateRef.current)) {
       return
     }
 
-    const previousFilterState = columnFilterState
     // Any pruned filter may have had a text input, which must be cleared along with it
-    applyFilterState(newFilterState, removedColumnIds.length > 0)
+    applyFilterState(newFilterState, syncTextFields || removedColumnIds.length > 0)
 
     if (removedColumnIds.length > 0) {
+      const previousFilterState = columnFilterStateRef.current
+      // Undoing must restore the filters which were pruned, but a pruned filter cannot stand on its
+      // own: it was pruned precisely because the edit left its prerequisite unsatisfied. So the
+      // columns the edit itself changed are restored too, and only those. Filters on any other
+      // column are left as they are, so that changes made while the undo action was available are
+      // not discarded.
+      const restoredColumnIds = _.union(
+        changedFilterColumnIds(previousFilterState, requestedFilterState),
+        removedColumnIds,
+      )
+      const restoredFilters = previousFilterState.filter(({ id }) => restoredColumnIds.includes(id))
+
       const removedNames = removedColumnIds.map((colId) => {
         const column = allColumns.find(({ id }) => id === colId)
         return (column ? getColumnMetadata(column).displayName : undefined) ?? colId
@@ -733,7 +749,11 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
         `${formatColumnList(removedNames)} ${removedNames.length === 1 ? "filter" : "filters"} cleared, as ${
           removedNames.length === 1 ? "it requires" : "they require"
         } a filter on another column.`,
-        () => applyFilterState(previousFilterState, true),
+        () =>
+          onFilterChange(
+            (current) => [...current.filter(({ id }) => !restoredColumnIds.includes(id)), ...restoredFilters],
+            true,
+          ),
       )
     }
   }

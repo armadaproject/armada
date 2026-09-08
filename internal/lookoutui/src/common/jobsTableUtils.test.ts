@@ -2,7 +2,12 @@ import { JobFilter, JobFiltersWithExcludes, JobState, Match } from "../models/lo
 
 import { StandardColumnId, toAnnotationColId } from "./jobsTableColumns"
 import { LookoutColumnFilter } from "./jobsTableUtils"
-import { diffOfKeys, getFiltersForRowsSelection, pruneUnsatisfiedFilters } from "./jobsTableUtils"
+import {
+  changedFilterColumnIds,
+  diffOfKeys,
+  getFiltersForRowsSelection,
+  pruneUnsatisfiedFilters,
+} from "./jobsTableUtils"
 import { RowId } from "./reactTableUtils"
 
 describe("JobsTableUtils", () => {
@@ -65,6 +70,31 @@ describe("JobsTableUtils", () => {
 
       expect(pruned).toEqual(filters)
       expect(removedColumnIds).toEqual([])
+    })
+  })
+
+  describe("changedFilterColumnIds", () => {
+    it("returns nothing when the filter states match", () => {
+      const filters = [{ id: StandardColumnId.Queue, value: ["queue-1"] }]
+
+      expect(changedFilterColumnIds(filters, filters)).toEqual([])
+    })
+
+    it("detects added, removed and modified filters, ignoring unchanged ones", () => {
+      const before = [
+        { id: StandardColumnId.Queue, value: ["queue-1"] },
+        { id: StandardColumnId.Owner, value: "owner-1" },
+        { id: StandardColumnId.JobSet, value: "job-set-1" },
+      ]
+      const after = [
+        { id: StandardColumnId.Queue, value: ["queue-2"] },
+        { id: StandardColumnId.Owner, value: "owner-1" },
+        { id: StandardColumnId.State, value: ["QUEUED"] },
+      ]
+
+      expect(changedFilterColumnIds(before, after).sort()).toEqual(
+        [StandardColumnId.Queue, StandardColumnId.JobSet, StandardColumnId.State].sort(),
+      )
     })
   })
 

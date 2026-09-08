@@ -60,6 +60,22 @@ export const pruneUnsatisfiedFilters = <T extends { id: string; value: unknown }
   }
 }
 
+// The IDs of the columns whose filter differs between two filter states.
+export const changedFilterColumnIds = (
+  before: { id: string; value: unknown }[],
+  after: { id: string; value: unknown }[],
+): string[] =>
+  _.union(
+    before.map(({ id }) => id),
+    after.map(({ id }) => id),
+  ).filter(
+    (columnId) =>
+      !_.isEqual(
+        before.find(({ id }) => id === columnId),
+        after.find(({ id }) => id === columnId),
+      ),
+  )
+
 export const pendingDataForAllVisibleData = (
   expanded: ExpandedStateList,
   data: JobTableRow[],

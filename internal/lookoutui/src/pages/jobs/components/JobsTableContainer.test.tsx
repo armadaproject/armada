@@ -458,6 +458,39 @@ describe("JobsTableContainer", () => {
       await assertNumDataRowsShown(15)
     })
 
+    it("should keep filter changes made after a cascade when the change is undone", async () => {
+      const jobs = [
+        ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
+        ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
+        ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
+        ...makeTestJobs(7, "queue-1", "job-set-2", JobState.Queued),
+      ]
+
+      mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
+      mockServer.setPostJobsResponse(jobs)
+
+      const { baseElement } = renderComponent()
+      await waitForFinishedLoading()
+
+      await filterAutocompleteTextColumnTo("Queue", "queue-1", baseElement)
+      await filterTextColumnTo("Job Set", "job-set-2")
+      await assertNumDataRowsShown(22)
+
+      // Clearing the Queue filter cascades, clearing the Job Set filter and offering an undo
+      await filterAutocompleteTextColumnTo("Queue", "", baseElement)
+      await assertNumDataRowsShown(37)
+
+      // A filter added while the undo action is still available must survive the undo
+      await toggleEnumFilterOptions("State", ["Running"])
+      await assertNumDataRowsShown(15)
+
+      await userEvent.click(await screen.findByRole("button", { name: "Undo" }))
+
+      // The restored Queue and Job Set filters apply together with the newer State filter. Were the
+      // State filter discarded, all 22 jobs in queue-1 and job-set-2 would be shown instead.
+      await assertNumDataRowsShown(15)
+    })
+
     it("should allow enum filtering", async () => {
       const jobs = [
         ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
