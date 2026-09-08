@@ -156,9 +156,9 @@ func NewJobDb(resourceListFactory *internaltypes.ResourceListFactory) *jobdb.Job
 		stringinterner.New(1024),
 		resourceListFactory,
 	)
-	// Mock out the clock and uuid provider to ensure consistent ids and timestamps are generated.
+	// Mock out the clock and job run ID provider to ensure consistent IDs and timestamps are generated.
 	jobDb.SetClock(NewMockPassiveClock())
-	jobDb.SetUUIDProvider(NewMockIDProvider())
+	jobDb.SetJobRunIDProvider(NewMockIDProvider())
 	return jobDb
 }
 
