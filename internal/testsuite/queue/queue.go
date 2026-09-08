@@ -19,9 +19,12 @@ import (
 
 // RunSetup creates the queue(s) if configured and returns list of created queue names
 func RunSetup(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, out io.Writer) ([]string, error) {
-	setup := testSpec.GetQueueConfig().GetSetup()
-	if setup == nil {
+	if testSpec.GetQueueConfig() == nil {
 		return nil, nil
+	}
+	setup := testSpec.QueueConfig.GetSetup()
+	if setup == nil {
+		setup = &api.QueueSetup{}
 	}
 	baseName := testSpec.Queue
 	batchSize := max(1, setup.GetBatchSize())

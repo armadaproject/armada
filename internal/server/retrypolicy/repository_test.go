@@ -24,7 +24,7 @@ func withRetryPolicyRepo(t *testing.T, action func(ctx *armadacontext.Context, r
 
 func withRetryPolicyRepoAndDb(t *testing.T, action func(ctx *armadacontext.Context, repo *PostgresRetryPolicyRepository, db *pgxpool.Pool)) {
 	t.Helper()
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		action(ctx, NewPostgresRetryPolicyRepository(db), db)

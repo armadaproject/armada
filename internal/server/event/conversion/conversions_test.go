@@ -144,7 +144,8 @@ func TestConvertCancelled(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelledJob{
 			CancelledJob: &armadaevents.CancelledJob{
-				JobId: jobId,
+				JobId:     jobId,
+				Requestor: "cancel-requestor",
 			},
 		},
 	}
@@ -157,7 +158,7 @@ func TestConvertCancelled(t *testing.T) {
 					JobSetId:  jobSetName,
 					Queue:     queue,
 					Created:   protoutil.ToTimestamp(baseTime),
-					Requestor: userId,
+					Requestor: "cancel-requestor",
 				},
 			},
 		},
@@ -197,12 +198,30 @@ func TestConvertReprioritising(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
+func TestConvertJobRunCancelled(t *testing.T) {
+	runCancel := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+			JobRunCancelled: &armadaevents.JobRunCancelled{
+				JobId:     jobId,
+				Reason:    "user requested",
+				Requestor: "alice",
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(runCancel))
+	assert.NoError(t, err)
+	assert.Empty(t, apiEvents)
+}
+
 func TestConvertReprioritised(t *testing.T) {
 	reprioritised := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 			ReprioritisedJob: &armadaevents.ReprioritisedJob{
-				JobId: jobId,
+				JobId:     jobId,
+				Requestor: "reprioritise-requestor",
 			},
 		},
 	}
@@ -215,7 +234,7 @@ func TestConvertReprioritised(t *testing.T) {
 					JobSetId:  jobSetName,
 					Queue:     queue,
 					Created:   protoutil.ToTimestamp(baseTime),
-					Requestor: userId,
+					Requestor: "reprioritise-requestor",
 				},
 			},
 		},
@@ -687,6 +706,15 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 			CancelJobSet: &armadaevents.CancelJobSet{},
 		},
 	}
+	preempted := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: &armadaevents.JobRunPreempted{
+				PreemptedJobId: jobId,
+				PreemptedRunId: runId,
+			},
+		},
+	}
 
 	expected := []*api.EventMessage{
 		{
@@ -699,9 +727,21 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 				},
 			},
 		},
+		{
+			Events: &api.EventMessage_Preempted{
+				Preempted: &api.JobPreemptedEvent{
+					JobId:     jobId,
+					JobSetId:  jobSetName,
+					Queue:     queue,
+					Created:   protoutil.ToTimestamp(baseTime),
+					RunId:     runId,
+					Requestor: "testUser",
+				},
+			},
+		},
 	}
 
-	apiEvents, err := FromEventSequence(toEventSeq(leaseExpired, cancel))
+	apiEvents, err := FromEventSequence(toEventSeq(leaseExpired, preempted, cancel))
 	assert.NoError(t, err)
 	assert.Equal(t, expected, apiEvents)
 }
@@ -909,42 +949,6 @@ func TestConvertJobPreemptionRequested(t *testing.T) {
 	}
 
 	apiEvents, err := FromEventSequence(toEventSeq(preemptRequest))
-	assert.NoError(t, err)
-	assert.Equal(t, expected, apiEvents)
-}
-
-func TestConvertJobRunPreempted(t *testing.T) {
-	preemptingJobId := "456e7890-e89b-12d3-a456-426614174001"
-
-	preempted := &armadaevents.EventSequence_Event{
-		Created: baseTimeProto,
-		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
-			JobRunPreempted: &armadaevents.JobRunPreempted{
-				PreemptedJobId:  jobId,
-				PreemptedRunId:  runId,
-				PreemptingJobId: preemptingJobId,
-				Reason:          "Preempted reason",
-			},
-		},
-	}
-
-	expected := []*api.EventMessage{
-		{
-			Events: &api.EventMessage_Preempted{
-				Preempted: &api.JobPreemptedEvent{
-					JobId:           jobId,
-					JobSetId:        jobSetName,
-					Queue:           queue,
-					Created:         protoutil.ToTimestamp(baseTime),
-					RunId:           runId,
-					Reason:          "Preempted reason",
-					PreemptingJobId: preemptingJobId,
-				},
-			},
-		},
-	}
-
-	apiEvents, err := FromEventSequence(toEventSeq(preempted))
 	assert.NoError(t, err)
 	assert.Equal(t, expected, apiEvents)
 }

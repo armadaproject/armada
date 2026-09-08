@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	"k8s.io/utils/ptr"
 )
 
 // JobRun is the scheduler-internal representation of a job run.
@@ -46,6 +47,8 @@ type JobRun struct {
 	runningTime *time.Time
 	// True if a user has requested this run be preempted.
 	preemptRequested bool
+	// The user who requested this run be preempted.
+	preemptUser *string
 	// The reason provided when preemption was requested.
 	preemptReason *string
 	// True if the run has been reported as preempted by the executor.
@@ -208,6 +211,9 @@ func (run *JobRun) Equal(other *JobRun) bool {
 		return false
 	}
 	if run.runAttempted != other.runAttempted {
+		return false
+	}
+	if !ptr.Equal(run.preemptUser, other.preemptUser) {
 		return false
 	}
 	return true
@@ -445,6 +451,18 @@ func (run *JobRun) PreemptRequested() bool {
 func (run *JobRun) WithPreemptRequested(preemptRequested bool) *JobRun {
 	run = run.DeepCopy()
 	run.preemptRequested = preemptRequested
+	return run
+}
+
+// PreemptUser returns the user who requested this run be preempted, or nil if no user was provided.
+func (run *JobRun) PreemptUser() *string {
+	return run.preemptUser
+}
+
+// WithPreemptUser returns a copy of the job run with the preemptUser updated.
+func (run *JobRun) WithPreemptUser(preemptUser *string) *JobRun {
+	run = run.DeepCopy()
+	run.preemptUser = preemptUser
 	return run
 }
 

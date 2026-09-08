@@ -23,6 +23,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/internal/scheduler/retry"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/runner"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
@@ -821,6 +822,8 @@ func TestRetryPolicy_FFOff_ApiPreemptionIdentity(t *testing.T) {
 	job := makeRetryJob(t, sched, jobRunOpts{
 		schedulingInfo: preemptibleSchedulingInfo, leased: true, running: true, preemptRequested: true,
 	})
+	requestor := "preempt-requestor"
+	job = job.WithUpdatedRun(job.LatestRun().WithPreemptUser(&requestor))
 
 	txn := sched.jobDb.WriteTxn()
 	defer txn.Abort()
@@ -833,6 +836,8 @@ func TestRetryPolicy_FFOff_ApiPreemptionIdentity(t *testing.T) {
 	expected := createEventsForPreemptedJob(
 		job.Id(), job.LatestRun().Id(), "",
 		"Preempted - preemption requested via API",
+		requestor,
+		schedulercontext.PreemptedViaApi,
 		sched.clock.Now(),
 	)
 	assert.Equal(t, expected, events.Events)

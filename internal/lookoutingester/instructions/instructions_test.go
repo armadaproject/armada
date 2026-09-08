@@ -179,7 +179,7 @@ var expectedPreemptedRun = model.UpdateJobRunInstruction{
 	Finished:                   &testfixtures.BaseTime,
 	JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
 	Error:                      []byte(testfixtures.PreemptionReason),
-	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, nil),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"requestor": testfixtures.UserId}),
 }
 
 var expectedFairSharePreemptedRun = model.UpdateJobRunInstruction{
@@ -187,7 +187,7 @@ var expectedFairSharePreemptedRun = model.UpdateJobRunInstruction{
 	Finished:                   &testfixtures.BaseTime,
 	JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
 	Error:                      []byte(testfixtures.PreemptionReason),
-	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"preemptingJobId": testfixtures.PreemptingJobId}),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"preemptingJobId": testfixtures.PreemptingJobId, "requestor": testfixtures.UserId}),
 }
 
 var expectedCancelledRun = model.UpdateJobRunInstruction{
@@ -508,6 +508,38 @@ func TestConvert(t *testing.T) {
 			expected: &model.InstructionSet{
 				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPreemptedRun},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run preempted error carries failure classification": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events: []*armadaevents.EventSequence{testfixtures.NewEventSequence(&armadaevents.EventSequence_Event{
+					Created: testfixtures.BaseTimeProto,
+					Event: &armadaevents.EventSequence_Event_JobRunErrors{
+						JobRunErrors: &armadaevents.JobRunErrors{
+							JobId: testfixtures.JobId,
+							RunId: testfixtures.RunId,
+							Errors: []*armadaevents.Error{
+								{
+									Terminal:           true,
+									FailureCategory:    "preemption",
+									FailureSubcategory: "api",
+									Reason: &armadaevents.Error_JobRunPreemptedError{
+										JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+									},
+								},
+							},
+						},
+					},
+				})},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
+					RunId:              testfixtures.RunId,
+					FailureCategory:    pointer.String("preemption"),
+					FailureSubcategory: pointer.String("api"),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"job run preempted (fair-share)": {

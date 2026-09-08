@@ -8,14 +8,15 @@ assert, delete) via `queueConfig` on the `TestSpec` (see
 2. `update` — apply an update to the created queue(s).
 3. `assertions` — check queue state.
 
-Queues created by `setup` (or `TestSpec.queue`, if `setup` wasn't used) are
-always deleted at the end of the test, even on failure.
+Presence of `queueConfig` creates the queue(s) named by `TestSpec.queue` (via
+`setup`, defaulted if omitted or empty). Queues created this way are always
+deleted at the end of the test, even on failure.
 
 ## setup
 
 ```yaml
 queueConfig:
-    setup: # presence of `setup` creates the queue(s) named by TestSpec.queue
+    setup: # optional -- omit or leave empty to create with defaults
         numBatches: 5 # number of batches of queues to create (default 1)
         batchSize: 5 # queues created per batch (default 1)
         interval: "1s" # time between batches (default: as fast as possible)
@@ -38,11 +39,10 @@ queueConfig:
 ```
 
 `update` is an `api.Queue` template applied to every queue created by
-`setup` (or to `TestSpec.queue` if `setup` didn't run). Only set the fields
-you want to change — unset `priorityFactor` defaults to `1.0` to satisfy
-server-side validation. When more than one queue is being updated, the
-batched `PUT /v1/batched/update_queues` endpoint is used instead of
-individual `UpdateQueue` calls.
+`setup`. Only set the fields you want to change — unset `priorityFactor`
+defaults to `1.0` to satisfy server-side validation. When more than one queue
+is being updated, the batched `PUT /v1/batched/update_queues` endpoint is
+used instead of individual `UpdateQueue` calls.
 
 ## assertions
 

@@ -429,6 +429,23 @@ type PoolConfig struct {
 	DisableFairshareScheduling       bool
 	DisableUrgencyScheduling         bool
 	FairsharePreemptionRateLimit     *RateLimit
+	// Default (false) - This will cause cross-pool jobs to always be preempted before home-pool jobs,
+	//  regardless of scheduled priority of the jobs
+	// Set to true to fall back to the legacy behaviour
+	//  where preemption ordering is determined purely by scheduled-at priority.
+	DisablePreemptCrossPoolJobsFirst bool
+	JobDefaults                      *JobDefaults
+}
+
+func (p PoolConfig) GetDefaultJobTolerations() []v1.Toleration {
+	if p.JobDefaults == nil || p.JobDefaults.Tolerations == nil {
+		return nil
+	}
+	return p.JobDefaults.Tolerations
+}
+
+type JobDefaults struct {
+	Tolerations []v1.Toleration
 }
 
 // RateLimit The rate at which an action can happen using a token bucket approach
@@ -439,11 +456,24 @@ type RateLimit struct {
 	MaximumBurst int `validate:"gte=0"`
 }
 
+func (p PoolConfig) ShouldPreemptCrossPoolJobsFirst() bool {
+	return !p.DisablePreemptCrossPoolJobsFirst
+}
+
 func (p PoolConfig) GetSubmissionGroup() string {
 	if p.ExperimentalSubmissionGroup == "" {
 		return p.Name
 	}
 	return p.ExperimentalSubmissionGroup
+}
+
+// UnmarshalConfigString allows an away pool to be specified in config as a plain
+// string (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
+// This preserves backwards compatibility with the deprecated []string form.
+// It opts AwayPoolConfig in to commonconfig.StringConfigUnmarshalerHook during config decode.
+func (a *AwayPoolConfig) UnmarshalConfigString(text string) error {
+	a.Name = text
+	return nil
 }
 
 // AwayPoolNames returns the names of the away pools configured for this pool.
@@ -458,15 +488,6 @@ func (p PoolConfig) AwayPoolNames() []string {
 type AwayPoolConfig struct {
 	// Name of the away pool.
 	Name string `validate:"required"`
-}
-
-// UnmarshalConfigString allows an away pool to be specified in config as a plain
-// string (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
-// This preserves backwards compatibility with the deprecated []string form.
-// It opts AwayPoolConfig in to commonconfig.StringConfigUnmarshalerHook during config decode.
-func (a *AwayPoolConfig) UnmarshalConfigString(text string) error {
-	a.Name = text
-	return nil
 }
 
 type MarketSchedulingConfig struct {
@@ -531,6 +552,16 @@ func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string)
 		}
 	}
 	return false
+}
+
+func (sc *SchedulingConfig) GetPreemptCrossPoolJobsFirst(poolName string) bool {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return !poolConfig.DisablePreemptCrossPoolJobsFirst
+		}
+	}
+	// Default (including unknown pools): cross-pool preemption ordering is on.
+	return true
 }
 
 func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig {

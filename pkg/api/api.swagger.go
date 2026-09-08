@@ -1641,6 +1641,9 @@ func SwaggerJsonTemplate() string {
 		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"requestor\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"runId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +

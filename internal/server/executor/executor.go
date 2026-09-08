@@ -128,6 +128,7 @@ func (s *Server) PreemptOnExecutor(grpcCtx context.Context, req *api.ExecutorPre
 				Queues:          req.Queues,
 				PriorityClasses: req.PriorityClasses,
 				Pools:           req.Pools,
+				Requestor:       auth.GetPrincipal(ctx).GetName(),
 			},
 		},
 	}
@@ -162,6 +163,7 @@ func (s *Server) CancelOnExecutor(grpcCtx context.Context, req *api.ExecutorCanc
 				Queues:          req.Queues,
 				PriorityClasses: req.PriorityClasses,
 				Pools:           req.Pools,
+				Requestor:       auth.GetPrincipal(ctx).GetName(),
 			},
 		},
 	}

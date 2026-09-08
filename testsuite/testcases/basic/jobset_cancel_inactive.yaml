@@ -26,7 +26,7 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-cancelSet:
+cancelJobSet:
   request:
   assertInactiveSucceeds: true
 timeout: "100s"

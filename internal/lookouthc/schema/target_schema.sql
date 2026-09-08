@@ -17,6 +17,15 @@
 -- The PRIMARY KEY is (job_id, state) because PostgreSQL requires the
 -- partition key in any unique constraint. job_id alone is still globally
 -- unique (ULIDs) -- the state addition is a technical requirement only.
+--
+-- Because the primary key is partitioned, it cannot serve as a globally
+-- ordered access path on job_id: Postgres cannot produce a single ordered
+-- scan across partitions from a partitioned index alone. Lookout's default
+-- job view filters by queue and sorts by job_id descending, so without
+-- idx_{{TABLE}}_queue_job_id below, that query falls back to scanning each
+-- partition in job_id order and filtering out non-matching queues row by
+-- row -- for a large table this means scanning millions of rows to return
+-- a single page of results.
 
 CREATE TABLE {{TABLE}} (
     job_id                       varchar(32)   NOT NULL,
@@ -58,6 +67,9 @@ ALTER TABLE {{TABLE}}_terminated ALTER COLUMN job_spec SET STORAGE EXTERNAL;
 
 CREATE INDEX idx_{{TABLE}}_queue_last_transition_time_seconds
     ON {{TABLE}} (queue, last_transition_time_seconds)
+    WITH (fillfactor = 80);
+CREATE INDEX idx_{{TABLE}}_queue_job_id
+    ON {{TABLE}} (queue, job_id)
     WITH (fillfactor = 80);
 CREATE INDEX idx_{{TABLE}}_queue_jobset_state
     ON {{TABLE}} (queue, jobset, state)
