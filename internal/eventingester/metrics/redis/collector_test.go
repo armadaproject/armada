@@ -1034,7 +1034,6 @@ func retryConfig() configuration.RedisMemoryMetricsConfig {
 	config := testCollectorConfig(5)
 	config.CollectionTimeout = 10 * time.Second
 	config.RetryInitialBackoff = 1 * time.Millisecond
-	config.RetryMaxBackoff = 5 * time.Millisecond
 	config.MaxRetries = 10
 	return config
 }
@@ -1244,32 +1243,6 @@ func TestCollect_RetriesOnConnectionReset(t *testing.T) {
 	require.Equal(t, 0.0, testutil.ToFloat64(collector.errorsTotal))
 }
 
-func TestCollect_DefaultInitialBackoffCappedAtConfiguredMax(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
-	defer cancel()
-
-	scanner := &scriptedMockScanner{
-		script: []scriptedScanResult{
-			{err: errors.New("i/o timeout")},
-			{streams: testStreams(1)},
-		},
-	}
-
-	// Initial backoff unset (0) but max backoff set to 20ms;
-	// the cap ensures the first retry doesn't exceed the configured maximum.
-	config := retryConfig()
-	config.RetryInitialBackoff = 0
-	config.RetryMaxBackoff = 20 * time.Millisecond
-	collector := NewCollector(scanner, config, leaderelection.NewStandaloneLeaderController())
-
-	start := time.Now()
-	require.NoError(t, collector.collectOnce(ctx))
-	elapsed := time.Since(start)
-
-	require.Equal(t, int64(2), scanner.calls.Load())
-	require.Less(t, elapsed, 250*time.Millisecond, "first retry waited longer than the configured max backoff")
-}
-
 func TestCollect_StopsRetriesBeforeNextCollectionCycle(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 	defer cancel()
@@ -1289,7 +1262,6 @@ func TestCollect_StopsRetriesBeforeNextCollectionCycle(t *testing.T) {
 	config.MaxRetries = 10
 	config.CollectionInterval = 50 * time.Millisecond
 	config.RetryInitialBackoff = 20 * time.Millisecond
-	config.RetryMaxBackoff = 40 * time.Millisecond
 	collector := NewCollector(scanner, config, leaderelection.NewStandaloneLeaderController())
 
 	err := collector.collectOnce(ctx)

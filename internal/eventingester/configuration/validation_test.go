@@ -15,7 +15,6 @@ func validRedisMemoryMetricsConfig() RedisMemoryMetricsConfig {
 		CollectionInterval:  time.Minute,
 		TopN:                10,
 		RetryInitialBackoff: 500 * time.Millisecond,
-		RetryMaxBackoff:     30 * time.Second,
 		Leader:              leaderelection.Config{Mode: leaderelection.ModeStandalone},
 	}
 }
@@ -50,35 +49,12 @@ func TestValidate_RejectsNegativeInitialBackoff(t *testing.T) {
 	require.ErrorContains(t, err, "retryInitialBackoff must be non-negative")
 }
 
-func TestValidate_RejectsNegativeMaxBackoff(t *testing.T) {
-	redisConfig := validRedisMemoryMetricsConfig()
-	redisConfig.RetryMaxBackoff = -1 * time.Second
-	config := EventIngesterConfiguration{Metrics: MetricsConfig{Redis: redisConfig}}
-
-	err := config.Validate()
-	require.Error(t, err)
-	require.ErrorContains(t, err, "retryMaxBackoff must be non-negative")
-}
-
-func TestValidate_RejectsInitialBackoffAboveMax(t *testing.T) {
-	redisConfig := validRedisMemoryMetricsConfig()
-	redisConfig.RetryInitialBackoff = 40 * time.Second
-	redisConfig.RetryMaxBackoff = 30 * time.Second
-	config := EventIngesterConfiguration{Metrics: MetricsConfig{Redis: redisConfig}}
-
-	err := config.Validate()
-	require.Error(t, err)
-	require.ErrorContains(t, err, "retryInitialBackoff (40s) must not exceed retryMaxBackoff (30s)")
-}
-
 func TestValidate_ReportsAllViolations(t *testing.T) {
 	redisConfig := validRedisMemoryMetricsConfig()
 	redisConfig.RetryInitialBackoff = -1 * time.Second
-	redisConfig.RetryMaxBackoff = -2 * time.Second
 	config := EventIngesterConfiguration{Metrics: MetricsConfig{Redis: redisConfig}}
 
 	err := config.Validate()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "retryInitialBackoff must be non-negative")
-	require.ErrorContains(t, err, "retryMaxBackoff must be non-negative")
 }

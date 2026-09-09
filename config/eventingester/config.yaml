@@ -34,7 +34,6 @@ metrics:
     memoryUsageSamples: 25
     collectionTimeout: 15m
     retryInitialBackoff: 5s
-    retryMaxBackoff: 30s
     maxRetries: 2
     leader:
       mode: "kubernetes"

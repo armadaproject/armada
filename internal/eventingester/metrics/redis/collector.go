@@ -379,9 +379,6 @@ func (c *Collector) collectOnce(ctx context.Context) error {
 func (c *Collector) scanWithRetry(ctx context.Context) ([]repository.StreamInfo, error) {
 	collectionTimeout := c.config.CollectionTimeout
 	initialBackoff := c.config.RetryInitialBackoff
-	maxBackoff := c.config.RetryMaxBackoff
-	// Cap initial backoff so the first retry respects the configured maximum.
-	initialBackoff = min(initialBackoff, maxBackoff)
 	maxRetries := c.config.MaxRetries
 
 	attempts := maxRetries + 1
@@ -404,7 +401,7 @@ func (c *Collector) scanWithRetry(ctx context.Context) ([]repository.StreamInfo,
 				return nil, ctx.Err()
 			case <-time.After(backoff):
 			}
-			backoff = min(2*backoff, maxBackoff)
+			backoff = 2 * backoff
 		}
 
 		attemptCtx := ctx

@@ -64,10 +64,7 @@ type RedisMemoryMetricsConfig struct {
 	// Set to a negative value to disable.
 	CollectionTimeout time.Duration
 	// RetryInitialBackoff is the initial backoff between scan attempts after a retryable error.
-	// It is capped at RetryMaxBackoff.
 	RetryInitialBackoff time.Duration
-	// RetryMaxBackoff is the maximum backoff between scan attempts.
-	RetryMaxBackoff time.Duration
 	// MaxRetries is the maximum number of retries per collection cycle after the first attempt.
 	// Set to a negative value to disable retries.
 	MaxRetries int
