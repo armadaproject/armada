@@ -233,28 +233,12 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 		),
 	)
 
-	assert.True(
-		t,
-		armadamaps.DeepEqual(
-			map[string]internaltypes.ResourceList{"A": request},
-			boundNode.AllocatedByQueue,
-		),
-	)
-	assert.True(
-		t,
-		armadamaps.DeepEqual(
-			map[string]internaltypes.ResourceList{"A": request},
-			evictedNode.AllocatedByQueue,
-		),
-	)
-
 	expectedAllocatable := boundNode.GetTotalResources()
 	expectedAllocatable = expectedAllocatable.Subtract(request)
 	priority := testfixtures.TestPriorityClasses[job.PriorityClassName()].Priority
 	assert.True(t, expectedAllocatable.Equal(boundNode.AllocatableByPriority[priority]))
 
 	assert.Empty(t, unboundNode.AllocatedByJobId)
-	assert.Empty(t, unboundNode.AllocatedByQueue)
 	assert.Empty(t, unboundNode.EvictedJobRunIds)
 }
 
@@ -412,16 +396,6 @@ func assertNodeAccountingEqual(t *testing.T, node1, node2 *internaltypes.Node) {
 		"expected %v, but got %v",
 		node1.AllocatedByJobId,
 		node2.AllocatedByJobId,
-	)
-	assert.True(
-		t,
-		armadamaps.DeepEqual(
-			node1.AllocatedByQueue,
-			node2.AllocatedByQueue,
-		),
-		"expected %v, but got %v",
-		node1.AllocatedByQueue,
-		node2.AllocatedByQueue,
 	)
 	assert.True(
 		t,
@@ -909,11 +883,12 @@ func TestHomeNodeScheduling(t *testing.T) {
 				if tc.defaultToleration != nil {
 					assert.Equal(t, *tc.defaultToleration, jctx.AdditionalTolerations[0])
 				}
+				assert.Equal(t, context.ScheduledWithoutPreemption, jctx.PodSchedulingContext.SchedulingMethod)
 				if tc.expectScheduledAway {
-					assert.Equal(t, context.ScheduledAsAwayJob, jctx.PodSchedulingContext.SchedulingMethod)
+					assert.True(t, jctx.PodSchedulingContext.ScheduledAway)
 					assert.Equal(t, int32(29000), jctx.PodSchedulingContext.ScheduledAtPriority)
 				} else {
-					assert.Equal(t, context.ScheduledWithoutPreemption, jctx.PodSchedulingContext.SchedulingMethod)
+					assert.False(t, jctx.PodSchedulingContext.ScheduledAway)
 					assert.Equal(t, int32(30000), jctx.PodSchedulingContext.ScheduledAtPriority)
 				}
 			} else {
@@ -1282,7 +1257,8 @@ func TestConditionalAwayNodeScheduling(t *testing.T) {
 			if tc.expectScheduled {
 				assert.NotNil(t, node)
 				assert.Equal(t, node.GetId(), jctx.PodSchedulingContext.NodeId)
-				assert.Equal(t, context.ScheduledAsAwayJob, jctx.PodSchedulingContext.SchedulingMethod)
+				assert.True(t, jctx.PodSchedulingContext.ScheduledAway)
+				assert.Equal(t, context.ScheduledWithoutPreemption, jctx.PodSchedulingContext.SchedulingMethod)
 			} else {
 				assert.Nil(t, node)
 			}
@@ -1405,7 +1381,8 @@ func TestAwayNodeScheduling(t *testing.T) {
 				assert.NotNil(t, jctx.PodSchedulingContext)
 				assert.True(t, jctx.PodSchedulingContext.IsSuccessful())
 				assert.Equal(t, node.GetId(), jctx.PodSchedulingContext.NodeId)
-				assert.Equal(t, context.ScheduledAsAwayJob, jctx.PodSchedulingContext.SchedulingMethod)
+				assert.True(t, jctx.PodSchedulingContext.ScheduledAway)
+				assert.Equal(t, context.ScheduledWithoutPreemption, jctx.PodSchedulingContext.SchedulingMethod)
 				assert.Equal(t, int32(29000), jctx.PodSchedulingContext.ScheduledAtPriority)
 				if tc.wellKnownNodeTypeTaint.Value == schedulerconfig.WildCardWellKnownNodeTypeValue {
 					require.Equal(

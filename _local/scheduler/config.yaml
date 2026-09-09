@@ -1,3 +1,6 @@
+# A short refresh keeps the e2e setup fast: the queue and policy caches see
+# a new policy after one period.
+queueRefreshPeriod: 3s
 grpc:
   port: 50052
   tls:
@@ -32,5 +35,8 @@ postgres:
 scheduling:
   indexedNodeLabels:
     - "kubernetes.io/hostname"
+  retryPolicy:
+    enabled: true
+    globalMaxRetries: 5
 metrics:
   port: 9001

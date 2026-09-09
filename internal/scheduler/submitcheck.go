@@ -180,11 +180,6 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 			return fmt.Errorf("failed constructing nodedb for pool %s - %s", pool.Name, err)
 		}
 
-		err = nodeDb.ClearAllocated()
-		if err != nil {
-			return fmt.Errorf("failed clearing nodedb for pool %s - %s", pool.Name, err)
-		}
-
 		nodeDbByPool[pool.Name] = nodeDb
 
 		totalResources := nodeDb.TotalKubernetesResources()
@@ -305,17 +300,10 @@ func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSched
 	successfulPools := map[string]bool{}
 	var sb strings.Builder
 
-poolStart:
 	for _, pool := range srv.schedulingConfig.Pools {
 
 		if successfulPools[pool.Name] {
 			continue
-		}
-
-		for _, awayPool := range pool.AwayPools {
-			if successfulPools[awayPool.Name] {
-				continue poolStart
-			}
 		}
 
 		sb.WriteString(fmt.Sprintf("pool %s:\n", pool.Name))
