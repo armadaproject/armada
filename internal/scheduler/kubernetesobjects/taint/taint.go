@@ -4,6 +4,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/component-helpers/scheduling/corev1"
+	"k8s.io/klog/v2"
 )
 
 func DeepCopyTaints(taints []v1.Taint) []v1.Taint {
@@ -45,7 +46,7 @@ func FindMatchingUntoleratedTaint(taints []v1.Taint, tolerations ...[]v1.Tolerat
 	for _, taint := range taints {
 		taintTolerated := false
 		for _, ts := range tolerations {
-			taintTolerated = taintTolerated || corev1.TolerationsTolerateTaint(ts, &taint)
+			taintTolerated = taintTolerated || corev1.TolerationsTolerateTaint(klog.TODO(), ts, &taint, false)
 			if taintTolerated {
 				break
 			}

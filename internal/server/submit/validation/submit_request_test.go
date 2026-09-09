@@ -12,7 +12,6 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/constants"
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -657,7 +656,7 @@ func TestValidatePodSpecSize(t *testing.T) {
 		},
 	}
 
-	defaultPodSpecSize := uint(len(protoutil.MustMarshall(defaultPodSpec)))
+	defaultPodSpecSize := uint(defaultPodSpec.Size())
 
 	tests := map[string]struct {
 		req            *api.JobSubmitRequestItem

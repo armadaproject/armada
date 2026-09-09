@@ -5,17 +5,15 @@ package armadaevents
 
 import (
 	fmt "fmt"
-	io "io"
-	math "math"
-	math_bits "math/bits"
-
+	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	proto "github.com/gogo/protobuf/proto"
 	types "github.com/gogo/protobuf/types"
+	io "io"
 	v11 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
-
-	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.

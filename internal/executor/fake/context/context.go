@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -441,7 +442,7 @@ func (c *FakeClusterContext) isSchedulableOn(pod *v1.Pod, n *v1.Node) bool {
 // https://github.com/kubernetes/kubernetes/blob/master/pkg/apis/core/v1/helper/helpers.go#L427
 func tolerationsTolerateTaint(tolerations []v1.Toleration, taint *v1.Taint) bool {
 	for i := range tolerations {
-		if tolerations[i].ToleratesTaint(taint) {
+		if tolerations[i].ToleratesTaint(klog.TODO(), taint, false) {
 			return true
 		}
 	}
