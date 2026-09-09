@@ -1237,6 +1237,7 @@ func TestValidateResources_PodLevelMinJobResources(t *testing.T) {
 		return &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{Containers: containers, Resources: pod}}
 	}
 	container5 := []v1.Container{{Name: "main", Resources: v1.ResourceRequirements{Requests: cpu("5"), Limits: cpu("5")}}}
+	container2 := []v1.Container{{Name: "main", Resources: v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("2")}}}
 
 	tests := map[string]struct {
 		req           *api.JobSubmitRequestItem
@@ -1251,6 +1252,12 @@ func TestValidateResources_PodLevelMinJobResources(t *testing.T) {
 		"pod-level below minimum with empty container rejected": {
 			req:           req(&v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("2")}, []v1.Container{{Name: "main"}}),
 			expectSuccess: false,
+		},
+		// container 2cpu + pod-level 4cpu -> effective 4cpu >= 4cpu min: accepted. The
+		// per-container check used to see only the raw 2cpu and reject.
+		"container below minimum covered by pod-level block, accepted": {
+			req:           req(&v1.ResourceRequirements{Requests: cpu("4"), Limits: cpu("4")}, container2),
+			expectSuccess: true,
 		},
 	}
 	for name, tc := range tests {

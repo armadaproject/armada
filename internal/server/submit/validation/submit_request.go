@@ -306,6 +306,14 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 			}
 		}
 
+		// With a pod-level block the minimum is enforced once, against the effective request, in
+		// validatePodLevelResources -- that is what the scheduler reserves. A container below the
+		// minimum on its own is legitimate when the pod-level budget covers it, so checking each
+		// container here as well would reject valid pods.
+		if podLevelResourcesEnabled {
+			continue
+		}
+
 		for rc, containerRsc := range container.Resources.Requests {
 			serverRsc, nonEmpty := config.MinJobResources[rc]
 			if nonEmpty && containerRsc.Value() < serverRsc.Value() {
