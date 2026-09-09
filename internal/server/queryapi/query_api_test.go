@@ -35,9 +35,6 @@ var (
 )
 
 func TestGetJobDetails(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 120*time.Second)
-	defer cancel()
-
 	job1 := newJob("job1", lookout.JobQueuedOrdinal, "")
 	job2 := newJob("job2", lookout.JobRunningOrdinal, "")
 	job2.LatestRunID = pointer.String("run1")
@@ -114,13 +111,16 @@ func TestGetJobDetails(t *testing.T) {
 						api.JobState_RUNNING,
 						"run1",
 						newJobRunDetails("job2", "run1", api.JobRunState_RUN_STATE_RUNNING, baseTime, testIngressAddresses),
-						newJobRunDetails("job2", "run2", api.JobRunState_RUNS_STATE_LEASE_RETURNED, baseTime.Add(-1*time.Minute), nil)),
+						newJobRunDetails("job2", "run2", api.JobRunState_RUNS_STATE_LEASE_RETURNED, baseTime.Add(-1*time.Minute), nil),
+					),
 				},
 			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+			defer cancel()
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testJobs)
 				require.NoError(t, err)
@@ -138,9 +138,6 @@ func TestGetJobDetails(t *testing.T) {
 }
 
 func TestGetJobRunDetails(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 120*time.Second)
-	defer cancel()
-
 	testJobs := []database.Job{
 		newJob("job1", lookout.JobRunningOrdinal, ""),
 	}
@@ -195,6 +192,8 @@ func TestGetJobRunDetails(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+			defer cancel()
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testJobs)
 				require.NoError(t, err)
@@ -212,9 +211,6 @@ func TestGetJobRunDetails(t *testing.T) {
 }
 
 func TestGetJobStatus(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 120*time.Second)
-	defer cancel()
-
 	testdata := []database.Job{
 		newJob("leasedJob", lookout.JobLeasedOrdinal, ""),
 		newJob("runningJob", lookout.JobRunningOrdinal, ""),
@@ -275,6 +271,8 @@ func TestGetJobStatus(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+			defer cancel()
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testdata)
 				require.NoError(t, err)
@@ -290,9 +288,6 @@ func TestGetJobStatus(t *testing.T) {
 }
 
 func TestGetJobStatusUsingExternalJobUri(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 120*time.Second)
-	defer cancel()
-
 	testdata := []database.Job{
 		newJob("runningJob", lookout.JobRunningOrdinal, ""),
 	}
@@ -318,6 +313,8 @@ func TestGetJobStatusUsingExternalJobUri(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+			defer cancel()
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testdata)
 				require.NoError(t, err)
@@ -337,9 +334,6 @@ func TestGetJobStatusUsingExternalJobUri(t *testing.T) {
 }
 
 func TestGetJobErrors(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 120*time.Second)
-	defer cancel()
-
 	testJobs := []database.Job{
 		newJob("job1", lookout.JobRunningOrdinal, ""),
 		newJob("job2", lookout.JobRunningOrdinal, "run2"),
@@ -394,6 +388,8 @@ func TestGetJobErrors(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+			defer cancel()
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testJobs)
 				require.NoError(t, err)

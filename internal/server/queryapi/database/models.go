@@ -32,6 +32,8 @@ type Job struct {
 	Annotations               []byte           `db:"annotations"`
 	ExternalJobUri            *string          `db:"external_job_uri"`
 	CancelUser                *string          `db:"cancel_user"`
+	PreemptUser               *string          `db:"preempt_user"`
+	ReprioritizeUser          *string          `db:"reprioritize_user"`
 }
 
 type JobDeduplication struct {

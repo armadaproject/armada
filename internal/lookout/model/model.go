@@ -46,6 +46,8 @@ type Job struct {
 	Submitted          time.Time
 	CancelReason       *string
 	CancelUser         *string
+	PreemptUser        *string
+	ReprioritizeUser   *string
 	Node               *string
 	Cluster            string
 	Pool               *string

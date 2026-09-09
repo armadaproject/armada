@@ -92,6 +92,8 @@ type JobRow struct {
 	LatestRunId               *string
 	CancelReason              *string
 	CancelUser                *string
+	PreemptUser               *string
+	ReprioritizeUser          *string
 	Annotations               map[string]string
 	ExternalJobUri            string
 }
@@ -131,6 +133,7 @@ func defaultInstructionSet() *model.InstructionSet {
 			JobId:                     JobId,
 			Priority:                  pointer.Int64(updatePriority),
 			State:                     pointer.Int32(lookout.JobFailedOrdinal),
+			CancelUser:                pointer.String(userId),
 			LastTransitionTime:        &updateTime,
 			LastTransitionTimeSeconds: pointer.Int64(updateTime.Unix()),
 		}},
@@ -202,6 +205,7 @@ var expectedJobAfterUpdate = JobRow{
 	JobProto:                  []byte(nil),
 	Duplicate:                 false,
 	PriorityClass:             priorityClass,
+	CancelUser:                pointer.String(userId),
 	Annotations:               annotations,
 	ExternalJobUri:            "external-job-uri",
 }
@@ -842,6 +846,28 @@ func TestConflateJobUpdates(t *testing.T) {
 	assert.Equal(t, expected, updates)
 }
 
+func TestConflateJobUpdatesPreservesActorFields(t *testing.T) {
+	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
+		{JobId: JobId, State: pointer.Int32(lookout.JobRunningOrdinal)},
+		{JobId: JobId, PreemptUser: pointer.String(userId)},
+		{JobId: "someOtherJob", State: pointer.Int32(lookout.JobRunningOrdinal)},
+	})
+
+	expected := []*model.UpdateJobInstruction{
+		{JobId: JobId, State: pointer.Int32(lookout.JobRunningOrdinal), PreemptUser: pointer.String(userId)},
+		{JobId: "someOtherJob", State: pointer.Int32(lookout.JobRunningOrdinal)},
+	}
+
+	sort.Slice(updates, func(i, j int) bool {
+		return updates[i].JobId < updates[j].JobId
+	})
+
+	sort.Slice(expected, func(i, j int) bool {
+		return expected[i].JobId < expected[j].JobId
+	})
+	assert.Equal(t, expected, updates)
+}
+
 func TestConflateJobUpdatesWithTerminal(t *testing.T) {
 	// Updates after the cancelled shouldn't be processed
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
@@ -897,6 +923,20 @@ func TestConflateJobUpdatesWithPreempted(t *testing.T) {
 	sort.Slice(expected, func(i, j int) bool {
 		return expected[i].JobId < expected[j].JobId
 	})
+	assert.Equal(t, expected, updates)
+}
+
+func TestConflateJobUpdatesWithPreemptedPreservesPreemptUser(t *testing.T) {
+	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
+		{JobId: JobId, State: pointer.Int32(lookout.JobPreemptedOrdinal)},
+		{JobId: JobId, PreemptUser: pointer.String(userId)},
+		{JobId: JobId, State: pointer.Int32(lookout.JobRunningOrdinal)},
+	})
+
+	expected := []*model.UpdateJobInstruction{
+		{JobId: JobId, State: pointer.Int32(lookout.JobPreemptedOrdinal), PreemptUser: pointer.String(userId)},
+	}
+
 	assert.Equal(t, expected, updates)
 }
 
@@ -1038,6 +1078,127 @@ func TestStoreEventsForAlreadyTerminalJobs(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestStorePreemptUserForAlreadyPreemptedJob(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		baseInstructions := &model.InstructionSet{
+			JobsToCreate: []*model.CreateJobInstruction{
+				makeCreateJobInstruction(JobId),
+			},
+			JobsToUpdate: []*model.UpdateJobInstruction{
+				makeUpdateJobInstruction(JobId, lookout.JobPreemptedOrdinal),
+			},
+			MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(3)},
+		}
+		assert.NoError(t, ldb.Store(armadacontext.Background(), baseInstructions))
+
+		preemptUserUpdate := &model.InstructionSet{
+			JobsToUpdate: []*model.UpdateJobInstruction{
+				{JobId: JobId, PreemptUser: pointer.String(userId)},
+			},
+		}
+		assert.NoError(t, ldb.Store(armadacontext.Background(), preemptUserUpdate))
+
+		job := getJob(t, db, JobId)
+		assert.Equal(t, lookout.JobPreemptedOrdinal, int(job.State))
+		assert.Equal(t, updateTime, job.LastTransitionTime)
+		assert.Equal(t, userId, *job.PreemptUser)
+
+		mixedPreemptUserUpdate := &model.InstructionSet{
+			JobsToUpdate: []*model.UpdateJobInstruction{
+				{
+					JobId:                     JobId,
+					State:                     pointer.Int32(lookout.JobRunningOrdinal),
+					PreemptUser:               pointer.String("updated-" + userId),
+					LastTransitionTime:        &updateTime,
+					LastTransitionTimeSeconds: pointer.Int64(updateTime.Unix()),
+				},
+			},
+		}
+		assert.NoError(t, ldb.Store(armadacontext.Background(), mixedPreemptUserUpdate))
+
+		job = getJob(t, db, JobId)
+		assert.Equal(t, lookout.JobPreemptedOrdinal, int(job.State))
+		assert.Equal(t, updateTime, job.LastTransitionTime)
+		assert.Equal(t, userId, *job.PreemptUser)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestStoreCancelUserForAlreadyCancelledJob(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		baseInstructions := &model.InstructionSet{
+			JobsToCreate: []*model.CreateJobInstruction{
+				makeCreateJobInstruction(JobId),
+			},
+			JobsToUpdate: []*model.UpdateJobInstruction{
+				{
+					JobId:                     JobId,
+					State:                     pointer.Int32(lookout.JobCancelledOrdinal),
+					CancelReason:              pointer.String(testfixtures.CancelReason),
+					CancelUser:                pointer.String(userId),
+					LastTransitionTime:        &updateTime,
+					LastTransitionTimeSeconds: pointer.Int64(updateTime.Unix()),
+				},
+			},
+			MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(3)},
+		}
+		assert.NoError(t, ldb.Store(armadacontext.Background(), baseInstructions))
+
+		mixedCancelUserUpdate := &model.InstructionSet{
+			JobsToUpdate: []*model.UpdateJobInstruction{
+				{
+					JobId:                     JobId,
+					State:                     pointer.Int32(lookout.JobRunningOrdinal),
+					CancelReason:              pointer.String("updated-" + testfixtures.CancelReason),
+					CancelUser:                pointer.String("updated-" + userId),
+					LastTransitionTime:        &updateTime,
+					LastTransitionTimeSeconds: pointer.Int64(updateTime.Unix()),
+				},
+			},
+		}
+		assert.NoError(t, ldb.Store(armadacontext.Background(), mixedCancelUserUpdate))
+
+		job := getJob(t, db, JobId)
+		assert.Equal(t, lookout.JobCancelledOrdinal, int(job.State))
+		assert.Equal(t, updateTime, job.LastTransitionTime)
+		assert.Equal(t, userId, *job.CancelUser)
+		assert.Equal(t, testfixtures.CancelReason, *job.CancelReason)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestStoreReprioritizeUserUsesLatestRequestor(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		baseInstructions := &model.InstructionSet{
+			JobsToCreate: []*model.CreateJobInstruction{
+				makeCreateJobInstruction(JobId),
+			},
+			JobsToUpdate: []*model.UpdateJobInstruction{
+				{JobId: JobId, ReprioritizeUser: pointer.String(userId)},
+			},
+			MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(3)},
+		}
+		assert.NoError(t, ldb.Store(armadacontext.Background(), baseInstructions))
+
+		reprioritizeUserUpdate := &model.InstructionSet{
+			JobsToUpdate: []*model.UpdateJobInstruction{
+				{JobId: JobId, ReprioritizeUser: pointer.String("updated-" + userId)},
+			},
+		}
+		assert.NoError(t, ldb.Store(armadacontext.Background(), reprioritizeUserUpdate))
+
+		job := getJob(t, db, JobId)
+		assert.Equal(t, "updated-"+userId, *job.ReprioritizeUser)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestRecordTerminalStateUpdates(t *testing.T) {
 	ldb := NewLookoutDb(nil, fatalErrors, m, 10, 10)
 
@@ -1089,6 +1250,7 @@ func makeUpdateJobInstruction(jobId string, state int32) *model.UpdateJobInstruc
 		JobId:                     jobId,
 		Priority:                  pointer.Int64(updatePriority),
 		State:                     pointer.Int32(state),
+		CancelUser:                pointer.String(userId),
 		LastTransitionTime:        &updateTime,
 		LastTransitionTimeSeconds: pointer.Int64(updateTime.Unix()),
 	}
@@ -1119,6 +1281,8 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 			latest_run_id,
 			cancel_reason,
 			cancel_user,
+			preempt_user,
+			reprioritize_user,
 			annotations,
 			external_job_uri
 		FROM job WHERE job_id = $1`,
@@ -1144,6 +1308,8 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 		&job.LatestRunId,
 		&job.CancelReason,
 		&job.CancelUser,
+		&job.PreemptUser,
+		&job.ReprioritizeUser,
 		&job.Annotations,
 		&job.ExternalJobUri,
 	)

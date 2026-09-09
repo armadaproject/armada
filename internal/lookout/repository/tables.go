@@ -38,6 +38,8 @@ const (
 	submittedCol          = "submitted"
 	lastTransitionTimeCol = "last_transition_time_seconds"
 	priorityClassCol      = "priority_class"
+	preemptUserCol        = "preempt_user"
+	reprioritizeUserCol   = "reprioritize_user"
 
 	// Job Run table columns
 	clusterCol = "cluster"
@@ -101,6 +103,8 @@ func newTablesWithJobTable(table string) *LookoutTables {
 			"submitted":          submittedCol,
 			"lastTransitionTime": lastTransitionTimeCol,
 			"priorityClass":      priorityClassCol,
+			"preemptUser":        preemptUserCol,
+			"reprioritizeUser":   reprioritizeUserCol,
 
 			"cluster": clusterCol,
 			"node":    nodeCol,
@@ -121,6 +125,8 @@ func newTablesWithJobTable(table string) *LookoutTables {
 			submittedCol:          table,
 			lastTransitionTimeCol: table,
 			priorityClassCol:      table,
+			preemptUserCol:        table,
+			reprioritizeUserCol:   table,
 
 			clusterCol: jobRunTable,
 			nodeCol:    jobRunTable,
