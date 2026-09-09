@@ -122,7 +122,24 @@ func dropPodLevelResourcesIfDisabled(spec *v1.PodSpec, config configuration.Subm
 // Adds resources defined in config.DefaultJobLimits to all containers in the podspec if that container is missing
 // requests/limits for that particular resource. This can be used to e.g. ensure that all jobs define at least some
 // ephemeral storage.
+//
+// A resource carried by the pod-level block (KEP-2837) is not defaulted into the containers. Defaulting it would nest
+// a per-container ceiling inside the pod's, capping each container below the pooled budget the block exists to grant,
+// so the pool would be reserved but unusable. Resources the block does not carry still default -- notably
+// ephemeral-storage, which KEP-2837 cannot express at the pod level. dropPodLevelResourcesIfDisabled runs earlier in
+// podLevelProcessors and nils the block when the feature is off, so this is implicitly feature-gated.
 func defaultResource(spec *v1.PodSpec, config configuration.SubmissionConfig) {
+	pooledAtPodLevel := func(res string) bool {
+		if spec.Resources == nil {
+			return false
+		}
+		if _, ok := spec.Resources.Requests[v1.ResourceName(res)]; ok {
+			return true
+		}
+		_, ok := spec.Resources.Limits[v1.ResourceName(res)]
+		return ok
+	}
+
 	applyDefaults := func(containers []v1.Container) {
 		for i := range containers {
 			c := &containers[i]
@@ -133,6 +150,9 @@ func defaultResource(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 				c.Resources.Requests = map[v1.ResourceName]resource.Quantity{}
 			}
 			for res, val := range config.DefaultJobLimits {
+				if pooledAtPodLevel(res) {
+					continue
+				}
 				_, hasLimit := c.Resources.Limits[v1.ResourceName(res)]
 				_, hasRequest := c.Resources.Requests[v1.ResourceName(res)]
 				if !hasLimit && !hasRequest {
