@@ -9,7 +9,7 @@ merge_protections:
           - "#approved-reviews-by>=2"
           - and:
               - "#approved-reviews-by>=1"
-              - "author~=^(cj87holler|d80tb7|dave[-]gantenbein|dejanzele|eleanorpratt|geaere|JamesMurkin|mauriceyap|masipauskas|MustafaI|zuqq|richscott|robertdavidsmith|samclark|suprjinx|EnricoMi|nikola-jokic|dslear|d2burkhalter|ianhockett|Sigele|williamvega|tgucks|YHines004|j8169)$"
+              - "author~=^(cj87holler|d80tb7|dave[-]gantenbein|dejanzele|eleanorpratt|gabrielgalera|geaere|JamesMurkin|mauriceyap|masipauskas|MustafaI|zuqq|richscott|robertdavidsmith|samclark|suprjinx|EnricoMi|nikola-jokic|dslear|d2burkhalter|ianhockett|Sigele|williamvega|tgucks|YHines004|j8169)$"
   # Migrated from post_check rule 'Require approval from Armada maintainers'. Dropped options with no equivalent: title
   - name: Require approval from Armada maintainers
     if:
@@ -22,4 +22,4 @@ merge_protections:
           - "#approved-reviews-by>=2"
           - and:
               - "#approved-reviews-by>=1"
-              - "author~=^(cj87holler|d80tb7|dave[-]gantenbein|dejanzele|eleanorpratt|geaere|JamesMurkin|mauriceyap|masipauskas|MustafaI|zuqq|richscott|robertdavidsmith|samclark|suprjinx|EnricoMi|nikola-jokic|j8169|sarhiri|tgucks)$"
+              - "author~=^(cj87holler|d80tb7|dave[-]gantenbein|dejanzele|eleanorpratt|gabrielgalera|geaere|JamesMurkin|mauriceyap|masipauskas|MustafaI|zuqq|richscott|robertdavidsmith|samclark|suprjinx|EnricoMi|nikola-jokic|j8169|sarhiri|tgucks)$"

@@ -8,6 +8,7 @@
 | Dave Gantenbein     | [dave-gantenbein](https://github.com/dave-gantenbein)   | G-Research  |
 | Dejan Zele Pejchev  | [dejanzele](https://github.com/dejanzele)               | G-Research  |
 | Eleanor Pratt       | [eleanorpratt](https://github.com/eleanorpratt)         | G-Research  |
+| Gabriel Galera      | [gabrielgalera](https://github.com/gabrielgalera)       | G-Research  |
 | James Murkin        | [JamesMurkin](https://github.com/JamesMurkin)           | G-Research  |
 | Martynas Asipauskas | [masipauskas](https://github.com/masipauskas)           | G-Research  |
 | Maurice Yap         | [mauriceyap](https://github.com/mauriceyap)             | G-Research  |
