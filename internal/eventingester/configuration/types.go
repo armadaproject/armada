@@ -61,17 +61,15 @@ type RedisMemoryMetricsConfig struct {
 	MemoryUsageSamples        int
 	Leader                    leaderelection.Config
 	// CollectionTimeout is the maximum duration of a single scan attempt.
-	// If zero, a default of 5 minutes is used. Set to a negative value to disable.
+	// Set to a negative value to disable.
 	CollectionTimeout time.Duration
 	// RetryInitialBackoff is the initial backoff between scan attempts after a retryable error.
-	// If zero, a default of 500ms is used. It is capped at RetryMaxBackoff.
-	// Validation rejects configs where the initial backoff exceeds RetryMaxBackoff.
+	// It is capped at RetryMaxBackoff.
 	RetryInitialBackoff time.Duration
 	// RetryMaxBackoff is the maximum backoff between scan attempts.
-	// If zero, a default of 30s is used.
 	RetryMaxBackoff time.Duration
 	// MaxRetries is the maximum number of retries per collection cycle after the first attempt.
-	// If zero, a default of 10 is used. Set to a negative value to disable retries.
+	// Set to a negative value to disable retries.
 	MaxRetries int
 }
 

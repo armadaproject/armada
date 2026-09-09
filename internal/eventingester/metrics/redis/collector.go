@@ -46,12 +46,6 @@ const (
 	RedisMetricsLastCollectionTimestampMetricName = ArmadaRedisMetricsPrefix + "metrics_last_collection_timestamp"
 	RedisMetricsStreamScannedMetricName           = ArmadaRedisMetricsPrefix + "metrics_streams_scanned_total"
 
-	// Defaults applied when the corresponding config values are unset (zero)
-	defaultCollectionTimeout   = 5 * time.Minute
-	defaultRetryInitialBackoff = configuration.DefaultRetryInitialBackoff
-	defaultRetryMaxBackoff     = 30 * time.Second
-	defaultMaxRetries          = 10
-
 	// Label values for the collection duration metric's "status" label
 	collectionStatusSuccess = "success"
 	collectionStatusError   = "error"
@@ -203,10 +197,6 @@ func (c *Collector) Run(ctx *armadacontext.Context) error {
 	// Delay to guard against crash loops during startup and to prevent thundering herd on leadership changes
 	// The delay is [0, 1 minute) to ensure that in the worst case, all collectors will be staggered by at least 1 minute.]
 	initialDelayMax := c.config.InitialCollectionDelayMax
-	if initialDelayMax == 0 {
-		initialDelayMax = 1 * time.Minute
-	}
-
 	initialDelay := time.Duration(0)
 	if initialDelayMax > 0 {
 		initialDelay = time.Duration(rand.Int64N(int64(initialDelayMax)))
@@ -388,34 +378,26 @@ func (c *Collector) collectOnce(ctx context.Context) error {
 // cancellation are returned immediately.
 func (c *Collector) scanWithRetry(ctx context.Context) ([]repository.StreamInfo, error) {
 	collectionTimeout := c.config.CollectionTimeout
-	if collectionTimeout == 0 {
-		collectionTimeout = defaultCollectionTimeout
-	}
 	initialBackoff := c.config.RetryInitialBackoff
-	if initialBackoff == 0 {
-		initialBackoff = defaultRetryInitialBackoff
-	}
 	maxBackoff := c.config.RetryMaxBackoff
-	if maxBackoff == 0 {
-		maxBackoff = defaultRetryMaxBackoff
-	}
-	// The default initial backoff may exceed a user-configured maximum; cap it
-	// so the first retry respects the configured bound.
+	// Cap initial backoff so the first retry respects the configured maximum.
 	initialBackoff = min(initialBackoff, maxBackoff)
 	maxRetries := c.config.MaxRetries
-	if maxRetries == 0 {
-		maxRetries = defaultMaxRetries
-	}
 
 	attempts := maxRetries + 1
 	if attempts < 1 {
 		attempts = 1
 	}
 
+	startTime := time.Now()
 	backoff := initialBackoff
 	var lastErr error
 	for attempt := range attempts {
 		if attempt > 0 {
+			if c.config.CollectionInterval > 0 && time.Since(startTime)+backoff > c.config.CollectionInterval {
+				log.Warnf("skipping remaining retries: backoff would collide with next collection cycle")
+				break
+			}
 			log.WithError(lastErr).Warnf("retryable error scanning Redis streams, attempt %d/%d failed, retrying in %s", attempt, maxRetries, backoff)
 			select {
 			case <-ctx.Done():

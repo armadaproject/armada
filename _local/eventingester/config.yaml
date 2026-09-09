@@ -21,11 +21,16 @@ metrics:
   redis:
     enabled: true
     collectionInterval: 30s
+    initialCollectionDelayMax: 5m
     topN: 100
     scanBatchSize: 1000
     pipelineBatchSize: 500
     interBatchDelay: 0ms
     memoryUsageSamples: 5
+    collectionTimeout: 15m
+    retryInitialBackoff: 5s
+    retryMaxBackoff: 30s
+    maxRetries: 2
     leader:
       mode: "standalone"
       leaseLockName: ""

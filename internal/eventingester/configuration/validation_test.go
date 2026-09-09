@@ -71,26 +71,6 @@ func TestValidate_RejectsInitialBackoffAboveMax(t *testing.T) {
 	require.ErrorContains(t, err, "retryInitialBackoff (40s) must not exceed retryMaxBackoff (30s)")
 }
 
-func TestValidate_RejectsUnsetInitialBackoffWithMaxBelowDefault(t *testing.T) {
-	redisConfig := validRedisMemoryMetricsConfig()
-	redisConfig.RetryInitialBackoff = 0
-	redisConfig.RetryMaxBackoff = 100 * time.Millisecond
-	config := EventIngesterConfiguration{Metrics: MetricsConfig{Redis: redisConfig}}
-
-	err := config.Validate()
-	require.Error(t, err)
-	require.ErrorContains(t, err, "below the default retryInitialBackoff")
-}
-
-func TestValidate_AcceptsUnsetInitialBackoffWithMaxAtDefault(t *testing.T) {
-	redisConfig := validRedisMemoryMetricsConfig()
-	redisConfig.RetryInitialBackoff = 0
-	redisConfig.RetryMaxBackoff = DefaultRetryInitialBackoff
-	config := EventIngesterConfiguration{Metrics: MetricsConfig{Redis: redisConfig}}
-
-	require.NoError(t, config.Validate())
-}
-
 func TestValidate_ReportsAllViolations(t *testing.T) {
 	redisConfig := validRedisMemoryMetricsConfig()
 	redisConfig.RetryInitialBackoff = -1 * time.Second

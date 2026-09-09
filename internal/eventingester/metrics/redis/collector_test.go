@@ -1032,8 +1032,10 @@ func testStreams(count int) []repository.StreamInfo {
 
 func retryConfig() configuration.RedisMemoryMetricsConfig {
 	config := testCollectorConfig(5)
+	config.CollectionTimeout = 10 * time.Second
 	config.RetryInitialBackoff = 1 * time.Millisecond
 	config.RetryMaxBackoff = 5 * time.Millisecond
+	config.MaxRetries = 10
 	return config
 }
 
@@ -1253,8 +1255,8 @@ func TestCollect_DefaultInitialBackoffCappedAtConfiguredMax(t *testing.T) {
 		},
 	}
 
-	// Initial backoff unset (500ms default) but max backoff set well below it;
-	// without the cap the first retry would wait 500ms.
+	// Initial backoff unset (0) but max backoff set to 20ms;
+	// the cap ensures the first retry doesn't exceed the configured maximum.
 	config := retryConfig()
 	config.RetryInitialBackoff = 0
 	config.RetryMaxBackoff = 20 * time.Millisecond
@@ -1266,4 +1268,34 @@ func TestCollect_DefaultInitialBackoffCappedAtConfiguredMax(t *testing.T) {
 
 	require.Equal(t, int64(2), scanner.calls.Load())
 	require.Less(t, elapsed, 250*time.Millisecond, "first retry waited longer than the configured max backoff")
+}
+
+func TestCollect_StopsRetriesBeforeNextCollectionCycle(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	scanner := &scriptedMockScanner{
+		script: []scriptedScanResult{
+			{err: context.DeadlineExceeded},
+			{err: context.DeadlineExceeded},
+			{err: context.DeadlineExceeded},
+			{err: context.DeadlineExceeded},
+			{err: context.DeadlineExceeded},
+			{err: context.DeadlineExceeded},
+		},
+	}
+
+	config := testCollectorConfig(5)
+	config.MaxRetries = 10
+	config.CollectionInterval = 50 * time.Millisecond
+	config.RetryInitialBackoff = 20 * time.Millisecond
+	config.RetryMaxBackoff = 40 * time.Millisecond
+	collector := NewCollector(scanner, config, leaderelection.NewStandaloneLeaderController())
+
+	err := collector.collectOnce(ctx)
+	require.Error(t, err)
+
+	// 1st scan + 20ms backoff = ~20ms elapsed; next backoff (40ms) would push past 50ms interval
+	calls := scanner.calls.Load()
+	require.Less(t, calls, int64(5), "expected retries to stop before colliding with next collection cycle")
 }
