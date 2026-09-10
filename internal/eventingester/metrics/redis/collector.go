@@ -7,10 +7,11 @@ import (
 	"io"
 	"math/rand/v2"
 	"net"
+	"os"
 	"sort"
-	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -436,24 +437,23 @@ func (c *Collector) scanWithRetry(ctx context.Context) ([]repository.StreamInfo,
 // such as timeouts and connection failures (including EOF and connection
 // resets on an established connection).
 func isRetryableScanError(err error) bool {
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, io.EOF) {
-		return true
-	}
-	var redisErr redis.Error
-	if errors.As(err, &redisErr) && strings.Contains(strings.ToLower(redisErr.Error()), "timeout") {
-		return true
-	}
+	return errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, os.ErrDeadlineExceeded) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, redis.ErrPoolTimeout) ||
+		errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.ECONNREFUSED) ||
+		errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, syscall.ETIMEDOUT) ||
+		isTimeoutNetError(err)
+}
+
+// isTimeoutNetError reports whether err wraps a net.Error reporting a
+// timeout, such as DNS lookup or dial timeouts.
+func isTimeoutNetError(err error) bool {
 	var netErr net.Error
-	if errors.As(err, &netErr) {
-		return true
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "timeout") ||
-		strings.Contains(msg, "connection refused") ||
-		strings.Contains(msg, "connection pool timeout") ||
-		strings.Contains(msg, "connection reset") ||
-		strings.Contains(msg, "broken pipe") ||
-		strings.Contains(msg, "eof")
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 // collectSnapshot collects all metrics into an atomic snapshot.

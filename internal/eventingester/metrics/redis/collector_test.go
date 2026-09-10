@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -1019,6 +1020,13 @@ type scriptedMockScanner struct {
 	calls  atomic.Int64
 }
 
+// redisError mimics the concrete Redis error type returned by go-redis
+// (proto.RedisError), which implements the redis.Error interface marker.
+type redisError string
+
+func (e redisError) Error() string { return string(e) }
+func (e redisError) RedisError()   {}
+
 type scriptedScanResult struct {
 	streams []repository.StreamInfo
 	err     error
@@ -1071,7 +1079,7 @@ func TestCollect_KeepsStaleMetricsOnError(t *testing.T) {
 	scanner := &scriptedMockScanner{
 		script: []scriptedScanResult{
 			{streams: testStreams(3)},
-			{err: errors.New("xinfo stream error for key \"Events:gone:gone\": ERR no such key")},
+			{err: fmt.Errorf("xinfo stream error for key %q: %w", "Events:gone:gone", redisError("ERR no such key"))},
 		},
 	}
 
@@ -1158,7 +1166,6 @@ func TestCollect_RetriesOnTransientErrors(t *testing.T) {
 }
 
 func TestIsRetryableScanError(t *testing.T) {
-	connectionResetErr := &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET}
 	dnsTimeoutErr := &net.DNSError{Err: "timeout", Name: "redis", IsTimeout: true}
 
 	tests := map[string]struct {
@@ -1173,6 +1180,22 @@ func TestIsRetryableScanError(t *testing.T) {
 			err:      fmt.Errorf("scan error: %w", context.DeadlineExceeded),
 			expected: true,
 		},
+		"os deadline exceeded": {
+			err:      os.ErrDeadlineExceeded,
+			expected: true,
+		},
+		"net deadline exceeded": {
+			err:      &net.OpError{Op: "read", Net: "tcp", Err: os.ErrDeadlineExceeded},
+			expected: true,
+		},
+		"syscall timeout": {
+			err:      &net.OpError{Op: "read", Net: "tcp", Err: syscall.ETIMEDOUT},
+			expected: true,
+		},
+		"redis pool timeout": {
+			err:      fmt.Errorf("scan error: %w", redis.ErrPoolTimeout),
+			expected: true,
+		},
 		"bare EOF": {
 			err:      io.EOF,
 			expected: true,
@@ -1181,36 +1204,48 @@ func TestIsRetryableScanError(t *testing.T) {
 			err:      fmt.Errorf("scan error: %w", io.EOF),
 			expected: true,
 		},
+		"unexpected EOF": {
+			err:      io.ErrUnexpectedEOF,
+			expected: true,
+		},
 		"connection reset": {
-			err:      connectionResetErr,
+			err:      &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET},
 			expected: true,
 		},
 		"wrapped connection reset": {
-			err:      fmt.Errorf("scan error: %w", connectionResetErr),
+			err:      fmt.Errorf("scan error: %w", &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET}),
+			expected: true,
+		},
+		"connection refused": {
+			err:      &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED},
+			expected: true,
+		},
+		"broken pipe": {
+			err:      &net.OpError{Op: "write", Net: "tcp", Err: syscall.EPIPE},
 			expected: true,
 		},
 		"dns timeout": {
 			err:      dnsTimeoutErr,
 			expected: true,
 		},
-		"timeout string": {
-			err:      errors.New("i/o timeout"),
-			expected: true,
-		},
-		"connection refused string": {
-			err:      errors.New("dial tcp 127.0.0.1:6379: connect: connection refused"),
-			expected: true,
-		},
-		"connection pool timeout string": {
-			err:      errors.New("redis: connection pool timeout"),
-			expected: true,
-		},
-		"eof string": {
-			err:      fmt.Errorf("scan error: read tcp 127.0.0.1:12345->127.0.0.1:6379: EOF"),
-			expected: true,
-		},
 		"use of closed network connection string": {
 			err:      errors.New("use of closed network connection"),
+			expected: false,
+		},
+		"use of closed network connection net error": {
+			err:      &net.OpError{Op: "read", Net: "tcp", Err: errors.New("use of closed network connection")},
+			expected: false,
+		},
+		"dns no such host": {
+			err:      &net.DNSError{Err: "no such host", Name: "redis"},
+			expected: false,
+		},
+		"redis wrongtype error": {
+			err:      redisError("WRONGTYPE Operation against a key holding the wrong kind of value"),
+			expected: false,
+		},
+		"redis nostream error": {
+			err:      redisError("NOSTREAM the consumer group entry doesn't exist"),
 			expected: false,
 		},
 		"non-retryable application error": {
