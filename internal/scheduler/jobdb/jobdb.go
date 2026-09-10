@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/benbjohnson/immutable"
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -18,6 +17,7 @@ import (
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
@@ -87,7 +87,7 @@ type JobDb struct {
 	// Set here so that it can be mocked.
 	clock clock.PassiveClock
 	// Used for generating job run ids.
-	uuidProvider IDProvider
+	jobRunIDProvider IDProvider
 	// Used to make efficient ResourceList types.
 	resourceListFactory  *internaltypes.ResourceListFactory
 	respectNodePodLimits bool
@@ -101,11 +101,11 @@ type IDProvider interface {
 	New() string
 }
 
-// RealUUIDProvider generates an id using a UUID
-type RealUUIDProvider struct{}
+// RealULIDProvider generates an id using a ULID
+type RealULIDProvider struct{}
 
-func (_ RealUUIDProvider) New() string {
-	return uuid.New().String()
+func (_ RealULIDProvider) New() string {
+	return util.NewULID()
 }
 
 func NewJobDb(priorityClasses map[string]types.PriorityClass,
@@ -149,7 +149,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 		schedulingKeyGenerator: skg,
 		stringInterner:         stringInterner,
 		clock:                  clock.RealClock{},
-		uuidProvider:           RealUUIDProvider{},
+		jobRunIDProvider:       RealULIDProvider{},
 		resourceListFactory:    resourceListFactory,
 	}
 }
@@ -162,8 +162,8 @@ func (jobDb *JobDb) SetRespectNodePodLimits(enabled bool) {
 	jobDb.respectNodePodLimits = enabled
 }
 
-func (jobDb *JobDb) SetUUIDProvider(uuidProvider IDProvider) {
-	jobDb.uuidProvider = uuidProvider
+func (jobDb *JobDb) SetJobRunIDProvider(jobRunIDProvider IDProvider) {
+	jobDb.jobRunIDProvider = jobRunIDProvider
 }
 
 // Clone returns a copy of the jobDb.

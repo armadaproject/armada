@@ -808,7 +808,7 @@ func (job *Job) ValidateResourceRequests() error {
 func (job *Job) WithNewRun(executor, nodeId, nodeName, pool string, scheduledAtPriority int32) *Job {
 	now := job.jobDb.clock.Now()
 	return job.WithUpdatedRun(job.jobDb.CreateRun(
-		job.jobDb.uuidProvider.New(),
+		job.jobDb.jobRunIDProvider.New(),
 		job.Id(),
 		now.UnixNano(),
 		executor,
