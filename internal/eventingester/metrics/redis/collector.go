@@ -197,6 +197,10 @@ func (c *Collector) Run(ctx *armadacontext.Context) error {
 	// Delay to guard against crash loops during startup and to prevent thundering herd on leadership changes
 	// The delay is [0, 1 minute) to ensure that in the worst case, all collectors will be staggered by at least 1 minute.]
 	initialDelayMax := c.config.InitialCollectionDelayMax
+	if initialDelayMax == 0 {
+		initialDelayMax = 1 * time.Minute
+	}
+
 	initialDelay := time.Duration(0)
 	if initialDelayMax > 0 {
 		initialDelay = time.Duration(rand.Int64N(int64(initialDelayMax)))

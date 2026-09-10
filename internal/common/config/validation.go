@@ -14,25 +14,18 @@ type Config interface {
 }
 
 func FormatValidationErrors(err error) error {
-	if err == nil {
-		return nil
-	}
-	var ve validator.ValidationErrors
-	if !errors.As(err, &ve) {
-		return err
-	}
-	var formatted error
-	for _, err := range ve {
+	var validationErrors error
+	for _, err := range err.(validator.ValidationErrors) {
 		fieldName := stripPrefix(err.Namespace())
 		tag := err.Tag()
 		switch tag {
 		case "required":
-			formatted = errors.Join(formatted, fmt.Errorf("ConfigError: Field %s is required but was not found", fieldName))
+			validationErrors = errors.Join(validationErrors, fmt.Errorf("ConfigError: Field %s is required but was not found", fieldName))
 		default:
-			formatted = errors.Join(formatted, fmt.Errorf("ConfigError: Field %s has invalid value %s: %s", fieldName, err.Value(), tag))
+			validationErrors = errors.Join(validationErrors, fmt.Errorf("ConfigError: Field %s has invalid value %s: %s", fieldName, err.Value(), tag))
 		}
 	}
-	return formatted
+	return validationErrors
 }
 
 func stripPrefix(s string) string {

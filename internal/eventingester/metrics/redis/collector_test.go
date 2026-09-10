@@ -310,43 +310,61 @@ func TestCollect_ConcurrentCollect(t *testing.T) {
 func TestCollect_ContextCancellation(t *testing.T) {
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
 	cancel()
-	withRedisClient(ctx, func(client redis.UniversalClient) {
-		seedCtx, seedCancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
-		defer seedCancel()
-		seedGeneratedStreams(t, client, seedCtx, 20, "queue-cancel")
 
-		collector := newRedisBackedCollector(client, testCollectorConfig(5), leaderelection.NewStandaloneLeaderController())
+	// The scan fails immediately due to the cancelled context, so no Redis
+	// connection is needed - the mock reproduces the real scanner surfacing
+	// the context error.
+	scanner := &scriptedMockScanner{
+		script: []scriptedScanResult{
+			{err: context.Canceled},
+		},
+	}
+	collector := NewCollector(scanner, testCollectorConfig(5), leaderelection.NewStandaloneLeaderController())
 
-		err := collector.collectOnce(ctx)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "scanner error: context canceled")
+	err := collector.collectOnce(ctx)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "scanner error: context canceled")
 
-		// The failed cycle publishes error telemetry through the snapshot.
-		// No successful cycle has run yet, so no business (stream/queue)
-		// metrics are served - only self-monitoring error metrics.
-		metrics := collectMetrics(collector)
-		require.NotEmpty(t, metrics)
+	// Context cancellation is not retryable - exactly one scan attempt.
+	require.Equal(t, int64(1), scanner.calls.Load())
+	require.Equal(t, 1.0, testutil.ToFloat64(collector.errorsTotal))
 
-		businessMetricNames := []string{
-			RedisStreamMemoryBytesMetricName,
-			RedisStreamEventCountMetricName,
-			RedisStreamAgeSecondsMetricName,
-			RedisQueueStreamsMetricName,
-			RedisQueueMemoryBytesMetricName,
-			RedisQueueEventsMetricName,
+	// The failed cycle publishes error telemetry through the snapshot.
+	// No successful cycle has run yet, so no business (stream/queue)
+	// metrics are served - only self-monitoring error metrics.
+	metrics := collectMetrics(collector)
+	require.NotEmpty(t, metrics)
+
+	businessMetricNames := []string{
+		RedisStreamMemoryBytesMetricName,
+		RedisStreamEventCountMetricName,
+		RedisStreamAgeSecondsMetricName,
+		RedisQueueStreamsMetricName,
+		RedisQueueMemoryBytesMetricName,
+		RedisQueueEventsMetricName,
+	}
+	foundErrorsTotal := false
+	foundErrorDuration := false
+	for _, m := range metrics {
+		desc := m.Desc().String()
+		for _, name := range businessMetricNames {
+			require.NotContains(t, desc, fmt.Sprintf("%q", name))
 		}
-		foundErrorsTotal := false
-		for _, m := range metrics {
-			desc := m.Desc().String()
-			for _, name := range businessMetricNames {
-				require.NotContains(t, desc, fmt.Sprintf("%q", name))
-			}
-			if strings.Contains(desc, fmt.Sprintf("%q", RedisMetricsErrorsTotalMetricName)) {
-				foundErrorsTotal = true
+		if strings.Contains(desc, fmt.Sprintf("%q", RedisMetricsErrorsTotalMetricName)) {
+			foundErrorsTotal = true
+		}
+		if strings.Contains(desc, fmt.Sprintf("%q", RedisMetricsCollectionDurationMetricName)) {
+			pb := &dto.Metric{}
+			require.NoError(t, m.Write(pb))
+			for _, label := range pb.Label {
+				if label.GetName() == "status" && label.GetValue() == collectionStatusError {
+					foundErrorDuration = true
+				}
 			}
 		}
-		require.True(t, foundErrorsTotal, "expected error telemetry to be served after failed collection")
-	})
+	}
+	require.True(t, foundErrorsTotal, "expected error telemetry to be served after failed collection")
+	require.True(t, foundErrorDuration, "expected error-labelled collection duration to be served after failed collection")
 }
 
 func TestCollect_LargeDataset(t *testing.T) {

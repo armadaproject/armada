@@ -48,13 +48,3 @@ func TestValidate_RejectsNegativeInitialBackoff(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorContains(t, err, "retryInitialBackoff must be non-negative")
 }
-
-func TestValidate_ReportsAllViolations(t *testing.T) {
-	redisConfig := validRedisMemoryMetricsConfig()
-	redisConfig.RetryInitialBackoff = -1 * time.Second
-	config := EventIngesterConfiguration{Metrics: MetricsConfig{Redis: redisConfig}}
-
-	err := config.Validate()
-	require.Error(t, err)
-	require.ErrorContains(t, err, "retryInitialBackoff must be non-negative")
-}
