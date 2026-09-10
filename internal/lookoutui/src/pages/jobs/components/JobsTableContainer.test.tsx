@@ -491,6 +491,37 @@ describe("JobsTableContainer", () => {
       await assertNumDataRowsShown(15)
     })
 
+    it("should withdraw the undo action once one of the filters it would restore is edited", async () => {
+      const jobs = [
+        ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
+        ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
+        ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
+      ]
+
+      mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
+      mockServer.setPostJobsResponse(jobs)
+
+      const { baseElement } = renderComponent()
+      await waitForFinishedLoading()
+
+      await filterAutocompleteTextColumnTo("Queue", "queue-1", baseElement)
+      await filterTextColumnTo("Job Set", "job-set-2")
+      await assertNumDataRowsShown(15)
+
+      // Clearing the Queue filter cascades, clearing the Job Set filter and offering an undo
+      await filterAutocompleteTextColumnTo("Queue", "", baseElement)
+      await assertNumDataRowsShown(30)
+      await screen.findByRole("button", { name: "Undo" })
+
+      // Setting a Queue filter again would be overwritten by the undo, so the offer is withdrawn
+      await filterAutocompleteTextColumnTo("Queue", "queue-2", baseElement)
+      await assertNumDataRowsShown(10)
+
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: "Undo" })).toBeNull()
+      })
+    })
+
     it("should allow enum filtering", async () => {
       const jobs = [
         ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
