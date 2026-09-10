@@ -1022,12 +1022,20 @@ type scriptedMockScanner struct {
 type scriptedScanResult struct {
 	streams []repository.StreamInfo
 	err     error
+	delay   time.Duration
 }
 
 func (m *scriptedMockScanner) ScanAll(ctx context.Context) ([]repository.StreamInfo, error) {
 	call := int(m.calls.Add(1))
 	idx := min(call-1, len(m.script)-1)
 	result := m.script[idx]
+	if result.delay > 0 {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(result.delay):
+		}
+	}
 	return result.streams, result.err
 }
 
@@ -1261,31 +1269,26 @@ func TestCollect_RetriesOnConnectionReset(t *testing.T) {
 	require.Equal(t, 0.0, testutil.ToFloat64(collector.errorsTotal))
 }
 
-func TestCollect_StopsRetriesBeforeNextCollectionCycle(t *testing.T) {
+func TestCollect_RetriesWhenIntervalExhausted(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 	defer cancel()
 
+	// The first attempt consumes the entire collection interval before failing
+	// (mirrors a scan hitting the per-attempt CollectionTimeout when it equals
+	// CollectionInterval). Retries must still run - the overrun simply delays
+	// the next cycle, since the Run loop serialises cycles on its ticker.
 	scanner := &scriptedMockScanner{
 		script: []scriptedScanResult{
-			{err: context.DeadlineExceeded},
-			{err: context.DeadlineExceeded},
-			{err: context.DeadlineExceeded},
-			{err: context.DeadlineExceeded},
-			{err: context.DeadlineExceeded},
-			{err: context.DeadlineExceeded},
+			{delay: 60 * time.Millisecond, err: fmt.Errorf("scan error: %w", context.DeadlineExceeded)},
+			{streams: testStreams(2)},
 		},
 	}
 
-	config := testCollectorConfig(5)
-	config.MaxRetries = 10
+	config := retryConfig()
 	config.CollectionInterval = 50 * time.Millisecond
-	config.RetryInitialBackoff = 20 * time.Millisecond
 	collector := NewCollector(scanner, config, leaderelection.NewStandaloneLeaderController())
 
-	err := collector.collectOnce(ctx)
-	require.Error(t, err)
-
-	// 1st scan + 20ms backoff = ~20ms elapsed; next backoff (40ms) would push past 50ms interval
-	calls := scanner.calls.Load()
-	require.Less(t, calls, int64(5), "expected retries to stop before colliding with next collection cycle")
+	require.NoError(t, collector.collectOnce(ctx))
+	require.Equal(t, int64(2), scanner.calls.Load())
+	require.Equal(t, 0.0, testutil.ToFloat64(collector.errorsTotal))
 }

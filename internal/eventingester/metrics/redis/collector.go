@@ -380,6 +380,9 @@ func (c *Collector) collectOnce(ctx context.Context) error {
 // errors (e.g. timeouts, connection errors) with exponential backoff until
 // MaxRetries is exhausted. Non-retryable errors and parent context
 // cancellation are returned immediately.
+// A cycle may overrun CollectionInterval when attempts consume the full
+// per-attempt timeout; the Run loop's ticker absorbs this, delaying rather
+// than overlapping the next collection cycle.
 func (c *Collector) scanWithRetry(ctx context.Context) ([]repository.StreamInfo, error) {
 	collectionTimeout := c.config.CollectionTimeout
 	initialBackoff := c.config.RetryInitialBackoff
@@ -390,15 +393,10 @@ func (c *Collector) scanWithRetry(ctx context.Context) ([]repository.StreamInfo,
 		attempts = 1
 	}
 
-	startTime := time.Now()
 	backoff := initialBackoff
 	var lastErr error
 	for attempt := range attempts {
 		if attempt > 0 {
-			if c.config.CollectionInterval > 0 && time.Since(startTime)+backoff > c.config.CollectionInterval {
-				log.Warnf("skipping remaining retries: backoff would collide with next collection cycle")
-				break
-			}
 			log.WithError(lastErr).Warnf("retryable error scanning Redis streams, attempt %d/%d failed, retrying in %s", attempt, maxRetries, backoff)
 			select {
 			case <-ctx.Done():
