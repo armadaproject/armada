@@ -9,3 +9,6 @@ tmp.*
 # Auto-generated files
 python-airflow-operator.md
 python-armada-client.md
+
+# Archived files
+_archive/
