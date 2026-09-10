@@ -7,6 +7,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
     groups:
       github-actions:
         patterns:
@@ -16,6 +17,7 @@ updates:
     directory: "./internal/lookoutui"
     schedule:
       interval: "weekly"
+      day: "monday"
     groups:
       lookoutui:
         patterns:
@@ -25,6 +27,7 @@ updates:
     directory: "./website"
     schedule:
       interval: "weekly"
+      day: "monday"
     groups:
       website:
         patterns:
@@ -34,6 +37,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
     groups:
       gomod:
         patterns:
@@ -52,6 +56,7 @@ updates:
     directory: "./build"
     schedule:
       interval: "weekly"
+      day: "monday"
     groups:
       docker:
         patterns:
@@ -61,6 +66,7 @@ updates:
     directory: "./client/python"
     schedule:
       interval: "weekly"
+      day: "monday"
     groups:
       client-python:
         patterns:
@@ -70,6 +76,7 @@ updates:
     directory: "./third_party/airflow"
     schedule:
       interval: "weekly"
+      day: "monday"
     groups:
       third-party-airflow:
         patterns:
