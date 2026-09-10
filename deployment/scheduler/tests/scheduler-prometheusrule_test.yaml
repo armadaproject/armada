@@ -1,0 +1,96 @@
+# Unit tests for the scheduler recording rules. Run with validate-rules.sh.
+#
+# The classification counters carry the labels `category` and `subcategory`,
+# all lowercase, as defined in internal/scheduler/metrics/constants.go. PromQL
+# label names are case-sensitive, and a `by (...)` label that matches nothing
+# silently collapses the dimension instead of producing an error, so the
+# assertions below check that the recorded series keep the `subcategory`
+# label with distinct values.
+#
+# The job state counters (armada_scheduler_job_state_counter_by_*) carry no
+# classification labels, so the succeeded-jobs series are dimensioned by
+# queue or cluster only.
+rule_files:
+  - scheduler-prometheusrule.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      # Failures per queue: two subcategories at different rates (4/min and 2/min).
+      - series: 'armada_scheduler_job_error_classification_by_queue{namespace="default",queue="q1",pool="p1",category="infrastructure",subcategory="oom"}'
+        values: '0+4x70'
+      - series: 'armada_scheduler_job_error_classification_by_queue{namespace="default",queue="q1",pool="p1",category="infrastructure",subcategory="eviction"}'
+        values: '0+2x70'
+      # Failures per node (3/min).
+      - series: 'armada_scheduler_job_error_classification_by_node{namespace="default",node="n1",pool="p1",cluster="c1",category="infrastructure",subcategory="oom"}'
+        values: '0+3x70'
+      # Successes per queue (14/min). With 6 failures/min the queue total is 20/min.
+      - series: 'armada_scheduler_job_state_counter_by_queue{namespace="default",queue="q1",pool="p1",state="succeeded",priorState="running"}'
+        values: '0+14x70'
+      # Successes (6/min) and failures (4/min) per node. The node failure ratio is 4/10.
+      - series: 'armada_scheduler_job_state_counter_by_node{namespace="default",node="n1",pool="p1",cluster="c1",state="succeeded",priorState="running"}'
+        values: '0+6x70'
+      - series: 'armada_scheduler_job_state_counter_by_node{namespace="default",node="n1",pool="p1",cluster="c1",state="failed",priorState="running"}'
+        values: '0+4x70'
+
+    promql_expr_test:
+      # 1. The per-queue failure rule keeps distinct subcategory values.
+      - expr: queue_category_subcategory:armada_scheduler_failed_jobs
+        eval_time: 60m
+        exp_samples:
+          - labels: 'queue_category_subcategory:armada_scheduler_failed_jobs{namespace="default",queue="q1",category="infrastructure",subcategory="oom"}'
+            value: 240
+          - labels: 'queue_category_subcategory:armada_scheduler_failed_jobs{namespace="default",queue="q1",category="infrastructure",subcategory="eviction"}'
+            value: 120
+
+      # 2. The per-cluster failure rule reads the metric that exists.
+      - expr: cluster_category_subcategory:armada_scheduler_failed_jobs
+        eval_time: 60m
+        exp_samples:
+          - labels: 'cluster_category_subcategory:armada_scheduler_failed_jobs{namespace="default",cluster="c1",category="infrastructure",subcategory="oom"}'
+            value: 180
+
+      # 3. The per-node failure rule returns data.
+      - expr: node:armada_scheduler_failed_jobs
+        eval_time: 60m
+        exp_samples:
+          - labels: 'node:armada_scheduler_failed_jobs{namespace="default",node="n1"}'
+            value: 240
+
+      # 4. The per-queue success rule returns data under its queue-only name.
+      - expr: queue:armada_scheduler_succeeded_jobs
+        eval_time: 60m
+        exp_samples:
+          - labels: 'queue:armada_scheduler_succeeded_jobs{namespace="default",queue="q1"}'
+            value: 840
+
+      # 5. increase10m and increase1h use different windows: 14/min over 10m and over 1h.
+      - expr: queue:armada_scheduler_succeeded_jobs:increase10m
+        eval_time: 60m
+        exp_samples:
+          - labels: 'queue:armada_scheduler_succeeded_jobs:increase10m{namespace="default",queue="q1"}'
+            value: 140
+      - expr: queue:armada_scheduler_succeeded_jobs:increase1h
+        eval_time: 60m
+        exp_samples:
+          - labels: 'queue:armada_scheduler_succeeded_jobs:increase1h{namespace="default",queue="q1"}'
+            value: 840
+
+      # 6. Node failure ratio over 1h: 240 failed / (240 failed + 360 succeeded).
+      - expr: node:armada_scheduler_failed_rate_jobs:increase1h
+        eval_time: 60m
+        exp_samples:
+          - labels: 'node:armada_scheduler_failed_rate_jobs:increase1h{namespace="default",node="n1"}'
+            value: 0.4
+
+      # 7. Per-queue failure ratio keeps the classification dimensions in the
+      #    numerator while the denominator is the queue total: 360 failed + 840 succeeded.
+      - expr: queue_category_subcategory:armada_scheduler_failed_rate_jobs:increase1h
+        eval_time: 60m
+        exp_samples:
+          - labels: 'queue_category_subcategory:armada_scheduler_failed_rate_jobs:increase1h{namespace="default",queue="q1",category="infrastructure",subcategory="oom"}'
+            value: 0.2
+          - labels: 'queue_category_subcategory:armada_scheduler_failed_rate_jobs:increase1h{namespace="default",queue="q1",category="infrastructure",subcategory="eviction"}'
+            value: 0.1
