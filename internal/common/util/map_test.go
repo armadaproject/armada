@@ -1,10 +1,10 @@
 package util
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/maps"
 )
 
 func TestMergeMaps_AllValuesPresent(t *testing.T) {

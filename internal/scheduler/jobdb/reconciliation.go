@@ -1,9 +1,11 @@
 package jobdb
 
 import (
+	"maps"
+	"slices"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 	"k8s.io/utils/ptr"
 
 	armadamath "github.com/armadaproject/armada/internal/common/math"
@@ -119,7 +121,7 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 	for _, req := range gangPreemptionRequests {
 		markJobsAsPreemptionRequested(txn, req.jobIds, req.reason, jsts)
 	}
-	return maps.Values(jsts), nil
+	return slices.Collect(maps.Values(jsts)), nil
 }
 
 func markJobsAsPreemptionRequested(txn *Txn, jobIds []string, reason *string, jsts map[string]JobStateTransitions) {

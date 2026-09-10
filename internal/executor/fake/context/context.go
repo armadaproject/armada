@@ -2,6 +2,7 @@ package context
 
 import (
 	"fmt"
+	"maps"
 	"math/rand"
 	"regexp"
 	"sort"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"

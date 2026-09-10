@@ -1,13 +1,13 @@
 package scheduleringester
 
 import (
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"

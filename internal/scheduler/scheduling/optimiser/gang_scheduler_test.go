@@ -1,12 +1,12 @@
 package optimiser
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -489,7 +489,7 @@ func assertExpectedNodeUpdates(
 		// Should have been scheduled
 		if _, shouldBeScheduled := expectedScheduledNodesById[node.GetId()]; shouldBeScheduled {
 			for _, jobId := range preemptedJobsByNodeId[node.GetId()] {
-				assert.NotContains(t, maps.Keys(node.AllocatedByJobId), jobId)
+				assert.NotContains(t, slices.Collect(maps.Keys(node.AllocatedByJobId)), jobId)
 			}
 
 			jobsOnNode := armadaslices.Filter(gctx.JobSchedulingContexts, func(jctx *context.JobSchedulingContext) bool {
@@ -497,10 +497,10 @@ func assertExpectedNodeUpdates(
 			})
 			assert.True(t, len(jobsOnNode) > 0)
 			for _, job := range jobsOnNode {
-				assert.Contains(t, maps.Keys(node.AllocatedByJobId), job.JobId)
+				assert.Contains(t, slices.Collect(maps.Keys(node.AllocatedByJobId)), job.JobId)
 			}
 		} else {
-			assertStringListsEqual(t, maps.Keys(originalNodesById[node.GetId()].AllocatedByJobId), maps.Keys(node.AllocatedByJobId))
+			assertStringListsEqual(t, slices.Collect(maps.Keys(originalNodesById[node.GetId()].AllocatedByJobId)), slices.Collect(maps.Keys(node.AllocatedByJobId)))
 		}
 	}
 }
@@ -555,7 +555,7 @@ func assertExpectedJctxUpdates(t *testing.T, sctx *context.SchedulingContext, gc
 
 			assert.NotNil(t, jctx.PodSchedulingContext)
 			pctx := jctx.PodSchedulingContext
-			assert.Contains(t, maps.Keys(expectedScheduledNodesById), pctx.NodeId)
+			assert.Contains(t, slices.Collect(maps.Keys(expectedScheduledNodesById)), pctx.NodeId)
 			assert.Equal(t, context.ScheduledWithFairnessOptimiser, pctx.SchedulingMethod)
 			assert.Equal(t, jctx.Job.PriorityClass().Priority, pctx.ScheduledAtPriority)
 			assert.True(t, pctx.IsSuccessful())

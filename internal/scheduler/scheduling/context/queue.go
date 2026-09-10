@@ -2,13 +2,13 @@ package context
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -156,7 +156,7 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 		fmt.Fprintf(w, "Number of jobs preempted by optimiser:\t%d\n", len(qctx.PreemptedByOptimiserJobSchedulingContexts))
 		fmt.Fprintf(w, "Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
 		if len(qctx.SuccessfulJobSchedulingContexts) > 0 {
-			jobIdsToPrint := maps.Keys(qctx.SuccessfulJobSchedulingContexts)
+			jobIdsToPrint := slices.Collect(maps.Keys(qctx.SuccessfulJobSchedulingContexts))
 			if len(jobIdsToPrint) > maxJobIdsToPrint {
 				jobIdsToPrint = jobIdsToPrint[0:maxJobIdsToPrint]
 			}
@@ -168,7 +168,7 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 			}
 		}
 		if len(qctx.EvictedJobsById) > 0 {
-			jobIdsToPrint := maps.Keys(qctx.EvictedJobsById)
+			jobIdsToPrint := slices.Collect(maps.Keys(qctx.EvictedJobsById))
 			if len(jobIdsToPrint) > maxJobIdsToPrint {
 				jobIdsToPrint = jobIdsToPrint[0:maxJobIdsToPrint]
 			}
@@ -180,7 +180,7 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 			}
 		}
 		if len(qctx.PreemptedByOptimiserJobSchedulingContexts) > 0 {
-			jobIdsToPrint := maps.Keys(qctx.PreemptedByOptimiserJobSchedulingContexts)
+			jobIdsToPrint := slices.Collect(maps.Keys(qctx.PreemptedByOptimiserJobSchedulingContexts))
 			if len(jobIdsToPrint) > maxJobIdsToPrint {
 				jobIdsToPrint = jobIdsToPrint[0:maxJobIdsToPrint]
 			}
@@ -194,7 +194,7 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 		if len(qctx.UnsuccessfulJobSchedulingContexts) > 0 {
 			fmt.Fprint(w, "Unschedulable jobs:\n")
 			jobIdsByReason := armadaslices.MapAndGroupByFuncs(
-				maps.Values(qctx.UnsuccessfulJobSchedulingContexts),
+				slices.Collect(maps.Values(qctx.UnsuccessfulJobSchedulingContexts)),
 				func(jctx *JobSchedulingContext) string {
 					return jctx.UnschedulableReason
 				},
@@ -202,7 +202,7 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 					return jctx.JobId
 				},
 			)
-			reasons := maps.Keys(jobIdsByReason)
+			reasons := slices.Collect(maps.Keys(jobIdsByReason))
 			slices.SortFunc(reasons, func(a, b string) int {
 				if len(jobIdsByReason[a]) < len(jobIdsByReason[b]) {
 					return -1

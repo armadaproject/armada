@@ -2,6 +2,7 @@ package jobdb
 
 import (
 	"math/rand"
+	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -9,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -60,7 +60,7 @@ func TestJobDb_TestUpsert(t *testing.T) {
 	assert.Equal(t, job1Updated, retrieved)
 
 	// Can't insert with read only transaction
-	err = (jobDb.ReadTxn()).Upsert([]*Job{job1})
+	err = jobDb.ReadTxn().Upsert([]*Job{job1})
 	require.Error(t, err)
 }
 
@@ -471,7 +471,7 @@ func TestJobDb_TestBatchDelete(t *testing.T) {
 	assert.Nil(t, txn.GetById(job2.Id()))
 
 	// Can't delete with read only transaction
-	err = (jobDb.ReadTxn()).BatchDelete([]string{job1.Id()})
+	err = jobDb.ReadTxn().BatchDelete([]string{job1.Id()})
 	require.Error(t, err)
 }
 

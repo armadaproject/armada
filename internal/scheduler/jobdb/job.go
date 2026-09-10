@@ -2,12 +2,12 @@ package jobdb
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
 
@@ -481,7 +481,7 @@ func (job *Job) getBidPrice(pool string) float64 {
 }
 
 func (job *Job) GetReservations() []string {
-	return maps.Keys(job.reservations)
+	return slices.Collect(maps.Keys(job.reservations))
 }
 
 func (job *Job) MatchesReservation(reservation string) bool {
@@ -877,7 +877,7 @@ func (job *Job) NumAttempts() uint {
 
 // AllRuns returns all runs associated with job.
 func (job *Job) AllRuns() []*JobRun {
-	return maps.Values(job.runsById)
+	return slices.Collect(maps.Values(job.runsById))
 }
 
 // FailureCount returns the number of runs of this job that genuinely failed.

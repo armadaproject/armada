@@ -5,6 +5,7 @@ import (
 	"maps"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/armadaproject/armada/internal/common/build"
@@ -126,11 +127,11 @@ func (c ObservabilityConfig) Validate() error {
 	}
 
 	if _, ok := validOTLPProtocols[c.Exporter.Protocol]; !ok {
-		return fmt.Errorf("%s=%q is invalid: supported values are %v", ConfigOtelExporterOtlpProtocol, c.Exporter.Protocol, maps.Keys(validOTLPProtocols))
+		return fmt.Errorf("%s=%q is invalid: supported values are %v", ConfigOtelExporterOtlpProtocol, c.Exporter.Protocol, slices.Collect(maps.Keys(validOTLPProtocols)))
 	}
 
 	if _, ok := validSamplers[c.Traces.Sampler]; !ok {
-		return fmt.Errorf("%s=%q is invalid: supported values are %v", ConfigOtelTracesSampler, c.Traces.Sampler, maps.Keys(validSamplers))
+		return fmt.Errorf("%s=%q is invalid: supported values are %v", ConfigOtelTracesSampler, c.Traces.Sampler, slices.Collect(maps.Keys(validSamplers)))
 	}
 
 	if c.Traces.Sampler == "parent_based_trace_id_ratio" || c.Traces.Sampler == "trace_id_ratio" {

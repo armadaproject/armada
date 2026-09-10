@@ -1,9 +1,10 @@
 package internaltypes
 
 import (
+	"maps"
+	"slices"
+
 	"github.com/segmentio/fasthash/fnv1a"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
 	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
@@ -143,8 +144,7 @@ func nodeTypeIdFromTaintsAndLabels(taints []v1.Taint, labels, unsetIndexedLabels
 	}
 	h = fnv1a.AddString64(h, "&")
 
-	ls := maps.Keys(labels)
-	slices.Sort(ls)
+	ls := slices.Sorted(maps.Keys(labels))
 	for _, label := range ls {
 		value := labels[label]
 		h = fnv1a.AddString64(h, label)
@@ -154,8 +154,7 @@ func nodeTypeIdFromTaintsAndLabels(taints []v1.Taint, labels, unsetIndexedLabels
 	}
 	h = fnv1a.AddString64(h, "&")
 
-	ls = maps.Keys(unsetIndexedLabels)
-	slices.Sort(ls)
+	ls = slices.Sorted(maps.Keys(unsetIndexedLabels))
 	for _, label := range ls {
 		h = fnv1a.AddString64(h, label)
 		h = fnv1a.AddString64(h, "$")

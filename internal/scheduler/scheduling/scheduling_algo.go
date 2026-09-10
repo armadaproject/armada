@@ -3,6 +3,8 @@ package scheduling
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -10,8 +12,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"k8s.io/utils/clock"
 
@@ -794,7 +794,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 		return nil, err
 	}
 	sctx := schedulercontext.NewSchedulingContext(pool, fairnessCostProvider, l.limiter, l.preemptionLimiterByPool[pool], totalCapacity)
-	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalCapacity, l.schedulingConfig, maps.Values(queues))
+	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalCapacity, l.schedulingConfig, slices.Collect(maps.Values(queues)))
 
 	for _, queue := range queues {
 		demand, hasDemand := demandByQueueAndPriorityClass[queue.Name]
@@ -888,7 +888,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 ) (*SchedulingResult, *schedulercontext.SchedulingContext, error) {
 	totalResources := fsctx.nodeDb.TotalKubernetesResources()
 	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name))
-	constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
+	constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, l.schedulingConfig, slices.Collect(maps.Values(fsctx.queues)))
 	shouldRunOptimiser := l.shouldRunOptimiser(pool)
 
 	if shouldRunOptimiser {

@@ -2,14 +2,14 @@ package scheduling
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
@@ -608,15 +608,15 @@ func TestQueueScheduler(t *testing.T) {
 			actualUnsuccessfulIndicesByQueue := make(map[string][]int)
 
 			queues := armadaslices.Unique(append(
-				maps.Keys(sctx.QueueSchedulingContexts),
-				maps.Keys(queueNameToQueue)...,
+				slices.Collect(maps.Keys(sctx.QueueSchedulingContexts)),
+				slices.Collect(maps.Keys(queueNameToQueue))...,
 			))
 			for _, queue := range queues {
 				qctx := sctx.QueueSchedulingContexts[queue]
 				require.NotNil(t, queue)
 
 				is := armadaslices.Map(
-					maps.Keys(qctx.SuccessfulJobSchedulingContexts),
+					slices.Collect(maps.Keys(qctx.SuccessfulJobSchedulingContexts)),
 					func(jobId string) int {
 						return indexByJobId[jobId]
 					},
@@ -627,7 +627,7 @@ func TestQueueScheduler(t *testing.T) {
 				}
 
 				is = armadaslices.Map(
-					maps.Keys(qctx.UnsuccessfulJobSchedulingContexts),
+					slices.Collect(maps.Keys(qctx.UnsuccessfulJobSchedulingContexts)),
 					func(jobId string) int {
 						return indexByJobId[jobId]
 					},

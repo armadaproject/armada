@@ -2,11 +2,12 @@ package context
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
 
-	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -207,7 +208,7 @@ func PrintJobSummary(ctx *armadacontext.Context, prefix string, jctxs []*JobSche
 	)
 	summary := fmt.Sprintf(
 		"affected queues %v; resources %v; jobs per queue %v",
-		maps.Keys(jobsByQueue),
+		slices.Collect(maps.Keys(jobsByQueue)),
 		armadamaps.MapValues(
 			resourcesByQueue,
 			func(rl internaltypes.ResourceList) string {

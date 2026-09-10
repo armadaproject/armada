@@ -1,19 +1,20 @@
 package scheduler
 
 import (
+	"maps"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/exp/maps"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/resource"
-	"github.com/armadaproject/armada/internal/common/slices"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
@@ -39,7 +40,7 @@ type metricProvider struct {
 }
 
 func (m metricProvider) GetAllQueues() []*api.Queue {
-	return slices.Map(maps.Values(m.queueStates), func(state *queueState) *api.Queue {
+	return armadaslices.Map(slices.Collect(maps.Values(m.queueStates)), func(state *queueState) *api.Queue {
 		return state.queue
 	})
 }

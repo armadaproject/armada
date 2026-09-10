@@ -3,6 +3,7 @@ package scheduler
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"

@@ -1,13 +1,13 @@
 package database
 
 import (
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"

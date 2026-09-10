@@ -1,9 +1,9 @@
 package math
 
-import "golang.org/x/exp/constraints"
+import "cmp"
 
 // Max returns a if a > b and b otherwise.
-func Max[T constraints.Ordered](a, b T) T {
+func Max[T cmp.Ordered](a, b T) T {
 	if a > b {
 		return a
 	} else {

@@ -1,9 +1,10 @@
 package healthmonitor
 
 import (
+	"maps"
+
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )

@@ -3,9 +3,9 @@ package auth
 import (
 	"context"
 	"net/http"
+	"slices"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata"
-	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/util"
 )

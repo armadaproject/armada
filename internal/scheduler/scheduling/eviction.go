@@ -2,10 +2,9 @@ package scheduling
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
-
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	"github.com/hashicorp/go-memdb"
 
@@ -273,8 +272,7 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 }
 
 func makeNodePreemptiblityStats(node *internaltypes.Node, preemptible bool, reasons map[string]bool) NodePreemptiblityStats {
-	reasonsList := maps.Keys(reasons)
-	slices.Sort(reasonsList)
+	reasonsList := slices.Sorted(maps.Keys(reasons))
 	return NodePreemptiblityStats{
 		NodeName:    node.GetName(),
 		Cluster:     node.GetExecutor(),

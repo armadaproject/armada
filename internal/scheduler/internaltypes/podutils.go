@@ -3,10 +3,10 @@ package internaltypes
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"slices"
 	"sync"
 
 	"github.com/minio/highwayhash"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -184,7 +184,7 @@ func (skg *PodRequirementsSerialiser) AppendTolerations(out []byte, tolerations 
 		out = append(out, []byte(":")...)
 		out = append(out, []byte(toleration.Operator)...)
 		out = append(out, []byte(":")...)
-		out = append(out, []byte((toleration.Effect))...)
+		out = append(out, []byte(toleration.Effect)...)
 		out = append(out, []byte("$")...)
 	}
 	if len(tolerations) > 0 {

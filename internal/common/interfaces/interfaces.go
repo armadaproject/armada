@@ -1,7 +1,5 @@
 package interfaces
 
-import "golang.org/x/exp/constraints"
-
 // DeepCopier represents object that can be deep-copied.
 type DeepCopier[T any] interface {
 	// DeepCopy returns a deep copy of the object.
@@ -16,5 +14,5 @@ type Equaler[T any] interface {
 
 // Number represents any integer or floating-point number.
 type Number interface {
-	constraints.Integer | constraints.Float
+	~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr | ~float32 | ~float64
 }

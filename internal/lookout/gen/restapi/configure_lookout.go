@@ -7,13 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
-	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/auth"
 	log "github.com/armadaproject/armada/internal/common/logging"

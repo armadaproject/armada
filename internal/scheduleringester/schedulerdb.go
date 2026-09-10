@@ -2,6 +2,8 @@ package scheduleringester
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -9,13 +11,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
-	"github.com/armadaproject/armada/internal/common/slices"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"
@@ -226,7 +227,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			}
 		}
 	case MarkJobsCancelled:
-		jobIds := maps.Keys(o)
+		jobIds := slices.Collect(maps.Keys(o))
 		if err := queries.MarkJobsCancelledById(ctx, jobIds); err != nil {
 			return errors.WithStack(err)
 		}
@@ -270,13 +271,13 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			}
 		}
 	case MarkJobsSucceeded:
-		jobIds := maps.Keys(o)
+		jobIds := slices.Collect(maps.Keys(o))
 		err := queries.MarkJobsSucceededById(ctx, jobIds)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 	case MarkJobsFailed:
-		jobIds := maps.Keys(o)
+		jobIds := slices.Collect(maps.Keys(o))
 		err := queries.MarkJobsFailedById(ctx, jobIds)
 		if err != nil {
 			return errors.WithStack(err)
@@ -287,7 +288,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			Queue:            o.key.queue,
 			JobSet:           o.key.jobSet,
 			Priority:         o.key.Priority,
-			JobIds:           slices.Unique(o.jobIds),
+			JobIds:           armadaslices.Unique(o.jobIds),
 			ReprioritiseUser: reprioritiseUser,
 		})
 		if err != nil {
@@ -533,7 +534,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 
 			logCtx.WithFields(map[string]any{
 				"jobCount": len(jobs),
-				"jobIds":   slices.Map(jobs, func(job schedulerdb.Job) string { return job.JobID }),
+				"jobIds":   armadaslices.Map(jobs, func(job schedulerdb.Job) string { return job.JobID }),
 			}).Info("PreemptOnNode marked runs preempt-requested")
 		}
 	case CancelNode:
@@ -574,7 +575,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 
 			logCtx.WithFields(map[string]any{
 				"jobCount": len(jobs),
-				"jobIds":   slices.Map(jobs, func(job schedulerdb.Job) string { return job.JobID }),
+				"jobIds":   armadaslices.Map(jobs, func(job schedulerdb.Job) string { return job.JobID }),
 			}).Info("CancelOnNode marked jobs cancel-requested")
 		}
 

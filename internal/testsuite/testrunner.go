@@ -5,11 +5,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"time"
 
 	"github.com/jstemmer/go-junit-report/v2/junit"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"

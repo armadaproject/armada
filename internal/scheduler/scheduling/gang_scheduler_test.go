@@ -2,12 +2,13 @@ package scheduling
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/oklog/ulid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -653,7 +654,7 @@ func TestGangScheduler(t *testing.T) {
 				tc.TotalResources,
 				tc.SchedulingConfig,
 				armadaslices.Map(
-					maps.Keys(priorityFactorByQueue),
+					slices.Collect(maps.Keys(priorityFactorByQueue)),
 					func(qn string) *api.Queue { return &api.Queue{Name: qn} },
 				),
 			)
@@ -696,7 +697,7 @@ func TestGangScheduler(t *testing.T) {
 							"node uniformity constraint not met: %s", nodeUniformityLabelValues,
 						)
 						if expectedValue, ok := tc.ExpectedNodeUniformity[i]; ok {
-							actualValue := maps.Keys(nodeUniformityLabelValues)[0]
+							actualValue := slices.Collect(maps.Keys(nodeUniformityLabelValues))[0]
 							require.Equal(t, expectedValue, actualValue)
 						}
 					}
@@ -723,7 +724,11 @@ func TestGangScheduler(t *testing.T) {
 				}
 			}
 			assert.Equal(t, tc.ExpectedScheduledIndices, actualScheduledIndices)
-			assert.Equal(t, expectedUnfeasibleJobSchedulingKeys, maps.Keys(sch.schedulingContext.UnfeasibleSchedulingKeys))
+			actualUnfeasibleJobSchedulingKeys := slices.Collect(maps.Keys(sch.schedulingContext.UnfeasibleSchedulingKeys))
+			if actualUnfeasibleJobSchedulingKeys == nil {
+				actualUnfeasibleJobSchedulingKeys = []internaltypes.SchedulingKey{}
+			}
+			assert.Equal(t, expectedUnfeasibleJobSchedulingKeys, actualUnfeasibleJobSchedulingKeys)
 		})
 	}
 }

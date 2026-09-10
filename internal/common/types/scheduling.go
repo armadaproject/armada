@@ -1,8 +1,9 @@
 package types
 
 import (
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
+	"maps"
+	"slices"
+
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 

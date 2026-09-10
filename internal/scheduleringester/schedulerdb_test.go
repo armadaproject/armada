@@ -1,6 +1,9 @@
 package scheduleringester
 
 import (
+	"cmp"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
@@ -11,9 +14,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/constraints"
-	"golang.org/x/exp/maps"
-	"k8s.io/utils/strings/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -981,7 +981,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		assert.Equal(t, numChanged, 1)
 		assert.Equal(t, len(expected), len(runs))
 	case InsertJobRunErrors:
-		expectedIds := maps.Keys(expected)
+		expectedIds := slices.Collect(maps.Keys(expected))
 		as, err := queries.SelectRunErrorsById(ctx, expectedIds)
 		if err != nil {
 			return errors.WithStack(err)
@@ -1260,7 +1260,7 @@ func TestStore(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func max[E constraints.Ordered](a, b E) E {
+func max[E cmp.Ordered](a, b E) E {
 	if a > b {
 		return a
 	}

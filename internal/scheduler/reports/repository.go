@@ -1,11 +1,10 @@
 package reports
 
 import (
+	"maps"
+	"slices"
 	"sync"
 	"sync/atomic"
-
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
@@ -37,7 +36,7 @@ func (r *SchedulingContextRepository) StoreSchedulingContext(sctx *context.Sched
 }
 
 func (r *SchedulingContextRepository) QueueSchedulingContext(queue string) []CtxPoolPair[*context.QueueSchedulingContext] {
-	contextsByPool := *(r.mostRecentByPool.Load())
+	contextsByPool := *r.mostRecentByPool.Load()
 	ctxs := make([]CtxPoolPair[*context.QueueSchedulingContext], 0, len(contextsByPool))
 	for _, pool := range sortedKeys(contextsByPool) {
 		ctx := CtxPoolPair[*context.QueueSchedulingContext]{pool: pool}
@@ -51,7 +50,7 @@ func (r *SchedulingContextRepository) QueueSchedulingContext(queue string) []Ctx
 }
 
 func (r *SchedulingContextRepository) JobSchedulingContext(jobId string) []CtxPoolPair[*context.JobSchedulingContext] {
-	contextsByPool := *(r.mostRecentByPool.Load())
+	contextsByPool := *r.mostRecentByPool.Load()
 	ctxs := make([]CtxPoolPair[*context.JobSchedulingContext], 0, len(contextsByPool))
 	for _, pool := range sortedKeys(contextsByPool) {
 		ctx := CtxPoolPair[*context.JobSchedulingContext]{
@@ -64,7 +63,7 @@ func (r *SchedulingContextRepository) JobSchedulingContext(jobId string) []CtxPo
 }
 
 func (r *SchedulingContextRepository) RoundSchedulingContext() []CtxPoolPair[*context.SchedulingContext] {
-	contextsByPool := *(r.mostRecentByPool.Load())
+	contextsByPool := *r.mostRecentByPool.Load()
 	ctxs := make([]CtxPoolPair[*context.SchedulingContext], 0, len(contextsByPool))
 	for _, pool := range sortedKeys(contextsByPool) {
 		ctx := CtxPoolPair[*context.SchedulingContext]{
@@ -93,7 +92,5 @@ func getSchedulingReportForJob(sctx *context.SchedulingContext, jobId string) *c
 }
 
 func sortedKeys(s map[string]*context.SchedulingContext) []string {
-	keys := maps.Keys(s)
-	slices.Sort(keys)
-	return keys
+	return slices.Sorted(maps.Keys(s))
 }

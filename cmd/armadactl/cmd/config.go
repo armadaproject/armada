@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/armadactl"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"

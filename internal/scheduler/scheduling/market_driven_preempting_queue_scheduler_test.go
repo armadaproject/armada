@@ -2,13 +2,13 @@ package scheduling
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
@@ -747,7 +747,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					totalResources,
 					tc.SchedulingConfig,
 					armadaslices.Map(
-						maps.Keys(tc.PriorityFactorByQueue),
+						slices.Collect(maps.Keys(tc.PriorityFactorByQueue)),
 						func(qn string) *api.Queue { return &api.Queue{Name: qn} },
 					))
 				sctx.UpdateFairShares()

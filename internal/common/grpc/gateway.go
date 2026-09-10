@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"

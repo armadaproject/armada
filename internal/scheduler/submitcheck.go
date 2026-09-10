@@ -2,12 +2,13 @@ package scheduler
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
-	"golang.org/x/exp/maps"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -375,7 +376,7 @@ func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSched
 		}
 	}
 	if len(successfulPools) > 0 {
-		return schedulingResult{isSchedulable: true, pools: maps.Keys(successfulPools)}
+		return schedulingResult{isSchedulable: true, pools: slices.Collect(maps.Keys(successfulPools))}
 	}
 	return schedulingResult{isSchedulable: false, reason: sb.String()}
 }

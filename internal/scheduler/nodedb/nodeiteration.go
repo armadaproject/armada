@@ -3,10 +3,10 @@ package nodedb
 import (
 	"bytes"
 	"container/heap"
+	"slices"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/slices"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"

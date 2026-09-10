@@ -1,10 +1,10 @@
 package scheduleringester
 
 import (
+	"maps"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"golang.org/x/exp/maps"
 
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/pkg/controlplaneevents"

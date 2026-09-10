@@ -2,13 +2,13 @@ package jobdb
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sync"
 
 	"github.com/benbjohnson/immutable"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"
@@ -680,7 +680,7 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 			}
 
 			for key, jobsInGang := range jobsByGangKey {
-				txn.jobsByGangKey[key] = immutable.NewSet[string](JobIdHasher{}, maps.Keys(jobsInGang)...)
+				txn.jobsByGangKey[key] = immutable.NewSet[string](JobIdHasher{}, slices.Collect(maps.Keys(jobsInGang))...)
 			}
 		}
 	}()
@@ -737,7 +737,7 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 			}
 
 			for queue, jobsForQueue := range jobsByQueue {
-				txn.jobsByQueue[queue] = immutable.NewSortedSet[*Job](JobPriorityComparer{}, maps.Keys(jobsForQueue)...)
+				txn.jobsByQueue[queue] = immutable.NewSortedSet[*Job](JobPriorityComparer{}, slices.Collect(maps.Keys(jobsForQueue))...)
 			}
 
 			for pool, jobsForPool := range jobsByPoolAndQueue {
@@ -746,7 +746,7 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 				}
 				for queue, jobsForQueueInPool := range jobsForPool {
 					if _, ok := txn.jobsByPoolAndQueue[pool][queue]; !ok {
-						txn.jobsByPoolAndQueue[pool][queue] = immutable.NewSortedSet[*Job](MarketJobPriorityComparer{Pool: pool}, maps.Keys(jobsForQueueInPool)...)
+						txn.jobsByPoolAndQueue[pool][queue] = immutable.NewSortedSet[*Job](MarketJobPriorityComparer{Pool: pool}, slices.Collect(maps.Keys(jobsForQueueInPool))...)
 					}
 				}
 			}
@@ -772,7 +772,7 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 				}
 			}
 
-			leasedJobsImmutable := immutable.NewSet[*Job](JobHasher{}, maps.Keys(leasedJobs)...)
+			leasedJobsImmutable := immutable.NewSet[*Job](JobHasher{}, slices.Collect(maps.Keys(leasedJobs))...)
 			txn.leasedJobs = &leasedJobsImmutable
 		}
 	}()
@@ -796,7 +796,7 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 				}
 			}
 
-			unvalidatedJobsImmutable := immutable.NewSet[*Job](JobHasher{}, maps.Keys(unvalidatedJobs)...)
+			unvalidatedJobsImmutable := immutable.NewSet[*Job](JobHasher{}, slices.Collect(maps.Keys(unvalidatedJobs))...)
 			txn.unvalidatedJobs = &unvalidatedJobsImmutable
 		}
 	}()

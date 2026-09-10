@@ -1,7 +1,7 @@
 package schedulermocks
 
 import (
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 type SliceMatcher struct {

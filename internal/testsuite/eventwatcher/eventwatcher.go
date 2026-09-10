@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"reflect"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/util/backoffutils"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

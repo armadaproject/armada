@@ -1,8 +1,9 @@
 package affinity
 
 import (
+	"slices"
+
 	"github.com/pkg/errors"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 )
 

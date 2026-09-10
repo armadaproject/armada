@@ -7,8 +7,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/api"
 
+	goslices "slices"
+
 	"github.com/pkg/errors"
-	goslices "golang.org/x/exp/slices"
 	"sigs.k8s.io/yaml"
 
 	"github.com/armadaproject/armada/pkg/client"

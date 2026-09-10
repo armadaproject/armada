@@ -3,8 +3,10 @@ package simulator
 import (
 	"container/heap"
 	"fmt"
+	"maps"
 	"math"
 	"math/rand"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -12,8 +14,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"

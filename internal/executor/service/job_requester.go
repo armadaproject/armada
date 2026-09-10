@@ -2,14 +2,14 @@ package service
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"time"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/errormatch"
 	log "github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/slices"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/job"
@@ -106,17 +106,17 @@ func (r *JobRequester) getUnassignedRunIds(capacityReport *utilisation.ClusterAv
 	allJobRunIds := []string{}
 
 	for _, node := range capacityReport.Nodes {
-		allAssignedRunIds = append(allAssignedRunIds, maps.Keys(node.RunIdsByState)...)
+		allAssignedRunIds = append(allAssignedRunIds, slices.Collect(maps.Keys(node.RunIdsByState))...)
 	}
 
 	// We make the assumption here that JobRunStateStore knows about all job runs and don't reconcile again against kubernetes
 	// This should be a safe assumption - and would be a bug if it was ever not true
 	allJobRuns := r.jobRunStateStore.GetAll()
-	allJobRunIds = append(allJobRunIds, slices.Map(allJobRuns, func(val *job.RunState) string {
+	allJobRunIds = append(allJobRunIds, armadaslices.Map(allJobRuns, func(val *job.RunState) string {
 		return val.Meta.RunId
 	})...)
 
-	unassignedIds := slices.Subtract(allJobRunIds, allAssignedRunIds)
+	unassignedIds := armadaslices.Subtract(allJobRunIds, allAssignedRunIds)
 
 	return unassignedIds
 }

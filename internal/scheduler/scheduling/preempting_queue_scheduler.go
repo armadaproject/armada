@@ -2,15 +2,15 @@ package scheduling
 
 import (
 	"context"
+	"maps"
 	"math"
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/benbjohnson/immutable"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -252,13 +252,13 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		}
 	}
 
-	preemptedJobs := maps.Values(preemptedJobsById)
-	scheduledJobs := maps.Values(scheduledJobsById)
-	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Unbinding %d preempted and %d evicted jobs", len(preemptedJobs), len(maps.Values(scheduledAndEvictedJobsById)))
+	preemptedJobs := slices.Collect(maps.Values(preemptedJobsById))
+	scheduledJobs := slices.Collect(maps.Values(scheduledJobsById))
+	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Unbinding %d preempted and %d evicted jobs", len(preemptedJobs), len(scheduledAndEvictedJobsById))
 	if err := sch.unbindJobs(
 		append(
 			slices.Clone(preemptedJobs),
-			maps.Values(scheduledAndEvictedJobsById)...,
+			slices.Collect(maps.Values(scheduledAndEvictedJobsById))...,
 		),
 	); err != nil {
 		return nil, err
@@ -266,7 +266,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Finished unbinding preempted and evicted jobs")
 
 	PopulatePreemptionDescriptions(sch.marketDriven, sch.schedulingContext.Pool, preemptedJobs, scheduledJobs)
-	schedulercontext.PrintJobSchedulingDetails(ctx, "Evicted job details", maps.Values(scheduledAndEvictedJobsById))
+	schedulercontext.PrintJobSchedulingDetails(ctx, "Evicted job details", slices.Collect(maps.Values(scheduledAndEvictedJobsById)))
 	schedulercontext.PrintJobSummary(ctx, "Preempting running jobs;", preemptedJobs)
 	schedulercontext.PrintJobSummary(ctx, "Scheduling new jobs;", scheduledJobs)
 	// TODO: Show failed jobs.
@@ -307,7 +307,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 
 	ctx.Infof("Evicting for pool %s (most may get re-scheduled this cycle so they won't necessarily be preempted) %s", sch.schedulingContext.Pool, result.SummaryString())
 
-	if err := sch.nodeDb.UpsertManyWithTxn(txn, maps.Values(result.AffectedNodesById)); err != nil {
+	if err := sch.nodeDb.UpsertManyWithTxn(txn, slices.Collect(maps.Values(result.AffectedNodesById))); err != nil {
 		return nil, nil, err
 	}
 
@@ -318,7 +318,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 		return nil, nil, err
 	}
 	ctx.Infof("Evicting remains of partially evicted gangs for pool %s (most may get re-scheduled this cycle so they won't necessarily be preempted) %s", sch.schedulingContext.Pool, gangEvictorResult.SummaryString())
-	if err := sch.nodeDb.UpsertManyWithTxn(txn, maps.Values(gangEvictorResult.AffectedNodesById)); err != nil {
+	if err := sch.nodeDb.UpsertManyWithTxn(txn, slices.Collect(maps.Values(gangEvictorResult.AffectedNodesById))); err != nil {
 		return nil, nil, err
 	}
 	maps.Copy(result.EvictedJctxsByJobId, gangEvictorResult.EvictedJctxsByJobId)
@@ -329,7 +329,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	if err != nil {
 		return nil, nil, err
 	}
-	evictedJctxs := maps.Values(result.EvictedJctxsByJobId)
+	evictedJctxs := slices.Collect(maps.Values(result.EvictedJctxsByJobId))
 	for _, jctx := range evictedJctxs {
 		if _, err := sch.schedulingContext.EvictJob(jctx); err != nil {
 			return nil, nil, err

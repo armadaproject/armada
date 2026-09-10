@@ -2,10 +2,10 @@ package queue
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sync/atomic"
 	"time"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -46,7 +46,7 @@ func (c *CachedQueueRepository) Run(ctx *armadacontext.Context) error {
 }
 
 func (c *CachedQueueRepository) GetQueue(_ *armadacontext.Context, name string) (queue.Queue, error) {
-	queues := *(c.queues.Load())
+	queues := *c.queues.Load()
 	if queues == nil {
 		return queue.Queue{}, &ErrQueueNotFound{QueueName: name}
 	}
@@ -62,7 +62,11 @@ func (c *CachedQueueRepository) GetAllQueues(_ *armadacontext.Context) ([]queue.
 	if queues == nil {
 		return nil, fmt.Errorf("no queues available")
 	}
-	return maps.Values(*queues), nil
+	queueList := slices.Collect(maps.Values(*queues))
+	if queueList == nil {
+		queueList = []queue.Queue{}
+	}
+	return queueList, nil
 }
 
 func (c *CachedQueueRepository) fetchQueues(ctx *armadacontext.Context) error {

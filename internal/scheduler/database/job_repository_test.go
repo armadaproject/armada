@@ -2,6 +2,8 @@ package database
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
@@ -10,8 +12,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -703,7 +703,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 				// Set up db
 				err := upsertJobs(ctx, repo.db, tc.dbJobs)
 				require.NoError(t, err)
-				err = upsertJobMetadata(ctx, repo.db, maps.Values(jobMetadata))
+				err = upsertJobMetadata(ctx, repo.db, slices.Collect(maps.Values(jobMetadata)))
 				require.NoError(t, err)
 				err = upsertRuns(ctx, repo.db, tc.dbRuns)
 				require.NoError(t, err)

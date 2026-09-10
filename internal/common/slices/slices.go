@@ -5,7 +5,7 @@ import (
 	"math"
 	"math/rand"
 
-	goslices "golang.org/x/exp/slices"
+	goslices "slices"
 )
 
 // PartitionToMaxLen partitions the elements of s into non-overlapping slices,

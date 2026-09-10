@@ -2,9 +2,10 @@ package submit
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api"
@@ -37,7 +38,7 @@ func (s *PostgresDeduplicator) GetOriginalJobIds(ctx *armadacontext.Context, que
 	duplicates := make(map[string]string)
 	// If we have any client Ids, retrieve their job ids
 	if len(kvs) > 0 {
-		keys := maps.Keys(kvs)
+		keys := slices.Collect(maps.Keys(kvs))
 		existingKvs, err := s.loadMappings(ctx, keys)
 		if err != nil {
 			return nil, err

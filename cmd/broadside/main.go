@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -15,7 +16,6 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 
 	"github.com/armadaproject/armada/internal/broadside/configuration"

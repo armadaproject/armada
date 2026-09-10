@@ -2,9 +2,10 @@ package internaltypes
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/util"
@@ -251,7 +252,7 @@ func (node *Node) GetLabels() map[string]string {
 }
 
 func (node *Node) GetRunningJobIds() []string {
-	return maps.Keys(node.AllocatedByJobId)
+	return slices.Collect(maps.Keys(node.AllocatedByJobId))
 }
 
 // IsJobEvicted reports whether the job is currently marked as evicted from the node.

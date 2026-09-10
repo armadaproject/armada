@@ -3,14 +3,14 @@ package scheduling
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math/rand"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
@@ -2366,7 +2366,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					totalResources,
 					tc.SchedulingConfig,
 					armadaslices.Map(
-						maps.Keys(tc.PriorityFactorByQueue),
+						slices.Collect(maps.Keys(tc.PriorityFactorByQueue)),
 						func(qn string) *api.Queue { return &api.Queue{Name: qn} },
 					))
 				sctx.UpdateFairShares()
@@ -2708,7 +2708,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nodeDb.TotalKubernetesResources(),
 				tc.SchedulingConfig,
 				armadaslices.Map(
-					maps.Keys(priorityFactorByQueue),
+					slices.Collect(maps.Keys(priorityFactorByQueue)),
 					func(qn string) *api.Queue { return &api.Queue{Name: qn} },
 				),
 			)

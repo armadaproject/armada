@@ -2,12 +2,12 @@ package scheduling
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/api/resource"
 

@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"time"
 
 	goreleaserConfig "github.com/goreleaser/goreleaser/v2/pkg/config"
 	"github.com/magefile/mage/sh"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 	"gopkg.in/yaml.v2"
 )
 
@@ -82,7 +83,7 @@ func goreleaserWriteMinimalReleaseConfig(dockerIds ...string) error {
 	for i := range builds {
 		builds[i].Goos = nil
 		builds[i].Goarch = nil
-		builds[i].Targets = maps.Keys(targets)
+		builds[i].Targets = slices.Collect(maps.Keys(targets))
 	}
 
 	minimalConfig := goreleaserConfig.Project{
@@ -91,7 +92,7 @@ func goreleaserWriteMinimalReleaseConfig(dockerIds ...string) error {
 		GoMod:       config.GoMod,
 		Env:         config.Env,
 		Builds:      builds,
-		Dockers:     maps.Values(dockersById),
+		Dockers:     slices.Collect(maps.Values(dockersById)),
 	}
 	bytes, err := yaml.Marshal(minimalConfig)
 	if err != nil {

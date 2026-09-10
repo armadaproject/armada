@@ -1,12 +1,12 @@
 package metrics
 
 import (
+	"maps"
 	"regexp"
+	"slices"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -379,9 +379,7 @@ func CollectQueueMetrics(pools []configuration.PoolConfig, queueCounts map[strin
 		metrics = append(metrics, NewQueueDistinctSchedulingKeyMetric(queueDistinctSchedulingKeyCounts[q], q))
 		queuedJobMetrics := metricsProvider.GetQueuedJobMetrics(q)
 		runningJobMetrics := metricsProvider.GetRunningJobMetrics(q)
-		priceBandNames := maps.Keys(bidstore.PriceBandFromShortName)
-		// Sort the keys so we get a predictable output order
-		slices.Sort(priceBandNames)
+		priceBandNames := slices.Sorted(maps.Keys(bidstore.PriceBandFromShortName))
 		for _, priceBandShortName := range priceBandNames {
 			priceBand := bidstore.PriceBandFromShortName[priceBandShortName]
 			bidsByPool, exists := bidPriceSnapshot.GetPrice(q, priceBand)
@@ -408,15 +406,11 @@ func CollectQueueMetrics(pools []configuration.PoolConfig, queueCounts map[strin
 			metrics = append(metrics, NewMaxQueuePriceQueuedMetric(m.BidPrices.GetMax(), m.Pool, m.PriorityClass, q, m.AccountingRole))
 			metrics = append(metrics, NewMedianQueuePriceQueuedMetric(m.BidPrices.GetMedian(), m.Pool, m.PriorityClass, q, m.AccountingRole))
 
-			// Sort the keys so we get a predictable output order
-			resourcePriceBands := maps.Keys(m.Resources)
-			slices.Sort(resourcePriceBands)
+			resourcePriceBands := slices.Sorted(maps.Keys(m.Resources))
 
 			for _, priceBand := range resourcePriceBands {
 				priceBandShortName := GetPriceBandShortName(priceBand)
-				resourceKeys := maps.Keys(m.Resources[priceBand])
-				// Sort the keys so we get a predictable output order
-				slices.Sort(resourceKeys)
+				resourceKeys := slices.Sorted(maps.Keys(m.Resources[priceBand]))
 				for _, resourceType := range resourceKeys {
 					amount := m.Resources[priceBand][resourceType]
 					if amount.GetCount() > 0 {
@@ -444,15 +438,11 @@ func CollectQueueMetrics(pools []configuration.PoolConfig, queueCounts map[strin
 			metrics = append(metrics, NewMaxQueuePriceRunningMetric(m.BidPrices.GetMax(), m.Pool, m.PriorityClass, q))
 			metrics = append(metrics, NewMedianQueuePriceRunningMetric(m.BidPrices.GetMedian(), m.Pool, m.PriorityClass, q))
 
-			// Sort the keys so we get a predictable output order
-			resourcePriceBands := maps.Keys(m.Resources)
-			slices.Sort(resourcePriceBands)
+			resourcePriceBands := slices.Sorted(maps.Keys(m.Resources))
 
 			for _, priceBand := range resourcePriceBands {
 				priceBandShortName := GetPriceBandShortName(priceBand)
-				resourceKeys := maps.Keys(m.Resources[priceBand])
-				// Sort the keys so we get a predictable output order
-				slices.Sort(resourceKeys)
+				resourceKeys := slices.Sorted(maps.Keys(m.Resources[priceBand]))
 				for _, resourceType := range resourceKeys {
 					amount := m.Resources[priceBand][resourceType]
 					if amount.GetCount() > 0 {

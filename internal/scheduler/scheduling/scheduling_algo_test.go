@@ -2,15 +2,15 @@ package scheduling
 
 import (
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
@@ -1348,8 +1348,10 @@ func TestPopulateNodeDb(t *testing.T) {
 					return job.Id()
 				})
 				slices.Sort(expectedJobIds)
-				actualJobIds := maps.Keys(node.AllocatedByJobId)
-				slices.Sort(actualJobIds)
+				actualJobIds := slices.Sorted(maps.Keys(node.AllocatedByJobId))
+				if actualJobIds == nil {
+					actualJobIds = []string{}
+				}
 				assert.Equal(t, expectedJobIds, actualJobIds)
 			} else {
 				assert.Len(t, nodes, 0)
@@ -1499,7 +1501,7 @@ func TestBuildInUsePriorityClasses(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			result := sch.buildInUsePriorityClasses(tc.inUse)
-			assert.ElementsMatch(t, tc.expected, maps.Keys(result))
+			assert.ElementsMatch(t, tc.expected, slices.Collect(maps.Keys(result)))
 			for _, pcName := range tc.expected {
 				assert.Equal(t, schedulingConfig.PriorityClasses[pcName], result[pcName])
 			}

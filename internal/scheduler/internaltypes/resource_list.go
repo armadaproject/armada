@@ -3,9 +3,9 @@ package internaltypes
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
-	"golang.org/x/exp/slices"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 )
 

@@ -2,10 +2,10 @@ package repository
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/pkg/errors"
-	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	log "github.com/armadaproject/armada/internal/common/logging"

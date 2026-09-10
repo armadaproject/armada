@@ -2,20 +2,21 @@ package nodedb
 
 import (
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	log "github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/slices"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -201,7 +202,7 @@ func NewNodeDb(
 	nodeDbPriorities := []int32{internaltypes.EvictedPriority, internaltypes.CrossPoolPriority}
 	nodeDbPriorities = append(nodeDbPriorities, types.AllowedPriorities(priorityClasses)...)
 
-	indexedResourceNames := slices.Map(indexedResources, func(v configuration.ResourceType) string { return v.Name })
+	indexedResourceNames := armadaslices.Map(indexedResources, func(v configuration.ResourceType) string { return v.Name })
 	schema, indexNameByPriority, keyIndexByPriority := nodeDbSchema(nodeDbPriorities, indexedResourceNames)
 	db, err := memdb.NewMemDB(schema)
 	if err != nil {
@@ -322,8 +323,8 @@ func (nodeDb *NodeDb) String() string {
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Priorities:\t%v\n", nodeDb.nodeDbPriorities)
 	fmt.Fprintf(w, "Indexed resources:\t%v\n", nodeDb.indexedResources)
-	fmt.Fprintf(w, "Indexed taints:\t%v\n", maps.Keys(nodeDb.indexedTaints))
-	fmt.Fprintf(w, "Indexed node labels:\t%v\n", maps.Keys(nodeDb.indexedNodeLabels))
+	fmt.Fprintf(w, "Indexed taints:\t%v\n", slices.Collect(maps.Keys(nodeDb.indexedTaints)))
+	fmt.Fprintf(w, "Indexed node labels:\t%v\n", slices.Collect(maps.Keys(nodeDb.indexedNodeLabels)))
 	if len(nodeDb.nodeTypes) == 0 {
 		fmt.Fprint(w, "Node types:\tnone\n")
 	} else {

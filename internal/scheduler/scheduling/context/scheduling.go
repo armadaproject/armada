@@ -2,15 +2,15 @@ package context
 
 import (
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
@@ -361,7 +361,7 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 		},
 	)
 	if verbosity <= 0 {
-		fmt.Fprintf(w, "Scheduled queues:\t%v\n", maps.Keys(scheduled))
+		fmt.Fprintf(w, "Scheduled queues:\t%v\n", slices.Collect(maps.Keys(scheduled)))
 	} else {
 		fmt.Fprint(w, "Scheduled queues:\n")
 		for queueName, qctx := range scheduled {
@@ -376,7 +376,7 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 		},
 	)
 	if verbosity <= 0 {
-		fmt.Fprintf(w, "Preempted queues:\t%v\n", maps.Keys(preempted))
+		fmt.Fprintf(w, "Preempted queues:\t%v\n", slices.Collect(maps.Keys(preempted)))
 	} else {
 		fmt.Fprint(w, "Preempted queues:\n")
 		for queueName, qctx := range preempted {

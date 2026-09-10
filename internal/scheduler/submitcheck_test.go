@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	testclock "k8s.io/utils/clock/testing"

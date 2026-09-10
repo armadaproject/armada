@@ -4,6 +4,7 @@ package testfixtures
 import (
 	"encoding/binary"
 	"fmt"
+	"maps"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/oklog/ulid"
-	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"

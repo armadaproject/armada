@@ -215,7 +215,7 @@ func allocatedByPriorityAndResourceTypeFromPods(pods []*v1.Pod) (map[int32]armad
 	for _, pod := range pods {
 		var priority int32 = 0
 		if pod.Spec.Priority != nil {
-			priority = *(pod.Spec.Priority)
+			priority = *pod.Spec.Priority
 		}
 		request := armadaresource.TotalPodResourceRequest(&pod.Spec)
 		// Always reported so the scheduler can track non-Armada pods against per-node pod capacity
