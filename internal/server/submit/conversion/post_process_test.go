@@ -11,8 +11,10 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/constants"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/server/configuration"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -755,4 +757,130 @@ func submitMsgFromAnnotations(annotations map[string]string) *armadaevents.Submi
 			Annotations: annotations,
 		},
 	}
+}
+
+func TestDropPodLevelResourcesIfDisabled(t *testing.T) {
+	podLevel := &v1.ResourceRequirements{
+		Requests: v1.ResourceList{"cpu": resource.MustParse("2")},
+		Limits:   v1.ResourceList{"cpu": resource.MustParse("2")},
+	}
+
+	tests := map[string]struct {
+		initialResources  *v1.ResourceRequirements
+		enabled           bool
+		expectedResources *v1.ResourceRequirements
+	}{
+		"disabled clears the pod-level block": {
+			initialResources: podLevel,
+			enabled:          false,
+		},
+		"enabled preserves the pod-level block": {
+			initialResources:  podLevel,
+			enabled:           true,
+			expectedResources: podLevel,
+		},
+		"unset pod-level block is left unset": {
+			enabled: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			spec := &v1.PodSpec{Resources: tc.initialResources.DeepCopy()}
+			dropPodLevelResourcesIfDisabled(spec, configuration.SubmissionConfig{PodLevelResources: tc.enabled})
+			assert.Equal(t, tc.expectedResources, spec.Resources)
+		})
+	}
+}
+
+// A resource carried by the pod-level block must not be defaulted into the containers, or each
+// container gets its own ceiling nested inside the pod's and the pooled budget is unusable.
+func TestDefaultResourcePodLevel(t *testing.T) {
+	defaults := configuration.SubmissionConfig{
+		DefaultJobLimits: armadaresource.ComputeResources{
+			"cpu":               resource.MustParse("1"),
+			"memory":            resource.MustParse("1Gi"),
+			"ephemeral-storage": resource.MustParse("8Gi"),
+		},
+	}
+	rr := func(rl v1.ResourceList) *v1.ResourceRequirements {
+		return &v1.ResourceRequirements{Requests: rl, Limits: rl}
+	}
+	cpuMem := v1.ResourceList{"cpu": resource.MustParse("6"), "memory": resource.MustParse("24Gi")}
+
+	tests := map[string]struct {
+		podLevel *v1.ResourceRequirements
+		spec     *v1.PodSpec
+		// absent lists resources that must not appear on any container, present the
+		// container-level values that must.
+		absent  []v1.ResourceName
+		present v1.ResourceList
+	}{
+		"pooled resources are not defaulted into containers": {
+			podLevel: rr(cpuMem),
+			spec:     &v1.PodSpec{Containers: []v1.Container{{Name: "model"}, {Name: "solver"}}},
+			absent:   []v1.ResourceName{"cpu", "memory"},
+			// KEP-2837 cannot carry ephemeral-storage at the pod level, so it still defaults.
+			present: v1.ResourceList{"ephemeral-storage": resource.MustParse("8Gi")},
+		},
+		"a resource the pod-level block omits still defaults": {
+			podLevel: rr(v1.ResourceList{"memory": resource.MustParse("24Gi")}),
+			spec:     &v1.PodSpec{Containers: []v1.Container{{Name: "only"}}},
+			absent:   []v1.ResourceName{"memory"},
+			present:  v1.ResourceList{"cpu": resource.MustParse("1")},
+		},
+		"a bare init container no longer gets whole-core cpu": {
+			podLevel: rr(cpuMem),
+			spec: &v1.PodSpec{
+				InitContainers: []v1.Container{{Name: "init"}},
+				Containers:     []v1.Container{{Name: "main"}},
+			},
+			absent: []v1.ResourceName{"cpu", "memory"},
+		},
+		"no pod-level block defaults exactly as before": {
+			spec:    &v1.PodSpec{Containers: []v1.Container{{Name: "c"}}},
+			present: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tc.spec.Resources = tc.podLevel
+			defaultResource(tc.spec, defaults)
+
+			for _, c := range append(tc.spec.Containers, tc.spec.InitContainers...) {
+				for _, rn := range tc.absent {
+					assert.NotContains(t, c.Resources.Requests, rn, c.Name)
+					assert.NotContains(t, c.Resources.Limits, rn, c.Name)
+				}
+				for rn, want := range tc.present {
+					assert.Equal(t, want, c.Resources.Requests[rn], "%s requests %s", c.Name, rn)
+					assert.Equal(t, want, c.Resources.Limits[rn], "%s limits %s", c.Name, rn)
+				}
+			}
+			// The block itself is never modified.
+			assert.Equal(t, tc.podLevel, tc.spec.Resources)
+		})
+	}
+}
+
+// The effective request stays the pod-level budget once defaulting no longer inflates the
+// container sum.
+func TestDefaultResourcePodLevelEffectiveRequest(t *testing.T) {
+	spec := &v1.PodSpec{
+		Resources: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("6"), "memory": resource.MustParse("24Gi")},
+			Limits:   v1.ResourceList{"cpu": resource.MustParse("6"), "memory": resource.MustParse("24Gi")},
+		},
+		Containers: []v1.Container{{Name: "model"}, {Name: "solver"}},
+	}
+	defaultResource(spec, configuration.SubmissionConfig{
+		DefaultJobLimits: armadaresource.ComputeResources{
+			"cpu":    resource.MustParse("1"),
+			"memory": resource.MustParse("1Gi"),
+		},
+	})
+
+	effective := api.SchedulingResourceRequirementsFromPodSpec(spec).Requests
+	assert.Equal(t, resource.MustParse("6"), effective["cpu"])
+	assert.Equal(t, resource.MustParse("24Gi"), effective["memory"])
 }
