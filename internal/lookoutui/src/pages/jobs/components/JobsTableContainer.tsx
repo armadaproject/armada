@@ -767,14 +767,19 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
         `${formatColumnList(removedNames)} ${removedNames.length === 1 ? "filter" : "filters"} cleared, as ${
           removedNames.length === 1 ? "it requires" : "they require"
         } a filter on another column.`,
-        () => {
-          outstandingUndoActionsRef.current = outstandingUndoActionsRef.current.filter(
-            (undo) => undo.snackbarKey !== snackbarKey,
-          )
+        () =>
           onFilterChange(
             (current) => [...current.filter(({ id }) => !restoredColumnIds.includes(id)), ...restoredFilters],
             true,
-          )
+          ),
+        {
+          // However the snackbar goes away, whether undone, dismissed or auto-hidden, its undo
+          // action is no longer available and so must no longer be tracked
+          onExited: (_node, key) => {
+            outstandingUndoActionsRef.current = outstandingUndoActionsRef.current.filter(
+              (undoAction) => undoAction.snackbarKey !== key,
+            )
+          },
         },
       )
       outstandingUndoActionsRef.current = [...outstandingUndoActionsRef.current, { snackbarKey, restoredColumnIds }]
