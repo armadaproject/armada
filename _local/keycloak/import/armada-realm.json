@@ -102,6 +102,72 @@
         "offline_access",
         "microprofile-jwt"
       ]
+    },
+    {
+      "clientId": "armada-user",
+      "name": "Armada User Service",
+      "description": "Service account for Armada Users",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "protocol": "openid-connect",
+      "bearerOnly": false,
+      "consentRequired": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "user-secret",
+      "redirectUris": [],
+      "webOrigins": [],
+      "notBefore": 0,
+      "attributes": {
+        "use.refresh.tokens": "false",
+        "client_credentials.use_refresh_token": "false"
+      },
+      "fullScopeAllowed": true,
+      "nodeReRegistrationTimeout": -1,
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email"],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "clientId": "armada-admin",
+      "name": "Armada Admin Service",
+      "description": "Service account for Armada Admins",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "protocol": "openid-connect",
+      "bearerOnly": false,
+      "consentRequired": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "admin-secret",
+      "redirectUris": [],
+      "webOrigins": [],
+      "notBefore": 0,
+      "attributes": {
+        "use.refresh.tokens": "false",
+        "client_credentials.use_refresh_token": "false"
+      },
+      "fullScopeAllowed": true,
+      "nodeReRegistrationTimeout": -1,
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email"],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
     }
   ],
   "clientScopes": [
@@ -240,6 +306,40 @@
       "groups": ["/admins"]
     },
     {
+      "username": "executor",
+      "enabled": true,
+      "email": "executor@example.com",
+      "firstName": "Executor",
+      "lastName": "User",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "executor",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["default-roles-armada"],
+      "groups": ["/executors"]
+    },
+    {
+      "username": "user",
+      "enabled": true,
+      "email": "user@example.com",
+      "firstName": "User",
+      "lastName": "User",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "user",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["default-roles-armada"],
+      "groups": ["/users"]
+    },
+    {
       "username": "service-account-armada-executor",
       "enabled": true,
       "email": "executor@armada.local",
@@ -247,6 +347,26 @@
       "lastName": "Executor",
       "emailVerified": true,
       "serviceAccountClientId": "armada-executor",
+      "groups": ["/executors"]
+    },
+    {
+      "username": "service-account-armada-user",
+      "enabled": true,
+      "email": "user@armada.local",
+      "firstName": "Service Account",
+      "lastName": "User",
+      "emailVerified": true,
+      "serviceAccountClientId": "armada-user",
+      "groups": ["/users"]
+    },
+    {
+      "username": "service-account-armada-admin",
+      "enabled": true,
+      "email": "admin-service@armada.local",
+      "firstName": "Service Account",
+      "lastName": "Admin",
+      "emailVerified": true,
+      "serviceAccountClientId": "armada-admin",
       "groups": ["/admins"]
     }
   ],

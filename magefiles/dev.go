@@ -162,7 +162,42 @@ func (Dev) Down() error {
 // ordered ahead of the components, so no separate init step is needed.
 func (Dev) Full() error {
 	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"), Kind)
-	return sh.RunV("docker", "compose", "-f", fullComposeFile, "up", "-d", "--wait")
+	if err := ensureEtcHostsEntry("keycloak", "127.0.0.1"); err != nil {
+		return err
+	}
+	// keycloak has its own compose healthcheck, so --wait already blocks until it (and every
+	// other service) is ready. --remove-orphans clears containers from services removed or
+	// renamed since a stack was last brought up (e.g. the old server-auth container).
+	return sh.RunV("docker", "compose", "-f", fullComposeFile, "up", "-d", "--wait", "--remove-orphans")
+}
+
+// ensureEtcHostsEntry makes the literal hostname host resolve to ip from the host machine, by
+// appending an /etc/hosts entry if one isn't already present. full.yaml's keycloak service pins
+// KC_HOSTNAME=keycloak so its OIDC issuer is one fixed string regardless of caller; other
+// containers reach it as "keycloak" via Docker's own DNS, so the host (where armadactl and the
+// test runner run) needs the same literal hostname to resolve, to satisfy go-oidc's requirement
+// that the issuer used for discovery and a token's iss claim match exactly.
+func ensureEtcHostsEntry(host, ip string) error {
+	data, err := os.ReadFile("/etc/hosts")
+	if err != nil {
+		return fmt.Errorf("reading /etc/hosts: %w", err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[0] == ip {
+			for _, name := range fields[1:] {
+				if name == host {
+					return nil
+				}
+			}
+		}
+	}
+	fmt.Printf("Adding %q entry to /etc/hosts (sudo required)...\n", ip+" "+host)
+	cmd := exec.Command("sudo", "tee", "-a", "/etc/hosts")
+	cmd.Stdin = strings.NewReader("\n" + ip + " " + host + "\n")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 // FullDown stops the containerized full stack and tears down the Kind cluster.

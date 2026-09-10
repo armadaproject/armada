@@ -1,0 +1,40 @@
+# RBAC: a principal with the global cancel_any_jobs permission (armada-admin) can cancel jobs
+# in a queue it doesn't own.
+queue: rbac-cancel-with-perm
+authContext: rbac-admin
+numBatches: 1
+batchSize: 1
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: cancel-by-id
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          args:
+            - "sleep"
+            - "100s"
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+cancel:
+  request: {}
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - cancelled:
+queueConfig:
+  setup:
+    # An explicit non-admin owner stops CreateQueue's auto-add-owner default (which would
+    # otherwise make armada-admin the queue owner and let ownership -- not cancel_any_jobs --
+    # explain a successful cancel).
+    queueSpec:
+      userOwners: ["nobody"]

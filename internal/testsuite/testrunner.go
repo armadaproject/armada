@@ -11,6 +11,8 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -25,6 +27,26 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 )
+
+// checkExpectedError reconciles a call's outcome against testSpec.ExpectErrorCode.
+// A nil err is always passed through unchanged: at most one call site is "the action under
+// test" for any given negative RBAC test, and every other site along the way (queue setup,
+// submit, teardown, ...) is a precondition that's expected to genuinely succeed. Run() uses
+// expectedErrorObserved to separately verify that the expected denial happened somewhere by
+// the end of the test, rather than baking that check into every call site.
+// If ExpectErrorCode is unset, err is returned unchanged (today's behavior: any error fails
+// the test). If set and err is non-nil: a matching status code is the expected, benign outcome
+// (returns nil); a non-matching code is a real failure (wrapped and returned).
+func checkExpectedError(testSpec *api.TestSpec, err error) error {
+	if err == nil || testSpec.GetExpectErrorCode() == 0 {
+		return err
+	}
+	wantCode := codes.Code(testSpec.GetExpectErrorCode())
+	if status.Code(err) != wantCode {
+		return errors.Wrapf(err, "expected call to fail with code %s", wantCode)
+	}
+	return nil
+}
 
 type TestRunner struct {
 	Out                  io.Writer
@@ -70,6 +92,20 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		}
 	}()
 
+	// expectedErrorObserved is set by whichever call site actually produces the
+	// ExpectErrorCode denial this test is checking for (at most one of setup/update/submit/
+	// teardown/action ever will, per test). Registered before the report defer above so it
+	// runs first (defers are LIFO) and can still correct err before the report captures it.
+	var expectedErrorObserved bool
+	defer func() {
+		if err == nil && srv.testSpec.GetExpectErrorCode() != 0 && !expectedErrorObserved {
+			err = errors.Errorf(
+				"expected a call to fail with code %s, but the test completed successfully",
+				codes.Code(srv.testSpec.GetExpectErrorCode()),
+			)
+		}
+	}()
+
 	// Optional timeout
 	var cancel context.CancelFunc
 	timeout := protoutil.ToStdDuration(srv.testSpec.Timeout)
@@ -81,22 +117,43 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	defer cancel()
 
 	// Create and (optionally) update the queue(s) under test.
-	queueNames, err := queue.RunSetup(ctx, srv.testSpec, srv.apiConnectionDetails, out)
-	if err != nil {
+	queueNames, setupErr := queue.RunSetup(ctx, srv.testSpec, srv.apiConnectionDetails, out)
+	if err = checkExpectedError(srv.testSpec, setupErr); err != nil {
 		return err
 	}
-	if err = queue.RunUpdate(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out); err != nil {
+	if setupErr != nil {
+		// The expected failure already occurred (e.g. create_queue denied); nothing was
+		// created, so there's nothing left to do or tear down.
+		expectedErrorObserved = true
+		return nil
+	}
+	updateErr := queue.RunUpdate(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out)
+	if err = checkExpectedError(srv.testSpec, updateErr); err != nil {
 		return err
+	}
+	if updateErr != nil {
+		// The expected failure already occurred (e.g. update_queue denied against a queue this
+		// test doesn't own); skip teardown since this test didn't create the queue it targeted.
+		expectedErrorObserved = true
+		return nil
 	}
 
 	// (deferred): always delete the queue(s) once the test finishes.
 	defer func() {
-		if teardownErr := queue.RunTeardown(queueNames, srv.testSpec, srv.apiConnectionDetails, out); teardownErr != nil {
-			fmt.Fprintf(out, "warning: queue teardown failed: %s\n", teardownErr)
-			if err == nil {
-				err = teardownErr
-			}
+		teardownErr := queue.RunTeardown(queueNames, srv.testSpec, srv.apiConnectionDetails, out)
+		if teardownErr == nil {
+			return
 		}
+		if checkedErr := checkExpectedError(srv.testSpec, teardownErr); checkedErr != nil {
+			fmt.Fprintf(out, "warning: queue teardown failed: %s\n", checkedErr)
+			if err == nil {
+				err = checkedErr
+			}
+			return
+		}
+		// teardownErr matched ExpectErrorCode (e.g. delete_queue denied) -- the expected
+		// denial for this test.
+		expectedErrorObserved = true
 	}()
 
 	// Pure queue tests submit no jobs, so skip the job-submission block below and
@@ -110,8 +167,15 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 
 	// Submit jobs. All jobs must be submitted before proceeding since we need the job ids.
 	sbmtr := submitter.NewSubmitterFromTestSpec(srv.apiConnectionDetails, srv.testSpec, out)
-	if err = sbmtr.Run(ctx); err != nil {
+	submitErr := sbmtr.Run(ctx)
+	if err = checkExpectedError(srv.testSpec, submitErr); err != nil {
 		return err
+	}
+	if submitErr != nil {
+		// The expected failure already occurred (e.g. submit denied); no jobs exist to watch,
+		// act on, or assert against.
+		expectedErrorObserved = true
+		return nil
 	}
 	jobIds := sbmtr.JobIds()
 	jobIdMap := make(map[string]bool)
@@ -184,16 +248,38 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Watch for ingress events and try to download from any ingresses found.
 	g.Go(func() error { return eventwatcher.GetFromIngresses(ctx, ingressCh) })
 
+	if srv.testSpec.GetExpectErrorCode() != 0 {
+		// Negative RBAC tests targeting the action/watch goroutines (cancel, preempt,
+		// reprioritize, GetJobSetEvents) deliberately leave ExpectedEvents empty, since
+		// what's under test is whether the RPC was denied, not what events followed it -- a
+		// short ExpectedEvents list (e.g. just "submitted") would let AssertEvents return
+		// success before the denied action even runs, racing the very thing we're testing.
+		// An empty ExpectedEvents list instead blocks AssertEvents until ctx is cancelled,
+		// which happens automatically once the denied RPC returns and the errgroup cancels
+		// its shared ctx -- or once this test's own timeout elapses if the RPC was (wrongly)
+		// allowed through. So AssertEvents's own result is meaningless here; reconcile the
+		// aggregated error from every goroutine in the group against ExpectErrorCode instead.
+		eventwatcher.AssertEvents(ctx, assertCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents) //nolint:errcheck
+		cancel()
+		groupErr := g.Wait()
+		if checkedErr := checkExpectedError(srv.testSpec, groupErr); checkedErr != nil {
+			return checkedErr
+		}
+		if groupErr != nil {
+			expectedErrorObserved = true
+		}
+		return nil
+	}
+
 	// Assert that we get the right events for each job.
 	// Returns once we've received all events or when ctx is cancelled.
-	if err = eventwatcher.AssertEvents(ctx, assertCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents); err != nil {
+	if assertErr := eventwatcher.AssertEvents(ctx, assertCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents); assertErr != nil {
 		cancel()
 		groupErr := g.Wait()
 		if groupErr != nil {
-			return errors.Errorf("%s: %s", err, groupErr)
-		} else {
-			return err
+			return errors.Errorf("%s: %s", assertErr, groupErr)
 		}
+		return assertErr
 	}
 
 	// If configured, cancel the job set once it has no active jobs (all jobs terminal) and

@@ -34,9 +34,13 @@ auth:
     delete_retry_policy: ["admins"]
     delete_queue: ["admins"]
     cancel_any_jobs: ["admins"]
+    preempt_any_jobs: ["admins"]
     reprioritize_any_jobs: ["admins"]
     watch_all_events: ["admins"]
     execute_jobs: ["admins", "executors"]
+    cordon_queue: ["admins"]
+    cordon_nodes: ["admins"]
+    update_executor_settings: ["admins"]
 eventsApiRedis:
   addrs:
     - localhost:6379

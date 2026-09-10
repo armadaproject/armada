@@ -30,12 +30,51 @@ contexts:
 
   # Context with OIDC Client Credentials authentication
   # For service accounts (requires confidential client with secret)
-  auth-client-creds:
+  auth-client-executor:
     armadaUrl: localhost:50051
     openIdClientCredentialsAuth:
       providerUrl: "http://localhost:8180/realms/armada"
       clientId: "armada-executor"
       clientSecret: "executor-secret"
+      scopes: ["openid", "profile", "email"]
+
+  auth-client-user:
+    armadaUrl: localhost:50051
+    openIdClientCredentialsAuth:
+      providerUrl: "http://localhost:8180/realms/armada"
+      clientId: "armada-user"
+      clientSecret: "user-secret"
+      scopes: ["openid", "profile", "email"]
+
+  auth-client-admin:
+    armadaUrl: localhost:50051
+    openIdClientCredentialsAuth:
+      providerUrl: "http://localhost:8180/realms/armada"
+      clientId: "armada-admin"
+      clientSecret: "admin-secret"
+      scopes: ["openid", "profile", "email"]
+
+  # Contexts for the rbac integration test suite, against the containerized full.yaml stack
+  # (server on :50051, temporarily recreated with the auth config for the rbac suite -- see
+  # magefiles/ci.go's switchServiceConfig). full.yaml's keycloak pins KC_HOSTNAME=keycloak, so
+  # its OIDC discovery issuer is always "http://keycloak:8180/realms/armada" regardless of
+  # caller -- unlike auth-client-admin/-user above (for the stack.yaml/dev:up host-process flow,
+  # where keycloak has no such pin and "localhost" matches). The host resolves "keycloak" via
+  # the /etc/hosts alias `mage dev:full` adds -- see magefiles/dev.go's ensureEtcHostsEntry.
+  rbac-admin:
+    armadaUrl: localhost:50051
+    openIdClientCredentialsAuth:
+      providerUrl: "http://keycloak:8180/realms/armada"
+      clientId: "armada-admin"
+      clientSecret: "admin-secret"
+      scopes: ["openid", "profile", "email"]
+
+  rbac-user:
+    armadaUrl: localhost:50051
+    openIdClientCredentialsAuth:
+      providerUrl: "http://keycloak:8180/realms/armada"
+      clientId: "armada-user"
+      clientSecret: "user-secret"
       scopes: ["openid", "profile", "email"]
 
   # Context with OIDC Password Flow authentication

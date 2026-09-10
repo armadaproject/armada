@@ -1,0 +1,37 @@
+# RBAC: a principal with the global watch_all_events permission (armada-admin) can watch a job
+# set's events via GetJobSetEvents in a queue it doesn't own.
+queue: rbac-watch-with-perm
+authContext: rbac-admin
+numBatches: 1
+batchSize: 1
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: sleep
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          args:
+            - "ls"
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - succeeded:
+queueConfig:
+  setup:
+    # An explicit non-admin owner stops CreateQueue's auto-add-owner default (which would
+    # otherwise make armada-admin the queue owner and let ownership -- not watch_all_events --
+    # explain successfully watching events).
+    queueSpec:
+      userOwners: ["nobody"]

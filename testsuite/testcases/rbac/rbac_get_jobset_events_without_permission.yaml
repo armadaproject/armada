@@ -1,0 +1,34 @@
+# RBAC: a principal without watch_all_events and without a queue-level watch grant (armada-user)
+# cannot watch job-set events via GetJobSetEvents, even for a job it submitted itself. Targets
+# the shared rbac-fixture-restricted queue (bootstrapped by CI under the admin identity, granting
+# the /users group submit-only), so submission succeeds via the queue-level grant but the
+# GetJobSetEvents stream that Run() opens to watch for events is denied.
+# ExpectedEvents is deliberately empty -- see testrunner.go's Run() for why a short list would
+# race the denied watch (eventwatcher.EventWatcher.Run returns PermissionDenied immediately,
+# without retrying, cancelling the errgroup's shared ctx).
+queue: rbac-queue
+authContext: rbac-user
+numBatches: 1
+batchSize: 1
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: sleep
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          args:
+            - "ls"
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+timeout: "30s"
+expectErrorCode: 7 # PERMISSION_DENIED
