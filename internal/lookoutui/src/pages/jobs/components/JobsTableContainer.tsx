@@ -33,6 +33,7 @@ import {
   VisibilityState,
 } from "@tanstack/react-table"
 import _ from "lodash"
+import { SnackbarKey } from "notistack"
 import { ErrorBoundary } from "react-error-boundary"
 
 import { buildViewEventData } from "../../../analytics/viewMetadata"
@@ -43,6 +44,7 @@ import {
   DEFAULT_COLUMN_ORDER,
   DEFAULT_COLUMN_VISIBILITY,
   getAnnotationKeyCols,
+  getColumnMetadata,
   INPUT_PARSERS,
   GET_JOB_COLUMNS,
   JobTableColumn,
@@ -53,12 +55,15 @@ import {
   JobColumnsOptions,
   LookoutColumnOrder,
 } from "../../../common/jobsTableColumns"
+import { formatColumnList } from "../../../common/jobsTableFormatters"
 import {
   LookoutColumnFilter,
+  changedFilterColumnIds,
   diffOfKeys,
   getFiltersForRowsSelection,
   PendingData,
   pendingDataForAllVisibleData,
+  pruneUnsatisfiedFilters,
   updaterToValue,
 } from "../../../common/jobsTableUtils"
 import { fromRowId, RowId } from "../../../common/reactTableUtils"
@@ -70,7 +75,7 @@ import {
   useFormatIsoTimestampWithUserSettings,
   useDisplayedTimeZoneWithUserSettings,
 } from "../../../components/hooks/formatTimeWithUserSettings"
-import { useCustomSnackbar, useUndoableSnackbar } from "../../../components/hooks/useCustomSnackbar"
+import { useCloseSnackbar, useCustomSnackbar, useUndoableSnackbar } from "../../../components/hooks/useCustomSnackbar"
 import { columnIsAggregatable, useFetchJobsTableData } from "../../../components/hooks/useJobsTableData"
 import { CommandSpec } from "../../../config"
 import { isJobGroupRow, JobRow, JobTableRow } from "../../../models/jobsTableModels"
@@ -121,6 +126,7 @@ function fromLookoutOrder(lookoutOrder: LookoutColumnOrder): SortingState {
 export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
   const openUndoableSnackbar = useUndoableSnackbar()
+  const closeSnackbar = useCloseSnackbar()
   const groupJobs = useGroupJobs()
 
   const router = useStableRouter()
@@ -189,7 +195,17 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
   }
 
   // Filtering
-  const [columnFilterState, setColumnFilterState] = useState<ColumnFiltersState>(initialPrefs.filters)
+  const [columnFilterState, setColumnFilterState] = useState<ColumnFiltersState>(
+    // Filters may arrive from the query string with their prerequisites missing, e.g. from a stale
+    // or hand-edited link
+    pruneUnsatisfiedFilters(initialPrefs.filters).filters,
+  )
+  // Tracks the current filter state for callbacks which may outlive the render they were created in,
+  // such as the undo action of a snackbar
+  const columnFilterStateRef = useRef(columnFilterState)
+  columnFilterStateRef.current = columnFilterState
+  // Undo actions which are still on screen, each with the columns its undo action would overwrite
+  const outstandingUndoActionsRef = useRef<{ snackbarKey: SnackbarKey; restoredColumnIds: string[] }[]>([])
   const [lookoutFilters, setLookoutFilters] = useState<LookoutColumnFilter[]>([]) // Parsed later
   const [columnMatches, setColumnMatches] = useState<Record<string, Match>>(initialPrefs.columnMatches)
   const [parseErrors, setParseErrors] = useState<Record<string, string | undefined>>({})
@@ -301,8 +317,9 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
     setLookoutOrder(prefs.order)
     setSorting(fromLookoutOrder(prefs.order))
     setColumnSizing(prefs.columnSizing ?? {})
-    setColumnFilterState(prefs.filters)
-    setLookoutFilters(parseLookoutFilters(prefs.filters))
+    const { filters: prunedFilters } = pruneUnsatisfiedFilters(prefs.filters)
+    setColumnFilterState(prunedFilters)
+    setLookoutFilters(parseLookoutFilters(prunedFilters))
     setColumnMatches(prefs.columnMatches)
     const cols = GET_JOB_COLUMNS(jobColumnsOptions).concat(...prefs.annotationColumnKeys.map(createAnnotationColumn))
     setAllColumns(cols)
@@ -322,7 +339,7 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
     }
 
     // Have to manually set text fields to the filter values since they are uncontrolled
-    setTextFields(prefs.filters)
+    setTextFields(prunedFilters)
 
     // Load data
     setRowsToFetch(pendingDataForAllVisibleData(prefs.expandedState, data, prefs.pageSize))
@@ -431,11 +448,17 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
     if (columnIsAggregatable(colIdToToggle) && grouping.length > 0 && !visibleColumnIds.includes(colIdToToggle)) {
       shouldRefresh = true
     }
+    const isBeingHidden = Boolean(columnVisibility[colIdToToggle])
     setColumnVisibility({
       ...columnVisibility,
       [colIdToToggle]: !columnVisibility[colIdToToggle],
     })
-    if (shouldRefresh) {
+
+    // Hiding a column also removes its filter input, so clear any filter on it to avoid leaving a
+    // filter applied with no means of removing it. This refetches the data itself.
+    if (isBeingHidden && columnFilterState.some(({ id }) => id === colIdToToggle)) {
+      onFilterChange(columnFilterState.filter(({ id }) => id !== colIdToToggle))
+    } else if (shouldRefresh) {
       setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
     }
   }
@@ -680,19 +703,87 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
     })
   }
 
-  const onFilterChange = (updater: Updater<ColumnFiltersState>) => {
-    const newFilterState = updaterToValue(updater, columnFilterState)
-
-    if (_.isEqual(newFilterState, columnFilterState)) {
-      return
-    }
-
+  const applyFilterState = (newFilterState: ColumnFiltersState, syncTextFields = false) => {
     setToFirstPage()
     setLookoutFilters(parseLookoutFilters(newFilterState))
     setColumnFilterState(newFilterState)
+    if (syncTextFields) {
+      // The text field inputs are uncontrolled, so they only need updating when the filter state
+      // changes other than by the user typing into them
+      setTextFields(newFilterState)
+    }
     setSelectedRows({})
     setSidebarJobId(undefined)
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
+  }
+
+  const onFilterChange = (updater: Updater<ColumnFiltersState>, syncTextFields = false) => {
+    const previousFilterState = columnFilterStateRef.current
+    const requestedFilterState = updaterToValue(updater, previousFilterState)
+
+    // Removing a filter can leave filters on dependent columns applied but unreachable, since their
+    // inputs are replaced by a message prompting for the prerequisite filter. Such filters are
+    // dropped so that no filter can be in effect without a control to remove it.
+    const { filters: newFilterState, removedColumnIds } = pruneUnsatisfiedFilters(requestedFilterState)
+
+    if (_.isEqual(newFilterState, previousFilterState)) {
+      return
+    }
+
+    // An outstanding undo action would overwrite the filters on its own columns with the values they
+    // held before its cascade. Once the user has edited one of those columns themselves, undoing
+    // would discard that newer edit, so the offer is withdrawn.
+    const changedColumnIds = changedFilterColumnIds(previousFilterState, newFilterState)
+    outstandingUndoActionsRef.current = outstandingUndoActionsRef.current.filter(
+      ({ snackbarKey, restoredColumnIds }) => {
+        if (_.intersection(restoredColumnIds, changedColumnIds).length === 0) {
+          return true
+        }
+        closeSnackbar(snackbarKey)
+        return false
+      },
+    )
+
+    // Any pruned filter may have had a text input, which must be cleared along with it
+    applyFilterState(newFilterState, syncTextFields || removedColumnIds.length > 0)
+
+    if (removedColumnIds.length > 0) {
+      // Undoing must restore the filters which were pruned, but a pruned filter cannot stand on its
+      // own: it was pruned precisely because the edit left its prerequisite unsatisfied. So the
+      // columns the edit itself changed are restored too, and only those. Filters on any other
+      // column are left as they are, so that changes made while the undo action was available are
+      // not discarded.
+      const restoredColumnIds = _.union(
+        changedFilterColumnIds(previousFilterState, requestedFilterState),
+        removedColumnIds,
+      )
+      const restoredFilters = previousFilterState.filter(({ id }) => restoredColumnIds.includes(id))
+
+      const removedNames = removedColumnIds.map((colId) => {
+        const column = allColumns.find(({ id }) => id === colId)
+        return (column ? getColumnMetadata(column).displayName : undefined) ?? colId
+      })
+      const snackbarKey = openUndoableSnackbar(
+        `${formatColumnList(removedNames)} ${removedNames.length === 1 ? "filter" : "filters"} cleared, as ${
+          removedNames.length === 1 ? "it requires" : "they require"
+        } a filter on another column.`,
+        () =>
+          onFilterChange(
+            (current) => [...current.filter(({ id }) => !restoredColumnIds.includes(id)), ...restoredFilters],
+            true,
+          ),
+        {
+          // However the snackbar goes away, whether undone, dismissed or auto-hidden, its undo
+          // action is no longer available and so must no longer be tracked
+          onExited: (_node, key) => {
+            outstandingUndoActionsRef.current = outstandingUndoActionsRef.current.filter(
+              (undoAction) => undoAction.snackbarKey !== key,
+            )
+          },
+        },
+      )
+      outstandingUndoActionsRef.current = [...outstandingUndoActionsRef.current, { snackbarKey, restoredColumnIds }]
+    }
   }
 
   const onColumnMatchChange = (columnId: string, newMatch: Match) => {
