@@ -94,6 +94,31 @@ func TestApplyPartitioner_AlreadyPartitionedIsNoOp(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestApplyPartitioner_BackfillsMissingQueueJobIDIndex verifies that a job
+// table partitioned before idx_job_queue_job_id existed is not rejected as
+// the wrong shape, and instead gets the index backfilled in place.
+func TestApplyPartitioner_BackfillsMissingQueueJobIDIndex(t *testing.T) {
+	err := withLookoutChainAppliedDb(func(db *pgxpool.Pool) error {
+		ctx := armadacontext.Background()
+
+		require.NoError(t, ApplyPartitioner(ctx, db))
+
+		_, err := db.Exec(ctx, `DROP INDEX idx_job_queue_job_id`)
+		require.NoError(t, err)
+
+		require.NoError(t, ApplyPartitioner(ctx, db))
+
+		var exists bool
+		require.NoError(t, db.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'job' AND indexname = 'idx_job_queue_job_id')`,
+		).Scan(&exists))
+		assert.True(t, exists, "idx_job_queue_job_id should be backfilled")
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestApplyPartitioner_WrongShapeRefuses(t *testing.T) {
 	err := withLookoutChainAppliedDb(func(db *pgxpool.Pool) error {
 		ctx := armadacontext.Background()
