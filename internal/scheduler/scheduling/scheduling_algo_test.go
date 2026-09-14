@@ -1507,6 +1507,132 @@ func TestBuildInUsePriorityClasses(t *testing.T) {
 	}
 }
 
+// TestCalculateJobSchedulingInfo_AggregateMatchesLegacy validates that the JobDb aggregate
+// derives exactly the same scheduling information as the legacy per-job calculation. This is
+// the correctness check behind the canary mode.
+func TestCalculateJobSchedulingInfo_AggregateMatchesLegacy(t *testing.T) {
+	ctx := armadacontext.Background()
+
+	queues := map[string]*api.Queue{
+		"q1": {Name: "q1"},
+		"q2": {Name: "q2", Cordoned: true},
+		"q3": {Name: "q3"},
+	}
+
+	queuedQ1 := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithQueued(true).WithPools([]string{"pool-1", "pool-2"})
+	queuedQ2Cordoned := testfixtures.Test1Cpu4GiJob("q2", testfixtures.PriorityClass1).
+		WithQueued(true).WithPools([]string{"pool-1"})
+	queuedQ3 := testfixtures.Test1Cpu4GiJob("q3", testfixtures.PriorityClass2).
+		WithQueued(true).WithPools([]string{"pool-1"})
+	queuedUnknownQueue := testfixtures.Test1Cpu4GiJob("unknown", testfixtures.PriorityClass0).
+		WithQueued(true).WithPools([]string{"pool-1"})
+	leasedQ1Active := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithNewRun("executor-1", "node-1", "node-1", "pool-1", 0)
+	leasedQ1Inactive := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithNewRun("executor-3", "node-3", "node-3", "pool-1", 0)
+	leasedQ2Cordoned := testfixtures.Test1Cpu4GiJob("q2", testfixtures.PriorityClass1).
+		WithNewRun("executor-1", "node-5", "node-5", "pool-1", 0)
+	leasedQ2Away := testfixtures.Test1Cpu4GiJob("q2", testfixtures.PriorityClass1).
+		WithNewRun("executor-2", "node-2", "node-2", "pool-2", 0)
+	leasedOtherPool := testfixtures.Test1Cpu4GiJob("q3", testfixtures.PriorityClass2).
+		WithNewRun("executor-2", "node-4", "node-4", "pool-3", 0)
+	terminal := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).WithFailed(true)
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{
+		queuedQ1, queuedQ2Cordoned, queuedQ3, queuedUnknownQueue,
+		leasedQ1Active, leasedQ1Inactive, leasedQ2Cordoned, leasedQ2Away, leasedOtherPool, terminal,
+	})
+	txn := jobDb.ReadTxn()
+
+	currentPool := "pool-1"
+	awayAllocationPools := []string{"pool-2"}
+	allPools := []string{"pool-1", "pool-2"}
+	activeExecutorsSet := map[string]bool{"executor-1": true, "executor-2": true}
+
+	algo := &FairSchedulingAlgo{}
+	legacy, err := algo.calculateLegacyJobSchedulingInfo(
+		ctx, activeExecutorsSet, queues, txn.GetAll(), currentPool, awayAllocationPools, allPools, nil,
+	)
+	require.NoError(t, err)
+	aggregate := algo.aggregateJobSchedulingInfo(
+		txn, activeExecutorsSet, queues, currentPool, awayAllocationPools, allPools, nil,
+	)
+	components, diff := compareJobSchedulingInfo(legacy, aggregate)
+	require.Empty(t, components)
+	require.Empty(t, diff)
+}
+
+// BenchmarkJobSchedulingInfo compares the legacy per-job scan with the JobDb aggregate when
+// deriving the scheduling information for a pool. It demonstrates the gains from maintaining
+// the aggregate incrementally.
+func BenchmarkJobSchedulingInfo(b *testing.B) {
+	const (
+		numQueues         = 8
+		numQueuedPerQueue = 2000
+		numLeasedPerQueue = 500
+	)
+
+	poolNames := []string{"pool-1", "pool-2", "pool-3", "pool-4"}
+	queueNames := make([]string, numQueues)
+	for i := range queueNames {
+		queueNames[i] = fmt.Sprintf("queue-%d", i)
+	}
+
+	jobs := make([]*jobdb.Job, 0, numQueues*(numQueuedPerQueue+numLeasedPerQueue))
+	for _, queueName := range queueNames {
+		for i := 0; i < numQueuedPerQueue; i++ {
+			jobs = append(jobs, testfixtures.Test1Cpu4GiJob(queueName, testfixtures.PriorityClass0).
+				WithQueued(true).WithPools(poolNames))
+		}
+		for i := 0; i < numLeasedPerQueue; i++ {
+			pool := poolNames[i%len(poolNames)]
+			executor := fmt.Sprintf("executor-%d", i%len(poolNames))
+			jobs = append(jobs, testfixtures.Test1Cpu4GiJob(queueName, testfixtures.PriorityClass0).
+				WithNewRun(executor, fmt.Sprintf("node-%d", i), fmt.Sprintf("node-%d", i), pool, 0))
+		}
+	}
+
+	jobDb := testfixtures.NewJobDbWithJobs(jobs)
+	txn := jobDb.ReadTxn()
+
+	queues := make(map[string]*api.Queue, numQueues)
+	for _, queueName := range queueNames {
+		queues[queueName] = &api.Queue{Name: queueName}
+	}
+	activeExecutorsSet := map[string]bool{}
+	for i := 0; i < len(poolNames); i++ {
+		activeExecutorsSet[fmt.Sprintf("executor-%d", i)] = true
+	}
+
+	currentPool := poolNames[0]
+	awayAllocationPools := poolNames[1:]
+	allPools := poolNames
+	algo := &FairSchedulingAlgo{}
+	ctx := armadacontext.Background()
+
+	b.Run("impl=legacy", func(b *testing.B) {
+		b.ReportAllocs()
+		for n := 0; n < b.N; n++ {
+			allJobs := append(txn.GetAllLeasedJobs(), getQueuedJobs(txn, allPools)...)
+			if _, err := algo.calculateLegacyJobSchedulingInfo(
+				ctx, activeExecutorsSet, queues, allJobs, currentPool, awayAllocationPools, allPools, nil,
+			); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("impl=aggregate", func(b *testing.B) {
+		b.ReportAllocs()
+		for n := 0; n < b.N; n++ {
+			algo.aggregateJobSchedulingInfo(
+				txn, activeExecutorsSet, queues, currentPool, awayAllocationPools, allPools, nil,
+			)
+		}
+	})
+}
+
 type testRunReconciler struct {
 	jobIdsToFailReconciliation []string
 }
