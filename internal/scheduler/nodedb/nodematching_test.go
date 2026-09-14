@@ -730,7 +730,6 @@ func makeTestNodeTaintsLabels(taints []v1.Taint, labels map[string]string) *inte
 		internaltypes.ResourceList{},
 		map[int32]internaltypes.ResourceList{},
 		map[string]internaltypes.ResourceList{},
-		map[string]internaltypes.ResourceList{},
 		map[string]bool{},
 		[][]byte{},
 	)
@@ -755,7 +754,6 @@ func makeTestNodeResources(t *testing.T, allocatableByPriority map[int32]interna
 		totalResources,
 		totalResources,
 		allocatableByPriority,
-		map[string]internaltypes.ResourceList{},
 		map[string]internaltypes.ResourceList{},
 		map[string]bool{},
 		[][]byte{},

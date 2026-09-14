@@ -62,7 +62,6 @@ type Node struct {
 	Keys [][]byte
 
 	AllocatableByPriority map[int32]ResourceList
-	AllocatedByQueue      map[string]ResourceList
 	AllocatedByJobId      map[string]ResourceList
 	EvictedJobRunIds      map[string]bool
 	cutoffByJobId         map[string]int32
@@ -158,7 +157,6 @@ func CreateNodeAndType(
 		allocatableResources,
 		allocatableByPriority,
 		map[string]ResourceList{},
-		map[string]ResourceList{},
 		map[string]bool{},
 		nil)
 }
@@ -177,7 +175,6 @@ func CreateNode(
 	totalResources ResourceList,
 	allocatableResources ResourceList,
 	allocatableByPriority map[int32]ResourceList,
-	allocatedByQueue map[string]ResourceList,
 	allocatedByJobId map[string]ResourceList,
 	evictedJobRunIds map[string]bool,
 	keys [][]byte,
@@ -198,7 +195,6 @@ func CreateNode(
 		totalResources:        totalResources,
 		allocatableResources:  allocatableResources,
 		AllocatableByPriority: maps.Clone(allocatableByPriority),
-		AllocatedByQueue:      maps.Clone(allocatedByQueue),
 		AllocatedByJobId:      maps.Clone(allocatedByJobId),
 		EvictedJobRunIds:      evictedJobRunIds,
 		cutoffByJobId:         map[string]int32{},
@@ -364,7 +360,6 @@ func (node *Node) DeepCopyNilKeys() *Node {
 
 		// these maps are mutable but their keys and values are immutable
 		AllocatableByPriority: maps.Clone(node.AllocatableByPriority),
-		AllocatedByQueue:      maps.Clone(node.AllocatedByQueue),
 		AllocatedByJobId:      maps.Clone(node.AllocatedByJobId),
 		EvictedJobRunIds:      maps.Clone(node.EvictedJobRunIds),
 		cutoffByJobId:         maps.Clone(node.cutoffByJobId),
@@ -424,7 +419,10 @@ func (node *Node) AddJob(job SchedulableJob, cutoff int32) error {
 		if _, ok := node.AllocatedByJobId[jobId]; ok {
 			return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.GetId())
 		}
-		node.claimForQueueAndJob(job.Queue(), jobId, requests)
+		if node.AllocatedByJobId == nil {
+			node.AllocatedByJobId = make(map[string]ResourceList)
+		}
+		node.AllocatedByJobId[jobId] = requests
 	}
 
 	allocatable := node.AllocatableByPriority
@@ -450,11 +448,6 @@ func (node *Node) EvictJob(job SchedulableJob) error {
 	jobId := job.Id()
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
 		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.GetId())
-	}
-
-	queue := job.Queue()
-	if _, ok := node.AllocatedByQueue[queue]; !ok {
-		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.GetId())
 	}
 
 	if node.EvictedJobRunIds == nil {
@@ -487,12 +480,7 @@ func (node *Node) RemoveJob(job SchedulableJob) error {
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
 		return nil
 	}
-
-	queue := job.Queue()
-	if _, ok := node.AllocatedByQueue[queue]; !ok {
-		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.GetId())
-	}
-	node.releaseForQueueAndJob(queue, jobId, requests)
+	delete(node.AllocatedByJobId, jobId)
 
 	allocatable := node.AllocatableByPriority
 	if isEvicted {
@@ -503,33 +491,6 @@ func (node *Node) RemoveJob(job SchedulableJob) error {
 	delete(node.cutoffByJobId, jobId)
 
 	return nil
-}
-
-// releaseForQueueAndJob removes job ownership of requests from the node, deleting
-// the queue entry when it reaches zero.
-func (node *Node) releaseForQueueAndJob(queue, jobId string, r ResourceList) {
-	delete(node.AllocatedByJobId, jobId)
-
-	allocatedToQueue := node.AllocatedByQueue[queue].Subtract(r)
-	if allocatedToQueue.AllZero() {
-		delete(node.AllocatedByQueue, queue)
-	} else {
-		node.AllocatedByQueue[queue] = allocatedToQueue
-	}
-}
-
-// claimForQueueAndJob records job ownership of requests on the node, lazily
-// initialising the ownership maps.
-func (node *Node) claimForQueueAndJob(queue, jobId string, r ResourceList) {
-	if node.AllocatedByJobId == nil {
-		node.AllocatedByJobId = make(map[string]ResourceList)
-	}
-	node.AllocatedByJobId[jobId] = r
-
-	if node.AllocatedByQueue == nil {
-		node.AllocatedByQueue = make(map[string]ResourceList)
-	}
-	node.AllocatedByQueue[queue] = node.AllocatedByQueue[queue].Add(r)
 }
 
 func markAllocated(allocatableByPriority map[int32]ResourceList, priorityCutoff int32, rs ResourceList) {

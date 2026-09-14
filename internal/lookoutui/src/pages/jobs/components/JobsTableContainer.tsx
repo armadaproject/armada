@@ -40,6 +40,8 @@ import {
   COLUMN_PARSE_TYPES,
   ColumnId,
   createAnnotationColumn,
+  DEFAULT_COLUMN_ORDER,
+  DEFAULT_COLUMN_VISIBILITY,
   getAnnotationKeyCols,
   INPUT_PARSERS,
   GET_JOB_COLUMNS,
@@ -68,7 +70,7 @@ import {
   useFormatIsoTimestampWithUserSettings,
   useDisplayedTimeZoneWithUserSettings,
 } from "../../../components/hooks/formatTimeWithUserSettings"
-import { useCustomSnackbar } from "../../../components/hooks/useCustomSnackbar"
+import { useCustomSnackbar, useUndoableSnackbar } from "../../../components/hooks/useCustomSnackbar"
 import { columnIsAggregatable, useFetchJobsTableData } from "../../../components/hooks/useJobsTableData"
 import { CommandSpec } from "../../../config"
 import { isJobGroupRow, JobRow, JobTableRow } from "../../../models/jobsTableModels"
@@ -118,6 +120,7 @@ function fromLookoutOrder(lookoutOrder: LookoutColumnOrder): SortingState {
 
 export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
+  const openUndoableSnackbar = useUndoableSnackbar()
   const groupJobs = useGroupJobs()
 
   const router = useStableRouter()
@@ -436,6 +439,60 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
       setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
     }
   }
+
+  const resetColumnConfiguration = useCallback(() => {
+    const annotationColumnIds = getAnnotationKeyCols(allColumns).map((key) => toAnnotationColId(key))
+    const mustRemainVisible = [
+      ...grouping,
+      ...(grouping.length > 0 ? [StandardColumnId.Count] : []),
+      ...columnFilterState.map(({ id }) => toColId(id)),
+      toColId(lookoutOrder.id),
+    ]
+    const newColumnVisibility = {
+      ...DEFAULT_COLUMN_VISIBILITY,
+      ...Object.fromEntries(annotationColumnIds.map((colId) => [colId, false])),
+      ...Object.fromEntries(mustRemainVisible.map((colId) => [colId, true])),
+    }
+    const revealsNewAggregateColumn =
+      grouping.length > 0 &&
+      Object.entries(newColumnVisibility).some(([rawColId, isVisible]) => {
+        const colId = toColId(rawColId)
+        return isVisible && columnIsAggregatable(colId) && !visibleColumnIds.includes(colId)
+      })
+
+    setColumnOrder([...DEFAULT_COLUMN_ORDER, ...annotationColumnIds])
+    setColumnVisibility(newColumnVisibility)
+    setColumnSizing({})
+    jobsTablePreferencesService.clearLegacyColumnSizingFromLocalStorage()
+    if (revealsNewAggregateColumn) {
+      setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
+    }
+
+    const previousColumnOrder = columnOrder
+    const previousColumnVisibility = columnVisibility
+    const previousColumnSizing = columnSizing
+    openUndoableSnackbar("Column configuration reset to defaults.", () => {
+      setColumnOrder(previousColumnOrder)
+      setColumnVisibility(previousColumnVisibility)
+      setColumnSizing(previousColumnSizing)
+    })
+  }, [
+    allColumns,
+    grouping,
+    columnFilterState,
+    lookoutOrder,
+    columnOrder,
+    columnVisibility,
+    columnSizing,
+    visibleColumnIds,
+    expanded,
+    data,
+    pageSize,
+    pageIndex,
+    jobsTablePreferencesService,
+    setRowsToFetch,
+    openUndoableSnackbar,
+  ])
 
   const colIsVisible = (column: ColumnId): boolean => {
     return column in columnVisibility && columnVisibility[column]
@@ -849,6 +906,7 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
               onEditAnnotationColumn={editAnnotationCol}
               onGroupsChanged={onGroupingChange}
               toggleColumnVisibility={onColumnVisibilityChange}
+              onResetColumnConfiguration={resetColumnConfiguration}
               onClearFilters={clearFilters}
               onClearSorting={clearSorting}
               customSortingApplied={customSortingApplied}
