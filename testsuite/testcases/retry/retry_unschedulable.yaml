@@ -1,0 +1,33 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-retry-queue
+jobs:
+  - priority: 0
+    namespace: default
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: transient-fail
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          # Exit code 75 maps to the transient category. The policy retries it
+          # with a static memory bump of 1Ti, and no node fits the grown job.
+          command: ["sh", "-c", "exit 75"]
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+timeout: "600s"
+expectedEvents:
+  - submitted:
+  - queued:
+  - leased:
+  - pending:
+  - failed:
+      failureCategory: "transient"
+      reason: "memory bump fits no node"
