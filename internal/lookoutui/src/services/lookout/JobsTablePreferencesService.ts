@@ -459,6 +459,10 @@ export class JobsTablePreferencesService {
     return obj
   }
 
+  clearLegacyColumnSizingFromLocalStorage() {
+    localStorage.removeItem(COLUMN_SIZING_KEY)
+  }
+
   private getColumnSizingFromLocalStorage(): Record<string, number> | undefined {
     const json = localStorage.getItem(COLUMN_SIZING_KEY)
     if (stringIsInvalid(json)) {
