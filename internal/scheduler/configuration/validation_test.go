@@ -273,6 +273,14 @@ func TestValidate_PreemptionRateLimitWithMarketScheduling(t *testing.T) {
 	}
 }
 
+func TestValidate_RetryPolicyWithoutIndexedNodeIdLabel(t *testing.T) {
+	c := createValidMinimalConfig()
+	c.Scheduling.RetryPolicy.Enabled = true
+	c.Scheduling.IndexedNodeLabels = []string{"zone"}
+
+	assert.NoError(t, c.Validate())
+}
+
 func TestSchedulingConfigValidate(t *testing.T) {
 	c := Configuration{
 		Scheduling: SchedulingConfig{
