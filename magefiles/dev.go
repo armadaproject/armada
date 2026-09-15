@@ -35,6 +35,9 @@ const (
 //   - "fake-executor"       - no Kubernetes needed; sets goreman profile to "fake-executor"
 //   - "auth-fake-executor"  - auth server/scheduler/lookout/binoculars plus the fake executor (no Kubernetes)
 //   - "hot-cold"            - runs the hot-cold scheduler setup
+//   - "kwok"                - like "no-auth", but the executor tolerates the kwok.x-k8s.io/node
+//     taint so jobs can schedule onto KWOK-simulated fake nodes (see
+//     cmd/regatta)
 //   - anything else         - forwarded as a docker-compose --profile flag for extra services
 //
 // The optional -dap flag selects the "-dap" procfile variant, which starts each component
@@ -51,6 +54,7 @@ const (
 //	mage dev:up fake-executor -dap        # fake executor + dap procfile
 //	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
 //	mage dev:up hot-cold                  # hot-cold scheduler setup
+//	mage dev:up kwok                      # no-auth + executor tolerates KWOK fake-node taint
 func (Dev) Up(profiles string, dap *bool) error {
 	var (
 		profile         = "no-auth"
@@ -63,7 +67,7 @@ func (Dev) Up(profiles string, dap *bool) error {
 			continue
 		}
 		switch token {
-		case "auth", "fake-executor", "hot-cold", "auth-fake-executor":
+		case "auth", "fake-executor", "hot-cold", "auth-fake-executor", "kwok":
 			if profile != "no-auth" {
 				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold/auth-fake-executor may be used\n", token, profile)
 			} else {
