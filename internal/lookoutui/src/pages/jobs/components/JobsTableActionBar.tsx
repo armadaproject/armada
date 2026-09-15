@@ -36,6 +36,7 @@ export interface JobsTableActionBarProps {
   onRemoveAnnotationColumn: (colId: ColumnId) => void
   onEditAnnotationColumn: (colId: ColumnId, annotationKey: string) => void
   toggleColumnVisibility: (columnId: ColumnId) => void
+  onResetColumnConfiguration: () => void
   onGroupsChanged: (newGroups: ColumnId[]) => void
   onClearFilters: () => void
   onClearSorting: () => void
@@ -69,6 +70,7 @@ export const JobsTableActionBar = memo(
     onRemoveAnnotationColumn,
     onEditAnnotationColumn,
     toggleColumnVisibility,
+    onResetColumnConfiguration,
     onGroupsChanged,
     onClearFilters,
     onClearSorting,
@@ -112,6 +114,7 @@ export const JobsTableActionBar = memo(
           columnOrderIds={columnOrder}
           setColumnOrder={setColumnOrder}
           toggleColumnVisibility={toggleColumnVisibility}
+          onResetColumnConfiguration={onResetColumnConfiguration}
           onAddAnnotationColumn={onAddAnnotationColumn}
           onEditAnnotationColumn={onEditAnnotationColumn}
           onRemoveAnnotationColumn={onRemoveAnnotationColumn}
