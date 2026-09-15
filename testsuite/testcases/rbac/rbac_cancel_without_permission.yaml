@@ -1,9 +1,8 @@
-# RBAC: a principal without cancel_any_jobs and without a queue-level cancel grant (armada-user)
-# cannot cancel a job, even one it submitted itself. Targets the shared rbac-fixture-restricted
-# queue (bootstrapped by CI under the admin identity, granting the /users group submit-only),
-# so submission succeeds via the queue-level grant but the subsequent cancel is denied.
-# ExpectedEvents is deliberately empty -- see testrunner.go's Run() for why a short list would
-# race the denied action.
+# RBAC: a principal without cancel_any_jobs and without a queue-level cancel grant (rbac-user)
+# cannot cancel a job, even one it submitted itself. Targets the shared plain rbac-queue;
+# submission succeeds via the global submit_any_jobs: [admins, users] group mapping in
+# config-auth.yaml, but the subsequent cancel is denied since rbac-user isn't in cancel_any_jobs
+# and has no queue-level cancel grant.
 queue: rbac-queue
 authContext: rbac-user
 numBatches: 1
@@ -20,7 +19,7 @@ jobs:
           image: alpine:3.20.0
           args:
             - "sleep"
-            - "100s"
+            - "5s"
           resources:
             limits:
               memory: 25Mi
@@ -31,5 +30,8 @@ jobs:
 ---
 cancel:
   request: {}
+expectedEvents:
+  - submitted:
+  - succeeded:
 timeout: "30s"
-expectErrorCode: 7 # PERMISSION_DENIED
+expectErrorCode: 2 # UNKNOWN

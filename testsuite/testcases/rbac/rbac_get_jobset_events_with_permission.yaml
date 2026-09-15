@@ -1,6 +1,6 @@
 # RBAC: a principal with the global watch_all_events permission (armada-admin) can watch a job
 # set's events via GetJobSetEvents in a queue it doesn't own.
-queue: rbac-watch-with-perm
+queue: rbac-queue
 authContext: rbac-admin
 numBatches: 1
 batchSize: 1
@@ -28,10 +28,3 @@ timeout: "100s"
 expectedEvents:
   - submitted:
   - succeeded:
-queueConfig:
-  setup:
-    # An explicit non-admin owner stops CreateQueue's auto-add-owner default (which would
-    # otherwise make armada-admin the queue owner and let ownership -- not watch_all_events --
-    # explain successfully watching events).
-    queueSpec:
-      userOwners: ["nobody"]

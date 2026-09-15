@@ -332,10 +332,11 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 			apiConnectionDetails = resolved
 		}
 		testRunner := TestRunner{
-			Out:                  a.Out,
-			apiConnectionDetails: apiConnectionDetails,
-			testSpec:             testSpec,
-			eventLogger:          eventLogger,
+			Out:                      a.Out,
+			apiConnectionDetails:     apiConnectionDetails,
+			cleanupConnectionDetails: a.Params.ApiConnectionDetails,
+			testSpec:                 testSpec,
+			eventLogger:              eventLogger,
 		}
 		go func() {
 			_ = testRunner.Run(ctx)

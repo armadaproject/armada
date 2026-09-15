@@ -2,7 +2,7 @@
 # grant cannot submit jobs. Targets the shared rbac-fixture-plain queue (bootstrapped by CI
 # under the admin identity; this test must not create or delete it -- no queueConfig).
 queue: rbac-queue
-authContext: rbac-user
+authContext: rbac-executor
 numBatches: 1
 batchSize: 1
 jobs:

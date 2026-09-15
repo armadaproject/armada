@@ -27,7 +27,7 @@ auth:
     groupsClaim: "groups"
     skipClientIDCheck: true
   permissionGroupMapping:
-    submit_any_jobs: ["admins"]
+    submit_any_jobs: ["admins", "users"]
     create_queue: ["admins"]
     create_retry_policy: ["admins"]
     update_retry_policy: ["admins"]
@@ -36,7 +36,7 @@ auth:
     cancel_any_jobs: ["admins"]
     preempt_any_jobs: ["admins"]
     reprioritize_any_jobs: ["admins"]
-    watch_all_events: ["admins"]
+    watch_all_events: ["admins", "users"]
     execute_jobs: ["admins", "executors"]
     cordon_queue: ["admins"]
     cordon_nodes: ["admins"]

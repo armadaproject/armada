@@ -1,8 +1,8 @@
-# RBAC: a principal without reprioritize_any_jobs and without a queue-level reprioritize grant
-# (rbac-user) cannot reprioritize a job, even one it submitted itself. Targets the shared plain
-# rbac-queue; submission succeeds via the global submit_any_jobs: [admins, users] group mapping
-# in config-auth.yaml, but the subsequent reprioritize is denied since rbac-user isn't in
-# reprioritize_any_jobs and has no queue-level reprioritize grant.
+# RBAC: a principal without preempt_any_jobs and without a queue-level preempt grant (rbac-user)
+# cannot preempt a job, even one it submitted itself. Targets the shared plain rbac-queue;
+# submission succeeds via the global submit_any_jobs: [admins, users] group mapping in
+# config-auth.yaml, but the subsequent preempt is denied since rbac-user isn't in
+# preempt_any_jobs and has no queue-level preempt grant.
 queue: rbac-queue
 authContext: rbac-user
 numBatches: 1
@@ -14,12 +14,12 @@ jobs:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
       containers:
-        - name: reprioritize-by-id
+        - name: cancel-by-id
           imagePullPolicy: IfNotPresent
           image: alpine:3.20.0
           args:
             - "sleep"
-            - "5s"
+            - "15s"
           resources:
             limits:
               memory: 25Mi
@@ -28,11 +28,12 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-reprioritize:
+triggerEvent: running
+preempt:
   request:
-    newPriority: 100
+    reason: "Test job preemption for validation"
+timeout: "100s"
 expectedEvents:
   - submitted:
   - succeeded:
-timeout: "30s"
 expectErrorCode: 2 # UNKNOWN
