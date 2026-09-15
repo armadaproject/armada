@@ -90,6 +90,45 @@ func TestJobAggregate_Query(t *testing.T) {
 	assert.Equal(t, []string{"jobC"}, jobIds(info.JobsByPool["pool-1"]))
 }
 
+func TestJobAggregate_InUsePriorityClassesPoolScoped(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	// jobA is queued and eligible only for pool-2.
+	jobA := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-2"}, 1)
+	// jobB is queued and eligible only for pool-1.
+	jobB := newAggregateTestJob(t, jobDb, "jobB", "queue-1", true, []string{"pool-1"}, 1)
+
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{jobA, jobB}))
+	txn.Commit()
+
+	known := map[string]bool{"queue-1": true}
+
+	// Querying for pool-1 only should include jobB's priority class but not jobA's.
+	info := calculateInfo(jobDb.ReadTxn(), "pool-1", nil, []string{"pool-1"}, known, nil)
+	assert.Equal(t, map[string]bool{aggregateTestPriorityClass: true}, info.InUsePriorityClasses)
+
+	// Querying for pool-2 only should include jobA's priority class but not jobB's.
+	info = calculateInfo(jobDb.ReadTxn(), "pool-2", nil, []string{"pool-2"}, known, nil)
+	assert.Equal(t, map[string]bool{aggregateTestPriorityClass: true}, info.InUsePriorityClasses)
+
+	// Querying for both pools should include the priority class.
+	info = calculateInfo(jobDb.ReadTxn(), "pool-1", []string{"pool-2"}, []string{"pool-1", "pool-2"}, known, nil)
+	assert.Equal(t, map[string]bool{aggregateTestPriorityClass: true}, info.InUsePriorityClasses)
+
+	// A leased job on pool-3 (not in allPools) should still contribute its priority class.
+	jobC := newAggregateTestJob(t, jobDb, "jobC", "queue-1", false, []string{"pool-3"}, 1).
+		WithNewRun("executor-1", "node-1", "node-1", "pool-3", 5)
+	txn = jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{jobC}))
+	txn.Commit()
+
+	// Querying for pool-1 only: jobB is queued on pool-1, jobC is leased on pool-3.
+	// Both priority classes should be included (leased jobs contribute from all pools).
+	info = calculateInfo(jobDb.ReadTxn(), "pool-1", nil, []string{"pool-1"}, known, nil)
+	assert.Equal(t, map[string]bool{aggregateTestPriorityClass: true}, info.InUsePriorityClasses)
+}
+
 func TestJobAggregate_UpdateAndDelete(t *testing.T) {
 	jobDb := NewTestJobDb()
 

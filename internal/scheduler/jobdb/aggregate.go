@@ -36,10 +36,6 @@ type SchedulingInfo struct {
 type JobAggregate struct {
 	// Per-pool aggregates. A pool is only present while it has at least one job.
 	byPool map[string]*poolAggregate
-	// Number of active jobs per queue and priority class. Counts (rather than a set) are used
-	// so that removing one job does not incorrectly drop a priority class still used by other
-	// jobs. Keying by queue lets the query drop priority classes of queues that no longer exist.
-	inUsePriorityClassCounts map[string]map[string]int
 	// Pools that this aggregate instance has cloned and may therefore mutate in place.
 	// Pools not in this set are shared with another aggregate and must be cloned before use.
 	ownedPools map[string]bool
@@ -64,9 +60,8 @@ type poolAggregate struct {
 
 func NewJobAggregate() *JobAggregate {
 	return &JobAggregate{
-		byPool:                   map[string]*poolAggregate{},
-		inUsePriorityClassCounts: map[string]map[string]int{},
-		ownedPools:               map[string]bool{},
+		byPool:     map[string]*poolAggregate{},
+		ownedPools: map[string]bool{},
 	}
 }
 
@@ -88,18 +83,9 @@ func (a *JobAggregate) Clone() *JobAggregate {
 		return NewJobAggregate()
 	}
 	return &JobAggregate{
-		byPool:                   maps.Clone(a.byPool),
-		inUsePriorityClassCounts: clonePriorityClassCounts(a.inUsePriorityClassCounts),
-		ownedPools:               map[string]bool{},
+		byPool:     maps.Clone(a.byPool),
+		ownedPools: map[string]bool{},
 	}
-}
-
-func clonePriorityClassCounts(m map[string]map[string]int) map[string]map[string]int {
-	clone := make(map[string]map[string]int, len(m))
-	for queue, counts := range m {
-		clone[queue] = maps.Clone(counts)
-	}
-	return clone
 }
 
 func (p *poolAggregate) clone() *poolAggregate {
@@ -156,15 +142,12 @@ func (a *JobAggregate) Add(job *Job) {
 		return
 	}
 
-	pc := job.PriorityClassName()
-	addPriorityClassCount(a.inUsePriorityClassCounts, job.Queue(), pc)
-
 	req := job.AllResourceRequirements()
 
 	if job.Queued() {
 		for _, pool := range job.Pools() {
 			pa := a.ensureOwned(pool)
-			addQueuePriorityResource(pa.queuedByQueueAndPriorityClass, job.Queue(), pc, req)
+			addQueuePriorityResource(pa.queuedByQueueAndPriorityClass, job.Queue(), job.PriorityClassName(), req)
 		}
 		return
 	}
@@ -174,7 +157,7 @@ func (a *JobAggregate) Add(job *Job) {
 		// Not queued and no run: only contributes to demand (for the pools it is eligible for).
 		for _, pool := range job.Pools() {
 			pa := a.ensureOwned(pool)
-			addQueuePriorityResource(pa.unleasedDemandByQueueAndPriorityClass, job.Queue(), pc, req)
+			addQueuePriorityResource(pa.unleasedDemandByQueueAndPriorityClass, job.Queue(), job.PriorityClassName(), req)
 		}
 		return
 	}
@@ -182,8 +165,8 @@ func (a *JobAggregate) Add(job *Job) {
 	pool := run.Pool()
 	executor := run.Executor()
 	pa := a.ensureOwned(pool)
-	addQueuePriorityResource(pa.leasedByQueueAndPriorityClass, job.Queue(), pc, req)
-	addExecutorQueuePriorityResource(pa.allocatedByExecutor, executor, job.Queue(), pc, req)
+	addQueuePriorityResource(pa.leasedByQueueAndPriorityClass, job.Queue(), job.PriorityClassName(), req)
+	addExecutorQueuePriorityResource(pa.allocatedByExecutor, executor, job.Queue(), job.PriorityClassName(), req)
 	pa.leasedJobs[job.Id()] = job
 }
 
@@ -194,15 +177,12 @@ func (a *JobAggregate) Remove(job *Job) {
 		return
 	}
 
-	pc := job.PriorityClassName()
-	subPriorityClassCount(a.inUsePriorityClassCounts, job.Queue(), pc)
-
 	req := job.AllResourceRequirements()
 
 	if job.Queued() {
 		for _, pool := range job.Pools() {
 			if pa := a.ownedPoolIfPresent(pool); pa != nil {
-				subQueuePriorityResource(pa.queuedByQueueAndPriorityClass, job.Queue(), pc, req)
+				subQueuePriorityResource(pa.queuedByQueueAndPriorityClass, job.Queue(), job.PriorityClassName(), req)
 				a.dropPoolIfEmpty(pool, pa)
 			}
 		}
@@ -213,7 +193,7 @@ func (a *JobAggregate) Remove(job *Job) {
 	if run == nil {
 		for _, pool := range job.Pools() {
 			if pa := a.ownedPoolIfPresent(pool); pa != nil {
-				subQueuePriorityResource(pa.unleasedDemandByQueueAndPriorityClass, job.Queue(), pc, req)
+				subQueuePriorityResource(pa.unleasedDemandByQueueAndPriorityClass, job.Queue(), job.PriorityClassName(), req)
 				a.dropPoolIfEmpty(pool, pa)
 			}
 		}
@@ -222,8 +202,8 @@ func (a *JobAggregate) Remove(job *Job) {
 
 	pool := run.Pool()
 	if pa := a.ownedPoolIfPresent(pool); pa != nil {
-		subQueuePriorityResource(pa.leasedByQueueAndPriorityClass, job.Queue(), pc, req)
-		subExecutorQueuePriorityResource(pa.allocatedByExecutor, run.Executor(), job.Queue(), pc, req)
+		subQueuePriorityResource(pa.leasedByQueueAndPriorityClass, job.Queue(), job.PriorityClassName(), req)
+		subExecutorQueuePriorityResource(pa.allocatedByExecutor, run.Executor(), job.Queue(), job.PriorityClassName(), req)
 		delete(pa.leasedJobs, job.Id())
 		a.dropPoolIfEmpty(pool, pa)
 	}
@@ -266,17 +246,6 @@ func (a *JobAggregate) CalculateSchedulingInfo(
 		AwayAllocatedByQueueAndPriorityClass: map[string]map[string]internaltypes.ResourceList{},
 		InUsePriorityClasses:                 map[string]bool{},
 	}
-	for queue, byPriorityClass := range a.inUsePriorityClassCounts {
-		if !queueKnown(knownQueues, queue) {
-			continue
-		}
-		for pc, count := range byPriorityClass {
-			if count > 0 {
-				info.InUsePriorityClasses[pc] = true
-			}
-		}
-	}
-
 	allPoolsSet := make(map[string]bool, len(allPools))
 	for _, pool := range allPools {
 		allPoolsSet[pool] = true
@@ -284,6 +253,43 @@ func (a *JobAggregate) CalculateSchedulingInfo(
 	awayPoolsSet := make(map[string]bool, len(awayAllocationPools))
 	for _, pool := range awayAllocationPools {
 		awayPoolsSet[pool] = true
+	}
+
+	// Collect InUsePriorityClasses. The legacy code includes priority classes from:
+	// - ALL leased jobs (regardless of pool)
+	// - Queued jobs eligible for pools in allPools
+	// We derive this from the pool aggregates rather than inUsePriorityClassCounts
+	// to correctly scope queued jobs by pool eligibility.
+	for pool, pa := range a.byPool {
+		// Leased jobs contribute from ALL pools.
+		for queue, byPriorityClass := range pa.leasedByQueueAndPriorityClass {
+			if !queueKnown(knownQueues, queue) {
+				continue
+			}
+			for pc := range byPriorityClass {
+				info.InUsePriorityClasses[pc] = true
+			}
+		}
+		// Queued jobs only contribute from pools in allPools.
+		if allPoolsSet[pool] {
+			for queue, byPriorityClass := range pa.queuedByQueueAndPriorityClass {
+				if cordonedQueues[queue] || !queueKnown(knownQueues, queue) {
+					continue
+				}
+				for pc := range byPriorityClass {
+					info.InUsePriorityClasses[pc] = true
+				}
+			}
+			// Unleased demand jobs also contribute.
+			for queue, byPriorityClass := range pa.unleasedDemandByQueueAndPriorityClass {
+				if !queueKnown(knownQueues, queue) {
+					continue
+				}
+				for pc := range byPriorityClass {
+					info.InUsePriorityClasses[pc] = true
+				}
+			}
+		}
 	}
 
 	for pool, pa := range a.byPool {
@@ -320,30 +326,6 @@ func (a *JobAggregate) CalculateSchedulingInfo(
 	}
 
 	return info
-}
-
-func addPriorityClassCount(m map[string]map[string]int, queue, priorityClass string) {
-	byPriorityClass, ok := m[queue]
-	if !ok {
-		byPriorityClass = map[string]int{}
-		m[queue] = byPriorityClass
-	}
-	byPriorityClass[priorityClass]++
-}
-
-func subPriorityClassCount(m map[string]map[string]int, queue, priorityClass string) {
-	byPriorityClass, ok := m[queue]
-	if !ok {
-		return
-	}
-	if count := byPriorityClass[priorityClass]; count > 1 {
-		byPriorityClass[priorityClass] = count - 1
-	} else {
-		delete(byPriorityClass, priorityClass)
-	}
-	if len(byPriorityClass) == 0 {
-		delete(m, queue)
-	}
 }
 
 func queueKnown(knownQueues map[string]bool, queue string) bool {
