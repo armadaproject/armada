@@ -3,14 +3,14 @@ package kwok
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+
+	regattaconfig "github.com/armadaproject/armada/internal/regatta/config"
 )
 
 const (
@@ -18,42 +18,34 @@ const (
 	NodeAnnotationOK = "fake"
 )
 
-// NodeProfile describes one simulated node shape, modeled on a real hardware SKU so node count
-// maps to a real deployable unit.
-type NodeProfile struct {
-	Name         string
-	CPU          string
-	Memory       string
-	GPUCount     int
-	InstanceType string
-}
-
-// GB200Slice models one AWS p6e-gb200.36xlarge, i.e. 1/18th of an NVL72 rack.
-var GB200Slice = NodeProfile{
-	Name:         "gb200-slice",
-	CPU:          "144",
-	Memory:       "960Gi",
-	GPUCount:     4,
-	InstanceType: "p6e-gb200.36xlarge",
-}
-
 // BuildFakeNode constructs a single fake v1.Node shaped by profile, with name/hostname
-// parameterized by index so multiple profiles/counts can coexist on one cluster.
-func BuildFakeNode(profile NodeProfile, index int) *v1.Node {
+// parameterized by index so multiple profiles/counts can coexist on one cluster. The
+// KWOK fake-node taint/annotation is always added, on top of whatever the profile itself
+// specifies, since KWOK's controller and the schedulability probe both key off of it.
+func BuildFakeNode(profile *regattaconfig.NodeProfile, index int) *v1.Node {
 	name := fmt.Sprintf("kwok-node-%s-%d", profile.Name, index)
 
-	resources := func() v1.ResourceList {
-		rl := v1.ResourceList{
-			v1.ResourceCPU:              resource.MustParse(profile.CPU),
-			v1.ResourceMemory:           resource.MustParse(profile.Memory),
-			v1.ResourceEphemeralStorage: resource.MustParse("256Gi"),
-			v1.ResourcePods:             resource.MustParse("3000"),
-		}
-		if profile.GPUCount > 0 {
-			rl["nvidia.com/gpu"] = resource.MustParse(strconv.Itoa(profile.GPUCount))
-		}
-		return rl
+	allocatable := v1.ResourceList{}
+	for resourceName, quantity := range profile.Allocatable {
+		allocatable[resourceName] = quantity
 	}
+
+	labels := map[string]string{
+		"kubernetes.io/hostname": name,
+		"kubernetes.io/os":       "linux",
+		"type":                   "kwok",
+		NodeAnnotation:           NodeAnnotationOK,
+	}
+	for k, v := range profile.Labels {
+		labels[k] = v
+	}
+
+	taints := append([]v1.Taint{}, profile.Taints...)
+	taints = append(taints, v1.Taint{
+		Key:    NodeAnnotation,
+		Value:  NodeAnnotationOK,
+		Effect: v1.TaintEffectNoSchedule,
+	})
 
 	return &v1.Node{
 		TypeMeta: metav1.TypeMeta{
@@ -66,26 +58,14 @@ func BuildFakeNode(profile NodeProfile, index int) *v1.Node {
 				"node.alpha.kubernetes.io/ttl": "0",
 				NodeAnnotation:                 NodeAnnotationOK,
 			},
-			Labels: map[string]string{
-				"kubernetes.io/hostname":           name,
-				"kubernetes.io/os":                 "linux",
-				"type":                             "kwok",
-				"node.kubernetes.io/instance-type": profile.InstanceType,
-				NodeAnnotation:                     NodeAnnotationOK,
-			},
+			Labels: labels,
 		},
 		Spec: v1.NodeSpec{
-			Taints: []v1.Taint{
-				{
-					Key:    NodeAnnotation,
-					Value:  NodeAnnotationOK,
-					Effect: v1.TaintEffectNoSchedule,
-				},
-			},
+			Taints: taints,
 		},
 		Status: v1.NodeStatus{
-			Allocatable: resources(),
-			Capacity:    resources(),
+			Allocatable: allocatable,
+			Capacity:    allocatable,
 			NodeInfo: v1.NodeSystemInfo{
 				Architecture:     "amd64",
 				KubeProxyVersion: "fake",
@@ -99,7 +79,7 @@ func BuildFakeNode(profile NodeProfile, index int) *v1.Node {
 
 // ApplyFakeNodes creates count fake nodes shaped by profile via the typed clientset. Idempotent:
 // an already-existing node (same name/index) is left as-is.
-func ApplyFakeNodes(ctx context.Context, client kubernetes.Interface, profile NodeProfile, count int) error {
+func ApplyFakeNodes(ctx context.Context, client kubernetes.Interface, profile *regattaconfig.NodeProfile, count int) error {
 	for i := 0; i < count; i++ {
 		node := BuildFakeNode(profile, i)
 		_, err := client.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})

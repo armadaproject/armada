@@ -1,0 +1,19 @@
+# Fake-executor-only: armada-fakeexecutor registers as a real executor against the Armada
+# scheduler over gRPC, but simulates nodes/pods entirely in-process - no cluster, no kubeconfig.
+armadactl: ~/.armadactl.yaml
+
+kwok:
+  enabled: false
+
+fakeExecutor:
+  enabled: true
+  nodeGroup:
+    - nodeProfile: node-profiles/gb200-slice.yaml
+      count: 20
+  # schedulerUrl is the scheduler's executor-facing gRPC address, not armadactl's armadaUrl
+  # (that's the submit-side API, a different service on a different port).
+  schedulerUrl: localhost:50052
+  pool: default
+  clusterId: fake-cluster
+
+submission: submissions/fakeexecutor.yaml

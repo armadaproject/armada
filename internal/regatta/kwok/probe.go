@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	probeQueue    = "regatta-probe"
-	probeJobSetId = "regatta-probe"
+	probeQueue    = "regatta"
+	probeJobSetId = "regatta-queue-readiness"
 	jobIdPodLabel = "armada_job_id"
 )
 
@@ -33,25 +33,33 @@ type ProbeConfig struct {
 // executor has reported the node's capacity to the scheduler - K8s "Ready" alone doesn't mean
 // the scheduler knows about it yet, since the executor only reports on its own poll interval).
 // Retries cfg.Retries times, doubling the poll delay each attempt, since there's no direct way
-// to ask the scheduler "do you know about this node yet".
+// to ask the scheduler "do you know about this node yet". A submit-time rejection (e.g. "no
+// node matches this pod's selector yet") is expected on early attempts, before the executor's
+// next report cycle - treated the same as "didn't land on a fake node in time", not fatal.
 func WaitUntilSchedulable(ctx context.Context, kubeClient kubernetes.Interface, apiConnectionDetails *client.ApiConnectionDetails, cfg ProbeConfig) error {
 	delay := cfg.InitialDelay
 	var lastErr error
 	for attempt := 1; attempt <= cfg.Retries; attempt++ {
 		jobId, err := submitCanaryJob(apiConnectionDetails)
 		if err != nil {
-			return fmt.Errorf("submitting canary job: %w", err)
-		}
-
-		time.Sleep(delay)
-		scheduled, err := canaryRunningOnFakeNode(ctx, kubeClient, jobId)
-		cancelCanaryJob(apiConnectionDetails, jobId)
-		if err != nil {
 			lastErr = err
-		} else if scheduled {
-			return nil
 		} else {
-			lastErr = fmt.Errorf("canary job %s did not land on a fake node within %s (attempt %d/%d)", jobId, delay, attempt, cfg.Retries)
+			select {
+			case <-ctx.Done():
+				cancelCanaryJob(apiConnectionDetails, jobId)
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+			var scheduled bool
+			scheduled, err = canaryRunningOnFakeNode(ctx, kubeClient, jobId)
+			cancelCanaryJob(apiConnectionDetails, jobId)
+			if err != nil {
+				lastErr = err
+			} else if scheduled {
+				return nil
+			} else {
+				lastErr = fmt.Errorf("canary job %s did not land on a fake node within %s (attempt %d/%d)", jobId, delay, attempt, cfg.Retries)
+			}
 		}
 
 		delay *= 2

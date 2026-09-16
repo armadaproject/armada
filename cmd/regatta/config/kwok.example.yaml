@@ -1,0 +1,21 @@
+# KWOK-only: real v1.Node objects created in a live cluster, exercising Armada's real
+# executor/scheduler path end-to-end against simulated hardware.
+armadactl: ~/.armadactl.yaml
+kubeconfig: ~/.kube/config
+
+kwok:
+  enabled: true
+  # nodeGroup combines an arbitrary number of (profile, count) members into one cluster shape.
+  nodeGroup:
+    - nodeProfile: node-profiles/gb200-slice.yaml
+      count: 20
+    - nodeProfile: node-profiles/cpu-only.yaml
+      count: 3
+  kindClusterName: armada-test
+  probeRetries: 5
+  probeDelay: 5s
+
+fakeExecutor:
+  enabled: false
+
+submission: submissions/basic.yaml

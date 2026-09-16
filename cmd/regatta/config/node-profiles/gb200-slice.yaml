@@ -1,0 +1,11 @@
+# Models one AWS p6e-gb200.36xlarge, i.e. 1/18th of an NVL72 rack.
+name: gb200-slice
+allocatable:
+  cpu: "144"
+  memory: "960Gi"
+  ephemeral-storage: "256Gi"
+  pods: "3000"
+  nvidia.com/gpu: "4"
+labels:
+  node.kubernetes.io/instance-type: p6e-gb200.36xlarge
+taints: []

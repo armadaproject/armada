@@ -1,0 +1,44 @@
+# A short refresh keeps the e2e setup fast: the queue and policy caches see
+# a new policy after one period.
+queueRefreshPeriod: 3s
+grpc:
+  port: 50052
+  tls:
+    enabled: false
+observability:
+  enabled: true
+  exporter:
+    endpoint: "http://localhost:4318"
+    protocol: "http/protobuf"
+  traces:
+    sampler: "parent_based_trace_id_ratio"
+    samplerArg: 1.0
+http:
+  port: 8080
+auth:
+  anonymousAuth: true
+  permissionGroupMapping:
+    execute_jobs: ["everyone"]
+pulsar:
+  URL: "pulsar://localhost:6650"
+armadaApi:
+  armadaUrl: "localhost:50051"
+  forceNoTls: true
+postgres:
+  connection:
+    host: localhost
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: scheduler
+    sslmode: disable
+scheduling:
+  indexedNodeLabels:
+    - "kubernetes.io/hostname"
+    - "armadaproject.io/fake-executor"
+    - "kwok.x-k8s.io/node"
+  retryPolicy:
+    enabled: true
+    globalMaxRetries: 5
+metrics:
+  port: 9001

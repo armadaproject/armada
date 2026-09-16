@@ -33,6 +33,9 @@ const (
 //   - "no-auth"             - the default profile
 //   - "auth"                - enables OIDC (Keycloak); sets goreman profile to "auth" and uses the auth compose profile
 //   - "fake-executor"       - no Kubernetes needed; sets goreman profile to "fake-executor"
+//   - "fake-executor-regatta" - like "fake-executor", but without goreman's own armada-fakeexecutor
+//     process; use this when `regatta run` (see cmd/regatta) will spawn and manage the fake
+//     executor itself, to avoid two fake executors registering at once
 //   - "auth-fake-executor"  - auth server/scheduler/lookout/binoculars plus the fake executor (no Kubernetes)
 //   - "hot-cold"            - runs the hot-cold scheduler setup
 //   - "kwok"                - like "no-auth", but the executor tolerates the kwok.x-k8s.io/node
@@ -67,9 +70,9 @@ func (Dev) Up(profiles string, dap *bool) error {
 			continue
 		}
 		switch token {
-		case "auth", "fake-executor", "hot-cold", "auth-fake-executor", "kwok":
+		case "auth", "fake-executor", "fake-executor-regatta", "hot-cold", "auth-fake-executor", "kwok":
 			if profile != "no-auth" {
-				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold/auth-fake-executor may be used\n", token, profile)
+				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/fake-executor-regatta/hot-cold/auth-fake-executor may be used\n", token, profile)
 			} else {
 				profile = token
 			}

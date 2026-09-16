@@ -5,159 +5,87 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"k8s.io/client-go/kubernetes"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
+	regattaconfig "github.com/armadaproject/armada/internal/regatta/config"
+	"github.com/armadaproject/armada/internal/regatta/fakeexecutor"
 	"github.com/armadaproject/armada/internal/regatta/kwok"
+	"github.com/armadaproject/armada/internal/regatta/submit"
 	"github.com/armadaproject/armada/pkg/client"
-	"github.com/armadaproject/armada/pkg/client/domain"
-	"github.com/armadaproject/armada/pkg/client/util"
 )
 
 func init() {
 	rootCmd.AddCommand(runCmd)
-	runCmd.Flags().Bool("watch", true, "Watch submitted job events until the scenario completes")
-	runCmd.Flags().Bool("teardownOnly", false, "Skip KWOK setup and job submission, just tear down any existing KWOK fake nodes/controller")
-	runCmd.Flags().Bool("skipKwok", false, "Skip KWOK setup/teardown entirely and just submit the scenario against whatever cluster is already there")
-	runCmd.Flags().String("kubeconfig", "", "Path to a kubeconfig file (defaults to KUBECONFIG env var, then $HOME/.kube/config)")
-	runCmd.Flags().Int("kwokNodeCount", 20, "Number of KWOK fake nodes to create")
-	runCmd.Flags().String("kindClusterName", "armada-test", "Name of the kind cluster the kwok-controller container should reach over the kind docker network")
-	runCmd.Flags().Int("schedulableProbeRetries", 5, "Number of canary-job attempts to confirm the scheduler can actually place jobs on the KWOK fake nodes before running the scenario")
-	runCmd.Flags().Duration("schedulableProbeDelay", 5*time.Second, "Delay before the first canary-job poll; doubles on each retry")
-	if err := viper.BindPFlag("watch", runCmd.Flags().Lookup("watch")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("teardownOnly", runCmd.Flags().Lookup("teardownOnly")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("skipKwok", runCmd.Flags().Lookup("skipKwok")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("kubeconfig", runCmd.Flags().Lookup("kubeconfig")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("kwokNodeCount", runCmd.Flags().Lookup("kwokNodeCount")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("kindClusterName", runCmd.Flags().Lookup("kindClusterName")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("schedulableProbeRetries", runCmd.Flags().Lookup("schedulableProbeRetries")); err != nil {
-		panic(err)
-	}
-	if err := viper.BindPFlag("schedulableProbeDelay", runCmd.Flags().Lookup("schedulableProbeDelay")); err != nil {
-		panic(err)
-	}
 }
 
 var runCmd = &cobra.Command{
-	Use:   "run ./path/to/scenario.yaml",
-	Short: "Stand up KWOK fake nodes and run a benchmarking scenario against Armada",
-	Long: `Stand up KWOK fake nodes and run a benchmarking scenario against Armada.
+	Use:   "run ./path/to/regatta.yaml",
+	Short: "Assemble a benchmarking environment (KWOK fake nodes and/or a fake executor) and run a submission against Armada",
+	Long: `Assemble a benchmarking environment and run a submission against Armada.
 
-Scenario files use the same format as armada-load-tester. Jobs must both tolerate the
-kwok.x-k8s.io/node=fake:NoSchedule taint AND select on kwok.x-k8s.io/node=fake applied to KWOK
-fake nodes, or they will schedule onto real cluster nodes instead (a toleration alone only
-permits scheduling onto a fake node, it doesn't require it - see
-cmd/regatta/config/scenario.example.yaml):
-
-	submissions:
-	  - name: example
-	    count: 5
-	    jobs:
-	      - name: basic_job
-	        count: 10
-	        spec:
-	          terminationGracePeriodSeconds: 0
-	          restartPolicy: Never
-	          nodeSelector:
-	            kwok.x-k8s.io/node: fake
-	          tolerations:
-	            - key: kwok.x-k8s.io/node
-	              operator: Equal
-	              value: fake
-	              effect: NoSchedule
-	          containers:
-	            - name: sleep
-	              imagePullPolicy: IfNotPresent
-	              image: alpine:3.21.3
-	              command:
-	                - sh
-	              args:
-	                - -c
-	                - sleep $(( (RANDOM % 60) + 100 ))
-	              resources:
-	                limits:
-	                  memory: 64Mi
-	                  cpu: 60m
-	                requests:
-	                  memory: 64Mi
-	                  cpu: 60m
-`,
-	Args: cobra.MaximumNArgs(1),
+A regatta file mostly points to other files - an .armadactl.yaml, a kubeconfig, node-profile
+YAML files, a submission spec - rather than embedding everything inline. Exactly one of
+kwok.enabled or fakeExecutor.enabled must be true: fakeExecutor simulates nodes in place of a
+real cluster, it is not a target to run alongside one. See cmd/regatta/config/kwok.example.yaml
+and fakeexecutor.example.yaml.`,
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		teardownOnly := viper.GetBool("teardownOnly")
-		skipKwok := viper.GetBool("skipKwok")
-		if !teardownOnly && !skipKwok && len(args) != 1 {
-			log.Error("a scenario file is required unless --teardownOnly is set")
+		regattaFile, err := regattaconfig.Load(args[0])
+		if err != nil {
+			log.Errorf("loading regatta file: %s", err)
 			os.Exit(1)
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-		go func() {
-			<-sigCh
-			log.Info("received interrupt, cancelling run")
-			cancel()
-		}()
-		defer cancel()
-
-		var kwokClient kubernetes.Interface
-		if !skipKwok {
-			var err error
-			kwokClient, err = kwok.NewClientset(viper.GetString("kubeconfig"))
-			if err != nil {
-				log.Errorf("could not build kubernetes client: %s", err)
-				os.Exit(1)
-			}
+		if err := client.LoadCommandlineArgsFromConfigFile(regattaFile.Armadactl); err != nil {
+			log.Errorf("loading armadactl config: %s", err)
+			os.Exit(1)
 		}
-
-		if teardownOnly {
-			if skipKwok {
-				log.Info("--skipKwok set, nothing to tear down")
-				return
-			}
-			if err := kwok.Teardown(ctx, kwokClient); err != nil {
-				log.Errorf("KWOK teardown failed: %s", err)
-				os.Exit(1)
-			}
-			log.Info("KWOK teardown complete")
-			return
-		}
-
 		apiConnectionDetails, err := client.ExtractCommandlineArmadaApiConnectionDetails()
 		if err != nil {
 			log.Errorf("could not retrieve Armada API connection details: %s", err)
 			os.Exit(1)
 		}
 
-		if !skipKwok {
+		ctx, cancel := context.WithCancel(context.Background())
+		sigCh := make(chan os.Signal, 2)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+		go func() {
+			<-sigCh
+			log.Info("received interrupt, cancelling run (press again to force-quit without tearing down)")
+			cancel()
+			<-sigCh
+			log.Info("received second interrupt, force-quitting immediately")
+			os.Exit(1)
+		}()
+		defer cancel()
+
+		var kwokClient kubernetes.Interface
+		if regattaFile.Kwok.Enabled {
+			kwokClient, err = kwok.NewClientset(regattaFile.Kubeconfig)
+			if err != nil {
+				log.Errorf("could not build kubernetes client: %s", err)
+				os.Exit(1)
+			}
+
+			nodeGroup, err := regattaconfig.LoadNodeGroup(regattaFile.Kwok.NodeGroup)
+			if err != nil {
+				log.Errorf("loading kwok node group: %s", err)
+				os.Exit(1)
+			}
+
 			kwokCfg := kwok.Config{
-				KubeconfigPath:       viper.GetString("kubeconfig"),
-				KindClusterName:      viper.GetString("kindClusterName"),
+				KubeconfigPath:       regattaFile.Kubeconfig,
+				KindClusterName:      regattaFile.Kwok.KindClusterName,
 				StageCRDPath:         "cmd/regatta/kwok/stage-crd.yaml",
 				StagesPath:           "cmd/regatta/kwok/stages.yaml",
-				NodeProfile:          kwok.GB200Slice,
-				NodeCount:            viper.GetInt("kwokNodeCount"),
+				NodeGroup:            nodeGroup,
 				ApiConnectionDetails: apiConnectionDetails,
 				SchedulableProbe: kwok.ProbeConfig{
-					Retries:      viper.GetInt("schedulableProbeRetries"),
-					InitialDelay: viper.GetDuration("schedulableProbeDelay"),
+					Retries:      regattaFile.Kwok.ProbeRetries,
+					InitialDelay: regattaFile.Kwok.ProbeDelayDuration,
 				},
 			}
 			log.Info("setting up KWOK fake nodes")
@@ -173,15 +101,38 @@ cmd/regatta/config/scenario.example.yaml):
 			}()
 		}
 
-		loadTestSpec := &domain.LoadTestSpecification{}
-		if err := util.BindJsonOrYaml(args[0], loadTestSpec); err != nil {
-			log.Error(err.Error())
+		if regattaFile.FakeExecutor.Enabled {
+			nodeGroup, err := regattaconfig.LoadNodeGroup(regattaFile.FakeExecutor.NodeGroup)
+			if err != nil {
+				log.Errorf("loading fake-executor node group: %s", err)
+				os.Exit(1)
+			}
+
+			log.Info("starting armada-fakeexecutor")
+			process, err := fakeexecutor.Start(apiConnectionDetails, nodeGroup, regattaFile.FakeExecutor)
+			if err != nil {
+				log.Errorf("starting armada-fakeexecutor failed: %s", err)
+				os.Exit(1)
+			}
+			log.Infof("armada-fakeexecutor started, pid %d", process.PID())
+			defer func() {
+				log.Info("stopping armada-fakeexecutor")
+				if err := process.Stop(); err != nil {
+					log.Errorf("stopping armada-fakeexecutor failed: %s", err)
+				}
+			}()
+		}
+
+		spec, err := submit.Load(regattaFile.Submission)
+		if err != nil {
+			log.Errorf("loading submission spec: %s", err)
 			os.Exit(1)
 		}
 
-		watchEvents := viper.GetBool("watch")
-		loadTester := client.NewArmadaLoadTester(apiConnectionDetails)
-		result := loadTester.RunSubmissionTest(ctx, *loadTestSpec, watchEvents)
-		log.Infof("submitted %d jobs", len(result.SubmittedJobs))
+		if err := submit.Run(ctx, apiConnectionDetails, spec); err != nil {
+			log.Errorf("run failed: %s", err)
+			os.Exit(1)
+		}
+		log.Info("run complete")
 	},
 }

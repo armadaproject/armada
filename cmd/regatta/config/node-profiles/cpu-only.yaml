@@ -1,0 +1,10 @@
+# Models a plain CPU-only worker node, no accelerator.
+name: cpu-only
+allocatable:
+  cpu: "32"
+  memory: "128Gi"
+  ephemeral-storage: "128Gi"
+  pods: "250"
+labels:
+  node.kubernetes.io/instance-type: cpu-worker
+taints: []

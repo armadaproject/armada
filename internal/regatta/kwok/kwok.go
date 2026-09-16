@@ -11,20 +11,20 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/armadaproject/armada/internal/regatta/config"
 	"github.com/armadaproject/armada/pkg/client"
 )
 
 const readyTimeout = 60 * time.Second
 
 // Config describes one KWOK setup: which fixture files to apply and how many fake nodes of
-// which shape to create.
+// which shape(s) to create.
 type Config struct {
 	KubeconfigPath       string
 	KindClusterName      string
 	StageCRDPath         string
 	StagesPath           string
-	NodeProfile          NodeProfile
-	NodeCount            int
+	NodeGroup            []config.ResolvedNodeGroupMember
 	ApiConnectionDetails *client.ApiConnectionDetails
 	SchedulableProbe     ProbeConfig
 }
@@ -46,8 +46,10 @@ func Setup(ctx context.Context, kubeClient kubernetes.Interface, cfg Config) err
 	if err := RunController(ctx, cfg.KindClusterName); err != nil {
 		return fmt.Errorf("starting kwok-controller: %w", err)
 	}
-	if err := ApplyFakeNodes(ctx, kubeClient, cfg.NodeProfile, cfg.NodeCount); err != nil {
-		return fmt.Errorf("applying fake nodes: %w", err)
+	for _, member := range cfg.NodeGroup {
+		if err := ApplyFakeNodes(ctx, kubeClient, member.Profile, member.Count); err != nil {
+			return fmt.Errorf("applying fake nodes: %w", err)
+		}
 	}
 	if err := WaitUntilReady(ctx, kubeClient, readyTimeout); err != nil {
 		return fmt.Errorf("waiting for fake nodes: %w", err)
