@@ -7,7 +7,7 @@ inputs:
   go-version:
     description: "Version of Go. Default 1.26"
     required: false
-    default: "1.26"
+    default: "1.27"
   cache-tools:
     description: "True/false flag to cache tools"
     required: false
