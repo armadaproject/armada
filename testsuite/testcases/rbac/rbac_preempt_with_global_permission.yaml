@@ -1,10 +1,6 @@
-# RBAC: a principal with the global preempt_any_jobs permission (rbac-admin) can preempt jobs
-# in a queue it doesn't own. priorityClassName is set to armada-preemptible since
-# priorityClassNameOverride: armada-default in config/scheduler/config.yaml would otherwise force
-# the job onto the non-preemptible default class, and PreemptJobs only marks the run for
-# preemption -- the scheduler only actually evicts it, producing the Preempted event this test
-# waits for, if the job's priority class allows it.
-queue: rbac-queue
+# RBAC: a principal with the global preempt_any_jobs permission can preempt jobs
+# in a queue it doesn't own.
+queue: e2e-test-queue
 authContext: rbac-admin
 numBatches: 1
 batchSize: 1

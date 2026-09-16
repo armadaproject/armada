@@ -1,6 +1,6 @@
-# RBAC: a principal with the global reprioritize_any_jobs permission (armada-admin) can
+# RBAC: a principal with the global reprioritize_any_jobs permission can
 # reprioritize jobs in a queue it doesn't own.
-queue: rbac-queue
+queue: e2e-test-queue
 authContext: rbac-admin
 numBatches: 1
 batchSize: 1

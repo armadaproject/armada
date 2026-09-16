@@ -1,6 +1,6 @@
-# RBAC: a principal with the global watch_all_events permission (armada-admin) can watch a job
+# RBAC: a principal with the global watch_all_events permission can watch a job
 # set's events via GetJobSetEvents in a queue it doesn't own.
-queue: rbac-queue
+queue: e2e-test-queue
 authContext: rbac-admin
 numBatches: 1
 batchSize: 1

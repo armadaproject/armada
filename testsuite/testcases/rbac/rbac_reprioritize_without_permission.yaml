@@ -1,9 +1,6 @@
 # RBAC: a principal without reprioritize_any_jobs and without a queue-level reprioritize grant
-# (rbac-user) cannot reprioritize a job, even one it submitted itself. Targets the shared plain
-# rbac-queue; submission succeeds via the global submit_any_jobs: [admins, users] group mapping
-# in config-auth.yaml, but the subsequent reprioritize is denied since rbac-user isn't in
-# reprioritize_any_jobs and has no queue-level reprioritize grant.
-queue: rbac-queue
+# cannot reprioritize a job, even one it submitted itself.
+queue: e2e-test-queue
 authContext: rbac-user
 numBatches: 1
 batchSize: 1
@@ -19,7 +16,7 @@ jobs:
           image: alpine:3.20.0
           args:
             - "sleep"
-            - "5s"
+            - "15s"
           resources:
             limits:
               memory: 25Mi

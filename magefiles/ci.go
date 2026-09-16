@@ -17,10 +17,6 @@ func createQueue() error {
 	return runArmadaCtlIgnoreExists("create", "queue", "e2e-test-queue")
 }
 
-func createRbacQueue() error {
-	return runArmadaCtlIgnoreExists("create", "queue", "rbac-queue", "--owners", "nobody")
-}
-
 // createRetryPolicyAndQueue creates the retry policy and the queue that uses
 // it. The retry/ testcases submit to this queue. The executor config sets the
 // action Delete on the categories that this policy retries. The executor thus
@@ -94,14 +90,7 @@ func switchToAuthConfig() error {
 	for k, v := range envVars {
 		os.Setenv(k, v)
 	}
-	// The testsuite/armadactl processes below run on the host (this container), not inside the
-	// compose network, so they need the same "keycloak" -> 127.0.0.1 alias dev:full sets up --
-	// otherwise they can't resolve the hostname the server/scheduler/executor config above
-	// points them at. dev:full normally adds this, but that's an /etc/hosts edit, which doesn't
-	// survive a devcontainer rebuild even if the compose stack (and keycloak) is left running.
-	if err := ensureEtcHostsEntry("keycloak", "127.0.0.1"); err != nil {
-		return err
-	}
+
 	if err := dockerRun("compose", "-f", fullComposeFile, "up", "-d", "--force-recreate", "--wait", "server", "scheduler", "executor"); err != nil {
 		return err
 	}
@@ -133,7 +122,8 @@ func runTests(suites []string, extraArgs ...string) error {
 			tests = []string{fmt.Sprintf("testsuite/testcases/%s/*", suite)}
 		}
 		timeTaken := time.Now()
-		args := []string{"run", "cmd/testsuite/main.go", "test",
+		args := []string{
+			"run", "cmd/testsuite/main.go", "test",
 			"--tests", strings.Join(tests, ","),
 			"--junit", fmt.Sprintf("junit-%s.xml", label),
 			"--config", "_local/.armadactl.yaml",
@@ -155,23 +145,22 @@ func runTests(suites []string, extraArgs ...string) error {
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func TestSuite() error {
-	// mg.Deps(CheckForArmadaRunning)
+	mg.Deps(CheckForArmadaRunning)
 
-	// // Only set these if they have not already been set
-	// if os.Getenv("ARMADA_EXECUTOR_INGRESS_URL") == "" {
-	// 	os.Setenv("ARMADA_EXECUTOR_INGRESS_URL", "http://localhost")
-	// }
-	// if os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT") == "" {
-	// 	os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
-	// }
+	// Only set these if they have not already been set
+	if os.Getenv("ARMADA_EXECUTOR_INGRESS_URL") == "" {
+		os.Setenv("ARMADA_EXECUTOR_INGRESS_URL", "http://localhost")
+	}
+	if os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT") == "" {
+		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
+	}
 	timeTakenTestSuite := time.Now()
 
 	suites := []string{
-		// "basic",
-		// "categorization", "retry",
-		// "preemption", "reprioritization", "queue",
-		// "testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
-		// "testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
+		"basic", "categorization", "retry",
+		"preemption", "reprioritization", "queue",
+		"testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
+		"testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
 	}
 
 	if err := runTests(suites); err != nil {
@@ -202,7 +191,6 @@ func CheckForArmadaRunning() error {
 	mg.Deps(CheckSchedulerReady)
 	mg.Deps(createQueue)
 	mg.Deps(createRetryPolicyAndQueue)
-	mg.Deps(createRbacQueue)
 
 	// Set high to take compile time into account
 	timeout := time.After(2 * time.Minute)

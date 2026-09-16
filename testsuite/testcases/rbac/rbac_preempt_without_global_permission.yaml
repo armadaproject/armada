@@ -1,9 +1,6 @@
-# RBAC: a principal without preempt_any_jobs and without a queue-level preempt grant (rbac-user)
-# cannot preempt a job, even one it submitted itself. Targets the shared plain rbac-queue;
-# submission succeeds via the global submit_any_jobs: [admins, users] group mapping in
-# config-auth.yaml, but the subsequent preempt is denied since rbac-user isn't in
-# preempt_any_jobs and has no queue-level preempt grant.
-queue: rbac-queue
+# RBAC: a principal without preempt_any_jobs and without a queue-level preempt grant
+# cannot preempt a job, even one it submitted itself.
+queue: e2e-test-queue
 authContext: rbac-user
 numBatches: 1
 batchSize: 1

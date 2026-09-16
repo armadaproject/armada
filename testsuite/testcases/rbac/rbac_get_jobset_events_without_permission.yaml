@@ -1,9 +1,6 @@
-# RBAC: a principal without watch_all_events and without a queue-level watch grant (rbac-user)
-# cannot watch job-set events via GetJobSetEvents, even for a job it submitted itself. Targets
-# the shared plain rbac-queue; submission succeeds via the global submit_any_jobs: [admins, users]
-# group mapping in config-auth.yaml, but the GetJobSetEvents stream that Run() opens to watch for
-# events is denied since rbac-user isn't in watch_all_events and has no queue-level watch grant.
-queue: rbac-queue-no-watch
+# RBAC: a principal without watch_all_events and without a queue-level watch grant
+# cannot watch job-set events via GetJobSetEvents, even for a job it submitted itself.
+queue: e2e-test-queue-no-watch
 authContext: rbac-user
 numBatches: 1
 batchSize: 1
