@@ -66,7 +66,7 @@ message TestSpec {
     string auth_context = 27;
     // If non-zero, the test expects job submission/cancellation/reprioritization or queue
     // create/update/delete to fail with this gRPC status code (see google.golang.org/grpc/codes)
-    // rather than succeed. Mutually exclusive with expecting expected_events to be observed.
+    // rather than succeed.
     int32 expect_error_code = 28;
 }
 

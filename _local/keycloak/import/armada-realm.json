@@ -137,6 +137,39 @@
       ]
     },
     {
+      "clientId": "armada-queue-only",
+      "name": "Armada Queue-Only Service",
+      "description": "Service account for RBAC tests exercising queue-scoped (not global) permissions",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "protocol": "openid-connect",
+      "bearerOnly": false,
+      "consentRequired": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "queue-only-secret",
+      "redirectUris": [],
+      "webOrigins": [],
+      "notBefore": 0,
+      "attributes": {
+        "use.refresh.tokens": "false",
+        "client_credentials.use_refresh_token": "false"
+      },
+      "fullScopeAllowed": true,
+      "nodeReRegistrationTimeout": -1,
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email"],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
       "clientId": "armada-admin",
       "name": "Armada Admin Service",
       "description": "Service account for Armada Admins",
@@ -285,6 +318,14 @@
       "realmRoles": [],
       "clientRoles": {},
       "subGroups": []
+    },
+    {
+      "name": "queue-only",
+      "path": "/queue-only",
+      "attributes": {},
+      "realmRoles": [],
+      "clientRoles": {},
+      "subGroups": []
     }
   ],
   "users": [
@@ -340,26 +381,6 @@
       "groups": ["/users"]
     },
     {
-      "username": "service-account-armada-executor",
-      "enabled": true,
-      "email": "executor@armada.local",
-      "firstName": "Service Account",
-      "lastName": "Executor",
-      "emailVerified": true,
-      "serviceAccountClientId": "armada-executor",
-      "groups": ["/executors"]
-    },
-    {
-      "username": "service-account-armada-user",
-      "enabled": true,
-      "email": "user@armada.local",
-      "firstName": "Service Account",
-      "lastName": "User",
-      "emailVerified": true,
-      "serviceAccountClientId": "armada-user",
-      "groups": ["/users"]
-    },
-    {
       "username": "service-account-armada-admin",
       "enabled": true,
       "email": "admin-service@armada.local",
@@ -368,6 +389,16 @@
       "emailVerified": true,
       "serviceAccountClientId": "armada-admin",
       "groups": ["/admins"]
+    },
+    {
+      "username": "service-account-armada-queue-only",
+      "enabled": true,
+      "email": "queue-only@armada.local",
+      "firstName": "Service Account",
+      "lastName": "Queue-Only",
+      "emailVerified": true,
+      "serviceAccountClientId": "armada-queue-only",
+      "groups": ["/queue-only"]
     }
   ],
   "browserSecurityHeaders": {

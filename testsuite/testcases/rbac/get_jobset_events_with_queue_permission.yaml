@@ -1,7 +1,7 @@
-# RBAC: a principal without submit_any_jobs and without a queue-level submit
-# grant cannot submit jobs.
-queue: e2e-test-queue
-authContext: rbac-executor
+# RBAC: a principal without the global watch_all_events permission can watch jobs
+# in a queue it has the watch permission.
+queue: rbac-queue-submit-and-watch
+authContext: rbac-queue-only
 numBatches: 1
 batchSize: 1
 jobs:
@@ -24,5 +24,18 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-timeout: "30s"
-expectErrorCode: 7 # PERMISSION_DENIED
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - succeeded:
+queueConfig:
+  setup:
+    queueSpec:
+      userOwners: ["nobody"]
+      permissions:
+        - subjects:
+            - kind: Group
+              name: queue-only
+          verbs:
+            - submit
+            - watch

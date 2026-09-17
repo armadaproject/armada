@@ -80,12 +80,10 @@ rules:
 // rbac suite runs
 func switchToAuthConfig() error {
 	envVars := map[string]string{
-		"ARMADA_SERVER_CONFIG":               "../server/config-auth.yaml",
-		"ARMADA_SCHEDULER_CONFIG":            "../scheduler/config-auth.yaml",
-		"ARMADA_EXECUTOR_CONFIG":             "../executor/config-auth.yaml",
-		"ARMADA_SERVER_OIDC_PROVIDER_URL":    "http://keycloak:8180/realms/armada",
-		"ARMADA_SCHEDULER_OIDC_PROVIDER_URL": "http://keycloak:8180/realms/armada",
-		"ARMADA_EXECUTOR_OIDC_PROVIDER_URL":  "http://keycloak:8180/realms/armada",
+		"ARMADA_SERVER_CONFIG":     "../server/config-auth.yaml",
+		"ARMADA_SCHEDULER_CONFIG":  "../scheduler/config-auth.yaml",
+		"ARMADA_EXECUTOR_CONFIG":   "../executor/config-auth.yaml",
+		"ARMADA_OIDC_PROVIDER_URL": "http://keycloak:8180/realms/armada",
 	}
 	for k, v := range envVars {
 		os.Setenv(k, v)

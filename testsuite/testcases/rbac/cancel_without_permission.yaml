@@ -1,9 +1,9 @@
 # RBAC: a principal without cancel_any_jobs and without a queue-level cancel grant
-# cannot cancel a job, even one it submitted itself. Targets the shared plain e2e-test-queue
-queue: e2e-test-queue
-authContext: rbac-user
-numBatches: 1
-batchSize: 1
+# cannot cancel a job, even one it submitted itself
+queue: rbac-queue-submit-no-cancel
+authContext: rbac-queue-only
+numBatches: 10
+batchSize: 10
 jobs:
   - priority: 0
     namespace: personal-anonymous
@@ -16,7 +16,7 @@ jobs:
           image: alpine:3.20.0
           args:
             - "sleep"
-            - "5s"
+            - "100s"
           resources:
             limits:
               memory: 25Mi
@@ -32,3 +32,14 @@ expectedEvents:
   - succeeded:
 timeout: "30s"
 expectErrorCode: 2 # UNKNOWN
+queueConfig:
+  setup:
+    queueSpec:
+      userOwners: ["nobody"]
+      permissions:
+        - subjects:
+            - kind: Group
+              name: queue-only
+          verbs:
+            - submit
+            - watch
