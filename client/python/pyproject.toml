@@ -1,10 +1,10 @@
 [project]
 name = "armada_client"
-version = "0.5.0"
+version = "0.5.1"
 description = "Armada gRPC API python client"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["grpcio==1.76.0", "grpcio-tools==1.76.0", "mypy-protobuf>=3.6.0", "protobuf>=6.32.1" ]
+dependencies = ["grpcio==1.84.0", "grpcio-tools==1.84.0", "mypy-protobuf>=3.6.0", "protobuf>=6.32.1" ]
 license = { text = "Apache Software License" }
 authors = [{ name = "G-Research Open Source Software", email = "armada@armadaproject.io" }]
 
