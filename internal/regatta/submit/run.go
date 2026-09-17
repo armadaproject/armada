@@ -9,11 +9,12 @@ import (
 	"google.golang.org/grpc/status"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/regatta/config"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-// pollInterval controls how often Run checks the last submitted job's terminal status.
+// pollInterval controls how often Run checks submitted jobs' terminal status.
 const pollInterval = 5 * time.Second
 
 // queueVisibilityRetries/-Delay work around a known Armada race: a freshly created queue isn't
@@ -30,11 +31,19 @@ var terminalStates = map[api.JobState]bool{
 	api.JobState_REJECTED:  true,
 }
 
-// Run submits spec.Count copies of spec.Spec into spec.Queue/spec.JobSetId, then blocks until
-// the last submitted job reaches a terminal state (or ctx is cancelled), as a proxy for the
-// whole batch being done.
+// Run submits spec's jobs into spec.Queue/spec.JobSetId and blocks until they're done, either
+// all at once (Mode "" / "one-shot") or spread out over time (Mode "ramp-up").
 func Run(ctx context.Context, apiConnectionDetails *client.ApiConnectionDetails, spec *Spec) error {
-	jobIds, err := submit(apiConnectionDetails, spec)
+	if spec.Mode == config.LoadModeRampUp {
+		return runRampUp(ctx, apiConnectionDetails, spec)
+	}
+	return runOneShot(ctx, apiConnectionDetails, spec)
+}
+
+// runOneShot submits every job in one shot, then blocks until the last submitted job reaches a
+// terminal state (or ctx is cancelled), as a proxy for the whole batch being done.
+func runOneShot(ctx context.Context, apiConnectionDetails *client.ApiConnectionDetails, spec *Spec) error {
+	jobIds, err := submitItems(apiConnectionDetails, spec.Queue, spec.JobSetId, spec.Namespace, spec.Jobs)
 	if err != nil {
 		return fmt.Errorf("submitting jobs: %w", err)
 	}
@@ -43,30 +52,33 @@ func Run(ctx context.Context, apiConnectionDetails *client.ApiConnectionDetails,
 		return nil
 	}
 
-	return waitForTerminal(ctx, apiConnectionDetails, jobIds[len(jobIds)-1])
+	return waitForTerminal(ctx, apiConnectionDetails, []string{jobIds[len(jobIds)-1]})
 }
 
-func submit(apiConnectionDetails *client.ApiConnectionDetails, spec *Spec) ([]string, error) {
-	namespace := spec.Namespace
+// submitItems submits count copies of each JobItem's PodSpec, in list order, returning every
+// submitted job ID.
+func submitItems(apiConnectionDetails *client.ApiConnectionDetails, queue, jobSetId, namespace string, jobs []JobItem) ([]string, error) {
 	if namespace == "" {
 		namespace = "default"
 	}
 
-	items := make([]*api.JobSubmitRequestItem, spec.Count)
-	for i := range items {
-		items[i] = &api.JobSubmitRequestItem{
-			Namespace: namespace,
-			PodSpec:   spec.Spec,
+	var items []*api.JobSubmitRequestItem
+	for _, job := range jobs {
+		for i := 0; i < job.Count; i++ {
+			items = append(items, &api.JobSubmitRequestItem{
+				Namespace: namespace,
+				PodSpec:   job.Spec,
+			})
 		}
 	}
 
 	var jobIds []string
 	err := client.WithSubmitClient(apiConnectionDetails, func(submitClient api.SubmitClient) error {
-		if err := client.CreateQueue(submitClient, &api.Queue{Name: spec.Queue, PriorityFactor: 1}); err != nil && status.Code(err) != codes.AlreadyExists {
-			return fmt.Errorf("creating queue %s: %w", spec.Queue, err)
+		if err := client.CreateQueue(submitClient, &api.Queue{Name: queue, PriorityFactor: 1}); err != nil && status.Code(err) != codes.AlreadyExists {
+			return fmt.Errorf("creating queue %s: %w", queue, err)
 		}
 
-		requests := client.CreateChunkedSubmitRequests(spec.Queue, spec.JobSetId, items)
+		requests := client.CreateChunkedSubmitRequests(queue, jobSetId, items)
 		for _, request := range requests {
 			var response *api.JobSubmitResponse
 			var err error
@@ -92,7 +104,14 @@ func submit(apiConnectionDetails *client.ApiConnectionDetails, spec *Spec) ([]st
 	return jobIds, err
 }
 
-func waitForTerminal(ctx context.Context, apiConnectionDetails *client.ApiConnectionDetails, jobId string) error {
+// waitForTerminal blocks until every job in jobIds has reached a terminal state, or ctx is
+// cancelled.
+func waitForTerminal(ctx context.Context, apiConnectionDetails *client.ApiConnectionDetails, jobIds []string) error {
+	pending := map[string]bool{}
+	for _, id := range jobIds {
+		pending[id] = true
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -100,26 +119,31 @@ func waitForTerminal(ctx context.Context, apiConnectionDetails *client.ApiConnec
 		case <-time.After(pollInterval):
 		}
 
-		state, err := getJobState(apiConnectionDetails, jobId)
+		states, err := getJobStates(apiConnectionDetails, jobIds)
 		if err != nil {
 			return fmt.Errorf("polling job status: %w", err)
 		}
-		if terminalStates[state] {
+		for id := range pending {
+			if terminalStates[states[id]] {
+				delete(pending, id)
+			}
+		}
+		if len(pending) == 0 {
 			return nil
 		}
-		log.Infof("last submitted job %s still running", jobId)
+		log.Infof("%d/%d submitted jobs still running", len(pending), len(jobIds))
 	}
 }
 
-func getJobState(apiConnectionDetails *client.ApiConnectionDetails, jobId string) (api.JobState, error) {
-	var state api.JobState
+func getJobStates(apiConnectionDetails *client.ApiConnectionDetails, jobIds []string) (map[string]api.JobState, error) {
+	var states map[string]api.JobState
 	err := client.WithJobsClient(apiConnectionDetails, func(jobsClient api.JobsClient) error {
-		response, err := jobsClient.GetJobStatus(context.Background(), &api.JobStatusRequest{JobIds: []string{jobId}})
+		response, err := jobsClient.GetJobStatus(context.Background(), &api.JobStatusRequest{JobIds: jobIds})
 		if err != nil {
 			return err
 		}
-		state = response.JobStates[jobId]
+		states = response.JobStates
 		return nil
 	})
-	return state, err
+	return states, err
 }

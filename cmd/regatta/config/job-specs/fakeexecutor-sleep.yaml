@@ -1,0 +1,25 @@
+terminationGracePeriodSeconds: 0
+restartPolicy: Never
+nodeSelector:
+  armadaproject.io/fake-executor: "true"
+tolerations:
+  - key: armadaproject.io/fake-executor
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+containers:
+  - name: sleep
+    imagePullPolicy: IfNotPresent
+    image: alpine:3.21.3
+    command:
+      - sh
+    args:
+      - -c
+      - sleep $(( (RANDOM % 60) + 100 ))
+    resources:
+      limits:
+        memory: 64Mi
+        cpu: 60m
+      requests:
+        memory: 64Mi
+        cpu: 60m

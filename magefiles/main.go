@@ -180,6 +180,30 @@ func KindTeardown() {
 	mg.Deps(kindTeardown)
 }
 
+// Setup a second, minimal Kind cluster for regatta multi-cluster execution targets.
+func KindSecondCluster() {
+	mg.Deps(kindCheck)
+	mg.Deps(kindInitCluster2)
+}
+
+// Teardown the second Kind cluster.
+func KindTeardownSecondCluster() {
+	mg.Deps(kindCheck)
+	mg.Deps(kindTeardown2)
+}
+
+// Setup two dedicated Kind clusters for the regatta multi-cluster quickstart.
+func KindRegatta() {
+	mg.Deps(kindCheck)
+	mg.Deps(kindInitRegattaClusters)
+}
+
+// Teardown both regatta Kind clusters.
+func KindTeardownRegatta() {
+	mg.Deps(kindCheck)
+	mg.Deps(kindTeardownRegattaClusters)
+}
+
 // Generate scheduler SQL.
 func Sql() error {
 	mg.Deps(BootstrapTools)

@@ -37,6 +37,7 @@ scheduling:
     - "kubernetes.io/hostname"
     - "armadaproject.io/fake-executor"
     - "kwok.x-k8s.io/node"
+    - "armadaproject.io/regatta-target"
   retryPolicy:
     enabled: true
     globalMaxRetries: 5

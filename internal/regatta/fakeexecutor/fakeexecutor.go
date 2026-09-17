@@ -77,6 +77,13 @@ const (
 // hardcoding the string twice.
 const nodeIdLabel = "kubernetes.io/hostname"
 
+// basePort/baseMetricPort plus a per-target index give each simultaneous fake-executor target
+// its own HTTP/metrics ports, avoiding a bind collision when more than one is started at once.
+const (
+	basePort       = 8083
+	baseMetricPort = 9101
+)
+
 // prebuiltBinary is where `mage build` (or an equivalent build step) places the compiled
 // armada-fakeexecutor binary. Preferred over `go run` when present, since `go run` execs the
 // compiled binary as a child of its own wrapper process - the wrapper's PID isn't the PID
@@ -101,8 +108,8 @@ func (p *Process) PID() int {
 // `go run ./cmd/fakeexecutor` (assuming the process's own working directory is the repo root,
 // i.e. `go run ./cmd/regatta run ...`) if that binary hasn't been built yet. The process's
 // stdout/stderr are streamed to this process's own.
-func Start(apiConnectionDetails *client.ApiConnectionDetails, nodeGroup []config.ResolvedNodeGroupMember, target config.FakeExecutorTarget) (*Process, error) {
-	configPath, err := writeConfig(apiConnectionDetails, nodeGroup, target)
+func Start(apiConnectionDetails *client.ApiConnectionDetails, nodeGroup []config.ResolvedNodeGroupMember, target config.FakeExecutorTarget, index int) (*Process, error) {
+	configPath, err := writeConfig(apiConnectionDetails, nodeGroup, target, index)
 	if err != nil {
 		return nil, fmt.Errorf("writing fake-executor config: %w", err)
 	}
@@ -141,7 +148,7 @@ func (p *Process) Stop() error {
 	return nil
 }
 
-func writeConfig(apiConnectionDetails *client.ApiConnectionDetails, nodeGroup []config.ResolvedNodeGroupMember, target config.FakeExecutorTarget) (string, error) {
+func writeConfig(apiConnectionDetails *client.ApiConnectionDetails, nodeGroup []config.ResolvedNodeGroupMember, target config.FakeExecutorTarget, index int) (string, error) {
 	trackedLabels := map[string]bool{nodeIdLabel: true, NodeAnnotation: true}
 
 	nodes := make([]*context.NodeSpec, 0, len(nodeGroup))
@@ -181,7 +188,7 @@ func writeConfig(apiConnectionDetails *client.ApiConnectionDetails, nodeGroup []
 	}
 
 	cfg := generatedConfig{
-		HttpPort: 8083,
+		HttpPort: basePort + index,
 		ExecutorApiConnection: executorApiConnection{
 			ArmadaUrl:  target.SchedulerUrl,
 			ForceNoTls: apiConnectionDetails.ForceNoTls,
@@ -190,7 +197,7 @@ func writeConfig(apiConnectionDetails *client.ApiConnectionDetails, nodeGroup []
 			ClusterId: target.ClusterId,
 			Pool:      target.Pool,
 		},
-		Metric: metric{Port: 9101},
+		Metric: metric{Port: baseMetricPort + index},
 		Kubernetes: kubernetesConfig{
 			ToleratedTaints:   []string{NodeAnnotation},
 			TrackedNodeLabels: trackedNodeLabels,

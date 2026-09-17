@@ -1,4 +1,4 @@
-httpPort: 8082
+httpPort: 8092
 executorApiConnection:
   armadaUrl: "localhost:50052"
   forceNoTls: true
@@ -11,7 +11,7 @@ observability:
     sampler: "parent_based_trace_id_ratio"
     samplerArg: 1.0
 metric:
-  port: 9002
+  port: 9012
 kubernetes:
   toleratedTaints:
     - node-tests
@@ -21,7 +21,7 @@ kubernetes:
     - kwok.x-k8s.io/node
     - armadaproject.io/regatta-target
 application:
-  clusterId: "local-cluster"
+  clusterId: "local-cluster-2"
   pool: "default"
   errorCategories:
     enabled: true

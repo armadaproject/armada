@@ -20,6 +20,7 @@ const readyTimeout = 60 * time.Second
 // Config describes one KWOK setup: which fixture files to apply and how many fake nodes of
 // which shape(s) to create.
 type Config struct {
+	Name                 string
 	KubeconfigPath       string
 	KindClusterName      string
 	StageCRDPath         string
@@ -37,24 +38,24 @@ func Setup(ctx context.Context, kubeClient kubernetes.Interface, cfg Config) err
 		return fmt.Errorf("resolving kubeconfig: %w", err)
 	}
 
-	if err := ApplyStageCRD(ctx, kubeconfig, cfg.StageCRDPath); err != nil {
+	if err := ApplyStageCRD(ctx, kubeconfig, cfg.KindClusterName, cfg.StageCRDPath); err != nil {
 		return fmt.Errorf("applying Stage CRD: %w", err)
 	}
-	if err := ApplyStages(ctx, kubeconfig, cfg.StagesPath); err != nil {
+	if err := ApplyStages(ctx, kubeconfig, cfg.KindClusterName, cfg.StagesPath); err != nil {
 		return fmt.Errorf("applying Stages: %w", err)
 	}
-	if err := RunController(ctx, cfg.KindClusterName); err != nil {
+	if err := RunController(ctx, cfg.KindClusterName, cfg.Name); err != nil {
 		return fmt.Errorf("starting kwok-controller: %w", err)
 	}
 	for _, member := range cfg.NodeGroup {
-		if err := ApplyFakeNodes(ctx, kubeClient, member.Profile, member.Count); err != nil {
+		if err := ApplyFakeNodes(ctx, kubeClient, member.Profile, member.Count, cfg.Name); err != nil {
 			return fmt.Errorf("applying fake nodes: %w", err)
 		}
 	}
 	if err := WaitUntilReady(ctx, kubeClient, readyTimeout); err != nil {
 		return fmt.Errorf("waiting for fake nodes: %w", err)
 	}
-	if err := WaitUntilSchedulable(ctx, kubeClient, cfg.ApiConnectionDetails, cfg.SchedulableProbe); err != nil {
+	if err := WaitUntilSchedulable(ctx, kubeClient, cfg.ApiConnectionDetails, cfg.SchedulableProbe, cfg.Name); err != nil {
 		return fmt.Errorf("waiting for fake nodes to become schedulable: %w", err)
 	}
 	return nil
@@ -62,8 +63,8 @@ func Setup(ctx context.Context, kubeClient kubernetes.Interface, cfg Config) err
 
 // Teardown stops the kwok-controller and deletes the fake nodes. Safe to call even if Setup
 // never ran or only partially completed.
-func Teardown(ctx context.Context, kubeClient kubernetes.Interface) error {
-	if err := TeardownController(ctx); err != nil {
+func Teardown(ctx context.Context, kubeClient kubernetes.Interface, targetName string) error {
+	if err := TeardownController(ctx, targetName); err != nil {
 		return fmt.Errorf("stopping kwok-controller: %w", err)
 	}
 	if err := DeleteFakeNodes(ctx, kubeClient); err != nil {

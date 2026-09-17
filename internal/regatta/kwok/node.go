@@ -16,13 +16,21 @@ import (
 const (
 	NodeAnnotation   = "kwok.x-k8s.io/node"
 	NodeAnnotationOK = "fake"
+
+	// TargetLabel identifies which execution target created a fake node. The schedulability
+	// probe overlays this onto its canary job's node selector so a probe submitted for one
+	// target can't false-positive by landing on a different target's fake nodes - Armada's
+	// scheduler has no cluster-affinity concept, so without this a canary can land on any
+	// target's nodes that satisfy the generic fake-node taint/selector. Real, user-authored
+	// load.jobs[] specs never carry this label and remain free to schedule on any target's nodes.
+	TargetLabel = "armadaproject.io/regatta-target"
 )
 
 // BuildFakeNode constructs a single fake v1.Node shaped by profile, with name/hostname
 // parameterized by index so multiple profiles/counts can coexist on one cluster. The
 // KWOK fake-node taint/annotation is always added, on top of whatever the profile itself
 // specifies, since KWOK's controller and the schedulability probe both key off of it.
-func BuildFakeNode(profile *regattaconfig.NodeProfile, index int) *v1.Node {
+func BuildFakeNode(profile *regattaconfig.NodeProfile, index int, targetName string) *v1.Node {
 	name := fmt.Sprintf("kwok-node-%s-%d", profile.Name, index)
 
 	allocatable := v1.ResourceList{}
@@ -35,6 +43,7 @@ func BuildFakeNode(profile *regattaconfig.NodeProfile, index int) *v1.Node {
 		"kubernetes.io/os":       "linux",
 		"type":                   "kwok",
 		NodeAnnotation:           NodeAnnotationOK,
+		TargetLabel:              targetName,
 	}
 	for k, v := range profile.Labels {
 		labels[k] = v
@@ -79,9 +88,9 @@ func BuildFakeNode(profile *regattaconfig.NodeProfile, index int) *v1.Node {
 
 // ApplyFakeNodes creates count fake nodes shaped by profile via the typed clientset. Idempotent:
 // an already-existing node (same name/index) is left as-is.
-func ApplyFakeNodes(ctx context.Context, client kubernetes.Interface, profile *regattaconfig.NodeProfile, count int) error {
+func ApplyFakeNodes(ctx context.Context, client kubernetes.Interface, profile *regattaconfig.NodeProfile, count int, targetName string) error {
 	for i := 0; i < count; i++ {
-		node := BuildFakeNode(profile, i)
+		node := BuildFakeNode(profile, i, targetName)
 		_, err := client.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
 		if err != nil && !apierrors.IsAlreadyExists(err) {
 			return fmt.Errorf("creating fake node %s: %w", node.Name, err)

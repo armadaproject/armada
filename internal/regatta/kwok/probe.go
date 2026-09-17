@@ -36,11 +36,11 @@ type ProbeConfig struct {
 // to ask the scheduler "do you know about this node yet". A submit-time rejection (e.g. "no
 // node matches this pod's selector yet") is expected on early attempts, before the executor's
 // next report cycle - treated the same as "didn't land on a fake node in time", not fatal.
-func WaitUntilSchedulable(ctx context.Context, kubeClient kubernetes.Interface, apiConnectionDetails *client.ApiConnectionDetails, cfg ProbeConfig) error {
+func WaitUntilSchedulable(ctx context.Context, kubeClient kubernetes.Interface, apiConnectionDetails *client.ApiConnectionDetails, cfg ProbeConfig, targetName string) error {
 	delay := cfg.InitialDelay
 	var lastErr error
 	for attempt := 1; attempt <= cfg.Retries; attempt++ {
-		jobId, err := submitCanaryJob(apiConnectionDetails)
+		jobId, err := submitCanaryJob(apiConnectionDetails, targetName)
 		if err != nil {
 			lastErr = err
 		} else {
@@ -70,18 +70,18 @@ func WaitUntilSchedulable(ctx context.Context, kubeClient kubernetes.Interface, 
 // queueVisibilityRetries/-Delay work around a known Armada race: a freshly created queue isn't
 // always immediately visible to the very next submit call on the same connection.
 const (
-	queueVisibilityRetries = 5
+	queueVisibilityRetries = 6
 	queueVisibilityDelay   = 1 * time.Second
 )
 
-func submitCanaryJob(apiConnectionDetails *client.ApiConnectionDetails) (string, error) {
+func submitCanaryJob(apiConnectionDetails *client.ApiConnectionDetails, targetName string) (string, error) {
 	var jobId string
 	err := client.WithSubmitClient(apiConnectionDetails, func(submitClient api.SubmitClient) error {
 		if err := client.CreateQueue(submitClient, &api.Queue{Name: probeQueue, PriorityFactor: 1}); err != nil && status.Code(err) != codes.AlreadyExists {
 			return fmt.Errorf("creating probe queue: %w", err)
 		}
 
-		requests := client.CreateChunkedSubmitRequests(probeQueue, probeJobSetId, []*api.JobSubmitRequestItem{canaryJobSpec()})
+		requests := client.CreateChunkedSubmitRequests(probeQueue, probeJobSetId, []*api.JobSubmitRequestItem{canaryJobSpec(targetName)})
 		for _, request := range requests {
 			var response *api.JobSubmitResponse
 			var err error
@@ -118,7 +118,7 @@ func cancelCanaryJob(apiConnectionDetails *client.ApiConnectionDetails, jobId st
 	})
 }
 
-func canaryJobSpec() *api.JobSubmitRequestItem {
+func canaryJobSpec(targetName string) *api.JobSubmitRequestItem {
 	cpu := resource.MustParse("10m")
 	memory := resource.MustParse("8Mi")
 	return &api.JobSubmitRequestItem{
@@ -128,6 +128,7 @@ func canaryJobSpec() *api.JobSubmitRequestItem {
 			RestartPolicy:                 v1.RestartPolicyNever,
 			NodeSelector: map[string]string{
 				NodeAnnotation: NodeAnnotationOK,
+				TargetLabel:    targetName,
 			},
 			Tolerations: []v1.Toleration{
 				{

@@ -12,6 +12,8 @@ import (
 
 func init() {
 	teardownCmd.Flags().String("kubeconfig", "", "path to a kubeconfig file (default: KUBECONFIG env var, then $HOME/.kube/config)")
+	teardownCmd.Flags().String("name", "cluster-0", "execution target name the run used (see executionTargets[].name in the scenario file); identifies which kwok-controller container/kubeconfig to remove")
+	teardownCmd.Flags().String("kind-cluster-name", "", "kind cluster name the target used (see executionTargets[].cluster.kindClusterName); pins which context in --kubeconfig to use when the kubeconfig file has more than one kind cluster's context")
 	rootCmd.AddCommand(teardownCmd)
 }
 
@@ -30,15 +32,25 @@ real nodes are never affected. Safe to run even if there's nothing to tear down.
 			log.Errorf("reading --kubeconfig flag: %s", err)
 			os.Exit(1)
 		}
+		targetName, err := cmd.Flags().GetString("name")
+		if err != nil {
+			log.Errorf("reading --name flag: %s", err)
+			os.Exit(1)
+		}
+		kindClusterName, err := cmd.Flags().GetString("kind-cluster-name")
+		if err != nil {
+			log.Errorf("reading --kind-cluster-name flag: %s", err)
+			os.Exit(1)
+		}
 
-		kubeClient, err := kwok.NewClientset(kubeconfigPath)
+		kubeClient, err := kwok.NewClientset(kubeconfigPath, kindClusterName)
 		if err != nil {
 			log.Errorf("could not build kubernetes client: %s", err)
 			os.Exit(1)
 		}
 
 		log.Info("tearing down KWOK fake nodes")
-		if err := kwok.Teardown(context.Background(), kubeClient); err != nil {
+		if err := kwok.Teardown(context.Background(), kubeClient, targetName); err != nil {
 			log.Errorf("teardown failed: %s", err)
 			os.Exit(1)
 		}

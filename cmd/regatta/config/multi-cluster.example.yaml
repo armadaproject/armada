@@ -1,0 +1,40 @@
+# Two simultaneous cluster targets, each on its own kind cluster, with different node-group
+# shapes - exceeds Karmada's own benchmarking harness, which only supports N *identical*
+# clusters. Bring up both clusters with `mage kindRegatta` (mirrors `mage kind`, but skips the
+# ingress-nginx/priorityclass/namespace install since Armada's own components run via goreman on
+# the host, not inside either kind cluster).
+armadactl: ~/.armadactl.yaml
+
+executionTargets:
+  - name: gpu-cluster
+    type: cluster
+    nodeGroups: [gb200]
+    cluster:
+      kubeconfig: ../../../.kube/external/config-regatta-1
+      kindClusterName: armada-regatta-1
+      probeRetries: 5
+      probeDelay: 5s
+
+  - name: cpu-cluster
+    type: cluster
+    nodeGroups: [cpu]
+    cluster:
+      kubeconfig: ../../../.kube/external/config-regatta-2
+      kindClusterName: armada-regatta-2
+      probeRetries: 5
+      probeDelay: 5s
+
+nodeGroups:
+  gb200:
+    - nodeProfile: node-profiles/gb200-slice.yaml
+      count: 20
+  cpu:
+    - nodeProfile: node-profiles/cpu-only.yaml
+      count: 10
+
+load:
+  queue: regatta
+  jobSetId: multi-cluster
+  jobs:
+    - jobSpec: job-specs/kwok-sleep.yaml
+      count: 200

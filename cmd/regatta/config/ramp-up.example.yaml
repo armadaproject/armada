@@ -1,0 +1,27 @@
+# Ramp-up: spread submission out over time instead of one burst. 100 jobs over 30s in ~5s steps
+# means ~17 jobs submitted every 5 seconds, rather than all 100 at once.
+armadactl: ~/.armadactl.yaml
+
+executionTargets:
+  - type: cluster
+    cluster:
+      kubeconfig: ~/.kube/config
+      kindClusterName: armada-test
+      probeRetries: 5
+      probeDelay: 5s
+
+nodeGroups:
+  gb200:
+    - nodeProfile: node-profiles/gb200-slice.yaml
+      count: 20
+
+load:
+  queue: regatta
+  jobSetId: ramp-up
+  mode: ramp-up
+  rampUp:
+    rampDuration: 30s
+    stepInterval: 5s
+  jobs:
+    - jobSpec: job-specs/kwok-sleep.yaml
+      count: 100
