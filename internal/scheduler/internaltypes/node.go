@@ -424,7 +424,7 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		totalResources:       node.totalResources,
 		allocatableResources: node.allocatableResources,
 
-		// keys set to nil
+		// keys set to nil; UpsertWithTxn will allocate them fresh
 		Keys: nil,
 
 		// The copy is about to be mutated in place by AddJob/EvictJob/RemoveJob, so these
@@ -564,17 +564,27 @@ func (node *Node) RemoveJob(job SchedulableJob) error {
 }
 
 func markAllocated(allocatableByPriority map[int32]ResourceList, priorityCutoff int32, rs ResourceList) {
-	markAllocatable(allocatableByPriority, priorityCutoff, rs.Negate())
+	// Allocate new ResourceList values to avoid mutating the caller's underlying data.
+	for priority, rl := range allocatableByPriority {
+		if priority <= priorityCutoff {
+			result := make([]int64, len(rl.resources))
+			for i, r := range rl.resources {
+				result[i] = r - rs.resources[i]
+			}
+			allocatableByPriority[priority] = ResourceList{factory: rl.factory, resources: result}
+		}
+	}
 }
 
 func markAllocatable(allocatableByPriority map[int32]ResourceList, priorityCutoff int32, rs ResourceList) {
-	priorities := make([]int32, 0, len(allocatableByPriority))
-	for priority := range allocatableByPriority {
+	// Allocate new ResourceList values to avoid mutating the caller's underlying data.
+	for priority, rl := range allocatableByPriority {
 		if priority <= priorityCutoff {
-			priorities = append(priorities, priority)
+			result := make([]int64, len(rl.resources))
+			for i, r := range rl.resources {
+				result[i] = r + rs.resources[i]
+			}
+			allocatableByPriority[priority] = ResourceList{factory: rl.factory, resources: result}
 		}
-	}
-	for _, priority := range priorities {
-		allocatableByPriority[priority] = allocatableByPriority[priority].Add(rs)
 	}
 }

@@ -41,7 +41,7 @@ func (r *RunNodeReconciler) ReconcileJobRuns(txn *jobdb.Txn, executors []*schedu
 	configByPool := poolConfigSliceToMap(r.poolsToReconcile)
 	nodeIdSet := r.buildNodeIdSet(nodes)
 
-	var result []*FailedReconciliationResult
+	result := make([]*FailedReconciliationResult, 0, len(nodes))
 
 	result = append(result, r.checkJobsOnDeletedNodes(jobsToReconcileByNodeId, nodeIdSet, configByPool)...)
 	result = append(result, r.checkJobsOnExistingNodes(nodes, jobsToReconcileByNodeId, configByPool)...)
@@ -145,7 +145,11 @@ func poolConfigSliceToMap(config []configuration.PoolConfig) map[string]configur
 }
 
 func (r *RunNodeReconciler) getNodes(executors []*schedulerobjects.Executor) []*schedulerobjects.Node {
-	nodes := []*schedulerobjects.Node{}
+	totalNodes := 0
+	for _, executor := range executors {
+		totalNodes += len(executor.Nodes)
+	}
+	nodes := make([]*schedulerobjects.Node, 0, totalNodes)
 	for _, executor := range executors {
 		for _, node := range executor.Nodes {
 			nodes = append(nodes, node)
@@ -168,8 +172,8 @@ func (r *RunNodeReconciler) getJobsToReconcileByNodeId(txn *jobdb.Txn) map[strin
 		return p.Name
 	})
 
-	activeJobByNodeId := map[string][]*jobdb.Job{}
 	jobs := txn.GetAllLeasedJobs()
+	activeJobByNodeId := make(map[string][]*jobdb.Job, len(jobs)/4)
 	for _, job := range jobs {
 		if job.InTerminalState() || job.Queued() || job.LatestRun() == nil {
 			continue
