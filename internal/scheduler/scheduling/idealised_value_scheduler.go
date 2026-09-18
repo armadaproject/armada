@@ -77,7 +77,7 @@ func (sch *IdealisedValueScheduler) Schedule(ctx *armadacontext.Context) (*Sched
 	}
 	inMemoryJobRepo := NewInMemoryJobRepository(pool, jobdb.MarketJobPriorityComparer{Pool: pool})
 	inMemoryJobRepo.EnqueueMany(runningJobCtxs)
-	jobIteratorsByQueue := make(map[string]JobContextIterator)
+	jobIteratorsByQueue := make(map[string]JobContextIterator, len(sctx.QueueSchedulingContexts))
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		runningIt := NewStaticRequirementsIgnoringIterator(inMemoryJobRepo.GetJobIterator(qctx.Queue))
 		queueIt := NewStaticRequirementsIgnoringIterator(NewQueuedJobsIterator(qctx.Queue, sctx.Pool, jobdb.PriceOrder, sch.jobRepo))
@@ -132,8 +132,8 @@ func createNodeDb(schedulingConfig configuration.SchedulingConfig, rlf *internal
 func createMegaNode(pool string, nodes []*internaltypes.Node, schedulingConfig configuration.SchedulingConfig, rlf *internaltypes.ResourceListFactory) *internaltypes.Node {
 	totalResources := rlf.MakeAllZero()
 	allocatableResources := rlf.MakeAllZero()
-	priorityClasses := make(map[int32]bool)
-	allocatableByPriority := make(map[int32]internaltypes.ResourceList)
+	priorityClasses := make(map[int32]bool, len(schedulingConfig.PriorityClasses))
+	allocatableByPriority := make(map[int32]internaltypes.ResourceList, len(schedulingConfig.PriorityClasses))
 
 	nf := internaltypes.NewNodeFactory(
 		schedulingConfig.IndexedTaints,

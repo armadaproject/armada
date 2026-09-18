@@ -101,7 +101,10 @@ func NewSchedulingContext(
 }
 
 func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
-	sctx.UnfeasibleSchedulingKeys = make(map[internaltypes.SchedulingKey]*JobSchedulingContext)
+	// Clear the existing map instead of reallocating to preserve backing memory.
+	for k := range sctx.UnfeasibleSchedulingKeys {
+		delete(sctx.UnfeasibleSchedulingKeys, k)
+	}
 }
 
 func (sctx *SchedulingContext) GetSpotPrice() float64 {
@@ -152,14 +155,14 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		Demand:                            demand,
 		ConstrainedDemand:                 constrainedDemand,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
-		ScheduledResourcesByPriorityClass: make(map[string]internaltypes.ResourceList),
-		EvictedResourcesByPriorityClass:   make(map[string]internaltypes.ResourceList),
-		PreemptedByOptimiserResourceByPriorityClass: make(map[string]internaltypes.ResourceList),
-		SuccessfulJobSchedulingContexts:             make(map[string]*JobSchedulingContext),
-		UnsuccessfulJobSchedulingContexts:           make(map[string]*JobSchedulingContext),
-		RescheduledJobSchedulingContexts:            make(map[string]*JobSchedulingContext),
-		PreemptedByOptimiserJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
-		EvictedJobsById:                             make(map[string]bool),
+		ScheduledResourcesByPriorityClass: make(map[string]internaltypes.ResourceList, 4),
+		EvictedResourcesByPriorityClass:   make(map[string]internaltypes.ResourceList, 4),
+		PreemptedByOptimiserResourceByPriorityClass: make(map[string]internaltypes.ResourceList, 4),
+		SuccessfulJobSchedulingContexts:             make(map[string]*JobSchedulingContext, 8),
+		UnsuccessfulJobSchedulingContexts:           make(map[string]*JobSchedulingContext, 8),
+		RescheduledJobSchedulingContexts:            make(map[string]*JobSchedulingContext, 8),
+		PreemptedByOptimiserJobSchedulingContexts:   make(map[string]*JobSchedulingContext, 4),
+		EvictedJobsById:                             make(map[string]bool, 4),
 	}
 	sctx.QueueSchedulingContexts[queue] = qctx
 	return nil
@@ -604,7 +607,11 @@ func (sctx *SchedulingContext) ClearJobSpecs() {
 }
 
 func (sctx *SchedulingContext) SuccessfulJobSchedulingContexts() []*JobSchedulingContext {
-	jctxs := make([]*JobSchedulingContext, 0)
+	totalCount := 0
+	for _, qctx := range sctx.QueueSchedulingContexts {
+		totalCount += len(qctx.SuccessfulJobSchedulingContexts)
+	}
+	jctxs := make([]*JobSchedulingContext, 0, totalCount)
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		for _, jctx := range qctx.SuccessfulJobSchedulingContexts {
 			jctxs = append(jctxs, jctx)

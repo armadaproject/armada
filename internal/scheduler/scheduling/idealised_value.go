@@ -66,7 +66,7 @@ func CalculateIdealisedValue(
 	}
 
 	// set up nodes
-	runningJobs := make([]*jobdb.Job, 0)
+	runningJobs := make([]*jobdb.Job, 0, len(nodes))
 	for _, node := range nodes {
 		for _, jobId := range node.GetRunningJobIds() {
 			job := jobDb.GetById(jobId)

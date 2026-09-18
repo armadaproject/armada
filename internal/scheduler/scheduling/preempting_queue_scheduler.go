@@ -720,7 +720,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 	if sch.marketDriven {
 		sortOrder = jobdb.PriceOrder
 	}
-	jobIteratorByQueue := make(map[string]JobContextIterator)
+	jobIteratorByQueue := make(map[string]JobContextIterator, len(sch.schedulingContext.QueueSchedulingContexts))
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt := inMemoryJobRepo.GetJobIterator(qctx.Queue)
 		if jobRepo == nil || reflect.ValueOf(jobRepo).IsNil() {
