@@ -99,6 +99,11 @@ type SubmissionConfig struct {
 	AddGangIdLabel bool
 	// Controls whether custom service names are allowed
 	AllowCustomServiceNames bool
+	// When true, honour Kubernetes pod-level resources (KEP-2837, podSpec.Resources):
+	// a container may omit its own resources if the pod-level block is set, and
+	// accounting uses max(sum(container requests), podLevel.Requests). Default false
+	// preserves container-only behaviour.
+	PodLevelResources bool
 }
 
 // TODO: we can probably just typedef this to map[string]string
