@@ -2,11 +2,16 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"net"
+	"os"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -233,19 +238,6 @@ func TestCollect_StaleLabelsCleared(t *testing.T) {
 	})
 }
 
-func TestCollect_ScannerError(t *testing.T) {
-	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
-	cancel()
-	withRedisClient(ctx, func(client redis.UniversalClient) {
-		collector := newRedisBackedCollector(client, testCollectorConfig(5), leaderelection.NewStandaloneLeaderController())
-
-		err := collector.collectOnce(ctx)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "scanner error: context canceled")
-		require.Equal(t, 1.0, testutil.ToFloat64(collector.errorsTotal))
-	})
-}
-
 func TestCollect_SkipIfBusy(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
@@ -319,18 +311,61 @@ func TestCollect_ConcurrentCollect(t *testing.T) {
 func TestCollect_ContextCancellation(t *testing.T) {
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
 	cancel()
-	withRedisClient(ctx, func(client redis.UniversalClient) {
-		seedCtx, seedCancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
-		defer seedCancel()
-		seedGeneratedStreams(t, client, seedCtx, 20, "queue-cancel")
 
-		collector := newRedisBackedCollector(client, testCollectorConfig(5), leaderelection.NewStandaloneLeaderController())
+	// The scan fails immediately due to the cancelled context, so no Redis
+	// connection is needed - the mock reproduces the real scanner surfacing
+	// the context error.
+	scanner := &scriptedMockScanner{
+		script: []scriptedScanResult{
+			{err: context.Canceled},
+		},
+	}
+	collector := NewCollector(scanner, testCollectorConfig(5), leaderelection.NewStandaloneLeaderController())
 
-		err := collector.collectOnce(ctx)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "scanner error: context canceled")
-		require.NotNil(t, collectMetrics(collector))
-	})
+	err := collector.collectOnce(ctx)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "scanner error: context canceled")
+
+	// Context cancellation is not retryable - exactly one scan attempt.
+	require.Equal(t, int64(1), scanner.calls.Load())
+	require.Equal(t, 1.0, testutil.ToFloat64(collector.errorsTotal))
+
+	// The failed cycle publishes error telemetry through the snapshot.
+	// No successful cycle has run yet, so no business (stream/queue)
+	// metrics are served - only self-monitoring error metrics.
+	metrics := collectMetrics(collector)
+	require.NotEmpty(t, metrics)
+
+	businessMetricNames := []string{
+		RedisStreamMemoryBytesMetricName,
+		RedisStreamEventCountMetricName,
+		RedisStreamAgeSecondsMetricName,
+		RedisQueueStreamsMetricName,
+		RedisQueueMemoryBytesMetricName,
+		RedisQueueEventsMetricName,
+	}
+	foundErrorsTotal := false
+	foundErrorDuration := false
+	for _, m := range metrics {
+		desc := m.Desc().String()
+		for _, name := range businessMetricNames {
+			require.NotContains(t, desc, fmt.Sprintf("%q", name))
+		}
+		if strings.Contains(desc, fmt.Sprintf("%q", RedisMetricsErrorsTotalMetricName)) {
+			foundErrorsTotal = true
+		}
+		if strings.Contains(desc, fmt.Sprintf("%q", RedisMetricsCollectionDurationMetricName)) {
+			pb := &dto.Metric{}
+			require.NoError(t, m.Write(pb))
+			for _, label := range pb.Label {
+				if label.GetName() == "status" && label.GetValue() == collectionStatusError {
+					foundErrorDuration = true
+				}
+			}
+		}
+	}
+	require.True(t, foundErrorsTotal, "expected error telemetry to be served after failed collection")
+	require.True(t, foundErrorDuration, "expected error-labelled collection duration to be served after failed collection")
 }
 
 func TestCollect_LargeDataset(t *testing.T) {
@@ -978,4 +1013,317 @@ func seedRedisStream(t *testing.T, client redis.UniversalClient, ctx context.Con
 		require.NoError(t, err)
 	}
 	return streamKey
+}
+
+type scriptedMockScanner struct {
+	script []scriptedScanResult
+	calls  atomic.Int64
+}
+
+// redisError mimics the concrete Redis error type returned by go-redis
+// (proto.RedisError), which implements the redis.Error interface marker.
+type redisError string
+
+func (e redisError) Error() string { return string(e) }
+func (e redisError) RedisError()   {}
+
+type scriptedScanResult struct {
+	streams []repository.StreamInfo
+	err     error
+	delay   time.Duration
+}
+
+func (m *scriptedMockScanner) ScanAll(ctx context.Context) ([]repository.StreamInfo, error) {
+	call := int(m.calls.Add(1))
+	idx := min(call-1, len(m.script)-1)
+	result := m.script[idx]
+	if result.delay > 0 {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(result.delay):
+		}
+	}
+	return result.streams, result.err
+}
+
+func testStreams(count int) []repository.StreamInfo {
+	streams := make([]repository.StreamInfo, count)
+	for i := range count {
+		queue := fmt.Sprintf("queue-%d", i)
+		jobSetId := fmt.Sprintf("jobset-%d", i)
+		streams[i] = repository.StreamInfo{
+			Key:         fmt.Sprintf("%s%s:%s", constants.EventStreamPrefix, queue, jobSetId),
+			Queue:       queue,
+			JobSetId:    jobSetId,
+			Length:      int64(100 * (i + 1)),
+			MemoryBytes: int64(1024 * (i + 1)),
+			AgeSeconds:  float64(60 * (i + 1)),
+		}
+	}
+	return streams
+}
+
+func retryConfig() configuration.RedisMemoryMetricsConfig {
+	config := testCollectorConfig(5)
+	config.CollectionTimeout = 10 * time.Second
+	config.RetryInitialBackoff = 1 * time.Millisecond
+	config.MaxRetries = 10
+	return config
+}
+
+func TestCollect_KeepsStaleMetricsOnError(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	scanner := &scriptedMockScanner{
+		script: []scriptedScanResult{
+			{streams: testStreams(3)},
+			{err: fmt.Errorf("xinfo stream error for key %q: %w", "Events:gone:gone", redisError("ERR no such key"))},
+		},
+	}
+
+	collector := NewCollector(scanner, retryConfig(), leaderelection.NewStandaloneLeaderController())
+
+	require.NoError(t, collector.collectOnce(ctx))
+	firstSnapshot := gaugeMetricValues(t, collector)
+	require.Len(t, metricKeys(firstSnapshot), 7) // 3 top-N + 3 queue aggregates + last-collection timestamp
+
+	require.Error(t, collector.collectOnce(ctx))
+	require.Equal(t, 1.0, testutil.ToFloat64(collector.errorsTotal))
+
+	staleSnapshot := gaugeMetricValues(t, collector)
+	require.Equal(t, firstSnapshot, staleSnapshot)
+}
+
+func TestCollect_RetriesOnTransientErrors(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	tests := map[string]struct {
+		script      []scriptedScanResult
+		maxRetries  int
+		expectCalls int64
+		expectErr   bool
+	}{
+		"timeout then success": {
+			script: []scriptedScanResult{
+				{err: fmt.Errorf("scan error: %w", context.DeadlineExceeded)},
+				{err: fmt.Errorf("scan error: %w", context.DeadlineExceeded)},
+				{streams: testStreams(2)},
+			},
+			maxRetries:  3,
+			expectCalls: 3,
+		},
+		"eof then success": {
+			script: []scriptedScanResult{
+				{err: io.EOF},
+				{streams: testStreams(2)},
+			},
+			maxRetries:  3,
+			expectCalls: 2,
+		},
+		"connection reset then success": {
+			script: []scriptedScanResult{
+				{err: &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET}},
+				{streams: testStreams(2)},
+			},
+			maxRetries:  3,
+			expectCalls: 2,
+		},
+		"gives up after max retries": {
+			script: []scriptedScanResult{
+				{streams: testStreams(1)},
+				{err: fmt.Errorf("scan error: %w", context.DeadlineExceeded)},
+			},
+			maxRetries:  2,
+			expectCalls: 4,
+			expectErr:   true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			scanner := &scriptedMockScanner{script: tc.script}
+			config := retryConfig()
+			config.MaxRetries = tc.maxRetries
+			collector := NewCollector(scanner, config, leaderelection.NewStandaloneLeaderController())
+
+			if tc.expectErr {
+				// Seed a successful cycle first so stale snapshot is preserved
+				require.NoError(t, collector.collectOnce(ctx))
+				err := collector.collectOnce(ctx)
+				require.Error(t, err)
+				require.ErrorContains(t, err, "scan failed after")
+				require.Equal(t, 1.0, testutil.ToFloat64(collector.errorsTotal))
+			} else {
+				require.NoError(t, collector.collectOnce(ctx))
+				require.Equal(t, 0.0, testutil.ToFloat64(collector.errorsTotal))
+			}
+			require.Equal(t, tc.expectCalls, scanner.calls.Load())
+		})
+	}
+}
+
+func TestIsRetryableScanError(t *testing.T) {
+	dnsTimeoutErr := &net.DNSError{Err: "timeout", Name: "redis", IsTimeout: true}
+
+	tests := map[string]struct {
+		err      error
+		expected bool
+	}{
+		"deadline exceeded": {
+			err:      context.DeadlineExceeded,
+			expected: true,
+		},
+		"wrapped deadline exceeded": {
+			err:      fmt.Errorf("scan error: %w", context.DeadlineExceeded),
+			expected: true,
+		},
+		"os deadline exceeded": {
+			err:      os.ErrDeadlineExceeded,
+			expected: true,
+		},
+		"net deadline exceeded": {
+			err:      &net.OpError{Op: "read", Net: "tcp", Err: os.ErrDeadlineExceeded},
+			expected: true,
+		},
+		"syscall timeout": {
+			err:      &net.OpError{Op: "read", Net: "tcp", Err: syscall.ETIMEDOUT},
+			expected: true,
+		},
+		"redis pool timeout": {
+			err:      fmt.Errorf("scan error: %w", redis.ErrPoolTimeout),
+			expected: true,
+		},
+		"bare EOF": {
+			err:      io.EOF,
+			expected: true,
+		},
+		"wrapped EOF": {
+			err:      fmt.Errorf("scan error: %w", io.EOF),
+			expected: true,
+		},
+		"unexpected EOF": {
+			err:      io.ErrUnexpectedEOF,
+			expected: true,
+		},
+		"connection reset": {
+			err:      &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET},
+			expected: true,
+		},
+		"wrapped connection reset": {
+			err:      fmt.Errorf("scan error: %w", &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET}),
+			expected: true,
+		},
+		"connection refused": {
+			err:      &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED},
+			expected: true,
+		},
+		"broken pipe": {
+			err:      &net.OpError{Op: "write", Net: "tcp", Err: syscall.EPIPE},
+			expected: true,
+		},
+		"dns timeout": {
+			err:      dnsTimeoutErr,
+			expected: true,
+		},
+		"use of closed network connection string": {
+			err:      errors.New("use of closed network connection"),
+			expected: false,
+		},
+		"use of closed network connection net error": {
+			err:      &net.OpError{Op: "read", Net: "tcp", Err: errors.New("use of closed network connection")},
+			expected: false,
+		},
+		"dns no such host": {
+			err:      &net.DNSError{Err: "no such host", Name: "redis"},
+			expected: false,
+		},
+		"redis wrongtype error": {
+			err:      redisError("WRONGTYPE Operation against a key holding the wrong kind of value"),
+			expected: false,
+		},
+		"redis nostream error": {
+			err:      redisError("NOSTREAM the consumer group entry doesn't exist"),
+			expected: false,
+		},
+		"non-retryable application error": {
+			err:      errors.New("ERR no such key"),
+			expected: false,
+		},
+		"nil error": {
+			err:      nil,
+			expected: false,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			if tc.err == nil {
+				return
+			}
+			require.Equal(t, tc.expected, isRetryableScanError(tc.err))
+		})
+	}
+}
+
+func TestCollect_RetriesOnEOF(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	scanner := &scriptedMockScanner{
+		script: []scriptedScanResult{
+			{err: io.EOF},
+			{streams: testStreams(2)},
+		},
+	}
+
+	collector := NewCollector(scanner, retryConfig(), leaderelection.NewStandaloneLeaderController())
+
+	require.NoError(t, collector.collectOnce(ctx))
+	require.Equal(t, int64(2), scanner.calls.Load())
+	require.Equal(t, 0.0, testutil.ToFloat64(collector.errorsTotal))
+}
+
+func TestCollect_RetriesOnConnectionReset(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	scanner := &scriptedMockScanner{
+		script: []scriptedScanResult{
+			{err: &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET}},
+			{streams: testStreams(2)},
+		},
+	}
+
+	collector := NewCollector(scanner, retryConfig(), leaderelection.NewStandaloneLeaderController())
+
+	require.NoError(t, collector.collectOnce(ctx))
+	require.Equal(t, int64(2), scanner.calls.Load())
+	require.Equal(t, 0.0, testutil.ToFloat64(collector.errorsTotal))
+}
+
+func TestCollect_RetriesWhenIntervalExhausted(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	// The first attempt consumes the entire collection interval before failing
+	// (mirrors a scan hitting the per-attempt CollectionTimeout when it equals
+	// CollectionInterval). Retries must still run - the overrun simply delays
+	// the next cycle, since the Run loop serialises cycles on its ticker.
+	scanner := &scriptedMockScanner{
+		script: []scriptedScanResult{
+			{delay: 60 * time.Millisecond, err: fmt.Errorf("scan error: %w", context.DeadlineExceeded)},
+			{streams: testStreams(2)},
+		},
+	}
+
+	config := retryConfig()
+	config.CollectionInterval = 50 * time.Millisecond
+	collector := NewCollector(scanner, config, leaderelection.NewStandaloneLeaderController())
+
+	require.NoError(t, collector.collectOnce(ctx))
+	require.Equal(t, int64(2), scanner.calls.Load())
+	require.Equal(t, 0.0, testutil.ToFloat64(collector.errorsTotal))
 }

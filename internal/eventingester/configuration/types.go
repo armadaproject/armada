@@ -60,6 +60,14 @@ type RedisMemoryMetricsConfig struct {
 	InterBatchDelay           time.Duration
 	MemoryUsageSamples        int
 	Leader                    leaderelection.Config
+	// CollectionTimeout is the maximum duration of a single scan attempt.
+	// Set to a negative value to disable.
+	CollectionTimeout time.Duration
+	// RetryInitialBackoff is the initial backoff between scan attempts after a retryable error.
+	RetryInitialBackoff time.Duration
+	// MaxRetries is the maximum number of retries per collection cycle after the first attempt.
+	// Set to a negative value to disable retries.
+	MaxRetries int
 }
 
 // TODO: unpack this into just EventExpirtation
