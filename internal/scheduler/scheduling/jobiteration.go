@@ -85,7 +85,7 @@ func NewInMemoryJobRepository(pool string, jobComparator immutable.Comparer[*job
 func (repo *InMemoryJobRepository) EnqueueMany(jctxs []*schedulercontext.JobSchedulingContext) {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
-	updatedQueues := make(map[string]bool)
+	updatedQueues := make(map[string]bool, min(len(jctxs), 8))
 	for _, jctx := range jctxs {
 		queue := jctx.Job.Queue()
 		if jctx.Job.LatestRun() != nil && jctx.Job.LatestRun().Pool() != repo.currentPool {

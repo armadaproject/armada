@@ -421,7 +421,7 @@ func (nodeDb *NodeDb) GetNodesWithTxn(txn *memdb.Txn) ([]*internaltypes.Node, er
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	nodes := []*internaltypes.Node{}
+	nodes := make([]*internaltypes.Node, 0, nodeDb.numNodes)
 	for obj := it.Next(); obj != nil; obj = it.Next() {
 		node := obj.(*internaltypes.Node)
 		if node == nil {
@@ -577,6 +577,11 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 		NumExcludedNodesByReason: make(map[string]int),
 	}
 	originalNumberOfTolerations := len(jctx.AdditionalTolerations)
+	if needed := len(nodeDb.defaultTolerations); cap(jctx.AdditionalTolerations)-len(jctx.AdditionalTolerations) < needed {
+		grown := make([]v1.Toleration, len(jctx.AdditionalTolerations), len(jctx.AdditionalTolerations)+needed)
+		copy(grown, jctx.AdditionalTolerations)
+		jctx.AdditionalTolerations = grown
+	}
 	jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, nodeDb.defaultTolerations...)
 	jctx.PodSchedulingContext = pctx
 
@@ -722,6 +727,11 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
 		return nil, nil, nil
 	}
 
+	if needed := len(awayNodeTaints); cap(jctx.AdditionalTolerations)-len(jctx.AdditionalTolerations) < needed {
+		grown := make([]v1.Toleration, len(jctx.AdditionalTolerations), len(jctx.AdditionalTolerations)+needed)
+		copy(grown, jctx.AdditionalTolerations)
+		jctx.AdditionalTolerations = grown
+	}
 	for _, taint := range awayNodeTaints {
 		toleration := v1.Toleration{Key: taint.Key, Effect: taint.Effect}
 		if taint.Value == configuration.WildCardWellKnownNodeTypeValue {
@@ -1215,7 +1225,7 @@ func (nodeDb *NodeDb) UnbindJobFromNode(job *jobdb.Job, node *internaltypes.Node
 // NodeTypesMatchingJob returns a slice with all node types a pod could be scheduled on.
 // It also returns the number of nodes excluded by reason for exclusion.
 func (nodeDb *NodeDb) NodeTypesMatchingJob(jctx *context.JobSchedulingContext) ([]uint64, map[string]int, error) {
-	var matchingNodeTypeIds []uint64
+	matchingNodeTypeIds := make([]uint64, 0, len(nodeDb.nodeTypes))
 	numExcludedNodesByReason := make(map[string]int)
 	for _, nodeType := range nodeDb.nodeTypes {
 		matches, reason := NodeTypeJobRequirementsMet(nodeType, jctx)
