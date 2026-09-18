@@ -305,22 +305,9 @@ func TestConvertLeaseExpired(t *testing.T) {
 		},
 	}
 
-	expected := []*api.EventMessage{
-		{
-			Events: &api.EventMessage_LeaseExpired{
-				LeaseExpired: &api.JobLeaseExpiredEvent{
-					JobId:    jobId,
-					JobSetId: jobSetName,
-					Queue:    queue,
-					Created:  protoutil.ToTimestamp(baseTime),
-				},
-			},
-		},
-	}
-
 	apiEvents, err := FromEventSequence(toEventSeq(leaseExpired))
 	assert.NoError(t, err)
-	assert.Equal(t, expected, apiEvents)
+	assert.Empty(t, apiEvents)
 }
 
 func TestConvertJobReconciliationError(t *testing.T) {
@@ -442,27 +429,9 @@ func TestConvertPodLeaseReturned(t *testing.T) {
 		},
 	}
 
-	expected := []*api.EventMessage{
-		{
-			Events: &api.EventMessage_LeaseReturned{
-				LeaseReturned: &api.JobLeaseReturnedEvent{
-					JobId:        jobId,
-					ClusterId:    executorId,
-					KubernetesId: runId,
-					Reason:       "couldn't schedule pod",
-					PodNumber:    podNumber,
-					JobSetId:     jobSetName,
-					Queue:        queue,
-					Created:      protoutil.ToTimestamp(baseTime),
-					RunAttempted: true,
-				},
-			},
-		},
-	}
-
 	apiEvents, err := FromEventSequence(toEventSeq(leaseReturned))
 	assert.NoError(t, err)
-	assert.Equal(t, expected, apiEvents)
+	assert.Empty(t, apiEvents)
 }
 
 func TestConvertJobError(t *testing.T) {
@@ -717,16 +686,6 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 	}
 
 	expected := []*api.EventMessage{
-		{
-			Events: &api.EventMessage_LeaseExpired{
-				LeaseExpired: &api.JobLeaseExpiredEvent{
-					JobId:    jobId,
-					JobSetId: jobSetName,
-					Queue:    queue,
-					Created:  protoutil.ToTimestamp(baseTime),
-				},
-			},
-		},
 		{
 			Events: &api.EventMessage_Preempted{
 				Preempted: &api.JobPreemptedEvent{

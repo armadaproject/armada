@@ -91,6 +91,35 @@ func TestMultiple(t *testing.T) {
 	assert.Equal(t, expectedSequence.Events, es.Events)
 }
 
+func TestConvert_RemovesJobRunErrors(t *testing.T) {
+	jobRunErrors := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{JobId: JobId, RunId: RunId},
+		},
+	}
+	converter := simpleEventConverter()
+
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(jobRunSucceeded, jobRunErrors))
+	require.Len(t, batchUpdate.Events, 1)
+	es, err := extractEventSeq(batchUpdate.Events[0].Event)
+	require.NoError(t, err)
+	assert.Equal(t, []*armadaevents.EventSequence_Event{jobRunSucceeded}, es.Events)
+}
+
+func TestConvert_DropsSequenceContainingOnlyJobRunErrors(t *testing.T) {
+	jobRunErrors := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{JobId: JobId, RunId: RunId},
+		},
+	}
+	converter := simpleEventConverter()
+
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(jobRunErrors))
+	assert.Empty(t, batchUpdate.Events)
+}
+
 // Cancellation reason should not be in event storage
 func TestCancelled(t *testing.T) {
 	msg := NewMsg(&armadaevents.EventSequence_Event{
@@ -188,17 +217,7 @@ func extractEventSeq(b []byte) (*armadaevents.EventSequence, error) {
 }
 
 func TestConvert_RecordsEventSizeMetricsPerTypeAndQueue(t *testing.T) {
-	jobRunFailed := &armadaevents.EventSequence_Event{
-		Created: baseTimeProto,
-		Event: &armadaevents.EventSequence_Event_JobRunErrors{
-			JobRunErrors: &armadaevents.JobRunErrors{
-				RunId: RunId,
-				JobId: JobId,
-			},
-		},
-	}
-
-	msg := NewMsg(jobRunSucceeded, cancelled, jobRunFailed)
+	msg := NewMsg(jobRunSucceeded, cancelled)
 	compressor, _ := compress.NewZlibCompressor(0)
 	testRegistry := prometheus.NewRegistry()
 	testMetrics := metrics.NewMetricsWithRegistry("test_happy_path_", testRegistry)
@@ -206,17 +225,32 @@ func TestConvert_RecordsEventSizeMetricsPerTypeAndQueue(t *testing.T) {
 
 	succeededType := jobRunSucceeded.GetEventName()
 	cancelledType := cancelled.GetEventName()
-	failedType := jobRunFailed.GetEventName()
 
 	batchUpdate := converter.Convert(armadacontext.Background(), msg)
 	require.Equal(t, 1, len(batchUpdate.Events))
 
 	assert.Greater(t, testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, succeededType)), float64(0))
 	assert.Greater(t, testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, cancelledType)), float64(0))
-	assert.Greater(t, testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, failedType)), float64(0))
 	assert.Greater(t, testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)), float64(0))
 	assert.Greater(t, testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, cancelledType)), float64(0))
-	assert.Greater(t, testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, failedType)), float64(0))
+}
+
+func TestConvert_DoesNotRecordSizeMetricsForFilteredJobRunErrors(t *testing.T) {
+	jobRunErrors := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{RunId: RunId, JobId: JobId},
+		},
+	}
+	compressor, _ := compress.NewZlibCompressor(0)
+	testRegistry := prometheus.NewRegistry()
+	testMetrics := metrics.NewMetricsWithRegistry("test_filtered_", testRegistry)
+	converter := NewEventConverter(compressor, 1024, testMetrics, true)
+
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(jobRunErrors))
+	assert.Empty(t, batchUpdate.Events)
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, jobRunErrors.GetEventName())))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, jobRunErrors.GetEventName())))
 }
 
 func TestConvert_DoesNotRecordSizeMetricsWhenCompressionFails(t *testing.T) {
