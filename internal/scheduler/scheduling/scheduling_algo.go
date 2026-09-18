@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	"k8s.io/utils/clock"
 
@@ -162,6 +161,23 @@ func (l *FairSchedulingAlgo) Schedule(
 		return nil, observe.Error(span, err)
 	}
 
+	// activeExecutorsSet is pool-independent, compute once.
+	activeExecutorsSet := armadamaps.FromSlice(executors,
+		func(ex *schedulerobjects.Executor) string { return ex.Id },
+		func(_ *schedulerobjects.Executor) bool { return true })
+
+	// Pre-compute away pool reverse lookup: for each pool, which other pools list it as an away pool.
+	// This avoids O(N²) iteration with redundant AwayPoolNames() calls per pool.
+	awayPoolNamesByPool := make(map[string][]string, len(l.schedulingConfig.Pools))
+	poolsThatUseAsAway := make(map[string][]string, len(l.schedulingConfig.Pools))
+	for _, pool := range l.schedulingConfig.Pools {
+		awayNames := pool.AwayPoolNames()
+		awayPoolNamesByPool[pool.Name] = awayNames
+		for _, awayName := range awayNames {
+			poolsThatUseAsAway[awayName] = append(poolsThatUseAsAway[awayName], pool.Name)
+		}
+	}
+
 	for _, pool := range l.schedulingConfig.Pools {
 		startTime := l.clock.Now()
 		reconciliation, ok := reconciliationByPool[pool.Name]
@@ -173,9 +189,25 @@ func (l *FairSchedulingAlgo) Schedule(
 		if reconciliation.Err() != nil {
 			outcome = reconciliation.Outcome()
 		} else {
-			outcome, schedulingResult, err = l.runPoolSchedulingRound(ctx, pool, txn, executors, shortJobPenalty)
+			// Fetch per-pool to preserve failure isolation: errors become per-pool outcomes
+			// rather than aborting the entire scheduling round.
+			queues, err := l.queueCache.GetAll(ctx)
 			if err != nil {
-				return nil, observe.Error(span, err)
+				outcome = NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonError, errors.WithMessagef(err, "failed to get queues for pool %s", pool.Name))
+			} else {
+				queueByName := armadamaps.FromSlice(queues,
+					func(queue *api.Queue) string { return queue.Name },
+					func(queue *api.Queue) *api.Queue { return queue })
+
+				executorSettings, err := l.executorRepository.GetExecutorSettings(ctx)
+				if err != nil {
+					outcome = NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonError, errors.WithMessagef(err, "failed to get executor settings for pool %s", pool.Name))
+				} else {
+					outcome, schedulingResult, err = l.runPoolSchedulingRound(ctx, pool, txn, executors, shortJobPenalty, queueByName, activeExecutorsSet, executorSettings, awayPoolNamesByPool, poolsThatUseAsAway)
+					if err != nil {
+						return nil, observe.Error(span, err)
+					}
+				}
 			}
 		}
 		endTime := l.clock.Now()
@@ -229,6 +261,11 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	txn *jobdb.Txn,
 	executors []*schedulerobjects.Executor,
 	shortJobPenalty *ShortJobPenaltySnapshot,
+	queueByName map[string]*api.Queue,
+	activeExecutorsSet map[string]bool,
+	executorSettings []*schedulerobjects.ExecutorSettings,
+	awayPoolNamesByPool map[string][]string,
+	poolsThatUseAsAway map[string][]string,
 ) (*PoolSchedulingOutcome, *SchedulingResult, error) {
 	select {
 	case <-ctx.Done():
@@ -239,7 +276,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	// It is important to pass the validated executors here
 	// This is because the validation ensures those nodes are inline with the jobs
 	// If we use a different copy of nodes (possibly more to date copy) it may no longer align with the jobs/runs
-	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, executors, pool, shortJobPenalty)
+	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, executors, pool, shortJobPenalty, queueByName, activeExecutorsSet, executorSettings, awayPoolNamesByPool, poolsThatUseAsAway)
 	if err != nil {
 		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, errors.WithMessagef(err, "failed to create scheduling algo context")), nil, nil
 	}
@@ -418,26 +455,35 @@ func markAsFailedReconciliation(clock clock.Clock, job *jobdb.Job) *jobdb.Job {
 	return job
 }
 
-func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn, executors []*schedulerobjects.Executor, currentPool configuration.PoolConfig, shortJobPenalty *ShortJobPenaltySnapshot) (*FairSchedulingAlgoContext, error) {
-	queues, err := l.queueCache.GetAll(ctx)
-	if err != nil {
-		return nil, err
-	}
+func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(
+	ctx *armadacontext.Context,
+	txn *jobdb.Txn,
+	executors []*schedulerobjects.Executor,
+	currentPool configuration.PoolConfig,
+	shortJobPenalty *ShortJobPenaltySnapshot,
+	queueByName map[string]*api.Queue,
+	activeExecutorsSet map[string]bool,
+	executorSettings []*schedulerobjects.ExecutorSettings,
+	awayPoolNamesByPool map[string][]string,
+	poolsThatUseAsAway map[string][]string,
+) (*FairSchedulingAlgoContext, error) {
+	// Use pre-computed away pool lookup instead of O(N²) iteration with redundant AwayPoolNames() calls.
+	awayAllocationPools := poolsThatUseAsAway[currentPool.Name]
+	currentAwayPoolNames := awayPoolNamesByPool[currentPool.Name]
 
-	queueByName := armadamaps.FromSlice(queues,
-		func(queue *api.Queue) string { return queue.Name },
-		func(queue *api.Queue) *api.Queue { return queue })
-
-	awayAllocationPools := []string{}
-	for _, otherPool := range l.schedulingConfig.Pools {
-		if slices.Contains(otherPool.AwayPoolNames(), currentPool.Name) {
-			awayAllocationPools = append(awayAllocationPools, otherPool.Name)
-		}
+	// Build allPools set using a map to avoid O(N) slices.Contains and armadaslices.Unique allocation.
+	allPoolsSet := make(map[string]struct{}, len(currentAwayPoolNames)+len(awayAllocationPools)+1)
+	allPoolsSet[currentPool.Name] = struct{}{}
+	for _, name := range currentAwayPoolNames {
+		allPoolsSet[name] = struct{}{}
 	}
-	allPools := []string{currentPool.Name}
-	allPools = append(allPools, currentPool.AwayPoolNames()...)
-	allPools = append(allPools, awayAllocationPools...)
-	allPools = armadaslices.Unique(allPools)
+	for _, name := range awayAllocationPools {
+		allPoolsSet[name] = struct{}{}
+	}
+	allPools := make([]string, 0, len(allPoolsSet))
+	for name := range allPoolsSet {
+		allPools = append(allPools, name)
+	}
 
 	// We must include jobs in the following states:
 	// - Jobs active on the nodes of this pool
@@ -452,14 +498,12 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	allJobs = append(allJobs, queuedJobs...)
 
 	jobSchedulingInfo, err := l.calculateJobSchedulingInfo(ctx,
-		armadamaps.FromSlice(executors,
-			func(ex *schedulerobjects.Executor) string { return ex.Id },
-			func(_ *schedulerobjects.Executor) bool { return true }),
+		activeExecutorsSet,
 		queueByName,
 		allJobs,
 		currentPool.Name,
 		awayAllocationPools,
-		allPools,
+		allPoolsSet,
 		shortJobPenalty)
 	if err != nil {
 		return nil, err
@@ -476,10 +520,6 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	// Note that we do this after aggregating allocation across clusters for fair share.
 	healthyExecutors := l.filterStaleExecutors(ctx, executors)
 	healthyExecutors = l.filterLaggingExecutors(ctx, healthyExecutors, jobSchedulingInfo.jobsByExecutorId)
-	executorSettings, err := l.executorRepository.GetExecutorSettings(ctx)
-	if err != nil {
-		return nil, err
-	}
 	healthyExecutors = l.filterCordonedExecutors(ctx, healthyExecutors, executorSettings)
 
 	nodes := nodeFactory.FromSchedulerObjectsExecutors(healthyExecutors, func(errMes string) {
@@ -487,13 +527,18 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	})
 
 	currentPoolJobs := jobSchedulingInfo.jobsByPool[currentPool.Name]
-	otherPoolsJobs := []*jobdb.Job{}
+	otherPoolsJobs := make([]*jobdb.Job, 0)
 
+	// Use the pre-computed away pool set instead of re-calling AwayPoolNames() + slices.Contains per pool.
+	awaySet := make(map[string]struct{}, len(awayAllocationPools))
+	for _, name := range awayAllocationPools {
+		awaySet[name] = struct{}{}
+	}
 	for _, pool := range l.schedulingConfig.Pools {
 		if currentPool.Name == pool.Name {
 			continue
 		}
-		if slices.Contains(pool.AwayPoolNames(), currentPool.Name) {
+		if _, isAway := awaySet[pool.Name]; isAway {
 			// Jobs from away pools need to be considered in the current scheduling round, so should be added here
 			// This is so the jobs are available for eviction, if a home job needs to take their place
 			currentPoolJobs = append(currentPoolJobs, jobSchedulingInfo.jobsByPool[pool.Name]...)
@@ -508,10 +553,16 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		}
 	}
 
-	nodePools := append(currentPool.AwayPoolNames(), currentPool.Name)
+	// Build nodePools as a map for O(1) lookup instead of O(N) slices.Contains per node.
+	nodePoolsSet := make(map[string]struct{}, len(currentAwayPoolNames)+1)
+	nodePoolsSet[currentPool.Name] = struct{}{}
+	for _, name := range currentAwayPoolNames {
+		nodePoolsSet[name] = struct{}{}
+	}
 	inUsePriorityClasses := l.buildInUsePriorityClasses(jobSchedulingInfo.inUsePriorityClasses)
 	poolNodes := armadaslices.Filter(nodes, func(node *internaltypes.Node) bool {
-		return slices.Contains(nodePools, node.GetPool())
+		_, ok := nodePoolsSet[node.GetPool()]
+		return ok
 	})
 
 	nodeDb, err := l.constructNodeDb(inUsePriorityClasses, currentPool, currentPoolJobs, otherPoolsJobs, poolNodes)
@@ -544,9 +595,11 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}, nil
 }
 
+var emptyJobSlice = []*jobdb.Job{}
+
 func getQueuedJobs(txn *jobdb.Txn, pools []string) []*jobdb.Job {
 	if len(pools) == 0 {
-		return []*jobdb.Job{}
+		return emptyJobSlice
 	}
 	// Shortcut if only one pool which is the most common case
 	if len(pools) == 1 {
@@ -589,15 +642,22 @@ type jobSchedulingInfo struct {
 }
 
 func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
-	queues map[string]*api.Queue, jobs []*jobdb.Job, currentPool string, awayAllocationPools []string, allPools []string,
+	queues map[string]*api.Queue, jobs []*jobdb.Job, currentPool string, awayAllocationPools []string, allPoolsSet map[string]struct{},
 	shortJobPenalty *ShortJobPenaltySnapshot,
 ) (*jobSchedulingInfo, error) {
-	jobsByExecutorId := make(map[string][]*jobdb.Job)
-	jobsByPool := make(map[string][]*jobdb.Job)
-	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
-	allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
-	awayAllocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
-	inUsePriorityClasses := make(map[string]bool)
+	// Pre-allocate maps with capacity hints based on available counts.
+	jobsByExecutorId := make(map[string][]*jobdb.Job, len(activeExecutorsSet))
+	jobsByPool := make(map[string][]*jobdb.Job, len(l.schedulingConfig.Pools))
+	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList, len(queues))
+	allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList, len(queues))
+	awayAllocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList, len(queues))
+	inUsePriorityClasses := make(map[string]bool, len(l.schedulingConfig.PriorityClasses))
+
+	// Pre-compute awayAllocationPools set for O(1) lookup instead of O(N) slices.Contains.
+	awayAllocationSet := make(map[string]struct{}, len(awayAllocationPools))
+	for _, name := range awayAllocationPools {
+		awayAllocationSet[name] = struct{}{}
+	}
 
 	for _, job := range jobs {
 		queue, present := queues[job.Queue()]
@@ -621,10 +681,18 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 			pools = []string{pool}
 		}
 
-		if slices.Contains(pools, currentPool) {
+		// Check if this job is eligible for the current pool.
+		matchesCurrentPool := false
+		for _, pool := range pools {
+			if pool == currentPool {
+				matchesCurrentPool = true
+				break
+			}
+		}
+		if matchesCurrentPool {
 			queueResources, ok := demandByQueueAndPriorityClass[job.Queue()]
 			if !ok {
-				queueResources = map[string]internaltypes.ResourceList{}
+				queueResources = make(map[string]internaltypes.ResourceList, len(l.schedulingConfig.PriorityClasses))
 				demandByQueueAndPriorityClass[job.Queue()] = queueResources
 			}
 			// Queued jobs should not be considered for paused queues, so demand := running
@@ -648,14 +716,11 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		}
 
 		pool := job.LatestRun().Pool()
-		if _, present := jobsByPool[pool]; !present {
-			jobsByPool[pool] = []*jobdb.Job{}
-		}
 		jobsByPool[pool] = append(jobsByPool[pool], job)
 
 		matches := false
 		for _, pool := range pools {
-			if slices.Contains(allPools, pool) {
+			if _, ok := allPoolsSet[pool]; ok {
 				matches = true
 				break
 			}
@@ -668,14 +733,14 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 			if pool == currentPool {
 				allocation := allocatedByQueueAndPriorityClass[queue.Name]
 				if allocation == nil {
-					allocation = make(map[string]internaltypes.ResourceList)
+					allocation = make(map[string]internaltypes.ResourceList, len(l.schedulingConfig.PriorityClasses))
 					allocatedByQueueAndPriorityClass[queue.Name] = allocation
 				}
 				allocation[job.PriorityClassName()] = allocation[job.PriorityClassName()].Add(job.AllResourceRequirements())
-			} else if slices.Contains(awayAllocationPools, pool) {
+			} else if _, isAway := awayAllocationSet[pool]; isAway {
 				awayAllocation := awayAllocatedByQueueAndPriorityClass[queue.Name]
 				if awayAllocation == nil {
-					awayAllocation = make(map[string]internaltypes.ResourceList)
+					awayAllocation = make(map[string]internaltypes.ResourceList, len(l.schedulingConfig.PriorityClasses))
 					awayAllocatedByQueueAndPriorityClass[queue.Name] = awayAllocation
 				}
 				awayAllocation[job.PriorityClassName()] = awayAllocation[job.PriorityClassName()].Add(job.AllResourceRequirements())

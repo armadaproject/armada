@@ -184,10 +184,10 @@ func NewOversubscribedEvictor(
 // Any job for which jobFilter returns true is evicted (if the node was not skipped).
 // If a job was evicted from a node, postEvictFunc is called with the corresponding job and node.
 func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*EvictorResult, error) {
-	evictedJctxsByJobId := make(map[string]*schedulercontext.JobSchedulingContext)
-	affectedNodesById := make(map[string]*internaltypes.Node)
-	nodeIdByJobId := make(map[string]string)
-	nodePreemptiblityStats := []NodePreemptiblityStats{}
+	evictedJctxsByJobId := make(map[string]*schedulercontext.JobSchedulingContext, 64)
+	affectedNodesById := make(map[string]*internaltypes.Node, 64)
+	nodeIdByJobId := make(map[string]string, 64)
+	nodePreemptiblityStats := make([]NodePreemptiblityStats, 0, 64)
 
 	it, err := nodedb.NewNodesIterator(nodeDbTxn)
 	if err != nil {

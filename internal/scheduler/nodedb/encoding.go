@@ -61,29 +61,29 @@ func roundQuantityToResolution(q int64, resolution int64) int64 {
 // The resulting []byte is such that for two int64 a and b, a.Cmp(b) = bytes.Compare(enc(a), enc(b)).
 // The byte representation is appended to out, which is returned.
 func EncodeInt64(out []byte, val int64) []byte {
-	size := 8
-	out = append(out, make([]byte, size)...)
+	// Use stack-allocated array to avoid heap allocation from make([]byte, 8).
+	var buf [8]byte
 
 	// This bit flips the usign bit on any sized signed twos-complement integer,
 	// which when truncated to a uint of the same size will bias the value such
 	// that the maximum negative int becomes 0, and the maximum positive int
 	// becomes the maximum positive uint.
-	scaled := val ^ int64(-1<<(size*8-1))
+	scaled := val ^ int64(-1<<(8*8-1))
 
 	// TODO(albin): It's possible (though unlikely) that this shifting causes nodeType clashes,
 	//              since they're computed by hashing labels etc. and so may be big integers.
 	//              This would reduce the efficiency of nodeType indexing but shouldn't affect correctness.
 
-	binary.BigEndian.PutUint64(out[len(out)-8:], uint64(scaled))
-	return out
+	binary.BigEndian.PutUint64(buf[:], uint64(scaled))
+	return append(out, buf[:]...)
 }
 
 // EncodeUint64 returns the canonical byte representation of a uint64 used within the nodeDb.
 // The resulting []byte is such that for two uint64 a and b, a.Cmp(b) = bytes.Compare(enc(a), enc(b)).
 // The byte representation is appended to out, which is returned.
 func EncodeUint64(out []byte, val uint64) []byte {
-	size := 8
-	out = append(out, make([]byte, size)...)
-	binary.BigEndian.PutUint64(out[len(out)-size:], val)
-	return out
+	// Use stack-allocated array to avoid heap allocation from make([]byte, 8).
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], val)
+	return append(out, buf[:]...)
 }
