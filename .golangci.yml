@@ -22,6 +22,9 @@ linters:
       - linters:
           - lll
         path: internal/scheduler/internaltypes/podutils_test.go
+      - linters:
+          - govet
+        text: "inline:"
     paths:
       - third_party$
       - builtin$
