@@ -88,7 +88,9 @@ func (srv *EventWatcher) Run(ctx context.Context) error {
 		if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return err
 		}
-		if status.Code(err) == codes.Canceled {
+		if status.Code(err) == codes.Canceled || status.Code(err) == codes.PermissionDenied {
+			// Permission denials are permanent for the lifetime of a test (the caller's
+			// identity doesn't change mid-run), so retrying would only waste the backoff budget.
 			return err
 		}
 

@@ -1,0 +1,30 @@
+# RBAC: a principal with the global watch_all_events permission can watch a job
+# set's events via GetJobSetEvents in a queue it doesn't own.
+queue: e2e-test-queue
+authContext: rbac-admin
+numBatches: 1
+batchSize: 1
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: sleep
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          args:
+            - "ls"
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - succeeded:
