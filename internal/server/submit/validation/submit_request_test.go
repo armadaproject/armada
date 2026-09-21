@@ -1460,6 +1460,30 @@ func TestValidateResources_PodLevelMinJobResources(t *testing.T) {
 			req:           req(&v1.ResourceRequirements{Requests: cpu("4"), Limits: cpu("4")}, container2),
 			expectSuccess: true,
 		},
+		// Quantity.Value rounds 3500m up to 4, which used to clear the 4cpu minimum.
+		"fractional pod-level cpu below minimum rejected": {
+			req:           req(&v1.ResourceRequirements{Requests: cpu("3500m"), Limits: cpu("3500m")}, []v1.Container{{Name: "main"}}),
+			expectSuccess: false,
+		},
+		"fractional container cpu below minimum rejected": {
+			req: req(nil, []v1.Container{{
+				Name:      "main",
+				Resources: v1.ResourceRequirements{Requests: cpu("3500m"), Limits: cpu("3500m")},
+			}}),
+			expectSuccess: false,
+		},
+		// The per-container minimum check is skipped when a pod-level block is present, so the
+		// effective-request check must still catch a resource only the container requests.
+		"container cpu below minimum not covered by pod-level block rejected": {
+			req: req(
+				&v1.ResourceRequirements{
+					Requests: v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Gi")},
+					Limits:   v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Gi")},
+				},
+				container2,
+			),
+			expectSuccess: false,
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -1475,6 +1499,36 @@ func TestValidateResources_PodLevelMinJobResources(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The pod-level and per-container minimum checks must agree on a resource the spec does not request.
+// Validation runs before defaultResource, so neither path may demand a MinJobResources entry that
+// defaulting is about to supply.
+func TestValidateResources_MinJobResourcesAgreeOnUnrequestedResource(t *testing.T) {
+	cfg := configuration.SubmissionConfig{
+		PodLevelResources: true,
+		MinJobResources:   v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Mi")},
+	}
+	oneCpu := v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")}
+
+	containerPath := &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+		Containers: []v1.Container{{Name: "main", Resources: v1.ResourceRequirements{Requests: oneCpu, Limits: oneCpu}}},
+	}}
+	podLevelPath := &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+		Containers: []v1.Container{{Name: "main"}},
+		Resources:  &v1.ResourceRequirements{Requests: oneCpu, Limits: oneCpu},
+	}}
+
+	assert.NoError(t, validateResources(containerPath, cfg))
+	assert.NoError(t, validateResources(podLevelPath, cfg))
+
+	// Both paths still reject memory that is requested and too small.
+	tinyMemory := v1.ResourceList{v1.ResourceMemory: resource.MustParse("512Ki")}
+	containerPath.PodSpec.Containers[0].Resources = v1.ResourceRequirements{Requests: tinyMemory, Limits: tinyMemory}
+	podLevelPath.PodSpec.Resources = &v1.ResourceRequirements{Requests: tinyMemory, Limits: tinyMemory}
+
+	assert.Error(t, validateResources(containerPath, cfg))
+	assert.Error(t, validateResources(podLevelPath, cfg))
 }
 
 func TestValidateTerminationGracePeriod(t *testing.T) {

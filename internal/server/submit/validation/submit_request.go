@@ -336,7 +336,8 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 
 		for rc, containerRsc := range container.Resources.Requests {
 			serverRsc, nonEmpty := config.MinJobResources[rc]
-			if nonEmpty && containerRsc.Value() < serverRsc.Value() {
+			// Cmp, not Value: Value rounds a fractional CPU up, so 3500m used to clear a 4 CPU minimum.
+			if nonEmpty && containerRsc.Cmp(serverRsc) < 0 {
 				return fmt.Errorf(
 					"container %q %s requests (%s) below server minimum (%s)",
 					container.Name,
@@ -458,10 +459,15 @@ func validatePodLevelResources(
 	// (max of the pod-level request and the summed container requests), since that
 	// is what the scheduler reserves; checking the raw pod-level value alone would
 	// wrongly reject a pod whose container total already meets the minimum.
+	//
+	// Only resources the spec actually requests are checked. Validation runs before defaultResource,
+	// so requiring every MinJobResources entry to be present here would reject a spec that defaulting
+	// is about to complete -- the per-container check below has always skipped undeclared resources
+	// for the same reason.
 	effective := api.SchedulingResourceRequirementsFromPodSpec(spec).Requests
 	for rc, serverRsc := range config.MinJobResources {
-		eff := effective[rc]
-		if eff.Value() < serverRsc.Value() {
+		eff, requested := effective[rc]
+		if requested && eff.Cmp(serverRsc) < 0 {
 			return fmt.Errorf("effective %s requests (%s) below server minimum (%s)", rc, &eff, &serverRsc)
 		}
 	}
