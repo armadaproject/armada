@@ -55,7 +55,7 @@ func Setup(ctx context.Context, scenario *config.Scenario, apiConnectionDetails 
 			case config.TargetTypeCluster:
 				teardown, err = setupCluster(groupCtx, target, nodeGroup, apiConnectionDetails)
 			case config.TargetTypeFakeExecutor:
-				teardown, err = setupFakeExecutor(target, nodeGroup, apiConnectionDetails, fakeExecutorIndex)
+				teardown, err = setupFakeExecutor(groupCtx, target, nodeGroup, apiConnectionDetails, fakeExecutorIndex)
 			}
 			if err != nil {
 				return fmt.Errorf("target %q: %w", target.Name, err)
@@ -141,13 +141,23 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 	}, nil
 }
 
-func setupFakeExecutor(target config.ExecutionTarget, nodeGroup []config.ResolvedNodeGroupMember, apiConnectionDetails *client.ApiConnectionDetails, index int) (func(context.Context), error) {
+func setupFakeExecutor(ctx context.Context, target config.ExecutionTarget, nodeGroup []config.ResolvedNodeGroupMember, apiConnectionDetails *client.ApiConnectionDetails, index int) (func(context.Context), error) {
 	log.Infof("target %q: starting armada-fakeexecutor", target.Name)
 	process, err := fakeexecutor.Start(apiConnectionDetails, nodeGroup, *target.FakeExecutor, index)
 	if err != nil {
 		return nil, fmt.Errorf("starting armada-fakeexecutor failed: %w", err)
 	}
 	log.Infof("target %q: armada-fakeexecutor started, pid %d", target.Name, process.PID())
+
+	log.Infof("target %q: waiting for armada-fakeexecutor to become schedulable", target.Name)
+	probeCfg := fakeexecutor.ProbeConfig{
+		Retries:      target.FakeExecutor.ProbeRetries,
+		InitialDelay: target.FakeExecutor.ProbeDelayDuration,
+	}
+	if err := fakeexecutor.WaitUntilSchedulable(ctx, apiConnectionDetails, probeCfg, target.Name); err != nil {
+		_ = process.Stop()
+		return nil, fmt.Errorf("waiting for armada-fakeexecutor to become schedulable: %w", err)
+	}
 
 	return func(context.Context) {
 		log.Infof("target %q: stopping armada-fakeexecutor", target.Name)

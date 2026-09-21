@@ -109,9 +109,4 @@ tmp.*
 *.tmp.*
 .aider*
 
-# regatta render output (see cmd/regatta/README.md) - generated, not checked in
-cmd/regatta/config/armada/kind/.tmp/
-cmd/regatta/config/armada/executor/.tmp/
-cmd/regatta/config/armada/procfiles/.tmp/
-
 .claude/

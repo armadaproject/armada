@@ -10,6 +10,8 @@ executionTargets:
       schedulerUrl: localhost:50052
       pool: default
       clusterId: fake-cluster
+      probeRetries: 5
+      probeDelay: 5s
 
 nodeGroups:
   gb200:

@@ -104,6 +104,18 @@ type FakeExecutorTarget struct {
 	SchedulerUrl string `json:"schedulerUrl"`
 	Pool         string `json:"pool,omitempty"`
 	ClusterId    string `json:"clusterId,omitempty"`
+
+	// ProbeRetries/ProbeDelay control the canary-job readiness probe that confirms the
+	// fake-executor process has actually registered with the scheduler and reported its
+	// simulated nodes' capacity before load is submitted (see fakeexecutor.WaitUntilSchedulable).
+	// Mirrors ClusterTarget.ProbeRetries/ProbeDelay; unlike the cluster path this probe always
+	// runs (there is no "unknown externally-provided environment" case for a process regatta
+	// itself just started).
+	ProbeRetries int    `json:"probeRetries,omitempty"`
+	ProbeDelay   string `json:"probeDelay,omitempty"`
+
+	// ProbeDelayDuration is ProbeDelay parsed by Load. Not part of the file format.
+	ProbeDelayDuration time.Duration `json:"-"`
 }
 
 // Load describes the submission batch: which job-spec files to submit, how many of each, and
@@ -204,6 +216,13 @@ func LoadScenario(path string) (*Scenario, error) {
 			}
 			if target.FakeExecutor.SchedulerUrl == "" {
 				return nil, fmt.Errorf("executionTargets[%d]: fakeExecutor.schedulerUrl is required", i)
+			}
+			if target.FakeExecutor.ProbeDelay != "" {
+				delay, err := time.ParseDuration(target.FakeExecutor.ProbeDelay)
+				if err != nil {
+					return nil, fmt.Errorf("executionTargets[%d]: parsing fakeExecutor.probeDelay %q: %w", i, target.FakeExecutor.ProbeDelay, err)
+				}
+				target.FakeExecutor.ProbeDelayDuration = delay
 			}
 		default:
 			return nil, fmt.Errorf("executionTargets[%d]: unknown type %q, must be %q or %q", i, target.Type, TargetTypeCluster, TargetTypeFakeExecutor)
