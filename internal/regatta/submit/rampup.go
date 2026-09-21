@@ -11,10 +11,8 @@ import (
 
 // runRampUp spreads spec's total job count across spec.RampUp.RampDuration, submitting a batch
 // every spec.RampUp.StepInterval (the final step absorbs any remainder), exhausting each
-// JobItem's quota in list order before moving to the next. It then blocks until every submitted
-// job reaches a terminal state, or ctx is cancelled - unlike one-shot's "poll only the last job",
-// ramp-up must poll every submitted ID, since an early step's job can easily outlive a
-// later step's.
+// JobItem's quota in list order before moving to the next, and returns once every step has
+// submitted.
 func runRampUp(ctx context.Context, apiConnectionDetails *client.ApiConnectionDetails, spec *Spec) error {
 	total := 0
 	for _, job := range spec.Jobs {
@@ -32,7 +30,6 @@ func runRampUp(ctx context.Context, apiConnectionDetails *client.ApiConnectionDe
 	remaining := flattenJobItems(spec.Jobs)
 	perStep := total / steps
 
-	var allJobIds []string
 	submitted := 0
 	for step := 1; step <= steps; step++ {
 		count := perStep
@@ -47,7 +44,6 @@ func runRampUp(ctx context.Context, apiConnectionDetails *client.ApiConnectionDe
 		if err != nil {
 			return fmt.Errorf("ramp-up step %d/%d: submitting jobs: %w", step, steps, err)
 		}
-		allJobIds = append(allJobIds, jobIds...)
 		submitted += len(jobIds)
 		log.Infof("ramp-up step %d/%d: submitted %d jobs (%d total so far)", step, steps, len(jobIds), submitted)
 
@@ -61,10 +57,7 @@ func runRampUp(ctx context.Context, apiConnectionDetails *client.ApiConnectionDe
 		}
 	}
 
-	if len(allJobIds) == 0 {
-		return nil
-	}
-	return waitForTerminal(ctx, apiConnectionDetails, allJobIds)
+	return nil
 }
 
 // flattenJobItems expands each JobItem's Count into that many single-count JobItems, so take can

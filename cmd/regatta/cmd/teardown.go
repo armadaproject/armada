@@ -7,26 +7,42 @@ import (
 	"github.com/spf13/cobra"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
+	regattaconfig "github.com/armadaproject/armada/internal/regatta/config"
 	"github.com/armadaproject/armada/internal/regatta/kwok"
+	"github.com/armadaproject/armada/internal/regatta/orchestrate"
 )
 
 func init() {
-	teardownCmd.Flags().String("kubeconfig", "", "path to a kubeconfig file (default: KUBECONFIG env var, then $HOME/.kube/config)")
-	teardownCmd.Flags().String("name", "cluster-0", "execution target name the run used (see executionTargets[].name in the scenario file); identifies which kwok-controller container/kubeconfig to remove")
-	teardownCmd.Flags().String("kind-cluster-name", "", "kind cluster name the target used (see executionTargets[].cluster.kindClusterName); pins which context in --kubeconfig to use when the kubeconfig file has more than one kind cluster's context")
+	teardownCmd.Flags().String("kubeconfig", "", "path to a kubeconfig file (default: KUBECONFIG env var, then $HOME/.kube/config); ignored if a scenario file is given")
+	teardownCmd.Flags().String("name", "cluster-0", "execution target name the run used (see executionTargets[].name in the scenario file); identifies which kwok-controller container/kubeconfig to remove; ignored if a scenario file is given")
 	rootCmd.AddCommand(teardownCmd)
 }
 
 var teardownCmd = &cobra.Command{
-	Use:   "teardown",
-	Short: "Remove regatta's KWOK fake nodes and controller from a cluster, independent of any regatta file",
+	Use:   "teardown [path/to/scenario.yaml]",
+	Short: "Remove regatta's KWOK fake nodes and controller from a cluster",
 	Long: `Remove regatta's KWOK fake nodes and controller from a cluster.
 
-This is the manual escape hatch for when a regatta run's own teardown didn't happen - a crash,
-a killed process, or a machine reboot. It only touches nodes tagged kwok.x-k8s.io/node=fake, so
-real nodes are never affected. Safe to run even if there's nothing to tear down.`,
-	Args: cobra.NoArgs,
+regatta run never tears its own cluster targets down automatically - it just submits load and
+exits, so job state/metrics can still be collected afterwards. Run this once you're done to clean
+up. Given a scenario file, tears down every cluster target it declares (fake-executor targets are
+skipped: stop that process manually, e.g. ps aux | grep fakeexecutor). With no scenario file,
+--kubeconfig/--name identify a single target directly. Only touches nodes tagged
+kwok.x-k8s.io/node=fake, so real nodes are never affected. Safe to run even if there's nothing to
+tear down.`,
+	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		if len(args) == 1 {
+			scenario, err := regattaconfig.LoadScenario(args[0])
+			if err != nil {
+				log.Errorf("loading scenario file: %s", err)
+				os.Exit(1)
+			}
+			orchestrate.Teardown(context.Background(), scenario)
+			log.Info("teardown complete")
+			return
+		}
+
 		kubeconfigPath, err := cmd.Flags().GetString("kubeconfig")
 		if err != nil {
 			log.Errorf("reading --kubeconfig flag: %s", err)
@@ -37,13 +53,7 @@ real nodes are never affected. Safe to run even if there's nothing to tear down.
 			log.Errorf("reading --name flag: %s", err)
 			os.Exit(1)
 		}
-		kindClusterName, err := cmd.Flags().GetString("kind-cluster-name")
-		if err != nil {
-			log.Errorf("reading --kind-cluster-name flag: %s", err)
-			os.Exit(1)
-		}
-
-		kubeClient, err := kwok.NewClientset(kubeconfigPath, kindClusterName)
+		kubeClient, err := kwok.NewClientset(kubeconfigPath)
 		if err != nil {
 			log.Errorf("could not build kubernetes client: %s", err)
 			os.Exit(1)

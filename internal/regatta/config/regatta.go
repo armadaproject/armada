@@ -55,14 +55,41 @@ type ExecutionTarget struct {
 // created in a live cluster via KWOK, so Armada's real executor/scheduler path is exercised
 // end-to-end against simulated hardware.
 type ClusterTarget struct {
-	Kubeconfig      string `json:"kubeconfig"`
-	KindClusterName string `json:"kindClusterName,omitempty"`
-	ProbeRetries    int    `json:"probeRetries,omitempty"`
+	Kubeconfig string `json:"kubeconfig"`
+
+	// Name is a display label for the target's cluster, e.g. for logging. It is never used to
+	// derive a kubeconfig context name - the target's own Kubeconfig file's current-context is
+	// trusted directly. Defaults to the ExecutionTarget's own Name if left unset.
+	Name string `json:"name,omitempty"`
+
+	// InternalAPIServerAddress is the cluster's API server address as reachable from the
+	// kwok-controller container's own network (e.g. a kind cluster's docker network), not the
+	// host-facing address in Kubeconfig. Required for a kind-provisioned target; `regatta render`
+	// auto-populates it. A hand-supplied non-kind cluster must set it directly.
+	InternalAPIServerAddress string `json:"internalApiServerAddress,omitempty"`
+
+	ProbeRetries int `json:"probeRetries,omitempty"`
 	// ProbeDelay is a duration string (e.g. "5s"), parsed by Load into ProbeDelayDuration.
 	ProbeDelay string `json:"probeDelay,omitempty"`
 
 	// ProbeDelayDuration is ProbeDelay parsed by Load. Not part of the file format.
 	ProbeDelayDuration time.Duration `json:"-"`
+
+	// EvaluateReadiness controls whether a canary job is submitted to confirm the fake nodes are
+	// actually schedulable before load is submitted (see kwok.WaitUntilSchedulable). Left unset,
+	// it defaults to true when Name is set (a kind-provisioned target: the environment is fully
+	// known/controlled, so the probe is meaningful and cheap) and false otherwise (an unknown,
+	// externally-provided cluster is assumed already schedulable rather than probed).
+	EvaluateReadiness *bool `json:"evaluateReadiness,omitempty"`
+}
+
+// ShouldEvaluateReadiness reports whether a canary-job readiness probe should run for this
+// target, applying EvaluateReadiness's kind-provisioned-target default when unset.
+func (c *ClusterTarget) ShouldEvaluateReadiness() bool {
+	if c.EvaluateReadiness != nil {
+		return *c.EvaluateReadiness
+	}
+	return c.Name != ""
 }
 
 // FakeExecutorTarget (Type: "fake-executor") configures an armada-fakeexecutor process that

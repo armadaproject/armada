@@ -38,7 +38,7 @@ const (
 //     executor itself, to avoid two fake executors registering at once
 //   - "auth-fake-executor"  - auth server/scheduler/lookout/binoculars plus the fake executor (no Kubernetes)
 //   - "hot-cold"            - runs the hot-cold scheduler setup
-//   - "kwok"                - like "no-auth", but the executor tolerates the kwok.x-k8s.io/node
+//   - "regatta"             - like "no-auth", but the executor tolerates the kwok.x-k8s.io/node
 //     taint so jobs can schedule onto KWOK-simulated fake nodes (see
 //     cmd/regatta)
 //   - anything else         - forwarded as a docker-compose --profile flag for extra services
@@ -57,7 +57,7 @@ const (
 //	mage dev:up fake-executor -dap        # fake executor + dap procfile
 //	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
 //	mage dev:up hot-cold                  # hot-cold scheduler setup
-//	mage dev:up kwok                      # no-auth + executor tolerates KWOK fake-node taint
+//	mage dev:up regatta                   # no-auth + executor tolerates KWOK fake-node taint
 func (Dev) Up(profiles string, dap *bool) error {
 	var (
 		profile         = "no-auth"
@@ -70,7 +70,7 @@ func (Dev) Up(profiles string, dap *bool) error {
 			continue
 		}
 		switch token {
-		case "auth", "fake-executor", "fake-executor-regatta", "hot-cold", "auth-fake-executor", "kwok":
+		case "auth", "fake-executor", "fake-executor-regatta", "hot-cold", "auth-fake-executor", "regatta":
 			if profile != "no-auth" {
 				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/fake-executor-regatta/hot-cold/auth-fake-executor may be used\n", token, profile)
 			} else {
@@ -87,7 +87,11 @@ func (Dev) Up(profiles string, dap *bool) error {
 	if isDAP {
 		debugSuffix = "-dap"
 	}
-	procfile := "_local/procfiles/" + profile + debugSuffix + ".Procfile"
+	procfileDir := "_local/procfiles/"
+	if profile == "regatta" || profile == "fake-executor-regatta" {
+		procfileDir = "cmd/regatta/config/armada/procfiles/"
+	}
+	procfile := procfileDir + profile + debugSuffix + ".Procfile"
 	if _, err := os.Stat(procfile); err != nil {
 		return fmt.Errorf("unknown profile %q: %s not found", profile+debugSuffix, procfile)
 	}

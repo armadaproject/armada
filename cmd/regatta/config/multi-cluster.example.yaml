@@ -11,7 +11,7 @@ executionTargets:
     nodeGroups: [gb200]
     cluster:
       kubeconfig: ../../../.kube/external/config-regatta-1
-      kindClusterName: armada-regatta-1
+      name: armada-regatta-1
       probeRetries: 5
       probeDelay: 5s
 
@@ -20,7 +20,7 @@ executionTargets:
     nodeGroups: [cpu]
     cluster:
       kubeconfig: ../../../.kube/external/config-regatta-2
-      kindClusterName: armada-regatta-2
+      name: armada-regatta-2
       probeRetries: 5
       probeDelay: 5s
 

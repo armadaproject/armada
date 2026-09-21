@@ -12,6 +12,7 @@ import (
 	semver "github.com/Masterminds/semver/v3"
 	"github.com/magefile/mage/sh"
 	"github.com/pkg/errors"
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -189,10 +190,85 @@ func kindWriteExternalKubeConfig(name, kubeconfigPath string) error {
 
 // kindInitRegattaClusters creates both dedicated regatta clusters.
 func kindInitRegattaClusters() error {
-	if err := kindInitRegattaCluster(KIND_NAME_REGATTA_1, "_local/kind/regatta-1.yaml", KIND_CONFIG_EXTERNAL_REGATTA_1); err != nil {
+	if err := kindInitRegattaCluster(KIND_NAME_REGATTA_1, "cmd/regatta/config/armada/kind/regatta-1.yaml", KIND_CONFIG_EXTERNAL_REGATTA_1); err != nil {
 		return err
 	}
-	return kindInitRegattaCluster(KIND_NAME_REGATTA_2, "_local/kind/regatta-2.yaml", KIND_CONFIG_EXTERNAL_REGATTA_2)
+	return kindInitRegattaCluster(KIND_NAME_REGATTA_2, "cmd/regatta/config/armada/kind/regatta-2.yaml", KIND_CONFIG_EXTERNAL_REGATTA_2)
+}
+
+// REGATTA_RENDERED_KUBECONFIG_DIR is where kindInitRegattaClustersFromDir writes each rendered
+// cluster's external kubeconfig, one file per target name. A scenario file rendered via
+// `regatta render` must point its cluster.kubeconfig fields at
+// REGATTA_RENDERED_KUBECONFIG_DIR/<target-name> to match - this is a documented convention (see
+// cmd/regatta/README.md), not something mage or regatta enforce for each other.
+const REGATTA_RENDERED_KUBECONFIG_DIR = ".kube/external/regatta"
+
+// kindConfigClusterName reads the top-level "name:" field out of a kind-cluster config YAML
+// file, so a directory of regatta-render output (named by execution-target name, not by a
+// KIND_NAME_REGATTA_N constant) can be provisioned without mage needing to know target names in
+// advance.
+func kindConfigClusterName(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	var doc struct {
+		Name string `json:"name"`
+	}
+	if err := yaml.Unmarshal(content, &doc); err != nil {
+		return "", fmt.Errorf("parsing %s: %w", path, err)
+	}
+	if doc.Name == "" {
+		return "", fmt.Errorf("%s: missing top-level \"name\" field", path)
+	}
+	return doc.Name, nil
+}
+
+// kindInitRegattaClustersFromDir provisions one kind cluster per *.yaml file in configDir,
+// mirroring kindInitRegattaClusters but for an arbitrary N of rendered configs rather than the
+// two hardcoded quickstart clusters. Each cluster's external kubeconfig is written to
+// REGATTA_RENDERED_KUBECONFIG_DIR/<target-name>, where <target-name> is the config file's own
+// basename (without extension) - regatta render names its output files by target name, so this
+// recovers the target name without needing a separate manifest.
+func kindInitRegattaClustersFromDir(configDir string) error {
+	entries, err := filepath.Glob(filepath.Join(configDir, "*.yaml"))
+	if err != nil {
+		return err
+	}
+	if len(entries) == 0 {
+		return errors.Errorf("no *.yaml kind-cluster configs found in %s - run `regatta render` first", configDir)
+	}
+	for _, configPath := range entries {
+		clusterName, err := kindConfigClusterName(configPath)
+		if err != nil {
+			return err
+		}
+		targetName := strings.TrimSuffix(filepath.Base(configPath), ".yaml")
+		kubeconfigPath := filepath.Join(REGATTA_RENDERED_KUBECONFIG_DIR, targetName)
+		if err := kindInitRegattaCluster(clusterName, configPath, kubeconfigPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// kindTeardownRegattaClustersFromDir deletes one kind cluster per *.yaml file in configDir,
+// parallel to kindInitRegattaClustersFromDir.
+func kindTeardownRegattaClustersFromDir(configDir string) error {
+	entries, err := filepath.Glob(filepath.Join(configDir, "*.yaml"))
+	if err != nil {
+		return err
+	}
+	for _, configPath := range entries {
+		clusterName, err := kindConfigClusterName(configPath)
+		if err != nil {
+			return err
+		}
+		if err := kindRun("delete", "cluster", "--name", clusterName); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // kindTeardownRegattaClusters deletes both dedicated regatta clusters, independent of any other

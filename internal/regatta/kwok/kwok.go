@@ -20,14 +20,15 @@ const readyTimeout = 60 * time.Second
 // Config describes one KWOK setup: which fixture files to apply and how many fake nodes of
 // which shape(s) to create.
 type Config struct {
-	Name                 string
-	KubeconfigPath       string
-	KindClusterName      string
-	StageCRDPath         string
-	StagesPath           string
-	NodeGroup            []config.ResolvedNodeGroupMember
-	ApiConnectionDetails *client.ApiConnectionDetails
-	SchedulableProbe     ProbeConfig
+	Name                     string
+	KubeconfigPath           string
+	InternalAPIServerAddress string
+	StageCRDPath             string
+	StagesPath               string
+	NodeGroup                []config.ResolvedNodeGroupMember
+	ApiConnectionDetails     *client.ApiConnectionDetails
+	SchedulableProbe         ProbeConfig
+	EvaluateReadiness        bool
 }
 
 // Setup applies the Stage CRD, Stage objects, starts the kwok-controller, creates the fake
@@ -38,13 +39,13 @@ func Setup(ctx context.Context, kubeClient kubernetes.Interface, cfg Config) err
 		return fmt.Errorf("resolving kubeconfig: %w", err)
 	}
 
-	if err := ApplyStageCRD(ctx, kubeconfig, cfg.KindClusterName, cfg.StageCRDPath); err != nil {
+	if err := ApplyStageCRD(ctx, kubeconfig, cfg.StageCRDPath); err != nil {
 		return fmt.Errorf("applying Stage CRD: %w", err)
 	}
-	if err := ApplyStages(ctx, kubeconfig, cfg.KindClusterName, cfg.StagesPath); err != nil {
+	if err := ApplyStages(ctx, kubeconfig, cfg.StagesPath); err != nil {
 		return fmt.Errorf("applying Stages: %w", err)
 	}
-	if err := RunController(ctx, cfg.KindClusterName, cfg.Name); err != nil {
+	if err := RunController(ctx, kubeconfig, cfg.InternalAPIServerAddress, cfg.Name); err != nil {
 		return fmt.Errorf("starting kwok-controller: %w", err)
 	}
 	for _, member := range cfg.NodeGroup {
@@ -55,8 +56,10 @@ func Setup(ctx context.Context, kubeClient kubernetes.Interface, cfg Config) err
 	if err := WaitUntilReady(ctx, kubeClient, readyTimeout); err != nil {
 		return fmt.Errorf("waiting for fake nodes: %w", err)
 	}
-	if err := WaitUntilSchedulable(ctx, kubeClient, cfg.ApiConnectionDetails, cfg.SchedulableProbe, cfg.Name); err != nil {
-		return fmt.Errorf("waiting for fake nodes to become schedulable: %w", err)
+	if cfg.EvaluateReadiness {
+		if err := WaitUntilSchedulable(ctx, kubeClient, cfg.ApiConnectionDetails, cfg.SchedulableProbe, cfg.Name); err != nil {
+			return fmt.Errorf("waiting for fake nodes to become schedulable: %w", err)
+		}
 	}
 	return nil
 }
@@ -67,7 +70,7 @@ func Teardown(ctx context.Context, kubeClient kubernetes.Interface, targetName s
 	if err := TeardownController(ctx, targetName); err != nil {
 		return fmt.Errorf("stopping kwok-controller: %w", err)
 	}
-	if err := DeleteFakeNodes(ctx, kubeClient); err != nil {
+	if err := DeleteFakeNodes(ctx, kubeClient, targetName); err != nil {
 		return fmt.Errorf("deleting fake nodes: %w", err)
 	}
 	return nil

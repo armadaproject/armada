@@ -60,18 +60,17 @@ alongside one. See cmd/regatta/config/multi-cluster.example.yaml and fakeexecuto
 		}()
 		defer cancel()
 
-		teardown, err := orchestrate.Setup(ctx, scenario, apiConnectionDetails)
-		if err != nil {
+		if _, err := orchestrate.Setup(ctx, scenario, apiConnectionDetails); err != nil {
 			log.Errorf("setup failed: %s", err)
 			os.Exit(1)
 		}
-		defer teardown(context.Background())
 
 		spec := submit.FromLoadConfig(scenario.Load)
 		if err := submit.Run(ctx, apiConnectionDetails, spec); err != nil {
 			log.Errorf("run failed: %s", err)
 			os.Exit(1)
 		}
-		log.Info("run complete")
+		log.Info("run complete - nothing was torn down: tear down cluster targets with " +
+			"`regatta teardown`, and stop any fake-executor process(es) manually")
 	},
 }

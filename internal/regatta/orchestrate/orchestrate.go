@@ -76,24 +76,56 @@ func Setup(ctx context.Context, scenario *config.Scenario, apiConnectionDetails 
 	return teardownAll, nil
 }
 
+// Teardown tears down every cluster target in scenario.ExecutionTargets, best-effort - a failure
+// on one target is logged but doesn't stop the rest from being torn down. Fake-executor targets
+// are skipped: they're a process regatta itself would have started, and by the time a separate
+// `regatta teardown` invocation runs there's no PID left to reconnect to.
+func Teardown(ctx context.Context, scenario *config.Scenario) {
+	for _, target := range scenario.ExecutionTargets {
+		if target.Type != config.TargetTypeCluster {
+			continue
+		}
+
+		kubeClient, err := kwok.NewClientset(target.Cluster.Kubeconfig)
+		if err != nil {
+			log.Errorf("target %q: could not build kubernetes client: %s", target.Name, err)
+			continue
+		}
+		log.Infof("target %q: tearing down KWOK fake nodes", target.Name)
+		if err := kwok.Teardown(ctx, kubeClient, target.Name); err != nil {
+			log.Errorf("target %q: KWOK teardown failed: %s", target.Name, err)
+		}
+	}
+}
+
 func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup []config.ResolvedNodeGroupMember, apiConnectionDetails *client.ApiConnectionDetails) (func(context.Context), error) {
-	kubeClient, err := kwok.NewClientset(target.Cluster.Kubeconfig, target.Cluster.KindClusterName)
+	kubeClient, err := kwok.NewClientset(target.Cluster.Kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("building kubernetes client: %w", err)
 	}
 
+	internalAPIServerAddress := target.Cluster.InternalAPIServerAddress
+	if internalAPIServerAddress == "" && target.Cluster.Name != "" {
+		// Default to kind's own internal-DNS convention for a control-plane-only cluster on its
+		// own docker network, matching what `kind get kubeconfig --internal` used to produce.
+		// A hand-supplied non-kind cluster has no Cluster.Name-derived default and must set
+		// InternalAPIServerAddress explicitly.
+		internalAPIServerAddress = fmt.Sprintf("https://%s-control-plane:6443", target.Cluster.Name)
+	}
+
 	cfg := kwok.Config{
-		Name:                 target.Name,
-		KubeconfigPath:       target.Cluster.Kubeconfig,
-		KindClusterName:      target.Cluster.KindClusterName,
-		StageCRDPath:         stageCRDPath,
-		StagesPath:           stagesPath,
-		NodeGroup:            nodeGroup,
-		ApiConnectionDetails: apiConnectionDetails,
+		Name:                     target.Name,
+		KubeconfigPath:           target.Cluster.Kubeconfig,
+		InternalAPIServerAddress: internalAPIServerAddress,
+		StageCRDPath:             stageCRDPath,
+		StagesPath:               stagesPath,
+		NodeGroup:                nodeGroup,
+		ApiConnectionDetails:     apiConnectionDetails,
 		SchedulableProbe: kwok.ProbeConfig{
 			Retries:      target.Cluster.ProbeRetries,
 			InitialDelay: target.Cluster.ProbeDelayDuration,
 		},
+		EvaluateReadiness: target.Cluster.ShouldEvaluateReadiness(),
 	}
 
 	log.Infof("target %q: setting up KWOK fake nodes", target.Name)

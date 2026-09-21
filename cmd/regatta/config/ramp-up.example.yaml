@@ -6,7 +6,7 @@ executionTargets:
   - type: cluster
     cluster:
       kubeconfig: ~/.kube/config
-      kindClusterName: armada-test
+      name: armada-test
       probeRetries: 5
       probeDelay: 5s
 

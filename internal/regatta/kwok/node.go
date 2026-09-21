@@ -99,10 +99,11 @@ func ApplyFakeNodes(ctx context.Context, client kubernetes.Interface, profile *r
 	return nil
 }
 
-// DeleteFakeNodes removes the fake v1.Node objects from the cluster, leaving real nodes untouched.
-func DeleteFakeNodes(ctx context.Context, client kubernetes.Interface) error {
+// DeleteFakeNodes removes targetName's fake v1.Node objects from the cluster, leaving real nodes
+// and other targets' fake nodes (on a shared cluster) untouched.
+func DeleteFakeNodes(ctx context.Context, client kubernetes.Interface, targetName string) error {
 	nodes, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{
-		LabelSelector: NodeAnnotation + "=" + NodeAnnotationOK,
+		LabelSelector: NodeAnnotation + "=" + NodeAnnotationOK + "," + TargetLabel + "=" + targetName,
 	})
 	if err != nil {
 		return fmt.Errorf("listing fake nodes: %w", err)

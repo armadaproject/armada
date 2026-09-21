@@ -143,7 +143,7 @@ func canaryJobSpec(targetName string) *api.JobSubmitRequestItem {
 					Name:    "probe",
 					Image:   "alpine:3.21.3",
 					Command: []string{"sh"},
-					Args:    []string{"-c", "sleep 30"},
+					Args:    []string{"-c", "sleep 10"},
 					Resources: v1.ResourceRequirements{
 						Limits:   v1.ResourceList{v1.ResourceCPU: cpu, v1.ResourceMemory: memory},
 						Requests: v1.ResourceList{v1.ResourceCPU: cpu, v1.ResourceMemory: memory},

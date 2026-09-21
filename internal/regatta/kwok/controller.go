@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const ControllerImage = "registry.k8s.io/kwok/kwok:v0.7.0"
@@ -29,27 +31,23 @@ func controllerKubeconfigPath(targetName string) string {
 // ApplyStageCRD installs the Stage CRD (stages.kwok.x-k8s.io) into the cluster. Out-of-cluster
 // mode needs this as a real CRD - unlike the all-in-one image, which reads Stage definitions
 // from a local -c stages.yaml config file at container-create time.
-func ApplyStageCRD(ctx context.Context, kubeconfig, kindClusterName, crdPath string) error {
-	return kubectlApply(ctx, kubeconfig, kindClusterName, crdPath)
+func ApplyStageCRD(ctx context.Context, kubeconfig, crdPath string) error {
+	return kubectlApply(ctx, kubeconfig, crdPath)
 }
 
 // ApplyStages applies the Stage resources (node-heartbeat plus the Pod-kind stage set - see
 // stages.yaml's header comment on why the Pod-kind set must stay complete) as real objects in
 // the cluster.
-func ApplyStages(ctx context.Context, kubeconfig, kindClusterName, stagesPath string) error {
-	return kubectlApply(ctx, kubeconfig, kindClusterName, stagesPath)
+func ApplyStages(ctx context.Context, kubeconfig, stagesPath string) error {
+	return kubectlApply(ctx, kubeconfig, stagesPath)
 }
 
-// kubectlApply passes an explicit --context (rather than trusting the kubeconfig file's
-// current-context) when kindClusterName is set - see NewClientset's doc comment for why
-// current-context can't be trusted once more than one kind cluster shares a kubeconfig file.
-func kubectlApply(ctx context.Context, kubeconfig, kindClusterName, path string) error {
+// kubectlApply trusts the kubeconfig file's own current-context - regatta writes one kubeconfig
+// file per execution target, so current-context is never ambiguous between targets.
+func kubectlApply(ctx context.Context, kubeconfig, path string) error {
 	args := []string{"apply", "-f", path}
 	if kubeconfig != "" {
 		args = append(args, "--kubeconfig", kubeconfig)
-	}
-	if kindClusterName != "" {
-		args = append(args, "--context", "kind-"+kindClusterName)
 	}
 	out, err := exec.CommandContext(ctx, "kubectl", args...).CombinedOutput()
 	if err != nil {
@@ -58,18 +56,19 @@ func kubectlApply(ctx context.Context, kubeconfig, kindClusterName, path string)
 	return nil
 }
 
-// RunController starts the standalone kwok-controller container on the kind cluster's own
-// docker network, restricted to nodes carrying the kwok.x-k8s.io/node=fake annotation so real
-// nodes are never touched. Idempotent: no-op if already running.
+// RunController starts the standalone kwok-controller container on the cluster's own docker
+// network, restricted to nodes carrying the kwok.x-k8s.io/node=fake annotation so real nodes are
+// never touched. Idempotent: no-op if already running.
 // https://kwok.sigs.k8s.io/docs/user/kwok-out-cluster/
 //
-// The container needs a kubeconfig pointed at the API server's address as seen from the kind
-// docker network (e.g. https://<cluster>-control-plane:6443), not the host-facing address
-// (e.g. https://127.0.0.1:<port>) that a locally-loaded kubeconfig contains - `kind get
-// kubeconfig --internal` is what produces that network-internal address.
-func RunController(ctx context.Context, kindClusterName, targetName string) error {
+// The container needs a kubeconfig pointed at the API server's address as seen from its own
+// docker network (e.g. https://<cluster>-control-plane:6443), not the host-facing address (e.g.
+// https://127.0.0.1:<port>) that kubeconfigPath contains - internalAPIServerAddress supplies
+// that network-internal address explicitly (for a kind-provisioned target, `regatta render`
+// auto-populates it; a hand-supplied non-kind cluster must set it directly).
+func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress, targetName string) error {
 	name := controllerName(targetName)
-	kubeconfigPath := controllerKubeconfigPath(targetName)
+	internalKubeconfigPath := controllerKubeconfigPath(targetName)
 
 	out, err := exec.CommandContext(ctx, "docker", "ps",
 		"--filter", "name=^/"+name+"$",
@@ -82,13 +81,14 @@ func RunController(ctx context.Context, kindClusterName, targetName string) erro
 		return nil
 	}
 
-	internalKubeconfig, err := exec.CommandContext(ctx, "kind", "get", "kubeconfig",
-		"--internal", "--name", kindClusterName,
-	).Output()
-	if err != nil {
-		return fmt.Errorf("getting kind internal kubeconfig: %w", err)
+	if internalAPIServerAddress == "" {
+		return fmt.Errorf("target %q: cluster.internalApiServerAddress is required to start the kwok-controller container", targetName)
 	}
-	if err := os.WriteFile(kubeconfigPath, internalKubeconfig, 0o600); err != nil {
+	internalKubeconfig, err := buildInternalKubeconfig(kubeconfigPath, internalAPIServerAddress)
+	if err != nil {
+		return fmt.Errorf("building internal kubeconfig: %w", err)
+	}
+	if err := os.WriteFile(internalKubeconfigPath, internalKubeconfig, 0o600); err != nil {
 		return fmt.Errorf("writing internal kubeconfig: %w", err)
 	}
 
@@ -96,7 +96,7 @@ func RunController(ctx context.Context, kindClusterName, targetName string) erro
 		"run", "--rm", "-d",
 		"--name", name,
 		"--network", "kind",
-		"-v", kubeconfigPath+":/kubeconfig:ro",
+		"-v", internalKubeconfigPath+":/kubeconfig:ro",
 		ControllerImage,
 		"--kubeconfig=/kubeconfig",
 		"--manage-all-nodes=false",
@@ -111,6 +111,27 @@ func RunController(ctx context.Context, kindClusterName, targetName string) erro
 		return fmt.Errorf("starting kwok-controller: %w: %s", err, runOut)
 	}
 	return nil
+}
+
+// buildInternalKubeconfig loads the kubeconfig at kubeconfigPath and returns a copy with the
+// current context's cluster server URL replaced by internalAPIServerAddress - the kwok-controller
+// container needs the API server's docker-network-internal address, not the host-facing one the
+// on-disk kubeconfig points at.
+func buildInternalKubeconfig(kubeconfigPath, internalAPIServerAddress string) ([]byte, error) {
+	rawConfig, err := clientcmd.LoadFromFile(kubeconfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("loading %s: %w", kubeconfigPath, err)
+	}
+	context, ok := rawConfig.Contexts[rawConfig.CurrentContext]
+	if !ok {
+		return nil, fmt.Errorf("%s: current-context %q not found", kubeconfigPath, rawConfig.CurrentContext)
+	}
+	cluster, ok := rawConfig.Clusters[context.Cluster]
+	if !ok {
+		return nil, fmt.Errorf("%s: cluster %q not found", kubeconfigPath, context.Cluster)
+	}
+	cluster.Server = internalAPIServerAddress
+	return clientcmd.Write(*rawConfig)
 }
 
 // TeardownController stops the standalone kwok-controller container and removes its bind-mounted
