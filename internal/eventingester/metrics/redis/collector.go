@@ -42,10 +42,11 @@ const (
 	RedisQueueEventsMetricName      = ArmadaRedisMetricsPrefix + "queue_events_total"
 
 	// Self-monitoring metrics
-	RedisMetricsCollectionDurationMetricName      = ArmadaRedisMetricsPrefix + "metrics_collection_duration_seconds"
-	RedisMetricsErrorsTotalMetricName             = ArmadaRedisMetricsPrefix + "metrics_errors_total"
-	RedisMetricsLastCollectionTimestampMetricName = ArmadaRedisMetricsPrefix + "metrics_last_collection_timestamp"
-	RedisMetricsStreamScannedMetricName           = ArmadaRedisMetricsPrefix + "metrics_streams_scanned_total"
+	RedisMetricsCollectionDurationMetricName                = ArmadaRedisMetricsPrefix + "metrics_collection_duration_seconds"
+	RedisMetricsErrorsTotalMetricName                       = ArmadaRedisMetricsPrefix + "metrics_errors_total"
+	RedisMetricsLastCollectionTimestampMetricName           = ArmadaRedisMetricsPrefix + "metrics_last_collection_timestamp"
+	RedisMetricsLastSuccessfulCollectionTimestampMetricName = ArmadaRedisMetricsPrefix + "metrics_last_successful_collection_timestamp"
+	RedisMetricsStreamScannedMetricName                     = ArmadaRedisMetricsPrefix + "metrics_streams_scanned_total"
 
 	// Label values for the collection duration metric's "status" label
 	collectionStatusSuccess = "success"
@@ -82,10 +83,11 @@ type Collector struct {
 	queueEventsGauge  *prometheus.GaugeVec
 
 	// Self-monitoring
-	collectionDuration      *prometheus.HistogramVec
-	errorsTotal             prometheus.Counter
-	lastCollectionTimestamp prometheus.Gauge
-	streamsScannedGauge     prometheus.Gauge
+	collectionDuration                *prometheus.HistogramVec
+	errorsTotal                       prometheus.Counter
+	lastCollectionTimestamp           prometheus.Gauge
+	lastSuccessfulCollectionTimestamp prometheus.Gauge
+	streamsScannedGauge               prometheus.Gauge
 
 	state     atomic.Value // stores []prometheus.Metric
 	collectMu sync.Mutex   // skip-if-busy pattern
@@ -180,7 +182,11 @@ func NewCollector(scanner ScannerInterface, config configuration.RedisMemoryMetr
 		}),
 		lastCollectionTimestamp: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: RedisMetricsLastCollectionTimestampMetricName,
-			Help: "Timestamp of last successful collection",
+			Help: "Unix timestamp of the last metrics collection attempt",
+		}),
+		lastSuccessfulCollectionTimestamp: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: RedisMetricsLastSuccessfulCollectionTimestampMetricName,
+			Help: "Unix timestamp of the last successful metrics collection",
 		}),
 		streamsScannedGauge: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: RedisMetricsStreamScannedMetricName,
@@ -250,6 +256,7 @@ func (c *Collector) Describe(out chan<- *prometheus.Desc) {
 	c.collectionDuration.Describe(out)
 	c.errorsTotal.Describe(out)
 	c.lastCollectionTimestamp.Describe(out)
+	c.lastSuccessfulCollectionTimestamp.Describe(out)
 	c.streamsScannedGauge.Describe(out)
 }
 
@@ -305,6 +312,7 @@ func (c *Collector) collectOnce(ctx context.Context) error {
 	if err != nil {
 		c.errorsTotal.Inc()
 		c.collectionDuration.WithLabelValues(collectionStatusError).Observe(time.Since(start).Seconds())
+		c.lastCollectionTimestamp.SetToCurrentTime()
 		c.collectSnapshot() // Update snapshot with self-monitoring metrics even on error
 		return fmt.Errorf("scanner error: %w", err)
 	}
@@ -369,6 +377,7 @@ func (c *Collector) collectOnce(ctx context.Context) error {
 	// Update self-monitoring
 	c.collectionDuration.WithLabelValues(collectionStatusSuccess).Observe(time.Since(start).Seconds())
 	c.lastCollectionTimestamp.SetToCurrentTime()
+	c.lastSuccessfulCollectionTimestamp.SetToCurrentTime()
 	c.streamsScannedGauge.Set(float64(len(streams)))
 
 	// Collect all metrics into snapshot (AFTER updating self-monitoring)
@@ -472,6 +481,7 @@ func (c *Collector) collectSnapshot() {
 		c.collectionDuration.Collect(ch)
 		c.errorsTotal.Collect(ch)
 		c.lastCollectionTimestamp.Collect(ch)
+		c.lastSuccessfulCollectionTimestamp.Collect(ch)
 		c.streamsScannedGauge.Collect(ch)
 		close(ch)
 	}()
