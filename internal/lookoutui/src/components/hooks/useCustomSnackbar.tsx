@@ -1,10 +1,12 @@
 import { Close } from "@mui/icons-material"
 import { Button, IconButton } from "@mui/material"
-import { OptionsObject, useSnackbar, VariantType } from "notistack"
+import { OptionsObject, SnackbarKey, useSnackbar, VariantType } from "notistack"
 
 export type OpenSnackbarFn = (message: string, variant: VariantType, options?: OptionsObject) => void
 
-export type OpenUndoableSnackbarFn = (message: string, onUndo: () => void, options?: OptionsObject) => void
+export type OpenUndoableSnackbarFn = (message: string, onUndo: () => void, options?: OptionsObject) => SnackbarKey
+
+export type CloseSnackbarFn = (key: SnackbarKey) => void
 
 export const useCustomSnackbar = (): OpenSnackbarFn => {
   const { enqueueSnackbar, closeSnackbar } = useSnackbar()
@@ -23,7 +25,7 @@ export const useCustomSnackbar = (): OpenSnackbarFn => {
 
 export const useUndoableSnackbar = (): OpenUndoableSnackbarFn => {
   const { enqueueSnackbar, closeSnackbar } = useSnackbar()
-  return (message: string, onUndo: () => void, options?: OptionsObject) => {
+  return (message: string, onUndo: () => void, options?: OptionsObject) =>
     enqueueSnackbar(message, {
       variant: "info",
       ...options,
@@ -44,5 +46,6 @@ export const useUndoableSnackbar = (): OpenUndoableSnackbarFn => {
         </>
       ),
     })
-  }
 }
+
+export const useCloseSnackbar = (): CloseSnackbarFn => useSnackbar().closeSnackbar
