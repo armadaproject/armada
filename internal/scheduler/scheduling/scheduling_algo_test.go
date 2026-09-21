@@ -175,6 +175,7 @@ func TestSchedule_QueuedJobWithOnlyQueuedPriorityClassSchedules(t *testing.T) {
 func TestSchedule_PoolFailureIsolation(t *testing.T) {
 	type poolSchedulingInfo struct {
 		name                            string
+		recoverableError                bool
 		unrecoverableError              bool
 		runningJobFailingReconciliation bool
 	}
@@ -189,6 +190,16 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 		expectedReconcileFailedJobsByPool       map[string]int
 		expectFailedReconcileJobsMarkedAsFailed bool
 	}{
+		"one pool recoverable error - independent pool failure enabled": {
+			pools:                     []poolSchedulingInfo{{name: "pool1"}, {name: "pool2", recoverableError: true}, {name: "pool3"}},
+			expectedSuccessfulPools:   []string{"pool1", "pool3"},
+			expectedUnsuccessfulPools: []string{"pool2"},
+		},
+		"one pool recoverable error - independent pool failure disabled": {
+			pools:                          []poolSchedulingInfo{{name: "pool1"}, {name: "pool2", recoverableError: true}, {name: "pool3"}},
+			disableIndependentPoolFailures: true,
+			expectError:                    true,
+		},
 		"one pool unrecoverable error - independent pool failure enabled": {
 			pools:       []poolSchedulingInfo{{name: "pool1"}, {name: "pool2", unrecoverableError: true}, {name: "pool3"}},
 			expectError: true,
@@ -197,6 +208,17 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 			pools:                          []poolSchedulingInfo{{name: "pool1"}, {name: "pool2", unrecoverableError: true}, {name: "pool3"}},
 			disableIndependentPoolFailures: true,
 			expectError:                    true,
+		},
+		"reconciliation result preserved when pool scheduling fails": {
+			pools: []poolSchedulingInfo{
+				{name: "pool1", recoverableError: true, runningJobFailingReconciliation: true},
+				{name: "pool2"},
+			},
+			enableReconciler:                        true,
+			expectedSuccessfulPools:                 []string{"pool2"},
+			expectedUnsuccessfulPools:               []string{"pool1"},
+			expectedReconcileFailedJobsByPool:       map[string]int{"pool1": 1},
+			expectFailedReconcileJobsMarkedAsFailed: true,
 		},
 		"reconciliation result preserved when pool scheduling completes": {
 			pools: []poolSchedulingInfo{
@@ -251,9 +273,17 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 			).AnyTimes()
 			mockExecutorRepo.EXPECT().GetExecutorSettings(gomock.AssignableToTypeOf(ctx)).Return([]*schedulerobjects.ExecutorSettings{}, nil).AnyTimes()
 			mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
-			// GetAll is now called once before the pool loop, so it always returns success.
-			// Per-pool error injection is no longer possible through this mock.
-			mockQueueCache.EXPECT().GetAll(gomock.Any()).Return([]*api.Queue{testfixtures.MakeTestQueue()}, nil).AnyTimes()
+			queueCacheCallCount := 0
+			// TODO This is a hack, we should refactor so we can inject a failing scheduler and simulate scheduling failing directly
+			mockQueueCache.EXPECT().GetAll(gomock.Any()).DoAndReturn(
+				func(ctx *armadacontext.Context) ([]*api.Queue, error) {
+					queueCacheCallCount++
+					if tc.pools[queueCacheCallCount-1].recoverableError {
+						return nil, fmt.Errorf("simulated recoverable failure for pool")
+					}
+					return []*api.Queue{testfixtures.MakeTestQueue()}, nil
+				},
+			).AnyTimes()
 
 			pools := []configuration.PoolConfig{}
 			for _, poolInfo := range tc.pools {

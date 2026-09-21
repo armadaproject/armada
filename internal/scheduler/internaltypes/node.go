@@ -424,7 +424,7 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		totalResources:       node.totalResources,
 		allocatableResources: node.allocatableResources,
 
-		// keys set to nil; UpsertWithTxn will allocate them fresh
+		// keys set to nil
 		Keys: nil,
 
 		// The copy is about to be mutated in place by AddJob/EvictJob/RemoveJob, so these
