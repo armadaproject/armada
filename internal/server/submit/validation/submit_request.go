@@ -6,6 +6,8 @@ import (
 
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
+	resourcehelper "k8s.io/component-helpers/resource"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
 	"github.com/armadaproject/armada/internal/common/constants"
@@ -348,10 +350,29 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 	return nil
 }
 
+// supportedPodLevelResourceNames renders the resource names Kubernetes accepts at the pod level, for
+// error messages. The set is version dependent -- k8s 1.32 allows only cpu and memory, 1.34 adds
+// hugepages-* -- so it is read from the vendored component-helpers rather than hardcoded.
+func supportedPodLevelResourceNames() string {
+	names := make([]string, 0, len(resourcehelper.SupportedPodLevelResources()))
+	for _, name := range sets.List(resourcehelper.SupportedPodLevelResources()) {
+		names = append(names, name.String())
+	}
+	return strings.Join(names, ", ")
+}
+
 // validatePodLevelResources validates a pod-level resources block (KEP-2837),
 // mirroring the per-container checks: requests and limits must be non-negative,
 // cover the same resource set, satisfy limit >= request within the
 // max-oversubscription ratio, and meet MinJobResources.
+//
+// It also mirrors the rules the Kubernetes API server applies to spec.resources -- only the resource
+// names the vendored component-helpers supports at the pod level may be named, claims are forbidden,
+// the pod-level request must cover the aggregate container requests, and no container limit may
+// exceed the pod-level limit. Accepting a block Kubernetes would reject is worse than a plain submit
+// error: the scheduler reserves the pooled budget and the pod then fails to create.
+// See k8s pkg/apis/core/validation/validation.go validatePodResourceName and
+// validatePodResourceConsistency.
 func validatePodLevelResources(
 	spec *v1.PodSpec,
 	maxOversubscriptionByResource map[string]float64,
@@ -364,6 +385,21 @@ func validatePodLevelResources(
 	if len(resources.Requests) != len(resources.Limits) {
 		return fmt.Errorf("pod-level resources define different resources for requests and limits")
 	}
+	if resources.Claims != nil {
+		return fmt.Errorf("pod-level resources may not define claims")
+	}
+	for resourceName := range resources.Requests {
+		if !resourcehelper.IsSupportedPodLevelResource(resourceName) {
+			return fmt.Errorf("pod-level resources define unsupported request %s; only %s may be requested at the pod level",
+				resourceName, supportedPodLevelResourceNames())
+		}
+	}
+	for resourceName := range resources.Limits {
+		if !resourcehelper.IsSupportedPodLevelResource(resourceName) {
+			return fmt.Errorf("pod-level resources define unsupported limit %s; only %s may be limited at the pod level",
+				resourceName, supportedPodLevelResourceNames())
+		}
+	}
 	for resourceName, request := range resources.Requests {
 		if request.Sign() < 0 {
 			return fmt.Errorf("pod-level resources define negative request (%s) for resource %s", request.String(), resourceName)
@@ -372,6 +408,34 @@ func validatePodLevelResources(
 	for resourceName, limit := range resources.Limits {
 		if limit.Sign() < 0 {
 			return fmt.Errorf("pod-level resources define negative limit (%s) for resource %s", limit.String(), resourceName)
+		}
+	}
+	// Kubernetes requires the pod-level request to cover the aggregate container requests, and each
+	// container limit to sit under the pod-level limit. Reuse the apiserver's own aggregation helper so
+	// the sidecar/init-container formula cannot drift from it. Checked ahead of the request/limit
+	// consistency rules below because an undersized pool is the more actionable error: a spec that
+	// pools less than its containers ask for typically trips several of these rules at once.
+	aggregateRequests := resourcehelper.AggregateContainerRequests(&v1.Pod{Spec: *spec}, resourcehelper.PodResourcesOptions{})
+	for resourceName, containerTotal := range aggregateRequests {
+		podRequest, ok := resources.Requests[resourceName]
+		if !ok {
+			continue
+		}
+		if containerTotal.Cmp(podRequest) > 0 {
+			return fmt.Errorf("pod-level %s request (%s) must be greater than or equal to aggregate container requests of %s",
+				resourceName, &podRequest, &containerTotal)
+		}
+	}
+	for _, container := range spec.Containers {
+		for resourceName, containerLimit := range container.Resources.Limits {
+			podLimit, ok := resources.Limits[resourceName]
+			if !ok {
+				continue
+			}
+			if containerLimit.Cmp(podLimit) > 0 {
+				return fmt.Errorf("container %q %s limit (%s) must be less than or equal to the pod-level limit of %s",
+					container.Name, resourceName, &containerLimit, &podLimit)
+			}
 		}
 	}
 	for resourceName, request := range resources.Requests {
