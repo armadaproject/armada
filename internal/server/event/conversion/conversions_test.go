@@ -305,7 +305,37 @@ func TestConvertLeaseExpired(t *testing.T) {
 		},
 	}
 
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_LeaseExpired{
+				LeaseExpired: &api.JobLeaseExpiredEvent{
+					JobId:    jobId,
+					JobSetId: jobSetName,
+					Queue:    queue,
+					Created:  protoutil.ToTimestamp(baseTime),
+				},
+			},
+		},
+	}
+
 	apiEvents, err := FromEventSequence(toEventSeq(leaseExpired))
+	assert.NoError(t, err)
+	assert.Equal(t, expected, apiEvents)
+}
+
+func TestConvertNilJobRunError(t *testing.T) {
+	jobRunErrors := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId:  jobId,
+				RunId:  runId,
+				Errors: []*armadaevents.Error{nil},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(jobRunErrors))
 	assert.NoError(t, err)
 	assert.Empty(t, apiEvents)
 }
@@ -429,9 +459,27 @@ func TestConvertPodLeaseReturned(t *testing.T) {
 		},
 	}
 
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_LeaseReturned{
+				LeaseReturned: &api.JobLeaseReturnedEvent{
+					JobId:        jobId,
+					ClusterId:    executorId,
+					KubernetesId: runId,
+					Reason:       "couldn't schedule pod",
+					PodNumber:    podNumber,
+					JobSetId:     jobSetName,
+					Queue:        queue,
+					Created:      protoutil.ToTimestamp(baseTime),
+					RunAttempted: true,
+				},
+			},
+		},
+	}
+
 	apiEvents, err := FromEventSequence(toEventSeq(leaseReturned))
 	assert.NoError(t, err)
-	assert.Empty(t, apiEvents)
+	assert.Equal(t, expected, apiEvents)
 }
 
 func TestConvertJobError(t *testing.T) {
@@ -650,7 +698,7 @@ func TestConvertJobRunning(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
-func TestIgnoredEventDoesntDuplicate(t *testing.T) {
+func TestConvertedAndIgnoredEventsDontDuplicate(t *testing.T) {
 	leaseExpired := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
@@ -686,6 +734,16 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 	}
 
 	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_LeaseExpired{
+				LeaseExpired: &api.JobLeaseExpiredEvent{
+					JobId:    jobId,
+					JobSetId: jobSetName,
+					Queue:    queue,
+					Created:  protoutil.ToTimestamp(baseTime),
+				},
+			},
+		},
 		{
 			Events: &api.EventMessage_Preempted{
 				Preempted: &api.JobPreemptedEvent{

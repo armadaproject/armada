@@ -36,6 +36,8 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalReprioritisedJob(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.ReprioritisedJob)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 			convertedEvents, err = FromInternalLogJobRunLeased(es.Queue, es.JobSetName, eventTs, esEvent.JobRunLeased)
+		case *armadaevents.EventSequence_Event_JobRunErrors:
+			convertedEvents, err = FromInternalJobRunErrors(es.Queue, es.JobSetName, eventTs, esEvent.JobRunErrors)
 		case *armadaevents.EventSequence_Event_JobSucceeded:
 			convertedEvents, err = FromInternalJobSucceeded(es.Queue, es.JobSetName, eventTs, esEvent.JobSucceeded)
 		case *armadaevents.EventSequence_Event_JobErrors:
@@ -51,7 +53,6 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			convertedEvents, err = FromInternalJobRunPreempted(es.UserId, es.Queue, es.JobSetName, eventTs, esEvent.JobRunPreempted)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
-			*armadaevents.EventSequence_Event_JobRunErrors,
 			*armadaevents.EventSequence_Event_JobRunPreemptionRequested,
 			*armadaevents.EventSequence_Event_JobRunCancelled,
 			*armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo,
@@ -252,6 +253,9 @@ func FromInternalJobSucceeded(queueName string, jobSetName string, time time.Tim
 func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunErrors) ([]*api.EventMessage, error) {
 	events := make([]*api.EventMessage, 0)
 	for _, msgErr := range e.GetErrors() {
+		if msgErr == nil {
+			continue
+		}
 		switch reason := msgErr.Reason.(type) {
 		case *armadaevents.Error_LeaseExpired:
 			event := &api.EventMessage{

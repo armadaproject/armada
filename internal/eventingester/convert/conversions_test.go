@@ -107,6 +107,89 @@ func TestConvert_RemovesJobRunErrors(t *testing.T) {
 	assert.Equal(t, []*armadaevents.EventSequence_Event{jobRunSucceeded}, es.Events)
 }
 
+func TestConvert_RetainsJobRunErrorsConsumedByRedis(t *testing.T) {
+	leaseExpired := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId: JobId,
+				RunId: RunId,
+				Errors: []*armadaevents.Error{
+					{
+						Reason: &armadaevents.Error_LeaseExpired{
+							LeaseExpired: &armadaevents.LeaseExpired{},
+						},
+					},
+				},
+			},
+		},
+	}
+	converter := simpleEventConverter()
+
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(leaseExpired))
+	require.Len(t, batchUpdate.Events, 1)
+	es, err := extractEventSeq(batchUpdate.Events[0].Event)
+	require.NoError(t, err)
+	assert.Equal(t, []*armadaevents.EventSequence_Event{leaseExpired}, es.Events)
+}
+
+func TestConvert_RetainsOnlyLifecycleJobRunErrors(t *testing.T) {
+	jobRunErrors := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId: JobId,
+				RunId: RunId,
+				Errors: []*armadaevents.Error{
+					{
+						Reason: &armadaevents.Error_LeaseExpired{
+							LeaseExpired: &armadaevents.LeaseExpired{},
+						},
+					},
+					{
+						Reason: &armadaevents.Error_PodLeaseReturned{
+							PodLeaseReturned: &armadaevents.PodLeaseReturned{DebugMessage: "not for redis"},
+						},
+					},
+					{
+						Reason: &armadaevents.Error_PodError{
+							PodError: &armadaevents.PodError{Message: "internal error"},
+						},
+					},
+				},
+			},
+		},
+	}
+	converter := simpleEventConverter()
+
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(jobRunErrors))
+	require.Len(t, batchUpdate.Events, 1)
+	es, err := extractEventSeq(batchUpdate.Events[0].Event)
+	require.NoError(t, err)
+	require.Len(t, es.Events, 1)
+	storedErrors := es.Events[0].GetJobRunErrors().GetErrors()
+	require.Len(t, storedErrors, 2)
+	assert.NotNil(t, storedErrors[0].GetLeaseExpired())
+	assert.Empty(t, storedErrors[1].GetPodLeaseReturned().GetDebugMessage())
+}
+
+func TestConvert_DropsNilJobRunErrors(t *testing.T) {
+	jobRunErrors := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId:  JobId,
+				RunId:  RunId,
+				Errors: []*armadaevents.Error{nil},
+			},
+		},
+	}
+	converter := simpleEventConverter()
+
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(jobRunErrors))
+	assert.Empty(t, batchUpdate.Events)
+}
+
 func TestConvert_DropsSequenceContainingOnlyJobRunErrors(t *testing.T) {
 	jobRunErrors := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,
