@@ -14,22 +14,30 @@ import (
 
 func init() {
 	teardownCmd.Flags().String("kubeconfig", "", "path to a kubeconfig file (default: KUBECONFIG env var, then $HOME/.kube/config); ignored if a scenario file is given")
-	teardownCmd.Flags().String("name", "cluster-0", "execution target name the run used (see executionTargets[].name in the scenario file); identifies which kwok-controller container/kubeconfig to remove; ignored if a scenario file is given")
+	teardownCmd.Flags().String("name", "", "execution target name the run used (see executionTargets[].name in the scenario file); identifies which kwok-controller container/kubeconfig to remove; required if no scenario file is given")
 	rootCmd.AddCommand(teardownCmd)
 }
 
 var teardownCmd = &cobra.Command{
-	Use:   "teardown [path/to/scenario.yaml]",
+	Use:   "teardown ./path/to/scenario.yaml",
 	Short: "Remove regatta's KWOK fake nodes and controller from a cluster",
 	Long: `Remove regatta's KWOK fake nodes and controller from a cluster.
 
 regatta run never tears its own cluster targets down automatically - it just submits load and
 exits, so job state/metrics can still be collected afterwards. Run this once you're done to clean
-up. Given a scenario file, tears down every cluster target it declares (fake-executor targets are
-skipped: stop that process manually, e.g. ps aux | grep fakeexecutor). With no scenario file,
---kubeconfig/--name identify a single target directly. Only touches nodes tagged
-kwok.x-k8s.io/node=fake, so real nodes are never affected. Safe to run even if there's nothing to
-tear down.`,
+up, passing the same scenario file you ran, e.g.:
+
+  go run ./cmd/regatta teardown cmd/regatta/config/multi-cluster.example.yaml
+
+This tears down every cluster target the scenario file declares (fake-executor targets are
+skipped: stop that process manually, e.g. ps aux | grep fakeexecutor). To tear down a single
+target by hand instead of via a scenario file, omit the scenario file and use --kubeconfig/--name
+to identify it directly, e.g.:
+
+  go run ./cmd/regatta teardown --kubeconfig .kube/external/config-regatta-1 --name gpu-cluster
+
+Only touches nodes tagged kwok.x-k8s.io/node=fake, so real nodes are never affected. Safe to run
+even if there's nothing to tear down.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 1 {
@@ -43,14 +51,19 @@ tear down.`,
 			return
 		}
 
-		kubeconfigPath, err := cmd.Flags().GetString("kubeconfig")
-		if err != nil {
-			log.Errorf("reading --kubeconfig flag: %s", err)
-			os.Exit(1)
-		}
 		targetName, err := cmd.Flags().GetString("name")
 		if err != nil {
 			log.Errorf("reading --name flag: %s", err)
+			os.Exit(1)
+		}
+		if targetName == "" {
+			log.Error("either a scenario file or --name must be given")
+			_ = cmd.Help()
+			os.Exit(1)
+		}
+		kubeconfigPath, err := cmd.Flags().GetString("kubeconfig")
+		if err != nil {
+			log.Errorf("reading --kubeconfig flag: %s", err)
 			os.Exit(1)
 		}
 		kubeClient, err := kwok.NewClientset(kubeconfigPath)

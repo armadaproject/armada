@@ -180,18 +180,6 @@ func KindTeardown() {
 	mg.Deps(kindTeardown)
 }
 
-// Setup a second, minimal Kind cluster for regatta multi-cluster execution targets.
-func KindSecondCluster() {
-	mg.Deps(kindCheck)
-	mg.Deps(kindInitCluster2)
-}
-
-// Teardown the second Kind cluster.
-func KindTeardownSecondCluster() {
-	mg.Deps(kindCheck)
-	mg.Deps(kindTeardown2)
-}
-
 // Setup dedicated Kind clusters for regatta's cluster-type execution targets.
 //
 // With no configDir, provisions the checked-in 2-cluster quickstart

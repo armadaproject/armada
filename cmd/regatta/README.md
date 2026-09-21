@@ -28,7 +28,7 @@ Both `mage dev:up` profiles above and below start the scheduler with `cmd/regatt
 
 # Quick Start: cluster (kwok)
 
-`mage kindRegatta` stands up two dedicated kind clusters (`armada-regatta-1`/`armada-regatta-2`), separate from `mage kind`/`mage kindSecondCluster` (which serve other, non-regatta local-dev workflows). `cmd/regatta/config/multi-cluster.example.yaml` runs a `cluster` target against each simultaneously, each with a different named node group — exceeding what benchmarking harnesses that only support N *identical* clusters can express.
+`mage kindRegatta` stands up two dedicated kind clusters (`armada-regatta-1`/`armada-regatta-2`), separate from `mage kind` (which serves other, non-regatta local-dev workflows). `cmd/regatta/config/multi-cluster.example.yaml` runs a `cluster` target against each simultaneously, each with a different named node group — exceeding what benchmarking harnesses that only support N *identical* clusters can express.
 
 Run regatta:
 ```bash

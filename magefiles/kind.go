@@ -21,18 +21,9 @@ const (
 	KIND_CONFIG_EXTERNAL    = ".kube/external/config"
 	KIND_NAME               = "armada-test"
 
-	// KIND_NAME_2/KIND_CONFIG_EXTERNAL_2 back a second, minimal kind cluster used only to
-	// exercise regatta's multi-cluster execution targets. Armada's own components run via
-	// goreman on the host rather than inside either kind cluster, so the second cluster needs
-	// no ingress-nginx/priorityclass/namespace install - it only needs to exist and be
-	// reachable for a kwok-type execution target to attach fake nodes to it.
-	KIND_NAME_2            = "armada-test-2"
-	KIND_CONFIG_EXTERNAL_2 = ".kube/external/config-2"
-
-	// KIND_NAME_REGATTA_1/_2 back two clusters dedicated to regatta's own quickstart, separate
-	// from KIND_NAME/KIND_NAME_2 above (which serve other, non-regatta local-dev workflows). Bare
-	// control-plane-only, same shape as KIND_NAME_2 - regatta needs nothing beyond a reachable
-	// API server to host fake Node objects.
+	// KIND_NAME_REGATTA_1/_2 back two clusters dedicated to regatta's own quickstart. Bare
+	// control-plane-only - regatta needs nothing beyond a reachable API server to host fake
+	// Node objects.
 	KIND_NAME_REGATTA_1            = "armada-regatta-1"
 	KIND_NAME_REGATTA_2            = "armada-regatta-2"
 	KIND_CONFIG_EXTERNAL_REGATTA_1 = ".kube/external/config-regatta-1"
@@ -101,53 +92,9 @@ func kindInitCluster() error {
 	return nil
 }
 
-// kindInitCluster2 creates the second, minimal kind cluster used to test regatta's multi-cluster
-// execution targets, parallel to kindInitCluster rather than folded into it - this keeps
-// kindInitCluster's own behavior/output paths for the primary cluster completely unchanged.
-func kindInitCluster2() error {
-	out, err := kindOutput("get", "clusters")
-	if err != nil {
-		return err
-	}
-	if strings.Contains(out, KIND_NAME_2) {
-		return nil
-	}
-	err = kindRun("create", "cluster", "--config", "_local/kind/cluster-2.yaml")
-	if err != nil {
-		return err
-	}
-	return kindWriteKubeConfig2()
-}
-
-// kindWriteKubeConfig2 writes only the external kubeconfig for the second cluster - no goreman
-// process needs the internal one, since nothing runs inside either kind cluster.
-func kindWriteKubeConfig2() error {
-	out, err := kindOutput("get", "kubeconfig", "--name", KIND_NAME_2)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(KIND_CONFIG_EXTERNAL_2), os.ModeDir|0o755); err != nil {
-		return err
-	}
-	f, err := os.Create(KIND_CONFIG_EXTERNAL_2)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	if _, err := f.WriteString(out); err != nil {
-		return err
-	}
-	return nil
-}
-
-// kindTeardown2 deletes the second kind cluster, independent of the primary armada-test cluster.
-func kindTeardown2() error {
-	return kindRun("delete", "cluster", "--name", KIND_NAME_2)
-}
-
-// kindInitRegattaCluster creates one of the two dedicated regatta clusters (idempotent, mirrors
-// kindInitCluster2's shape) and writes its external kubeconfig - parameterized over
-// name/kind-config/kubeconfig path so both clusters share one implementation.
+// kindInitRegattaCluster creates one of the two dedicated regatta clusters (idempotent) and
+// writes its external kubeconfig - parameterized over name/kind-config/kubeconfig path so both
+// clusters share one implementation.
 func kindInitRegattaCluster(name, kindConfigPath, kubeconfigPath string) error {
 	out, err := kindOutput("get", "clusters")
 	if err != nil {
