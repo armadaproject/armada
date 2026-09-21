@@ -333,6 +333,9 @@ func addTolerations(job *armadaevents.SubmitJob, tolerations []*v1.Toleration) {
 // exactly the static amount and stays consistent with the scheduler's
 // reservation. Each init container receives the full static amount, because
 // init containers run alone and each must fit the reserved total on its own.
+// The pod-level block (KEP-2837) also receives the full static amount, because
+// Kubernetes requires it to stay at or above the aggregate container requests,
+// which between them grow by the whole static amount.
 // Requests and limits move together. Containers without a memory value stay
 // unchanged.
 func applyResourceMutations(job *armadaevents.SubmitJob, mutations *schedulerobjects.RetryResourceMutations) error {
@@ -379,6 +382,13 @@ func applyResourceMutations(job *armadaevents.SubmitJob, mutations *schedulerobj
 	for i := range podSpec.InitContainers {
 		bump(podSpec.InitContainers[i].Resources.Requests, static)
 		bump(podSpec.InitContainers[i].Resources.Limits, static)
+	}
+	// Without this a retried pod-level job is either unadmittable -- the containers outgrow the
+	// pod-level block k8s requires to cover them -- or, when only the block carries memory, silently
+	// unbumped while the scheduler reserves the larger figure. Nil for container-only jobs.
+	if podSpec.Resources != nil {
+		bump(podSpec.Resources.Requests, static)
+		bump(podSpec.Resources.Limits, static)
 	}
 	return nil
 }

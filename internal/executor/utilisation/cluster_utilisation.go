@@ -280,10 +280,11 @@ func getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) armadaresource.Comput
 	podsOnNodes := util.GetPodsOnNodes(pods, cordonedNodes)
 	usage := armadaresource.ComputeResources{}
 	for _, pod := range podsOnNodes {
-		for _, container := range pod.Spec.Containers {
-			containerResource := armadaresource.FromResourceList(container.Resources.Limits) // Not 100% on whether this should be Requests or Limits
-			usage.Add(containerResource)
-		}
+		// Still limits rather than requests, as before -- but via the canonical helper, so native
+		// sidecars, classic init containers and the pod-level block (KEP-2837) are accounted for the
+		// same way the scheduler accounts for them.
+		limits := api.SchedulingResourceRequirementsFromPodSpec(&pod.Spec).Limits
+		usage.Add(armadaresource.FromResourceList(limits))
 	}
 	return usage
 }

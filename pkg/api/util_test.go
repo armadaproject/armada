@@ -3,7 +3,9 @@ package api
 import (
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 )
@@ -411,6 +413,36 @@ func TestSchedulingResourceRequirementsFromPodSpec(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, SchedulingResourceRequirementsFromPodSpec(tc.input))
 		})
+	}
+}
+
+// PodSpec.Resources is protobuf field 40, added in k8s.io/api v0.32. Armada's generated marshaller
+// delegates to k8s.io/api's own, so a downgrade of that dependency would silently drop the pod-level
+// block on the wire and leave the scheduler reserving a budget the pod never receives.
+func TestPodLevelResourcesSurviveProtoRoundTrip(t *testing.T) {
+	podLevel := v1.ResourceList{
+		"cpu":    QuantityWithMilliValue(2000),
+		"memory": QuantityWithMilliValue(1024),
+	}
+	item := &JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+		Containers: []v1.Container{{Name: "main"}},
+		Resources: &v1.ResourceRequirements{
+			Requests: podLevel,
+			Limits:   podLevel.DeepCopy(),
+		},
+	}}
+
+	encoded, err := proto.Marshal(item)
+	require.NoError(t, err)
+	decoded := &JobSubmitRequestItem{}
+	require.NoError(t, proto.Unmarshal(encoded, decoded))
+
+	require.NotNil(t, decoded.PodSpec.Resources)
+	for name, want := range podLevel {
+		got := decoded.PodSpec.Resources.Requests[name]
+		assert.Zero(t, want.Cmp(got), "%s request: want %s got %s", name, &want, &got)
+		got = decoded.PodSpec.Resources.Limits[name]
+		assert.Zero(t, want.Cmp(got), "%s limit: want %s got %s", name, &want, &got)
 	}
 }
 

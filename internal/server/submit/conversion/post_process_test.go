@@ -375,6 +375,50 @@ func TestDefaultActiveDeadlineSeconds(t *testing.T) {
 				},
 			},
 		},
+		"DefaultActiveDeadlineSecondsByResource matches a pod-level request": {
+			config: configuration.SubmissionConfig{
+				DefaultActiveDeadline: time.Second,
+				DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{
+					"memory": time.Minute,
+				},
+			},
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{}},
+				Resources: &v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{"memory": resource.MustParse("1Gi")},
+					Limits:   map[v1.ResourceName]resource.Quantity{"memory": resource.MustParse("1Gi")},
+				},
+			},
+			expected: &v1.PodSpec{
+				Containers: []v1.Container{{}},
+				Resources: &v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{"memory": resource.MustParse("1Gi")},
+					Limits:   map[v1.ResourceName]resource.Quantity{"memory": resource.MustParse("1Gi")},
+				},
+				ActiveDeadlineSeconds: pointer.Int64Ptr(60),
+			},
+		},
+		"DefaultActiveDeadlineSecondsByResource matches an init container request": {
+			config: configuration.SubmissionConfig{
+				DefaultActiveDeadline: time.Second,
+				DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{
+					"memory": time.Minute,
+				},
+			},
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{}},
+				InitContainers: []v1.Container{{Resources: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{"memory": resource.MustParse("1Gi")},
+				}}},
+			},
+			expected: &v1.PodSpec{
+				Containers: []v1.Container{{}},
+				InitContainers: []v1.Container{{Resources: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{"memory": resource.MustParse("1Gi")},
+				}}},
+				ActiveDeadlineSeconds: pointer.Int64Ptr(60),
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

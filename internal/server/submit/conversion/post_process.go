@@ -87,12 +87,13 @@ func defaultActiveDeadlineSeconds(spec *v1.PodSpec, config configuration.Submiss
 		return
 	}
 	var activeDeadlineSeconds float64
+	// Matched against the pod's effective request, as defaultTolerations does, so a resource carried
+	// only by an init container or by the pod-level block (KEP-2837) still selects its deadline.
+	resourceRequest := armadaresource.TotalPodResourceRequest(spec)
 	for resourceType, activeDeadlineForResource := range config.DefaultActiveDeadlineByResourceRequest {
-		for _, c := range spec.Containers {
-			q := c.Resources.Requests[v1.ResourceName(resourceType)]
-			if q.Cmp(resource.Quantity{}) == 1 && activeDeadlineForResource.Seconds() > activeDeadlineSeconds {
-				activeDeadlineSeconds = activeDeadlineForResource.Seconds()
-			}
+		q := resourceRequest[resourceType]
+		if q.Cmp(resource.Quantity{}) == 1 && activeDeadlineForResource.Seconds() > activeDeadlineSeconds {
+			activeDeadlineSeconds = activeDeadlineForResource.Seconds()
 		}
 	}
 	if activeDeadlineSeconds == 0 {
