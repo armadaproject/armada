@@ -39,8 +39,10 @@ const (
 //   - "auth-fake-executor"  - auth server/scheduler/lookout/binoculars plus the fake executor (no Kubernetes)
 //   - "hot-cold"            - runs the hot-cold scheduler setup
 //   - "regatta"             - like "no-auth", but the executor tolerates the kwok.x-k8s.io/node
-//     taint so jobs can schedule onto KWOK-simulated fake nodes (see
-//     cmd/regatta)
+//     taint so jobs can schedule onto KWOK-simulated fake nodes; starts the 2-cluster quickstart's
+//     two executors (see cmd/regatta)
+//   - "regatta-ten-cluster" - like "regatta", but starts the 10-cluster example's ten executors
+//     instead (see cmd/regatta)
 //   - anything else         - forwarded as a docker-compose --profile flag for extra services
 //
 // The optional -dap flag selects the "-dap" procfile variant, which starts each component
@@ -58,6 +60,7 @@ const (
 //	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
 //	mage dev:up hot-cold                  # hot-cold scheduler setup
 //	mage dev:up regatta                   # no-auth + executor tolerates KWOK fake-node taint
+//	mage dev:up regatta-ten-cluster        # regatta's 10-cluster example instead of the 2-cluster quickstart
 func (Dev) Up(profiles string, dap *bool) error {
 	var (
 		profile         = "no-auth"
@@ -70,9 +73,9 @@ func (Dev) Up(profiles string, dap *bool) error {
 			continue
 		}
 		switch token {
-		case "auth", "fake-executor", "fake-executor-regatta", "hot-cold", "auth-fake-executor", "regatta":
+		case "auth", "fake-executor", "fake-executor-regatta", "hot-cold", "auth-fake-executor", "regatta", "regatta-ten-cluster":
 			if profile != "no-auth" {
-				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/fake-executor-regatta/hot-cold/auth-fake-executor may be used\n", token, profile)
+				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/fake-executor-regatta/hot-cold/auth-fake-executor/regatta/regatta-ten-cluster may be used\n", token, profile)
 			} else {
 				profile = token
 			}
@@ -88,10 +91,14 @@ func (Dev) Up(profiles string, dap *bool) error {
 		debugSuffix = "-dap"
 	}
 	procfileDir := "_local/procfiles/"
-	if profile == "regatta" || profile == "fake-executor-regatta" {
+	procfileName := profile
+	if profile == "regatta" || profile == "fake-executor-regatta" || profile == "regatta-ten-cluster" {
 		procfileDir = "cmd/regatta/config/armada/procfiles/"
+		if profile == "regatta-ten-cluster" {
+			procfileName = "ten-cluster"
+		}
 	}
-	procfile := procfileDir + profile + debugSuffix + ".Procfile"
+	procfile := procfileDir + procfileName + debugSuffix + ".Procfile"
 	if _, err := os.Stat(procfile); err != nil {
 		return fmt.Errorf("unknown profile %q: %s not found", profile+debugSuffix, procfile)
 	}

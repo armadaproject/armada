@@ -3,10 +3,21 @@
 armadactl: ~/.armadactl.yaml
 
 executionTargets:
-  - type: cluster
+  - name: gpu-cluster
+    type: cluster
+    nodeGroups: [gb200]
     cluster:
-      kubeconfig: ~/.kube/config
-      name: armada-test
+      kubeconfig: ../../../.kube/external/regatta/regatta-1
+      name: armada-regatta-1
+      probeRetries: 5
+      probeDelay: 5s
+
+  - name: cpu-cluster
+    type: cluster
+    nodeGroups: [cpu]
+    cluster:
+      kubeconfig: ../../../.kube/external/regatta/regatta-2
+      name: armada-regatta-2
       probeRetries: 5
       probeDelay: 5s
 
@@ -14,6 +25,9 @@ nodeGroups:
   gb200:
     - nodeProfile: node-profiles/gb200-slice.yaml
       count: 20
+  cpu:
+    - nodeProfile: node-profiles/cpu-only.yaml
+      count: 10
 
 load:
   queue: regatta

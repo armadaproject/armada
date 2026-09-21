@@ -64,8 +64,8 @@ func kubectlApply(ctx context.Context, kubeconfig, path string) error {
 // The container needs a kubeconfig pointed at the API server's address as seen from its own
 // docker network (e.g. https://<cluster>-control-plane:6443), not the host-facing address (e.g.
 // https://127.0.0.1:<port>) that kubeconfigPath contains - internalAPIServerAddress supplies
-// that network-internal address explicitly (for a kind-provisioned target, `regatta render`
-// auto-populates it; a hand-supplied non-kind cluster must set it directly).
+// that network-internal address explicitly (for a kind-provisioned target, orchestrate.Setup
+// auto-derives it from cluster.name; a hand-supplied non-kind cluster must set it directly).
 func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress, targetName string) error {
 	name := controllerName(targetName)
 	internalKubeconfigPath := controllerKubeconfigPath(targetName)

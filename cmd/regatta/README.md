@@ -20,7 +20,7 @@ You have a k8s cluster with armada and prometheus deployed, as `cluster` targets
 
 You can run the local clusters with:
 ```bash
-mage kindRegatta
+mage kindRegatta cmd/regatta/config/armada/kind/two-cluster
 mage dev:up regatta,prometheus # mind the lack of space between regatta, comma, and prometheus
 ```
 
@@ -28,11 +28,11 @@ Both `mage dev:up` profiles above and below start the scheduler with `cmd/regatt
 
 # Quick Start: cluster (kwok)
 
-`mage kindRegatta` stands up two dedicated kind clusters (`armada-regatta-1`/`armada-regatta-2`), separate from `mage kind` (which serves other, non-regatta local-dev workflows). `cmd/regatta/config/multi-cluster.example.yaml` runs a `cluster` target against each simultaneously, each with a different named node group — exceeding what benchmarking harnesses that only support N *identical* clusters can express.
+`mage kindRegatta cmd/regatta/config/armada/kind/two-cluster` stands up two dedicated kind clusters (`armada-regatta-1`/`armada-regatta-2`), separate from `mage kind` (which serves other, non-regatta local-dev workflows). `cmd/regatta/config/two-cluster.example.yaml` runs a `cluster` target against each simultaneously, each with a different named node group — exceeding what benchmarking harnesses that only support N *identical* clusters can express.
 
 Run regatta:
 ```bash
-go run ./cmd/regatta run cmd/regatta/config/multi-cluster.example.yaml
+go run ./cmd/regatta run cmd/regatta/config/two-cluster.example.yaml
 ```
 
 This creates the kwok fake nodes described by the scenario file's `nodeGroups` (profiles under `cmd/regatta/config/node-profiles/`) on each target's own cluster and submits the jobs referenced in its `load.jobs` (job-spec files under `cmd/regatta/config/job-specs/`), then exits — the fake nodes are left up on both clusters so you can keep collecting metrics.
@@ -40,43 +40,41 @@ This creates the kwok fake nodes described by the scenario file's `nodeGroups` (
 When you're done, tear the fake nodes back down with:
 
 ```bash
-go run ./cmd/regatta teardown cmd/regatta/config/multi-cluster.example.yaml
+go run ./cmd/regatta teardown cmd/regatta/config/two-cluster.example.yaml
 ```
 
 This tears down every cluster target the scenario file declares. To tear down a single target by hand instead:
 
 ```bash
-go run ./cmd/regatta teardown --kubeconfig .kube/external/config-regatta-1 --name gpu-cluster
+go run ./cmd/regatta teardown --kubeconfig .kube/external/regatta/regatta-1 --name gpu-cluster
 ```
 
 `--name` identifies which execution target's kwok controller/kubeconfig to remove — it must match the target's `name` in the scenario file that was running (or the auto-generated `cluster-0`, `cluster-1`, ... if the target left `name` unset).
 
 Tear the clusters themselves down with `mage kindTeardownRegatta`.
 
-# N clusters (more or fewer than the 2-cluster quickstart)
+# 10 clusters
 
-The quickstart above is fixed at exactly 2 clusters. For any other number (or any other per-cluster shape), write your own scenario file with as many `cluster`-type `executionTargets[]` as you want, then render the kind-cluster configs, executor configs, and Procfile that shape needs:
+Besides the 2-cluster quickstart above, `cmd/regatta/config/ten-cluster.example.yaml` is a second checked-in example demonstrating scale: 10 `cluster`-type `executionTargets[]`, all sharing the same `cpu-only` node-group shape, submitting 1000 jobs across all ten.
 
-```bash
-go run ./cmd/regatta render path/to/your-scenario.yaml
-```
-
-This writes, for each `cluster` target:
-- a kind-cluster config to `cmd/regatta/config/armada/kind/.tmp/<target-name>.yaml`
-- an executor config to `cmd/regatta/config/armada/executor/.tmp/config-<target-name>.yaml`
-
-and one combined Procfile with one `executor`/`executor2`/... line per target to `cmd/regatta/config/armada/procfiles/.tmp/regatta.Procfile`. `render` only ever generates config text — it never shells out to `kind`/`kubectl` itself. Point mage/goreman at the rendered output to actually provision:
+Bring up all ten kind clusters, then run regatta against it:
 
 ```bash
-mage kindRegatta cmd/regatta/config/armada/kind/.tmp
-mage dev:up regatta,prometheus  # or use the rendered Procfile directly:
-goreman -f cmd/regatta/config/armada/procfiles/.tmp/regatta.Procfile start
+mage kindRegatta cmd/regatta/config/armada/kind/ten-cluster
+mage dev:up regatta-ten-cluster,prometheus  # or use the matching Procfile directly:
+goreman -f cmd/regatta/config/armada/procfiles/ten-cluster.Procfile start
+go run ./cmd/regatta run cmd/regatta/config/ten-cluster.example.yaml
 ```
 
-`mage kindRegatta <dir>` writes each cluster's external kubeconfig to `.kube/external/regatta/<target-name>` — your scenario file's `executionTargets[].cluster.kubeconfig` fields must point there for each target (e.g. `../../../.kube/external/regatta/gpu-cluster`, relative to the scenario file's own location) for `regatta run` to find the right kubeconfig for each target.
+Tear down with:
+
+```bash
+go run ./cmd/regatta teardown cmd/regatta/config/ten-cluster.example.yaml
+mage kindTeardownRegatta cmd/regatta/config/armada/kind/ten-cluster
+```
+
+Both examples are hand-authored, checked-in scenario files, kind-cluster configs, executor configs, and Procfiles — there's no code-generation/templating step. Writing your own scenario at some other N follows the same pattern: pick a target count, then write one kind-cluster config per target (`cmd/regatta/config/armada/kind/<your-example>/<name>.yaml`, `name:` field must match) and one executor config per target (`cmd/regatta/config/armada/executor/<your-example>/<name>.yaml`; `httpPort`/`metric.port`/`application.clusterId` each offset by index — copy the ten-cluster example's values as a reference), then one Procfile with one line per cluster target (`export KUBECONFIG=<path> && ...`, following `ten-cluster.Procfile`'s pattern) — a directory per example once there's more than one file (as with `kind/`/`executor/` above), otherwise the example name goes in the filename instead (as with `ten-cluster.Procfile`, a single file). Finally, a scenario file whose `executionTargets[].cluster.kubeconfig` fields point at `.kube/external/regatta/<config-file-basename>` (relative to the scenario file's own location) — the path `mage kindRegatta <dir>` writes each cluster's external kubeconfig to.
 A target's cluster name (used to name the kind cluster and, by default, to derive its network-internal API server address for the kwok-controller container) comes from `cluster.name` if set, otherwise defaults to the target's own `name`. A non-kind cluster must set `cluster.internalApiServerAddress` explicitly, since the kind-based default doesn't apply.
-
-Tear the rendered clusters down with `mage kindTeardownRegatta cmd/regatta/config/armada/kind/.tmp`.
 
 # Quick Start: fake-executor
 
@@ -106,11 +104,9 @@ go run ./cmd/regatta run cmd/regatta/config/ramp-up.example.yaml
 
 # Writing a scenario file
 
-See `cmd/regatta/config/multi-cluster.example.yaml`, `fakeexecutor.example.yaml`, and `ramp-up.example.yaml` for the full format.
+See `cmd/regatta/config/two-cluster.example.yaml`, `fakeexecutor.example.yaml`, and `ramp-up.example.yaml` for the full format.
 
 - Node profiles (`cmd/regatta/config/node-profiles/*.yaml`) describe the shape of a single simulated node — allocatable resources, labels, taints — and are shared between both target types so a hardware shape only needs to be described once. A top-level `nodeGroups` entry names a set of `(nodeProfile, count)` members; an `executionTargets[]` entry installs the named groups it lists, or every group if it lists none.
 - Job specs (`cmd/regatta/config/job-specs/*.yaml`) are plain pod specs — no queue, no count. `load.jobs` references them by path with a count per reference; `load.queue`/`load.jobSetId` apply to the whole submission batch.
 - `executionTargets[].name` is optional; unset targets get an auto-generated name (`cluster-0`, `fake-executor-1`, ...) counted per type in file order. Names must be unique and are used to namespace per-target resources (kwok controller container/kubeconfig, fake-executor ports).
 - `cluster.evaluateReadiness` controls whether a canary job is submitted to confirm the fake nodes are actually schedulable before load is submitted. Defaults to `true` when `cluster.name` is set (a kind-provisioned target, environment known/controlled, the probe is cheap and meaningful) and `false` otherwise (an externally-provided cluster is assumed already schedulable rather than probed). Set it explicitly to override either default.
-
-# Architecture

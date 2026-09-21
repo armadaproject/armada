@@ -1,0 +1,99 @@
+# Ten simultaneous cluster targets, each on its own kind cluster, all sharing the same
+# cpu-only node-group shape - demonstrates scaling execution targets to N rather than exercising
+# per-target shape diversity (see two-cluster.example.yaml for that). Bring up all ten clusters
+# with `mage kindRegatta cmd/regatta/config/armada/kind/ten-cluster`, then run the dev stack via
+# cmd/regatta/config/armada/procfiles/ten-cluster.Procfile.
+armadactl: ~/.armadactl.yaml
+
+executionTargets:
+  - name: cluster-1
+    type: cluster
+    cluster:
+      kubeconfig: ../../../.kube/external/regatta/regatta-1
+      name: armada-regatta-1
+      probeRetries: 5
+      probeDelay: 5s
+
+  - name: cluster-2
+    type: cluster
+    cluster:
+      kubeconfig: ../../../.kube/external/regatta/regatta-2
+      name: armada-regatta-2
+      probeRetries: 5
+      probeDelay: 5s
+
+  - name: cluster-3
+    type: cluster
+    cluster:
+      kubeconfig: ../../../.kube/external/regatta/regatta-3
+      name: armada-regatta-3
+      probeRetries: 5
+      probeDelay: 5s
+
+  - name: cluster-4
+    type: cluster
+    cluster:
+      kubeconfig: ../../../.kube/external/regatta/regatta-4
+      name: armada-regatta-4
+      probeRetries: 5
+      probeDelay: 5s
+
+  - name: cluster-5
+    type: cluster
+    cluster:
+      kubeconfig: ../../../.kube/external/regatta/regatta-5
+      name: armada-regatta-5
+      probeRetries: 5
+      probeDelay: 5s
+
+  - name: cluster-6
+    type: cluster
+    cluster:
+      kubeconfig: ../../../.kube/external/regatta/regatta-6
+      name: armada-regatta-6
+      probeRetries: 5
+      probeDelay: 5s
+
+  - name: cluster-7
+    type: cluster
+    cluster:
+      kubeconfig: ../../../.kube/external/regatta/regatta-7
+      name: armada-regatta-7
+      probeRetries: 5
+      probeDelay: 5s
+
+  - name: cluster-8
+    type: cluster
+    cluster:
+      kubeconfig: ../../../.kube/external/regatta/regatta-8
+      name: armada-regatta-8
+      probeRetries: 5
+      probeDelay: 5s
+
+  - name: cluster-9
+    type: cluster
+    cluster:
+      kubeconfig: ../../../.kube/external/regatta/regatta-9
+      name: armada-regatta-9
+      probeRetries: 5
+      probeDelay: 5s
+
+  - name: cluster-10
+    type: cluster
+    cluster:
+      kubeconfig: ../../../.kube/external/regatta/regatta-10
+      name: armada-regatta-10
+      probeRetries: 5
+      probeDelay: 5s
+
+nodeGroups:
+  cpu:
+    - nodeProfile: node-profiles/cpu-only.yaml
+      count: 10
+
+load:
+  queue: regatta
+  jobSetId: ten-cluster
+  jobs:
+    - jobSpec: job-specs/kwok-sleep.yaml
+      count: 1000

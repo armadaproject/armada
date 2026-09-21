@@ -182,40 +182,28 @@ func KindTeardown() {
 
 // Setup dedicated Kind clusters for regatta's cluster-type execution targets.
 //
-// With no configDir, provisions the checked-in 2-cluster quickstart
-// (cmd/regatta/config/armada/kind/regatta-{1,2}.yaml). Pass configDir to instead provision one
-// cluster per *.yaml file in that directory - the shape `regatta render` writes to
-// cmd/regatta/config/armada/kind/.tmp/ for an N-cluster scenario that isn't the 2-cluster
-// default. Each cluster's external kubeconfig is written to
-// .kube/external/regatta/<config-file-basename>; a rendered scenario's cluster.kubeconfig
-// fields must point there to match (see cmd/regatta/README.md).
-//
-// Optional flags need mage 1.16+ and older mage versions silently hide this target.
+// Provisions one cluster per *.yaml file in configDir - e.g.
+// cmd/regatta/config/armada/kind/two-cluster/ for the 2-cluster quickstart, or
+// cmd/regatta/config/armada/kind/ten-cluster/ for the 10-cluster example. Each cluster's
+// external kubeconfig is written to .kube/external/regatta/<config-file-basename>; the matching
+// scenario file's cluster.kubeconfig fields must point there to match (see
+// cmd/regatta/README.md).
 //
 // Examples:
 //
-//	mage kindRegatta                                        # 2-cluster quickstart
-//	mage kindRegatta cmd/regatta/config/armada/kind/.tmp     # N clusters from rendered configs
-func KindRegatta(configDir *string) error {
+//	mage kindRegatta cmd/regatta/config/armada/kind/two-cluster   # 2-cluster quickstart
+//	mage kindRegatta cmd/regatta/config/armada/kind/ten-cluster   # 10-cluster example
+func KindRegatta(configDir string) error {
 	mg.Deps(kindCheck)
-	if configDir == nil {
-		mg.Deps(kindInitRegattaClusters)
-		return nil
-	}
-	return kindInitRegattaClustersFromDir(*configDir)
+	return kindInitRegattaClustersFromDir(configDir)
 }
 
 // Teardown regatta Kind clusters.
 //
-// With no configDir, tears down the checked-in 2-cluster quickstart. Pass the same configDir
-// used with KindRegatta to tear down a rendered N-cluster set instead.
-func KindTeardownRegatta(configDir *string) error {
+// Pass the same configDir used with KindRegatta.
+func KindTeardownRegatta(configDir string) error {
 	mg.Deps(kindCheck)
-	if configDir == nil {
-		mg.Deps(kindTeardownRegattaClusters)
-		return nil
-	}
-	return kindTeardownRegattaClustersFromDir(*configDir)
+	return kindTeardownRegattaClustersFromDir(configDir)
 }
 
 // Generate scheduler SQL.

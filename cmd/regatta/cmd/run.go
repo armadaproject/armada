@@ -28,7 +28,7 @@ A scenario file mostly points to other files - an .armadactl.yaml, kubeconfigs, 
 YAML files, job-spec files - rather than embedding everything inline. executionTargets may
 contain any number of "cluster" targets or any number of "fake-executor" targets, but never a
 mix of both: fake-executor simulates nodes in place of a real cluster, it is not a target to run
-alongside one. See cmd/regatta/config/multi-cluster.example.yaml and fakeexecutor.example.yaml.`,
+alongside one. See cmd/regatta/config/two-cluster.example.yaml and fakeexecutor.example.yaml.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		scenario, err := regattaconfig.LoadScenario(args[0])

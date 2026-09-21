@@ -64,8 +64,9 @@ type ClusterTarget struct {
 
 	// InternalAPIServerAddress is the cluster's API server address as reachable from the
 	// kwok-controller container's own network (e.g. a kind cluster's docker network), not the
-	// host-facing address in Kubeconfig. Required for a kind-provisioned target; `regatta render`
-	// auto-populates it. A hand-supplied non-kind cluster must set it directly.
+	// host-facing address in Kubeconfig. Left unset for a kind-provisioned target,
+	// orchestrate.Setup auto-derives it from Name. A hand-supplied non-kind cluster must set it
+	// directly.
 	InternalAPIServerAddress string `json:"internalApiServerAddress,omitempty"`
 
 	ProbeRetries int `json:"probeRetries,omitempty"`

@@ -27,14 +27,14 @@ regatta run never tears its own cluster targets down automatically - it just sub
 exits, so job state/metrics can still be collected afterwards. Run this once you're done to clean
 up, passing the same scenario file you ran, e.g.:
 
-  go run ./cmd/regatta teardown cmd/regatta/config/multi-cluster.example.yaml
+  go run ./cmd/regatta teardown cmd/regatta/config/two-cluster.example.yaml
 
 This tears down every cluster target the scenario file declares (fake-executor targets are
 skipped: stop that process manually, e.g. ps aux | grep fakeexecutor). To tear down a single
 target by hand instead of via a scenario file, omit the scenario file and use --kubeconfig/--name
 to identify it directly, e.g.:
 
-  go run ./cmd/regatta teardown --kubeconfig .kube/external/config-regatta-1 --name gpu-cluster
+  go run ./cmd/regatta teardown --kubeconfig .kube/external/regatta/regatta-1 --name gpu-cluster
 
 Only touches nodes tagged kwok.x-k8s.io/node=fake, so real nodes are never affected. Safe to run
 even if there's nothing to tear down.`,

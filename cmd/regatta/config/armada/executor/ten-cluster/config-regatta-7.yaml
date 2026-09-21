@@ -1,0 +1,41 @@
+httpPort: 8142
+executorApiConnection:
+  armadaUrl: "localhost:50052"
+  forceNoTls: true
+observability:
+  enabled: true
+  exporter:
+    endpoint: "http://localhost:4318"
+    protocol: "http/protobuf"
+  traces:
+    sampler: "parent_based_trace_id_ratio"
+    samplerArg: 1.0
+metric:
+  port: 9062
+kubernetes:
+  toleratedTaints:
+    - node-tests
+    - kwok.x-k8s.io/node
+  trackedNodeLabels:
+    - armadaproject.io/node-pool
+    - kwok.x-k8s.io/node
+    - armadaproject.io/regatta-target
+application:
+  clusterId: "local-cluster-7"
+  pool: "default"
+  errorCategories:
+    enabled: true
+    defaultCategory: uncategorized
+    categories:
+      # The action Delete makes the executor remove the failed pod. A retry
+      # then reuses the name of the pod. The retry/ testcases need this.
+      - name: oom
+        action: Delete
+        rules:
+          - onConditions: ["OOMKilled"]
+      - name: user_error
+        action: Delete
+        rules:
+          - onExitCodes:
+              operator: In
+              values: [1, 2, 126, 127]
