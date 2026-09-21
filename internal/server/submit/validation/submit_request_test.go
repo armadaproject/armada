@@ -1150,6 +1150,48 @@ func TestValidateResources(t *testing.T) {
 	}
 }
 
+func TestValidatePodLevelResourcesEnabled(t *testing.T) {
+	oneCpu := v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")}
+
+	tests := map[string]struct {
+		req             *api.JobSubmitRequestItem
+		podLevelEnabled bool
+		expectSuccess   bool
+	}{
+		"no pod-level block, feature disabled": {
+			req:           &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "main"}}}},
+			expectSuccess: true,
+		},
+		"pod-level block rejected when feature disabled": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main"}},
+				Resources:  &v1.ResourceRequirements{Requests: oneCpu, Limits: oneCpu},
+			}},
+			expectSuccess: false,
+		},
+		"pod-level block accepted when feature enabled": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main"}},
+				Resources:  &v1.ResourceRequirements{Requests: oneCpu, Limits: oneCpu},
+			}},
+			podLevelEnabled: true,
+			expectSuccess:   true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validatePodLevelResourcesEnabled(tc.req, configuration.SubmissionConfig{
+				PodLevelResources: tc.podLevelEnabled,
+			})
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, "pod-level resources (podSpec.resources) are not enabled on this server")
+			}
+		})
+	}
+}
+
 // TestValidateResources_PodLevel covers Kubernetes pod-level resources (KEP-2837),
 // gated by SubmissionConfig.PodLevelResources.
 func TestValidateResources_PodLevel(t *testing.T) {

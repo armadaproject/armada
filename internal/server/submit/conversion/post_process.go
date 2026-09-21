@@ -111,8 +111,9 @@ func defaultPriorityClass(spec *v1.PodSpec, config configuration.SubmissionConfi
 	}
 }
 
-// Clears the pod-level resources block (KEP-2837) unless the feature is enabled,
-// so all downstream accounting ignores it when the feature is off.
+// Clears the pod-level resources block (KEP-2837) unless the feature is enabled, so all downstream
+// accounting ignores it when the feature is off. validatePodLevelResourcesEnabled already rejects
+// such a submission, so this only keeps the conversion layer self-consistent on its own.
 func dropPodLevelResourcesIfDisabled(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	if !config.PodLevelResources {
 		spec.Resources = nil

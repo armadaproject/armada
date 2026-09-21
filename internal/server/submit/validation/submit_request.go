@@ -34,6 +34,7 @@ var (
 		validateHasPodSpec,
 		validatePodSpecSize,
 		validateAffinity,
+		validatePodLevelResourcesEnabled,
 		validateResources,
 		validateInitContainerCpu,
 		validatePriorityClasses,
@@ -241,6 +242,23 @@ func validatePriorityClasses(j *api.JobSubmitRequestItem, config configuration.S
 
 	if exists := config.AllowedPriorityClassNames[priorityClassName]; !exists {
 		return fmt.Errorf("priority class %s is not supported", priorityClassName)
+	}
+	return nil
+}
+
+// Ensures that a pod-level resources block (KEP-2837) is only submitted to a server that has the
+// feature enabled. Accepting and then dropping the block would schedule the job on its container
+// requests alone, which can be a small fraction of the budget the user asked for.
+func validatePodLevelResourcesEnabled(j *api.JobSubmitRequestItem, config configuration.SubmissionConfig) error {
+	if config.PodLevelResources {
+		return nil
+	}
+	spec := j.GetMainPodSpec()
+	if spec == nil {
+		return nil
+	}
+	if spec.Resources != nil {
+		return fmt.Errorf("pod-level resources (podSpec.resources) are not enabled on this server")
 	}
 	return nil
 }
