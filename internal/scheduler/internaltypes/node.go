@@ -67,9 +67,12 @@ type Node struct {
 	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
 
-	AllocatableByPriority map[int32]ResourceList
-	AllocatedByJobId      map[string]ResourceList
-	EvictedJobRunIds      map[string]bool
+	// Resource accounting. Only node.go may write to these maps; everything else reads
+	// through the accessors below. node.go does mutate them in place, so DeepCopyNilKeys
+	// must clone them. Their keys and values are immutable, so cloning the maps is enough.
+	allocatableByPriority map[int32]ResourceList
+	allocatedByJobId      map[string]ResourceList
+	evictedJobRunIds      map[string]bool
 	cutoffByJobId         map[string]int32
 }
 
@@ -188,9 +191,9 @@ func CreateNode(
 		unschedulable:         unschedulable,
 		totalResources:        totalResources,
 		allocatableResources:  allocatableResources,
-		AllocatableByPriority: NewAllocatableByPriorityAndResourceType(allowedPriorities, allocatableResources),
-		AllocatedByJobId:      map[string]ResourceList{},
-		EvictedJobRunIds:      map[string]bool{},
+		allocatableByPriority: NewAllocatableByPriorityAndResourceType(allowedPriorities, allocatableResources),
+		allocatedByJobId:      map[string]ResourceList{},
+		evictedJobRunIds:      map[string]bool{},
 		cutoffByJobId:         map[string]int32{},
 		Keys:                  keys,
 	}
@@ -245,19 +248,38 @@ func (node *Node) GetLabels() map[string]string {
 }
 
 func (node *Node) GetRunningJobIds() []string {
-	return maps.Keys(node.AllocatedByJobId)
+	return maps.Keys(node.allocatedByJobId)
+}
+
+// HasAllocatedJobs reports whether any job currently owns resources on the node.
+// Evicted jobs still own their resources, so they count. Prefer this over
+// len(AllocatedByJob()) when you only need emptiness: it avoids the clone.
+func (node *Node) HasAllocatedJobs() bool {
+	return len(node.allocatedByJobId) > 0
+}
+
+// AllocatedByJob returns the resources owned by each job on the node. The result is a
+// copy, so callers may not affect the node's accounting by writing to it.
+func (node *Node) AllocatedByJob() map[string]ResourceList {
+	return maps.Clone(node.allocatedByJobId)
 }
 
 // IsJobEvicted reports whether the job is currently marked as evicted from the node.
 // An evicted job still owns its resources, so this is independent of HasJobAllocation.
 func (node *Node) IsJobEvicted(jobId string) bool {
-	_, ok := node.EvictedJobRunIds[jobId]
+	_, ok := node.evictedJobRunIds[jobId]
 	return ok
+}
+
+// EvictedJobRunIds returns the ids of the jobs currently marked as evicted from the node.
+// The result is a copy, so callers may not affect the node's accounting by writing to it.
+func (node *Node) EvictedJobRunIds() map[string]bool {
+	return maps.Clone(node.evictedJobRunIds)
 }
 
 // HasJobAllocation reports whether the job currently owns resources on the node.
 func (node *Node) HasJobAllocation(jobId string) bool {
-	_, ok := node.AllocatedByJobId[jobId]
+	_, ok := node.allocatedByJobId[jobId]
 	return ok
 }
 
@@ -297,9 +319,24 @@ func (node *Node) GetAllocatableResources() ResourceList {
 // KnownPriorities returns the priorities this node tracks allocatable resources at,
 // in ascending order. This includes EvictedPriority and CrossPoolPriority.
 func (node *Node) KnownPriorities() []int32 {
-	priorities := maps.Keys(node.AllocatableByPriority)
+	priorities := maps.Keys(node.allocatableByPriority)
 	slices.Sort(priorities)
 	return priorities
+}
+
+// AllocatableAtPriority returns the resources still allocatable to jobs at the given
+// priority. A priority the node does not track yields an empty ResourceList, which is
+// indistinguishable from one with nothing left; KnownPriorities lists the tracked ones.
+func (node *Node) AllocatableAtPriority(priority int32) ResourceList {
+	return node.allocatableByPriority[priority]
+}
+
+// AllocatableByPriority returns the resources still allocatable to jobs at each priority
+// the node tracks. The result is a copy, so callers may not affect the node's accounting
+// by writing to it. Prefer AllocatableAtPriority when a single priority is enough: it
+// avoids the clone.
+func (node *Node) AllocatableByPriority() map[int32]ResourceList {
+	return maps.Clone(node.allocatableByPriority)
 }
 
 func (node *Node) WithNodeType(nodeType *NodeType) *Node {
@@ -341,16 +378,16 @@ func (node *Node) WithLabels(labels map[string]string) *Node {
 // Only expected to be used from tests
 func (node *Node) WithResourcesUsedAtPriority(priority int32, rs ResourceList) *Node {
 	result := node.DeepCopyNilKeys()
-	markAllocated(result.AllocatableByPriority, priority, rs)
+	markAllocated(result.allocatableByPriority, priority, rs)
 	return result
 }
 
 func (node *Node) MarkResourceUnallocatable(unallocatable ResourceList) *Node {
 	result := node.DeepCopyNilKeys()
 
-	for pri, allocatable := range result.AllocatableByPriority {
+	for pri, allocatable := range result.allocatableByPriority {
 		newAllocatable := allocatable.Subtract(unallocatable).FloorAtZero()
-		result.AllocatableByPriority[pri] = newAllocatable
+		result.allocatableByPriority[pri] = newAllocatable
 	}
 	result.allocatableResources = result.allocatableResources.Subtract(unallocatable).FloorAtZero()
 	return result
@@ -410,10 +447,11 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		// keys set to nil
 		Keys: nil,
 
-		// these maps are mutable but their keys and values are immutable
-		AllocatableByPriority: maps.Clone(node.AllocatableByPriority),
-		AllocatedByJobId:      maps.Clone(node.AllocatedByJobId),
-		EvictedJobRunIds:      maps.Clone(node.EvictedJobRunIds),
+		// The copy is about to be mutated in place by AddJob/EvictJob/RemoveJob, so these
+		// maps must not be shared with the original
+		allocatableByPriority: maps.Clone(node.allocatableByPriority),
+		allocatedByJobId:      maps.Clone(node.allocatedByJobId),
+		evictedJobRunIds:      maps.Clone(node.evictedJobRunIds),
 		cutoffByJobId:         maps.Clone(node.cutoffByJobId),
 	}
 }
@@ -458,26 +496,26 @@ type SchedulableJob interface {
 // AddJob binds job to the node, deducting its resources at every priority bucket
 // at or below cutoff. If the job is currently evicted from this node, it is
 // un-evicted and its resources are moved out of the EvictedPriority bucket;
-// ownership (AllocatedByJobId/AllocatedByQueue) is left untouched in that case
+// ownership (allocatedByJobId) is left untouched in that case
 // because an evicted job still owns its resources.
 func (node *Node) AddJob(job SchedulableJob, cutoff int32) error {
 	jobId := job.Id()
 	requests := job.KubernetesResourceRequirements()
 
-	_, isEvicted := node.EvictedJobRunIds[jobId]
-	delete(node.EvictedJobRunIds, jobId)
+	_, isEvicted := node.evictedJobRunIds[jobId]
+	delete(node.evictedJobRunIds, jobId)
 
 	if !isEvicted {
-		if _, ok := node.AllocatedByJobId[jobId]; ok {
+		if _, ok := node.allocatedByJobId[jobId]; ok {
 			return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.GetId())
 		}
-		if node.AllocatedByJobId == nil {
-			node.AllocatedByJobId = make(map[string]ResourceList)
+		if node.allocatedByJobId == nil {
+			node.allocatedByJobId = make(map[string]ResourceList)
 		}
-		node.AllocatedByJobId[jobId] = requests
+		node.allocatedByJobId[jobId] = requests
 	}
 
-	allocatable := node.AllocatableByPriority
+	allocatable := node.allocatableByPriority
 	markAllocated(allocatable, cutoff, requests)
 	if isEvicted {
 		markAllocatable(allocatable, EvictedPriority, requests)
@@ -493,24 +531,24 @@ func (node *Node) AddJob(job SchedulableJob, cutoff int32) error {
 
 // EvictJob marks job as evicted from the node: its resources move from the bucket
 // at the cutoff it was bound at to the EvictedPriority bucket within
-// AllocatableByPriority. Ownership (AllocatedByJobId/AllocatedByQueue) is
+// allocatableByPriority. Ownership (allocatedByJobId) is
 // intentionally left in place, and the stored cutoff is preserved so a later
 // RemoveJob can still release correctly.
 func (node *Node) EvictJob(job SchedulableJob) error {
 	jobId := job.Id()
-	if _, ok := node.AllocatedByJobId[jobId]; !ok {
+	if _, ok := node.allocatedByJobId[jobId]; !ok {
 		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.GetId())
 	}
 
-	if node.EvictedJobRunIds == nil {
-		node.EvictedJobRunIds = make(map[string]bool)
+	if node.evictedJobRunIds == nil {
+		node.evictedJobRunIds = make(map[string]bool)
 	}
-	if _, ok := node.EvictedJobRunIds[jobId]; ok {
+	if _, ok := node.evictedJobRunIds[jobId]; ok {
 		return errors.Errorf("job %s is already evicted from node %s", jobId, node.GetId())
 	}
-	node.EvictedJobRunIds[jobId] = true
+	node.evictedJobRunIds[jobId] = true
 
-	allocatableByPriority := node.AllocatableByPriority
+	allocatableByPriority := node.allocatableByPriority
 	jobRequests := job.KubernetesResourceRequirements()
 	markAllocatable(allocatableByPriority, node.cutoffByJobId[jobId], jobRequests)
 	markAllocated(allocatableByPriority, EvictedPriority, jobRequests)
@@ -519,22 +557,22 @@ func (node *Node) EvictJob(job SchedulableJob) error {
 }
 
 // RemoveJob unbinds job from the node, releasing its ownership and returning its
-// resources to AllocatableByPriority. If the job was evicted, its resources are
+// resources to allocatableByPriority. If the job was evicted, its resources are
 // released from the EvictedPriority bucket; otherwise from the bucket at the cutoff
 // it was bound at. Removing a job that is not bound is a no-op.
 func (node *Node) RemoveJob(job SchedulableJob) error {
 	jobId := job.Id()
 	requests := job.KubernetesResourceRequirements()
 
-	_, isEvicted := node.EvictedJobRunIds[jobId]
-	delete(node.EvictedJobRunIds, jobId)
+	_, isEvicted := node.evictedJobRunIds[jobId]
+	delete(node.evictedJobRunIds, jobId)
 
-	if _, ok := node.AllocatedByJobId[jobId]; !ok {
+	if _, ok := node.allocatedByJobId[jobId]; !ok {
 		return nil
 	}
-	delete(node.AllocatedByJobId, jobId)
+	delete(node.allocatedByJobId, jobId)
 
-	allocatable := node.AllocatableByPriority
+	allocatable := node.allocatableByPriority
 	if isEvicted {
 		markAllocatable(allocatable, EvictedPriority, requests)
 	} else {

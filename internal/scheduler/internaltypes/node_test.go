@@ -94,15 +94,15 @@ func TestNode(t *testing.T) {
 	assert.Equal(t, taints, node.GetTaints())
 	assert.Equal(t, labels, node.GetLabels())
 	assert.Equal(t, totalResources, node.GetTotalResources())
-	// AllocatableByPriority is derived: every allowed priority starts with all of
+	// Allocatable-by-priority is derived: every allowed priority starts with all of
 	// the node's allocatable resources, plus the two sentinel priorities.
 	assert.Equal(t, []int32{EvictedPriority, CrossPoolPriority, 1, 2, 3}, node.KnownPriorities())
 	for _, priority := range node.KnownPriorities() {
-		assert.Equal(t, allocatableResources, node.AllocatableByPriority[priority],
+		assert.Equal(t, allocatableResources, node.AllocatableAtPriority(priority),
 			"priority %d should start fully allocatable", priority)
 	}
 	// A new node has nothing allocated on it.
-	assert.Empty(t, node.AllocatedByJobId)
+	assert.Empty(t, node.AllocatedByJob())
 	assert.Empty(t, node.GetRunningJobIds())
 	assert.Equal(t, keys, node.Keys)
 
@@ -219,8 +219,8 @@ func TestMarkResourceUnallocatable(t *testing.T) {
 	result := node.MarkResourceUnallocatable(unallocatable)
 
 	assert.Equal(t, expectedAllocatableResources, result.allocatableResources)
-	assert.Equal(t, makeCpuResourceList(resourceListFactory, "6"), result.AllocatableByPriority[1])
-	assert.Equal(t, makeCpuResourceList(resourceListFactory, "8"), result.AllocatableByPriority[2])
+	assert.Equal(t, makeCpuResourceList(resourceListFactory, "6"), result.AllocatableAtPriority(1))
+	assert.Equal(t, makeCpuResourceList(resourceListFactory, "8"), result.AllocatableAtPriority(2))
 }
 
 func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
@@ -244,8 +244,8 @@ func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
 	result := node.MarkResourceUnallocatable(unallocatable)
 
 	assert.Equal(t, expectedAllocatableResources, result.allocatableResources)
-	assert.Equal(t, makeCpuResourceList(resourceListFactory, "0"), result.AllocatableByPriority[1])
-	assert.Equal(t, makeCpuResourceList(resourceListFactory, "1"), result.AllocatableByPriority[2])
+	assert.Equal(t, makeCpuResourceList(resourceListFactory, "0"), result.AllocatableAtPriority(1))
+	assert.Equal(t, makeCpuResourceList(resourceListFactory, "1"), result.AllocatableAtPriority(2))
 }
 
 func makeCpuResourceList(factory *ResourceListFactory, cpu string) ResourceList {
@@ -296,9 +296,17 @@ func testJobRequests(factory *ResourceListFactory, cpu, memory string) ResourceL
 	})
 }
 
-// testAccountingNode builds a node with an empty ledger and AllocatableByPriority
+// testAccountingNode builds a node with an empty ledger and allocatable-by-priority
 // buckets at priorities 1 and 10 (plus the sentinel priorities) all equal to total
 // resources.
+// assertJobAllocation asserts the node has accounted for exactly expected on behalf of jobId.
+func assertJobAllocation(t *testing.T, node *Node, jobId string, expected ResourceList, msgAndArgs ...interface{}) {
+	t.Helper()
+	actual, ok := node.AllocatedByJob()[jobId]
+	require.True(t, ok, "job %s should own resources on the node", jobId)
+	assert.Equal(t, expected, actual, msgAndArgs...)
+}
+
 func testAccountingNode(t *testing.T, factory *ResourceListFactory) *Node {
 	t.Helper()
 	total := factory.FromNodeProto(map[string]*resource.Quantity{
@@ -323,7 +331,7 @@ func TestNode_AddJob_TracksOwnershipAndAllocatable(t *testing.T) {
 	err := node.AddJob(job, 10)
 	require.NoError(t, err)
 
-	assert.Equal(t, requests, node.AllocatedByJobId["job-1"])
+	assertJobAllocation(t, node, "job-1", requests)
 }
 
 func TestNode_AddJob_DuplicateReturnsError(t *testing.T) {
@@ -347,8 +355,8 @@ func TestNode_EvictJob_MovesResourcesToEvictedPriority(t *testing.T) {
 	require.NoError(t, node.AddJob(job, 10))
 	require.NoError(t, node.EvictJob(job))
 
-	assert.True(t, node.EvictedJobRunIds["job-1"])
-	assert.Equal(t, requests, node.AllocatedByJobId["job-1"], "eviction must not release ownership")
+	assert.True(t, node.IsJobEvicted("job-1"))
+	assertJobAllocation(t, node, "job-1", requests, "eviction must not release ownership")
 }
 
 func TestNode_EvictJob_UnknownJobErrors(t *testing.T) {
@@ -368,13 +376,13 @@ func TestNode_RemoveJob_ReleasesOwnershipAndAllocatable(t *testing.T) {
 	job := &testSchedJob{id: "job-1", queue: "queue-a", requests: requests, priorityClass: types.PriorityClass{Priority: 10, Preemptible: true}}
 
 	require.NoError(t, node.AddJob(job, 10))
-	before := node.AllocatableByPriority[10]
+	before := node.AllocatableAtPriority(10)
 
 	require.NoError(t, node.RemoveJob(job))
 
-	_, hasJob := node.AllocatedByJobId["job-1"]
+	_, hasJob := node.AllocatedByJob()["job-1"]
 	assert.False(t, hasJob)
-	assert.Equal(t, before.Add(requests), node.AllocatableByPriority[10])
+	assert.Equal(t, before.Add(requests), node.AllocatableAtPriority(10))
 }
 
 func TestNode_RemoveJob_AlreadyUnboundIsNoop(t *testing.T) {
@@ -386,20 +394,46 @@ func TestNode_RemoveJob_AlreadyUnboundIsNoop(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Copying a node that already has jobs on it must isolate the accounting maps, because the
+// copy is mutated in place afterwards while the original stays in the NodeDb index.
+func TestNode_DeepCopyIsolatesAccountingFromOriginal(t *testing.T) {
+	factory := testAccountingFactory(t)
+	requests := testJobRequests(factory, "1", "1Gi")
+	node := testAccountingNode(t, factory)
+	first := &testSchedJob{id: "job-1", queue: "queue-a", requests: requests, priorityClass: types.PriorityClass{Priority: 10, Preemptible: true}}
+	second := &testSchedJob{id: "job-2", queue: "queue-a", requests: requests, priorityClass: types.PriorityClass{Priority: 10, Preemptible: true}}
+	require.NoError(t, node.AddJob(first, 10))
+
+	before := node.AllocatableAtPriority(10)
+	copied := node.DeepCopyNilKeys()
+
+	require.NoError(t, copied.AddJob(second, 10))
+	require.NoError(t, copied.EvictJob(first))
+
+	// The original must see none of it.
+	assert.False(t, node.HasJobAllocation("job-2"))
+	assert.False(t, node.IsJobEvicted("job-1"))
+	assert.Equal(t, before, node.AllocatableAtPriority(10))
+
+	// And unbinding on the original must not disturb the copy.
+	require.NoError(t, node.RemoveJob(first))
+	assert.True(t, copied.HasJobAllocation("job-1"))
+}
+
 func TestNode_RemoveJob_UsesCutoffStoredAtAdd(t *testing.T) {
 	factory := testAccountingFactory(t)
 	requests := testJobRequests(factory, "1", "1Gi")
 	node := testAccountingNode(t, factory)
 	job := &testSchedJob{id: "job-1", queue: "queue-a", requests: requests}
 
-	beforeLow := node.AllocatableByPriority[1]
-	beforeHigh := node.AllocatableByPriority[10]
+	beforeLow := node.AllocatableAtPriority(1)
+	beforeHigh := node.AllocatableAtPriority(10)
 
 	require.NoError(t, node.AddJob(job, 1))
 	require.NoError(t, node.RemoveJob(job))
 
-	assert.Equal(t, beforeLow, node.AllocatableByPriority[1], "bucket 1 must be restored")
-	assert.Equal(t, beforeHigh, node.AllocatableByPriority[10], "bucket 10 was never debited and must be unchanged")
+	assert.Equal(t, beforeLow, node.AllocatableAtPriority(1), "bucket 1 must be restored")
+	assert.Equal(t, beforeHigh, node.AllocatableAtPriority(10), "bucket 10 was never debited and must be unchanged")
 }
 
 func TestNode_RemoveJob_HighCutoffReleasesEveryBucket(t *testing.T) {
@@ -408,16 +442,16 @@ func TestNode_RemoveJob_HighCutoffReleasesEveryBucket(t *testing.T) {
 	node := testAccountingNode(t, factory)
 	job := &testSchedJob{id: "job-1", queue: "queue-a", requests: requests}
 
-	beforeLow := node.AllocatableByPriority[1]
-	beforeHigh := node.AllocatableByPriority[10]
+	beforeLow := node.AllocatableAtPriority(1)
+	beforeHigh := node.AllocatableAtPriority(10)
 
 	require.NoError(t, node.AddJob(job, math.MaxInt32))
-	assert.NotEqual(t, beforeLow, node.AllocatableByPriority[1], "a max cutoff must debit every bucket")
+	assert.NotEqual(t, beforeLow, node.AllocatableAtPriority(1), "a max cutoff must debit every bucket")
 
 	require.NoError(t, node.RemoveJob(job))
 
-	assert.Equal(t, beforeLow, node.AllocatableByPriority[1])
-	assert.Equal(t, beforeHigh, node.AllocatableByPriority[10])
+	assert.Equal(t, beforeLow, node.AllocatableAtPriority(1))
+	assert.Equal(t, beforeHigh, node.AllocatableAtPriority(10))
 }
 
 func TestNode_EvictThenRemove_ReleasesAtEvictedPriority(t *testing.T) {
@@ -426,17 +460,17 @@ func TestNode_EvictThenRemove_ReleasesAtEvictedPriority(t *testing.T) {
 	node := testAccountingNode(t, factory)
 	job := &testSchedJob{id: "job-1", queue: "queue-a", requests: requests}
 
-	beforeEvicted := node.AllocatableByPriority[EvictedPriority]
-	beforeTen := node.AllocatableByPriority[10]
+	beforeEvicted := node.AllocatableAtPriority(EvictedPriority)
+	beforeTen := node.AllocatableAtPriority(10)
 
 	require.NoError(t, node.AddJob(job, 10))
 	require.NoError(t, node.EvictJob(job))
 	require.NoError(t, node.RemoveJob(job))
 
-	assert.Equal(t, beforeEvicted, node.AllocatableByPriority[EvictedPriority])
-	assert.Equal(t, beforeTen, node.AllocatableByPriority[10])
-	assert.Empty(t, node.EvictedJobRunIds)
-	assert.Empty(t, node.AllocatedByJobId)
+	assert.Equal(t, beforeEvicted, node.AllocatableAtPriority(EvictedPriority))
+	assert.Equal(t, beforeTen, node.AllocatableAtPriority(10))
+	assert.Empty(t, node.EvictedJobRunIds())
+	assert.Empty(t, node.AllocatedByJob())
 }
 
 func createNode(allocatableResource ResourceList, allowedPriorities []int32) *Node {
