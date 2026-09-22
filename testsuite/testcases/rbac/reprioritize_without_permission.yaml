@@ -1,0 +1,46 @@
+# RBAC: a principal without reprioritize_any_jobs and without a queue-level reprioritize grant
+# cannot reprioritize a job, even one it submitted itself.
+queue: rbac-queue-submit-no-reprioritize
+authContext: rbac-queue-only
+numBatches: 1
+batchSize: 1
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: reprioritize-by-id
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          args:
+            - "sleep"
+            - "100s"
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+reprioritize:
+  request:
+    newPriority: 100
+expectedEvents:
+  - submitted:
+  - succeeded:
+timeout: "30s"
+expectErrorCode: 2 # UNKNOWN
+queueConfig:
+  setup:
+    queueSpec:
+      userOwners: ["nobody"]
+      permissions:
+        - subjects:
+            - kind: Group
+              name: queue-only
+          verbs:
+            - submit
+            - watch
