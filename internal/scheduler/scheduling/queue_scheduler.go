@@ -414,6 +414,11 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 		if jctx.Job.IsInGang() {
 			gangId := jctx.Job.GetGangInfo().Id()
 			gang := it.jctxsByGangId[gangId]
+			if gang == nil {
+				if cardinality := jctx.CurrentGangCardinality; cardinality > 1 {
+					gang = make([]*schedulercontext.JobSchedulingContext, 0, cardinality)
+				}
+			}
 			gang = append(gang, jctx)
 			it.jctxsByGangId[gangId] = gang
 			if len(gang) == jctx.CurrentGangCardinality {

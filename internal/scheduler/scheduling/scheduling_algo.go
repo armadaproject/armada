@@ -305,7 +305,7 @@ func (l *FairSchedulingAlgo) reconcilePools(ctx *armadacontext.Context, txn *job
 	configByPool := poolConfigSliceToMap(l.schedulingConfig.Pools)
 
 	results := make(map[string]*ReconciliationResult, len(l.schedulingConfig.Pools))
-	outcomes := make(map[string]*PoolSchedulingOutcome)
+	outcomes := make(map[string]*PoolSchedulingOutcome, len(l.schedulingConfig.Pools))
 	var allPreempted, allFailed []*FailedReconciliationResult
 	for pool, invalidJobs := range invalidJobsByPool {
 		config, present := configByPool[pool]
@@ -363,7 +363,7 @@ func (l *FairSchedulingAlgo) reconcilePoolJobs(config configuration.PoolConfig, 
 	}
 
 	jobsUpdated := make(map[string]*jobdb.Job, len(invalidJobs))
-	gangsPreempted := map[gangKey][]string{}
+	gangsPreempted := make(map[gangKey][]string, len(invalidJobs))
 	for _, invalidJobInfo := range invalidJobs {
 		job := invalidJobInfo.Job
 		if job.InTerminalState() || job.Queued() || job.LatestRun() == nil {
@@ -509,11 +509,21 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		}
 	}
 
-	nodePools := append(currentPool.AwayPoolNames(), currentPool.Name)
+	awayPoolNames := currentPool.AwayPoolNames()
+	nodePools := make([]string, 0, len(awayPoolNames)+1)
+	nodePools = append(nodePools, awayPoolNames...)
+	nodePools = append(nodePools, currentPool.Name)
 	inUsePriorityClasses := l.buildInUsePriorityClasses(jobSchedulingInfo.inUsePriorityClasses)
-	poolNodes := armadaslices.Filter(nodes, func(node *internaltypes.Node) bool {
-		return slices.Contains(nodePools, node.GetPool())
-	})
+	poolNodes := nodes
+	if len(awayPoolNames) == 0 {
+		poolNodes = armadaslices.Filter(nodes, func(node *internaltypes.Node) bool {
+			return node.GetPool() == currentPool.Name
+		})
+	} else {
+		poolNodes = armadaslices.Filter(nodes, func(node *internaltypes.Node) bool {
+			return slices.Contains(nodePools, node.GetPool())
+		})
+	}
 
 	nodeDb, err := l.constructNodeDb(inUsePriorityClasses, currentPool, currentPoolJobs, otherPoolsJobs, poolNodes)
 	if err != nil {
@@ -599,6 +609,14 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 	allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList, len(queues))
 	awayAllocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList, len(queues))
 	inUsePriorityClasses := make(map[string]bool, len(l.schedulingConfig.PriorityClasses))
+	allPoolsSet := make(map[string]struct{}, len(allPools))
+	for _, pool := range allPools {
+		allPoolsSet[pool] = struct{}{}
+	}
+	awayAllocationPoolsSet := make(map[string]struct{}, len(awayAllocationPools))
+	for _, pool := range awayAllocationPools {
+		awayAllocationPoolsSet[pool] = struct{}{}
+	}
 
 	for _, job := range jobs {
 		queue, present := queues[job.Queue()]
@@ -649,14 +667,11 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		}
 
 		pool := job.LatestRun().Pool()
-		if _, present := jobsByPool[pool]; !present {
-			jobsByPool[pool] = []*jobdb.Job{}
-		}
 		jobsByPool[pool] = append(jobsByPool[pool], job)
 
 		matches := false
 		for _, pool := range pools {
-			if slices.Contains(allPools, pool) {
+			if _, ok := allPoolsSet[pool]; ok {
 				matches = true
 				break
 			}
@@ -673,7 +688,7 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 					allocatedByQueueAndPriorityClass[queue.Name] = allocation
 				}
 				allocation[job.PriorityClassName()] = allocation[job.PriorityClassName()].Add(job.AllResourceRequirements())
-			} else if slices.Contains(awayAllocationPools, pool) {
+			} else if _, ok := awayAllocationPoolsSet[pool]; ok {
 				awayAllocation := awayAllocatedByQueueAndPriorityClass[queue.Name]
 				if awayAllocation == nil {
 					awayAllocation = make(map[string]internaltypes.ResourceList, len(l.schedulingConfig.PriorityClasses))

@@ -25,9 +25,12 @@ func (nii *nodeIdIndex) FromObject(obj interface{}) (bool, []byte, error) {
 		return false, nil, nil
 	}
 
-	// Add the null character as a terminator
-	val += "\x00"
-	return true, []byte(val), nil
+	// Add the null character as a terminator.
+	// Single allocation: the previous val += "\x00" + []byte(val) did two.
+	key := make([]byte, 0, len(val)+1)
+	key = append(key, val...)
+	key = append(key, 0)
+	return true, key, nil
 }
 
 func (nii *nodeIdIndex) FromArgs(args ...interface{}) ([]byte, error) {
@@ -38,9 +41,12 @@ func (nii *nodeIdIndex) FromArgs(args ...interface{}) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("argument must be a string: %#v", args[0])
 	}
-	// Add the null character as a terminator
-	arg += "\x00"
-	return []byte(arg), nil
+	// Add the null character as a terminator.
+	// Single allocation: the previous arg += "\x00" + []byte(arg) did two.
+	key := make([]byte, 0, len(arg)+1)
+	key = append(key, arg...)
+	key = append(key, 0)
+	return key, nil
 }
 
 func (nii *nodeIdIndex) PrefixFromArgs(args ...interface{}) ([]byte, error) {
