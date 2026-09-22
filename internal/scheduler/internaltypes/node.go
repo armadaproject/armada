@@ -251,33 +251,23 @@ func (node *Node) GetRunningJobIds() []string {
 	return maps.Keys(node.allocatedByJobId)
 }
 
-// HasAllocatedJobs reports whether any job currently owns resources on the node.
-// Evicted jobs still own their resources, so they count. Prefer this over
-// len(AllocatedByJob()) when you only need emptiness: it avoids the clone.
 func (node *Node) HasAllocatedJobs() bool {
 	return len(node.allocatedByJobId) > 0
 }
 
-// AllocatedByJob returns the resources owned by each job on the node. The result is a
-// copy, so callers may not affect the node's accounting by writing to it.
 func (node *Node) AllocatedByJob() map[string]ResourceList {
 	return maps.Clone(node.allocatedByJobId)
 }
 
-// IsJobEvicted reports whether the job is currently marked as evicted from the node.
-// An evicted job still owns its resources, so this is independent of HasJobAllocation.
 func (node *Node) IsJobEvicted(jobId string) bool {
 	_, ok := node.evictedJobRunIds[jobId]
 	return ok
 }
 
-// EvictedJobRunIds returns the ids of the jobs currently marked as evicted from the node.
-// The result is a copy, so callers may not affect the node's accounting by writing to it.
 func (node *Node) EvictedJobRunIds() map[string]bool {
 	return maps.Clone(node.evictedJobRunIds)
 }
 
-// HasJobAllocation reports whether the job currently owns resources on the node.
 func (node *Node) HasJobAllocation(jobId string) bool {
 	_, ok := node.allocatedByJobId[jobId]
 	return ok
@@ -324,17 +314,10 @@ func (node *Node) KnownPriorities() []int32 {
 	return priorities
 }
 
-// AllocatableAtPriority returns the resources still allocatable to jobs at the given
-// priority. A priority the node does not track yields an empty ResourceList, which is
-// indistinguishable from one with nothing left; KnownPriorities lists the tracked ones.
 func (node *Node) AllocatableAtPriority(priority int32) ResourceList {
 	return node.allocatableByPriority[priority]
 }
 
-// AllocatableByPriority returns the resources still allocatable to jobs at each priority
-// the node tracks. The result is a copy, so callers may not affect the node's accounting
-// by writing to it. Prefer AllocatableAtPriority when a single priority is enough: it
-// avoids the clone.
 func (node *Node) AllocatableByPriority() map[int32]ResourceList {
 	return maps.Clone(node.allocatableByPriority)
 }
