@@ -101,10 +101,7 @@ func NewSchedulingContext(
 }
 
 func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
-	// Clear the existing map instead of reallocating to preserve backing memory.
-	for k := range sctx.UnfeasibleSchedulingKeys {
-		delete(sctx.UnfeasibleSchedulingKeys, k)
-	}
+	sctx.UnfeasibleSchedulingKeys = make(map[internaltypes.SchedulingKey]*JobSchedulingContext)
 }
 
 func (sctx *SchedulingContext) GetSpotPrice() float64 {

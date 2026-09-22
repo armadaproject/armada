@@ -564,27 +564,17 @@ func (node *Node) RemoveJob(job SchedulableJob) error {
 }
 
 func markAllocated(allocatableByPriority map[int32]ResourceList, priorityCutoff int32, rs ResourceList) {
-	// Allocate new ResourceList values to avoid mutating the caller's underlying data.
-	for priority, rl := range allocatableByPriority {
-		if priority <= priorityCutoff {
-			result := make([]int64, len(rl.resources))
-			for i, r := range rl.resources {
-				result[i] = r - rs.resources[i]
-			}
-			allocatableByPriority[priority] = ResourceList{factory: rl.factory, resources: result}
-		}
-	}
+	markAllocatable(allocatableByPriority, priorityCutoff, rs.Negate())
 }
 
 func markAllocatable(allocatableByPriority map[int32]ResourceList, priorityCutoff int32, rs ResourceList) {
-	// Allocate new ResourceList values to avoid mutating the caller's underlying data.
-	for priority, rl := range allocatableByPriority {
+	priorities := make([]int32, 0, len(allocatableByPriority))
+	for priority := range allocatableByPriority {
 		if priority <= priorityCutoff {
-			result := make([]int64, len(rl.resources))
-			for i, r := range rl.resources {
-				result[i] = r + rs.resources[i]
-			}
-			allocatableByPriority[priority] = ResourceList{factory: rl.factory, resources: result}
+			priorities = append(priorities, priority)
 		}
+	}
+	for _, priority := range priorities {
+		allocatableByPriority[priority] = allocatableByPriority[priority].Add(rs)
 	}
 }

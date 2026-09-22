@@ -188,15 +188,6 @@ type NodeDb struct {
 	// Empty string disables cross-pool detection (all jobs treated as home)
 	//  - Callers leave it unset to fall back to the legacy behaviour (see DisablePreemptCrossPoolJobsFirst config).
 	pool string
-
-	// Reusable scratch buffers to avoid per-job allocations in hot paths.
-	// These are safe because scheduling is single-threaded within a NodeDb transaction.
-	// scratchMatchingNodeTypeIds is reused by NodeTypesMatchingJob across jobs.
-	scratchMatchingNodeTypeIds []uint64
-	// scratchIndexResourceRequests is reused by selectNodeForPodAtPriority across priority attempts.
-	scratchIndexResourceRequests []int64
-	// scratchBaseExcludedByReason is reused by NodeTypesMatchingJobWithBase across jobs.
-	scratchBaseExcludedByReason map[string]int
 }
 
 func NewNodeDb(
@@ -259,9 +250,6 @@ func NewNodeDb(
 		db:                        db,
 		// Set the initial capacity (somewhat arbitrarily) to 128 reasons.
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
-		// Pre-allocate reusable scratch buffers sized to the number of indexed resources.
-		scratchIndexResourceRequests: make([]int64, len(indexedResourceNames)),
-		scratchMatchingNodeTypeIds:   make([]uint64, 0, 64),
 
 		scheduledAtPriorityByJobId: make(map[string]int32),
 		resourceListFactory:        resourceListFactory,
@@ -415,7 +403,7 @@ func (nodeDb *NodeDb) GetNodesWithTxn(txn *memdb.Txn) ([]*internaltypes.Node, er
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	nodes := make([]*internaltypes.Node, 0, nodeDb.numNodes)
+	nodes := []*internaltypes.Node{}
 	for obj := it.Next(); obj != nil; obj = it.Next() {
 		node := obj.(*internaltypes.Node)
 		if node == nil {
@@ -427,7 +415,7 @@ func (nodeDb *NodeDb) GetNodesWithTxn(txn *memdb.Txn) ([]*internaltypes.Node, er
 }
 
 func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *context.GangSchedulingContext) (bool, []*JobPreemptionInfo, error) {
-	preemptedJobs := make([]*JobPreemptionInfo, 0, len(gctx.JobSchedulingContexts))
+	var preemptedJobs []*JobPreemptionInfo
 	// Attempt to schedule pods one by one in a transaction.
 	for _, jctx := range gctx.JobSchedulingContexts {
 		// In general, we may attempt to schedule a gang multiple times (in
@@ -478,7 +466,7 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *context.GangSche
 // job that preempted the original member as the preemptor, and the original member as
 // the sibling whose preemption pulled this one in.
 func (nodeDb *NodeDb) preemptSiblingGangJobs(txn *memdb.Txn, preemptedJobs []*JobPreemptionInfo) ([]*JobPreemptionInfo, error) {
-	siblingsPreempted := make([]*JobPreemptionInfo, 0, len(preemptedJobs))
+	var siblingsPreempted []*JobPreemptionInfo
 
 	for _, originalPreemption := range preemptedJobs {
 		job := originalPreemption.PreemptedJob.Job
@@ -568,7 +556,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 		ScheduledAtPriority:      priority,
 		PreemptedAtPriority:      internaltypes.MinPriority,
 		NumNodes:                 int(nodeDb.numNodes),
-		NumExcludedNodesByReason: make(map[string]int, 4),
+		NumExcludedNodesByReason: make(map[string]int),
 	}
 	originalNumberOfTolerations := len(jctx.AdditionalTolerations)
 	jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, nodeDb.defaultTolerations...)
@@ -738,20 +726,13 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 ) (*internaltypes.Node, []*JobPreemptionInfo, error) {
 	pctx := jctx.PodSchedulingContext
 
-	// Compute base excluded node counts once, then reuse the map across priority attempts.
-	// We clear and re-copy from the base before each attempt instead of cloning.
-	matchingNodeTypeIds, baseExcludedByReason, err := nodeDb.NodeTypesMatchingJobWithBase(jctx)
+	matchingNodeTypeIds, numExcludedNodesByReason, err := nodeDb.NodeTypesMatchingJob(jctx)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Ensure pctx.NumExcludedNodesByReason is allocated.
-	if pctx.NumExcludedNodesByReason == nil {
-		pctx.NumExcludedNodesByReason = make(map[string]int, 4)
-	}
-
 	// Try scheduling at evictedPriority. If this succeeds, no preemption is necessary.
-	clearAndCopyMap(pctx.NumExcludedNodesByReason, baseExcludedByReason)
+	pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
 	if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, internaltypes.EvictedPriority); err != nil {
 		return nil, nil, err
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
@@ -763,7 +744,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 
 	// Try scheduling at the job priority. If this fails, scheduling is impossible and we return.
 	// This is an optimisation to avoid looking for preemption targets for unschedulable jobs.
-	clearAndCopyMap(pctx.NumExcludedNodesByReason, baseExcludedByReason)
+	pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
 	if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, pctx.ScheduledAtPriority); err != nil {
 		return nil, nil, err
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
@@ -793,7 +774,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	// Schedule by kicking off jobs currently bound to a node.
 	// This method does not respect fairness when choosing on which node to schedule the job.
 	if !nodeDb.disableUrgencyScheduling {
-		if node, err := nodeDb.selectNodeForJobWithUrgencyPreemption(txn, jctx, matchingNodeTypeIds, baseExcludedByReason); err != nil {
+		if node, err := nodeDb.selectNodeForJobWithUrgencyPreemption(txn, jctx, matchingNodeTypeIds); err != nil {
 			return nil, nil, err
 		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 			return nil, nil, err
@@ -824,9 +805,9 @@ func (nodeDb *NodeDb) selectNodeForJobWithUrgencyPreemption(
 	txn *memdb.Txn,
 	jctx *context.JobSchedulingContext,
 	matchingNodeTypeIds []uint64,
-	baseExcludedByReason map[string]int,
 ) (*internaltypes.Node, error) {
 	pctx := jctx.PodSchedulingContext
+	numExcludedNodesByReason := pctx.NumExcludedNodesByReason
 	for _, priority := range nodeDb.nodeDbPriorities {
 		if priority == internaltypes.EvictedPriority {
 			// We already tried scheduling at evictedPriority above.
@@ -841,7 +822,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithUrgencyPreemption(
 
 		// Reset NumExcludedNodesByReason to avoid double-counting nodes
 		// (since we may consider all nodes at each priority).
-		clearAndCopyMap(pctx.NumExcludedNodesByReason, baseExcludedByReason)
+		pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
 
 		// Try to find a node at this priority.
 		if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, priority); err != nil {
@@ -861,9 +842,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	matchingNodeTypeIds []uint64,
 	priority int32,
 ) (*internaltypes.Node, error) {
-	// Reuse the scratch buffer to avoid per-job allocation. The buffer is sized to
-	// len(indexedResources) at construction and is safe because scheduling is single-threaded.
-	indexResourceRequests := nodeDb.scratchIndexResourceRequests[:len(nodeDb.indexedResources)]
+	indexResourceRequests := make([]int64, len(nodeDb.indexedResources))
 	for i, t := range nodeDb.indexedResources {
 		indexResourceRequests[i] = jctx.KubernetesResourceRequirements.GetRawByNameZeroIfMissing(t)
 	}
@@ -964,7 +943,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 
 	var selectedNode *internaltypes.Node
 	var preemptedJobs []*JobPreemptionInfo
-	nodesById := make(map[string]*consideredNode, 16)
+	nodesById := make(map[string]*consideredNode)
 	it, err := txn.ReverseLowerBound(EvictedJobsTable, IndexIndex, math.MaxInt)
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
@@ -999,7 +978,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 				node:                     nodeFromDb,
 				availableResource:        nodeFromDb.AllocatableAtPriority(internaltypes.EvictedPriority),
 				staticRequirementsNotMet: false,
-				evictedJobs:              make([]*EvictedJobSchedulingContext, 0, 4),
+				evictedJobs:              []*EvictedJobSchedulingContext{},
 			}
 
 			nodesById[nodeId] = node
@@ -1135,57 +1114,21 @@ func (nodeDb *NodeDb) UnbindJobFromNode(job *jobdb.Job, node *internaltypes.Node
 
 // NodeTypesMatchingJob returns a slice with all node types a pod could be scheduled on.
 // It also returns the number of nodes excluded by reason for exclusion.
-// The provided output map is cleared and reused to avoid allocation.
-// The returned matchingNodeTypeIds slice uses a reusable buffer on NodeDb and must not be retained.
-func (nodeDb *NodeDb) NodeTypesMatchingJob(jctx *context.JobSchedulingContext, out map[string]int) ([]uint64, error) {
-	// Reuse the scratch buffer to avoid per-job allocation. The buffer is safe because
-	// the caller (selectNodeForJobWithTxnAtPriority) does not retain it beyond the
-	// selectNodeForPodAtPriority calls, and NewNodeTypesIterator clones it.
-	matchingNodeTypeIds := nodeDb.scratchMatchingNodeTypeIds[:0]
-	// Clear the output map instead of allocating a new one.
-	for k := range out {
-		delete(out, k)
-	}
+func (nodeDb *NodeDb) NodeTypesMatchingJob(jctx *context.JobSchedulingContext) ([]uint64, map[string]int, error) {
+	var matchingNodeTypeIds []uint64
+	numExcludedNodesByReason := make(map[string]int)
 	for _, nodeType := range nodeDb.nodeTypes {
 		matches, reason := NodeTypeJobRequirementsMet(nodeType, jctx)
 		if matches {
 			matchingNodeTypeIds = append(matchingNodeTypeIds, nodeType.GetId())
 		} else if reason != nil {
 			s := nodeDb.stringFromPodRequirementsNotMetReason(reason)
-			out[s] += nodeDb.numNodesByNodeType[nodeType.GetId()]
+			numExcludedNodesByReason[s] += nodeDb.numNodesByNodeType[nodeType.GetId()]
 		} else {
-			out[PodRequirementsNotMetReasonUnknown] += nodeDb.numNodesByNodeType[nodeType.GetId()]
+			numExcludedNodesByReason[PodRequirementsNotMetReasonUnknown] += nodeDb.numNodesByNodeType[nodeType.GetId()]
 		}
 	}
-	nodeDb.scratchMatchingNodeTypeIds = matchingNodeTypeIds
-	return matchingNodeTypeIds, nil
-}
-
-// NodeTypesMatchingJobWithBase returns matching node types and a fresh base excluded-by-reason map.
-// The base map is reused across calls; the caller must use clearAndCopyMap before each priority attempt.
-func (nodeDb *NodeDb) NodeTypesMatchingJobWithBase(jctx *context.JobSchedulingContext) ([]uint64, map[string]int, error) {
-	base := nodeDb.scratchBaseExcludedByReason
-	if base == nil {
-		base = make(map[string]int, 4)
-		nodeDb.scratchBaseExcludedByReason = base
-	} else {
-		for k := range base {
-			delete(base, k)
-		}
-	}
-	matchingNodeTypeIds, err := nodeDb.NodeTypesMatchingJob(jctx, base)
-	return matchingNodeTypeIds, base, err
-}
-
-// clearAndCopyMap clears dst and copies all entries from src into dst.
-// This avoids allocating a new map by reusing the existing dst map.
-func clearAndCopyMap(dst, src map[string]int) {
-	for k := range dst {
-		delete(dst, k)
-	}
-	for k, v := range src {
-		dst[k] = v
-	}
+	return matchingNodeTypeIds, numExcludedNodesByReason, nil
 }
 
 func (nodeDb *NodeDb) UpsertMany(nodes []*internaltypes.Node) error {
@@ -1218,13 +1161,7 @@ func (nodeDb *NodeDb) Upsert(node *internaltypes.Node) error {
 }
 
 func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *internaltypes.Node) error {
-	// Reuse existing keys slice if possible to avoid allocation.
-	keys := node.Keys
-	if cap(keys) < len(nodeDb.nodeDbPriorities) {
-		keys = make([][]byte, len(nodeDb.nodeDbPriorities))
-	} else {
-		keys = keys[:len(nodeDb.nodeDbPriorities)]
-	}
+	keys := make([][]byte, len(nodeDb.nodeDbPriorities))
 	for i, p := range nodeDb.nodeDbPriorities {
 		keys[i] = nodeDb.nodeDbKey(keys[i], node.GetNodeTypeId(), node.AllocatableAtPriority(p), node.GetIndex())
 	}

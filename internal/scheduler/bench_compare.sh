@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Benchmark comparison tool for scheduler performance.
 #
+# Measures heap allocations and GC pressure in the scheduler hot paths by
+# comparing benchmark results between a base ref and the current branch.
+#
 # Usage:
 #   # Compare current branch against a ref (default: origin/master):
 #   ./bench_compare.sh
@@ -9,6 +12,11 @@
 #
 #   # Run with profiling (generates CPU + memory + GC traces):
 #   PROFILE=1 ./bench_compare.sh
+#
+#   # More iterations for better accuracy:
+#   COUNT=6 BENCHTIME=3s ./bench_compare.sh
+#
+# Output goes to /tmp/scheduler-bench-*/.
 #
 # Prerequisites:
 #   go install golang.org/x/perf/cmd/benchstat@latest
