@@ -32,7 +32,7 @@ expectedEvents:
   - submitted:
   - succeeded:
 timeout: "30s"
-expectErrorCode: 2 # UNKNOWN
+expectedErrorCode: 2 # UNKNOWN
 queueConfig:
   setup:
     queueSpec:

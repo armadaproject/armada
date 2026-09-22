@@ -31,10 +31,10 @@ import (
 
 // Check a call's outcome is reconciled against testSpec.ExpectErrorCode for negative tests.
 func checkExpectedError(testSpec *api.TestSpec, err error) error {
-	if err == nil || testSpec.GetExpectErrorCode() == 0 {
+	if err == nil || testSpec.GetExpectedErrorCode() == 0 {
 		return err
 	}
-	wantCode := codes.Code(testSpec.GetExpectErrorCode())
+	wantCode := codes.Code(testSpec.GetExpectedErrorCode())
 	if status.Code(err) != wantCode {
 		return errors.Wrapf(err, "expected call to fail with code %s", wantCode)
 	}
@@ -123,10 +123,10 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Track whether an expected error has been observed during the test run.
 	var expectedErrorObserved bool
 	defer func() {
-		if err == nil && srv.testSpec.GetExpectErrorCode() != 0 && !expectedErrorObserved {
+		if err == nil && srv.testSpec.GetExpectedErrorCode() != 0 && !expectedErrorObserved {
 			err = errors.Errorf(
 				"expected a call to fail with code %s, but the test completed successfully",
-				codes.Code(srv.testSpec.GetExpectErrorCode()),
+				codes.Code(srv.testSpec.GetExpectedErrorCode()),
 			)
 		}
 	}()
@@ -278,7 +278,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Watch for ingress events and try to download from any ingresses found.
 	g.Go(func() error { return eventwatcher.GetFromIngresses(ctx, ingressCh) })
 
-	if srv.testSpec.GetExpectErrorCode() != 0 {
+	if srv.testSpec.GetExpectedErrorCode() != 0 {
 		_ = eventwatcher.AssertEvents(ctx, assertCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents)
 		cancel()
 		_ = g.Wait()

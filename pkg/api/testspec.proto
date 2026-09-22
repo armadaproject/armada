@@ -67,7 +67,7 @@ message TestSpec {
     // If non-zero, the test expects job submission/cancellation/reprioritization or queue
     // create/update/delete to fail with this gRPC status code (see google.golang.org/grpc/codes)
     // rather than succeed.
-    int32 expect_error_code = 28;
+    int32 expected_error_code = 28;
 }
 
 message NodeCancelConfig {
