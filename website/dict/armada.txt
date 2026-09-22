@@ -38,3 +38,9 @@ preemptibility
 krew
 uncordon
 gcflags
+magefile
+ingesters
+scheduleringester
+containerised
+initialise
+organisations
