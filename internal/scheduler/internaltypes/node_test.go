@@ -9,8 +9,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 )
 
@@ -51,54 +53,18 @@ func TestNode(t *testing.T) {
 			"memory": pointer.MustParseResource("16Gi"),
 		},
 	)
-	allocatableByPriority := map[int32]ResourceList{
-		1: resourceListFactory.FromNodeProto(
-			map[string]*resource.Quantity{
-				"cpu":    pointer.MustParseResource("0"),
-				"memory": pointer.MustParseResource("0Gi"),
-			},
-		),
-		2: resourceListFactory.FromNodeProto(
-			map[string]*resource.Quantity{
-				"cpu":    pointer.MustParseResource("8"),
-				"memory": pointer.MustParseResource("16Gi"),
-			},
-		),
-		3: resourceListFactory.FromNodeProto(
-			map[string]*resource.Quantity{
-				"cpu":    pointer.MustParseResource("16"),
-				"memory": pointer.MustParseResource("32Gi"),
-			},
-		),
-	}
-	allocatedByJobId := map[string]ResourceList{
-		"jobId": resourceListFactory.FromJobResourceListIgnoreUnknown(
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("8"),
-				"memory": resource.MustParse("16Gi"),
-			},
-		),
-	}
-	evictedJobRunIds := map[string]bool{
-		"jobId":        false,
-		"evictedJobId": true,
-	}
+	allowedPriorities := []int32{1, 2, 3}
 	keys := [][]byte{
 		{
 			0, 1, 255,
 		},
 	}
 
-	nodeType := NewNodeType(
-		taints,
-		labels,
-		map[string]bool{"foo": true},
-		map[string]bool{"key": true},
-	)
+	indexedTaints := map[string]bool{"foo": true}
+	indexedNodeLabels := map[string]bool{"key": true}
 
 	node := CreateNode(
 		id,
-		nodeType,
 		index,
 		executor,
 		name,
@@ -106,14 +72,17 @@ func TestNode(t *testing.T) {
 		reportingNodeType,
 		taints,
 		labels,
+		indexedTaints,
+		indexedNodeLabels,
 		false,
 		totalResources,
 		allocatableResources,
-		allocatableByPriority,
-		allocatedByJobId,
-		evictedJobRunIds,
+		allowedPriorities,
 		keys,
 	)
+
+	// NodeType is derived from the taints and labels filtered by the indexed keys.
+	nodeType := NewNodeType(taints, labels, indexedTaints, indexedNodeLabels)
 
 	assert.Equal(t, id, node.GetId())
 	assert.Equal(t, reportingNodeType, node.GetReportingNodeType())
@@ -125,8 +94,16 @@ func TestNode(t *testing.T) {
 	assert.Equal(t, taints, node.GetTaints())
 	assert.Equal(t, labels, node.GetLabels())
 	assert.Equal(t, totalResources, node.GetTotalResources())
-	assert.Equal(t, allocatableByPriority, node.AllocatableByPriority)
-	assert.Equal(t, allocatedByJobId, node.AllocatedByJobId)
+	// AllocatableByPriority is derived: every allowed priority starts with all of
+	// the node's allocatable resources, plus the two sentinel priorities.
+	assert.Equal(t, []int32{EvictedPriority, CrossPoolPriority, 1, 2, 3}, node.KnownPriorities())
+	for _, priority := range node.KnownPriorities() {
+		assert.Equal(t, allocatableResources, node.AllocatableByPriority[priority],
+			"priority %d should start fully allocatable", priority)
+	}
+	// A new node has nothing allocated on it.
+	assert.Empty(t, node.AllocatedByJobId)
+	assert.Empty(t, node.GetRunningJobIds())
 	assert.Equal(t, keys, node.Keys)
 
 	val, ok := node.GetLabelValue("key")
@@ -145,6 +122,81 @@ func TestNode(t *testing.T) {
 	assert.Equal(t, node, nodeCopy)
 }
 
+// testTaintedNode builds a node whose taints and labels are all indexed, so its
+// NodeType reflects every taint and label and changes whenever they do.
+func testTaintedNode(taints []v1.Taint, labels map[string]string) *Node {
+	indexedTaints := map[string]bool{"foo": true, unschedulableTaintKey: true}
+	indexedNodeLabels := map[string]bool{"key": true}
+	return CreateNode(
+		"id", 1, "executor", "name", "pool", "type",
+		taints, labels, indexedTaints, indexedNodeLabels,
+		false, ResourceList{}, ResourceList{},
+		[]int32{1, 2}, nil,
+	)
+}
+
+func TestWithSchedulable_AddsAndRemovesUnschedulableTaint(t *testing.T) {
+	node := testTaintedNode([]v1.Taint{{Key: "foo", Value: "bar"}}, map[string]string{"key": "value"})
+	require.False(t, node.IsUnschedulable())
+	require.NotContains(t, node.GetTaints(), UnschedulableTaint())
+
+	unschedulable := node.WithSchedulable(false)
+	assert.True(t, unschedulable.IsUnschedulable())
+	assert.Contains(t, unschedulable.GetTaints(), UnschedulableTaint())
+
+	// Making the node schedulable again must remove the taint, not just clear the flag.
+	reschedulable := unschedulable.WithSchedulable(true)
+	assert.False(t, reschedulable.IsUnschedulable())
+	assert.NotContains(t, reschedulable.GetTaints(), UnschedulableTaint())
+	// Unrelated taints are preserved.
+	assert.Contains(t, reschedulable.GetTaints(), v1.Taint{Key: "foo", Value: "bar"})
+
+	// The node type indexes the unschedulable taint, so it must track the change.
+	assert.NotEqual(t, node.GetNodeTypeId(), unschedulable.GetNodeTypeId())
+	assert.Equal(t, node.GetNodeTypeId(), reschedulable.GetNodeTypeId())
+}
+
+func TestWithSchedulable_NoOpWhenAlreadyInRequestedState(t *testing.T) {
+	node := testTaintedNode([]v1.Taint{{Key: "foo", Value: "bar"}}, map[string]string{"key": "value"})
+	unschedulable := node.WithSchedulable(false)
+
+	// Asking for the state the node is already in short-circuits to the receiver.
+	assert.Same(t, node, node.WithSchedulable(true))
+	assert.Same(t, unschedulable, unschedulable.WithSchedulable(false))
+
+	// In particular, repeated calls must not stack up duplicate unschedulable taints.
+	repeated := unschedulable.WithSchedulable(false).WithSchedulable(false)
+	assert.Equal(t, unschedulable.GetTaints(), repeated.GetTaints())
+	assert.Len(t, repeated.GetTaints(), 2)
+}
+
+func TestWithTaintsAndWithLabels_RecomputeNodeType(t *testing.T) {
+	node := testTaintedNode([]v1.Taint{{Key: "foo", Value: "bar"}}, map[string]string{"key": "value"})
+
+	retainted := node.WithTaints([]v1.Taint{{Key: "foo", Value: "baz"}})
+	assert.Equal(t, []v1.Taint{{Key: "foo", Value: "baz"}}, retainted.GetTaints())
+	assert.NotEqual(t, node.GetNodeTypeId(), retainted.GetNodeTypeId())
+	// Labels are untouched.
+	assert.Equal(t, node.GetLabels(), retainted.GetLabels())
+
+	relabelled := node.WithLabels(map[string]string{"key": "other"})
+	assert.Equal(t, map[string]string{"key": "other"}, relabelled.GetLabels())
+	assert.NotEqual(t, node.GetNodeTypeId(), relabelled.GetNodeTypeId())
+	// Taints are untouched.
+	assert.Equal(t, node.GetTaints(), relabelled.GetTaints())
+}
+
+func TestWithTaints_RecomputesReservation(t *testing.T) {
+	reservationTaint := v1.Taint{Key: constants.ReservationTaintKey, Value: "res-1", Effect: v1.TaintEffectNoSchedule}
+	node := testTaintedNode(nil, nil)
+	require.Equal(t, util.NoReservationName, node.GetReservation())
+
+	reserved := node.WithTaints([]v1.Taint{reservationTaint})
+	assert.Equal(t, "res-1", reserved.GetReservation())
+	// Dropping the taint must drop the reservation with it.
+	assert.Equal(t, util.NoReservationName, reserved.WithTaints(nil).GetReservation())
+}
+
 func TestMarkResourceUnallocatable(t *testing.T) {
 	resourceListFactory, err := NewResourceListFactory(
 		[]schedulerconfiguration.ResourceType{
@@ -155,24 +207,20 @@ func TestMarkResourceUnallocatable(t *testing.T) {
 	require.Nil(t, err)
 
 	allocatableResources := makeCpuResourceList(resourceListFactory, "10")
-	allocatableByPriority := map[int32]ResourceList{
-		1: makeCpuResourceList(resourceListFactory, "8"),
-		2: makeCpuResourceList(resourceListFactory, "6"),
-	}
 
-	node := createNode(allocatableResources, allocatableByPriority)
+	// Use 2 CPU at priority 1 so the buckets differ (priority 1 has 8, priority 2
+	// still has 10), showing unallocatable resources come off every bucket.
+	node := createNode(allocatableResources, []int32{1, 2})
+	node = node.WithResourcesUsedAtPriority(1, makeCpuResourceList(resourceListFactory, "2"))
 
 	unallocatable := makeCpuResourceList(resourceListFactory, "2")
 	expectedAllocatableResources := makeCpuResourceList(resourceListFactory, "8")
-	expectedAllocatableByPriority := map[int32]ResourceList{
-		1: makeCpuResourceList(resourceListFactory, "6"),
-		2: makeCpuResourceList(resourceListFactory, "4"),
-	}
 
 	result := node.MarkResourceUnallocatable(unallocatable)
 
 	assert.Equal(t, expectedAllocatableResources, result.allocatableResources)
-	assert.Equal(t, expectedAllocatableByPriority, result.AllocatableByPriority)
+	assert.Equal(t, makeCpuResourceList(resourceListFactory, "6"), result.AllocatableByPriority[1])
+	assert.Equal(t, makeCpuResourceList(resourceListFactory, "8"), result.AllocatableByPriority[2])
 }
 
 func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
@@ -185,24 +233,19 @@ func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
 	assert.Nil(t, err)
 
 	allocatableResources := makeCpuResourceList(resourceListFactory, "10")
-	allocatableByPriority := map[int32]ResourceList{
-		1: makeCpuResourceList(resourceListFactory, "8"),
-		2: makeCpuResourceList(resourceListFactory, "6"),
-	}
 
-	node := createNode(allocatableResources, allocatableByPriority)
+	node := createNode(allocatableResources, []int32{1, 2})
+	node = node.WithResourcesUsedAtPriority(1, makeCpuResourceList(resourceListFactory, "2"))
 
+	// Subtracting more than any bucket holds floors at zero rather than going negative.
 	unallocatable := makeCpuResourceList(resourceListFactory, "9")
 	expectedAllocatableResources := makeCpuResourceList(resourceListFactory, "1")
-	expectedAllocatableByPriority := map[int32]ResourceList{
-		1: makeCpuResourceList(resourceListFactory, "0"),
-		2: makeCpuResourceList(resourceListFactory, "0"),
-	}
 
 	result := node.MarkResourceUnallocatable(unallocatable)
 
 	assert.Equal(t, expectedAllocatableResources, result.allocatableResources)
-	assert.Equal(t, expectedAllocatableByPriority, result.AllocatableByPriority)
+	assert.Equal(t, makeCpuResourceList(resourceListFactory, "0"), result.AllocatableByPriority[1])
+	assert.Equal(t, makeCpuResourceList(resourceListFactory, "1"), result.AllocatableByPriority[2])
 }
 
 func makeCpuResourceList(factory *ResourceListFactory, cpu string) ResourceList {
@@ -254,25 +297,19 @@ func testJobRequests(factory *ResourceListFactory, cpu, memory string) ResourceL
 }
 
 // testAccountingNode builds a node with an empty ledger and AllocatableByPriority
-// buckets at priorities 1, 10, and EvictedPriority all equal to total resources.
+// buckets at priorities 1 and 10 (plus the sentinel priorities) all equal to total
+// resources.
 func testAccountingNode(t *testing.T, factory *ResourceListFactory) *Node {
 	t.Helper()
 	total := factory.FromNodeProto(map[string]*resource.Quantity{
 		"cpu":    pointer.MustParseResource("16"),
 		"memory": pointer.MustParseResource("32Gi"),
 	})
-	allocatableByPriority := map[int32]ResourceList{
-		EvictedPriority: total,
-		1:               total,
-		10:              total,
-	}
-	nodeType := NewNodeType(nil, nil, map[string]bool{}, map[string]bool{})
 	return CreateNode(
-		"node-1", nodeType, 1, "executor", "node-1", "pool", "type",
-		nil, nil, false, total, total,
-		allocatableByPriority,
-		map[string]ResourceList{},
-		map[string]bool{},
+		"node-1", 1, "executor", "node-1", "pool", "type",
+		nil, nil, map[string]bool{}, map[string]bool{},
+		false, total, total,
+		[]int32{1, 10},
 		nil,
 	)
 }
@@ -402,7 +439,7 @@ func TestNode_EvictThenRemove_ReleasesAtEvictedPriority(t *testing.T) {
 	assert.Empty(t, node.AllocatedByJobId)
 }
 
-func createNode(allocatableResource ResourceList, allocatableByPriority map[int32]ResourceList) *Node {
+func createNode(allocatableResource ResourceList, allowedPriorities []int32) *Node {
 	const id = "id"
 	const reportingNodeType = "re"
 	const pool = "pool"
@@ -411,7 +448,6 @@ func createNode(allocatableResource ResourceList, allocatableByPriority map[int3
 	const name = "name"
 	node := CreateNode(
 		id,
-		nil,
 		index,
 		executor,
 		name,
@@ -419,12 +455,12 @@ func createNode(allocatableResource ResourceList, allocatableByPriority map[int3
 		reportingNodeType,
 		nil,
 		nil,
+		nil,
+		nil,
 		false,
 		allocatableResource,
 		allocatableResource,
-		allocatableByPriority,
-		nil,
-		nil,
+		allowedPriorities,
 		nil,
 	)
 
