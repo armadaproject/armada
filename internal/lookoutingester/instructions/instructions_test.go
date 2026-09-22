@@ -956,9 +956,6 @@ func TestBuildTerminationReason_WireFormat(t *testing.T) {
 	}
 }
 
-// getJobResources reports the same footprint the scheduler reserves, so it sums main containers and
-// native sidecars, takes the max over classic init containers, and takes the max with the pod-level
-// block (KEP-2837). The first three cases pin behaviour for jobs with no pod-level block at all.
 func TestGetJobResources(t *testing.T) {
 	requests := func(cpu, memory string) v1.ResourceRequirements {
 		return v1.ResourceRequirements{

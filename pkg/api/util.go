@@ -70,8 +70,8 @@ func SchedulingResourceRequirementsFromPodSpec(podSpec *v1.PodSpec) *v1.Resource
 		}
 	}
 
-	// Pod-level resources (KEP-2837): max with the pod-level request/limit so the
-	// scheduler reserves the pod-level budget. Inert when podSpec.Resources is unset.
+	// Kubernetes requires the pod-level request to be at least the sum of the container requests.
+	// Max keeps the accounting correct for a pod that breaks that rule.
 	if podSpec.Resources != nil {
 		maxResourcesToList(rv.Requests, podSpec.Resources.Requests)
 		maxResourcesToList(rv.Limits, podSpec.Resources.Limits)

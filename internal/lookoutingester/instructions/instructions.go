@@ -627,10 +627,7 @@ func getJobResources(job *api.Job) jobResources {
 
 	podSpec := job.GetMainPodSpec()
 
-	// Use the canonical effective-request computation so the reported footprint
-	// matches what the scheduler bills: sum of main containers + native sidecars,
-	// max over classic init containers, and max with the pod-level block (KEP-2837).
-	// This also fixes the prior undercount that summed only main containers.
+	// Lookout reports the same request that the scheduler reserves.
 	requests := api.SchedulingResourceRequirementsFromPodSpec(podSpec).Requests
 	resources.Cpu = getResourceFromList(requests, v1.ResourceCPU, true)
 	resources.Memory = getResourceFromList(requests, v1.ResourceMemory, false)

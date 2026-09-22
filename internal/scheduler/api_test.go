@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	resourcehelper "k8s.io/component-helpers/resource"
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -556,10 +557,6 @@ func TestApplyResourceMutations(t *testing.T) {
 	}
 }
 
-// A retry bump must move the pod-level block (KEP-2837) too. Kubernetes requires the pod-level
-// request to cover the aggregate container requests, so bumping only the containers makes the
-// retried pod unadmittable; and when only the block carries memory, bumping only the containers is
-// a no-op while the scheduler reserves the larger figure.
 func TestApplyResourceMutations_PodLevelResources(t *testing.T) {
 	memory := func(s string) v1.ResourceList {
 		return v1.ResourceList{v1.ResourceMemory: resource.MustParse(s)}
@@ -571,15 +568,16 @@ func TestApplyResourceMutations_PodLevelResources(t *testing.T) {
 			Limits:   v1.ResourceList{v1.ResourceMemory: q.DeepCopy()},
 		}}
 	}
+	sidecar := container("sidecar", "1Gi")
+	always := v1.ContainerRestartPolicyAlways
+	sidecar.RestartPolicy = &always
 
 	tests := map[string]struct {
-		mutations  *schedulerobjects.RetryResourceMutations
-		podLevel   v1.ResourceList
-		containers []v1.Container
-		// wantPodLevel is the memory the pod-level block must end up with.
-		wantPodLevel string
-		// wantContainerSum is the memory the main containers must sum to. It must not exceed
-		// wantPodLevel, or Kubernetes rejects the pod.
+		mutations        *schedulerobjects.RetryResourceMutations
+		podLevel         v1.ResourceList
+		containers       []v1.Container
+		initContainers   []v1.Container
+		wantPodLevel     string
 		wantContainerSum string
 	}{
 		"factor scales the block and the containers together": {
@@ -594,7 +592,14 @@ func TestApplyResourceMutations_PodLevelResources(t *testing.T) {
 			podLevel:         memory("4Gi"),
 			containers:       []v1.Container{container("a", "1Gi"), container("b", "2Gi")},
 			wantPodLevel:     "4396Mi",
-			wantContainerSum: "3372Mi",
+			wantContainerSum: "3297Mi",
+		},
+		"static shares support multi-gigabyte memory budgets": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryStatic: "4Gi"},
+			podLevel:         memory("64Gi"),
+			containers:       []v1.Container{container("a", "32Gi"), container("b", "16Gi")},
+			wantPodLevel:     "68Gi",
+			wantContainerSum: "51Gi",
 		},
 		"pod-level-only spec is bumped even though no container carries memory": {
 			mutations:        &schedulerobjects.RetryResourceMutations{MemoryFactor: 2},
@@ -602,6 +607,36 @@ func TestApplyResourceMutations_PodLevelResources(t *testing.T) {
 			containers:       []v1.Container{{Name: "main"}},
 			wantPodLevel:     "8Gi",
 			wantContainerSum: "0",
+		},
+		"pod-level-only spec receives the static bump": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryStatic: "300Mi"},
+			podLevel:         memory("4Gi"),
+			containers:       []v1.Container{{Name: "main"}},
+			wantPodLevel:     "4396Mi",
+			wantContainerSum: "0",
+		},
+		"factor and static bump combine at both levels": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryFactor: 2, MemoryStatic: "300Mi"},
+			podLevel:         memory("4Gi"),
+			containers:       []v1.Container{container("a", "1Gi"), container("b", "2Gi")},
+			wantPodLevel:     "8492Mi",
+			wantContainerSum: "6369Mi",
+		},
+		"static bump keeps a native sidecar within the pod budget": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryStatic: "300Mi"},
+			podLevel:         memory("3Gi"),
+			containers:       []v1.Container{container("main", "2Gi")},
+			initContainers:   []v1.Container{*sidecar.DeepCopy()},
+			wantPodLevel:     "3372Mi",
+			wantContainerSum: "2248Mi",
+		},
+		"static bump keeps sequential init containers within the pod budget": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryStatic: "300Mi"},
+			podLevel:         memory("3Gi"),
+			containers:       []v1.Container{container("main", "1Gi")},
+			initContainers:   []v1.Container{*sidecar.DeepCopy(), container("init", "2Gi")},
+			wantPodLevel:     "3372Mi",
+			wantContainerSum: "1124Mi",
 		},
 	}
 
@@ -611,7 +646,8 @@ func TestApplyResourceMutations_PodLevelResources(t *testing.T) {
 				MainObject: &armadaevents.KubernetesMainObject{
 					Object: &armadaevents.KubernetesMainObject_PodSpec{
 						PodSpec: &armadaevents.PodSpecWithAvoidList{PodSpec: &v1.PodSpec{
-							Containers: tc.containers,
+							Containers:     tc.containers,
+							InitContainers: tc.initContainers,
 							Resources: &v1.ResourceRequirements{
 								Requests: tc.podLevel,
 								Limits:   tc.podLevel.DeepCopy(),
@@ -636,7 +672,9 @@ func TestApplyResourceMutations_PodLevelResources(t *testing.T) {
 			}
 			wantSum := resource.MustParse(tc.wantContainerSum)
 			assert.Equal(t, wantSum.Value(), containerSum.Value(), "container sum")
-			assert.LessOrEqual(t, containerSum.Value(), gotRequest.Value(),
+			aggregateRequests := resourcehelper.AggregateContainerRequests(&v1.Pod{Spec: *podSpec}, resourcehelper.PodResourcesOptions{})
+			aggregateMemory := aggregateRequests[v1.ResourceMemory]
+			assert.LessOrEqual(t, aggregateMemory.Value(), gotRequest.Value(),
 				"pod-level request must cover the aggregate container requests")
 		})
 	}

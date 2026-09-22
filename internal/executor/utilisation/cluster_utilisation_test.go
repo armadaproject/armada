@@ -362,8 +362,6 @@ func TestGetCordonedResource(t *testing.T) {
 	assert.True(t, expected.Equal(resources))
 }
 
-// A job whose budget lives in the pod-level block (KEP-2837) has bare containers, so summing
-// container limits reported it as zero resource on a cordoned node and understated the fair share.
 func TestGetCordonedResource_PodLevelResources(t *testing.T) {
 	nodes := []*v1.Node{
 		{
@@ -393,8 +391,6 @@ func TestGetCordonedResource_PodLevelResources(t *testing.T) {
 	assert.True(t, expected.Equal(resources), "got %v", resources)
 }
 
-// Classic init containers were skipped entirely, so a pod whose init container is larger than its
-// main containers was understated too.
 func TestGetCordonedResource_InitContainerDominates(t *testing.T) {
 	nodes := []*v1.Node{
 		{

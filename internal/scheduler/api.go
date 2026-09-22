@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"math/big"
 	"strconv"
 	"sync"
 
@@ -333,9 +334,9 @@ func addTolerations(job *armadaevents.SubmitJob, tolerations []*v1.Toleration) {
 // exactly the static amount and stays consistent with the scheduler's
 // reservation. Each init container receives the full static amount, because
 // init containers run alone and each must fit the reserved total on its own.
-// The pod-level block (KEP-2837) also receives the full static amount, because
-// Kubernetes requires it to stay at or above the aggregate container requests,
-// which between them grow by the whole static amount.
+// With pod-level memory, the block receives the full static amount and each
+// container's share is proportional to its request within that budget. This
+// keeps concurrent sidecars and init containers within the enlarged pod budget.
 // Requests and limits move together. Containers without a memory value stay
 // unchanged.
 func applyResourceMutations(job *armadaevents.SubmitJob, mutations *schedulerobjects.RetryResourceMutations) error {
@@ -365,6 +366,21 @@ func applyResourceMutations(job *armadaevents.SubmitJob, mutations *schedulerobj
 			totalRequests += request.Value()
 		}
 	}
+	pooledMemory := false
+	if podSpec.Resources != nil {
+		if request, ok := podSpec.Resources.Requests[v1.ResourceMemory]; ok {
+			pooledMemory = true
+			totalRequests = request.Value()
+		}
+	}
+	staticShare := func(resources v1.ResourceList) int64 {
+		if request, ok := resources[v1.ResourceMemory]; ok && totalRequests > 0 {
+			// Multiplying byte quantities can overflow int64 even for ordinary GiB-sized requests.
+			share := new(big.Int).Mul(big.NewInt(static), big.NewInt(request.Value()))
+			return share.Quo(share, big.NewInt(totalRequests)).Int64()
+		}
+		return 0
+	}
 	bump := func(resources v1.ResourceList, staticShare int64) {
 		if current, ok := resources[v1.ResourceMemory]; ok {
 			grown := int64(float64(current.Value())*factor) + staticShare
@@ -372,20 +388,19 @@ func applyResourceMutations(job *armadaevents.SubmitJob, mutations *schedulerobj
 		}
 	}
 	for i := range podSpec.Containers {
-		staticShare := int64(0)
-		if request, ok := podSpec.Containers[i].Resources.Requests[v1.ResourceMemory]; ok && totalRequests > 0 {
-			staticShare = static * request.Value() / totalRequests
-		}
-		bump(podSpec.Containers[i].Resources.Requests, staticShare)
-		bump(podSpec.Containers[i].Resources.Limits, staticShare)
+		share := staticShare(podSpec.Containers[i].Resources.Requests)
+		bump(podSpec.Containers[i].Resources.Requests, share)
+		bump(podSpec.Containers[i].Resources.Limits, share)
 	}
 	for i := range podSpec.InitContainers {
-		bump(podSpec.InitContainers[i].Resources.Requests, static)
-		bump(podSpec.InitContainers[i].Resources.Limits, static)
+		share := static
+		if pooledMemory {
+			share = staticShare(podSpec.InitContainers[i].Resources.Requests)
+		}
+		bump(podSpec.InitContainers[i].Resources.Requests, share)
+		bump(podSpec.InitContainers[i].Resources.Limits, share)
 	}
-	// Without this a retried pod-level job is either unadmittable -- the containers outgrow the
-	// pod-level block k8s requires to cover them -- or, when only the block carries memory, silently
-	// unbumped while the scheduler reserves the larger figure. Nil for container-only jobs.
+	// Keep the pod budget in step with the scheduler's reservation and the container requests.
 	if podSpec.Resources != nil {
 		bump(podSpec.Resources.Requests, static)
 		bump(podSpec.Resources.Limits, static)

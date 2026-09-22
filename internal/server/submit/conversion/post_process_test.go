@@ -836,8 +836,6 @@ func TestDropPodLevelResourcesIfDisabled(t *testing.T) {
 	}
 }
 
-// A resource carried by the pod-level block must not be defaulted into the containers, or each
-// container gets its own ceiling nested inside the pod's and the pooled budget is unusable.
 func TestDefaultResourcePodLevel(t *testing.T) {
 	defaults := configuration.SubmissionConfig{
 		DefaultJobLimits: armadaresource.ComputeResources{
@@ -854,17 +852,14 @@ func TestDefaultResourcePodLevel(t *testing.T) {
 	tests := map[string]struct {
 		podLevel *v1.ResourceRequirements
 		spec     *v1.PodSpec
-		// absent lists resources that must not appear on any container, present the
-		// container-level values that must.
-		absent  []v1.ResourceName
-		present v1.ResourceList
+		absent   []v1.ResourceName
+		present  v1.ResourceList
 	}{
 		"pooled resources are not defaulted into containers": {
 			podLevel: rr(cpuMem),
 			spec:     &v1.PodSpec{Containers: []v1.Container{{Name: "model"}, {Name: "solver"}}},
 			absent:   []v1.ResourceName{"cpu", "memory"},
-			// KEP-2837 cannot carry ephemeral-storage at the pod level, so it still defaults.
-			present: v1.ResourceList{"ephemeral-storage": resource.MustParse("8Gi")},
+			present:  v1.ResourceList{"ephemeral-storage": resource.MustParse("8Gi")},
 		},
 		"a resource the pod-level block omits still defaults": {
 			podLevel: rr(v1.ResourceList{"memory": resource.MustParse("24Gi")}),
@@ -901,14 +896,11 @@ func TestDefaultResourcePodLevel(t *testing.T) {
 					assert.Equal(t, want, c.Resources.Limits[rn], "%s limits %s", c.Name, rn)
 				}
 			}
-			// The block itself is never modified.
 			assert.Equal(t, tc.podLevel, tc.spec.Resources)
 		})
 	}
 }
 
-// The effective request stays the pod-level budget once defaulting no longer inflates the
-// container sum.
 func TestDefaultResourcePodLevelEffectiveRequest(t *testing.T) {
 	spec := &v1.PodSpec{
 		Resources: &v1.ResourceRequirements{

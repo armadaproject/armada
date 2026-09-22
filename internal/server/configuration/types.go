@@ -83,7 +83,7 @@ type SubmissionConfig struct {
 	// Default activeDeadline for all pods that don't explicitly set activeDeadlineSeconds.
 	// Is trumped by DefaultActiveDeadlineByResourceRequest.
 	DefaultActiveDeadline time.Duration
-	// Default activeDeadline for pods with at least one container requesting a given resource.
+	// Default activeDeadline for pods requesting a given resource.
 	// For example, if
 	// DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{"gpu": time.Second},
 	// then all pods requesting a non-zero amount of gpu and don't explicitly set activeDeadlineSeconds
@@ -99,10 +99,9 @@ type SubmissionConfig struct {
 	AddGangIdLabel bool
 	// Controls whether custom service names are allowed
 	AllowCustomServiceNames bool
-	// When true, honour Kubernetes pod-level resources (KEP-2837, podSpec.Resources):
-	// a container may omit its own resources if the pod-level block is set, and
-	// accounting uses max(sum(container requests), podLevel.Requests). Default false
-	// preserves container-only behaviour.
+	// PodLevelResources enables Kubernetes pod-level resources (KEP-2837, podSpec.resources).
+	// A container may then omit its resources when the pod-level block declares them.
+	// Every executor cluster must have the PodLevelResources feature gate enabled.
 	PodLevelResources bool
 }
 

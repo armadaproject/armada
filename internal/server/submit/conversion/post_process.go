@@ -125,11 +125,10 @@ func dropPodLevelResourcesIfDisabled(spec *v1.PodSpec, config configuration.Subm
 // requests/limits for that particular resource. This can be used to e.g. ensure that all jobs define at least some
 // ephemeral storage.
 //
-// A resource carried by the pod-level block (KEP-2837) is not defaulted into the containers. Defaulting it would nest
-// a per-container ceiling inside the pod's, capping each container below the pooled budget the block exists to grant,
-// so the pool would be reserved but unusable. Resources the block does not carry still default -- notably
-// ephemeral-storage, which KEP-2837 cannot express at the pod level. dropPodLevelResourcesIfDisabled runs earlier in
-// podLevelProcessors and nils the block when the feature is off, so this is implicitly feature-gated.
+// A resource in the pod-level block gets no container default. A container default becomes a container limit
+// below the pod-level budget, and the containers cannot use that budget. Resources that Kubernetes does not
+// support at the pod level, for example ephemeral-storage, still get the default.
+// This relies on dropPodLevelResourcesIfDisabled to run first.
 func defaultResource(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 	pooledAtPodLevel := func(res string) bool {
 		if spec.Resources == nil {

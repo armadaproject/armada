@@ -149,8 +149,6 @@ func TestTotalResourceRequest_ShouldCombineMaxInitContainerResourcesWithSummedCo
 	assert.Equal(t, result, FromResourceList(expectedResult))
 }
 
-// Pod-level resources (KEP-2837): TotalPodResourceRequest uses the effective
-// request max(sum(containers), pod-level).
 func TestTotalResourceRequest_PodLevelResources(t *testing.T) {
 	tests := map[string]struct {
 		containerResources []*v1.ResourceList
@@ -162,7 +160,6 @@ func TestTotalResourceRequest_PodLevelResources(t *testing.T) {
 			podLevelResources:  ptr.To(makeContainerResource(4, 16)),
 			expected:           makeContainerResource(4, 16),
 		},
-		// cpu: max(2, 4) = 4 ; memory: max(4, 2) = 4
 		"effective request is max of container-sum and pod-level": {
 			containerResources: []*v1.ResourceList{ptr.To(makeContainerResource(2, 4))},
 			podLevelResources:  ptr.To(makeContainerResource(4, 2)),

@@ -273,9 +273,6 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 	if maxOversubscriptionByResource == nil {
 		maxOversubscriptionByResource = map[string]float64{}
 	}
-	// Pod-level resources (KEP-2837): when enabled and a pod-level block is set, a
-	// container may omit its own resources. Containers that do set resources are
-	// still validated below, as is the pod-level block itself.
 	podLevelResourcesEnabled := config.PodLevelResources && spec.Resources != nil
 	if podLevelResourcesEnabled {
 		if err := validatePodLevelResources(spec, maxOversubscriptionByResource, config); err != nil {
@@ -285,7 +282,6 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 	for _, container := range armadaslices.Concatenate(spec.Containers, spec.InitContainers) {
 		if len(container.Resources.Requests) == 0 && len(container.Resources.Limits) == 0 {
 			if podLevelResourcesEnabled {
-				// Budget is supplied at the pod level; nothing to validate for this container.
 				continue
 			}
 			return fmt.Errorf("container %v has no resources specified", container.Name)
@@ -326,17 +322,14 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 			}
 		}
 
-		// With a pod-level block the minimum is enforced once, against the effective request, in
-		// validatePodLevelResources -- that is what the scheduler reserves. A container below the
-		// minimum on its own is legitimate when the pod-level budget covers it, so checking each
-		// container here as well would reject valid pods.
+		// The pod-level budget can cover a container below the minimum.
+		// validatePodLevelResources checks the effective request instead.
 		if podLevelResourcesEnabled {
 			continue
 		}
 
 		for rc, containerRsc := range container.Resources.Requests {
 			serverRsc, nonEmpty := config.MinJobResources[rc]
-			// Cmp, not Value: Value rounds a fractional CPU up, so 3500m used to clear a 4 CPU minimum.
 			if nonEmpty && containerRsc.Cmp(serverRsc) < 0 {
 				return fmt.Errorf(
 					"container %q %s requests (%s) below server minimum (%s)",
@@ -351,9 +344,7 @@ func validateResources(j *api.JobSubmitRequestItem, config configuration.Submiss
 	return nil
 }
 
-// supportedPodLevelResourceNames renders the resource names Kubernetes accepts at the pod level, for
-// error messages. The set is version dependent -- k8s 1.32 allows only cpu and memory, 1.34 adds
-// hugepages-* -- so it is read from the vendored component-helpers rather than hardcoded.
+// supportedPodLevelResourceNames keeps error messages consistent with the Kubernetes dependency.
 func supportedPodLevelResourceNames() string {
 	names := make([]string, 0, len(resourcehelper.SupportedPodLevelResources()))
 	for _, name := range sets.List(resourcehelper.SupportedPodLevelResources()) {
@@ -362,18 +353,7 @@ func supportedPodLevelResourceNames() string {
 	return strings.Join(names, ", ")
 }
 
-// validatePodLevelResources validates a pod-level resources block (KEP-2837),
-// mirroring the per-container checks: requests and limits must be non-negative,
-// cover the same resource set, satisfy limit >= request within the
-// max-oversubscription ratio, and meet MinJobResources.
-//
-// It also mirrors the rules the Kubernetes API server applies to spec.resources -- only the resource
-// names the vendored component-helpers supports at the pod level may be named, claims are forbidden,
-// the pod-level request must cover the aggregate container requests, and no container limit may
-// exceed the pod-level limit. Accepting a block Kubernetes would reject is worse than a plain submit
-// error: the scheduler reserves the pooled budget and the pod then fails to create.
-// See k8s pkg/apis/core/validation/validation.go validatePodResourceName and
-// validatePodResourceConsistency.
+// validatePodLevelResources applies the container resource rules and the Kubernetes pod-level rules to the pod-level block.
 func validatePodLevelResources(
 	spec *v1.PodSpec,
 	maxOversubscriptionByResource map[string]float64,
@@ -411,11 +391,7 @@ func validatePodLevelResources(
 			return fmt.Errorf("pod-level resources define negative limit (%s) for resource %s", limit.String(), resourceName)
 		}
 	}
-	// Kubernetes requires the pod-level request to cover the aggregate container requests, and each
-	// container limit to sit under the pod-level limit. Reuse the apiserver's own aggregation helper so
-	// the sidecar/init-container formula cannot drift from it. Checked ahead of the request/limit
-	// consistency rules below because an undersized pool is the more actionable error: a spec that
-	// pools less than its containers ask for typically trips several of these rules at once.
+	// Use Kubernetes' aggregation so init containers and native sidecars follow its admission rules.
 	aggregateRequests := resourcehelper.AggregateContainerRequests(&v1.Pod{Spec: *spec}, resourcehelper.PodResourcesOptions{})
 	for resourceName, containerTotal := range aggregateRequests {
 		podRequest, ok := resources.Requests[resourceName]
@@ -455,19 +431,13 @@ func validatePodLevelResources(
 			return fmt.Errorf("pod-level resources define %s with limits greater than %.2f*requests", resourceName, maxOversubscription)
 		}
 	}
-	// MinJobResources is checked against the effective request
-	// (max of the pod-level request and the summed container requests), since that
-	// is what the scheduler reserves; checking the raw pod-level value alone would
-	// wrongly reject a pod whose container total already meets the minimum.
-	//
-	// Only resources the spec actually requests are checked. Validation runs before defaultResource,
-	// so requiring every MinJobResources entry to be present here would reject a spec that defaulting
-	// is about to complete -- the per-container check below has always skipped undeclared resources
-	// for the same reason.
+	// Check only declared resources, as on the container path; defaulting runs after validation.
 	effective := api.SchedulingResourceRequirementsFromPodSpec(spec).Requests
 	for rc, serverRsc := range config.MinJobResources {
-		eff, requested := effective[rc]
-		if requested && eff.Cmp(serverRsc) < 0 {
+		_, requestedByContainers := aggregateRequests[rc]
+		_, requestedByPod := resources.Requests[rc]
+		eff := effective[rc]
+		if (requestedByContainers || requestedByPod) && eff.Cmp(serverRsc) < 0 {
 			return fmt.Errorf("effective %s requests (%s) below server minimum (%s)", rc, &eff, &serverRsc)
 		}
 	}

@@ -1192,14 +1192,11 @@ func TestValidatePodLevelResourcesEnabled(t *testing.T) {
 	}
 }
 
-// TestValidateResources_PodLevel covers Kubernetes pod-level resources (KEP-2837),
-// gated by SubmissionConfig.PodLevelResources.
 func TestValidateResources_PodLevel(t *testing.T) {
 	oneCpu := v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")}
 	twoCpu := v1.ResourceList{v1.ResourceCPU: resource.MustParse("2")}
 	negativeCpu := v1.ResourceList{v1.ResourceCPU: resource.MustParse("-1")}
 
-	// Container that declares no resources of its own.
 	emptyContainer := []v1.Container{{Name: "main"}}
 
 	req := func(podResources *v1.ResourceRequirements, containers []v1.Container) *api.JobSubmitRequestItem {
@@ -1269,10 +1266,6 @@ func TestValidateResources_PodLevel(t *testing.T) {
 	}
 }
 
-// A pod-level block Armada accepts must also be one the Kubernetes API server accepts, otherwise the
-// scheduler reserves the pooled budget for a pod that can never be created. These cases mirror
-// k8s v1.34.0 pkg/apis/core/validation/validation.go validatePodResourceName and
-// validatePodResourceConsistency.
 func TestValidateResources_PodLevelKubernetesParity(t *testing.T) {
 	always := v1.ContainerRestartPolicyAlways
 	cpu := func(s string) v1.ResourceList { return v1.ResourceList{v1.ResourceCPU: resource.MustParse(s)} }
@@ -1318,6 +1311,13 @@ func TestValidateResources_PodLevelKubernetesParity(t *testing.T) {
 			expectSuccess:   false,
 			expectErrSubstr: "unsupported request ephemeral-storage",
 		},
+		"hugepages-only block rejected by the current Kubernetes dependency": {
+			req: req(&v1.ResourceRequirements{
+				Requests: rl("hugepages-2Mi", "80Mi"),
+				Limits:   rl("hugepages-2Mi", "80Mi"),
+			}, emptyContainer, nil),
+			expectErrSubstr: "unsupported request hugepages-2Mi; only cpu, memory may be requested at the pod level",
+		},
 		"unsupported resource in limits only rejected": {
 			req: req(&v1.ResourceRequirements{
 				Requests: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")},
@@ -1344,13 +1344,11 @@ func TestValidateResources_PodLevelKubernetesParity(t *testing.T) {
 			expectSuccess:   false,
 			expectErrSubstr: "may not define claims",
 		},
-		// Single container asking for more than the pooled budget.
 		"pod-level request below single container request rejected": {
 			req:             req(&v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("2")}, []v1.Container{container("main", "5")}, nil),
 			expectSuccess:   false,
 			expectErrSubstr: "aggregate container requests of 5",
 		},
-		// Each container fits under the pod-level request, but their sum does not.
 		"pod-level request below summed container requests rejected": {
 			req: req(&v1.ResourceRequirements{Requests: cpu("4"), Limits: cpu("4")},
 				[]v1.Container{container("a", "3"), container("b", "3")}, nil),
@@ -1362,8 +1360,6 @@ func TestValidateResources_PodLevelKubernetesParity(t *testing.T) {
 				[]v1.Container{container("a", "3"), container("b", "3")}, nil),
 			expectSuccess: true,
 		},
-		// Native sidecars run alongside the main containers, so they count toward the aggregate.
-		// A sum over spec.Containers alone would wrongly accept this.
 		"pod-level request ignoring a native sidecar rejected": {
 			req: req(&v1.ResourceRequirements{Requests: cpu("1"), Limits: cpu("1")},
 				[]v1.Container{container("main", "1")}, []v1.Container{sidecar("side", "2")}),
@@ -1375,8 +1371,6 @@ func TestValidateResources_PodLevelKubernetesParity(t *testing.T) {
 				[]v1.Container{container("main", "1")}, []v1.Container{sidecar("side", "2")}),
 			expectSuccess: true,
 		},
-		// Classic init containers run to completion before the main containers, so the aggregate is
-		// the max of the init container and the main container sum, not their sum.
 		"pod-level request below a classic init container request rejected": {
 			req: req(&v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("2")},
 				[]v1.Container{container("main", "1")}, []v1.Container{container("init", "4")}),
@@ -1388,7 +1382,6 @@ func TestValidateResources_PodLevelKubernetesParity(t *testing.T) {
 				[]v1.Container{container("main", "1")}, []v1.Container{container("init", "4")}),
 			expectSuccess: true,
 		},
-		// A resource the pod-level block does not carry is left entirely to the container checks.
 		"container request for a resource absent from the pod-level block ignored": {
 			req: req(&v1.ResourceRequirements{
 				Requests: v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Gi")},
@@ -1418,8 +1411,6 @@ func TestValidateResources_PodLevelKubernetesParity(t *testing.T) {
 	}
 }
 
-// MinJobResources is checked against the effective request (max of pod-level and
-// summed container requests), not the raw pod-level value.
 func TestValidateResources_PodLevelMinJobResources(t *testing.T) {
 	fourCpuMin := v1.ResourceList{v1.ResourceCPU: resource.MustParse("4")}
 	cpu := func(s string) v1.ResourceList { return v1.ResourceList{v1.ResourceCPU: resource.MustParse(s)} }
@@ -1435,32 +1426,23 @@ func TestValidateResources_PodLevelMinJobResources(t *testing.T) {
 		expectSuccess   bool
 		expectErrSubstr string
 	}{
-		// container 5cpu + pod-level 5cpu -> effective 5cpu >= 4cpu min: accepted. The minimum is
-		// carried by the container total, not by the pod-level block.
 		"container total meets minimum, pod-level block covers it": {
 			req:           req(&v1.ResourceRequirements{Requests: cpu("5"), Limits: cpu("5")}, container5),
 			expectSuccess: true,
 		},
-		// container 5cpu + pod-level 2cpu clears the 4cpu minimum on the effective request, but
-		// Kubernetes rejects the spec outright: a pod-level request must cover the container sum.
-		// This case used to assert acceptance.
 		"container total above a lower pod-level request rejected": {
 			req:             req(&v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("2")}, container5),
 			expectSuccess:   false,
 			expectErrSubstr: "aggregate container requests",
 		},
-		// pod-level 2cpu, empty container -> effective 2cpu < 4cpu min: rejected.
 		"pod-level below minimum with empty container rejected": {
 			req:           req(&v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("2")}, []v1.Container{{Name: "main"}}),
 			expectSuccess: false,
 		},
-		// container 2cpu + pod-level 4cpu -> effective 4cpu >= 4cpu min: accepted. The
-		// per-container check used to see only the raw 2cpu and reject.
 		"container below minimum covered by pod-level block, accepted": {
 			req:           req(&v1.ResourceRequirements{Requests: cpu("4"), Limits: cpu("4")}, container2),
 			expectSuccess: true,
 		},
-		// Quantity.Value rounds 3500m up to 4, which used to clear the 4cpu minimum.
 		"fractional pod-level cpu below minimum rejected": {
 			req:           req(&v1.ResourceRequirements{Requests: cpu("3500m"), Limits: cpu("3500m")}, []v1.Container{{Name: "main"}}),
 			expectSuccess: false,
@@ -1472,8 +1454,6 @@ func TestValidateResources_PodLevelMinJobResources(t *testing.T) {
 			}}),
 			expectSuccess: false,
 		},
-		// The per-container minimum check is skipped when a pod-level block is present, so the
-		// effective-request check must still catch a resource only the container requests.
 		"container cpu below minimum not covered by pod-level block rejected": {
 			req: req(
 				&v1.ResourceRequirements{
@@ -1501,34 +1481,58 @@ func TestValidateResources_PodLevelMinJobResources(t *testing.T) {
 	}
 }
 
-// The pod-level and per-container minimum checks must agree on a resource the spec does not request.
-// Validation runs before defaultResource, so neither path may demand a MinJobResources entry that
-// defaulting is about to supply.
 func TestValidateResources_MinJobResourcesAgreeOnUnrequestedResource(t *testing.T) {
-	cfg := configuration.SubmissionConfig{
-		PodLevelResources: true,
-		MinJobResources:   v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Mi")},
+	tests := map[string]struct {
+		requested     v1.ResourceList
+		minimum       v1.ResourceList
+		expectSuccess bool
+	}{
+		"cpu-only job with a memory minimum": {
+			requested:     v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")},
+			minimum:       v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Mi")},
+			expectSuccess: true,
+		},
+		"cpu-only job with a GPU minimum": {
+			requested:     v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")},
+			minimum:       v1.ResourceList{"nvidia.com/gpu": resource.MustParse("1")},
+			expectSuccess: true,
+		},
+		"requested memory below minimum": {
+			requested: v1.ResourceList{v1.ResourceMemory: resource.MustParse("512Ki")},
+			minimum:   v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Mi")},
+		},
+		"explicit zero memory below minimum": {
+			requested: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1"), v1.ResourceMemory: resource.MustParse("0")},
+			minimum:   v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Mi")},
+		},
+		"requested memory meets minimum": {
+			requested:     v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Mi")},
+			minimum:       v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Mi")},
+			expectSuccess: true,
+		},
 	}
-	oneCpu := v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")}
-
-	containerPath := &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
-		Containers: []v1.Container{{Name: "main", Resources: v1.ResourceRequirements{Requests: oneCpu, Limits: oneCpu}}},
-	}}
-	podLevelPath := &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
-		Containers: []v1.Container{{Name: "main"}},
-		Resources:  &v1.ResourceRequirements{Requests: oneCpu, Limits: oneCpu},
-	}}
-
-	assert.NoError(t, validateResources(containerPath, cfg))
-	assert.NoError(t, validateResources(podLevelPath, cfg))
-
-	// Both paths still reject memory that is requested and too small.
-	tinyMemory := v1.ResourceList{v1.ResourceMemory: resource.MustParse("512Ki")}
-	containerPath.PodSpec.Containers[0].Resources = v1.ResourceRequirements{Requests: tinyMemory, Limits: tinyMemory}
-	podLevelPath.PodSpec.Resources = &v1.ResourceRequirements{Requests: tinyMemory, Limits: tinyMemory}
-
-	assert.Error(t, validateResources(containerPath, cfg))
-	assert.Error(t, validateResources(podLevelPath, cfg))
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			cfg := configuration.SubmissionConfig{PodLevelResources: true, MinJobResources: tc.minimum}
+			for _, podLevel := range []bool{false, true} {
+				t.Run(strconv.FormatBool(podLevel), func(t *testing.T) {
+					resources := v1.ResourceRequirements{Requests: tc.requested, Limits: tc.requested.DeepCopy()}
+					spec := &v1.PodSpec{Containers: []v1.Container{{Name: "main"}}}
+					if podLevel {
+						spec.Resources = &resources
+					} else {
+						spec.Containers[0].Resources = resources
+					}
+					err := validateResources(&api.JobSubmitRequestItem{PodSpec: spec}, cfg)
+					if tc.expectSuccess {
+						assert.NoError(t, err)
+					} else {
+						assert.ErrorContains(t, err, "below server minimum")
+					}
+				})
+			}
+		})
+	}
 }
 
 func TestValidateTerminationGracePeriod(t *testing.T) {

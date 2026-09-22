@@ -265,9 +265,8 @@ func TotalPodResourceRequest(podSpec *v1.PodSpec) ComputeResources {
 		}
 	}
 
-	// Pod-level resources (KEP-2837): the effective request is
-	// max(sum of container requests, pod-level request) per resource. Inert when
-	// podSpec.Resources is unset.
+	// Kubernetes requires the pod-level request to be at least the sum of the container requests.
+	// Max keeps the accounting correct for a pod that breaks that rule.
 	if podSpec.Resources != nil {
 		totalResources.Max(FromResourceList(podSpec.Resources.Requests))
 	}
