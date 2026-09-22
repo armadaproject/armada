@@ -14,7 +14,7 @@
 
   <p>
     <a href="https://armadaproject.io">Website</a> ·
-    <a href="https://armadaproject.io/quickstart">Quickstart</a> ·
+    <a href="https://armadaproject.io/getting-started">Quickstart</a> ·
     <a href="https://armadaproject.io/docs">Documentation</a> ·
     <a href="https://cloud-native.slack.com/archives/C03T9CBCEMC">Slack</a>
   </p>
@@ -63,7 +63,7 @@ cd armada-operator
 make kind-all
 ```
 
-→ **[Full quickstart guide](https://armadaproject.io/quickstart)** — get up and running in an instant!
+→ **[Full quickstart guide](https://armadaproject.io/getting-started)** — get up and running in an instant!
 
 
 
@@ -147,7 +147,7 @@ We'd love your contributions — code, docs, bug reports, or ideas. All are welc
 | Resource | Link |
 |---|---|
 | Website & overview | [armadaproject.io](https://armadaproject.io) |
-| Quickstart | [armadaproject.io/quickstart](https://armadaproject.io/quickstart) |
+| Quickstart | [armadaproject.io/getting-started](https://armadaproject.io/getting-started) |
 | Architecture | [armadaproject.io/docs/architecture](https://armadaproject.io/docs/architecture) |
 | API reference | [armadaproject.io/docs/api](https://armadaproject.io/docs/api) |
 | Developer guide | [armadaproject.io/docs/developer-guide](https://armadaproject.io/docs/developer-guide) |

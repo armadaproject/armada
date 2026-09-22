@@ -43,4 +43,9 @@ ingesters
 scheduleringester
 containerised
 initialise
+behaviour
+categorised
+categorisation
+retryable
 organisations
+KUBECONFIG
