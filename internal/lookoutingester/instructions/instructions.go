@@ -109,15 +109,17 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_JobRunRunning:
 			err = c.handleJobRunRunning(ts, event.GetJobRunRunning(), update)
 		case *armadaevents.EventSequence_Event_JobRunCancelled:
-			err = c.handleJobRunCancelled(ts, event.GetJobRunCancelled(), update)
+			err = c.handleJobRunCancelled(event.GetJobRunCancelled(), update)
 		case *armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo:
 			err = c.handleJobRunTerminatedDebugInfo(event.GetJobRunTerminatedDebugInfo(), update)
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
-			err = c.handleJobRunSucceeded(ts, event.GetJobRunSucceeded(), update)
+			err = c.handleJobRunSucceeded(event.GetJobRunSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
-			err = c.handleJobRunErrors(ts, event.GetJobRunErrors(), update)
+			err = c.handleJobRunErrors(event.GetJobRunErrors(), update)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
-			err = c.handleJobRunPreempted(ts, owner, event.GetJobRunPreempted(), update)
+			err = c.handleJobRunPreempted(owner, event.GetJobRunPreempted(), update)
+		case *armadaevents.EventSequence_Event_JobRunTerminated:
+			err = c.handleJobRunTerminated(event.GetJobRunTerminated(), update)
 		case *armadaevents.EventSequence_Event_JobRequeued:
 			err = c.handleJobRequeued(ts, event.GetJobRequeued(), update)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
@@ -340,8 +342,11 @@ func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaev
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       event.RunId,
 		Node:        node,
-		Started:     &ts,
 		JobRunState: pointer.Int32(lookout.JobRunRunningOrdinal),
+	}
+	if event.StartedAt != nil {
+		started := protoutil.ToStdTime(event.StartedAt)
+		jobRun.Started = &started
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
@@ -403,7 +408,7 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 	return nil
 }
 
-func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armadaevents.JobRunCancelled, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobRunCancelled(event *armadaevents.JobRunCancelled, update *model.InstructionSet) error {
 	var args map[string]any
 	if event.Requestor != "" {
 		args = map[string]any{"requestor": event.Requestor}
@@ -416,7 +421,6 @@ func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armada
 	terminationReason := BuildTerminationReason(reason, args)
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:                      event.RunId,
-		Finished:                   &ts,
 		JobRunState:                pointer.Int32(lookout.JobRunCancelledOrdinal),
 		SchedulerTerminationReason: terminationReason,
 	}
@@ -431,30 +435,36 @@ func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armada
 func (c *InstructionConverter) handleJobRunTerminatedDebugInfo(event *armadaevents.JobRunTerminatedDebugInfo, update *model.InstructionSet) error {
 	jobRun := model.UpdateJobRunInstruction{
 		RunId: event.RunId,
-		Debug: tryCompressError(event.JobId, event.DebugMessage, c.compressor),
+	}
+	if event.DebugMessage != "" {
+		jobRun.Debug = tryCompressError(event.JobId, event.DebugMessage, c.compressor)
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
 }
 
-func (c *InstructionConverter) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobRunSucceeded(event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       event.RunId,
-		Finished:    &ts,
 		JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal),
 		ExitCode:    pointer.Int32(0),
 	}
+	if event.FinishedAt != nil {
+		finished := protoutil.ToStdTime(event.FinishedAt)
+		jobRun.Finished = &finished
+	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
 }
 
-func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobRunErrors(event *armadaevents.JobRunErrors, update *model.InstructionSet) error {
 	for _, e := range event.GetErrors() {
 		jobRunUpdate := &model.UpdateJobRunInstruction{
 			RunId: event.RunId,
 		}
-		if e.Terminal {
-			jobRunUpdate.Finished = &ts
+		if e.Terminal && event.FinishedAt != nil {
+			finished := protoutil.ToStdTime(event.FinishedAt)
+			jobRunUpdate.Finished = &finished
 		}
 
 		switch reason := e.Reason.(type) {
@@ -518,7 +528,7 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 	return nil
 }
 
-func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, requestor string, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobRunPreempted(requestor string, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
 	if event.Requestor != "" {
 		requestor = event.Requestor
 	}
@@ -539,9 +549,18 @@ func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, requestor str
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:                      event.PreemptedRunId,
 		JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
-		Finished:                   &ts,
 		Error:                      tryCompressError(event.PreemptedJobId, event.Reason, c.compressor),
 		SchedulerTerminationReason: terminationReason,
+	}
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+	return nil
+}
+
+func (c *InstructionConverter) handleJobRunTerminated(event *armadaevents.JobRunTerminated, update *model.InstructionSet) error {
+	jobRun := model.UpdateJobRunInstruction{RunId: event.RunId}
+	if event.FinishedAt != nil {
+		finished := protoutil.ToStdTime(event.FinishedAt)
+		jobRun.Finished = &finished
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
