@@ -284,7 +284,7 @@ func TestCollect_MetricDescriptions(t *testing.T) {
 			descCount++
 		}
 
-		require.Equal(t, 13, descCount)
+		require.Equal(t, 14, descCount)
 	})
 }
 
@@ -1087,13 +1087,40 @@ func TestCollect_KeepsStaleMetricsOnError(t *testing.T) {
 
 	require.NoError(t, collector.collectOnce(ctx))
 	firstSnapshot := gaugeMetricValues(t, collector)
-	require.Len(t, metricKeys(firstSnapshot), 7) // 3 top-N + 3 queue aggregates + last-collection timestamp
+	require.Len(t, metricKeys(firstSnapshot), 7) // 3 top-N + 3 queue aggregates + two unlabeled timestamp gauges sharing the same label key
 
 	require.Error(t, collector.collectOnce(ctx))
 	require.Equal(t, 1.0, testutil.ToFloat64(collector.errorsTotal))
 
 	staleSnapshot := gaugeMetricValues(t, collector)
 	require.Equal(t, firstSnapshot, staleSnapshot)
+}
+
+func TestCollect_LastSuccessfulCollectionTimestampUnchangedOnError(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+
+	scanner := &scriptedMockScanner{
+		script: []scriptedScanResult{
+			{streams: testStreams(2)},
+			{err: fmt.Errorf("xinfo stream error for key %q: %w", "Events:gone:gone", redisError("ERR no such key"))},
+		},
+	}
+
+	collector := NewCollector(scanner, retryConfig(), leaderelection.NewStandaloneLeaderController())
+
+	require.NoError(t, collector.collectOnce(ctx))
+	firstAttemptTimestamp := testutil.ToFloat64(collector.lastCollectionTimestamp)
+	firstSuccessTimestamp := testutil.ToFloat64(collector.lastSuccessfulCollectionTimestamp)
+	require.Greater(t, firstAttemptTimestamp, 0.0)
+	require.Greater(t, firstSuccessTimestamp, 0.0)
+	require.InDelta(t, firstAttemptTimestamp, firstSuccessTimestamp, 0.01)
+
+	require.Error(t, collector.collectOnce(ctx))
+	secondAttemptTimestamp := testutil.ToFloat64(collector.lastCollectionTimestamp)
+	secondSuccessTimestamp := testutil.ToFloat64(collector.lastSuccessfulCollectionTimestamp)
+	require.GreaterOrEqual(t, secondAttemptTimestamp, firstAttemptTimestamp)
+	require.Equal(t, firstSuccessTimestamp, secondSuccessTimestamp)
 }
 
 func TestCollect_RetriesOnTransientErrors(t *testing.T) {
