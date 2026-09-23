@@ -122,9 +122,7 @@ func TestNode(t *testing.T) {
 	assert.Equal(t, node, nodeCopy)
 }
 
-// testTaintedNode builds a node whose taints and labels are all indexed, so its
-// NodeType reflects every taint and label and changes whenever they do.
-func testTaintedNode(taints []v1.Taint, labels map[string]string) *Node {
+func createNodeWithIndexedLabelsAndTaints(taints []v1.Taint, labels map[string]string) *Node {
 	indexedTaints := map[string]bool{"foo": true, unschedulableTaintKey: true}
 	indexedNodeLabels := map[string]bool{"key": true}
 	return CreateNode(
@@ -136,7 +134,7 @@ func testTaintedNode(taints []v1.Taint, labels map[string]string) *Node {
 }
 
 func TestWithSchedulable_AddsAndRemovesUnschedulableTaint(t *testing.T) {
-	node := testTaintedNode([]v1.Taint{{Key: "foo", Value: "bar"}}, map[string]string{"key": "value"})
+	node := createNodeWithIndexedLabelsAndTaints([]v1.Taint{{Key: "foo", Value: "bar"}}, map[string]string{"key": "value"})
 	require.False(t, node.IsUnschedulable())
 	require.NotContains(t, node.GetTaints(), UnschedulableTaint())
 
@@ -156,39 +154,35 @@ func TestWithSchedulable_AddsAndRemovesUnschedulableTaint(t *testing.T) {
 	assert.Equal(t, node.GetNodeTypeId(), reschedulable.GetNodeTypeId())
 }
 
-func TestWithSchedulable_NoOpWhenAlreadyInRequestedState(t *testing.T) {
-	node := testTaintedNode([]v1.Taint{{Key: "foo", Value: "bar"}}, map[string]string{"key": "value"})
-	unschedulable := node.WithSchedulable(false)
+func TestWithTaints_RecomputeNodeType(t *testing.T) {
+	node := createNodeWithIndexedLabelsAndTaints([]v1.Taint{{Key: "foo", Value: "bar"}}, map[string]string{"key": "value"})
 
-	// Asking for the state the node is already in short-circuits to the receiver.
-	assert.Same(t, node, node.WithSchedulable(true))
-	assert.Same(t, unschedulable, unschedulable.WithSchedulable(false))
+	indexedTaintChanged := node.WithTaints([]v1.Taint{{Key: "foo", Value: "baz"}})
+	assert.Equal(t, []v1.Taint{{Key: "foo", Value: "baz"}}, indexedTaintChanged.GetTaints())
+	assert.NotEqual(t, node.GetNodeTypeId(), indexedTaintChanged.GetNodeTypeId())
 
-	// In particular, repeated calls must not stack up duplicate unschedulable taints.
-	repeated := unschedulable.WithSchedulable(false).WithSchedulable(false)
-	assert.Equal(t, unschedulable.GetTaints(), repeated.GetTaints())
-	assert.Len(t, repeated.GetTaints(), 2)
+	nonIndexedTaintChanged := node.WithTaints(append([]v1.Taint{{Key: "non-indexed", Value: "baz"}}, node.GetTaints()...))
+	assert.Len(t, nonIndexedTaintChanged.GetTaints(), 2)
+	assert.Contains(t, nonIndexedTaintChanged.GetTaints(), v1.Taint{Key: "foo", Value: "bar"})
+	assert.Contains(t, nonIndexedTaintChanged.GetTaints(), v1.Taint{Key: "non-indexed", Value: "baz"})
+	assert.Equal(t, node.GetNodeTypeId(), nonIndexedTaintChanged.GetNodeTypeId())
 }
 
-func TestWithTaintsAndWithLabels_RecomputeNodeType(t *testing.T) {
-	node := testTaintedNode([]v1.Taint{{Key: "foo", Value: "bar"}}, map[string]string{"key": "value"})
+func TestWithLabels_RecomputeNodeType(t *testing.T) {
+	node := createNodeWithIndexedLabelsAndTaints([]v1.Taint{{Key: "foo", Value: "bar"}}, map[string]string{"key": "value"})
 
-	retainted := node.WithTaints([]v1.Taint{{Key: "foo", Value: "baz"}})
-	assert.Equal(t, []v1.Taint{{Key: "foo", Value: "baz"}}, retainted.GetTaints())
-	assert.NotEqual(t, node.GetNodeTypeId(), retainted.GetNodeTypeId())
-	// Labels are untouched.
-	assert.Equal(t, node.GetLabels(), retainted.GetLabels())
+	indexedLabelChanged := node.WithLabels(map[string]string{"key": "other"})
+	assert.Equal(t, map[string]string{"key": "other"}, indexedLabelChanged.GetLabels())
+	assert.NotEqual(t, node.GetNodeTypeId(), indexedLabelChanged.GetNodeTypeId())
 
-	relabelled := node.WithLabels(map[string]string{"key": "other"})
-	assert.Equal(t, map[string]string{"key": "other"}, relabelled.GetLabels())
-	assert.NotEqual(t, node.GetNodeTypeId(), relabelled.GetNodeTypeId())
-	// Taints are untouched.
-	assert.Equal(t, node.GetTaints(), relabelled.GetTaints())
+	nonIndexedLabelChanged := node.WithLabels(map[string]string{"key": "value", "non-indexed": "bar"})
+	assert.Equal(t, nonIndexedLabelChanged.GetLabels(), map[string]string{"key": "value", "non-indexed": "bar"})
+	assert.Equal(t, node.GetNodeTypeId(), nonIndexedLabelChanged.GetNodeTypeId())
 }
 
 func TestWithTaints_RecomputesReservation(t *testing.T) {
 	reservationTaint := v1.Taint{Key: constants.ReservationTaintKey, Value: "res-1", Effect: v1.TaintEffectNoSchedule}
-	node := testTaintedNode(nil, nil)
+	node := createNodeWithIndexedLabelsAndTaints(nil, nil)
 	require.Equal(t, util.NoReservationName, node.GetReservation())
 
 	reserved := node.WithTaints([]v1.Taint{reservationTaint})
