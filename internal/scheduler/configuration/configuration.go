@@ -216,6 +216,8 @@ type SchedulingConfig struct {
 	// Set to true to enable larger job preferential ordering in the candidate gang iterator.
 	// This will result in larger jobs being ordered earlier in the job scheduling order
 	EnablePreferLargeJobOrdering bool
+
+	EnableUrgencyBeforeFairsharePreemptionOrdering bool
 	// ProtectedFractionOfFairShare sets the threshold for fair-share preemption.
 	// Queues at or below this fraction of their fair share are protected from preemption.
 	//
