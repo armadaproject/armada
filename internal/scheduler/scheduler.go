@@ -249,8 +249,10 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 				schedulingAttempted, err := s.cycle(ctx, fullUpdate, leaderToken, shouldGetSchedulerResult, cycleNumber)
 
 				cycleTime := s.clock.Since(start)
+				loopType := metrics.Reconciliation
 
 				if schedulingAttempted {
+					loopType = metrics.Scheduling
 					// Only the leader does real scheduling rounds.
 					s.metrics.ReportScheduleCycleTime(cycleTime)
 					s.metrics.ReportScheduleCycleOutcome(err == nil)
@@ -259,6 +261,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 					s.metrics.ReportReconcileCycleTime(cycleTime)
 					ctx.Infof("reconciliation cycle completed in %s", cycleTime)
 				}
+				s.metrics.ReportMainLoopCycleCompleted(cycleTime, err == nil, loopType)
 
 				if err != nil {
 					// If there is an error, we can't guarantee that the scheduler-internal state is consistent
@@ -460,13 +463,13 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		s.metrics.ReportSchedulerResult(ctx, *schedulerResult)
 
 		for _, jctx := range schedulerResult.GetAllScheduledJobs() {
-			s.metrics.ReportJobLeased(jctx.Job)
+			s.metrics.ReportJobLeasedStateTransition(jctx.Job)
 		}
 		for _, jctx := range schedulerResult.GetAllPreemptedJobs() {
-			s.metrics.ReportJobPreempted(jctx.Job)
+			s.metrics.ReportJobPreemptedStateTransition(jctx.Job, jctx.PreemptionType)
 		}
 		for _, jctx := range schedulerResult.GetCombinedReconciliationResult().PreemptedJobs {
-			s.metrics.ReportJobPreempted(jctx.Job)
+			s.metrics.ReportJobPreemptedStateTransition(jctx.Job, schedulercontext.PreemptedViaNodeReconciler)
 		}
 	}
 
@@ -812,6 +815,7 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 				preemptingJobId(jctx.GetPreemptingJob()),
 				jctx.PreemptionDescription,
 				requestor,
+				jctx.PreemptionType,
 				time,
 			),
 		})
@@ -898,7 +902,10 @@ func createEventsForLeaseExpiredRetry(job *jobdb.Job, leaseExpiredError *armadae
 	}
 }
 
-func createEventsForPreemptedJob(jobId string, runId string, preemptingJobId string, reason string, requestor string, time time.Time) []*armadaevents.EventSequence_Event {
+func createEventsForPreemptedJob(jobId string, runId string, preemptingJobId string, reason string, requestor string, preemptionType schedulercontext.PreemptionType, time time.Time) []*armadaevents.EventSequence_Event {
+	if preemptionType == "" {
+		preemptionType = schedulercontext.Unknown
+	}
 	return []*armadaevents.EventSequence_Event{
 		{
 			Created: protoutil.ToTimestamp(time),
@@ -920,7 +927,9 @@ func createEventsForPreemptedJob(jobId string, runId string, preemptingJobId str
 					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
-							Terminal: true,
+							Terminal:           true,
+							FailureCategory:    errormatch.CategoryPreemption,
+							FailureSubcategory: string(preemptionType),
 							Reason: &armadaevents.Error_JobRunPreemptedError{
 								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{
 									Reason: reason,
@@ -938,7 +947,9 @@ func createEventsForPreemptedJob(jobId string, runId string, preemptingJobId str
 					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
-							Terminal: true,
+							Terminal:           true,
+							FailureCategory:    errormatch.CategoryPreemption,
+							FailureSubcategory: string(preemptionType),
 							Reason: &armadaevents.Error_JobRunPreemptedError{
 								JobRunPreemptedError: &armadaevents.JobRunPreemptedError{
 									Reason: reason,
@@ -987,7 +998,7 @@ func AppendEventSequencesFromReconciliationFailureJobs(eventSequences []*armadae
 			Queue:      jobInfo.Job.Queue(),
 			JobSetName: jobInfo.Job.Jobset(),
 			UserId:     requestor,
-			Events:     createEventsForPreemptedJob(jobInfo.Job.Id(), run.Id(), "", jobInfo.Reason, requestor, time),
+			Events:     createEventsForPreemptedJob(jobInfo.Job.Id(), run.Id(), "", jobInfo.Reason, requestor, schedulercontext.PreemptedViaNodeReconciler, time),
 		}
 		eventSequences = append(eventSequences, es)
 	}
@@ -1475,13 +1486,15 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				events = append(events, jobErrors)
 			}
 		} else if lastRun.PreemptRequested() && job.PriorityClass().Preemptible {
-			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true))
+			now := s.clock.Now()
+			job = job.WithQueued(false).WithFailed(true).WithUpdatedRun(lastRun.WithoutTerminal().WithFailed(true).WithPreemptedTime(&now))
 			reason := "Preempted - preemption requested via API"
 			if lastRun.PreemptReason() != nil && *lastRun.PreemptReason() != "" {
 				reason = *lastRun.PreemptReason()
 			}
 			requestor := ptr.Deref(lastRun.PreemptUser(), "")
-			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "", reason, requestor, s.clock.Now())...)
+			events = append(events, createEventsForPreemptedJob(job.Id(), lastRun.Id(), "", reason, requestor, schedulercontext.PreemptedViaApi, s.clock.Now())...)
+			s.metrics.ReportJobPreemptedStateTransition(job, schedulercontext.PreemptedViaApi)
 			s.metrics.ReportJobPreemptedWithType(job, schedulercontext.PreemptedViaApi)
 		}
 	}

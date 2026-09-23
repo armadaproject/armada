@@ -5,6 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/util"
@@ -49,6 +50,11 @@ type Node struct {
 	taints []v1.Taint
 	labels map[string]string
 
+	// Which taint and label keys the node type indexes.
+	// Held so the node can recompute its own node type whenever its taints or labels change
+	indexedTaints     map[string]bool
+	indexedNodeLabels map[string]bool
+
 	unschedulable bool
 	overAllocated bool
 
@@ -61,10 +67,9 @@ type Node struct {
 	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
 
-	AllocatableByPriority map[int32]ResourceList
-	AllocatedByQueue      map[string]ResourceList
-	AllocatedByJobId      map[string]ResourceList
-	EvictedJobRunIds      map[string]bool
+	allocatableByPriority map[int32]ResourceList
+	allocatedByJobId      map[string]ResourceList
+	evictedJobRunIds      map[string]bool
 	cutoffByJobId         map[string]int32
 }
 
@@ -77,12 +82,6 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 ) *Node {
 	totalResources := resourceListFactory.FromNodeProto(node.TotalResources.Resources)
 	allocatableResources := resourceListFactory.FromNodeProto(node.AvailableArmadaResource().ToProtoMap())
-	allocatableByPriority := map[int32]ResourceList{}
-	for _, p := range allowedPriorities {
-		allocatableByPriority[p] = allocatableResources
-	}
-	allocatableByPriority[EvictedPriority] = allocatableResources
-	allocatableByPriority[CrossPoolPriority] = allocatableResources
 
 	taints := make([]v1.Taint, 0, len(node.Taints))
 	for _, t := range node.Taints {
@@ -105,7 +104,7 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		indexedNodeLabels,
 		totalResources,
 		allocatableResources,
-		allocatableByPriority,
+		allowedPriorities,
 	)
 }
 
@@ -123,7 +122,7 @@ func CreateNodeAndType(
 	indexedNodeLabels map[string]bool,
 	totalResources ResourceList,
 	allocatableResources ResourceList,
-	allocatableByPriority map[int32]ResourceList,
+	allowedPriorities []int32,
 ) *Node {
 	if unschedulable {
 		taints = append(koTaint.DeepCopyTaints(taints), UnschedulableTaint())
@@ -136,16 +135,8 @@ func CreateNodeAndType(
 	}
 	labels[configuration.NodeIdLabel] = id
 
-	nodeType := NewNodeType(
-		taints,
-		labels,
-		indexedTaints,
-		indexedNodeLabels,
-	)
-
 	return CreateNode(
 		id,
-		nodeType,
 		index,
 		executor,
 		name,
@@ -153,19 +144,17 @@ func CreateNodeAndType(
 		reportingNodeType,
 		taints,
 		labels,
+		indexedTaints,
+		indexedNodeLabels,
 		unschedulable,
 		totalResources,
 		allocatableResources,
-		allocatableByPriority,
-		map[string]ResourceList{},
-		map[string]ResourceList{},
-		map[string]bool{},
+		allowedPriorities,
 		nil)
 }
 
 func CreateNode(
 	id string,
-	nodeType *NodeType,
 	index uint64,
 	executor string,
 	name string,
@@ -173,34 +162,35 @@ func CreateNode(
 	reportingNodeType string,
 	taints []v1.Taint,
 	labels map[string]string,
+	indexedTaints map[string]bool,
+	indexedNodeLabels map[string]bool,
 	unschedulable bool,
 	totalResources ResourceList,
 	allocatableResources ResourceList,
-	allocatableByPriority map[int32]ResourceList,
-	allocatedByQueue map[string]ResourceList,
-	allocatedByJobId map[string]ResourceList,
-	evictedJobRunIds map[string]bool,
+	allowedPriorities []int32,
 	keys [][]byte,
 ) *Node {
-	reservation := util.GetReservationName(taints)
+	taints = koTaint.DeepCopyTaints(taints)
+	labels = deepCopyLabels(labels)
 	return &Node{
 		id:                    id,
-		nodeType:              nodeType,
+		nodeType:              NewNodeType(taints, labels, indexedTaints, indexedNodeLabels),
 		index:                 index,
 		executor:              executor,
 		name:                  name,
 		pool:                  pool,
 		reportingNodeType:     reportingNodeType,
-		taints:                koTaint.DeepCopyTaints(taints),
-		reservation:           reservation,
-		labels:                deepCopyLabels(labels),
+		taints:                taints,
+		reservation:           util.GetReservationName(taints),
+		labels:                labels,
+		indexedTaints:         indexedTaints,
+		indexedNodeLabels:     indexedNodeLabels,
 		unschedulable:         unschedulable,
 		totalResources:        totalResources,
 		allocatableResources:  allocatableResources,
-		AllocatableByPriority: maps.Clone(allocatableByPriority),
-		AllocatedByQueue:      maps.Clone(allocatedByQueue),
-		AllocatedByJobId:      maps.Clone(allocatedByJobId),
-		EvictedJobRunIds:      evictedJobRunIds,
+		allocatableByPriority: NewAllocatableByPriorityAndResourceType(allowedPriorities, allocatableResources),
+		allocatedByJobId:      map[string]ResourceList{},
+		evictedJobRunIds:      map[string]bool{},
 		cutoffByJobId:         map[string]int32{},
 		Keys:                  keys,
 	}
@@ -255,19 +245,28 @@ func (node *Node) GetLabels() map[string]string {
 }
 
 func (node *Node) GetRunningJobIds() []string {
-	return maps.Keys(node.AllocatedByJobId)
+	return maps.Keys(node.allocatedByJobId)
 }
 
-// IsJobEvicted reports whether the job is currently marked as evicted from the node.
-// An evicted job still owns its resources, so this is independent of HasJobAllocation.
+func (node *Node) HasAllocatedJobs() bool {
+	return len(node.allocatedByJobId) > 0
+}
+
+func (node *Node) AllocatedByJob() map[string]ResourceList {
+	return maps.Clone(node.allocatedByJobId)
+}
+
 func (node *Node) IsJobEvicted(jobId string) bool {
-	_, ok := node.EvictedJobRunIds[jobId]
+	_, ok := node.evictedJobRunIds[jobId]
 	return ok
 }
 
-// HasJobAllocation reports whether the job currently owns resources on the node.
+func (node *Node) EvictedJobRunIds() map[string]bool {
+	return maps.Clone(node.evictedJobRunIds)
+}
+
 func (node *Node) HasJobAllocation(jobId string) bool {
-	_, ok := node.AllocatedByJobId[jobId]
+	_, ok := node.allocatedByJobId[jobId]
 	return ok
 }
 
@@ -304,12 +303,71 @@ func (node *Node) GetAllocatableResources() ResourceList {
 	return node.allocatableResources
 }
 
+// KnownPriorities returns the priorities this node tracks allocatable resources at,
+// in ascending order. This includes EvictedPriority and CrossPoolPriority.
+func (node *Node) KnownPriorities() []int32 {
+	priorities := maps.Keys(node.allocatableByPriority)
+	slices.Sort(priorities)
+	return priorities
+}
+
+func (node *Node) AllocatableAtPriority(priority int32) ResourceList {
+	return node.allocatableByPriority[priority]
+}
+
+func (node *Node) AllocatableByPriority() map[int32]ResourceList {
+	return maps.Clone(node.allocatableByPriority)
+}
+
+func (node *Node) WithNodeType(nodeType *NodeType) *Node {
+	result := node.DeepCopyNilKeys()
+	result.nodeType = nodeType
+	return result
+}
+
+func (node *Node) WithId(id string) *Node {
+	result := node.DeepCopyNilKeys()
+	result.id = id
+	return result
+}
+
+func (node *Node) WithIndex(index uint64) *Node {
+	result := node.DeepCopyNilKeys()
+	result.index = index
+	return result
+}
+
+func (node *Node) WithTaints(taints []v1.Taint) *Node {
+	result := node.DeepCopyNilKeys()
+	result.taints = koTaint.DeepCopyTaints(taints)
+	result.reservation = util.GetReservationName(result.taints)
+	result.nodeType = NewNodeType(result.taints, result.labels, node.indexedTaints, node.indexedNodeLabels)
+	return result
+}
+
+func (node *Node) WithLabels(labels map[string]string) *Node {
+	result := node.DeepCopyNilKeys()
+	result.labels = deepCopyLabels(labels)
+	result.nodeType = NewNodeType(result.taints, result.labels, node.indexedTaints, node.indexedNodeLabels)
+	return result
+}
+
+// WithResourcesUsedAtPriority returns a copy of node with rs deducted from every
+// bucket at or below priority, preserving all other state. Unlike AddJob this
+// records no job ownership, so the node cannot later release these resources.
+// Only expected to be used from tests
+func (node *Node) WithResourcesUsedAtPriority(priority int32, rs ResourceList) *Node {
+	result := node.DeepCopyNilKeys()
+	markAllocated(result.allocatableByPriority, priority, rs)
+	return result
+}
+
 func (node *Node) MarkResourceUnallocatable(unallocatable ResourceList) *Node {
 	result := node.DeepCopyNilKeys()
 
-	for pri, allocatable := range result.AllocatableByPriority {
+	for pri, allocatable := range result.allocatableByPriority {
 		newAllocatable := allocatable.Subtract(unallocatable).FloorAtZero()
-		result.AllocatableByPriority[pri] = newAllocatable
+		result.allocatableByPriority[pri] = newAllocatable
 	}
 	result.allocatableResources = result.allocatableResources.Subtract(unallocatable).FloorAtZero()
 	return result
@@ -322,22 +380,27 @@ func (node *Node) WithOverAllocated(overAllocated bool) *Node {
 }
 
 func (node *Node) WithSchedulable(schedulable bool) *Node {
-	result := node.DeepCopyNilKeys()
-	result.unschedulable = !schedulable
-	if !schedulable {
-		result.taints = append(koTaint.DeepCopyTaints(result.taints), UnschedulableTaint())
-	} else {
-		// Remove unschedulable taint
-		taints := make([]v1.Taint, 0, len(result.taints))
-		unschedulableTaint := UnschedulableTaint()
-		unschedulableTaintPtr := &unschedulableTaint
-		for _, taint := range taints {
-			if !taint.MatchTaint(unschedulableTaintPtr) {
+	if node.unschedulable == !schedulable {
+		// Already in the requested state. Returning early also stops a second
+		// WithSchedulable(false) from appending a duplicate unschedulable taint.
+		return node
+	}
+
+	unschedulableTaint := UnschedulableTaint()
+	var taints []v1.Taint
+	if schedulable {
+		taints = make([]v1.Taint, 0, len(node.taints))
+		for _, taint := range node.taints {
+			if !taint.MatchTaint(&unschedulableTaint) {
 				taints = append(taints, taint)
 			}
-			result.taints = koTaint.DeepCopyTaints(taints)
 		}
+	} else {
+		taints = append(node.GetTaints(), unschedulableTaint)
 	}
+
+	result := node.WithTaints(taints)
+	result.unschedulable = !schedulable
 	return result
 }
 
@@ -354,6 +417,8 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		nodeType:             node.nodeType,
 		taints:               node.taints,
 		labels:               node.labels,
+		indexedTaints:        node.indexedTaints,
+		indexedNodeLabels:    node.indexedNodeLabels,
 		unschedulable:        node.unschedulable,
 		overAllocated:        node.overAllocated,
 		totalResources:       node.totalResources,
@@ -362,11 +427,11 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		// keys set to nil
 		Keys: nil,
 
-		// these maps are mutable but their keys and values are immutable
-		AllocatableByPriority: maps.Clone(node.AllocatableByPriority),
-		AllocatedByQueue:      maps.Clone(node.AllocatedByQueue),
-		AllocatedByJobId:      maps.Clone(node.AllocatedByJobId),
-		EvictedJobRunIds:      maps.Clone(node.EvictedJobRunIds),
+		// The copy is about to be mutated in place by AddJob/EvictJob/RemoveJob, so these
+		// maps must not be shared with the original
+		allocatableByPriority: maps.Clone(node.allocatableByPriority),
+		allocatedByJobId:      maps.Clone(node.allocatedByJobId),
+		evictedJobRunIds:      maps.Clone(node.evictedJobRunIds),
 		cutoffByJobId:         maps.Clone(node.cutoffByJobId),
 	}
 }
@@ -411,23 +476,26 @@ type SchedulableJob interface {
 // AddJob binds job to the node, deducting its resources at every priority bucket
 // at or below cutoff. If the job is currently evicted from this node, it is
 // un-evicted and its resources are moved out of the EvictedPriority bucket;
-// ownership (AllocatedByJobId/AllocatedByQueue) is left untouched in that case
+// ownership (allocatedByJobId) is left untouched in that case
 // because an evicted job still owns its resources.
 func (node *Node) AddJob(job SchedulableJob, cutoff int32) error {
 	jobId := job.Id()
 	requests := job.KubernetesResourceRequirements()
 
-	_, isEvicted := node.EvictedJobRunIds[jobId]
-	delete(node.EvictedJobRunIds, jobId)
+	_, isEvicted := node.evictedJobRunIds[jobId]
+	delete(node.evictedJobRunIds, jobId)
 
 	if !isEvicted {
-		if _, ok := node.AllocatedByJobId[jobId]; ok {
+		if _, ok := node.allocatedByJobId[jobId]; ok {
 			return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.GetId())
 		}
-		node.claimForQueueAndJob(job.Queue(), jobId, requests)
+		if node.allocatedByJobId == nil {
+			node.allocatedByJobId = make(map[string]ResourceList)
+		}
+		node.allocatedByJobId[jobId] = requests
 	}
 
-	allocatable := node.AllocatableByPriority
+	allocatable := node.allocatableByPriority
 	markAllocated(allocatable, cutoff, requests)
 	if isEvicted {
 		markAllocatable(allocatable, EvictedPriority, requests)
@@ -443,29 +511,24 @@ func (node *Node) AddJob(job SchedulableJob, cutoff int32) error {
 
 // EvictJob marks job as evicted from the node: its resources move from the bucket
 // at the cutoff it was bound at to the EvictedPriority bucket within
-// AllocatableByPriority. Ownership (AllocatedByJobId/AllocatedByQueue) is
+// allocatableByPriority. Ownership (allocatedByJobId) is
 // intentionally left in place, and the stored cutoff is preserved so a later
 // RemoveJob can still release correctly.
 func (node *Node) EvictJob(job SchedulableJob) error {
 	jobId := job.Id()
-	if _, ok := node.AllocatedByJobId[jobId]; !ok {
+	if _, ok := node.allocatedByJobId[jobId]; !ok {
 		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.GetId())
 	}
 
-	queue := job.Queue()
-	if _, ok := node.AllocatedByQueue[queue]; !ok {
-		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.GetId())
+	if node.evictedJobRunIds == nil {
+		node.evictedJobRunIds = make(map[string]bool)
 	}
-
-	if node.EvictedJobRunIds == nil {
-		node.EvictedJobRunIds = make(map[string]bool)
-	}
-	if _, ok := node.EvictedJobRunIds[jobId]; ok {
+	if _, ok := node.evictedJobRunIds[jobId]; ok {
 		return errors.Errorf("job %s is already evicted from node %s", jobId, node.GetId())
 	}
-	node.EvictedJobRunIds[jobId] = true
+	node.evictedJobRunIds[jobId] = true
 
-	allocatableByPriority := node.AllocatableByPriority
+	allocatableByPriority := node.allocatableByPriority
 	jobRequests := job.KubernetesResourceRequirements()
 	markAllocatable(allocatableByPriority, node.cutoffByJobId[jobId], jobRequests)
 	markAllocated(allocatableByPriority, EvictedPriority, jobRequests)
@@ -474,27 +537,22 @@ func (node *Node) EvictJob(job SchedulableJob) error {
 }
 
 // RemoveJob unbinds job from the node, releasing its ownership and returning its
-// resources to AllocatableByPriority. If the job was evicted, its resources are
+// resources to allocatableByPriority. If the job was evicted, its resources are
 // released from the EvictedPriority bucket; otherwise from the bucket at the cutoff
 // it was bound at. Removing a job that is not bound is a no-op.
 func (node *Node) RemoveJob(job SchedulableJob) error {
 	jobId := job.Id()
 	requests := job.KubernetesResourceRequirements()
 
-	_, isEvicted := node.EvictedJobRunIds[jobId]
-	delete(node.EvictedJobRunIds, jobId)
+	_, isEvicted := node.evictedJobRunIds[jobId]
+	delete(node.evictedJobRunIds, jobId)
 
-	if _, ok := node.AllocatedByJobId[jobId]; !ok {
+	if _, ok := node.allocatedByJobId[jobId]; !ok {
 		return nil
 	}
+	delete(node.allocatedByJobId, jobId)
 
-	queue := job.Queue()
-	if _, ok := node.AllocatedByQueue[queue]; !ok {
-		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.GetId())
-	}
-	node.releaseForQueueAndJob(queue, jobId, requests)
-
-	allocatable := node.AllocatableByPriority
+	allocatable := node.allocatableByPriority
 	if isEvicted {
 		markAllocatable(allocatable, EvictedPriority, requests)
 	} else {
@@ -503,33 +561,6 @@ func (node *Node) RemoveJob(job SchedulableJob) error {
 	delete(node.cutoffByJobId, jobId)
 
 	return nil
-}
-
-// releaseForQueueAndJob removes job ownership of requests from the node, deleting
-// the queue entry when it reaches zero.
-func (node *Node) releaseForQueueAndJob(queue, jobId string, r ResourceList) {
-	delete(node.AllocatedByJobId, jobId)
-
-	allocatedToQueue := node.AllocatedByQueue[queue].Subtract(r)
-	if allocatedToQueue.AllZero() {
-		delete(node.AllocatedByQueue, queue)
-	} else {
-		node.AllocatedByQueue[queue] = allocatedToQueue
-	}
-}
-
-// claimForQueueAndJob records job ownership of requests on the node, lazily
-// initialising the ownership maps.
-func (node *Node) claimForQueueAndJob(queue, jobId string, r ResourceList) {
-	if node.AllocatedByJobId == nil {
-		node.AllocatedByJobId = make(map[string]ResourceList)
-	}
-	node.AllocatedByJobId[jobId] = r
-
-	if node.AllocatedByQueue == nil {
-		node.AllocatedByQueue = make(map[string]ResourceList)
-	}
-	node.AllocatedByQueue[queue] = node.AllocatedByQueue[queue].Add(r)
 }
 
 func markAllocated(allocatableByPriority map[int32]ResourceList, priorityCutoff int32, rs ResourceList) {

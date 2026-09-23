@@ -40,20 +40,20 @@ spec:
             namespace: "{{ .Release.Namespace }}"
           expr: >
             max(
-              max(armada_queue_resource_queued{namespace="{{ .Release.Namespace }}"}) by (instance, pool, queueName, priceBand, resourceType, accounting_role)
+              max(armada_queue_resource_queued{namespace="{{ .Release.Namespace }}"}) by (instance, pool, queueName, priceBand, resourceType, priorityClass, accounting_role)
               * on (instance) group_left()
               (max by (instance) (armada_scheduler_leader_status{namespace="{{ .Release.Namespace }}"} == 1))
-            ) by (pool, queueName, priceBand, resourceType, accounting_role)
+            ) by (pool, queueName, priceBand, resourceType, priorityClass, accounting_role)
 
         - record: armada:queue:resource:allocated
           labels:
             namespace: "{{ .Release.Namespace }}"
           expr: >
             max(
-              max(armada_queue_resource_allocated{namespace="{{ .Release.Namespace }}"}) by (instance, pool, cluster, queueName, priceBand, resourceType, nodeType, reservation, physical_pool, scalable_unit)
+              max(armada_queue_resource_allocated{namespace="{{ .Release.Namespace }}"}) by (instance, pool, cluster, queueName, priceBand, resourceType, nodeType, priorityClass, reservation, physical_pool, scalable_unit)
               * on (instance) group_left()
               (max by (instance) (armada_scheduler_leader_status{namespace="{{ .Release.Namespace }}"} == 1))
-            ) by (pool, cluster, queueName, priceBand, resourceType, nodeType, reservation, physical_pool, scalable_unit)
+            ) by (pool, cluster, queueName, priceBand, resourceType, nodeType, priorityClass, reservation, physical_pool, scalable_unit)
 
         - record: armada:queue:resource:used
           labels:

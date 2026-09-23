@@ -156,9 +156,9 @@ func NewJobDb(resourceListFactory *internaltypes.ResourceListFactory) *jobdb.Job
 		stringinterner.New(1024),
 		resourceListFactory,
 	)
-	// Mock out the clock and uuid provider to ensure consistent ids and timestamps are generated.
+	// Mock out the clock and job run ID provider to ensure consistent IDs and timestamps are generated.
 	jobDb.SetClock(NewMockPassiveClock())
-	jobDb.SetUUIDProvider(NewMockIDProvider())
+	jobDb.SetJobRunIDProvider(NewMockIDProvider())
 	return jobDb
 }
 
@@ -390,32 +390,17 @@ func WithMaxQueueLookbackConfig(maxQueueLookback uint, config schedulerconfigura
 }
 
 func WithUsedResourcesNodes(p int32, rl internaltypes.ResourceList, nodes []*internaltypes.Node) []*internaltypes.Node {
-	for _, node := range nodes {
-		internaltypes.MarkAllocated(node.AllocatableByPriority, p, rl)
+	result := make([]*internaltypes.Node, len(nodes))
+	for i, node := range nodes {
+		result[i] = node.WithResourcesUsedAtPriority(p, rl)
 	}
-	return nodes
+	return result
 }
 
 func WithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltypes.Node) []*internaltypes.Node {
 	result := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
-		result[i] = internaltypes.CreateNode(node.GetId(),
-			nodeType,
-			node.GetIndex(),
-			node.GetExecutor(),
-			node.GetName(),
-			node.GetPool(),
-			node.GetReportingNodeType(),
-			node.GetTaints(),
-			node.GetLabels(),
-			false,
-			node.GetTotalResources(),
-			node.GetAllocatableResources(),
-			node.AllocatableByPriority,
-			node.AllocatedByQueue,
-			node.AllocatedByJobId,
-			node.EvictedJobRunIds,
-			nil)
+		result[i] = node.WithNodeType(nodeType)
 	}
 	return result
 }
@@ -423,47 +408,13 @@ func WithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltypes.
 func WithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.Node {
 	result := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
-		result[i] = internaltypes.CreateNode(nodeId,
-			node.GetNodeType(),
-			node.GetIndex(),
-			node.GetExecutor(),
-			node.GetName(),
-			node.GetPool(),
-			node.GetReportingNodeType(),
-			node.GetTaints(),
-			node.GetLabels(),
-			false,
-			node.GetTotalResources(),
-			node.GetAllocatableResources(),
-			node.AllocatableByPriority,
-			node.AllocatedByQueue,
-			node.AllocatedByJobId,
-			node.EvictedJobRunIds,
-			nil,
-		)
+		result[i] = node.WithId(nodeId)
 	}
 	return result
 }
 
 func WithIndexNode(idx uint64, node *internaltypes.Node) *internaltypes.Node {
-	return internaltypes.CreateNode(node.GetId(),
-		node.GetNodeType(),
-		idx,
-		node.GetExecutor(),
-		node.GetName(),
-		node.GetPool(),
-		node.GetReportingNodeType(),
-		node.GetTaints(),
-		node.GetLabels(),
-		false,
-		node.GetTotalResources(),
-		node.GetAllocatableResources(),
-		node.AllocatableByPriority,
-		node.AllocatedByQueue,
-		node.AllocatedByJobId,
-		node.EvictedJobRunIds,
-		nil,
-	)
+	return node.WithIndex(idx)
 }
 
 func WithPriorityJobs(priority uint32, jobs []*jobdb.Job) []*jobdb.Job {
@@ -749,6 +700,11 @@ func Test1Cpu4GiJob(queue string, priorityClassName string) *jobdb.Job {
 	return TestJob(queue, jobId, priorityClassName, Test1Cpu4GiPodReqs())
 }
 
+func Test1Cpu4GiJobWithGpuToleration(queue string, priorityClassName string) *jobdb.Job {
+	jobId := util.ULID()
+	return TestJob(queue, jobId, priorityClassName, Test1Cpu4GiPodReqsWithGpuToleration())
+}
+
 func Test1Cpu4GiJobQueuedWithPrice(queue string, priorityClassName string, price float64) *jobdb.Job {
 	jobId := util.ULID()
 	return TestJobQueuedWithPrice(queue, jobId, priorityClassName, price, Test1Cpu4GiPodReqs())
@@ -820,6 +776,19 @@ func Test1Cpu4GiPodReqs() *internaltypes.PodRequirements {
 		"cpu":    resource.MustParse("1"),
 		"memory": resource.MustParse("4Gi"),
 	})
+}
+
+// Test1Cpu4GiPodReqsWithGpuToleration requests no GPU but tolerates the gpu taint, so it
+// can be placed on a GPU node as a home job rather than as an away job.
+func Test1Cpu4GiPodReqsWithGpuToleration() *internaltypes.PodRequirements {
+	req := Test1Cpu4GiPodReqs()
+	req.Tolerations = []v1.Toleration{
+		{
+			Key:   "gpu",
+			Value: "true",
+		},
+	}
+	return req
 }
 
 func Test1Cpu16GiPodReqs() *internaltypes.PodRequirements {
@@ -964,7 +933,6 @@ func TestSchedulerObjectsNode(_ []int32, resources map[string]*resource.Quantity
 func TestSimpleNode(id string) *internaltypes.Node {
 	return internaltypes.CreateNode(
 		id,
-		nil,
 		0,
 		"",
 		"",
@@ -972,12 +940,11 @@ func TestSimpleNode(id string) *internaltypes.Node {
 		"",
 		nil,
 		nil,
+		nil,
+		nil,
 		false,
 		internaltypes.ResourceList{},
 		internaltypes.ResourceList{},
-		nil,
-		nil,
-		nil,
 		nil,
 		nil)
 }
@@ -997,8 +964,7 @@ func TestNode(priorities []int32, resources map[string]*resource.Quantity) *inte
 			schedulerconfiguration.NodeIdLabel: id,
 		},
 		rl,
-		rl,
-		internaltypes.NewAllocatableByPriorityAndResourceType(priorities, rl))
+		rl)
 }
 
 func Test16CpuNode(priorities []int32) *internaltypes.Node {

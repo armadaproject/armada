@@ -15,7 +15,6 @@ const (
 	ScheduledWithoutPreemption          SchedulingType = "no-preemption"
 	ScheduledWithFairSharePreemption    SchedulingType = "fairshare"
 	ScheduledWithUrgencyBasedPreemption SchedulingType = "urgency"
-	ScheduledAsAwayJob                  SchedulingType = "away"
 	ScheduledWithFairnessOptimiser      SchedulingType = "optimiser"
 )
 

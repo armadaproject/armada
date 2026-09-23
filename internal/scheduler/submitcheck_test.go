@@ -33,6 +33,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	smallJob2 := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1)
 	smallGpuJob := testfixtures.Test1GpuJob("queue", testfixtures.PriorityClass4PreemptibleAway)
 	smallAwayJob := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass4PreemptibleAway)
+	gpuTolerantCpuJob := testfixtures.Test1Cpu4GiJobWithGpuToleration("queue", testfixtures.PriorityClass4PreemptibleAway)
 	largeJob1 := testfixtures.Test32Cpu256GiJobWithLargeJobToleration("queue", testfixtures.PriorityClass1)
 
 	// This Gang job will fit
@@ -51,7 +52,11 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		{Name: "cpu2"},
 		{Name: "cpu-disallowed-resources", ExperimentalUnscheduledResources: []string{"cpu"}},
 		{Name: "gpu"},
-		{Name: "cpu-away", AwayPools: []configuration.AwayPoolConfig{{Name: "gpu"}}},
+		{
+			Name:                             "cpu-away",
+			AwayPools:                        []configuration.AwayPoolConfig{{Name: "gpu"}},
+			ExperimentalUnscheduledResources: []string{"nvidia.com/gpu"},
+		},
 		{Name: "cpu-grouped-1", ExperimentalSubmissionGroup: "group-1"},
 		{Name: "cpu-grouped-2", ExperimentalSubmissionGroup: "group-1"},
 	}
@@ -130,8 +135,22 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				// The job can theoretically schedule:
 				// - On the "gpu" pool as a home job
 				// - On the "cpu-away" pool, which has "gpu" as an away pool
-				// Jobs shouldn't get assigned to pools with away pools they are already home jobs on
+				// It is kept off "cpu-away" by that pool banning nvidia.com/gpu, not by
+				// anything in the pool sweep itself.
 				smallGpuJob.Id(): {isSchedulable: true, pools: []string{"gpu"}},
+			},
+		},
+		"One job schedulable, home job on an away pool, borrowing pool also viable": {
+			executorTimeout: defaultTimeout,
+			executors: []*schedulerobjects.Executor{
+				Executor(GpuNode("gpu")),
+			},
+			jobs: []*jobdb.Job{gpuTolerantCpuJob},
+			expectedResult: map[string]schedulingResult{
+				// This job requests no GPU but tolerates the gpu taint, so it is a home
+				// job on the "gpu" pool and is not excluded from "cpu-away" by that
+				// pool's nvidia.com/gpu ban. It is therefore eligible for both.
+				gpuTolerantCpuJob.Id(): {isSchedulable: true, pools: []string{"cpu-away", "gpu"}},
 			},
 		},
 		"One job schedulable, away pools": {
