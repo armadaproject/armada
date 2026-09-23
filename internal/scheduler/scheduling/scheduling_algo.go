@@ -514,7 +514,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	nodePools = append(nodePools, awayPoolNames...)
 	nodePools = append(nodePools, currentPool.Name)
 	inUsePriorityClasses := l.buildInUsePriorityClasses(jobSchedulingInfo.inUsePriorityClasses)
-	poolNodes := nodes
+	var poolNodes []*internaltypes.Node
 	if len(awayPoolNames) == 0 {
 		poolNodes = armadaslices.Filter(nodes, func(node *internaltypes.Node) bool {
 			return node.GetPool() == currentPool.Name
