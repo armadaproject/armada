@@ -256,7 +256,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 					// Only the leader does real scheduling rounds.
 					s.metrics.ReportScheduleCycleTime(cycleTime)
 					s.metrics.ReportScheduleCycleOutcome(err == nil)
-					ctx.Infof("scheduling cycle completed in %s", cycleTime)
+					ctx.Infof("hello world change: scheduling cycle completed in %s", cycleTime)
 				} else {
 					s.metrics.ReportReconcileCycleTime(cycleTime)
 					ctx.Infof("reconciliation cycle completed in %s", cycleTime)

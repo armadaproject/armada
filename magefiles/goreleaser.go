@@ -86,6 +86,7 @@ func goreleaserWriteMinimalReleaseConfig(dockerIds ...string) error {
 	}
 
 	minimalConfig := goreleaserConfig.Project{
+		Version:     config.Version,
 		ProjectName: config.ProjectName,
 		Dist:        config.Dist,
 		GoMod:       config.GoMod,
