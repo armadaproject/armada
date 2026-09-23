@@ -77,7 +77,7 @@ func (sch *IdealisedValueScheduler) Schedule(ctx *armadacontext.Context) (*Sched
 	}
 	inMemoryJobRepo := NewInMemoryJobRepository(pool, jobdb.MarketJobPriorityComparer{Pool: pool})
 	inMemoryJobRepo.EnqueueMany(runningJobCtxs)
-	jobIteratorsByQueue := make(map[string]JobContextIterator)
+	jobIteratorsByQueue := make(map[string]JobContextIterator, len(sctx.QueueSchedulingContexts))
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		runningIt := NewStaticRequirementsIgnoringIterator(inMemoryJobRepo.GetJobIterator(qctx.Queue))
 		queueIt := NewStaticRequirementsIgnoringIterator(NewQueuedJobsIterator(qctx.Queue, sctx.Pool, jobdb.PriceOrder, sch.jobRepo))

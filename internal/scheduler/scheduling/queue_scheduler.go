@@ -65,7 +65,7 @@ func NewQueueScheduler(
 	if err != nil {
 		return nil, err
 	}
-	gangIteratorsByQueue := make(map[string]*QueuedGangIterator)
+	gangIteratorsByQueue := make(map[string]*QueuedGangIterator, len(jobIteratorByQueue))
 	for queue, it := range jobIteratorByQueue {
 		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, maxQueueLookBack, true)
 	}
@@ -98,7 +98,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 	ctx.Infof("Looping through candidate gangs for pool %s...", sctx.Pool)
 
 	scheduledResource := sch.schedulingContext.TotalResources.Factory().MakeAllZero()
-	statsPerQueue := map[string]QueueStats{}
+	statsPerQueue := make(map[string]QueueStats, len(sctx.QueueSchedulingContexts))
 	loopNumber := 0
 	preemptionRateLimitHit := false
 	evictedJobsRescheduled := false
@@ -235,7 +235,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 		}
 
 		if stats.FirstGangConsideredSampleJobId == "" {
-			stats.FirstGangConsideredSampleJobId = gctx.JobIds()[0]
+			stats.FirstGangConsideredSampleJobId = gctx.FirstJobId()
 			stats.FirstGangConsideredQueuePosition = loopNumber
 			if scheduledOk {
 				stats.FirstGangConsideredResult = "scheduled"
@@ -245,7 +245,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 		}
 
 		if scheduledOk {
-			stats.LastGangScheduledSampleJobId = gctx.JobIds()[0]
+			stats.LastGangScheduledSampleJobId = gctx.FirstJobId()
 			stats.LastGangScheduledQueueCost = queueCostInclGang
 			stats.LastGangScheduledQueuePosition = loopNumber
 			allocation, ok := sch.candidateGangIterator.GetAllocationForQueue(gctx.Queue)
@@ -261,7 +261,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 		stats.Time += duration
 		statsPerQueue[gctx.Queue] = stats
 		if duration.Seconds() > 1 {
-			ctx.Infof("Slow schedule: queue %s, gang cardinality %d, sample job id %s, time %fs", gctx.Queue, gctx.Cardinality(), gctx.JobIds()[0], duration.Seconds())
+			ctx.Infof("Slow schedule: queue %s, gang cardinality %d, sample job id %s, time %fs", gctx.Queue, gctx.Cardinality(), gctx.FirstJobId(), duration.Seconds())
 		}
 
 		loopNumber++
@@ -331,7 +331,7 @@ func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobConte
 		queuedJobsIterator:         it,
 		maxLookback:                maxLookback,
 		skipKnownUnschedulableJobs: skipKnownUnschedulableJobs,
-		jctxsByGangId:              make(map[string][]*schedulercontext.JobSchedulingContext),
+		jctxsByGangId:              make(map[string][]*schedulercontext.JobSchedulingContext, 16),
 	}
 }
 
@@ -414,6 +414,11 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 		if jctx.Job.IsInGang() {
 			gangId := jctx.Job.GetGangInfo().Id()
 			gang := it.jctxsByGangId[gangId]
+			if gang == nil {
+				if cardinality := jctx.CurrentGangCardinality; cardinality > 1 {
+					gang = make([]*schedulercontext.JobSchedulingContext, 0, cardinality)
+				}
+			}
 			gang = append(gang, jctx)
 			it.jctxsByGangId[gangId] = gang
 			if len(gang) == jctx.CurrentGangCardinality {

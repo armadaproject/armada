@@ -89,14 +89,14 @@ func NewSchedulingContext(
 		FairnessCostProvider:         fairnessCostProvider,
 		Limiter:                      limiter,
 		FairsharePreemptionLimiter:   fairsharePreemptionLimiter,
-		QueueSchedulingContexts:      make(map[string]*QueueSchedulingContext),
+		QueueSchedulingContexts:      make(map[string]*QueueSchedulingContext, 16),
 		TotalResources:               totalResources,
 		ScheduledResources:           internaltypes.ResourceList{},
 		EvictedResources:             internaltypes.ResourceList{},
 		SchedulingKeyGenerator:       internaltypes.NewSchedulingKeyGenerator(),
-		UnfeasibleSchedulingKeys:     make(map[internaltypes.SchedulingKey]*JobSchedulingContext),
-		PreemptedJobIds:              make(map[string]bool),
-		ExperimentalIndicativeShares: make(map[int]float64),
+		UnfeasibleSchedulingKeys:     make(map[internaltypes.SchedulingKey]*JobSchedulingContext, 16),
+		PreemptedJobIds:              make(map[string]bool, 16),
+		ExperimentalIndicativeShares: make(map[int]float64, 4),
 	}
 }
 
@@ -152,14 +152,14 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		Demand:                            demand,
 		ConstrainedDemand:                 constrainedDemand,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
-		ScheduledResourcesByPriorityClass: make(map[string]internaltypes.ResourceList),
-		EvictedResourcesByPriorityClass:   make(map[string]internaltypes.ResourceList),
-		PreemptedByOptimiserResourceByPriorityClass: make(map[string]internaltypes.ResourceList),
-		SuccessfulJobSchedulingContexts:             make(map[string]*JobSchedulingContext),
-		UnsuccessfulJobSchedulingContexts:           make(map[string]*JobSchedulingContext),
-		RescheduledJobSchedulingContexts:            make(map[string]*JobSchedulingContext),
-		PreemptedByOptimiserJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
-		EvictedJobsById:                             make(map[string]bool),
+		ScheduledResourcesByPriorityClass: make(map[string]internaltypes.ResourceList, len(initialAllocatedByPriorityClass)),
+		EvictedResourcesByPriorityClass:   make(map[string]internaltypes.ResourceList, len(initialAllocatedByPriorityClass)),
+		PreemptedByOptimiserResourceByPriorityClass: make(map[string]internaltypes.ResourceList, len(initialAllocatedByPriorityClass)),
+		SuccessfulJobSchedulingContexts:             make(map[string]*JobSchedulingContext, 16),
+		UnsuccessfulJobSchedulingContexts:           make(map[string]*JobSchedulingContext, 16),
+		RescheduledJobSchedulingContexts:            make(map[string]*JobSchedulingContext, 4),
+		PreemptedByOptimiserJobSchedulingContexts:   make(map[string]*JobSchedulingContext, 4),
+		EvictedJobsById:                             make(map[string]bool, 16),
 	}
 	sctx.QueueSchedulingContexts[queue] = qctx
 	return nil
@@ -604,7 +604,11 @@ func (sctx *SchedulingContext) ClearJobSpecs() {
 }
 
 func (sctx *SchedulingContext) SuccessfulJobSchedulingContexts() []*JobSchedulingContext {
-	jctxs := make([]*JobSchedulingContext, 0)
+	totalCount := 0
+	for _, qctx := range sctx.QueueSchedulingContexts {
+		totalCount += len(qctx.SuccessfulJobSchedulingContexts)
+	}
+	jctxs := make([]*JobSchedulingContext, 0, totalCount)
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		for _, jctx := range qctx.SuccessfulJobSchedulingContexts {
 			jctxs = append(jctxs, jctx)

@@ -288,7 +288,7 @@ func (node *Node) MatchNodeSelectorTerms(nodeSelector *v1.NodeSelector) (bool, e
 }
 
 func (node *Node) GetTolerationsForTaints() []v1.Toleration {
-	var tolerations []v1.Toleration
+	tolerations := make([]v1.Toleration, 0, len(node.taints))
 	for _, taint := range node.taints {
 		tolerations = append(tolerations, v1.Toleration{Key: taint.Key, Value: taint.Value, Effect: taint.Effect})
 	}
@@ -568,13 +568,13 @@ func markAllocated(allocatableByPriority map[int32]ResourceList, priorityCutoff 
 }
 
 func markAllocatable(allocatableByPriority map[int32]ResourceList, priorityCutoff int32, rs ResourceList) {
-	priorities := make([]int32, 0, len(allocatableByPriority))
+	// NB: assigning to existing keys while ranging over a map is safe in Go.
+	// The previous version collected matching priorities into a temporary
+	// slice first (one allocation per bind/evict/unbind); values are
+	// replaced, never added, so the temporary is unnecessary.
 	for priority := range allocatableByPriority {
 		if priority <= priorityCutoff {
-			priorities = append(priorities, priority)
+			allocatableByPriority[priority] = allocatableByPriority[priority].Add(rs)
 		}
-	}
-	for _, priority := range priorities {
-		allocatableByPriority[priority] = allocatableByPriority[priority].Add(rs)
 	}
 }

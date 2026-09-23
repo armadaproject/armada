@@ -931,8 +931,13 @@ func (txn *Txn) GetAll() []*Job {
 
 // GetQueuedJobsByPool returns all queued jobs against a given pool
 func (txn *Txn) GetQueuedJobsByPool(pool string) []*Job {
-	allJobs := make([]*Job, 0)
-	for _, jobs := range txn.jobsByPoolAndQueue[pool] {
+	poolQueues := txn.jobsByPoolAndQueue[pool]
+	totalJobs := 0
+	for _, jobs := range poolQueues {
+		totalJobs += jobs.Len()
+	}
+	allJobs := make([]*Job, 0, totalJobs)
+	for _, jobs := range poolQueues {
 		allJobs = append(allJobs, jobs.Items()...)
 	}
 	return allJobs

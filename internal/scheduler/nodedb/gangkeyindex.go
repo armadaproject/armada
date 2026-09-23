@@ -22,7 +22,13 @@ func createGangKeyIndex() *gangKeyIndex {
 // terminator separates the two fields so that distinct pairs cannot collide
 // (e.g. ("a", "bc") vs ("ab", "c")).
 func gangKeyBytes(queue, gangId string) []byte {
-	return []byte(queue + "\x00" + gangId + "\x00")
+	// Single allocation: the previous []byte(queue + "\x00" + gangId + "\x00") did two.
+	key := make([]byte, 0, len(queue)+len(gangId)+2)
+	key = append(key, queue...)
+	key = append(key, 0)
+	key = append(key, gangId...)
+	key = append(key, 0)
+	return key
 }
 
 func (gki *gangKeyIndex) FromObject(obj interface{}) (bool, []byte, error) {

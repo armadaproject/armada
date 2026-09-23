@@ -88,8 +88,8 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		sch.schedulingContext.Finished = time.Now()
 	}()
 
-	preemptedJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
-	scheduledJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
+	preemptedJobsById := make(map[string]*schedulercontext.JobSchedulingContext, 16)
+	scheduledJobsById := make(map[string]*schedulercontext.JobSchedulingContext, 16)
 
 	// Evict preemptible jobs.
 	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Evicting preemptible jobs")
@@ -377,9 +377,9 @@ func (sch *PreemptingQueueScheduler) evictGangs(ctx *armadacontext.Context, txn 
 
 // Collect job ids for any gangs that were partially evicted and the ids of nodes those jobs are on.
 func (sch *PreemptingQueueScheduler) collectIdsForGangEviction(evictorResult *EvictorResult) (map[string]bool, map[string]bool, error) {
-	allGangJobIds := make(map[string]bool)
-	gangNodeIds := make(map[string]bool)
-	seenGangs := make(map[string]bool)
+	allGangJobIds := make(map[string]bool, len(evictorResult.EvictedJctxsByJobId))
+	gangNodeIds := make(map[string]bool, len(evictorResult.EvictedJctxsByJobId))
+	seenGangs := make(map[string]bool, len(evictorResult.EvictedJctxsByJobId))
 	for _, jctx := range evictorResult.EvictedJctxsByJobId {
 		if !jctx.Job.IsInGang() {
 			// Not a gang job.
@@ -460,7 +460,7 @@ func (sch *PreemptingQueueScheduler) getActiveGangJobs(queue string, gangId stri
 // For these gangs, we need to set the gang cardinality to the number of jobs in the gang yet to terminate.
 // Otherwise, the evicted gang jobs will not be schedulable, since some gang jobs will be considered missing.
 func (sch *PreemptingQueueScheduler) setEvictedGangCardinality(evictorResult *EvictorResult) error {
-	seenGangs := map[string]int{}
+	seenGangs := make(map[string]int, len(evictorResult.EvictedJctxsByJobId))
 	for _, jctx := range evictorResult.EvictedJctxsByJobId {
 		if !jctx.Job.IsInGang() {
 			// Not a gang job.
@@ -492,12 +492,9 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictorResult *EvictorRe
 			)
 		}
 	}
-	evictedJctxsByGangId := make(map[string][]*schedulercontext.JobSchedulingContext)
+	evictedJctxsByGangId := make(map[string][]*schedulercontext.JobSchedulingContext, len(evictorResult.EvictedJctxsByJobId))
 	for jobId, jctx := range evictorResult.EvictedJctxsByJobId {
 		if jctx.Job.IsInGang() {
-			if _, present := evictedJctxsByGangId[jctx.Job.GetGangInfo().Id()]; !present {
-				evictedJctxsByGangId[jctx.Job.GetGangInfo().Id()] = []*schedulercontext.JobSchedulingContext{}
-			}
 			evictedJctxsByGangId[jctx.Job.GetGangInfo().Id()] = append(evictedJctxsByGangId[jctx.Job.GetGangInfo().Id()], jctx)
 		}
 		if !jctx.IsEvicted {
@@ -511,7 +508,7 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictorResult *EvictorRe
 			return errors.Errorf("evicted job %s is missing target node id selector: job nodeSelector %v", jobId, jctx.AdditionalNodeSelectors)
 		}
 	}
-	seenGangs := map[string]int{}
+	seenGangs := make(map[string]int, len(evictedJctxsByGangId))
 	for gangId, evictedJctxs := range evictedJctxsByGangId {
 		if len(evictedJctxs) < 1 {
 			continue
@@ -720,7 +717,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 	if sch.marketDriven {
 		sortOrder = jobdb.PriceOrder
 	}
-	jobIteratorByQueue := make(map[string]JobContextIterator)
+	jobIteratorByQueue := make(map[string]JobContextIterator, len(sch.schedulingContext.QueueSchedulingContexts))
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt := inMemoryJobRepo.GetJobIterator(qctx.Queue)
 		if jobRepo == nil || reflect.ValueOf(jobRepo).IsNil() {

@@ -20,6 +20,13 @@ import (
 // The key layout is such that an index ordered first by the nodeTypeId, then resources[0], and so on.
 // The byte representation is appended to out, which is returned.
 func NodeIndexKey(out []byte, nodeTypeId uint64, resources []int64) []byte {
+	// Pre-size once so the Encode appends below never reallocate.
+	// Key layout: nodeTypeId (8B) + len(resources)*8B + nodeIndex (8B).
+	if need := 8 * (len(resources) + 2); cap(out)-len(out) < need {
+		grown := make([]byte, len(out), len(out)+need)
+		copy(grown, out)
+		out = grown
+	}
 	out = EncodeUint64(out, nodeTypeId)
 	for _, q := range resources {
 		out = EncodeInt64(out, q)
@@ -42,6 +49,12 @@ func RoundedNodeIndexKeyFromResourceList(
 	rl internaltypes.ResourceList,
 	nodeIndex uint64,
 ) []byte {
+	// Pre-size once so the Encode appends below never reallocate.
+	if need := 8 * (len(resourceNames) + 2); cap(out)-len(out) < need {
+		grown := make([]byte, len(out), len(out)+need)
+		copy(grown, out)
+		out = grown
+	}
 	out = EncodeUint64(out, nodeTypeId)
 	for i, name := range resourceNames {
 		resolution := resourceResolution[i]
@@ -62,7 +75,7 @@ func roundQuantityToResolution(q int64, resolution int64) int64 {
 // The byte representation is appended to out, which is returned.
 func EncodeInt64(out []byte, val int64) []byte {
 	size := 8
-	out = append(out, make([]byte, size)...)
+	out = append(out, 0, 0, 0, 0, 0, 0, 0, 0)
 
 	// This bit flips the usign bit on any sized signed twos-complement integer,
 	// which when truncated to a uint of the same size will bias the value such
@@ -83,7 +96,7 @@ func EncodeInt64(out []byte, val int64) []byte {
 // The byte representation is appended to out, which is returned.
 func EncodeUint64(out []byte, val uint64) []byte {
 	size := 8
-	out = append(out, make([]byte, size)...)
+	out = append(out, 0, 0, 0, 0, 0, 0, 0, 0)
 	binary.BigEndian.PutUint64(out[len(out)-size:], val)
 	return out
 }

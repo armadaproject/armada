@@ -56,6 +56,15 @@ func (gctx *GangSchedulingContext) JobIds() []string {
 	return rv
 }
 
+// FirstJobId returns the id of the first job in the gang without allocating a slice.
+// Use this instead of JobIds()[0] when only the first job id is needed.
+func (gctx *GangSchedulingContext) FirstJobId() string {
+	if len(gctx.JobSchedulingContexts) == 0 {
+		return ""
+	}
+	return gctx.JobSchedulingContexts[0].JobId
+}
+
 // Id returns the id of the gang
 func (gctx *GangSchedulingContext) Id() string {
 	return gctx.GangId
