@@ -1,0 +1,26 @@
+name: "Build bundle images"
+description: "Builds (or restores from cache) the armada-bundle and armada-lookout-bundle images used by dev:full, so CI doesn't rebuild them from scratch in every workflow that needs the full stack"
+runs:
+  using: "composite"
+  steps:
+    - id: cache-dir
+      shell: bash
+      run: echo path=.ci-bundle-images >> $GITHUB_OUTPUT
+
+    - id: cache
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      with:
+        path: ${{ steps.cache-dir.outputs.path }}
+        key: bundle-images-${{ hashFiles('go.sum', 'internal/**/*.go', 'pkg/**/*.go', 'cmd/**/*.go', 'magefiles/**/*.go', '.goreleaser*.yml', 'build/bundles/**', 'config/**') }}
+
+    - name: Build bundle images
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        go run github.com/magefile/mage@v1.17.2 -v dev:FullBuild
+        go run github.com/magefile/mage@v1.17.2 -v dev:FullImagesSave ${{ steps.cache-dir.outputs.path }}
+
+    - name: Load cached bundle images
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: go run github.com/magefile/mage@v1.17.2 -v dev:FullImagesLoad ${{ steps.cache-dir.outputs.path }}

@@ -108,6 +108,9 @@ jobs:
           cache-prefix: go-integration-tests
           cache-tools: true
 
+      - name: Build bundle images
+        uses: ./.github/actions/build-bundle-images
+
       - name: Setup Integration Tests
         run: go run github.com/magefile/mage@v1.17.2 -v dev:full
 

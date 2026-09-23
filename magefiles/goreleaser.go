@@ -92,6 +92,12 @@ func goreleaserWriteMinimalReleaseConfig(dockerIds ...string) error {
 		Env:         config.Env,
 		Builds:      builds,
 		Dockers:     maps.Values(dockersById),
+		// Without an explicit archives config, goreleaser defaults to tarring up every
+		// binary, which for a docker-only build is unused output that dominates the run
+		// time (observed ~10 minutes vs ~30s for the actual docker builds).
+		Archives: []goreleaserConfig.Archive{
+			{Formats: goreleaserConfig.StringArray{"none"}},
+		},
 	}
 	bytes, err := yaml.Marshal(minimalConfig)
 	if err != nil {

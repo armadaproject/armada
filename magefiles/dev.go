@@ -157,12 +157,61 @@ func (Dev) Down() error {
 // Unlike dev:up (host-process goreman flow), every component runs as a container, with a
 // real executor against a Kind cluster. This is what CI uses for integration tests.
 //
-// It builds the bundle images, sets up Kind (which writes the executor's kubeconfig to
-// .kube/internal/config), then brings the stack up. Migrations run as compose services
-// ordered ahead of the components, so no separate init step is needed.
+// It builds the bundle images (see FullBuild), sets up Kind (which writes the executor's
+// kubeconfig to .kube/internal/config), then brings the stack up. Migrations run as compose
+// services ordered ahead of the components, so no separate init step is needed.
 func (Dev) Full() error {
-	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"), Kind)
+	mg.Deps(mg.F((Dev).FullBuild), Kind)
 	return sh.RunV("docker", "compose", "-f", fullComposeFile, "up", "-d", "--wait")
+}
+
+// FullBuild builds just the bundle images that dev:full's compose stack runs
+// (gresearch/armada-bundle and gresearch/armada-lookout-bundle), without setting up Kind or
+// bringing up the stack. Split out from Full so CI can cache the build across workflows: see
+// FullImagesSave/FullImagesLoad.
+func (Dev) FullBuild() error {
+	return goreleaserMinimalRelease("bundle", "lookout-bundle")
+}
+
+// fullBundleImages are the images FullBuild produces, in the registry/tag form docker
+// save/load/rmi expect. Matches scripts/common.sh's image_names entries for these two bundles.
+var fullBundleImages = []string{
+	"gresearch/armada-bundle:latest",
+	"gresearch/armada-lookout-bundle:latest",
+}
+
+// FullImagesSave saves the images built by FullBuild as tarballs under dir, one per image, so
+// they can be restored elsewhere (e.g. from a GitHub Actions cache) without rebuilding.
+func (Dev) FullImagesSave(dir string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	for _, image := range fullBundleImages {
+		name, _, _ := strings.Cut(image, ":")
+		name = strings.ReplaceAll(name, "/", "_")
+		if err := sh.RunV("docker", "save", "-o", filepath.Join(dir, name+".tar"), image); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// FullImagesLoad loads every tarball under dir (as produced by FullImagesSave) into the local
+// Docker daemon, restoring the images FullBuild would otherwise have built.
+func (Dev) FullImagesLoad(dir string) error {
+	matches, err := filepath.Glob(filepath.Join(dir, "*.tar"))
+	if err != nil {
+		return err
+	}
+	if len(matches) == 0 {
+		return fmt.Errorf("no *.tar files found in %s", dir)
+	}
+	for _, tarball := range matches {
+		if err := sh.RunV("docker", "load", "-i", tarball); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // FullDown stops the containerized full stack and tears down the Kind cluster.

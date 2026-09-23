@@ -130,6 +130,9 @@ jobs:
           cache-prefix: python-client-integration-tests
           cache-tools: true
 
+      - name: Build bundle images
+        uses: ./.github/actions/build-bundle-images
+
       - name: Setup and run integration tests
         run: |
           # Manually create folders to ensure perms are correct.
