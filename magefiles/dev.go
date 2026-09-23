@@ -40,9 +40,12 @@ const (
 //   - "hot-cold"            - runs the hot-cold scheduler setup
 //   - "regatta"             - like "no-auth", but the executor tolerates the kwok.x-k8s.io/node
 //     taint so jobs can schedule onto KWOK-simulated fake nodes; starts the 2-cluster quickstart's
-//     two executors (see cmd/regatta)
+//     two executors (see cmd/regatta). When the "prometheus" compose profile is also active,
+//     points it at cmd/regatta/config/armada/prometheus/two-cluster.yaml so both executors are
+//     scraped instead of just one.
 //   - "regatta-ten-cluster" - like "regatta", but starts the 10-cluster example's ten executors
-//     instead (see cmd/regatta)
+//     instead (see cmd/regatta), and (with the "prometheus" compose profile) scrapes all ten via
+//     cmd/regatta/config/armada/prometheus/ten-cluster.yaml
 //   - anything else         - forwarded as a docker-compose --profile flag for extra services
 //
 // The optional -dap flag selects the "-dap" procfile variant, which starts each component
@@ -105,6 +108,10 @@ func (Dev) Up(profiles string, dap *bool) error {
 
 	if profile == "auth" || profile == "auth-fake-executor" {
 		composeProfiles = append([]string{"auth"}, composeProfiles...)
+	}
+
+	if err := setPrometheusConfig(profile); err != nil {
+		return err
 	}
 
 	mg.Deps(installGoreman)
@@ -189,6 +196,34 @@ func (Dev) FullDown() error {
 		return err
 	}
 	return kindTeardown()
+}
+
+// setPrometheusConfig points the prometheus compose service (profile: prometheus, see
+// _local/compose/stack.yaml) at a per-topology scrape config for the regatta profiles, since
+// _local/prometheus.yml only scrapes a single executor target and regatta's 2/10-cluster
+// topologies each run their own executor per cluster on its own metrics port (see
+// cmd/regatta/config/armada/prometheus/two-cluster.yaml and ten-cluster.yaml). Every other
+// profile leaves PROMETHEUS_CONFIG unset, so stack.yaml's
+// "${PROMETHEUS_CONFIG:-../prometheus.yml}" volume mount falls back to the existing default.
+//
+// The path is resolved to absolute before being set: compose resolves relative bind-mount
+// sources against the compose file's own directory (_local/compose/), not the caller's cwd, so a
+// repo-root-relative path here would resolve to the wrong location.
+func setPrometheusConfig(profile string) error {
+	var relPath string
+	switch profile {
+	case "regatta":
+		relPath = "cmd/regatta/config/armada/prometheus/two-cluster.yaml"
+	case "regatta-ten-cluster":
+		relPath = "cmd/regatta/config/armada/prometheus/ten-cluster.yaml"
+	default:
+		return nil
+	}
+	absPath, err := filepath.Abs(relPath)
+	if err != nil {
+		return fmt.Errorf("resolving prometheus config path %q: %w", relPath, err)
+	}
+	return os.Setenv("PROMETHEUS_CONFIG", absPath)
 }
 
 // devDepsUp brings the dependency stack up and waits for healthchecks. redis/postgres/pulsar

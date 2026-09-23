@@ -105,16 +105,27 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 	}
 
 	internalAPIServerAddress := target.Cluster.InternalAPIServerAddress
-	if internalAPIServerAddress == "" && target.Cluster.Name != "" {
-		// Default to kind's own internal-DNS convention for a control-plane-only cluster on its
-		// own docker network, matching what `kind get kubeconfig --internal` used to produce.
-		// A hand-supplied non-kind cluster has no Cluster.Name-derived default and must set
-		// InternalAPIServerAddress explicitly.
-		internalAPIServerAddress = fmt.Sprintf("https://%s-control-plane:6443", target.Cluster.Name)
+	if internalAPIServerAddress == "" {
+		var err error
+		if target.Cluster.Kind {
+			// Default to kind's own internal-DNS convention for a control-plane-only cluster on
+			// its own docker network, matching what `kind get kubeconfig --internal` used to
+			// produce.
+			internalAPIServerAddress = fmt.Sprintf("https://%s-control-plane:6443", target.Cluster.Name)
+		} else {
+			// A real cluster reached over a normal network (e.g. EKS) has no kind-style internal
+			// address to derive - the kwok-controller container isn't confined to a private
+			// docker network for these, so it can just reuse Kubeconfig's own server address.
+			internalAPIServerAddress, err = kwok.KubeconfigServerAddress(target.Cluster.Kubeconfig)
+			if err != nil {
+				return nil, fmt.Errorf("resolving default internal API server address: %w", err)
+			}
+		}
 	}
 
 	cfg := kwok.Config{
 		Name:                     target.Name,
+		Kind:                     target.Cluster.Kind,
 		KubeconfigPath:           target.Cluster.Kubeconfig,
 		InternalAPIServerAddress: internalAPIServerAddress,
 		StageCRDPath:             stageCRDPath,

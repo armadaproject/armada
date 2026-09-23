@@ -1,5 +1,7 @@
-# Ramp-up: spread submission out over time instead of one burst. 100 jobs over 30s in ~5s steps
-# means ~17 jobs submitted every 5 seconds, rather than all 100 at once.
+# Two simultaneous cluster targets, each on its own kind cluster, with different node-group
+# shapes. Bring up both clusters with `mage kindRegatta cmd/regatta/config/armada/kind/two-cluster`
+# (mirrors `mage kind`, but skips the ingress-nginx/priorityclass/namespace install since
+# Armada's own components run via goreman on the host, not inside either kind cluster).
 armadactl: ~/.armadactl.yaml
 
 metrics:
@@ -31,18 +33,16 @@ executionTargets:
 nodeGroups:
   gb200:
     - nodeProfile: node-profiles/gb200-slice.yaml
-      count: 20
+      count: 200
   cpu:
     - nodeProfile: node-profiles/cpu-only.yaml
-      count: 10
+      count: 100
 
 load:
   queue: regatta
-  jobSetId: ramp-up
-  mode: ramp-up
-  rampUp:
-    rampDuration: 30s
-    stepInterval: 5s
+  jobSetId: two-cluster
   jobs:
     - jobSpec: job-specs/kwok-sleep.yaml
       count: 100
+    - jobSpec: job-specs/gpu-job.yaml
+      count: 1000

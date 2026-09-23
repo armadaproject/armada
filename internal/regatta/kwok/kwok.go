@@ -21,6 +21,7 @@ const readyTimeout = 60 * time.Second
 // which shape(s) to create.
 type Config struct {
 	Name                     string
+	Kind                     bool
 	KubeconfigPath           string
 	InternalAPIServerAddress string
 	StageCRDPath             string
@@ -45,7 +46,7 @@ func Setup(ctx context.Context, kubeClient kubernetes.Interface, cfg Config) err
 	if err := ApplyStages(ctx, kubeconfig, cfg.StagesPath); err != nil {
 		return fmt.Errorf("applying Stages: %w", err)
 	}
-	if err := RunController(ctx, kubeconfig, cfg.InternalAPIServerAddress, cfg.Name); err != nil {
+	if err := RunController(ctx, kubeconfig, cfg.InternalAPIServerAddress, cfg.Name, cfg.Kind); err != nil {
 		return fmt.Errorf("starting kwok-controller: %w", err)
 	}
 	for _, member := range cfg.NodeGroup {

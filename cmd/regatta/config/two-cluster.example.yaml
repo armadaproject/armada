@@ -4,6 +4,11 @@
 # Armada's own components run via goreman on the host, not inside either kind cluster).
 armadactl: ~/.armadactl.yaml
 
+metrics:
+  prometheus: http://localhost:9090
+  delay: 90s
+  resultsPath: ./results/
+
 executionTargets:
   - name: gpu-cluster
     type: cluster
@@ -11,6 +16,7 @@ executionTargets:
     cluster:
       kubeconfig: ../../../.kube/external/regatta/regatta-1
       name: armada-regatta-1
+      kind: true
       probeRetries: 5
       probeDelay: 5s
 
@@ -20,20 +26,21 @@ executionTargets:
     cluster:
       kubeconfig: ../../../.kube/external/regatta/regatta-2
       name: armada-regatta-2
+      kind: true
       probeRetries: 5
       probeDelay: 5s
 
 nodeGroups:
   gb200:
     - nodeProfile: node-profiles/gb200-slice.yaml
-      count: 20
+      count: 200
   cpu:
     - nodeProfile: node-profiles/cpu-only.yaml
-      count: 10
+      count: 100
 
 load:
   queue: regatta
   jobSetId: two-cluster
   jobs:
     - jobSpec: job-specs/kwok-sleep.yaml
-      count: 200
+      count: 1000

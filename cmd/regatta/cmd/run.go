@@ -2,20 +2,25 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
 	regattaconfig "github.com/armadaproject/armada/internal/regatta/config"
+	"github.com/armadaproject/armada/internal/regatta/metrics"
 	"github.com/armadaproject/armada/internal/regatta/orchestrate"
 	"github.com/armadaproject/armada/internal/regatta/submit"
 	"github.com/armadaproject/armada/pkg/client"
 )
 
 func init() {
+	runCmd.Flags().String("metrics-results-path", "", "directory to write the post-run Prometheus metrics report into (overrides the scenario file's metrics.resultsPath)")
 	rootCmd.AddCommand(runCmd)
 }
 
@@ -66,10 +71,41 @@ alongside one. See cmd/regatta/config/two-cluster.example.yaml and fakeexecutor.
 		}
 
 		spec := submit.FromLoadConfig(scenario.Load)
+		start := time.Now()
+		runTimestamp := start.Format("20060102-150405")
 		if err := submit.Run(ctx, apiConnectionDetails, spec); err != nil {
 			log.Errorf("run failed: %s", err)
 			os.Exit(1)
 		}
+
+		resultsPath, err := cmd.Flags().GetString("metrics-results-path")
+		if err != nil {
+			log.Errorf("reading --metrics-results-path flag: %s", err)
+			os.Exit(1)
+		}
+		if resultsPath == "" {
+			resultsPath = scenario.MetricsResultsDir()
+		}
+		log.Infof("waiting for queue %q to drain before collecting metrics...", spec.Queue)
+		end := metrics.WaitForQueueDrain(ctx, scenario.PrometheusURL(), spec.Queue)
+
+		log.Infof("waiting %s for Prometheus to catch up before collecting metrics...", scenario.Metrics.PostRunDelayDuration)
+		time.Sleep(scenario.Metrics.PostRunDelayDuration)
+
+		report, err := metrics.Collect(ctx, scenario.PrometheusURL(), spec.Queue, start, end)
+		if err != nil {
+			log.Errorf("collecting metrics report: %s", err)
+		} else {
+			report.Scenario = scenario
+			outputFilename := fmt.Sprintf("regatta-result-%s.json", runTimestamp)
+			outputPath := filepath.Join(resultsPath, outputFilename)
+			if err := report.WriteJSON(outputPath); err != nil {
+				log.Errorf("writing metrics report: %s", err)
+			} else {
+				log.Infof("metrics report written to %s", outputPath)
+			}
+		}
+
 		log.Info("run complete - nothing was torn down: tear down cluster targets with " +
 			"`regatta teardown`, and stop any fake-executor process(es) manually")
 	},

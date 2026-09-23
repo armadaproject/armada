@@ -5,12 +5,18 @@
 # cmd/regatta/config/armada/procfiles/ten-cluster.Procfile.
 armadactl: ~/.armadactl.yaml
 
+metrics:
+  prometheus: http://localhost:9090
+  delay: 90s
+  resultsPath: ./results/
+
 executionTargets:
   - name: cluster-1
     type: cluster
     cluster:
       kubeconfig: ../../../.kube/external/regatta/regatta-1
       name: armada-regatta-1
+      kind: true
       probeRetries: 5
       probeDelay: 5s
 
@@ -19,6 +25,7 @@ executionTargets:
     cluster:
       kubeconfig: ../../../.kube/external/regatta/regatta-2
       name: armada-regatta-2
+      kind: true
       probeRetries: 5
       probeDelay: 5s
 
@@ -27,6 +34,7 @@ executionTargets:
     cluster:
       kubeconfig: ../../../.kube/external/regatta/regatta-3
       name: armada-regatta-3
+      kind: true
       probeRetries: 5
       probeDelay: 5s
 
@@ -35,6 +43,7 @@ executionTargets:
     cluster:
       kubeconfig: ../../../.kube/external/regatta/regatta-4
       name: armada-regatta-4
+      kind: true
       probeRetries: 5
       probeDelay: 5s
 
@@ -43,6 +52,7 @@ executionTargets:
     cluster:
       kubeconfig: ../../../.kube/external/regatta/regatta-5
       name: armada-regatta-5
+      kind: true
       probeRetries: 5
       probeDelay: 5s
 
@@ -51,6 +61,7 @@ executionTargets:
     cluster:
       kubeconfig: ../../../.kube/external/regatta/regatta-6
       name: armada-regatta-6
+      kind: true
       probeRetries: 5
       probeDelay: 5s
 
@@ -59,6 +70,7 @@ executionTargets:
     cluster:
       kubeconfig: ../../../.kube/external/regatta/regatta-7
       name: armada-regatta-7
+      kind: true
       probeRetries: 5
       probeDelay: 5s
 
@@ -67,6 +79,7 @@ executionTargets:
     cluster:
       kubeconfig: ../../../.kube/external/regatta/regatta-8
       name: armada-regatta-8
+      kind: true
       probeRetries: 5
       probeDelay: 5s
 
@@ -75,6 +88,7 @@ executionTargets:
     cluster:
       kubeconfig: ../../../.kube/external/regatta/regatta-9
       name: armada-regatta-9
+      kind: true
       probeRetries: 5
       probeDelay: 5s
 
@@ -83,6 +97,7 @@ executionTargets:
     cluster:
       kubeconfig: ../../../.kube/external/regatta/regatta-10
       name: armada-regatta-10
+      kind: true
       probeRetries: 5
       probeDelay: 5s
 

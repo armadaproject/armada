@@ -2,13 +2,16 @@ package kwok
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 const ControllerImage = "registry.k8s.io/kwok/kwok:v0.7.0"
@@ -56,17 +59,18 @@ func kubectlApply(ctx context.Context, kubeconfig, path string) error {
 	return nil
 }
 
-// RunController starts the standalone kwok-controller container on the cluster's own docker
-// network, restricted to nodes carrying the kwok.x-k8s.io/node=fake annotation so real nodes are
-// never touched. Idempotent: no-op if already running.
-// https://kwok.sigs.k8s.io/docs/user/kwok-out-cluster/
+// RunController starts the standalone kwok-controller container, restricted to nodes carrying
+// the kwok.x-k8s.io/node=fake annotation so real nodes are never touched. Idempotent: no-op if
+// already running. https://kwok.sigs.k8s.io/docs/user/kwok-out-cluster/
 //
 // The container needs a kubeconfig pointed at the API server's address as seen from its own
-// docker network (e.g. https://<cluster>-control-plane:6443), not the host-facing address (e.g.
-// https://127.0.0.1:<port>) that kubeconfigPath contains - internalAPIServerAddress supplies
-// that network-internal address explicitly (for a kind-provisioned target, orchestrate.Setup
-// auto-derives it from cluster.name; a hand-supplied non-kind cluster must set it directly).
-func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress, targetName string) error {
+// network - internalAPIServerAddress supplies that explicitly (orchestrate.Setup fills in a
+// default when the scenario leaves it unset: kind's own internal-DNS convention for a
+// kind-provisioned target, or Kubeconfig's own server address otherwise). kind additionally
+// joins the container to the "kind" docker network, needed to reach a kind cluster's
+// control-plane container by that internal address - a real cluster reached over a normal
+// network needs no special network attachment.
+func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress, targetName string, kind bool) error {
 	name := controllerName(targetName)
 	internalKubeconfigPath := controllerKubeconfigPath(targetName)
 
@@ -84,7 +88,7 @@ func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress
 	if internalAPIServerAddress == "" {
 		return fmt.Errorf("target %q: cluster.internalApiServerAddress is required to start the kwok-controller container", targetName)
 	}
-	internalKubeconfig, err := buildInternalKubeconfig(kubeconfigPath, internalAPIServerAddress)
+	internalKubeconfig, err := buildInternalKubeconfig(ctx, kubeconfigPath, internalAPIServerAddress)
 	if err != nil {
 		return fmt.Errorf("building internal kubeconfig: %w", err)
 	}
@@ -92,10 +96,11 @@ func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress
 		return fmt.Errorf("writing internal kubeconfig: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, "docker",
-		"run", "--rm", "-d",
-		"--name", name,
-		"--network", "kind",
+	args := []string{"run", "--rm", "-d", "--name", name}
+	if kind {
+		args = append(args, "--network", "kind")
+	}
+	args = append(args,
 		"-v", internalKubeconfigPath+":/kubeconfig:ro",
 		ControllerImage,
 		"--kubeconfig=/kubeconfig",
@@ -106,6 +111,7 @@ func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress
 		// built-in equivalent, so without --enable-crds=Stage it never fires.
 		"--enable-crds=Stage",
 	)
+	cmd := exec.CommandContext(ctx, "docker", args...)
 	runOut, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("starting kwok-controller: %w: %s", err, runOut)
@@ -113,25 +119,105 @@ func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress
 	return nil
 }
 
+// KubeconfigServerAddress reports the current-context cluster's server address from the
+// kubeconfig at kubeconfigPath - the default internalAPIServerAddress for a non-kind target (see
+// orchestrate.setupCluster), since a real cluster reached over a normal network has no separate
+// network-internal address to derive.
+func KubeconfigServerAddress(kubeconfigPath string) (string, error) {
+	rawConfig, err := clientcmd.LoadFromFile(kubeconfigPath)
+	if err != nil {
+		return "", fmt.Errorf("loading %s: %w", kubeconfigPath, err)
+	}
+	context, ok := rawConfig.Contexts[rawConfig.CurrentContext]
+	if !ok {
+		return "", fmt.Errorf("%s: current-context %q not found", kubeconfigPath, rawConfig.CurrentContext)
+	}
+	cluster, ok := rawConfig.Clusters[context.Cluster]
+	if !ok {
+		return "", fmt.Errorf("%s: cluster %q not found", kubeconfigPath, context.Cluster)
+	}
+	return cluster.Server, nil
+}
+
 // buildInternalKubeconfig loads the kubeconfig at kubeconfigPath and returns a copy with the
 // current context's cluster server URL replaced by internalAPIServerAddress - the kwok-controller
 // container needs the API server's docker-network-internal address, not the host-facing one the
-// on-disk kubeconfig points at.
-func buildInternalKubeconfig(kubeconfigPath, internalAPIServerAddress string) ([]byte, error) {
+// on-disk kubeconfig points at. TLSServerName (needed for e.g. a Teleport-proxied cluster's SNI
+// routing) is left untouched, since it's a property of the proxy address, not the real backend.
+//
+// If the current user's AuthInfo uses an exec credential plugin (e.g. `tsh kube credentials ...`
+// for a Teleport-proxied cluster), it's resolved here on the host - where the plugin binary and
+// any session state it needs actually exist - into a static client certificate/key, and the Exec
+// config is dropped. The kwok-controller container has neither the plugin binary nor that session
+// state, so it could never run the plugin itself; this trades that off against the resolved
+// cert's own lifetime, same as any short-lived credential; the fake nodes will need refreshing by
+// re-running the target's setup after the cert expires.
+func buildInternalKubeconfig(ctx context.Context, kubeconfigPath, internalAPIServerAddress string) ([]byte, error) {
 	rawConfig, err := clientcmd.LoadFromFile(kubeconfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("loading %s: %w", kubeconfigPath, err)
 	}
-	context, ok := rawConfig.Contexts[rawConfig.CurrentContext]
+	context_, ok := rawConfig.Contexts[rawConfig.CurrentContext]
 	if !ok {
 		return nil, fmt.Errorf("%s: current-context %q not found", kubeconfigPath, rawConfig.CurrentContext)
 	}
-	cluster, ok := rawConfig.Clusters[context.Cluster]
+	cluster, ok := rawConfig.Clusters[context_.Cluster]
 	if !ok {
-		return nil, fmt.Errorf("%s: cluster %q not found", kubeconfigPath, context.Cluster)
+		return nil, fmt.Errorf("%s: cluster %q not found", kubeconfigPath, context_.Cluster)
 	}
 	cluster.Server = internalAPIServerAddress
+
+	authInfo, ok := rawConfig.AuthInfos[context_.AuthInfo]
+	if !ok {
+		return nil, fmt.Errorf("%s: user %q not found", kubeconfigPath, context_.AuthInfo)
+	}
+	if authInfo.Exec != nil {
+		if err := resolveExecCredential(ctx, authInfo); err != nil {
+			return nil, fmt.Errorf("resolving exec credential plugin: %w", err)
+		}
+	}
+
 	return clientcmd.Write(*rawConfig)
+}
+
+// resolveExecCredential runs authInfo.Exec's credential plugin (the "kubectl credential plugin"
+// contract: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins)
+// and replaces authInfo's Exec config with the static client-certificate/key it returns, so the
+// resulting kubeconfig no longer needs the plugin binary present to authenticate.
+func resolveExecCredential(ctx context.Context, authInfo *clientcmdapi.AuthInfo) error {
+	execCfg := authInfo.Exec
+	cmd := execCommandContext(ctx, execCfg)
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("running %s: %w", execCfg.Command, err)
+	}
+
+	var cred v1beta1.ExecCredential
+	if err := json.Unmarshal(out, &cred); err != nil {
+		return fmt.Errorf("parsing ExecCredential output: %w", err)
+	}
+	if cred.Status == nil {
+		return fmt.Errorf("%s: ExecCredential response had no status", execCfg.Command)
+	}
+	if cred.Status.ClientCertificateData == "" || cred.Status.ClientKeyData == "" {
+		return fmt.Errorf("%s: ExecCredential response had no client certificate/key", execCfg.Command)
+	}
+
+	authInfo.ClientCertificateData = []byte(cred.Status.ClientCertificateData)
+	authInfo.ClientKeyData = []byte(cred.Status.ClientKeyData)
+	authInfo.Exec = nil
+	return nil
+}
+
+// execCommandContext builds the credential plugin's command per the exec plugin contract: its
+// Env entries are appended to (not replacing) the host's own environment.
+func execCommandContext(ctx context.Context, execCfg *clientcmdapi.ExecConfig) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, execCfg.Command, execCfg.Args...)
+	cmd.Env = os.Environ()
+	for _, e := range execCfg.Env {
+		cmd.Env = append(cmd.Env, e.Name+"="+e.Value)
+	}
+	return cmd
 }
 
 // TeardownController stops the standalone kwok-controller container and removes its bind-mounted

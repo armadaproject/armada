@@ -14,6 +14,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/regatta/metrics"
 	"github.com/armadaproject/armada/pkg/client/util"
 )
 
@@ -28,9 +29,54 @@ type Scenario struct {
 	// armadactl ($HOME/.armadactl.yaml).
 	Armadactl string `json:"armadactl,omitempty"`
 
+	// Metrics configures the post-run Prometheus metrics report - see MetricsConfig.
+	Metrics MetricsConfig `json:"metrics,omitempty"`
+
 	ExecutionTargets []ExecutionTarget    `json:"executionTargets"`
 	NodeGroups       map[string]NodeGroup `json:"nodeGroups,omitempty"`
 	Load             Load                 `json:"load"`
+}
+
+// MetricsConfig configures the post-run Prometheus metrics report (see internal/regatta/metrics).
+type MetricsConfig struct {
+	// Prometheus is the base URL of a running Prometheus server to query for a post-run metrics
+	// report. Empty defaults to http://localhost:9090 (Prometheus's own default, and the address
+	// `mage dev:up ...,prometheus` exposes it at) - see Scenario.PrometheusURL.
+	Prometheus string `json:"prometheus,omitempty"`
+
+	// PostRunDelay is how long `regatta run` waits after the run's queue drains (see
+	// metrics.WaitForQueueDrain) before collecting the metrics report, so Prometheus's own scrape
+	// interval has time to catch up to the drain moment. Duration string (e.g. "90s"); empty
+	// defaults to metrics.DefaultSettleDelay (90s).
+	PostRunDelay string `json:"postRunDelay,omitempty"`
+
+	// ResultsPath is the directory to write the post-run metrics report JSON into (the filename
+	// itself is generated, e.g. regatta-result-20060102-150405.json - see cmd/regatta/cmd/run.go).
+	// Resolved by LoadScenario relative to the scenario file's own directory, matching Armadactl/
+	// Kubeconfig/JobSpec/NodeProfile. The --metrics-results-path CLI flag overrides this when
+	// explicitly passed. Empty defaults to "." - see Scenario.MetricsResultsDir.
+	ResultsPath string `json:"resultsPath,omitempty"`
+
+	// PostRunDelayDuration is PostRunDelay parsed by LoadScenario. Not part of the file format.
+	PostRunDelayDuration time.Duration `json:"-"`
+}
+
+// PrometheusURL reports the Prometheus base URL to query, applying Prometheus's default-address
+// fallback when the scenario leaves it unset.
+func (s *Scenario) PrometheusURL() string {
+	if s.Metrics.Prometheus != "" {
+		return s.Metrics.Prometheus
+	}
+	return "http://localhost:9090"
+}
+
+// MetricsResultsDir reports the directory to write the post-run metrics report into, applying
+// the "." fallback when the scenario leaves it unset.
+func (s *Scenario) MetricsResultsDir() string {
+	if s.Metrics.ResultsPath != "" {
+		return s.Metrics.ResultsPath
+	}
+	return "."
 }
 
 // ExecutionTarget is a flat discriminated union keyed by Type ("cluster" or "fake-executor").
@@ -62,11 +108,22 @@ type ClusterTarget struct {
 	// trusted directly. Defaults to the ExecutionTarget's own Name if left unset.
 	Name string `json:"name,omitempty"`
 
+	// Kind marks this target as a kind-provisioned cluster (created via `mage kindRegatta`).
+	// A kind cluster's API server isn't reachable at its host-facing Kubeconfig address from the
+	// kwok-controller's own docker container, so Kind additionally opts into two kind-only
+	// behaviors: InternalAPIServerAddress is auto-derived from Name (kind's own internal-DNS
+	// convention, https://<name>-control-plane:6443) when left unset, and the kwok-controller
+	// container joins the "kind" docker network to reach it. A real cluster (e.g. EKS) reached
+	// over a normal network needs neither: InternalAPIServerAddress falls back to the address
+	// already in Kubeconfig, and the controller container uses docker's default network. Defaults
+	// to false.
+	Kind bool `json:"kind,omitempty"`
+
 	// InternalAPIServerAddress is the cluster's API server address as reachable from the
-	// kwok-controller container's own network (e.g. a kind cluster's docker network), not the
-	// host-facing address in Kubeconfig. Left unset for a kind-provisioned target,
-	// orchestrate.Setup auto-derives it from Name. A hand-supplied non-kind cluster must set it
-	// directly.
+	// kwok-controller container. Left unset, it's auto-derived: from Name using kind's own
+	// internal-DNS convention when Kind is true, otherwise from Kubeconfig's own server address
+	// (see Kind's doc comment). Set this explicitly to override either default - e.g. a
+	// non-default-network remote cluster, or a kind cluster reached some other way.
 	InternalAPIServerAddress string `json:"internalApiServerAddress,omitempty"`
 
 	ProbeRetries int `json:"probeRetries,omitempty"`
@@ -78,7 +135,7 @@ type ClusterTarget struct {
 
 	// EvaluateReadiness controls whether a canary job is submitted to confirm the fake nodes are
 	// actually schedulable before load is submitted (see kwok.WaitUntilSchedulable). Left unset,
-	// it defaults to true when Name is set (a kind-provisioned target: the environment is fully
+	// it defaults to true when Kind is set (a kind-provisioned target: the environment is fully
 	// known/controlled, so the probe is meaningful and cheap) and false otherwise (an unknown,
 	// externally-provided cluster is assumed already schedulable rather than probed).
 	EvaluateReadiness *bool `json:"evaluateReadiness,omitempty"`
@@ -90,7 +147,7 @@ func (c *ClusterTarget) ShouldEvaluateReadiness() bool {
 	if c.EvaluateReadiness != nil {
 		return *c.EvaluateReadiness
 	}
-	return c.Name != ""
+	return c.Kind
 }
 
 // FakeExecutorTarget (Type: "fake-executor") configures an armada-fakeexecutor process that
@@ -175,6 +232,17 @@ func LoadScenario(path string) (*Scenario, error) {
 
 	dir := filepath.Dir(path)
 	scenario.Armadactl = resolveRelative(dir, scenario.Armadactl)
+	scenario.Metrics.ResultsPath = resolveRelative(dir, scenario.Metrics.ResultsPath)
+
+	if scenario.Metrics.PostRunDelay != "" {
+		delay, err := time.ParseDuration(scenario.Metrics.PostRunDelay)
+		if err != nil {
+			return nil, fmt.Errorf("parsing metrics.postRunDelay %q: %w", scenario.Metrics.PostRunDelay, err)
+		}
+		scenario.Metrics.PostRunDelayDuration = delay
+	} else {
+		scenario.Metrics.PostRunDelayDuration = metrics.DefaultSettleDelay
+	}
 
 	for name, group := range scenario.NodeGroups {
 		resolveNodeGroup(dir, group)

@@ -2,6 +2,11 @@
 # scheduler over gRPC, but simulates nodes/pods entirely in-process - no cluster, no kubeconfig.
 armadactl: ~/.armadactl.yaml
 
+metrics:
+  prometheus: http://localhost:9090
+  delay: 90s
+  resultsPath: ./results/
+
 executionTargets:
   - type: fake-executor
     fakeExecutor:
