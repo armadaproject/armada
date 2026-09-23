@@ -1,6 +1,7 @@
 package service
 
 import (
+	"sync"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -23,6 +24,8 @@ type JobStateReporter struct {
 	debugRenderer   *reporter.DebugMessageRenderer
 	// Runtime above which a failed pod's debug data is captured. See shouldCaptureFailureDebug.
 	minAppContainerRuntimeForFailureDebug time.Duration
+	terminatedRunIds                      map[string]struct{}
+	terminatedRunIdsMutex                 sync.Mutex
 }
 
 func NewJobStateReporter(
@@ -40,6 +43,7 @@ func NewJobStateReporter(
 		classifier:                            classifier,
 		debugRenderer:                         debugRenderer,
 		minAppContainerRuntimeForFailureDebug: minAppContainerRuntimeForFailureDebug,
+		terminatedRunIds:                      make(map[string]struct{}),
 	}
 
 	_, err := clusterContext.AddPodEventHandler(stateReporter.podEventHandler())
@@ -77,17 +81,45 @@ func (stateReporter *JobStateReporter) podEventHandler() cache.ResourceEventHand
 }
 
 func (stateReporter *JobStateReporter) reportStatusUpdate(old *v1.Pod, new *v1.Pod) {
+	// Deletion normally suppresses lifecycle state events, but Kubernetes can expose the
+	// application-container finish time in a later update without changing pod phase.
+	if util.IsMarkedForDeletion(new) {
+		stateReporter.reportTerminationIfFinished(new)
+		log.Infof("not sending event to report pod %s moving into phase %s as pod is marked for deletion", new.Name, new.Status.Phase)
+		return
+	}
 	// Don't report status if the pod phase didn't change
 	if old.Status.Phase == new.Status.Phase {
 		return
 	}
-	// Don't report status change for pods Armada is deleting
-	// This prevents reporting JobFailed when we delete a pod - for example due to cancellation
-	if util.IsMarkedForDeletion(new) {
-		log.Infof("not sending event to report pod %s moving into phase %s as pod is marked for deletion", new.Name, new.Status.Phase)
+	stateReporter.reportCurrentStatus(new)
+}
+
+func (stateReporter *JobStateReporter) reportTerminationIfFinished(pod *v1.Pod) {
+	if util.LatestAppContainerFinished(pod) == nil {
 		return
 	}
-	stateReporter.reportCurrentStatus(new)
+
+	event, err := reporter.CreateJobRunTerminatedEvent(pod)
+	if err != nil {
+		log.Errorf("Failed to create termination event: %v", err)
+		return
+	}
+
+	runId := util.ExtractJobRunId(pod)
+	stateReporter.terminatedRunIdsMutex.Lock()
+	if _, exists := stateReporter.terminatedRunIds[runId]; exists {
+		stateReporter.terminatedRunIdsMutex.Unlock()
+		return
+	}
+	stateReporter.terminatedRunIds[runId] = struct{}{}
+	stateReporter.terminatedRunIdsMutex.Unlock()
+
+	stateReporter.eventReporter.QueueEvent(reporter.EventMessage{Event: event, JobRunId: runId}, func(err error) {
+		if err != nil {
+			log.Errorf("Failed to report termination event: %s", err)
+		}
+	})
 }
 
 // Two kinds of failure are worth the debug data: a pod whose app container never started, where the

@@ -301,6 +301,33 @@ func CreateJobRunTerminatedDebugEvent(pod *v1.Pod, debugMessage string) (*armada
 	return sequence, nil
 }
 
+// CreateJobRunTerminatedEvent records when a deletion-marked pod's application container finished.
+// It deliberately carries no state, error, or debug information.
+func CreateJobRunTerminatedEvent(pod *v1.Pod) (*armadaevents.EventSequence, error) {
+	finishedAt := util.LatestAppContainerFinished(pod)
+	if finishedAt == nil {
+		return nil, fmt.Errorf("pod %s has no application-container termination time", pod.Name)
+	}
+
+	sequence := createEmptySequence(pod)
+	jobId, runId, err := extractIds(pod)
+	if err != nil {
+		return nil, err
+	}
+
+	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+		Created: types.TimestampNow(),
+		Event: &armadaevents.EventSequence_Event_JobRunTerminated{
+			JobRunTerminated: &armadaevents.JobRunTerminated{
+				JobId:      jobId,
+				RunId:      runId,
+				FinishedAt: protoutil.ToTimestamp(*finishedAt),
+			},
+		},
+	})
+	return sequence, nil
+}
+
 func CreateMinimalJobFailedEvent(jobId string, runId string, jobSet string, queue string, clusterId string, message string, failureCategory string, failureSubcategory string) (*armadaevents.EventSequence, error) {
 	sequence := &armadaevents.EventSequence{}
 	sequence.Queue = queue

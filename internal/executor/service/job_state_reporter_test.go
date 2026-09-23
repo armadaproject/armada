@@ -124,6 +124,35 @@ func TestJobStateReporter_HandlesPodUpdateEvents(t *testing.T) {
 	}
 }
 
+func TestJobStateReporter_MarkedForDeletionReportsTerminationWhenFinishedAtAppears(t *testing.T) {
+	stateReporter, _, eventReporter, _ := setUpJobStateReporterTest(t)
+	finishedAt := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+
+	before := makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
+	after := before.DeepCopy()
+	after.Annotations[domain.MarkedForDeletion] = time.Now().String()
+	stateReporter.reportStatusUpdate(before, after)
+	assert.Empty(t, eventReporter.GetReceivedEvents(), "a deletion-marked pod without a termination time must not report an event")
+
+	after.Status.ContainerStatuses = []v1.ContainerStatus{{
+		Name: "main",
+		State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{
+			FinishedAt: metav1.NewTime(finishedAt),
+		}},
+	}}
+	stateReporter.reportStatusUpdate(before, after)
+
+	events := eventReporter.GetReceivedEvents()
+	require.Len(t, events, 1)
+	assertExpectedEvents(t, after, events, reflect.TypeOf(&armadaevents.EventSequence_Event_JobRunTerminated{}))
+	terminated := events[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunTerminated)
+	assert.Equal(t, finishedAt.Unix(), terminated.JobRunTerminated.FinishedAt.Seconds)
+	assert.Equal(t, int32(finishedAt.Nanosecond()), terminated.JobRunTerminated.FinishedAt.Nanos)
+
+	stateReporter.reportStatusUpdate(before, after)
+	assert.Len(t, eventReporter.GetReceivedEvents(), 1, "the same termination update must not report a duplicate event")
+}
+
 // Drives the update through the registered informer handler, covering the
 // UpdateFunc wiring. The wait works as in the add-handler test above.
 func TestJobStateReporter_PodUpdateEventHandlerReportsAsync(t *testing.T) {
