@@ -124,9 +124,9 @@ type NodeDb struct {
 	indexNameByPriority map[int32]string
 	// Map from priority class priority to the index of node.keys corresponding to that priority.
 	keyIndexByPriority map[int32]int
-	// Like indexNameByPriority, but for the sparse urgency-preemptable resource view.
+	// Like indexNameByPriority, but for the sparse urgency-preemptible resource view.
 	urgencyIndexNameByPriority map[int32]string
-	// Like keyIndexByPriority, but for the sparse urgency-preemptable resource view.
+	// Like keyIndexByPriority, but for the sparse urgency-preemptible resource view.
 	urgencyKeyIndexByPriority map[int32]int
 	// Number of priorities in nodeDbPriorities; also the size of each key block in node.Keys.
 	numPriorities int
@@ -395,6 +395,9 @@ type SchedulingOptions struct {
 	DisableUrgencyScheduling   bool
 	DisallowedJobResources     []string
 	DefaultTolerations         []v1.Toleration
+	// UrgencyBeforeFairsharePreemption tries urgency-based preemption before fair-share preemption.
+	// Must be set before nodes are inserted, as it decides whether they are added to the urgency index.
+	UrgencyBeforeFairsharePreemption bool
 }
 
 func (nodeDb *NodeDb) ConfigureScheduling(opts SchedulingOptions) {
@@ -405,6 +408,7 @@ func (nodeDb *NodeDb) ConfigureScheduling(opts SchedulingOptions) {
 	nodeDb.disableUrgencyScheduling = opts.DisableUrgencyScheduling
 	nodeDb.disallowedJobResources = opts.DisallowedJobResources
 	nodeDb.defaultTolerations = opts.DefaultTolerations
+	nodeDb.urgencyBeforeFairsharePreemption = opts.UrgencyBeforeFairsharePreemption
 }
 
 func (nodeDb *NodeDb) GetNodes() ([]*internaltypes.Node, error) {
@@ -870,7 +874,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithUrgencyPreemption(
 		pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
 
 		// Try to find a node at this priority.
-		if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, priority, true); err != nil {
+		if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, priority, nodeDb.urgencyBeforeFairsharePreemption); err != nil {
 			return nil, err
 		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 			return nil, err
@@ -1235,6 +1239,11 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *internaltypes.Node) er
 	keys := make([][]byte, 2*nodeDb.numPriorities)
 	for i, p := range nodeDb.nodeDbPriorities {
 		keys[i] = nodeDb.nodeDbKey(keys[i], node.GetNodeTypeId(), node.AllocatableAtPriority(p), node.GetIndex())
+		if !nodeDb.urgencyBeforeFairsharePreemption {
+			// Nothing reads the urgency indexes, so leave their keys nil and let
+			// NodeIndex.FromObject omit this node from them entirely.
+			continue
+		}
 		urgencyKeyIndex := nodeDb.numPriorities + i
 		keys[urgencyKeyIndex] = nodeDb.nodeDbKey(keys[urgencyKeyIndex], node.GetNodeTypeId(), node.AllocatableAtPriorityNoEviction(p), node.GetIndex())
 	}

@@ -73,7 +73,7 @@ type Node struct {
 	evictedJobRunIds                map[string]bool
 	priorityByJobId                 map[string]int32
 	// Priorities present in allocatableByPriority
-	// Sorted ascending as HasUrgencyPreemptableResources relies on the ordering to find the highest/lowest priority
+	// Sorted ascending as HasUrgencyPreemptibleResources relies on the ordering to find the highest/lowest priority
 	// This must stay sorted
 	knownPriorities []int32
 }
@@ -179,7 +179,7 @@ func CreateNode(
 	labels = deepCopyLabels(labels)
 	allocatableByPriority := NewAllocatableByPriorityAndResourceType(allowedPriorities, allocatableResources)
 	// maps.Keys returns keys in an unspecified order; sort so that
-	// HasUrgencyPreemptableResources can read the lowest and highest priority
+	// HasUrgencyPreemptibleResources can read the lowest and highest priority
 	// off the ends of the slice.
 	knownPriorities := maps.Keys(allocatableByPriority)
 	slices.Sort(knownPriorities)
@@ -382,7 +382,7 @@ func (node *Node) WithResourcesUsedAtPriority(priority int32, rs ResourceList) *
 	return result
 }
 
-func (node *Node) HasUrgencyPreemptableResources() bool {
+func (node *Node) HasUrgencyPreemptibleResources() bool {
 	if len(node.knownPriorities) == 0 {
 		return false
 	}

@@ -65,8 +65,15 @@ func (index *NodeIndex) FromArgs(args ...interface{}) ([]byte, error) {
 // FromObject extracts the index key from a *Node.
 func (index *NodeIndex) FromObject(raw interface{}) (bool, []byte, error) {
 	node := raw.(*internaltypes.Node)
-	if index.Urgency && !node.HasUrgencyPreemptableResources() {
-		return false, nil, nil
+	if index.Urgency {
+		// No key means urgency-before-fairshare ordering is off and UpsertWithTxn never
+		// computed one, so the urgency indexes are unused and must stay empty.
+		if node.Keys[index.KeyIndex] == nil {
+			return false, nil, nil
+		}
+		if !node.HasUrgencyPreemptibleResources() {
+			return false, nil, nil
+		}
 	}
 	return true, node.Keys[index.KeyIndex], nil
 }

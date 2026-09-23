@@ -723,16 +723,18 @@ func (l *FairSchedulingAlgo) constructNodeDb(
 		IndexedTaints:      l.schedulingConfig.IndexedTaints,
 		IndexedNodeLabels:  l.schedulingConfig.IndexedNodeLabels,
 		WellKnownNodeTypes: l.schedulingConfig.WellKnownNodeTypes,
+		EnableUrgencyBeforeFairsharePreemptionOrdering: l.schedulingConfig.EnableUrgencyBeforeFairsharePreemptionOrdering,
 	}
 
 	return ConstructNodeDb(nodeDbConfig, l.resourceListFactory, priorityClasses, poolConfig, currentPoolJobs, otherPoolsJobs, nodes)
 }
 
 type NodeDbIndexConfiguration struct {
-	IndexedResources   []configuration.ResourceType
-	IndexedTaints      []string
-	IndexedNodeLabels  []string
-	WellKnownNodeTypes []configuration.WellKnownNodeType
+	IndexedResources                               []configuration.ResourceType
+	IndexedTaints                                  []string
+	IndexedNodeLabels                              []string
+	WellKnownNodeTypes                             []configuration.WellKnownNodeType
+	EnableUrgencyBeforeFairsharePreemptionOrdering bool
 }
 
 func ConstructNodeDb(
@@ -771,6 +773,8 @@ func ConstructNodeDb(
 		DisableUrgencyScheduling:   poolConfig.DisableUrgencyScheduling,
 		DisallowedJobResources:     poolConfig.ExperimentalUnscheduledResources,
 		DefaultTolerations:         poolConfig.GetDefaultJobTolerations(),
+
+		UrgencyBeforeFairsharePreemption: config.EnableUrgencyBeforeFairsharePreemptionOrdering,
 	})
 
 	if err := populateNodeDb(poolConfig, nodeDb, currentPoolJobs, otherPoolsJobs, nodes); err != nil {
