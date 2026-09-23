@@ -363,7 +363,7 @@ func (l *FairSchedulingAlgo) reconcilePoolJobs(config configuration.PoolConfig, 
 	}
 
 	jobsUpdated := make(map[string]*jobdb.Job, len(invalidJobs))
-	gangsPreempted := map[gangKey][]string{}
+	gangsPreempted := map[gangKey][]*FailedReconciliationResult{}
 	for _, invalidJobInfo := range invalidJobs {
 		job := invalidJobInfo.Job
 		if job.InTerminalState() || job.Queued() || job.LatestRun() == nil {
@@ -376,16 +376,13 @@ func (l *FairSchedulingAlgo) reconcilePoolJobs(config configuration.PoolConfig, 
 			result.PreemptedJobs = append(result.PreemptedJobs, &FailedReconciliationResult{Job: job, Reason: invalidJobInfo.Reason})
 
 			key := gangKey{job.Queue(), job.GetGangInfo().Id()}
-			if _, exists := gangsPreempted[key]; !exists {
-				gangsPreempted[key] = []string{}
-			}
-			gangsPreempted[key] = append(gangsPreempted[key], job.Id())
+			gangsPreempted[key] = append(gangsPreempted[key], invalidJobInfo)
 		} else {
 			result.FailedJobs = append(result.FailedJobs, &FailedReconciliationResult{Job: job, Reason: invalidJobInfo.Reason})
 		}
 	}
 
-	for gang, jobIds := range gangsPreempted {
+	for gang, failedReconciliations := range gangsPreempted {
 		jobs, err := txn.GetGangJobsByGangId(gang.queue, gang.gangId)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process failed reconciliatiion gang jobs because - %s", err)
@@ -398,7 +395,10 @@ func (l *FairSchedulingAlgo) reconcilePoolJobs(config configuration.PoolConfig, 
 			}
 
 			job = markAsFailedReconciliation(l.clock, job)
-			reason := fmt.Sprintf("other jobs in the gang failed reconciliation (%s)", strings.Join(jobIds, ","))
+			reasons := armadaslices.Map(failedReconciliations, func(result *FailedReconciliationResult) string {
+				return fmt.Sprintf("%s: %s", result.Job.Id(), result.Reason)
+			})
+			reason := fmt.Sprintf("other jobs in the gang failed reconciliation (%s)", strings.Join(reasons, ","))
 			result.PreemptedJobs = append(result.PreemptedJobs, &FailedReconciliationResult{Job: job, Reason: reason})
 			jobsUpdated[job.Id()] = job
 		}
