@@ -960,6 +960,16 @@ func TestConflateJobRunUpdates(t *testing.T) {
 	assert.Equal(t, expected, updates)
 }
 
+func TestConflateJobRunUpdates_NilDebugDoesNotOverwriteExistingDebug(t *testing.T) {
+	updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
+		{RunId: RunId, Debug: []byte("stored debug")},
+		{RunId: RunId},
+	})
+
+	assert.Len(t, updates, 1)
+	assert.Equal(t, []byte("stored debug"), updates[0].Debug)
+}
+
 func TestStoreNullValue(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		jobProto := []byte("hello \000 world \000")

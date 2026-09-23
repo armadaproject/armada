@@ -799,7 +799,7 @@ func TestHandleJobRunTerminatedDebugInfo_PersistsOnlyDebug(t *testing.T) {
 	assert.Nil(t, got.Node)
 }
 
-func TestConvert_UsesExecutorLifecycleTimestamps(t *testing.T) {
+func TestConvert_UsesExecutorLifecycleTimestampsWithoutCreated(t *testing.T) {
 	startedAt := testfixtures.BaseTime.Add(time.Minute)
 	finishedAt := testfixtures.BaseTime.Add(2 * time.Minute)
 	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
@@ -807,7 +807,6 @@ func TestConvert_UsesExecutorLifecycleTimestamps(t *testing.T) {
 	instructionSet := converter.Convert(armadacontext.TODO(), &utils.EventsWithIds[*armadaevents.EventSequence]{
 		Events: []*armadaevents.EventSequence{testfixtures.NewEventSequence(
 			&armadaevents.EventSequence_Event{
-				Created: testfixtures.BaseTimeProto,
 				Event: &armadaevents.EventSequence_Event_JobRunRunning{
 					JobRunRunning: &armadaevents.JobRunRunning{
 						JobId:     testfixtures.JobId,
@@ -817,7 +816,6 @@ func TestConvert_UsesExecutorLifecycleTimestamps(t *testing.T) {
 				},
 			},
 			&armadaevents.EventSequence_Event{
-				Created: testfixtures.BaseTimeProto,
 				Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 					JobRunSucceeded: &armadaevents.JobRunSucceeded{
 						JobId:      testfixtures.JobId,
@@ -827,7 +825,6 @@ func TestConvert_UsesExecutorLifecycleTimestamps(t *testing.T) {
 				},
 			},
 			&armadaevents.EventSequence_Event{
-				Created: testfixtures.BaseTimeProto,
 				Event: &armadaevents.EventSequence_Event_JobRunErrors{
 					JobRunErrors: &armadaevents.JobRunErrors{
 						JobId:      testfixtures.JobId,
@@ -841,7 +838,6 @@ func TestConvert_UsesExecutorLifecycleTimestamps(t *testing.T) {
 				},
 			},
 			&armadaevents.EventSequence_Event{
-				Created: testfixtures.BaseTimeProto,
 				Event: &armadaevents.EventSequence_Event_JobRunTerminated{
 					JobRunTerminated: &armadaevents.JobRunTerminated{
 						JobId:      testfixtures.JobId,
@@ -866,6 +862,9 @@ func TestConvert_UsesExecutorLifecycleTimestamps(t *testing.T) {
 	})
 
 	require.Len(t, instructionSet.JobRunsToUpdate, 6)
+	require.Len(t, instructionSet.JobsToUpdate, 1)
+	assert.Nil(t, instructionSet.JobsToUpdate[0].LastTransitionTime)
+	assert.Nil(t, instructionSet.JobsToUpdate[0].LastTransitionTimeSeconds)
 	assert.Equal(t, startedAt, *instructionSet.JobRunsToUpdate[0].Started)
 	assert.Equal(t, finishedAt, *instructionSet.JobRunsToUpdate[1].Finished)
 	assert.Equal(t, finishedAt, *instructionSet.JobRunsToUpdate[2].Finished)
