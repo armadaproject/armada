@@ -396,19 +396,19 @@ func TestNode_DeepCopyIsolatesAccountingFromOriginal(t *testing.T) {
 	node := testAccountingNode(t, factory)
 	first := &testSchedJob{id: "job-1", queue: "queue-a", requests: requests, priorityClass: types.PriorityClass{Priority: 10, Preemptible: true}}
 	second := &testSchedJob{id: "job-2", queue: "queue-a", requests: requests, priorityClass: types.PriorityClass{Priority: 10, Preemptible: true}}
-	// job-3 is left evicted so allocatableByPriority and AllocatableByPriorityNoEviction hold
+	// job-3 is left evicted so allocatableByPriority and allocatableByPriorityNoEviction hold
 	// different values, which catches a copy that clones one of the two maps twice.
 	third := &testSchedJob{id: "job-3", queue: "queue-a", requests: requests, priorityClass: types.PriorityClass{Priority: 10, Preemptible: true}}
 	require.NoError(t, node.AddJob(first, 10))
 	require.NoError(t, node.AddJob(third, 10))
 	require.NoError(t, node.EvictJob(third))
-	require.NotEqual(t, node.AllocatableAtPriority(10), node.AllocatableByPriorityNoEviction[10])
+	require.NotEqual(t, node.AllocatableAtPriority(10), node.AllocatableAtPriorityNoEviction(10))
 
 	before := node.AllocatableAtPriority(10)
-	beforeNoEviction := node.AllocatableByPriorityNoEviction[10]
+	beforeNoEviction := node.AllocatableAtPriorityNoEviction(10)
 	copied := node.DeepCopyNilKeys()
 	require.Equal(t, before, copied.AllocatableAtPriority(10))
-	require.Equal(t, beforeNoEviction, copied.AllocatableByPriorityNoEviction[10])
+	require.Equal(t, beforeNoEviction, copied.AllocatableAtPriorityNoEviction(10))
 
 	require.NoError(t, copied.AddJob(second, 10))
 	require.NoError(t, copied.EvictJob(first))
@@ -417,7 +417,7 @@ func TestNode_DeepCopyIsolatesAccountingFromOriginal(t *testing.T) {
 	assert.False(t, node.HasJobAllocation("job-2"))
 	assert.False(t, node.IsJobEvicted("job-1"))
 	assert.Equal(t, before, node.AllocatableAtPriority(10))
-	assert.Equal(t, beforeNoEviction, node.AllocatableByPriorityNoEviction[10])
+	assert.Equal(t, beforeNoEviction, node.AllocatableAtPriorityNoEviction(10))
 
 	// And unbinding on the original must not disturb the copy.
 	require.NoError(t, node.RemoveJob(first))

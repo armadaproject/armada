@@ -68,10 +68,14 @@ type Node struct {
 	Keys [][]byte
 
 	allocatableByPriority           map[int32]ResourceList
-	AllocatableByPriorityNoEviction map[int32]ResourceList
+	allocatableByPriorityNoEviction map[int32]ResourceList
 	allocatedByJobId                map[string]ResourceList
 	evictedJobRunIds                map[string]bool
 	priorityByJobId                 map[string]int32
+	// Priorities present in allocatableByPriority
+	// Sorted ascending as recomputeUrgencyPreemptableFlag relies on the ordering to find the highest/lowest priority
+	// This must stay sorted
+	knownPriorities []int32
 
 	hasUrgencyPreemptableResources bool
 }
@@ -175,6 +179,12 @@ func CreateNode(
 ) *Node {
 	taints = koTaint.DeepCopyTaints(taints)
 	labels = deepCopyLabels(labels)
+	allocatableByPriority := NewAllocatableByPriorityAndResourceType(allowedPriorities, allocatableResources)
+	// maps.Keys returns keys in an unspecified order; sort so that
+	// recomputeUrgencyPreemptableFlag can read the lowest and highest priority
+	// off the ends of the slice.
+	knownPriorities := maps.Keys(allocatableByPriority)
+	slices.Sort(knownPriorities)
 	node := &Node{
 		id:                              id,
 		nodeType:                        NewNodeType(taints, labels, indexedTaints, indexedNodeLabels),
@@ -191,11 +201,12 @@ func CreateNode(
 		unschedulable:                   unschedulable,
 		totalResources:                  totalResources,
 		allocatableResources:            allocatableResources,
-		allocatableByPriority:           NewAllocatableByPriorityAndResourceType(allowedPriorities, allocatableResources),
-		AllocatableByPriorityNoEviction: NewAllocatableByPriorityAndResourceType(allowedPriorities, allocatableResources),
+		allocatableByPriority:           allocatableByPriority,
+		allocatableByPriorityNoEviction: NewAllocatableByPriorityAndResourceType(allowedPriorities, allocatableResources),
 		allocatedByJobId:                map[string]ResourceList{},
 		evictedJobRunIds:                map[string]bool{},
 		priorityByJobId:                 map[string]int32{},
+		knownPriorities:                 knownPriorities,
 		Keys:                            keys,
 	}
 	node.recomputeUrgencyPreemptableFlag()
@@ -312,9 +323,7 @@ func (node *Node) GetAllocatableResources() ResourceList {
 // KnownPriorities returns the priorities this node tracks allocatable resources at,
 // in ascending order. This includes EvictedPriority and CrossPoolPriority.
 func (node *Node) KnownPriorities() []int32 {
-	priorities := maps.Keys(node.allocatableByPriority)
-	slices.Sort(priorities)
-	return priorities
+	return slices.Clone(node.knownPriorities)
 }
 
 func (node *Node) AllocatableAtPriority(priority int32) ResourceList {
@@ -323,6 +332,14 @@ func (node *Node) AllocatableAtPriority(priority int32) ResourceList {
 
 func (node *Node) AllocatableByPriority() map[int32]ResourceList {
 	return maps.Clone(node.allocatableByPriority)
+}
+
+func (node *Node) AllocatableAtPriorityNoEviction(priority int32) ResourceList {
+	return node.allocatableByPriorityNoEviction[priority]
+}
+
+func (node *Node) AllocatableByPriorityNoEviction() map[int32]ResourceList {
+	return maps.Clone(node.allocatableByPriorityNoEviction)
 }
 
 func (node *Node) WithNodeType(nodeType *NodeType) *Node {
@@ -365,7 +382,7 @@ func (node *Node) WithLabels(labels map[string]string) *Node {
 func (node *Node) WithResourcesUsedAtPriority(priority int32, rs ResourceList) *Node {
 	result := node.DeepCopyNilKeys()
 	markAllocated(result.allocatableByPriority, priority, rs)
-	markAllocated(result.AllocatableByPriorityNoEviction, priority, rs)
+	markAllocated(result.allocatableByPriorityNoEviction, priority, rs)
 	result.recomputeUrgencyPreemptableFlag()
 	return result
 }
@@ -375,13 +392,12 @@ func (node *Node) HasUrgencyPreemptableResources() bool {
 }
 
 func (node *Node) recomputeUrgencyPreemptableFlag() {
-	knownPriorities := node.KnownPriorities()
-	if len(knownPriorities) == 0 {
+	if len(node.knownPriorities) == 0 {
 		node.hasUrgencyPreemptableResources = false
 		return
 	}
-	lowest := node.AllocatableByPriorityNoEviction[knownPriorities[0]]
-	highest := node.AllocatableByPriorityNoEviction[knownPriorities[len(knownPriorities)-1]]
+	lowest := node.allocatableByPriorityNoEviction[node.knownPriorities[0]]
+	highest := node.allocatableByPriorityNoEviction[node.knownPriorities[len(node.knownPriorities)-1]]
 	node.hasUrgencyPreemptableResources = !lowest.Equal(highest)
 }
 
@@ -392,9 +408,9 @@ func (node *Node) MarkResourceUnallocatable(unallocatable ResourceList) *Node {
 		newAllocatable := allocatable.Subtract(unallocatable).FloorAtZero()
 		result.allocatableByPriority[pri] = newAllocatable
 	}
-	for pri, allocatable := range result.AllocatableByPriorityNoEviction {
+	for pri, allocatable := range result.allocatableByPriorityNoEviction {
 		newAllocatable := allocatable.Subtract(unallocatable).FloorAtZero()
-		result.AllocatableByPriorityNoEviction[pri] = newAllocatable
+		result.allocatableByPriorityNoEviction[pri] = newAllocatable
 	}
 	result.recomputeUrgencyPreemptableFlag()
 
@@ -459,10 +475,11 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		// The copy is about to be mutated in place by AddJob/EvictJob/RemoveJob, so these
 		// maps must not be shared with the original
 		allocatableByPriority:           maps.Clone(node.allocatableByPriority),
-		AllocatableByPriorityNoEviction: maps.Clone(node.AllocatableByPriorityNoEviction),
+		allocatableByPriorityNoEviction: maps.Clone(node.allocatableByPriorityNoEviction),
 		allocatedByJobId:                maps.Clone(node.allocatedByJobId),
 		evictedJobRunIds:                maps.Clone(node.evictedJobRunIds),
 		priorityByJobId:                 maps.Clone(node.priorityByJobId),
+		knownPriorities:                 node.knownPriorities,
 
 		hasUrgencyPreemptableResources: node.hasUrgencyPreemptableResources,
 	}
@@ -522,7 +539,7 @@ func (node *Node) AddJob(job SchedulableJob, priority int32) error {
 			return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.GetId())
 		}
 		node.allocatedByJobId[jobId] = requests
-		markAllocated(node.AllocatableByPriorityNoEviction, priority, requests)
+		markAllocated(node.allocatableByPriorityNoEviction, priority, requests)
 		node.recomputeUrgencyPreemptableFlag()
 	} else {
 		markAllocatable(node.allocatableByPriority, EvictedPriority, requests)
@@ -580,7 +597,7 @@ func (node *Node) RemoveJob(job SchedulableJob) error {
 	} else {
 		markAllocatable(node.allocatableByPriority, node.priorityByJobId[jobId], requests)
 	}
-	markAllocatable(node.AllocatableByPriorityNoEviction, node.priorityByJobId[jobId], requests)
+	markAllocatable(node.allocatableByPriorityNoEviction, node.priorityByJobId[jobId], requests)
 	node.recomputeUrgencyPreemptableFlag()
 	delete(node.priorityByJobId, jobId)
 
