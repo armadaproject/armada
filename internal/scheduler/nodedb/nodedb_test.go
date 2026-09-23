@@ -333,7 +333,7 @@ func TestUrgencyMapUnaffectedByEviction(t *testing.T) {
 	require.True(t, ok)
 
 	boundUrgency := maps.Clone(node.AllocatableByPriorityNoEviction)
-	boundAllocatable := maps.Clone(node.AllocatableByPriority)
+	boundAllocatable := node.AllocatableByPriority()
 	require.True(t, boundAllocatable[priority].Equal(boundUrgency[priority]),
 		"genuine bind should deduct both maps identically")
 
@@ -342,7 +342,7 @@ func TestUrgencyMapUnaffectedByEviction(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, boundUrgency[priority].Equal(evicted.AllocatableByPriorityNoEviction[priority]),
 		"urgency map changed on eviction")
-	require.False(t, boundAllocatable[priority].Equal(evicted.AllocatableByPriority[priority]),
+	require.False(t, boundAllocatable[priority].Equal(evicted.AllocatableAtPriority(priority)),
 		"allocatable map should give resources back on eviction")
 
 	// Re-bind the evicted job: real map deducts again; urgency map still unchanged.
@@ -350,13 +350,13 @@ func TestUrgencyMapUnaffectedByEviction(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, boundUrgency[priority].Equal(rebound.AllocatableByPriorityNoEviction[priority]),
 		"urgency map changed on evicted re-bind")
-	require.True(t, boundAllocatable[priority].Equal(rebound.AllocatableByPriority[priority]),
+	require.True(t, boundAllocatable[priority].Equal(rebound.AllocatableAtPriority(priority)),
 		"allocatable map should return to bound state on re-bind")
 
 	// Unbind for real: both maps return to the fully-free state.
 	unbound, err := nodeDb.UnbindJobFromNode(job, rebound)
 	require.NoError(t, err)
-	require.True(t, unbound.AllocatableByPriority[priority].Equal(unbound.AllocatableByPriorityNoEviction[priority]),
+	require.True(t, unbound.AllocatableAtPriority(priority).Equal(unbound.AllocatableByPriorityNoEviction[priority]),
 		"both maps should agree once the node is empty")
 }
 
@@ -372,7 +372,7 @@ func TestUrgencyMapReconciledOnUnbindWhileEvicted(t *testing.T) {
 
 	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
 	priority := job.PriorityClass().Priority
-	freeAllocatable := maps.Clone(entry.AllocatableByPriority)
+	freeAllocatable := entry.AllocatableByPriority()
 
 	bound, err := nodeDb.BindJobToNode(entry, job, priority)
 	require.NoError(t, err)
@@ -383,7 +383,7 @@ func TestUrgencyMapReconciledOnUnbindWhileEvicted(t *testing.T) {
 	unbound, err := nodeDb.UnbindJobFromNode(job, evicted)
 	require.NoError(t, err)
 
-	require.True(t, unbound.AllocatableByPriorityNoEviction[priority].Equal(unbound.AllocatableByPriority[priority]),
+	require.True(t, unbound.AllocatableByPriorityNoEviction[priority].Equal(unbound.AllocatableAtPriority(priority)),
 		"urgency map should reconcile with allocatable map once the evicted job is unbound")
 	require.True(t, unbound.AllocatableByPriorityNoEviction[priority].Equal(freeAllocatable[priority]),
 		"urgency map should return to the fully-free state once the evicted job is unbound")

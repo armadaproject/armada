@@ -242,36 +242,6 @@ func TestMarkResourceUnallocatable_ProtectsFromNegativeValues(t *testing.T) {
 	assert.Equal(t, makeCpuResourceList(resourceListFactory, "1"), result.AllocatableAtPriority(2))
 }
 
-func TestDeepCopyNilKeysClonesUrgencyMap(t *testing.T) {
-	resourceListFactory, err := NewResourceListFactory(
-		[]schedulerconfiguration.ResourceType{
-			{Name: "cpu", Resolution: resource.MustParse("1m")},
-		},
-		nil,
-	)
-	require.Nil(t, err)
-
-	allocatableResources := makeCpuResourceList(resourceListFactory, "10")
-	allocatableByPriority := map[int32]ResourceList{
-		1: makeCpuResourceList(resourceListFactory, "8"),
-		2: makeCpuResourceList(resourceListFactory, "6"),
-	}
-
-	node := createNode(allocatableResources, allocatableByPriority)
-	require.Equal(t, node.AllocatableByPriority, node.AllocatableByPriorityNoEviction)
-
-	cp := node.DeepCopyNilKeys()
-	for p := range cp.AllocatableByPriorityNoEviction {
-		delete(cp.AllocatableByPriorityNoEviction, p)
-		break
-	}
-
-	// Mutated copy is mutated
-	require.NotEqual(t, cp.AllocatableByPriority, cp.AllocatableByPriorityNoEviction)
-	// Original still intact as copy was a deep copy and shouldn't mutate the original
-	require.Equal(t, node.AllocatableByPriority, node.AllocatableByPriorityNoEviction)
-}
-
 func makeCpuResourceList(factory *ResourceListFactory, cpu string) ResourceList {
 	return factory.FromNodeProto(
 		map[string]*resource.Quantity{
@@ -338,12 +308,10 @@ func testAccountingNode(t *testing.T, factory *ResourceListFactory) *Node {
 		"memory": pointer.MustParseResource("32Gi"),
 	})
 	return CreateNode(
-		"node-1", nodeType, 1, "executor", "node-1", "pool", "type",
-		nil, nil, false, total, total,
-		allocatableByPriority,
-		map[string]ResourceList{},
-		map[string]ResourceList{},
-		map[string]bool{},
+		"node-1", 1, "executor", "node-1", "pool", "type",
+		nil, nil, map[string]bool{}, map[string]bool{},
+		false, total, total,
+		[]int32{1, 10},
 		nil,
 	)
 }
@@ -428,10 +396,19 @@ func TestNode_DeepCopyIsolatesAccountingFromOriginal(t *testing.T) {
 	node := testAccountingNode(t, factory)
 	first := &testSchedJob{id: "job-1", queue: "queue-a", requests: requests, priorityClass: types.PriorityClass{Priority: 10, Preemptible: true}}
 	second := &testSchedJob{id: "job-2", queue: "queue-a", requests: requests, priorityClass: types.PriorityClass{Priority: 10, Preemptible: true}}
+	// job-3 is left evicted so allocatableByPriority and AllocatableByPriorityNoEviction hold
+	// different values, which catches a copy that clones one of the two maps twice.
+	third := &testSchedJob{id: "job-3", queue: "queue-a", requests: requests, priorityClass: types.PriorityClass{Priority: 10, Preemptible: true}}
 	require.NoError(t, node.AddJob(first, 10))
+	require.NoError(t, node.AddJob(third, 10))
+	require.NoError(t, node.EvictJob(third))
+	require.NotEqual(t, node.AllocatableAtPriority(10), node.AllocatableByPriorityNoEviction[10])
 
 	before := node.AllocatableAtPriority(10)
+	beforeNoEviction := node.AllocatableByPriorityNoEviction[10]
 	copied := node.DeepCopyNilKeys()
+	require.Equal(t, before, copied.AllocatableAtPriority(10))
+	require.Equal(t, beforeNoEviction, copied.AllocatableByPriorityNoEviction[10])
 
 	require.NoError(t, copied.AddJob(second, 10))
 	require.NoError(t, copied.EvictJob(first))
@@ -440,13 +417,14 @@ func TestNode_DeepCopyIsolatesAccountingFromOriginal(t *testing.T) {
 	assert.False(t, node.HasJobAllocation("job-2"))
 	assert.False(t, node.IsJobEvicted("job-1"))
 	assert.Equal(t, before, node.AllocatableAtPriority(10))
+	assert.Equal(t, beforeNoEviction, node.AllocatableByPriorityNoEviction[10])
 
 	// And unbinding on the original must not disturb the copy.
 	require.NoError(t, node.RemoveJob(first))
 	assert.True(t, copied.HasJobAllocation("job-1"))
 }
 
-func TestNode_RemoveJob_UsesCutoffStoredAtAdd(t *testing.T) {
+func TestNode_RemoveJob_UsesPriorityStoredAtAdd(t *testing.T) {
 	factory := testAccountingFactory(t)
 	requests := testJobRequests(factory, "1", "1Gi")
 	node := testAccountingNode(t, factory)
@@ -462,7 +440,7 @@ func TestNode_RemoveJob_UsesCutoffStoredAtAdd(t *testing.T) {
 	assert.Equal(t, beforeHigh, node.AllocatableAtPriority(10), "bucket 10 was never debited and must be unchanged")
 }
 
-func TestNode_RemoveJob_HighCutoffReleasesEveryBucket(t *testing.T) {
+func TestNode_RemoveJob_HighPriorityReleasesEveryBucket(t *testing.T) {
 	factory := testAccountingFactory(t)
 	requests := testJobRequests(factory, "1", "1Gi")
 	node := testAccountingNode(t, factory)
@@ -472,7 +450,7 @@ func TestNode_RemoveJob_HighCutoffReleasesEveryBucket(t *testing.T) {
 	beforeHigh := node.AllocatableAtPriority(10)
 
 	require.NoError(t, node.AddJob(job, math.MaxInt32))
-	assert.NotEqual(t, beforeLow, node.AllocatableAtPriority(1), "a max cutoff must debit every bucket")
+	assert.NotEqual(t, beforeLow, node.AllocatableAtPriority(1), "a max priority must debit every bucket")
 
 	require.NoError(t, node.RemoveJob(job))
 

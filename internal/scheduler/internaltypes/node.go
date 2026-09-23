@@ -67,11 +67,11 @@ type Node struct {
 	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
 
-	allocatableByPriority map[int32]ResourceList
+	allocatableByPriority           map[int32]ResourceList
 	AllocatableByPriorityNoEviction map[int32]ResourceList
-	allocatedByJobId      map[string]ResourceList
-	evictedJobRunIds      map[string]bool
-	cutoffByJobId         map[string]int32
+	allocatedByJobId                map[string]ResourceList
+	evictedJobRunIds                map[string]bool
+	priorityByJobId                 map[string]int32
 
 	hasUrgencyPreemptableResources bool
 }
@@ -175,28 +175,28 @@ func CreateNode(
 ) *Node {
 	taints = koTaint.DeepCopyTaints(taints)
 	labels = deepCopyLabels(labels)
-	return &Node{
-		id:                    id,
-		nodeType:              NewNodeType(taints, labels, indexedTaints, indexedNodeLabels),
-		index:                 index,
-		executor:              executor,
-		name:                  name,
-		pool:                  pool,
-		reportingNodeType:     reportingNodeType,
-		taints:                taints,
-		reservation:           util.GetReservationName(taints),
-		labels:                labels,
-		indexedTaints:         indexedTaints,
-		indexedNodeLabels:     indexedNodeLabels,
-		unschedulable:         unschedulable,
-		totalResources:        totalResources,
-		allocatableResources:  allocatableResources,
-		allocatableByPriority: NewAllocatableByPriorityAndResourceType(allowedPriorities, allocatableResources),
+	node := &Node{
+		id:                              id,
+		nodeType:                        NewNodeType(taints, labels, indexedTaints, indexedNodeLabels),
+		index:                           index,
+		executor:                        executor,
+		name:                            name,
+		pool:                            pool,
+		reportingNodeType:               reportingNodeType,
+		taints:                          taints,
+		reservation:                     util.GetReservationName(taints),
+		labels:                          labels,
+		indexedTaints:                   indexedTaints,
+		indexedNodeLabels:               indexedNodeLabels,
+		unschedulable:                   unschedulable,
+		totalResources:                  totalResources,
+		allocatableResources:            allocatableResources,
+		allocatableByPriority:           NewAllocatableByPriorityAndResourceType(allowedPriorities, allocatableResources),
 		AllocatableByPriorityNoEviction: NewAllocatableByPriorityAndResourceType(allowedPriorities, allocatableResources),
-		allocatedByJobId:      map[string]ResourceList{},
-		evictedJobRunIds:      map[string]bool{},
-		cutoffByJobId:         map[string]int32{},
-		Keys:                  keys,
+		allocatedByJobId:                map[string]ResourceList{},
+		evictedJobRunIds:                map[string]bool{},
+		priorityByJobId:                 map[string]int32{},
+		Keys:                            keys,
 	}
 	node.recomputeUrgencyPreemptableFlag()
 	return node
@@ -366,7 +366,7 @@ func (node *Node) WithResourcesUsedAtPriority(priority int32, rs ResourceList) *
 	result := node.DeepCopyNilKeys()
 	markAllocated(result.allocatableByPriority, priority, rs)
 	markAllocated(result.AllocatableByPriorityNoEviction, priority, rs)
-	node.recomputeUrgencyPreemptableFlag()
+	result.recomputeUrgencyPreemptableFlag()
 	return result
 }
 
@@ -396,7 +396,7 @@ func (node *Node) MarkResourceUnallocatable(unallocatable ResourceList) *Node {
 		newAllocatable := allocatable.Subtract(unallocatable).FloorAtZero()
 		result.AllocatableByPriorityNoEviction[pri] = newAllocatable
 	}
-	node.recomputeUrgencyPreemptableFlag()
+	result.recomputeUrgencyPreemptableFlag()
 
 	result.allocatableResources = result.allocatableResources.Subtract(unallocatable).FloorAtZero()
 	return result
@@ -458,11 +458,11 @@ func (node *Node) DeepCopyNilKeys() *Node {
 
 		// The copy is about to be mutated in place by AddJob/EvictJob/RemoveJob, so these
 		// maps must not be shared with the original
-		allocatableByPriority: maps.Clone(node.allocatableByPriority),
-		AllocatableByPriorityNoEviction: maps.Clone(node.allocatableByPriority),
-		allocatedByJobId:      maps.Clone(node.allocatedByJobId),
-		evictedJobRunIds:      maps.Clone(node.evictedJobRunIds),
-		cutoffByJobId:         maps.Clone(node.cutoffByJobId),
+		allocatableByPriority:           maps.Clone(node.allocatableByPriority),
+		AllocatableByPriorityNoEviction: maps.Clone(node.AllocatableByPriorityNoEviction),
+		allocatedByJobId:                maps.Clone(node.allocatedByJobId),
+		evictedJobRunIds:                maps.Clone(node.evictedJobRunIds),
+		priorityByJobId:                 maps.Clone(node.priorityByJobId),
 
 		hasUrgencyPreemptableResources: node.hasUrgencyPreemptableResources,
 	}
@@ -506,7 +506,7 @@ type SchedulableJob interface {
 }
 
 // AddJob binds job to the node, deducting its resources at every priority bucket
-// at or below cutoff. If the job is currently evicted from this node, it is
+// at or below priority. If the job is currently evicted from this node, it is
 // un-evicted and its resources are moved out of the EvictedPriority bucket;
 // ownership (allocatedByJobId) is left untouched in that case
 // because an evicted job still owns its resources.
@@ -536,9 +536,9 @@ func (node *Node) AddJob(job SchedulableJob, priority int32) error {
 }
 
 // EvictJob marks job as evicted from the node: its resources move from the bucket
-// at the cutoff it was bound at to the EvictedPriority bucket within
+// at the priority it was bound at to the EvictedPriority bucket within
 // allocatableByPriority. Ownership (allocatedByJobId) is
-// intentionally left in place, and the stored cutoff is preserved so a later
+// intentionally left in place, and the stored priority is preserved so a later
 // RemoveJob can still release correctly.
 func (node *Node) EvictJob(job SchedulableJob) error {
 	jobId := job.Id()
@@ -561,7 +561,7 @@ func (node *Node) EvictJob(job SchedulableJob) error {
 
 // RemoveJob unbinds job from the node, releasing its ownership and returning its
 // resources to allocatableByPriority. If the job was evicted, its resources are
-// released from the EvictedPriority bucket; otherwise from the bucket at the cutoff
+// released from the EvictedPriority bucket; otherwise from the bucket at the priority
 // it was bound at. Removing a job that is not bound is a no-op.
 func (node *Node) RemoveJob(job SchedulableJob) error {
 	jobId := job.Id()
@@ -576,9 +576,9 @@ func (node *Node) RemoveJob(job SchedulableJob) error {
 	delete(node.allocatedByJobId, jobId)
 
 	if isEvicted {
-		markAllocatable(node.AllocatableByPriority, EvictedPriority, requests)
+		markAllocatable(node.allocatableByPriority, EvictedPriority, requests)
 	} else {
-		markAllocatable(node.AllocatableByPriority, node.priorityByJobId[jobId], requests)
+		markAllocatable(node.allocatableByPriority, node.priorityByJobId[jobId], requests)
 	}
 	markAllocatable(node.AllocatableByPriorityNoEviction, node.priorityByJobId[jobId], requests)
 	node.recomputeUrgencyPreemptableFlag()
