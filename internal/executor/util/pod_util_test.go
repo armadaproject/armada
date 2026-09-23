@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -560,6 +561,88 @@ func TestLastStatusChange_ReportsTimeFromContainerStatus(t *testing.T) {
 	result, err = LastStatusChange(&pod)
 	assert.Equal(t, result, now)
 	assert.Nil(t, err)
+}
+
+func TestEarliestAppContainerStart_UsesCurrentStateAndFallbackTermination(t *testing.T) {
+	fallbackStart := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	currentStart := fallbackStart.Add(time.Minute)
+	secondCurrentStart := currentStart.Add(time.Minute)
+	initStart := fallbackStart.Add(-time.Minute)
+	pod := &v1.Pod{
+		Status: v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{StartedAt: metav1.NewTime(currentStart)},
+					},
+					LastTerminationState: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{StartedAt: metav1.NewTime(initStart)},
+					},
+				},
+				{
+					LastTerminationState: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{StartedAt: metav1.NewTime(fallbackStart)},
+					},
+				},
+				{
+					State: v1.ContainerState{
+						Running: &v1.ContainerStateRunning{StartedAt: metav1.NewTime(secondCurrentStart)},
+					},
+				},
+				{State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+			},
+			InitContainerStatuses: []v1.ContainerStatus{
+				{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{StartedAt: metav1.NewTime(initStart)}}},
+			},
+		},
+	}
+
+	started := EarliestAppContainerStart(pod)
+
+	require.NotNil(t, started)
+	assert.Equal(t, fallbackStart, *started)
+}
+
+func TestLatestAppContainerFinished_UsesCurrentStateAndFallbackTermination(t *testing.T) {
+	firstFinish := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	latestFinish := firstFinish.Add(time.Minute)
+	staleFinish := latestFinish.Add(time.Minute)
+	initFinish := staleFinish.Add(time.Minute)
+	pod := &v1.Pod{
+		Status: v1.PodStatus{
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(firstFinish)},
+					},
+					LastTerminationState: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(initFinish)},
+					},
+				},
+				{
+					LastTerminationState: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(latestFinish)},
+					},
+				},
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{},
+					},
+					LastTerminationState: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(staleFinish)},
+					},
+				},
+			},
+			InitContainerStatuses: []v1.ContainerStatus{
+				{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(initFinish)}}},
+			},
+		},
+	}
+
+	finished := LatestAppContainerFinished(pod)
+
+	require.NotNil(t, finished)
+	assert.Equal(t, latestFinish, *finished)
 }
 
 func TestIsMarkedForDeletion(t *testing.T) {

@@ -294,6 +294,52 @@ func LongestAppContainerRunDuration(pod *v1.Pod) time.Duration {
 	return longest
 }
 
+func EarliestAppContainerStart(pod *v1.Pod) *time.Time {
+	var earliest *time.Time
+	for _, container := range pod.Status.ContainerStatuses {
+		var startedAt time.Time
+		if running := container.State.Running; running != nil {
+			startedAt = running.StartedAt.Time
+		} else {
+			terminated := container.State.Terminated
+			if terminated == nil {
+				terminated = container.LastTerminationState.Terminated
+			}
+			if terminated == nil {
+				continue
+			}
+			startedAt = terminated.StartedAt.Time
+		}
+		if startedAt.IsZero() {
+			continue
+		}
+		if earliest == nil || startedAt.Before(*earliest) {
+			candidate := startedAt
+			earliest = &candidate
+		}
+	}
+	return earliest
+}
+
+func LatestAppContainerFinished(pod *v1.Pod) *time.Time {
+	var latest *time.Time
+	for _, container := range pod.Status.ContainerStatuses {
+		terminated := container.State.Terminated
+		if terminated == nil {
+			terminated = container.LastTerminationState.Terminated
+		}
+		if terminated == nil || terminated.FinishedAt.IsZero() {
+			continue
+		}
+		finishedAt := terminated.FinishedAt.Time
+		if latest == nil || finishedAt.After(*latest) {
+			candidate := finishedAt
+			latest = &candidate
+		}
+	}
+	return latest
+}
+
 func IsMarkedForDeletion(pod *v1.Pod) bool {
 	_, exists := pod.Annotations[domain.MarkedForDeletion]
 	return exists

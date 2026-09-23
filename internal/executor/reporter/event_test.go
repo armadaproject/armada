@@ -3,13 +3,16 @@ package reporter
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/common/errormatch"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -28,6 +31,10 @@ func TestCreateEventForCurrentState_WhenPodPending(t *testing.T) {
 
 func TestCreateEventForCurrentState_WhenPodRunning(t *testing.T) {
 	pod := makeTestPod(v1.PodRunning)
+	startedAt := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{{
+		State: v1.ContainerState{Running: &v1.ContainerStateRunning{StartedAt: metav1.NewTime(startedAt)}},
+	}}
 
 	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{}, "")
 	assert.Nil(t, err)
@@ -36,10 +43,15 @@ func TestCreateEventForCurrentState_WhenPodRunning(t *testing.T) {
 	running, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunRunning)
 	assert.True(t, ok)
 	assert.Equal(t, "test-pool", running.JobRunRunning.Pool)
+	assert.Equal(t, protoutil.ToTimestamp(startedAt), running.JobRunRunning.StartedAt)
 }
 
 func TestCreateEventForCurrentState_WhenPodFailed(t *testing.T) {
 	pod := makeTestPod(v1.PodFailed)
+	finishedAt := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{{
+		State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(finishedAt)}},
+	}}
 
 	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{}, "")
 	assert.Nil(t, err)
@@ -50,6 +62,7 @@ func TestCreateEventForCurrentState_WhenPodFailed(t *testing.T) {
 	assert.Len(t, event.JobRunErrors.Errors, 1)
 	assert.NotNil(t, event.JobRunErrors.Errors[0].GetPodError())
 	assert.Empty(t, event.JobRunErrors.Errors[0].GetFailureCategory())
+	assert.Equal(t, protoutil.ToTimestamp(finishedAt), event.JobRunErrors.FinishedAt)
 }
 
 func TestCreateEventForCurrentState_WhenPodFailed_WithClassifier(t *testing.T) {
@@ -169,13 +182,40 @@ func TestCreateEventForCurrentState_WhenPodFailed_NilClassifier(t *testing.T) {
 
 func TestCreateEventForCurrentState_WhenPodSucceeded(t *testing.T) {
 	pod := makeTestPod(v1.PodSucceeded)
+	finishedAt := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{{
+		State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(finishedAt)}},
+	}}
 
 	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{}, "")
 	assert.Nil(t, err)
 
 	assert.Len(t, result.Events, 1)
-	_, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunSucceeded)
+	succeeded, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunSucceeded)
 	assert.True(t, ok)
+	assert.Equal(t, protoutil.ToTimestamp(finishedAt), succeeded.JobRunSucceeded.FinishedAt)
+}
+
+func TestCreateEventForCurrentState_OmitsLifecycleTimestampsWithoutContainerTimes(t *testing.T) {
+	for _, phase := range []v1.PodPhase{v1.PodRunning, v1.PodSucceeded, v1.PodFailed} {
+		t.Run(string(phase), func(t *testing.T) {
+			pod := makeTestPod(phase)
+
+			result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{}, "")
+
+			require.NoError(t, err)
+			switch event := result.Events[0].Event.(type) {
+			case *armadaevents.EventSequence_Event_JobRunRunning:
+				assert.Nil(t, event.JobRunRunning.StartedAt)
+			case *armadaevents.EventSequence_Event_JobRunSucceeded:
+				assert.Nil(t, event.JobRunSucceeded.FinishedAt)
+			case *armadaevents.EventSequence_Event_JobRunErrors:
+				assert.Nil(t, event.JobRunErrors.FinishedAt)
+			default:
+				t.Fatalf("unexpected event type %T", event)
+			}
+		})
+	}
 }
 
 func TestCreateEventForCurrentState_ShouldError_WhenPodPhaseUnknown(t *testing.T) {
