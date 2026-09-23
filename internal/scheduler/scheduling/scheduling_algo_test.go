@@ -1362,7 +1362,7 @@ func TestPopulateNodeDb(t *testing.T) {
 					return job.Id()
 				})
 				slices.Sort(expectedJobIds)
-				actualJobIds := maps.Keys(node.AllocatedByJobId)
+				actualJobIds := node.GetRunningJobIds()
 				slices.Sort(actualJobIds)
 				assert.Equal(t, expectedJobIds, actualJobIds)
 			} else {

@@ -149,7 +149,7 @@ func JobRequirementsMet(node *internaltypes.Node, priority int32, jctx *schedule
 	if !matches || err != nil {
 		return matches, reason, err
 	}
-	matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
+	matches, reason = DynamicJobRequirementsMet(node.AllocatableAtPriority(priority), jctx)
 	if !matches {
 		return matches, reason, nil
 	}
