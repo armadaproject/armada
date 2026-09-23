@@ -33,8 +33,10 @@ const DefaultSettleDelay = 90 * time.Second
 // and its series has expired - but right after a large submission returns, the scheduler may not
 // have run its next cycle yet and Prometheus may not have scraped it, so the series can look
 // "absent" before the real jobs are ever counted. To avoid mistaking that startup gap for a real
-// drain, a zero/absent reading only counts once armada_queue_size has been observed populated
-// (i.e. actually > 0) at least once in this poll loop.
+// drain, a zero/absent reading only counts once armada_queue_size OR armada_queue_leased_pod_count
+// has been observed populated (i.e. actually > 0) at least once in this poll loop - checking only
+// queue_size isn't enough, since jobs can move from validated straight to leased between two 5s
+// polls, in which case queue_size may never be caught above zero even on a real, successful run.
 func WaitForQueueDrain(ctx context.Context, promURL, queue string) time.Time {
 	deadline := time.Now().Add(DrainPollTimeout)
 	sizeExpr := queueSizeQuery(queue)
@@ -46,7 +48,7 @@ func WaitForQueueDrain(ctx context.Context, promURL, queue string) time.Time {
 		size, sizeErr := query(ctx, promURL, sizeExpr, now)
 		leased, leasedErr := query(ctx, promURL, leasedExpr, now)
 
-		if sizeErr == nil && size != nil && *size > 0 {
+		if (sizeErr == nil && size != nil && *size > 0) || (leasedErr == nil && leased != nil && *leased > 0) {
 			seenPopulated = true
 		}
 
