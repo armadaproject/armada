@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/golang/protobuf/proto"
@@ -229,6 +230,63 @@ var standaloneIngressInfoEvent = &armadaevents.EventSequence_Event{
 var expectedStandaloneIngressRun = model.UpdateJobRunInstruction{
 	RunId:            testfixtures.RunId,
 	IngressAddresses: standaloneIngressAddresses,
+}
+
+func TestLifecycleEventSchemaRoundTrip(t *testing.T) {
+	startedAt := testfixtures.BaseTime.Add(time.Minute)
+	finishedAt := testfixtures.BaseTime.Add(2 * time.Minute)
+	sequence := &armadaevents.EventSequence{
+		Events: []*armadaevents.EventSequence_Event{
+			{
+				Event: &armadaevents.EventSequence_Event_JobRunRunning{
+					JobRunRunning: &armadaevents.JobRunRunning{
+						JobId:     testfixtures.JobId,
+						RunId:     testfixtures.RunId,
+						StartedAt: protoutil.ToTimestamp(startedAt),
+					},
+				},
+			},
+			{
+				Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
+					JobRunSucceeded: &armadaevents.JobRunSucceeded{
+						JobId:      testfixtures.JobId,
+						RunId:      testfixtures.RunId,
+						FinishedAt: protoutil.ToTimestamp(finishedAt),
+					},
+				},
+			},
+			{
+				Event: &armadaevents.EventSequence_Event_JobRunErrors{
+					JobRunErrors: &armadaevents.JobRunErrors{
+						JobId:      testfixtures.JobId,
+						RunId:      testfixtures.RunId,
+						FinishedAt: protoutil.ToTimestamp(finishedAt),
+					},
+				},
+			},
+			{
+				Event: &armadaevents.EventSequence_Event_JobRunTerminated{
+					JobRunTerminated: &armadaevents.JobRunTerminated{
+						JobId:      testfixtures.JobId,
+						RunId:      testfixtures.RunId,
+						FinishedAt: protoutil.ToTimestamp(finishedAt),
+					},
+				},
+			},
+		},
+	}
+
+	data, err := proto.Marshal(sequence)
+	require.NoError(t, err)
+
+	actual := &armadaevents.EventSequence{}
+	require.NoError(t, proto.Unmarshal(data, actual))
+	assert.Equal(t, startedAt, protoutil.ToStdTime(actual.Events[0].GetJobRunRunning().GetStartedAt()))
+	assert.Equal(t, finishedAt, protoutil.ToStdTime(actual.Events[1].GetJobRunSucceeded().GetFinishedAt()))
+	assert.Equal(t, finishedAt, protoutil.ToStdTime(actual.Events[2].GetJobRunErrors().GetFinishedAt()))
+	assert.Equal(t, testfixtures.JobId, actual.Events[3].GetJobRunTerminated().GetJobId())
+	assert.Equal(t, testfixtures.RunId, actual.Events[3].GetJobRunTerminated().GetRunId())
+	assert.Equal(t, finishedAt, protoutil.ToStdTime(actual.Events[3].GetJobRunTerminated().GetFinishedAt()))
 }
 
 func TestConvert(t *testing.T) {

@@ -92,6 +92,7 @@ message EventSequence {
             JobRunCancelled jobRunCancelled = 24;
             JobValidated jobValidated = 25;
             JobRunTerminatedDebugInfo jobRunTerminatedDebugInfo = 26;
+            JobRunTerminated jobRunTerminated = 27;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -338,6 +339,7 @@ message JobRunRunning {
     string job_id = 4;
     string run_id = 5;
     string pool = 6;
+    google.protobuf.Timestamp started_at = 7;
 }
 
 // Message containing runtime information about some resource created for a job.
@@ -389,6 +391,7 @@ message JobRunSucceeded {
     repeated KubernetesResourceInfo resourceInfos = 3;
     string job_id = 4;
     string run_id = 5;
+    google.protobuf.Timestamp finished_at = 6;
 }
 
 // Message containing a set of errors associated with a particular job.
@@ -414,6 +417,7 @@ message JobRunErrors {
     repeated Error errors = 3;
     string job_id = 4;
     string run_id = 5;
+    google.protobuf.Timestamp finished_at = 6;
 }
 
 // Represents a failure that took place in the course of a job run (i.e., an attempt to run a job).
@@ -594,6 +598,12 @@ message JobRunCancelled {
     string run_id = 4;
     string reason = 5;
     string requestor = 6;
+}
+
+message JobRunTerminated {
+    string job_id = 1;
+    string run_id = 2;
+    google.protobuf.Timestamp finished_at = 3;
 }
 
 // Emitted by the executor when a job run is torn down without the workload having run to
