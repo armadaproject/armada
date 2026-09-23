@@ -67,9 +67,6 @@ type Node struct {
 	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
 
-	// Resource accounting. Only node.go may write to these maps; everything else reads
-	// through the accessors below. node.go does mutate them in place, so DeepCopyNilKeys
-	// must clone them. Their keys and values are immutable, so cloning the maps is enough.
 	allocatableByPriority map[int32]ResourceList
 	allocatedByJobId      map[string]ResourceList
 	evictedJobRunIds      map[string]bool
