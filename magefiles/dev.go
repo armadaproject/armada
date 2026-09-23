@@ -161,7 +161,7 @@ func (Dev) Down() error {
 // kubeconfig to .kube/internal/config), then brings the stack up. Migrations run as compose
 // services ordered ahead of the components, so no separate init step is needed.
 func (Dev) Full() error {
-	mg.Deps(mg.F((Dev).FullBuild), Kind)
+	mg.Deps(mg.F(Dev.FullBuild), Kind)
 	return sh.RunV("docker", "compose", "-f", fullComposeFile, "up", "-d", "--wait")
 }
 
@@ -169,7 +169,11 @@ func (Dev) Full() error {
 // (gresearch/armada-bundle and gresearch/armada-lookout-bundle), without setting up Kind or
 // bringing up the stack. Split out from Full so CI can cache the build across workflows: see
 // FullImagesSave/FullImagesLoad.
+//
+// Depends on BootstrapTools so goreleaser is installed even on a cold tools cache -- previously
+// this relied on some earlier step having already put goreleaser on PATH.
 func (Dev) FullBuild() error {
+	mg.Deps(BootstrapTools)
 	return goreleaserMinimalRelease("bundle", "lookout-bundle")
 }
 
