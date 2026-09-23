@@ -142,20 +142,36 @@ func TestReportSubmitCheckDuration(t *testing.T) {
 		"queue3": 723 * time.Microsecond,
 	})
 
-	assertHistogramObservation(t, m.submitCheckDuration, "queue1", 1, 250.0)
-	assertHistogramObservation(t, m.submitCheckDuration, "queue2", 1, 50.0)
-	assertHistogramObservation(t, m.submitCheckDuration, "queue3", 1, 0.723)
+	assertHistogramObservation(t, m.submitCheckDuration, 1, 250.0, "queue1")
+	assertHistogramObservation(t, m.submitCheckDuration, 1, 50.0, "queue2")
+	assertHistogramObservation(t, m.submitCheckDuration, 1, 0.723, "queue3")
 
 	m.ReportSubmitCheckDuration(map[string]time.Duration{
 		"queue1": 100 * time.Millisecond,
 	})
-	assertHistogramObservation(t, m.submitCheckDuration, "queue1", 2, 350.0)
-	assertHistogramObservation(t, m.submitCheckDuration, "queue2", 1, 50.0)
+	assertHistogramObservation(t, m.submitCheckDuration, 2, 350.0, "queue1")
+	assertHistogramObservation(t, m.submitCheckDuration, 1, 50.0, "queue2")
 }
 
-func assertHistogramObservation(t *testing.T, vec *prometheus.HistogramVec, queue string, wantCount uint64, wantSumMillis float64) {
+func TestReportMainLoopCycle(t *testing.T) {
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
+
+	m.ReportMainLoopCycleCompleted(100*time.Millisecond, true, Scheduling)
+	m.ReportMainLoopCycleCompleted(300*time.Millisecond, true, Scheduling)
+	m.ReportMainLoopCycleCompleted(70*time.Millisecond, false, Scheduling)
+	m.ReportMainLoopCycleCompleted(20*time.Millisecond, true, Reconciliation)
+	m.ReportMainLoopCycleCompleted(50*time.Millisecond, false, Reconciliation)
+
+	// Each loop type / outcome combination is recorded independently.
+	assertHistogramObservation(t, m.mainLoopCycleTime, 2, 400.0, string(Scheduling), SchedulingOutcomeSuccess)
+	assertHistogramObservation(t, m.mainLoopCycleTime, 1, 70.0, string(Scheduling), SchedulingOutcomeFailure)
+	assertHistogramObservation(t, m.mainLoopCycleTime, 1, 20.0, string(Reconciliation), SchedulingOutcomeSuccess)
+	assertHistogramObservation(t, m.mainLoopCycleTime, 1, 50.0, string(Reconciliation), SchedulingOutcomeFailure)
+}
+
+func assertHistogramObservation(t *testing.T, vec *prometheus.HistogramVec, wantCount uint64, wantSumMillis float64, labelValues ...string) {
 	t.Helper()
-	obs, err := vec.GetMetricWithLabelValues(queue)
+	obs, err := vec.GetMetricWithLabelValues(labelValues...)
 	require.NoError(t, err)
 	metric := &dto.Metric{}
 	require.NoError(t, obs.(prometheus.Metric).Write(metric))
@@ -248,6 +264,7 @@ func TestDisableLeaderMetrics(t *testing.T) {
 		m.scheduleCycleTime.Observe(float64(1000))
 		m.scheduleCycleOutcome.WithLabelValues(SchedulingOutcomeSuccess)
 		m.reconciliationCycleTime.Observe(float64(1000))
+		m.ReportMainLoopCycleCompleted(20*time.Millisecond, true, Reconciliation)
 		m.poolSchedulingCycleTime.WithLabelValues("pool1").Observe(float64(1000))
 		m.poolSchedulingOutcome.WithLabelValues("pool1", SchedulingOutcomeSuccess, "reason")
 		m.latestCycleMetrics.Load().gangsConsidered.WithLabelValues("pool1", "queue1").Inc()
@@ -272,15 +289,15 @@ func TestDisableLeaderMetrics(t *testing.T) {
 	}
 
 	// Enabled
-	assert.True(t, len(collect(m)) > 1)
+	assert.True(t, len(collect(m)) > 2)
 
 	// Disabled
 	m.disableLeaderMetrics()
-	assert.Equal(t, 1, len(collect(m)))
+	assert.Equal(t, 2, len(collect(m)))
 
 	// Enabled
 	m.enableLeaderMetrics()
-	assert.True(t, len(collect(m)) > 1)
+	assert.True(t, len(collect(m)) > 2)
 }
 
 func TestPublishCycleMetrics(t *testing.T) {

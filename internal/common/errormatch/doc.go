@@ -10,4 +10,10 @@
 // for config validation. Non-pod conditions ([ConditionPreempted],
 // [ConditionLeaseReturned], [ConditionLeaseExpired], [ConditionAppError]) are also defined here
 // for use by the retry engine but are not included in [KnownConditions].
+//
+// The failure-category constants ([CategoryInternal], [CategoryPreemption])
+// and the Subcategory constants name the classifications that Armada
+// hard-codes on self-generated errors. The operator categorizer never
+// assigns them. Errors in [CategoryPreemption] carry the scheduler's
+// preemption type string as their subcategory.
 package errormatch

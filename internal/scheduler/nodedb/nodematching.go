@@ -145,7 +145,7 @@ func NodeTypeJobRequirementsMet(nodeType *internaltypes.NodeType, jctx *schedule
 // If the requirements are not met, it returns the reason why.
 // If the requirements can't be parsed, an error is returned.
 func JobRequirementsMet(node *internaltypes.Node, priority int32, jctx *schedulercontext.JobSchedulingContext) (bool, PodRequirementsNotMetReason, error) {
-	return JobRequirementsMetForView(node, node.AllocatableByPriority[priority], jctx)
+	return JobRequirementsMetForView(node, node.AllocatableByPriority(priority), jctx)
 }
 
 // JobRequirementsMetForView is like JobRequirementsMet, but checks dynamic requirements against

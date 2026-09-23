@@ -158,7 +158,7 @@ func TestEvictOversubscribed(t *testing.T) {
 
 	for nodeId, node := range result.AffectedNodesById {
 		for _, p := range priorities {
-			for _, r := range node.AllocatableByPriority[p].GetAll() {
+			for _, r := range node.AllocatableAtPriority(p).GetAll() {
 				assert.False(t, r.IsNegative(), "resource oversubscribed by %s on node %s", r.String(), nodeId)
 			}
 		}
@@ -2321,8 +2321,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						node, err := nodeDb.GetNode(tc.Nodes[idx].GetId())
 						require.NoError(t, err)
 						ctx.Infof("Cordoned node %s", node.GetId())
-						taints := append(slices.Clone(node.GetTaints()), internaltypes.UnschedulableTaint())
-						node = testNodeWithTaints(node, taints)
+						node = node.WithSchedulable(false)
 						err = nodeDb.Upsert(node)
 						require.NoError(t, err)
 					}
@@ -2488,7 +2487,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				require.NoError(t, err)
 				for node := it.NextNode(); node != nil; node = it.NextNode() {
 					for _, p := range priorities {
-						for _, r := range node.AllocatableByPriority[p].GetAll() {
+						for _, r := range node.AllocatableAtPriority(p).GetAll() {
 							assert.False(t, r.IsNegative(), "resource oversubscribed by %s on node %s", r.String(), node.GetId())
 						}
 					}
@@ -3399,28 +3398,6 @@ func TestPreemptingQueueScheduler_RespectNodePodLimits(t *testing.T) {
 			}
 		})
 	}
-}
-
-func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internaltypes.Node {
-	return internaltypes.CreateNode(
-		node.GetId(),
-		node.GetNodeType(),
-		node.GetIndex(),
-		node.GetExecutor(),
-		node.GetName(),
-		node.GetPool(),
-		node.GetReportingNodeType(),
-		taints,
-		node.GetLabels(),
-		false,
-		node.GetTotalResources(),
-		node.GetAllocatableResources(),
-		node.AllocatableByPriority,
-		node.AllocatableByPriorityNoEviction,
-		node.AllocatedByJobId,
-		node.EvictedJobIds,
-		node.Keys,
-	)
 }
 
 // TestPreemptingQueueScheduler_NonPreemptibleOverPack is a regression guard:

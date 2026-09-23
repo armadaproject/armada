@@ -925,7 +925,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 			} else if urgency {
 				matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriorityNoEviction[priority], jctx)
 			} else {
-				matches, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
+				matches, reason = DynamicJobRequirementsMet(node.AllocatableAtPriority(priority), jctx)
 			}
 		} else if urgency {
 			matches, reason, err = JobRequirementsMetForView(node, node.AllocatableByPriorityNoEviction[priority], jctx)
@@ -1002,7 +1002,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 			}
 			node = &consideredNode{
 				node:                     nodeFromDb,
-				availableResource:        nodeFromDb.AllocatableByPriority[internaltypes.EvictedPriority],
+				availableResource:        nodeFromDb.AllocatableAtPriority(internaltypes.EvictedPriority),
 				staticRequirementsNotMet: false,
 				evictedJobs:              []*EvictedJobSchedulingContext{},
 			}
@@ -1189,7 +1189,7 @@ func (nodeDb *NodeDb) Upsert(node *internaltypes.Node) error {
 func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *internaltypes.Node) error {
 	keys := make([][]byte, 2*nodeDb.numPriorities)
 	for i, p := range nodeDb.nodeDbPriorities {
-		keys[i] = nodeDb.nodeDbKey(keys[i], node.GetNodeTypeId(), node.AllocatableByPriority[p], node.GetIndex())
+		keys[i] = nodeDb.nodeDbKey(keys[i], node.GetNodeTypeId(), node.AllocatableAtPriority(p), node.GetIndex())
 		urgencyKeyIndex := nodeDb.numPriorities + i
 		keys[urgencyKeyIndex] = nodeDb.nodeDbKey(keys[urgencyKeyIndex], node.GetNodeTypeId(), node.AllocatableByPriorityNoEviction[p], node.GetIndex())
 	}
@@ -1199,42 +1199,6 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *internaltypes.Node) er
 		return errors.WithStack(err)
 	}
 	return nil
-}
-
-// ClearAllocated zeroes out allocated resources on all nodes in the NodeDb.
-func (nodeDb *NodeDb) ClearAllocated() error {
-	txn := nodeDb.db.Txn(true)
-	defer txn.Abort()
-	it, err := NewNodesIterator(txn)
-	if err != nil {
-		return err
-	}
-	newNodes := make([]*internaltypes.Node, 0)
-	for node := it.NextNode(); node != nil; node = it.NextNode() {
-		node = node.DeepCopyNilKeys()
-		node.AllocatableByPriority = newAllocatableByPriorityAndResourceType(
-			nodeDb.nodeDbPriorities,
-			node.GetAllocatableResources(),
-		)
-		node.AllocatableByPriorityNoEviction = newAllocatableByPriorityAndResourceType(
-			nodeDb.nodeDbPriorities,
-			node.GetAllocatableResources(),
-		)
-		newNodes = append(newNodes, node)
-	}
-	if err := nodeDb.UpsertManyWithTxn(txn, newNodes); err != nil {
-		return err
-	}
-	txn.Commit()
-	return nil
-}
-
-func newAllocatableByPriorityAndResourceType(priorities []int32, rl internaltypes.ResourceList) map[int32]internaltypes.ResourceList {
-	rv := make(map[int32]internaltypes.ResourceList, len(priorities))
-	for _, priority := range priorities {
-		rv[priority] = rl
-	}
-	return rv
 }
 
 func (nodeDb *NodeDb) AddEvictedJobSchedulingContextWithTxn(txn *memdb.Txn, index int, jctx *context.JobSchedulingContext) error {

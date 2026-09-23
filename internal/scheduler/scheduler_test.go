@@ -3589,7 +3589,9 @@ func TestCycleConsistency(t *testing.T) {
 									RunId: testfixtures.UUIDFromInt(1).String(),
 									Errors: []*armadaevents.Error{
 										{
-											Terminal: true,
+											Terminal:           true,
+											FailureCategory:    errormatch.CategoryPreemption,
+											FailureSubcategory: string(schedulercontext.Unknown),
 											Reason: &armadaevents.Error_JobRunPreemptedError{
 												JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
 											},
@@ -3605,7 +3607,9 @@ func TestCycleConsistency(t *testing.T) {
 									JobId: queuedJobA.JobID,
 									Errors: []*armadaevents.Error{
 										{
-											Terminal: true,
+											Terminal:           true,
+											FailureCategory:    errormatch.CategoryPreemption,
+											FailureSubcategory: string(schedulercontext.Unknown),
 											Reason: &armadaevents.Error_JobRunPreemptedError{
 												JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
 											},

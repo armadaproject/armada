@@ -268,7 +268,7 @@ func (it *MarketDrivenMultiJobsIterator) Next() (*schedulercontext.JobScheduling
 	j2 := it.it2Value
 	// Both iterators active.
 	if j1 != nil && j2 != nil {
-		if (jobdb.MarketSchedulingOrderCompare(it.pool, j1.Job, j2.Job)) < 0 {
+		if jobdb.MarketSchedulingOrderCompare(it.pool, j1.Job, j2.Job) < 0 {
 			it.it1Value = nil
 			return j1, nil
 		} else {

@@ -172,8 +172,8 @@ func (pq *nodeTypesIteratorPQ) Less(i, j int) bool {
 }
 
 func (it *nodeTypesIteratorPQ) less(a, b *internaltypes.Node) bool {
-	allocatableByPriorityA := a.AllocatableByPriority[it.priority]
-	allocatableByPriorityB := b.AllocatableByPriority[it.priority]
+	allocatableByPriorityA := a.AllocatableAtPriority(it.priority)
+	allocatableByPriorityB := b.AllocatableAtPriority(it.priority)
 	for _, t := range it.indexedResources {
 		qa := allocatableByPriorityA.GetRawByNameZeroIfMissing(t)
 		qb := allocatableByPriorityB.GetRawByNameZeroIfMissing(t)
@@ -342,9 +342,9 @@ func (it *NodeTypeIterator) NextNode() (*internaltypes.Node, error) {
 			// There are no more nodes of this nodeType.
 			return nil, nil
 		}
-		allocatableByPriority := node.AllocatableByPriority[it.priority]
+		allocatableByPriority := node.AllocatableAtPriority(it.priority)
 		if allocatableByPriority.IsEmpty() {
-			return nil, errors.Errorf("node %s has no resources registered at priority %d: %v", node.GetId(), it.priority, node.AllocatableByPriority)
+			return nil, errors.Errorf("node %s has no resources registered at priority %d: %v", node.GetId(), it.priority, node.AllocatableByPriority())
 		}
 		for i, t := range it.indexedResources {
 			nodeQuantity := allocatableByPriority.GetRawByNameZeroIfMissing(t)

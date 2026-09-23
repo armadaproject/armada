@@ -50,6 +50,11 @@ type Node struct {
 	taints []v1.Taint
 	labels map[string]string
 
+	// Which taint and label keys the node type indexes.
+	// Held so the node can recompute its own node type whenever its taints or labels change
+	indexedTaints     map[string]bool
+	indexedNodeLabels map[string]bool
+
 	unschedulable bool
 	overAllocated bool
 
@@ -62,17 +67,11 @@ type Node struct {
 	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
 
-	AllocatableByPriority           map[int32]ResourceList
+	allocatableByPriority map[int32]ResourceList
 	AllocatableByPriorityNoEviction map[int32]ResourceList
-	AllocatedByJobId                map[string]ResourceList
-	EvictedJobIds                   map[string]bool
-	priorityByJobId                 map[string]int32
-	// Priorities present in AllocatableByPriority, sorted ascending.
-	// recomputeUrgencyPreemptableFlag relies on the ordering to find the lowest
-	// and highest priority, so this must stay sorted.
-	// The key set never changes after construction: markAllocatable only updates
-	// existing buckets, it never adds or removes any.
-	knownPriorities []int32
+	allocatedByJobId      map[string]ResourceList
+	evictedJobRunIds      map[string]bool
+	cutoffByJobId         map[string]int32
 
 	hasUrgencyPreemptableResources bool
 }
@@ -86,12 +85,6 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 ) *Node {
 	totalResources := resourceListFactory.FromNodeProto(node.TotalResources.Resources)
 	allocatableResources := resourceListFactory.FromNodeProto(node.AvailableArmadaResource().ToProtoMap())
-	allocatableByPriority := map[int32]ResourceList{}
-	for _, p := range allowedPriorities {
-		allocatableByPriority[p] = allocatableResources
-	}
-	allocatableByPriority[EvictedPriority] = allocatableResources
-	allocatableByPriority[CrossPoolPriority] = allocatableResources
 
 	taints := make([]v1.Taint, 0, len(node.Taints))
 	for _, t := range node.Taints {
@@ -114,8 +107,7 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		indexedNodeLabels,
 		totalResources,
 		allocatableResources,
-		allocatableByPriority,
-		allocatableByPriority,
+		allowedPriorities,
 	)
 }
 
@@ -133,8 +125,7 @@ func CreateNodeAndType(
 	indexedNodeLabels map[string]bool,
 	totalResources ResourceList,
 	allocatableResources ResourceList,
-	allocatableByPriority map[int32]ResourceList,
-	allocatableByPriorityNoEviction map[int32]ResourceList,
+	allowedPriorities []int32,
 ) *Node {
 	if unschedulable {
 		taints = append(koTaint.DeepCopyTaints(taints), UnschedulableTaint())
@@ -147,16 +138,8 @@ func CreateNodeAndType(
 	}
 	labels[configuration.NodeIdLabel] = id
 
-	nodeType := NewNodeType(
-		taints,
-		labels,
-		indexedTaints,
-		indexedNodeLabels,
-	)
-
 	return CreateNode(
 		id,
-		nodeType,
 		index,
 		executor,
 		name,
@@ -164,19 +147,17 @@ func CreateNodeAndType(
 		reportingNodeType,
 		taints,
 		labels,
+		indexedTaints,
+		indexedNodeLabels,
 		unschedulable,
 		totalResources,
 		allocatableResources,
-		allocatableByPriority,
-		allocatableByPriorityNoEviction,
-		map[string]ResourceList{},
-		map[string]bool{},
+		allowedPriorities,
 		nil)
 }
 
 func CreateNode(
 	id string,
-	nodeType *NodeType,
 	index uint64,
 	executor string,
 	name string,
@@ -184,43 +165,38 @@ func CreateNode(
 	reportingNodeType string,
 	taints []v1.Taint,
 	labels map[string]string,
+	indexedTaints map[string]bool,
+	indexedNodeLabels map[string]bool,
 	unschedulable bool,
 	totalResources ResourceList,
 	allocatableResources ResourceList,
-	allocatableByPriority map[int32]ResourceList,
-	allocatableByPriorityNoEviction map[int32]ResourceList,
-	allocatedByJobId map[string]ResourceList,
-	evictedJobIds map[string]bool,
+	allowedPriorities []int32,
 	keys [][]byte,
 ) *Node {
-	// TODO handle empty maps - set to default empty
-	reservation := util.GetReservationName(taints)
-	// maps.Keys returns keys in an unspecified order; sort so that
-	// recomputeUrgencyPreemptableFlag can read the lowest and highest priority
-	// off the ends of the slice.
-	knownPriorities := maps.Keys(allocatableByPriority)
-	slices.Sort(knownPriorities)
-	node := &Node{
-		id:                              id,
-		nodeType:                        nodeType,
-		index:                           index,
-		executor:                        executor,
-		name:                            name,
-		pool:                            pool,
-		reportingNodeType:               reportingNodeType,
-		taints:                          koTaint.DeepCopyTaints(taints),
-		reservation:                     reservation,
-		labels:                          deepCopyLabels(labels),
-		unschedulable:                   unschedulable,
-		totalResources:                  totalResources,
-		allocatableResources:            allocatableResources,
-		AllocatableByPriority:           maps.Clone(allocatableByPriority),
-		AllocatableByPriorityNoEviction: maps.Clone(allocatableByPriorityNoEviction),
-		AllocatedByJobId:                maps.Clone(allocatedByJobId),
-		EvictedJobIds:                   evictedJobIds,
-		priorityByJobId:                 map[string]int32{},
-		knownPriorities:                 knownPriorities,
-		Keys:                            keys,
+	taints = koTaint.DeepCopyTaints(taints)
+	labels = deepCopyLabels(labels)
+	return &Node{
+		id:                    id,
+		nodeType:              NewNodeType(taints, labels, indexedTaints, indexedNodeLabels),
+		index:                 index,
+		executor:              executor,
+		name:                  name,
+		pool:                  pool,
+		reportingNodeType:     reportingNodeType,
+		taints:                taints,
+		reservation:           util.GetReservationName(taints),
+		labels:                labels,
+		indexedTaints:         indexedTaints,
+		indexedNodeLabels:     indexedNodeLabels,
+		unschedulable:         unschedulable,
+		totalResources:        totalResources,
+		allocatableResources:  allocatableResources,
+		allocatableByPriority: NewAllocatableByPriorityAndResourceType(allowedPriorities, allocatableResources),
+		AllocatableByPriorityNoEviction: NewAllocatableByPriorityAndResourceType(allowedPriorities, allocatableResources),
+		allocatedByJobId:      map[string]ResourceList{},
+		evictedJobRunIds:      map[string]bool{},
+		cutoffByJobId:         map[string]int32{},
+		Keys:                  keys,
 	}
 	node.recomputeUrgencyPreemptableFlag()
 	return node
@@ -275,19 +251,28 @@ func (node *Node) GetLabels() map[string]string {
 }
 
 func (node *Node) GetRunningJobIds() []string {
-	return maps.Keys(node.AllocatedByJobId)
+	return maps.Keys(node.allocatedByJobId)
 }
 
-// IsJobEvicted reports whether the job is currently marked as evicted from the node.
-// An evicted job still owns its resources, so this is independent of HasJobAllocation.
+func (node *Node) HasAllocatedJobs() bool {
+	return len(node.allocatedByJobId) > 0
+}
+
+func (node *Node) AllocatedByJob() map[string]ResourceList {
+	return maps.Clone(node.allocatedByJobId)
+}
+
 func (node *Node) IsJobEvicted(jobId string) bool {
-	_, ok := node.EvictedJobIds[jobId]
+	_, ok := node.evictedJobRunIds[jobId]
 	return ok
 }
 
-// HasJobAllocation reports whether the job currently owns resources on the node.
+func (node *Node) EvictedJobRunIds() map[string]bool {
+	return maps.Clone(node.evictedJobRunIds)
+}
+
 func (node *Node) HasJobAllocation(jobId string) bool {
-	_, ok := node.AllocatedByJobId[jobId]
+	_, ok := node.allocatedByJobId[jobId]
 	return ok
 }
 
@@ -324,32 +309,88 @@ func (node *Node) GetAllocatableResources() ResourceList {
 	return node.allocatableResources
 }
 
+// KnownPriorities returns the priorities this node tracks allocatable resources at,
+// in ascending order. This includes EvictedPriority and CrossPoolPriority.
+func (node *Node) KnownPriorities() []int32 {
+	priorities := maps.Keys(node.allocatableByPriority)
+	slices.Sort(priorities)
+	return priorities
+}
+
+func (node *Node) AllocatableAtPriority(priority int32) ResourceList {
+	return node.allocatableByPriority[priority]
+}
+
+func (node *Node) AllocatableByPriority() map[int32]ResourceList {
+	return maps.Clone(node.allocatableByPriority)
+}
+
+func (node *Node) WithNodeType(nodeType *NodeType) *Node {
+	result := node.DeepCopyNilKeys()
+	result.nodeType = nodeType
+	return result
+}
+
+func (node *Node) WithId(id string) *Node {
+	result := node.DeepCopyNilKeys()
+	result.id = id
+	return result
+}
+
+func (node *Node) WithIndex(index uint64) *Node {
+	result := node.DeepCopyNilKeys()
+	result.index = index
+	return result
+}
+
+func (node *Node) WithTaints(taints []v1.Taint) *Node {
+	result := node.DeepCopyNilKeys()
+	result.taints = koTaint.DeepCopyTaints(taints)
+	result.reservation = util.GetReservationName(result.taints)
+	result.nodeType = NewNodeType(result.taints, result.labels, node.indexedTaints, node.indexedNodeLabels)
+	return result
+}
+
+func (node *Node) WithLabels(labels map[string]string) *Node {
+	result := node.DeepCopyNilKeys()
+	result.labels = deepCopyLabels(labels)
+	result.nodeType = NewNodeType(result.taints, result.labels, node.indexedTaints, node.indexedNodeLabels)
+	return result
+}
+
+// WithResourcesUsedAtPriority returns a copy of node with rs deducted from every
+// bucket at or below priority, preserving all other state. Unlike AddJob this
+// records no job ownership, so the node cannot later release these resources.
+// Only expected to be used from tests
+func (node *Node) WithResourcesUsedAtPriority(priority int32, rs ResourceList) *Node {
+	result := node.DeepCopyNilKeys()
+	markAllocated(result.allocatableByPriority, priority, rs)
+	markAllocated(result.AllocatableByPriorityNoEviction, priority, rs)
+	node.recomputeUrgencyPreemptableFlag()
+	return result
+}
+
 func (node *Node) HasUrgencyPreemptableResources() bool {
 	return node.hasUrgencyPreemptableResources
 }
 
 func (node *Node) recomputeUrgencyPreemptableFlag() {
-	if len(node.knownPriorities) == 0 {
+	knownPriorities := node.KnownPriorities()
+	if len(knownPriorities) == 0 {
 		node.hasUrgencyPreemptableResources = false
 		return
 	}
-	lowest := node.AllocatableByPriorityNoEviction[node.knownPriorities[0]]
-	highest := node.AllocatableByPriorityNoEviction[node.knownPriorities[len(node.knownPriorities)-1]]
+	lowest := node.AllocatableByPriorityNoEviction[knownPriorities[0]]
+	highest := node.AllocatableByPriorityNoEviction[knownPriorities[len(knownPriorities)-1]]
 	node.hasUrgencyPreemptableResources = !lowest.Equal(highest)
-}
-
-func (node *Node) MarkAllocated(priority int32, rs ResourceList) {
-	markAllocated(node.AllocatableByPriority, priority, rs)
-	markAllocated(node.AllocatableByPriorityNoEviction, priority, rs)
-	node.recomputeUrgencyPreemptableFlag()
 }
 
 func (node *Node) MarkResourceUnallocatable(unallocatable ResourceList) *Node {
 	result := node.DeepCopyNilKeys()
 
-	for pri, allocatable := range result.AllocatableByPriority {
+	for pri, allocatable := range result.allocatableByPriority {
 		newAllocatable := allocatable.Subtract(unallocatable).FloorAtZero()
-		result.AllocatableByPriority[pri] = newAllocatable
+		result.allocatableByPriority[pri] = newAllocatable
 	}
 	for pri, allocatable := range result.AllocatableByPriorityNoEviction {
 		newAllocatable := allocatable.Subtract(unallocatable).FloorAtZero()
@@ -368,22 +409,27 @@ func (node *Node) WithOverAllocated(overAllocated bool) *Node {
 }
 
 func (node *Node) WithSchedulable(schedulable bool) *Node {
-	result := node.DeepCopyNilKeys()
-	result.unschedulable = !schedulable
-	if !schedulable {
-		result.taints = append(koTaint.DeepCopyTaints(result.taints), UnschedulableTaint())
-	} else {
-		// Remove unschedulable taint
-		taints := make([]v1.Taint, 0, len(result.taints))
-		unschedulableTaint := UnschedulableTaint()
-		unschedulableTaintPtr := &unschedulableTaint
-		for _, taint := range taints {
-			if !taint.MatchTaint(unschedulableTaintPtr) {
+	if node.unschedulable == !schedulable {
+		// Already in the requested state. Returning early also stops a second
+		// WithSchedulable(false) from appending a duplicate unschedulable taint.
+		return node
+	}
+
+	unschedulableTaint := UnschedulableTaint()
+	var taints []v1.Taint
+	if schedulable {
+		taints = make([]v1.Taint, 0, len(node.taints))
+		for _, taint := range node.taints {
+			if !taint.MatchTaint(&unschedulableTaint) {
 				taints = append(taints, taint)
 			}
-			result.taints = koTaint.DeepCopyTaints(taints)
 		}
+	} else {
+		taints = append(node.GetTaints(), unschedulableTaint)
 	}
+
+	result := node.WithTaints(taints)
+	result.unschedulable = !schedulable
 	return result
 }
 
@@ -400,6 +446,8 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		nodeType:             node.nodeType,
 		taints:               node.taints,
 		labels:               node.labels,
+		indexedTaints:        node.indexedTaints,
+		indexedNodeLabels:    node.indexedNodeLabels,
 		unschedulable:        node.unschedulable,
 		overAllocated:        node.overAllocated,
 		totalResources:       node.totalResources,
@@ -408,14 +456,14 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		// keys set to nil
 		Keys: nil,
 
-		// these maps are mutable but their keys and values are immutable
-		AllocatableByPriority:           maps.Clone(node.AllocatableByPriority),
-		AllocatableByPriorityNoEviction: maps.Clone(node.AllocatableByPriorityNoEviction),
-		AllocatedByJobId:                maps.Clone(node.AllocatedByJobId),
-		EvictedJobIds:                   maps.Clone(node.EvictedJobIds),
-		priorityByJobId:                 maps.Clone(node.priorityByJobId),
+		// The copy is about to be mutated in place by AddJob/EvictJob/RemoveJob, so these
+		// maps must not be shared with the original
+		allocatableByPriority: maps.Clone(node.allocatableByPriority),
+		AllocatableByPriorityNoEviction: maps.Clone(node.allocatableByPriority),
+		allocatedByJobId:      maps.Clone(node.allocatedByJobId),
+		evictedJobRunIds:      maps.Clone(node.evictedJobRunIds),
+		cutoffByJobId:         maps.Clone(node.cutoffByJobId),
 
-		knownPriorities:                node.knownPriorities,
 		hasUrgencyPreemptableResources: node.hasUrgencyPreemptableResources,
 	}
 }
@@ -460,26 +508,28 @@ type SchedulableJob interface {
 // AddJob binds job to the node, deducting its resources at every priority bucket
 // at or below cutoff. If the job is currently evicted from this node, it is
 // un-evicted and its resources are moved out of the EvictedPriority bucket;
-// ownership (AllocatedByJobId/AllocatedByQueue) is left untouched in that case
+// ownership (allocatedByJobId) is left untouched in that case
 // because an evicted job still owns its resources.
 func (node *Node) AddJob(job SchedulableJob, priority int32) error {
 	jobId := job.Id()
 	requests := job.KubernetesResourceRequirements()
 
 	isEvicted := node.IsJobEvicted(jobId)
-	delete(node.EvictedJobIds, jobId)
+	delete(node.evictedJobRunIds, jobId)
 
 	if !isEvicted {
-		if _, ok := node.AllocatedByJobId[jobId]; ok {
+		if _, ok := node.allocatedByJobId[jobId]; ok {
 			return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.GetId())
 		}
-		node.AllocatedByJobId[jobId] = requests
+		node.allocatedByJobId[jobId] = requests
 		markAllocated(node.AllocatableByPriorityNoEviction, priority, requests)
 		node.recomputeUrgencyPreemptableFlag()
 	} else {
-		markAllocatable(node.AllocatableByPriority, EvictedPriority, requests)
+		markAllocatable(node.allocatableByPriority, EvictedPriority, requests)
 	}
-	markAllocated(node.AllocatableByPriority, priority, requests)
+
+	// TODO simplify
+	markAllocated(node.allocatableByPriority, priority, requests)
 	node.priorityByJobId[jobId] = priority
 
 	return nil
@@ -487,21 +537,21 @@ func (node *Node) AddJob(job SchedulableJob, priority int32) error {
 
 // EvictJob marks job as evicted from the node: its resources move from the bucket
 // at the cutoff it was bound at to the EvictedPriority bucket within
-// AllocatableByPriority. Ownership (AllocatedByJobId/AllocatedByQueue) is
+// allocatableByPriority. Ownership (allocatedByJobId) is
 // intentionally left in place, and the stored cutoff is preserved so a later
 // RemoveJob can still release correctly.
 func (node *Node) EvictJob(job SchedulableJob) error {
 	jobId := job.Id()
-	if _, ok := node.AllocatedByJobId[jobId]; !ok {
+	if _, ok := node.allocatedByJobId[jobId]; !ok {
 		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.GetId())
 	}
 
 	if node.IsJobEvicted(jobId) {
 		return errors.Errorf("job %s is already evicted from node %s", jobId, node.GetId())
 	}
-	node.EvictedJobIds[jobId] = true
+	node.evictedJobRunIds[jobId] = true
 
-	allocatableByPriority := node.AllocatableByPriority
+	allocatableByPriority := node.allocatableByPriority
 	jobRequests := job.KubernetesResourceRequirements()
 	markAllocatable(allocatableByPriority, node.priorityByJobId[jobId], jobRequests)
 	markAllocated(allocatableByPriority, EvictedPriority, jobRequests)
@@ -510,7 +560,7 @@ func (node *Node) EvictJob(job SchedulableJob) error {
 }
 
 // RemoveJob unbinds job from the node, releasing its ownership and returning its
-// resources to AllocatableByPriority. If the job was evicted, its resources are
+// resources to allocatableByPriority. If the job was evicted, its resources are
 // released from the EvictedPriority bucket; otherwise from the bucket at the cutoff
 // it was bound at. Removing a job that is not bound is a no-op.
 func (node *Node) RemoveJob(job SchedulableJob) error {
@@ -518,13 +568,12 @@ func (node *Node) RemoveJob(job SchedulableJob) error {
 	requests := job.KubernetesResourceRequirements()
 
 	isEvicted := node.IsJobEvicted(jobId)
-	delete(node.EvictedJobIds, jobId)
+	delete(node.evictedJobRunIds, jobId)
 
-	if _, ok := node.AllocatedByJobId[jobId]; !ok {
+	if _, ok := node.allocatedByJobId[jobId]; !ok {
 		return nil
 	}
-
-	delete(node.AllocatedByJobId, jobId)
+	delete(node.allocatedByJobId, jobId)
 
 	if isEvicted {
 		markAllocatable(node.AllocatableByPriority, EvictedPriority, requests)

@@ -87,7 +87,7 @@ func NewNodeEvictor(
 		jobRepo: jobRepo,
 		nodeDb:  nodeDb,
 		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) (bool, string) {
-			evict := len(node.AllocatedByJobId) > 0
+			evict := node.HasAllocatedJobs()
 			if evict {
 				return true, ""
 			} else {
@@ -144,7 +144,7 @@ func NewOversubscribedEvictor(
 		nodeDb:  nodeDb,
 		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) (bool, string) {
 			overSubscribedPriorities = make(map[int32]bool)
-			for p, rl := range node.AllocatableByPriority {
+			for p, rl := range node.AllocatableByPriority() {
 				if p == internaltypes.EvictedPriority {
 					// These jobs are already evicted jobs.
 					continue
@@ -208,10 +208,11 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 				continue
 			}
 		}
-		jobs := make([]*jobdb.Job, 0, len(node.AllocatedByJobId))
+		allocatedByJobId := node.AllocatedByJob()
+		jobs := make([]*jobdb.Job, 0, len(allocatedByJobId))
 		reasons := map[string]bool{}
-		for jobId := range node.AllocatedByJobId {
-			if _, ok := node.EvictedJobIds[jobId]; !ok {
+		for jobId := range allocatedByJobId {
+			if !node.IsJobEvicted(jobId) {
 				job := evi.jobRepo.GetById(jobId)
 				if job != nil && !job.InTerminalState() {
 					shouldEvict, dontEvictReason := evi.jobFilter(ctx, job)
