@@ -222,24 +222,24 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 		t,
 		armadamaps.DeepEqual(
 			map[string]internaltypes.ResourceList{jobId: request},
-			boundNode.AllocatedByJobId,
+			boundNode.AllocatedByJob(),
 		),
 	)
 	assert.True(
 		t,
 		armadamaps.DeepEqual(
 			map[string]internaltypes.ResourceList{jobId: request},
-			evictedNode.AllocatedByJobId,
+			evictedNode.AllocatedByJob(),
 		),
 	)
 
 	expectedAllocatable := boundNode.GetTotalResources()
 	expectedAllocatable = expectedAllocatable.Subtract(request)
 	priority := testfixtures.TestPriorityClasses[job.PriorityClassName()].Priority
-	assert.True(t, expectedAllocatable.Equal(boundNode.AllocatableByPriority[priority]))
+	assert.True(t, expectedAllocatable.Equal(boundNode.AllocatableAtPriority(priority)))
 
-	assert.Empty(t, unboundNode.AllocatedByJobId)
-	assert.Empty(t, unboundNode.EvictedJobRunIds)
+	assert.Empty(t, unboundNode.AllocatedByJob())
+	assert.Empty(t, unboundNode.EvictedJobRunIds())
 }
 
 // When the NodeDb's pool is set, a job whose run pool differs from it (a cross-pool
@@ -348,20 +348,20 @@ func TestNodeBindingEvictionUnbinding_ReleasesPodSlot(t *testing.T) {
 
 	boundNode, err := nodeDb.BindJobToNode(entry, job, priority)
 	require.NoError(t, err)
-	boundPods := boundNode.AllocatableByPriority[priority].GetByNameZeroIfMissing(armadaresource.PodsResourceName)
+	boundPods := boundNode.AllocatableAtPriority(priority).GetByNameZeroIfMissing(armadaresource.PodsResourceName)
 	assert.Equal(t, int64(0), boundPods.Value(), "bind should consume the pod slot")
 
 	evictedNode, err := nodeDb.EvictJobsFromNode([]*jobdb.Job{job}, boundNode)
 	require.NoError(t, err)
 	unboundNode, err := nodeDb.UnbindJobFromNode(job, evictedNode)
 	require.NoError(t, err)
-	releasedPods := unboundNode.AllocatableByPriority[priority].GetByNameZeroIfMissing(armadaresource.PodsResourceName)
+	releasedPods := unboundNode.AllocatableAtPriority(priority).GetByNameZeroIfMissing(armadaresource.PodsResourceName)
 	assert.Equal(t, int64(1), releasedPods.Value(), "evict+unbind should free the pod slot")
 
 	followUp := newPodsJob(t, jobDb, "jobB")
 	rebindNode, err := nodeDb.BindJobToNode(unboundNode, followUp, followUp.PriorityClass().Priority)
 	require.NoError(t, err, "second job should bind after the slot is freed")
-	rebindPods := rebindNode.AllocatableByPriority[priority].GetByNameZeroIfMissing(armadaresource.PodsResourceName)
+	rebindPods := rebindNode.AllocatableAtPriority(priority).GetByNameZeroIfMissing(armadaresource.PodsResourceName)
 	assert.Equal(t, int64(0), rebindPods.Value(), "second bind should also consume the pod slot")
 }
 
@@ -382,30 +382,27 @@ func newPodsJob(t *testing.T, db *jobdb.JobDb, jobId string) *jobdb.Job {
 func assertNodeAccountingEqual(t *testing.T, node1, node2 *internaltypes.Node) {
 	assert.True(
 		t,
-		armadamaps.DeepEqual(node1.AllocatableByPriority, node2.AllocatableByPriority),
+		armadamaps.DeepEqual(node1.AllocatableByPriority(), node2.AllocatableByPriority()),
 		"expected %v, but got %v",
-		node1.AllocatableByPriority,
-		node2.AllocatableByPriority,
+		node1.AllocatableByPriority(),
+		node2.AllocatableByPriority(),
 	)
 	assert.True(
 		t,
-		armadamaps.DeepEqual(
-			node1.AllocatedByJobId,
-			node2.AllocatedByJobId,
-		),
+		armadamaps.DeepEqual(node1.AllocatedByJob(), node2.AllocatedByJob()),
 		"expected %v, but got %v",
-		node1.AllocatedByJobId,
-		node2.AllocatedByJobId,
+		node1.AllocatedByJob(),
+		node2.AllocatedByJob(),
 	)
 	assert.True(
 		t,
 		maps.Equal(
-			node1.EvictedJobRunIds,
-			node2.EvictedJobRunIds,
+			node1.EvictedJobRunIds(),
+			node2.EvictedJobRunIds(),
 		),
 		"expected %v, but got %v",
-		node1.EvictedJobRunIds,
-		node2.EvictedJobRunIds,
+		node1.EvictedJobRunIds(),
+		node2.EvictedJobRunIds(),
 	)
 }
 
@@ -427,7 +424,7 @@ func TestEviction(t *testing.T) {
 
 	node, err = nodeDb.GetNode(node.GetId())
 	require.NoError(t, err)
-	assert.Equal(t, 0, len(node.EvictedJobRunIds))
+	assert.Empty(t, node.EvictedJobRunIds())
 	// PriorityClass3 is non-preemptible, so its 1cpu/4Gi is deducted at every
 	// priority including 28000+, not just <= 3.
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
@@ -440,12 +437,12 @@ func TestEviction(t *testing.T) {
 		28000:                           testfixtures.CpuMem("31", "252Gi"),
 		29000:                           testfixtures.CpuMem("31", "252Gi"),
 		30000:                           testfixtures.CpuMem("31", "252Gi"),
-	}, node.AllocatableByPriority)
+	}, node.AllocatableByPriority())
 
 	returnedNode, err := nodeDb.EvictJobsFromNode(jobs, node)
 	assert.Nil(t, err)
-	assert.Equal(t, 0, len(node.EvictedJobRunIds))
-	assert.Equal(t, len(jobs), len(returnedNode.EvictedJobRunIds))
+	assert.Empty(t, node.EvictedJobRunIds())
+	assert.Equal(t, len(jobs), len(returnedNode.EvictedJobRunIds()))
 
 	// EvictJobsFromNode returns a copy; the original node is unchanged.
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
@@ -458,7 +455,7 @@ func TestEviction(t *testing.T) {
 		28000:                           testfixtures.CpuMem("31", "252Gi"),
 		29000:                           testfixtures.CpuMem("31", "252Gi"),
 		30000:                           testfixtures.CpuMem("31", "252Gi"),
-	}, node.AllocatableByPriority)
+	}, node.AllocatableByPriority())
 
 	assert.Equal(t, map[int32]internaltypes.ResourceList{
 		internaltypes.EvictedPriority:   testfixtures.CpuMem("30", "248Gi"),
@@ -470,7 +467,7 @@ func TestEviction(t *testing.T) {
 		28000:                           testfixtures.CpuMem("32", "256Gi"),
 		29000:                           testfixtures.CpuMem("32", "256Gi"),
 		30000:                           testfixtures.CpuMem("32", "256Gi"),
-	}, returnedNode.AllocatableByPriority)
+	}, returnedNode.AllocatableByPriority())
 }
 
 func TestScheduleIndividually(t *testing.T) {
@@ -631,7 +628,7 @@ func TestScheduleIndividually(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, node)
 				expected := job.KubernetesResourceRequirements()
-				actual, ok := node.AllocatedByJobId[job.Id()]
+				actual, ok := node.AllocatedByJob()[job.Id()]
 				require.True(t, ok)
 				assert.True(t, actual.Equal(expected))
 			}
@@ -1700,23 +1697,20 @@ func TestBindUnbind_NonPreemptibleReleasesEveryBucket(t *testing.T) {
 	priority := job.PriorityClass().Priority
 	require.False(t, job.PriorityClass().Preemptible, "this test is only meaningful for a non-preemptible job")
 
-	before := map[int32]internaltypes.ResourceList{}
-	for p, rl := range entry.AllocatableByPriority {
-		before[p] = rl
-	}
+	before := entry.AllocatableByPriority()
 	require.NotEmpty(t, before, "sanity check: the node must have priority buckets to compare")
 
 	boundNode, err := nodeDb.BindJobToNode(entry, job, priority)
 	require.NoError(t, err)
 	for p := range before {
-		assert.False(t, before[p].Equal(boundNode.AllocatableByPriority[p]),
+		assert.False(t, before[p].Equal(boundNode.AllocatableAtPriority(p)),
 			"non-preemptible bind must debit every bucket, including %d", p)
 	}
 
 	unboundNode, err := nodeDb.UnbindJobFromNode(job, boundNode)
 	require.NoError(t, err)
 	for p := range before {
-		assert.True(t, before[p].Equal(unboundNode.AllocatableByPriority[p]),
+		assert.True(t, before[p].Equal(unboundNode.AllocatableAtPriority(p)),
 			"unbind must restore bucket %d exactly", p)
 	}
 }

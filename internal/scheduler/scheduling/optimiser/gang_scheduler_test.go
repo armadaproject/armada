@@ -489,7 +489,7 @@ func assertExpectedNodeUpdates(
 		// Should have been scheduled
 		if _, shouldBeScheduled := expectedScheduledNodesById[node.GetId()]; shouldBeScheduled {
 			for _, jobId := range preemptedJobsByNodeId[node.GetId()] {
-				assert.NotContains(t, maps.Keys(node.AllocatedByJobId), jobId)
+				assert.NotContains(t, node.GetRunningJobIds(), jobId)
 			}
 
 			jobsOnNode := armadaslices.Filter(gctx.JobSchedulingContexts, func(jctx *context.JobSchedulingContext) bool {
@@ -497,10 +497,10 @@ func assertExpectedNodeUpdates(
 			})
 			assert.True(t, len(jobsOnNode) > 0)
 			for _, job := range jobsOnNode {
-				assert.Contains(t, maps.Keys(node.AllocatedByJobId), job.JobId)
+				assert.Contains(t, node.GetRunningJobIds(), job.JobId)
 			}
 		} else {
-			assertStringListsEqual(t, maps.Keys(originalNodesById[node.GetId()].AllocatedByJobId), maps.Keys(node.AllocatedByJobId))
+			assertStringListsEqual(t, originalNodesById[node.GetId()].GetRunningJobIds(), node.GetRunningJobIds())
 		}
 	}
 }
