@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,6 +13,11 @@ import (
 
 	regattaconfig "github.com/armadaproject/armada/internal/regatta/config"
 )
+
+// nodeConcurrency caps how many fake-node create/delete calls are in flight at once - plenty to
+// turn hundreds of nodes from a multi-second sequential slog into a sub-second burst, without
+// hammering the API server harder than restConfigQPS/Burst (see client.go) actually allow.
+const nodeConcurrency = 50
 
 const (
 	NodeAnnotation   = "kwok.x-k8s.io/node"
@@ -86,21 +92,29 @@ func BuildFakeNode(profile *regattaconfig.NodeProfile, index int, targetName str
 	}
 }
 
-// ApplyFakeNodes creates count fake nodes shaped by profile via the typed clientset. Idempotent:
-// an already-existing node (same name/index) is left as-is.
+// ApplyFakeNodes creates count fake nodes shaped by profile via the typed clientset, up to
+// nodeConcurrency at a time. Idempotent: an already-existing node (same name/index) is left
+// as-is.
 func ApplyFakeNodes(ctx context.Context, client kubernetes.Interface, profile *regattaconfig.NodeProfile, count int, targetName string) error {
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(nodeConcurrency)
 	for i := 0; i < count; i++ {
-		node := BuildFakeNode(profile, i, targetName)
-		_, err := client.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{})
-		if err != nil && !apierrors.IsAlreadyExists(err) {
-			return fmt.Errorf("creating fake node %s: %w", node.Name, err)
-		}
+		i := i
+		group.Go(func() error {
+			node := BuildFakeNode(profile, i, targetName)
+			_, err := client.CoreV1().Nodes().Create(groupCtx, node, metav1.CreateOptions{})
+			if err != nil && !apierrors.IsAlreadyExists(err) {
+				return fmt.Errorf("creating fake node %s: %w", node.Name, err)
+			}
+			return nil
+		})
 	}
-	return nil
+	return group.Wait()
 }
 
-// DeleteFakeNodes removes targetName's fake v1.Node objects from the cluster, leaving real nodes
-// and other targets' fake nodes (on a shared cluster) untouched.
+// DeleteFakeNodes removes targetName's fake v1.Node objects from the cluster, up to
+// nodeConcurrency at a time, leaving real nodes and other targets' fake nodes (on a shared
+// cluster) untouched.
 func DeleteFakeNodes(ctx context.Context, client kubernetes.Interface, targetName string) error {
 	nodes, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{
 		LabelSelector: NodeAnnotation + "=" + NodeAnnotationOK + "," + TargetLabel + "=" + targetName,
@@ -108,12 +122,19 @@ func DeleteFakeNodes(ctx context.Context, client kubernetes.Interface, targetNam
 	if err != nil {
 		return fmt.Errorf("listing fake nodes: %w", err)
 	}
+
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(nodeConcurrency)
 	for _, node := range nodes.Items {
-		if err := client.CoreV1().Nodes().Delete(ctx, node.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-			return fmt.Errorf("deleting fake node %s: %w", node.Name, err)
-		}
+		name := node.Name
+		group.Go(func() error {
+			if err := client.CoreV1().Nodes().Delete(groupCtx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+				return fmt.Errorf("deleting fake node %s: %w", name, err)
+			}
+			return nil
+		})
 	}
-	return nil
+	return group.Wait()
 }
 
 // WaitUntilReady polls fake-annotated nodes until all are Ready. kubectl wait

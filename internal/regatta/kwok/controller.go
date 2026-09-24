@@ -142,11 +142,10 @@ func KubeconfigServerAddress(kubeconfigPath string) (string, error) {
 // buildInternalKubeconfig loads the kubeconfig at kubeconfigPath and returns a copy with the
 // current context's cluster server URL replaced by internalAPIServerAddress - the kwok-controller
 // container needs the API server's docker-network-internal address, not the host-facing one the
-// on-disk kubeconfig points at. TLSServerName (needed for e.g. a Teleport-proxied cluster's SNI
+// on-disk kubeconfig points at. TLSServerName (needed for e.g. a proxied cluster's SNI
 // routing) is left untouched, since it's a property of the proxy address, not the real backend.
 //
-// If the current user's AuthInfo uses an exec credential plugin (e.g. `tsh kube credentials ...`
-// for a Teleport-proxied cluster), it's resolved here on the host - where the plugin binary and
+// If the current user's AuthInfo uses an exec credential plugin, it's resolved here on the host - where the plugin binary and
 // any session state it needs actually exist - into a static client certificate/key, and the Exec
 // config is dropped. The kwok-controller container has neither the plugin binary nor that session
 // state, so it could never run the plugin itself; this trades that off against the resolved

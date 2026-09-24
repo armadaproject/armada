@@ -11,9 +11,7 @@ import (
 
 // NodeProfile describes the shape of a single simulated node: what it's allocatable for and
 // what labels/taints it carries. It represents exactly one node, not a count of them - to
-// stand up several, reference the same profile file from a NodeGroup. Shared by both the KWOK
-// target (mapped into a real v1.Node) and the fake-executor target (mapped into
-// executor/fake/context.NodeSpec) so a hardware shape only needs to be described once.
+// stand up several, reference the same profile file from a NodeGroup.
 type NodeProfile struct {
 	Name        string                                `json:"name"`
 	Allocatable map[v1.ResourceName]resource.Quantity `json:"allocatable"`

@@ -15,7 +15,12 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-const readyTimeout = 60 * time.Second
+// readyTimeout has headroom above what even a large (300+ node) target needs on an idle machine,
+// since several targets' worth of concurrent node creates/kwok-controller reconciliation compete
+// for the same host CPU when multiple execution targets are set up at once (see orchestrate.Setup)
+// - observed flakiness right around the old 60s value at 10 concurrent targets was host
+// contention, not a stuck controller.
+const readyTimeout = 5 * time.Minute
 
 // Config describes one KWOK setup: which fixture files to apply and how many fake nodes of
 // which shape(s) to create.

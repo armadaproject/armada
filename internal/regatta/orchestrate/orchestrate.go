@@ -1,6 +1,6 @@
-// Package orchestrate fans a Scenario's ExecutionTargets out into running kwok/fake-executor
-// targets and back down again. It exists separately from cmd/regatta/cmd/run.go so the fan-out
-// logic (per-type naming/indexing, best-effort-all teardown) is testable independent of cobra
+// Package orchestrate fans a Scenario's ExecutionTargets out into running kwok cluster targets
+// and back down again. It exists separately from cmd/regatta/cmd/run.go so the fan-out logic
+// (per-target naming/indexing, best-effort-all teardown) is testable independent of cobra
 // plumbing.
 package orchestrate
 
@@ -13,7 +13,6 @@ import (
 
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/regatta/config"
-	"github.com/armadaproject/armada/internal/regatta/fakeexecutor"
 	"github.com/armadaproject/armada/internal/regatta/kwok"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -41,22 +40,15 @@ func Setup(ctx context.Context, scenario *config.Scenario, apiConnectionDetails 
 	}
 
 	group, groupCtx := errgroup.WithContext(ctx)
-	for i, target := range scenario.ExecutionTargets {
+	for _, target := range scenario.ExecutionTargets {
 		target := target
-		fakeExecutorIndex := i
 		group.Go(func() error {
 			nodeGroup, err := config.ResolveTargetNodeGroups(target, scenario.NodeGroups)
 			if err != nil {
 				return fmt.Errorf("target %q: resolving node groups: %w", target.Name, err)
 			}
 
-			var teardown func(context.Context)
-			switch target.Type {
-			case config.TargetTypeCluster:
-				teardown, err = setupCluster(groupCtx, target, nodeGroup, apiConnectionDetails)
-			case config.TargetTypeFakeExecutor:
-				teardown, err = setupFakeExecutor(groupCtx, target, nodeGroup, apiConnectionDetails, fakeExecutorIndex)
-			}
+			teardown, err := setupCluster(groupCtx, target, nodeGroup, apiConnectionDetails)
 			if err != nil {
 				return fmt.Errorf("target %q: %w", target.Name, err)
 			}
@@ -77,16 +69,10 @@ func Setup(ctx context.Context, scenario *config.Scenario, apiConnectionDetails 
 }
 
 // Teardown tears down every cluster target in scenario.ExecutionTargets, best-effort - a failure
-// on one target is logged but doesn't stop the rest from being torn down. Fake-executor targets
-// are skipped: they're a process regatta itself would have started, and by the time a separate
-// `regatta teardown` invocation runs there's no PID left to reconnect to.
+// on one target is logged but doesn't stop the rest from being torn down.
 func Teardown(ctx context.Context, scenario *config.Scenario) {
 	for _, target := range scenario.ExecutionTargets {
-		if target.Type != config.TargetTypeCluster {
-			continue
-		}
-
-		kubeClient, err := kwok.NewClientset(target.Cluster.Kubeconfig)
+		kubeClient, err := kwok.NewClientset(target.Cluster.Kubeconfig, target.Cluster.Kubernetes)
 		if err != nil {
 			log.Errorf("target %q: could not build kubernetes client: %s", target.Name, err)
 			continue
@@ -99,7 +85,7 @@ func Teardown(ctx context.Context, scenario *config.Scenario) {
 }
 
 func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup []config.ResolvedNodeGroupMember, apiConnectionDetails *client.ApiConnectionDetails) (func(context.Context), error) {
-	kubeClient, err := kwok.NewClientset(target.Cluster.Kubeconfig)
+	kubeClient, err := kwok.NewClientset(target.Cluster.Kubeconfig, target.Cluster.Kubernetes)
 	if err != nil {
 		return nil, fmt.Errorf("building kubernetes client: %w", err)
 	}
@@ -148,32 +134,6 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 		log.Infof("target %q: tearing down KWOK fake nodes", target.Name)
 		if err := kwok.Teardown(ctx, kubeClient, target.Name); err != nil {
 			log.Errorf("target %q: KWOK teardown failed: %s", target.Name, err)
-		}
-	}, nil
-}
-
-func setupFakeExecutor(ctx context.Context, target config.ExecutionTarget, nodeGroup []config.ResolvedNodeGroupMember, apiConnectionDetails *client.ApiConnectionDetails, index int) (func(context.Context), error) {
-	log.Infof("target %q: starting armada-fakeexecutor", target.Name)
-	process, err := fakeexecutor.Start(apiConnectionDetails, nodeGroup, *target.FakeExecutor, index)
-	if err != nil {
-		return nil, fmt.Errorf("starting armada-fakeexecutor failed: %w", err)
-	}
-	log.Infof("target %q: armada-fakeexecutor started, pid %d", target.Name, process.PID())
-
-	log.Infof("target %q: waiting for armada-fakeexecutor to become schedulable", target.Name)
-	probeCfg := fakeexecutor.ProbeConfig{
-		Retries:      target.FakeExecutor.ProbeRetries,
-		InitialDelay: target.FakeExecutor.ProbeDelayDuration,
-	}
-	if err := fakeexecutor.WaitUntilSchedulable(ctx, apiConnectionDetails, probeCfg, target.Name); err != nil {
-		_ = process.Stop()
-		return nil, fmt.Errorf("waiting for armada-fakeexecutor to become schedulable: %w", err)
-	}
-
-	return func(context.Context) {
-		log.Infof("target %q: stopping armada-fakeexecutor", target.Name)
-		if err := process.Stop(); err != nil {
-			log.Errorf("target %q: stopping armada-fakeexecutor failed: %s", target.Name, err)
 		}
 	}, nil
 }

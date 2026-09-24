@@ -26,14 +26,12 @@ func init() {
 
 var runCmd = &cobra.Command{
 	Use:   "run ./path/to/scenario.yaml",
-	Short: "Assemble a benchmarking environment (KWOK fake nodes and/or fake executors) and run a submission against Armada",
+	Short: "Assemble a benchmarking environment (KWOK fake nodes) and run a submission against Armada",
 	Long: `Assemble a benchmarking environment and run a submission against Armada.
 
 A scenario file mostly points to other files - an .armadactl.yaml, kubeconfigs, node-profile
-YAML files, job-spec files - rather than embedding everything inline. executionTargets may
-contain any number of "cluster" targets or any number of "fake-executor" targets, but never a
-mix of both: fake-executor simulates nodes in place of a real cluster, it is not a target to run
-alongside one. See cmd/regatta/config/two-cluster.example.yaml and fakeexecutor.example.yaml.`,
+YAML files, job-spec files - rather than embedding everything inline. executionTargets contains
+any number of "cluster" targets. See cmd/regatta/config/two-cluster.example.yaml.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		scenario, err := regattaconfig.LoadScenario(args[0])
@@ -106,7 +104,6 @@ alongside one. See cmd/regatta/config/two-cluster.example.yaml and fakeexecutor.
 			}
 		}
 
-		log.Info("run complete - nothing was torn down: tear down cluster targets with " +
-			"`regatta teardown`, and stop any fake-executor process(es) manually")
+		log.Info("run complete - nothing was torn down: tear down cluster targets with `regatta teardown`")
 	},
 }

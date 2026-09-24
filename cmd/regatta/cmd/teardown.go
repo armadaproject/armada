@@ -29,10 +29,9 @@ up, passing the same scenario file you ran, e.g.:
 
   go run ./cmd/regatta teardown cmd/regatta/config/two-cluster.example.yaml
 
-This tears down every cluster target the scenario file declares (fake-executor targets are
-skipped: stop that process manually, e.g. ps aux | grep fakeexecutor). To tear down a single
-target by hand instead of via a scenario file, omit the scenario file and use --kubeconfig/--name
-to identify it directly, e.g.:
+This tears down every cluster target the scenario file declares. To tear down a single target by
+hand instead of via a scenario file, omit the scenario file and use --kubeconfig/--name to
+identify it directly, e.g.:
 
   go run ./cmd/regatta teardown --kubeconfig .kube/external/regatta/regatta-1 --name gpu-cluster
 
@@ -66,7 +65,7 @@ even if there's nothing to tear down.`,
 			log.Errorf("reading --kubeconfig flag: %s", err)
 			os.Exit(1)
 		}
-		kubeClient, err := kwok.NewClientset(kubeconfigPath)
+		kubeClient, err := kwok.NewClientset(kubeconfigPath, regattaconfig.KubernetesClientConfiguration{})
 		if err != nil {
 			log.Errorf("could not build kubernetes client: %s", err)
 			os.Exit(1)

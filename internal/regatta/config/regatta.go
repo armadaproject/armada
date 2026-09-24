@@ -18,10 +18,7 @@ import (
 	"github.com/armadaproject/armada/pkg/client/util"
 )
 
-const (
-	TargetTypeCluster      = "cluster"
-	TargetTypeFakeExecutor = "fake-executor"
-)
+const TargetTypeCluster = "cluster"
 
 // Scenario is the top-level manifest passed to `regatta run`.
 type Scenario struct {
@@ -79,22 +76,20 @@ func (s *Scenario) MetricsResultsDir() string {
 	return "."
 }
 
-// ExecutionTarget is a flat discriminated union keyed by Type ("cluster" or "fake-executor").
-// Exactly one of Cluster/FakeExecutor is populated, matching Type.
+// ExecutionTarget configures one "cluster" target (Type is currently always "cluster").
 type ExecutionTarget struct {
 	Type string `json:"type"`
 
 	// Name identifies this target for logging and per-target resource namespacing (kwok
-	// controller container name/kubeconfig path, fake-executor ports). Optional: Load assigns
-	// "<type>-<index>" (index counted per-type, file order) to any target left blank.
+	// controller container name/kubeconfig path). Optional: Load assigns "<type>-<index>" (index
+	// counted per-type, file order) to any target left blank.
 	Name string `json:"name,omitempty"`
 
 	// NodeGroups names which top-level NodeGroups entries this target stands up. Omitted/nil
 	// means ALL top-level NodeGroups apply. Referencing an unknown name is a Load-time error.
 	NodeGroups []string `json:"nodeGroups,omitempty"`
 
-	Cluster      *ClusterTarget      `json:"cluster,omitempty"`
-	FakeExecutor *FakeExecutorTarget `json:"fakeExecutor,omitempty"`
+	Cluster *ClusterTarget `json:"cluster,omitempty"`
 }
 
 // ClusterTarget (Type: "cluster") configures a KWOK fake-node target: real v1.Node objects
@@ -139,6 +134,26 @@ type ClusterTarget struct {
 	// known/controlled, so the probe is meaningful and cheap) and false otherwise (an unknown,
 	// externally-provided cluster is assumed already schedulable rather than probed).
 	EvaluateReadiness *bool `json:"evaluateReadiness,omitempty"`
+
+	// Kubernetes configures this target's Kubernetes API client, notably its request rate limit -
+	// see KubernetesClientConfiguration. Left unset, every field defaults as documented there.
+	Kubernetes KubernetesClientConfiguration `json:"kubernetes,omitempty"`
+}
+
+// KubernetesClientConfiguration controls the rate limit regatta's own Kubernetes client applies
+// against this target's API server - notably when creating/deleting the fake Node objects
+// themselves (see kwok.ApplyFakeNodes/DeleteFakeNodes), which fan hundreds of requests out
+// concurrently and will bottleneck on client-go's conservative built-in defaults otherwise.
+// Mirrors the same QPS/Burst knobs internal/executor and internal/binoculars already expose for
+// their own Kubernetes clients.
+type KubernetesClientConfiguration struct {
+	// QPS is the max steady-state number of Kubernetes API requests per second. Defaults to 100
+	// when left unset (zero) - well above client-go's own default of 5, which meaningfully
+	// throttles a several-hundred-node target.
+	QPS float32 `json:"qps,omitempty"`
+	// Burst is the max number of requests allowed to burst above QPS momentarily. Defaults to
+	// 200 when left unset (zero) - client-go's own default is 10.
+	Burst int `json:"burst,omitempty"`
 }
 
 // ShouldEvaluateReadiness reports whether a canary-job readiness probe should run for this
@@ -148,31 +163,6 @@ func (c *ClusterTarget) ShouldEvaluateReadiness() bool {
 		return *c.EvaluateReadiness
 	}
 	return c.Kind
-}
-
-// FakeExecutorTarget (Type: "fake-executor") configures an armada-fakeexecutor process that
-// registers as a real executor against the scheduler but simulates nodes/pods in-process, no
-// real cluster involved.
-type FakeExecutorTarget struct {
-	// SchedulerUrl is the armada-scheduler's executor-facing gRPC address (host:port), e.g.
-	// "localhost:50052". This is deliberately separate from Armadactl's armadaUrl - that's the
-	// submit-side API (armada-server, typically port 50051), a different service on a different
-	// port than the scheduler's ExecutorApi that armada-fakeexecutor actually leases jobs from.
-	SchedulerUrl string `json:"schedulerUrl"`
-	Pool         string `json:"pool,omitempty"`
-	ClusterId    string `json:"clusterId,omitempty"`
-
-	// ProbeRetries/ProbeDelay control the canary-job readiness probe that confirms the
-	// fake-executor process has actually registered with the scheduler and reported its
-	// simulated nodes' capacity before load is submitted (see fakeexecutor.WaitUntilSchedulable).
-	// Mirrors ClusterTarget.ProbeRetries/ProbeDelay; unlike the cluster path this probe always
-	// runs (there is no "unknown externally-provided environment" case for a process regatta
-	// itself just started).
-	ProbeRetries int    `json:"probeRetries,omitempty"`
-	ProbeDelay   string `json:"probeDelay,omitempty"`
-
-	// ProbeDelayDuration is ProbeDelay parsed by Load. Not part of the file format.
-	ProbeDelayDuration time.Duration `json:"-"`
 }
 
 // Load describes the submission batch: which job-spec files to submit, how many of each, and
@@ -253,53 +243,23 @@ func LoadScenario(path string) (*Scenario, error) {
 		return nil, fmt.Errorf("executionTargets must contain at least one target")
 	}
 
-	typeCounters := map[string]int{}
 	names := map[string]bool{}
-	var sharedType string
 	for i := range scenario.ExecutionTargets {
 		target := &scenario.ExecutionTargets[i]
 
-		switch target.Type {
-		case TargetTypeCluster:
-			if target.Cluster == nil {
-				return nil, fmt.Errorf("executionTargets[%d]: type is %q but cluster is not set", i, target.Type)
-			}
-			if target.FakeExecutor != nil {
-				return nil, fmt.Errorf("executionTargets[%d]: type is %q but fakeExecutor is also set", i, target.Type)
-			}
-			target.Cluster.Kubeconfig = resolveRelative(dir, target.Cluster.Kubeconfig)
-			if target.Cluster.ProbeDelay != "" {
-				delay, err := time.ParseDuration(target.Cluster.ProbeDelay)
-				if err != nil {
-					return nil, fmt.Errorf("executionTargets[%d]: parsing cluster.probeDelay %q: %w", i, target.Cluster.ProbeDelay, err)
-				}
-				target.Cluster.ProbeDelayDuration = delay
-			}
-		case TargetTypeFakeExecutor:
-			if target.FakeExecutor == nil {
-				return nil, fmt.Errorf("executionTargets[%d]: type is %q but fakeExecutor is not set", i, target.Type)
-			}
-			if target.Cluster != nil {
-				return nil, fmt.Errorf("executionTargets[%d]: type is %q but cluster is also set", i, target.Type)
-			}
-			if target.FakeExecutor.SchedulerUrl == "" {
-				return nil, fmt.Errorf("executionTargets[%d]: fakeExecutor.schedulerUrl is required", i)
-			}
-			if target.FakeExecutor.ProbeDelay != "" {
-				delay, err := time.ParseDuration(target.FakeExecutor.ProbeDelay)
-				if err != nil {
-					return nil, fmt.Errorf("executionTargets[%d]: parsing fakeExecutor.probeDelay %q: %w", i, target.FakeExecutor.ProbeDelay, err)
-				}
-				target.FakeExecutor.ProbeDelayDuration = delay
-			}
-		default:
-			return nil, fmt.Errorf("executionTargets[%d]: unknown type %q, must be %q or %q", i, target.Type, TargetTypeCluster, TargetTypeFakeExecutor)
+		if target.Type != TargetTypeCluster {
+			return nil, fmt.Errorf("executionTargets[%d]: unknown type %q, must be %q", i, target.Type, TargetTypeCluster)
 		}
-
-		if sharedType == "" {
-			sharedType = target.Type
-		} else if target.Type != sharedType {
-			return nil, fmt.Errorf("executionTargets[%d]: type %q cannot be mixed with type %q in the same scenario: cluster and fake-executor targets are mutually exclusive", i, target.Type, sharedType)
+		if target.Cluster == nil {
+			return nil, fmt.Errorf("executionTargets[%d]: type is %q but cluster is not set", i, target.Type)
+		}
+		target.Cluster.Kubeconfig = resolveRelative(dir, target.Cluster.Kubeconfig)
+		if target.Cluster.ProbeDelay != "" {
+			delay, err := time.ParseDuration(target.Cluster.ProbeDelay)
+			if err != nil {
+				return nil, fmt.Errorf("executionTargets[%d]: parsing cluster.probeDelay %q: %w", i, target.Cluster.ProbeDelay, err)
+			}
+			target.Cluster.ProbeDelayDuration = delay
 		}
 
 		for _, groupName := range target.NodeGroups {
@@ -309,9 +269,8 @@ func LoadScenario(path string) (*Scenario, error) {
 		}
 
 		if target.Name == "" {
-			target.Name = fmt.Sprintf("%s-%d", target.Type, typeCounters[target.Type])
+			target.Name = fmt.Sprintf("%s-%d", target.Type, i)
 		}
-		typeCounters[target.Type]++
 
 		if names[target.Name] {
 			return nil, fmt.Errorf("executionTargets[%d]: duplicate name %q", i, target.Name)

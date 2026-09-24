@@ -6,14 +6,25 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	regattaconfig "github.com/armadaproject/armada/internal/regatta/config"
+)
+
+// defaultQPS/defaultBurst apply when a target's KubernetesClientConfiguration leaves QPS/Burst
+// unset (zero) - well above client-go's own defaults (5/10), which meaningfully throttle the
+// hundreds of concurrent requests ApplyFakeNodes/DeleteFakeNodes fan out per target.
+const (
+	defaultQPS   = 100
+	defaultBurst = 200
 )
 
 // NewClientset builds a typed Kubernetes clientset from a kubeconfig path (or the default
-// loading rules - KUBECONFIG env var, then $HOME/.kube/config - when kubeconfigPath is empty).
-// Trusts the kubeconfig file's own current-context - regatta writes one kubeconfig file per
-// execution target, so current-context is never ambiguous between targets.
-func NewClientset(kubeconfigPath string) (kubernetes.Interface, error) {
-	restConfig, err := buildRestConfig(kubeconfigPath)
+// loading rules - KUBECONFIG env var, then $HOME/.kube/config - when kubeconfigPath is empty),
+// rate-limited per kubernetesConfig. Trusts the kubeconfig file's own current-context - regatta
+// writes one kubeconfig file per execution target, so current-context is never ambiguous between
+// targets.
+func NewClientset(kubeconfigPath string, kubernetesConfig regattaconfig.KubernetesClientConfiguration) (kubernetes.Interface, error) {
+	restConfig, err := buildRestConfig(kubeconfigPath, kubernetesConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -24,7 +35,7 @@ func NewClientset(kubeconfigPath string) (kubernetes.Interface, error) {
 	return clientset, nil
 }
 
-func buildRestConfig(kubeconfigPath string) (*rest.Config, error) {
+func buildRestConfig(kubeconfigPath string, kubernetesConfig regattaconfig.KubernetesClientConfiguration) (*rest.Config, error) {
 	config, err := ResolveKubeconfig(kubeconfigPath)
 	if err != nil {
 		return nil, err
@@ -35,6 +46,14 @@ func buildRestConfig(kubeconfigPath string) (*rest.Config, error) {
 	).ClientConfig()
 	if err != nil {
 		return nil, fmt.Errorf("building kube client config: %w", err)
+	}
+	restConfig.QPS = kubernetesConfig.QPS
+	if restConfig.QPS == 0 {
+		restConfig.QPS = defaultQPS
+	}
+	restConfig.Burst = kubernetesConfig.Burst
+	if restConfig.Burst == 0 {
+		restConfig.Burst = defaultBurst
 	}
 	return restConfig, nil
 }

@@ -33,14 +33,16 @@ executionTargets:
 nodeGroups:
   gb200:
     - nodeProfile: node-profiles/gb200-slice.yaml
-      count: 200
+      count: 300
   cpu:
     - nodeProfile: node-profiles/cpu-only.yaml
-      count: 100
+      count: 200
 
 load:
   queue: regatta
   jobSetId: two-cluster
   jobs:
     - jobSpec: job-specs/kwok-sleep.yaml
-      count: 1000
+      count: 200
+    - jobSpec: job-specs/gpu-job.yaml
+      count: 1800
