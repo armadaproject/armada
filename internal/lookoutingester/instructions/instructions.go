@@ -139,7 +139,7 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
 			err = c.handleJobRunSucceeded(event.GetJobRunSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
-			err = c.handleJobRunErrors(event.GetJobRunErrors(), update)
+			err = c.handleJobRunErrors(created, event.GetJobRunErrors(), update)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			err = c.handleJobRunPreempted(owner, event.GetJobRunPreempted(), update)
 		case *armadaevents.EventSequence_Event_JobRunTerminated:
@@ -494,13 +494,17 @@ func (c *InstructionConverter) handleJobRunSucceeded(event *armadaevents.JobRunS
 	return nil
 }
 
-func (c *InstructionConverter) handleJobRunErrors(event *armadaevents.JobRunErrors, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobRunErrors(created *time.Time, event *armadaevents.JobRunErrors, update *model.InstructionSet) error {
 	for _, e := range event.GetErrors() {
 		jobRunUpdate := &model.UpdateJobRunInstruction{
 			RunId: event.RunId,
 		}
-		if e.Terminal && event.FinishedAt != nil {
-			finished := protoutil.ToStdTime(event.FinishedAt)
+		finishedAt := event.FinishedAt
+		if e.Terminal && finishedAt == nil && created != nil {
+			finishedAt = protoutil.ToTimestamp(*created)
+		}
+		if e.Terminal && finishedAt != nil {
+			finished := protoutil.ToStdTime(finishedAt)
 			jobRunUpdate.Finished = &finished
 		}
 

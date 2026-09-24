@@ -218,6 +218,35 @@ func TestCreateEventForCurrentState_OmitsLifecycleTimestampsWithoutContainerTime
 	}
 }
 
+func TestCreateReturnLeaseEvent_SetsFinishedAtOnlyWhenAllAppContainersTerminated(t *testing.T) {
+	finishedAt := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	for name, statuses := range map[string][]v1.ContainerStatus{
+		"all application containers terminated": {
+			{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(finishedAt)}}},
+			{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(finishedAt.Add(time.Minute))}}},
+		},
+		"application container still running": {
+			{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(finishedAt)}}},
+			{State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			pod := makeTestPod(v1.PodRunning)
+			pod.Status.ContainerStatuses = statuses
+
+			sequence, err := CreateReturnLeaseEvent(pod, "lease returned", "", "cluster1", true, "", "")
+
+			require.NoError(t, err)
+			event := sequence.Events[0].GetJobRunErrors()
+			if name == "all application containers terminated" {
+				assert.Equal(t, protoutil.ToTimestamp(finishedAt.Add(time.Minute)), event.FinishedAt)
+			} else {
+				assert.Nil(t, event.FinishedAt)
+			}
+		})
+	}
+}
+
 func TestCreateEventForCurrentState_ShouldError_WhenPodPhaseUnknown(t *testing.T) {
 	pod := makeTestPod(v1.PodUnknown)
 

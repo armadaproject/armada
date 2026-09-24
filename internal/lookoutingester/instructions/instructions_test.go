@@ -128,6 +128,7 @@ var expectedFailed = model.UpdateJobInstruction{
 var expectedFailedRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunId,
 	Node:        pointer.String(testfixtures.NodeName),
+	Finished:    &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
 	Error:       []byte(testfixtures.ErrMsg),
 	Debug:       []byte(testfixtures.DebugMsg),
@@ -156,6 +157,7 @@ var expectedPreempted = model.UpdateJobInstruction{
 var expectedFailedRunWithCategory = model.UpdateJobRunInstruction{
 	RunId:              testfixtures.RunId,
 	Node:               pointer.String(testfixtures.NodeName),
+	Finished:           &testfixtures.BaseTime,
 	JobRunState:        pointer.Int32(lookout.JobRunFailedOrdinal),
 	Error:              []byte(testfixtures.ErrMsg),
 	Debug:              []byte(testfixtures.DebugMsg),
@@ -166,6 +168,7 @@ var expectedFailedRunWithCategory = model.UpdateJobRunInstruction{
 
 var expectedReconciliationErrRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunId,
+	Finished:    &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
 	Error:       []byte(testfixtures.ReconciliationErrMsg),
 }
@@ -900,6 +903,87 @@ func TestConvert_UsesExecutorLifecycleTimestampsWithoutCreated(t *testing.T) {
 	assert.Nil(t, instructionSet.JobRunsToUpdate[5].Finished)
 }
 
+func TestConvert_UsesCreatedAsFinishedOnlyForTerminalJobRunErrorsWithoutFinishedAt(t *testing.T) {
+	createdAt := testfixtures.BaseTime.Add(time.Minute)
+	embeddedFinishedAt := createdAt.Add(time.Minute)
+	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
+
+	instructionSet := converter.Convert(armadacontext.TODO(), &utils.EventsWithIds[*armadaevents.EventSequence]{
+		Events: []*armadaevents.EventSequence{testfixtures.NewEventSequence(
+			&armadaevents.EventSequence_Event{
+				Created: protoutil.ToTimestamp(createdAt),
+				Event: &armadaevents.EventSequence_Event_JobRunErrors{
+					JobRunErrors: &armadaevents.JobRunErrors{
+						JobId: testfixtures.JobId,
+						RunId: testfixtures.RunId,
+						Errors: []*armadaevents.Error{{
+							Terminal: true,
+							Reason:   &armadaevents.Error_ReconciliationError{ReconciliationError: &armadaevents.ReconciliationError{}},
+						}},
+					},
+				},
+			},
+			&armadaevents.EventSequence_Event{
+				Created: protoutil.ToTimestamp(createdAt),
+				Event: &armadaevents.EventSequence_Event_JobRunErrors{
+					JobRunErrors: &armadaevents.JobRunErrors{
+						JobId:      testfixtures.JobId,
+						RunId:      testfixtures.RunId,
+						FinishedAt: protoutil.ToTimestamp(embeddedFinishedAt),
+						Errors: []*armadaevents.Error{{
+							Terminal: true,
+							Reason:   &armadaevents.Error_ReconciliationError{ReconciliationError: &armadaevents.ReconciliationError{}},
+						}},
+					},
+				},
+			},
+			&armadaevents.EventSequence_Event{
+				Created: protoutil.ToTimestamp(createdAt),
+				Event: &armadaevents.EventSequence_Event_JobRunErrors{
+					JobRunErrors: &armadaevents.JobRunErrors{
+						JobId: testfixtures.JobId,
+						RunId: testfixtures.RunId,
+						Errors: []*armadaevents.Error{{
+							Reason: &armadaevents.Error_ReconciliationError{ReconciliationError: &armadaevents.ReconciliationError{}},
+						}},
+					},
+				},
+			},
+			&armadaevents.EventSequence_Event{
+				Created: protoutil.ToTimestamp(createdAt),
+				Event: &armadaevents.EventSequence_Event_JobRunRunning{
+					JobRunRunning: &armadaevents.JobRunRunning{JobId: testfixtures.JobId, RunId: testfixtures.RunId},
+				},
+			},
+			&armadaevents.EventSequence_Event{
+				Created: protoutil.ToTimestamp(createdAt),
+				Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
+					JobRunSucceeded: &armadaevents.JobRunSucceeded{JobId: testfixtures.JobId, RunId: testfixtures.RunId},
+				},
+			},
+			&armadaevents.EventSequence_Event{
+				Created: protoutil.ToTimestamp(createdAt),
+				Event:   &armadaevents.EventSequence_Event_JobRunCancelled{JobRunCancelled: &armadaevents.JobRunCancelled{RunId: testfixtures.RunId}},
+			},
+			&armadaevents.EventSequence_Event{
+				Created: protoutil.ToTimestamp(createdAt),
+				Event:   &armadaevents.EventSequence_Event_JobRunPreempted{JobRunPreempted: &armadaevents.JobRunPreempted{PreemptedRunId: testfixtures.RunId}},
+			},
+		)},
+	})
+
+	require.Len(t, instructionSet.JobRunsToUpdate, 7)
+	require.NotNil(t, instructionSet.JobRunsToUpdate[0].Finished)
+	assert.Equal(t, createdAt, *instructionSet.JobRunsToUpdate[0].Finished)
+	require.NotNil(t, instructionSet.JobRunsToUpdate[1].Finished)
+	assert.Equal(t, embeddedFinishedAt, *instructionSet.JobRunsToUpdate[1].Finished)
+	assert.Nil(t, instructionSet.JobRunsToUpdate[2].Finished)
+	assert.Nil(t, instructionSet.JobRunsToUpdate[3].Finished)
+	assert.Nil(t, instructionSet.JobRunsToUpdate[4].Finished)
+	assert.Nil(t, instructionSet.JobRunsToUpdate[5].Finished)
+	assert.Nil(t, instructionSet.JobRunsToUpdate[6].Finished)
+}
+
 func TestHandleJobRunTerminatedDebugInfo_EmptyMessageDoesNotClearStoredDebug(t *testing.T) {
 	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
 	update := &model.InstructionSet{}
@@ -935,7 +1019,7 @@ func TestHandleJobRunErrors_TerminalPodError_SetsFailedState(t *testing.T) {
 	}
 
 	update := &model.InstructionSet{}
-	err := converter.handleJobRunErrors(event, update)
+	err := converter.handleJobRunErrors(nil, event, update)
 	require.NoError(t, err)
 
 	require.Len(t, update.JobRunsToUpdate, 1)

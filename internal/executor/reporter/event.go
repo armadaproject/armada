@@ -401,13 +401,18 @@ func CreateReturnLeaseEvent(pod *v1.Pod, reason string, debugMessage string, clu
 	if err != nil {
 		return nil, err
 	}
+	var finishedAt *types.Timestamp
+	if timestamp := util.LatestAppContainerFinished(pod); timestamp != nil {
+		finishedAt = protoutil.ToTimestamp(*timestamp)
+	}
 
 	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 		Created: types.TimestampNow(),
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				RunId: runId,
-				JobId: jobId,
+				RunId:      runId,
+				JobId:      jobId,
+				FinishedAt: finishedAt,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal:           true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
