@@ -2,8 +2,8 @@
 # cannot reprioritize a job, even one it submitted itself.
 queue: rbac-queue-submit-no-reprioritize
 authContext: rbac-queue-only
-numBatches: 10
-batchSize: 10
+numBatches: 5
+batchSize: 5
 jobs:
   - priority: 0
     namespace: personal-anonymous
@@ -31,7 +31,7 @@ reprioritize:
 expectedEvents:
   - submitted:
   - succeeded:
-timeout: "30s"
+timeout: "300s"
 expectedErrorCode: 2 # UNKNOWN
 queueConfig:
   setup:

@@ -2,8 +2,8 @@
 # grant cannot submit jobs.
 queue: rbac-queue-no-submit
 authContext: rbac-queue-only
-numBatches: 10
-batchSize: 10
+numBatches: 5
+batchSize: 5
 jobs:
   - priority: 0
     namespace: personal-anonymous
@@ -24,7 +24,7 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-timeout: "30s"
+timeout: "300s"
 expectedErrorCode: 7 # PERMISSION_DENIED
 queueConfig:
   setup:

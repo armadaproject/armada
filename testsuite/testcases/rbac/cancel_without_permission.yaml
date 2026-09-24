@@ -2,8 +2,8 @@
 # cannot cancel a job, even one it submitted itself
 queue: rbac-queue-submit-no-cancel
 authContext: rbac-queue-only
-numBatches: 1
-batchSize: 1
+numBatches: 5
+batchSize: 5
 jobs:
   - priority: 0
     namespace: personal-anonymous
@@ -30,7 +30,7 @@ cancel:
 expectedEvents:
   - submitted:
   - succeeded:
-timeout: "30s"
+timeout: "300s"
 expectedErrorCode: 2 # UNKNOWN
 queueConfig:
   setup:

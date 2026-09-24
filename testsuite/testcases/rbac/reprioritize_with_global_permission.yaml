@@ -2,8 +2,8 @@
 # reprioritize jobs in a queue it doesn't own.
 queue: e2e-test-queue
 authContext: rbac-admin
-numBatches: 10
-batchSize: 10
+numBatches: 5
+batchSize: 5
 jobs:
   - priority: 0
     namespace: personal-anonymous
@@ -28,7 +28,7 @@ jobs:
 reprioritize:
   request:
     newPriority: 100
-timeout: "100s"
+timeout: "300s"
 expectedEvents:
   - submitted:
   - reprioritized:

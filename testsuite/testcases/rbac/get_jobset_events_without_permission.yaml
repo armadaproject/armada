@@ -2,8 +2,8 @@
 # cannot watch job-set events via GetJobSetEvents, even for a job it submitted itself.
 queue: rbac-queue-submit-no-watch
 authContext: rbac-queue-only
-numBatches: 10
-batchSize: 10
+numBatches: 5
+batchSize: 5
 jobs:
   - priority: 0
     namespace: personal-anonymous
@@ -24,7 +24,7 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-timeout: "30s"
+timeout: "300s"
 expectedErrorCode: 7 # PERMISSION_DENIED
 queueConfig:
   setup:

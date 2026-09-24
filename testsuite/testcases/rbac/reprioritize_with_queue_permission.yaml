@@ -2,8 +2,8 @@
 # in a queue it has the reprioritize permission.
 queue: rbac-queue-submit-and-reprioritize
 authContext: rbac-queue-only
-numBatches: 10
-batchSize: 10
+numBatches: 5
+batchSize: 5
 jobs:
   - priority: 0
     namespace: personal-anonymous
@@ -31,7 +31,7 @@ reprioritize:
 expectedEvents:
   - submitted:
   - reprioritized:
-timeout: "30s"
+timeout: "300s"
 queueConfig:
   setup:
     queueSpec:

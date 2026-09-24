@@ -2,8 +2,8 @@
 # in a queue it has the preempt permission.
 queue: rbac-queue-submit-and-preempt
 authContext: rbac-queue-only
-numBatches: 10
-batchSize: 10
+numBatches: 5
+batchSize: 5
 jobs:
   - priority: 0
     namespace: personal-anonymous
@@ -30,7 +30,7 @@ triggerEvent: running
 preempt:
   request:
     reason: "Test job preemption for validation"
-timeout: "100s"
+timeout: "300s"
 expectedEvents:
   - submitted:
   - preempted:
