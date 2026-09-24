@@ -1148,7 +1148,7 @@ func TestFairshareAndUrgencyPreemption(t *testing.T) {
 			urgencyPreemptibleJobs:           16,
 			fairsharePreemptibleJobs:         16,
 			incomingJob:                      testfixtures.N32Cpu256GiJobs,
-			expectedSchedulingMethod:         context.ScheduledWithFairSharePreemption,
+			expectedSchedulingMethod:         context.ScheduledWithFairShareAndUrgencyPreemption,
 			expectedFairsharePreemptedJobs:   16,
 		},
 	}
