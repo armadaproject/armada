@@ -894,8 +894,8 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 			node                 = coalesce($2, node),
 			started              = coalesce($3, started),
 			finished             = CASE
-				WHEN finished IS NULL AND $4 IS NULL THEN NULL
-				ELSE GREATEST(finished, $4, coalesce($3, started))
+				WHEN finished IS NULL AND $4::timestamp IS NULL THEN NULL
+				ELSE GREATEST(finished, $4::timestamp, coalesce($3::timestamp, started))
 			END,
 			job_run_state        = coalesce($5, job_run_state),
 			error                = coalesce($6, error),

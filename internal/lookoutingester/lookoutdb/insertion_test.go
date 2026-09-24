@@ -660,6 +660,30 @@ func TestUpdateJobRunsScalarTimestampsAndDebug(t *testing.T) {
 	})
 }
 
+func TestUpdateJobRunsScalarWithOnlyLifecycleTimestamps(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		_, err := db.Exec(armadacontext.Background(), "DELETE FROM job_run")
+		assert.NoError(t, err)
+		assert.NoError(t, ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate))
+		assert.NoError(t, ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate))
+
+		started := baseTime.Add(2 * time.Minute)
+		finished := started.Add(time.Minute)
+		assert.NoError(t, ldb.UpdateJobRunsScalar(armadacontext.Background(), []*model.UpdateJobRunInstruction{{
+			RunId:    RunId,
+			Started:  &started,
+			Finished: &finished,
+		}}))
+
+		run := getJobRun(t, db, RunId)
+		assert.Equal(t, &started, run.Started)
+		assert.Equal(t, &finished, run.Finished)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func testUpdateJobRunsTimestampsAndDebug(t *testing.T, update func(*LookoutDb, []*model.UpdateJobRunInstruction) error) {
 	t.Helper()
 
@@ -713,7 +737,7 @@ func testUpdateJobRunsTimestampsAndDebug(t *testing.T, update func(*LookoutDb, [
 				{RunId: RunId},
 				{RunId: RunId, Pending: &pending},
 			}))
-			assert.Equal(t, &pending, getJobRun(t, db, RunId).Pending)
+			assert.Equal(t, pending, getJobRun(t, db, RunId).Pending)
 		})
 
 		return nil

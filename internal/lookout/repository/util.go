@@ -274,8 +274,9 @@ func (js *JobSimulator) Running(runId string, node string, timestamp time.Time) 
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunRunning{
 			JobRunRunning: &armadaevents.JobRunRunning{
-				RunId: runId,
-				JobId: js.jobId,
+				RunId:     runId,
+				JobId:     js.jobId,
+				StartedAt: ts,
 				ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 					{
 						Info: &armadaevents.KubernetesResourceInfo_PodInfo{
@@ -332,8 +333,9 @@ func (js *JobSimulator) RunSucceeded(runId string, timestamp time.Time) *JobSimu
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 			JobRunSucceeded: &armadaevents.JobRunSucceeded{
-				RunId: runId,
-				JobId: js.jobId,
+				RunId:      runId,
+				JobId:      js.jobId,
+				FinishedAt: ts,
 			},
 		},
 	}
@@ -374,8 +376,9 @@ func (js *JobSimulator) LeaseReturned(runId string, message string, timestamp ti
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: js.jobId,
-				RunId: runId,
+				JobId:      js.jobId,
+				RunId:      runId,
+				FinishedAt: ts,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -445,8 +448,9 @@ func (js *JobSimulator) RunFailed(runId string, node string, exitCode int32, mes
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: js.jobId,
-				RunId: runId,
+				JobId:      js.jobId,
+				RunId:      runId,
+				FinishedAt: ts,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -622,8 +626,9 @@ func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, _ clock.
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: js.jobId,
-				RunId: runId,
+				JobId:      js.jobId,
+				RunId:      runId,
+				FinishedAt: ts,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
