@@ -67,6 +67,22 @@ type Node struct {
 	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
 
+	// Two views of what is still allocatable, both keyed by priority. In each, the bucket at
+	// priority P holds allocatableResources minus every job accounted for at a priority >= P, so a
+	// job at P sees resources held by lower-priority jobs as available to it: those could be freed
+	// by preempting them.
+	//
+	// They differ only in how they treat eviction:
+	//
+	//   - allocatableByPriority gives an evicted job's resources back at the priority it was bound
+	//     at, and instead deducts them at EvictedPriority. This is the view normal scheduling and
+	//     fair-share preemption read.
+	//   - allocatableByPriorityNoEviction ignores eviction entirely, keeping the job deducted at the
+	//     priority it was bound at. This is the view urgency-based preemption reads, so that the
+	//     give-back above is not mistaken for capacity urgency preemption could free. Only fair-share
+	//     preemption can reclaim an evicted job's resources, by holding it back from rescheduling.
+	//
+	// The two therefore agree whenever nothing on the node is evicted.
 	allocatableByPriority           map[int32]ResourceList
 	allocatableByPriorityNoEviction map[int32]ResourceList
 	allocatedByJobId                map[string]ResourceList
