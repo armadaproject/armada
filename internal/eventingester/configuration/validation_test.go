@@ -46,5 +46,6 @@ func TestValidate_RejectsNegativeInitialBackoff(t *testing.T) {
 
 	err := config.Validate()
 	require.Error(t, err)
-	require.ErrorContains(t, err, "retryInitialBackoff must be non-negative")
+	require.ErrorContains(t, err, "RetryInitialBackoff")
+	require.ErrorContains(t, err, "gte")
 }
