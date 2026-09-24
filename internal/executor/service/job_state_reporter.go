@@ -24,8 +24,8 @@ type JobStateReporter struct {
 	debugRenderer   *reporter.DebugMessageRenderer
 	// Runtime above which a failed pod's debug data is captured. See shouldCaptureFailureDebug.
 	minAppContainerRuntimeForFailureDebug time.Duration
-	terminatedRunIds                      map[string]struct{}
-	terminatedRunIdsMutex                 sync.Mutex
+	inFlightTerminationRunIds             map[string]struct{}
+	inFlightTerminationRunIdsMutex        sync.Mutex
 }
 
 func NewJobStateReporter(
@@ -43,7 +43,7 @@ func NewJobStateReporter(
 		classifier:                            classifier,
 		debugRenderer:                         debugRenderer,
 		minAppContainerRuntimeForFailureDebug: minAppContainerRuntimeForFailureDebug,
-		terminatedRunIds:                      make(map[string]struct{}),
+		inFlightTerminationRunIds:             make(map[string]struct{}),
 	}
 
 	_, err := clusterContext.AddPodEventHandler(stateReporter.podEventHandler())
@@ -131,15 +131,19 @@ func (stateReporter *JobStateReporter) reportTerminationIfFinished(pod *v1.Pod) 
 	}
 
 	runId := util.ExtractJobRunId(pod)
-	stateReporter.terminatedRunIdsMutex.Lock()
-	if _, exists := stateReporter.terminatedRunIds[runId]; exists {
-		stateReporter.terminatedRunIdsMutex.Unlock()
+	stateReporter.inFlightTerminationRunIdsMutex.Lock()
+	if _, exists := stateReporter.inFlightTerminationRunIds[runId]; exists {
+		stateReporter.inFlightTerminationRunIdsMutex.Unlock()
 		return
 	}
-	stateReporter.terminatedRunIds[runId] = struct{}{}
-	stateReporter.terminatedRunIdsMutex.Unlock()
+	stateReporter.inFlightTerminationRunIds[runId] = struct{}{}
+	stateReporter.inFlightTerminationRunIdsMutex.Unlock()
 
 	stateReporter.eventReporter.QueueEvent(reporter.EventMessage{Event: event, JobRunId: runId}, func(err error) {
+		stateReporter.inFlightTerminationRunIdsMutex.Lock()
+		delete(stateReporter.inFlightTerminationRunIds, runId)
+		stateReporter.inFlightTerminationRunIdsMutex.Unlock()
+
 		if err != nil {
 			log.Errorf("Failed to report termination event: %s", err)
 		}

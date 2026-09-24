@@ -603,7 +603,7 @@ func TestEarliestAppContainerStart_UsesCurrentStateAndFallbackTermination(t *tes
 	assert.Equal(t, fallbackStart, *started)
 }
 
-func TestLatestAppContainerFinished_UsesCurrentStateAndFallbackTermination(t *testing.T) {
+func TestLatestAppContainerFinished_RequiresCurrentTerminationForEveryAppContainer(t *testing.T) {
 	firstFinish := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
 	latestFinish := firstFinish.Add(time.Minute)
 	staleFinish := latestFinish.Add(time.Minute)
@@ -620,13 +620,13 @@ func TestLatestAppContainerFinished_UsesCurrentStateAndFallbackTermination(t *te
 					},
 				},
 				{
-					LastTerminationState: v1.ContainerState{
+					State: v1.ContainerState{
 						Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(latestFinish)},
 					},
 				},
 				{
 					State: v1.ContainerState{
-						Terminated: &v1.ContainerStateTerminated{},
+						Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(firstFinish)},
 					},
 					LastTerminationState: v1.ContainerState{
 						Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(staleFinish)},
@@ -643,6 +643,29 @@ func TestLatestAppContainerFinished_UsesCurrentStateAndFallbackTermination(t *te
 
 	require.NotNil(t, finished)
 	assert.Equal(t, latestFinish, *finished)
+}
+
+func TestLatestAppContainerFinished_ReturnsNilWhenAnAppContainerIsActive(t *testing.T) {
+	finishedAt := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	pod := &v1.Pod{Status: v1.PodStatus{ContainerStatuses: []v1.ContainerStatus{
+		{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(finishedAt)}}},
+		{State: v1.ContainerState{Running: &v1.ContainerStateRunning{StartedAt: metav1.NewTime(finishedAt.Add(-time.Minute))}}},
+	}}}
+
+	assert.Nil(t, LatestAppContainerFinished(pod))
+}
+
+func TestLatestAppContainerFinished_ReturnsNilWhenAnAppContainerHasNoCurrentFinishTime(t *testing.T) {
+	finishedAt := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	pod := &v1.Pod{Status: v1.PodStatus{ContainerStatuses: []v1.ContainerStatus{
+		{State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(finishedAt)}}},
+		{
+			State:                v1.ContainerState{Terminated: &v1.ContainerStateTerminated{}},
+			LastTerminationState: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(finishedAt.Add(time.Minute))}},
+		},
+	}}}
+
+	assert.Nil(t, LatestAppContainerFinished(pod))
 }
 
 func TestIsMarkedForDeletion(t *testing.T) {

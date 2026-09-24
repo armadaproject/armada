@@ -325,11 +325,8 @@ func LatestAppContainerFinished(pod *v1.Pod) *time.Time {
 	var latest *time.Time
 	for _, container := range pod.Status.ContainerStatuses {
 		terminated := container.State.Terminated
-		if terminated == nil {
-			terminated = container.LastTerminationState.Terminated
-		}
 		if terminated == nil || terminated.FinishedAt.IsZero() {
-			continue
+			return nil
 		}
 		finishedAt := terminated.FinishedAt.Time
 		if latest == nil || finishedAt.After(*latest) {

@@ -150,7 +150,33 @@ func TestJobStateReporter_MarkedForDeletionReportsTerminationWhenFinishedAtAppea
 	assert.Equal(t, int32(finishedAt.Nanosecond()), terminated.JobRunTerminated.FinishedAt.Nanos)
 
 	stateReporter.reportStatusUpdate(before, after)
-	assert.Len(t, eventReporter.GetReceivedEvents(), 1, "the same termination update must not report a duplicate event")
+	assert.Len(t, eventReporter.GetReceivedEvents(), 2, "the callback must release the termination claim")
+}
+
+func TestJobStateReporter_MarkedForDeletionDoesNotReportTerminationUntilAllApplicationContainersFinish(t *testing.T) {
+	stateReporter, _, eventReporter, _ := setUpJobStateReporterTest(t)
+	finishedAt := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	pod := deletionMarkedCompletedPod(finishedAt)
+	pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, v1.ContainerStatus{
+		Name:  "sidecar",
+		State: v1.ContainerState{Running: &v1.ContainerStateRunning{StartedAt: metav1.NewTime(finishedAt.Add(-time.Minute))}},
+	})
+
+	stateReporter.reportTerminationIfFinished(pod)
+
+	assert.Empty(t, eventReporter.GetReceivedEvents(), "an active application container must prevent termination reporting")
+}
+
+func TestJobStateReporter_MarkedForDeletionRetriesTerminationAfterFailedSend(t *testing.T) {
+	stateReporter, _, eventReporter, _ := setUpJobStateReporterTest(t)
+	pod := deletionMarkedCompletedPod(time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC))
+	eventReporter.ErrorOnReport = true
+
+	stateReporter.reportTerminationIfFinished(pod)
+	eventReporter.ErrorOnReport = false
+	stateReporter.reportTerminationIfFinished(pod)
+
+	assert.Len(t, eventReporter.GetReceivedEvents(), 1, "a failed termination send must be retried")
 }
 
 func TestJobStateReporter_PodAddHandlerReportsTerminationForDeletionMarkedCompletedPod(t *testing.T) {
