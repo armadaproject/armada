@@ -328,6 +328,33 @@ func CreateJobRunTerminatedEvent(pod *v1.Pod) (*armadaevents.EventSequence, erro
 	return sequence, nil
 }
 
+// CreateJobRunStartedEvent records a start timestamp discovered after the run
+// has already been reported running, without repeating the running transition.
+func CreateJobRunStartedEvent(pod *v1.Pod) (*armadaevents.EventSequence, error) {
+	startedAt := util.EarliestAppContainerStart(pod)
+	if startedAt == nil {
+		return nil, fmt.Errorf("pod %s has no application-container start time", pod.Name)
+	}
+
+	sequence := createEmptySequence(pod)
+	jobId, runId, err := extractIds(pod)
+	if err != nil {
+		return nil, err
+	}
+
+	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+		Created: types.TimestampNow(),
+		Event: &armadaevents.EventSequence_Event_JobRunStarted{
+			JobRunStarted: &armadaevents.JobRunStarted{
+				JobId:     jobId,
+				RunId:     runId,
+				StartedAt: protoutil.ToTimestamp(*startedAt),
+			},
+		},
+	})
+	return sequence, nil
+}
+
 func CreateMinimalJobFailedEvent(jobId string, runId string, jobSet string, queue string, clusterId string, message string, failureCategory string, failureSubcategory string) (*armadaevents.EventSequence, error) {
 	sequence := &armadaevents.EventSequence{}
 	sequence.Queue = queue

@@ -799,6 +799,33 @@ func TestHandleJobRunTerminatedDebugInfo_PersistsOnlyDebug(t *testing.T) {
 	assert.Nil(t, got.Node)
 }
 
+func TestConvert_JobRunStartedUpdatesOnlyRunStartTime(t *testing.T) {
+	startedAt := testfixtures.BaseTime.Add(time.Minute)
+	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
+
+	instructionSet := converter.Convert(armadacontext.TODO(), &utils.EventsWithIds[*armadaevents.EventSequence]{
+		Events: []*armadaevents.EventSequence{testfixtures.NewEventSequence(
+			&armadaevents.EventSequence_Event{
+				Event: &armadaevents.EventSequence_Event_JobRunStarted{
+					JobRunStarted: &armadaevents.JobRunStarted{
+						JobId:     testfixtures.JobId,
+						RunId:     testfixtures.RunId,
+						StartedAt: protoutil.ToTimestamp(startedAt),
+					},
+				},
+			},
+		)},
+	})
+
+	assert.Empty(t, instructionSet.JobsToUpdate, "a late start time must not repeat the job running transition")
+	require.Len(t, instructionSet.JobRunsToUpdate, 1)
+	update := instructionSet.JobRunsToUpdate[0]
+	assert.Equal(t, testfixtures.RunId, update.RunId)
+	assert.Equal(t, &startedAt, update.Started)
+	assert.Nil(t, update.JobRunState, "a late start time must not repeat the run running transition")
+	assert.Nil(t, update.Node)
+}
+
 func TestConvert_UsesExecutorLifecycleTimestampsWithoutCreated(t *testing.T) {
 	startedAt := testfixtures.BaseTime.Add(time.Minute)
 	finishedAt := testfixtures.BaseTime.Add(2 * time.Minute)

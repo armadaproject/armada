@@ -104,6 +104,8 @@ func (c *InstructionConverter) convertSequence(
 			}
 		case *armadaevents.EventSequence_Event_JobRunTerminated:
 			isExecutorLifecycleEvent = lifecycleEvent.JobRunTerminated.GetFinishedAt() != nil
+		case *armadaevents.EventSequence_Event_JobRunStarted:
+			isExecutorLifecycleEvent = lifecycleEvent.JobRunStarted.GetStartedAt() != nil
 		}
 		if event.Created == nil && !isExecutorLifecycleEvent {
 			c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -142,6 +144,8 @@ func (c *InstructionConverter) convertSequence(
 			err = c.handleJobRunPreempted(owner, event.GetJobRunPreempted(), update)
 		case *armadaevents.EventSequence_Event_JobRunTerminated:
 			err = c.handleJobRunTerminated(event.GetJobRunTerminated(), update)
+		case *armadaevents.EventSequence_Event_JobRunStarted:
+			err = c.handleJobRunStarted(event.GetJobRunStarted(), update)
 		case *armadaevents.EventSequence_Event_JobRequeued:
 			err = c.handleJobRequeued(*created, event.GetJobRequeued(), update)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
@@ -373,6 +377,15 @@ func (c *InstructionConverter) handleJobRunRunning(created *time.Time, event *ar
 		jobRun.Started = &started
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+	return nil
+}
+
+func (c *InstructionConverter) handleJobRunStarted(event *armadaevents.JobRunStarted, update *model.InstructionSet) error {
+	started := protoutil.ToStdTime(event.StartedAt)
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &model.UpdateJobRunInstruction{
+		RunId:   event.RunId,
+		Started: &started,
+	})
 	return nil
 }
 

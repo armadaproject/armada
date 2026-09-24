@@ -153,6 +153,56 @@ func TestJobStateReporter_MarkedForDeletionReportsTerminationWhenFinishedAtAppea
 	assert.Len(t, eventReporter.GetReceivedEvents(), 1, "the same termination update must not report a duplicate event")
 }
 
+func TestJobStateReporter_PodAddHandlerReportsTerminationForDeletionMarkedCompletedPod(t *testing.T) {
+	_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTest(t)
+	finishedAt := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	pod := deletionMarkedCompletedPod(finishedAt)
+
+	addPod(t, fakeClusterContext, pod)
+	fakeClusterContext.SimulatePodAddEvent(pod)
+
+	assert.Eventually(t, func() bool {
+		return containsEventType(eventReporter.GetReceivedEvents(), reflect.TypeOf(&armadaevents.EventSequence_Event_JobRunTerminated{}))
+	}, time.Second, 10*time.Millisecond, "a deletion-marked completed pod added by the informer must report its termination")
+}
+
+func TestJobStateReporter_ReconciliationReportsTerminationForDeletionMarkedCompletedPod(t *testing.T) {
+	stateReporter, _, eventReporter, fakeClusterContext := setUpJobStateReporterTest(t)
+	finishedAt := time.Now().Add(-time.Minute)
+	pod := deletionMarkedCompletedPod(finishedAt)
+	pod.CreationTimestamp = metav1.NewTime(finishedAt.Add(-time.Minute))
+
+	addPod(t, fakeClusterContext, pod)
+	stateReporter.ReportMissingJobEvents()
+
+	assert.True(t, containsEventType(eventReporter.GetReceivedEvents(), reflect.TypeOf(&armadaevents.EventSequence_Event_JobRunTerminated{})),
+		"reconciliation must report termination even when the current phase event is missing")
+}
+
+func TestJobStateReporter_ReportsLateRunningStartTimeWithoutRepeatingRunningState(t *testing.T) {
+	stateReporter, _, eventReporter, _ := setUpJobStateReporterTest(t)
+	startedAt := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	before := makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
+	before.Annotations[string(v1.PodRunning)] = time.Now().String()
+	after := before.DeepCopy()
+	after.Status.ContainerStatuses = []v1.ContainerStatus{{
+		Name: "main",
+		State: v1.ContainerState{Running: &v1.ContainerStateRunning{
+			StartedAt: metav1.NewTime(startedAt),
+		}},
+	}}
+
+	stateReporter.reportStatusUpdate(before, after)
+
+	events := eventReporter.GetReceivedEvents()
+	require.Len(t, events, 1)
+	assertExpectedEvents(t, after, events, reflect.TypeOf(&armadaevents.EventSequence_Event_JobRunStarted{}))
+	started := events[0].Event.Events[0].GetJobRunStarted()
+	require.NotNil(t, started)
+	assert.Equal(t, startedAt.Unix(), started.StartedAt.Seconds)
+	assert.Equal(t, int32(startedAt.Nanosecond()), started.StartedAt.Nanos)
+}
+
 // Drives the update through the registered informer handler, covering the
 // UpdateFunc wiring. The wait works as in the add-handler test above.
 func TestJobStateReporter_PodUpdateEventHandlerReportsAsync(t *testing.T) {
@@ -453,6 +503,29 @@ func assertExpectedEvents(t *testing.T, pod *v1.Pod, messages []reporter.EventMe
 	event := messages[0].Event.Events[0]
 	resultType := reflect.TypeOf(event.Event)
 	assert.Equal(t, expectedType, resultType)
+}
+
+func containsEventType(messages []reporter.EventMessage, expectedType reflect.Type) bool {
+	for _, message := range messages {
+		for _, event := range message.Event.Events {
+			if reflect.TypeOf(event.Event) == expectedType {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func deletionMarkedCompletedPod(finishedAt time.Time) *v1.Pod {
+	pod := makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
+	pod.Annotations[domain.MarkedForDeletion] = time.Now().String()
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{{
+		Name: "main",
+		State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{
+			FinishedAt: metav1.NewTime(finishedAt),
+		}},
+	}}
+	return pod
 }
 
 func assertExpectedAnnotations(t *testing.T, pod *v1.Pod, clusterContext *fakecontext.SyncFakeClusterContext) {

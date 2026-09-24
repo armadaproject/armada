@@ -93,6 +93,7 @@ message EventSequence {
             JobValidated jobValidated = 25;
             JobRunTerminatedDebugInfo jobRunTerminatedDebugInfo = 26;
             JobRunTerminated jobRunTerminated = 27;
+            JobRunStarted jobRunStarted = 28;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -340,6 +341,14 @@ message JobRunRunning {
     string run_id = 5;
     string pool = 6;
     google.protobuf.Timestamp started_at = 7;
+}
+
+// Records an application start timestamp discovered after the run has already
+// transitioned to running. Unlike JobRunRunning, this does not change state.
+message JobRunStarted {
+    string job_id = 1;
+    string run_id = 2;
+    google.protobuf.Timestamp started_at = 3;
 }
 
 // Message containing runtime information about some resource created for a job.
