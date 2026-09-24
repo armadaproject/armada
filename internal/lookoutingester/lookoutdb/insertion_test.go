@@ -706,6 +706,16 @@ func testUpdateJobRunsTimestampsAndDebug(t *testing.T, update func(*LookoutDb, [
 			assert.Equal(t, debug, getJobRun(t, db, RunId).Debug)
 		})
 
+		t.Run("retains pending updates", func(t *testing.T) {
+			setupRun()
+			pending := baseTime.Add(3 * time.Minute)
+			assert.NoError(t, update(ldb, []*model.UpdateJobRunInstruction{
+				{RunId: RunId},
+				{RunId: RunId, Pending: &pending},
+			}))
+			assert.Equal(t, &pending, getJobRun(t, db, RunId).Pending)
+		})
+
 		return nil
 	})
 	assert.NoError(t, err)
@@ -1033,17 +1043,19 @@ func TestConflateJobRunUpdates_NilDebugDoesNotOverwriteExistingDebug(t *testing.
 	assert.Equal(t, []byte("stored debug"), updates[0].Debug)
 }
 
-func TestConflateJobRunUpdatesRetainsLatestTimestampAndDebug(t *testing.T) {
+func TestConflateJobRunUpdatesRetainsLatestTimestampDebugAndPending(t *testing.T) {
 	latest := baseTime.Add(2 * time.Minute)
 	older := baseTime.Add(time.Minute)
+	pending := baseTime.Add(3 * time.Minute)
 	updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
 		{RunId: RunId, Finished: &latest, Debug: []byte("stored debug")},
-		{RunId: RunId, Finished: &older, Debug: []byte{}},
+		{RunId: RunId, Finished: &older, Pending: &pending, Debug: []byte{}},
 	})
 
 	assert.Len(t, updates, 1)
 	assert.Equal(t, &latest, updates[0].Finished)
 	assert.Equal(t, []byte("stored debug"), updates[0].Debug)
+	assert.Equal(t, &pending, updates[0].Pending)
 }
 
 func TestStoreNullValue(t *testing.T) {

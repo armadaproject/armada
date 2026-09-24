@@ -1116,6 +1116,9 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 			if update.Node != nil {
 				existing.Node = update.Node
 			}
+			if update.Pending != nil {
+				existing.Pending = update.Pending
+			}
 			if update.Started != nil {
 				existing.Started = update.Started
 			}

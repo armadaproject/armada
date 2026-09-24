@@ -17,3 +17,9 @@
 - `UpdateJobRunsBatch` now conflates duplicate run updates before copying them into the temporary table, so `UPDATE ... FROM` receives one deterministic source row per run.
 - The timestamp and debug tests now submit duplicate run updates in one call for both batch and scalar paths.
 - The focused database test was retried in the development container and again exceeded the 10-minute execution limit without output.
+
+## Round 2 Follow-Up
+
+- `conflateJobRunUpdates` now retains non-nil `Pending` updates, matching `Started` semantics for duplicate run updates.
+- Added direct duplicate-batch coverage and conflation coverage for pending timestamps.
+- `go test ./internal/lookoutingester/lookoutdb -run '^TestConflateJobRunUpdatesRetainsLatestTimestampDebugAndPending$' -count=1` passed in the development container. The database-backed focused suite was not retried because the two prior 10-minute attempts did not produce output.
