@@ -510,30 +510,33 @@ type SchedulableJob interface {
 }
 
 // AddJob binds job to the node, deducting its resources at every priority bucket
-// at or below priority. If the job is currently evicted from this node, it is
-// un-evicted and its resources are moved out of the EvictedPriority bucket;
-// ownership (allocatedByJobId) is left untouched in that case
-// because an evicted job still owns its resources.
+// at or below priority.
+//
+// Will error if attempting to add a job that already exists on the node or
+// rebinding an evicted job at a different priority
 func (node *Node) AddJob(job SchedulableJob, priority int32) error {
 	jobId := job.Id()
 	requests := job.KubernetesResourceRequirements()
 
-	isEvicted := node.IsJobEvicted(jobId)
-	delete(node.evictedJobRunIds, jobId)
-
-	if !isEvicted {
-		if _, ok := node.allocatedByJobId[jobId]; ok {
-			return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.GetId())
+	if node.IsJobEvicted(jobId) {
+		if evictedAtPriority, ok := node.priorityByJobId[jobId]; ok && evictedAtPriority != priority {
+			return errors.Errorf(
+				"job %s is evicted from node %s at priority %d, but was re-bound at priority %d",
+				jobId, node.GetId(), evictedAtPriority, priority,
+			)
 		}
-		node.allocatedByJobId[jobId] = requests
-		markAllocated(node.allocatableByPriorityNoEviction, priority, requests)
-	} else {
-		markAllocatable(node.allocatableByPriority, EvictedPriority, requests)
+		if err := node.RemoveJob(job); err != nil {
+			return err
+		}
 	}
 
-	// TODO simplify
-	markAllocated(node.allocatableByPriority, priority, requests)
+	if _, ok := node.allocatedByJobId[jobId]; ok {
+		return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.GetId())
+	}
+	node.allocatedByJobId[jobId] = requests
 	node.priorityByJobId[jobId] = priority
+	markAllocated(node.allocatableByPriority, priority, requests)
+	markAllocated(node.allocatableByPriorityNoEviction, priority, requests)
 
 	return nil
 }

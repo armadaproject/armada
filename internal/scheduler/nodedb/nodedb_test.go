@@ -1078,11 +1078,14 @@ func TestPreemptionScheduling(t *testing.T) {
 func TestFairshareAndUrgencyPreemption(t *testing.T) {
 	tests := map[string]struct {
 		urgencyBeforeFairsharePreemption bool
+		disableUrgencyScheduling         bool
 		urgencyPreemptibleJobs           int
 		fairsharePreemptibleJobs         int
 		incomingJob                      func(queue string, priorityClassName string, n int) []*jobdb.Job
 		expectedSchedulingMethod         context.SchedulingType
 		expectedFairsharePreemptedJobs   int
+		// expectNotScheduled cases leave expectedSchedulingMethod unset.
+		expectNotScheduled bool
 	}{
 		"only urgency-preemptible jobs / fairshare first": {
 			urgencyPreemptibleJobs:         32,
@@ -1140,6 +1143,18 @@ func TestFairshareAndUrgencyPreemption(t *testing.T) {
 			expectedSchedulingMethod:       context.ScheduledWithUrgencyBasedPreemption,
 			expectedFairsharePreemptedJobs: 0,
 		},
+		"urgency disabled: fair-share must not borrow urgency headroom": {
+			// Fitting this job needs both the 16 CPU held by evicted jobs and the 16 CPU held by
+			// non-evicted PriorityClass0 jobs. Freeing the latter means urgency-preempting them,
+			// which is disabled here, so the job must not be scheduled. Seeding fair-share from the
+			// no-eviction view would hand it that headroom anyway and schedule the job.
+			urgencyBeforeFairsharePreemption: true,
+			disableUrgencyScheduling:         true,
+			urgencyPreemptibleJobs:           16,
+			fairsharePreemptibleJobs:         16,
+			incomingJob:                      testfixtures.N32Cpu256GiJobs,
+			expectNotScheduled:               true,
+		},
 		"needs both strategies / urgency first": {
 			// Urgency reads the no-eviction view, which still counts the evicted jobs, so it
 			// correctly declines. Fair-share then starts from that same view at the incoming job's
@@ -1161,6 +1176,12 @@ func TestFairshareAndUrgencyPreemption(t *testing.T) {
 			}
 			nodeDb, err := newNodeDbWithNodes(nil, opts...)
 			require.NoError(t, err)
+			if tc.disableUrgencyScheduling {
+				nodeDb.ConfigureScheduling(SchedulingOptions{
+					UrgencyBeforeFairsharePreemption: tc.urgencyBeforeFairsharePreemption,
+					DisableUrgencyScheduling:         true,
+				})
+			}
 
 			urgencyPreemptible := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, tc.urgencyPreemptibleJobs)
 			fairsharePreemptible := testfixtures.N1Cpu4GiJobs("C", testfixtures.PriorityClass1, tc.fairsharePreemptibleJobs)
@@ -1197,6 +1218,10 @@ func TestFairshareAndUrgencyPreemption(t *testing.T) {
 			ok, preemptedJobs, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
 			require.NoError(t, err)
 
+			if tc.expectNotScheduled {
+				require.False(t, ok, "job should not be scheduled")
+				return
+			}
 			require.True(t, ok, "job should be scheduled")
 			require.NotNil(t, jctx.PodSchedulingContext)
 			assert.True(t, jctx.PodSchedulingContext.IsSuccessful())

@@ -457,6 +457,23 @@ func TestNode_AddJob(t *testing.T) {
 				ownedJobIds:     []string{"job-1"},
 			},
 		},
+		"re-adding an evicted job at a different priority errors and changes nothing": {
+			// An evicted job is only ever re-bound at the priority it was evicted from. Accepting a
+			// different one would leave the job accounted for at priority 1 in the no-eviction view
+			// but at 10 elsewhere, so RemoveJob would later release buckets it never debited.
+			existingJobs: []boundJob{{id: "job-1", priority: 1, evicted: true}},
+			addJobId:     "job-1",
+			addPriority:  10,
+			expectedErr:  "is evicted from node",
+			expected: nodeAccountingState{
+				// Still evicted at priority 1, exactly as before the rejected call.
+				used:            map[int32]int{EvictedPriority: 1},
+				usedNoEviction:  map[int32]int{EvictedPriority: 1, CrossPoolPriority: 1, 1: 1},
+				urgencyPreempts: true,
+				ownedJobIds:     []string{"job-1"},
+				evictedJobIds:   []string{"job-1"},
+			},
+		},
 		"adding a job that is already bound errors and changes nothing": {
 			existingJobs: []boundJob{{id: "job-1", priority: 10}},
 			addJobId:     "job-1",

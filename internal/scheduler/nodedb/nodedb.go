@@ -929,6 +929,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 		nodeDb.indexedResources,
 		indexResourceRequests,
 		nodeDb.indexedResourceResolution,
+		urgency,
 	)
 	if err != nil {
 		return nil, err
@@ -1012,6 +1013,10 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 
 	pctx := jctx.PodSchedulingContext
 
+	// Some jobs can only be scheduled using a mix of urgency and fairshare preemption,
+	// however we may only use this mix if urgency preemption is enabled
+	allowUrgencyPreemption := nodeDb.urgencyBeforeFairsharePreemption && !nodeDb.disableUrgencyScheduling
+
 	var selectedNode *internaltypes.Node
 	var schedulingType *context.SchedulingType
 	var preemptedJobs []*JobPreemptionInfo
@@ -1047,7 +1052,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 				return nil, nil, nil, errors.WithStack(err)
 			}
 			availableResource := nodeFromDb.AllocatableAtPriority(internaltypes.EvictedPriority)
-			if nodeDb.urgencyBeforeFairsharePreemption {
+			if allowUrgencyPreemption {
 				availableResource = nodeFromDb.AllocatableAtPriorityNoEviction(jctx.PodSchedulingContext.ScheduledAtPriority)
 			}
 			node = &consideredNode{
@@ -1065,7 +1070,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 		}
 
 		// Evict job, update available resource
-		if nodeDb.urgencyBeforeFairsharePreemption {
+		if allowUrgencyPreemption {
 			// Jobs with a lower priority will already have their resource accounted for above
 			// We should only add extra capacity from jobs will not have been accounted for due to urgency preemption
 			if evictedJobSchedulingPriority >= jctx.PodSchedulingContext.ScheduledAtPriority {
