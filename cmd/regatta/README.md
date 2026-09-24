@@ -24,7 +24,7 @@ mage dev:up regatta,prometheus
 
 ### Run Regatta
 
-Validates the scenario file, installs 300 kwok nodes on each cluster, tests the cluster for readiness, submits jobs, and writes a json report.
+Validates the scenario file, installs 300 virtual gpu nodes on cluster 1, 200 virtual cpu nodes on cluster 2, tests the clusters for readiness, submits jobs, and writes a json report.
 
 While regatta is running, you can view queue metrics on [prometheus](http://localhost:9090/) and use this PromQL (`sum by (cluster) (armada_queue_leased_pod_count{phase="Running"})`).
 
