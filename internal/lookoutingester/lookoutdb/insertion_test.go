@@ -648,6 +648,103 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestUpdateJobRunsBatchTimestampsAndDebug(t *testing.T) {
+	testUpdateJobRunsTimestampsAndDebug(t, func(ldb *LookoutDb, updates []*model.UpdateJobRunInstruction) error {
+		return ldb.UpdateJobRunsBatch(armadacontext.Background(), updates)
+	})
+}
+
+func TestUpdateJobRunsScalarTimestampsAndDebug(t *testing.T) {
+	testUpdateJobRunsTimestampsAndDebug(t, func(ldb *LookoutDb, updates []*model.UpdateJobRunInstruction) error {
+		return ldb.UpdateJobRunsScalar(armadacontext.Background(), updates)
+	})
+}
+
+func TestUpdateJobRunsScalarWithOnlyLifecycleTimestamps(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		_, err := db.Exec(armadacontext.Background(), "DELETE FROM job_run")
+		assert.NoError(t, err)
+		assert.NoError(t, ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate))
+		assert.NoError(t, ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate))
+
+		started := baseTime.Add(2 * time.Minute)
+		finished := started.Add(time.Minute)
+		assert.NoError(t, ldb.UpdateJobRunsScalar(armadacontext.Background(), []*model.UpdateJobRunInstruction{{
+			RunId:    RunId,
+			Started:  &started,
+			Finished: &finished,
+		}}))
+
+		run := getJobRun(t, db, RunId)
+		assert.Equal(t, &started, run.Started)
+		assert.Equal(t, &finished, run.Finished)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func testUpdateJobRunsTimestampsAndDebug(t *testing.T, update func(*LookoutDb, []*model.UpdateJobRunInstruction) error) {
+	t.Helper()
+
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		setupRun := func() {
+			_, err := db.Exec(armadacontext.Background(), "DELETE FROM job_run")
+			assert.NoError(t, err)
+			assert.NoError(t, ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate))
+			assert.NoError(t, ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate))
+		}
+
+		started := baseTime.Add(2 * time.Minute)
+		finished := baseTime.Add(time.Minute)
+		for _, updates := range [][]*model.UpdateJobRunInstruction{
+			{{RunId: RunId, Finished: &finished}, {RunId: RunId, Started: &started}},
+			{{RunId: RunId, Started: &started}, {RunId: RunId, Finished: &finished}},
+		} {
+			setupRun()
+			assert.NoError(t, update(ldb, updates))
+			run := getJobRun(t, db, RunId)
+			assert.Equal(t, &started, run.Started)
+			assert.Equal(t, &started, run.Finished)
+		}
+
+		t.Run("retains the latest completion", func(t *testing.T) {
+			setupRun()
+			latest := baseTime.Add(4 * time.Minute)
+			older := baseTime.Add(3 * time.Minute)
+			assert.NoError(t, update(ldb, []*model.UpdateJobRunInstruction{
+				{RunId: RunId, Finished: &latest},
+				{RunId: RunId, Finished: &older},
+			}))
+			assert.Equal(t, &latest, getJobRun(t, db, RunId).Finished)
+		})
+
+		t.Run("does not overwrite debug with empty data", func(t *testing.T) {
+			setupRun()
+			debug := []byte("stored debug")
+			assert.NoError(t, update(ldb, []*model.UpdateJobRunInstruction{
+				{RunId: RunId, Debug: debug},
+				{RunId: RunId, Debug: []byte{}},
+			}))
+			assert.Equal(t, debug, getJobRun(t, db, RunId).Debug)
+		})
+
+		t.Run("retains pending updates", func(t *testing.T) {
+			setupRun()
+			pending := baseTime.Add(3 * time.Minute)
+			assert.NoError(t, update(ldb, []*model.UpdateJobRunInstruction{
+				{RunId: RunId},
+				{RunId: RunId, Pending: &pending},
+			}))
+			assert.Equal(t, pending, getJobRun(t, db, RunId).Pending)
+		})
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestCreateJobErrorsBatch(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
@@ -958,6 +1055,31 @@ func TestConflateJobRunUpdates(t *testing.T) {
 	}
 
 	assert.Equal(t, expected, updates)
+}
+
+func TestConflateJobRunUpdates_NilDebugDoesNotOverwriteExistingDebug(t *testing.T) {
+	updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
+		{RunId: RunId, Debug: []byte("stored debug")},
+		{RunId: RunId},
+	})
+
+	assert.Len(t, updates, 1)
+	assert.Equal(t, []byte("stored debug"), updates[0].Debug)
+}
+
+func TestConflateJobRunUpdatesRetainsLatestTimestampDebugAndPending(t *testing.T) {
+	latest := baseTime.Add(2 * time.Minute)
+	older := baseTime.Add(time.Minute)
+	pending := baseTime.Add(3 * time.Minute)
+	updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
+		{RunId: RunId, Finished: &latest, Debug: []byte("stored debug")},
+		{RunId: RunId, Finished: &older, Pending: &pending, Debug: []byte{}},
+	})
+
+	assert.Len(t, updates, 1)
+	assert.Equal(t, &latest, updates[0].Finished)
+	assert.Equal(t, []byte("stored debug"), updates[0].Debug)
+	assert.Equal(t, &pending, updates[0].Pending)
 }
 
 func TestStoreNullValue(t *testing.T) {

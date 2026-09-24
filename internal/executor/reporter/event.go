@@ -9,6 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/util"
@@ -26,6 +27,14 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult ca
 		return nil, err
 	}
 	now := types.TimestampNow()
+	var startedAt *types.Timestamp
+	if timestamp := util.EarliestAppContainerStart(pod); timestamp != nil {
+		startedAt = protoutil.ToTimestamp(*timestamp)
+	}
+	var finishedAt *types.Timestamp
+	if timestamp := util.LatestAppContainerFinished(pod); timestamp != nil {
+		finishedAt = protoutil.ToTimestamp(*timestamp)
+	}
 
 	switch phase {
 	case v1.PodPending:
@@ -60,9 +69,10 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult ca
 			Created: now,
 			Event: &armadaevents.EventSequence_Event_JobRunRunning{
 				JobRunRunning: &armadaevents.JobRunRunning{
-					RunId: runId,
-					JobId: jobId,
-					Pool:  util.ExtractPool(pod),
+					RunId:     runId,
+					JobId:     jobId,
+					Pool:      util.ExtractPool(pod),
+					StartedAt: startedAt,
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
@@ -99,8 +109,9 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult ca
 			Created: now,
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
-					RunId: runId,
-					JobId: jobId,
+					RunId:      runId,
+					JobId:      jobId,
+					FinishedAt: finishedAt,
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
@@ -225,13 +236,18 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.Kuberne
 	if err != nil {
 		return nil, err
 	}
+	var finishedAt *types.Timestamp
+	if timestamp := util.LatestAppContainerFinished(pod); timestamp != nil {
+		finishedAt = protoutil.ToTimestamp(*timestamp)
+	}
 
 	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 		Created: types.TimestampNow(),
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				RunId: runId,
-				JobId: jobId,
+				RunId:      runId,
+				JobId:      jobId,
+				FinishedAt: finishedAt,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal:           true,
@@ -285,6 +301,60 @@ func CreateJobRunTerminatedDebugEvent(pod *v1.Pod, debugMessage string) (*armada
 	return sequence, nil
 }
 
+// CreateJobRunTerminatedEvent records when a deletion-marked pod's application container finished.
+// It deliberately carries no state, error, or debug information.
+func CreateJobRunTerminatedEvent(pod *v1.Pod) (*armadaevents.EventSequence, error) {
+	finishedAt := util.LatestAppContainerFinished(pod)
+	if finishedAt == nil {
+		return nil, fmt.Errorf("pod %s has no application-container termination time", pod.Name)
+	}
+
+	sequence := createEmptySequence(pod)
+	jobId, runId, err := extractIds(pod)
+	if err != nil {
+		return nil, err
+	}
+
+	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+		Created: types.TimestampNow(),
+		Event: &armadaevents.EventSequence_Event_JobRunTerminated{
+			JobRunTerminated: &armadaevents.JobRunTerminated{
+				JobId:      jobId,
+				RunId:      runId,
+				FinishedAt: protoutil.ToTimestamp(*finishedAt),
+			},
+		},
+	})
+	return sequence, nil
+}
+
+// CreateJobRunStartedEvent records a start timestamp discovered after the run
+// has already been reported running, without repeating the running transition.
+func CreateJobRunStartedEvent(pod *v1.Pod) (*armadaevents.EventSequence, error) {
+	startedAt := util.EarliestAppContainerStart(pod)
+	if startedAt == nil {
+		return nil, fmt.Errorf("pod %s has no application-container start time", pod.Name)
+	}
+
+	sequence := createEmptySequence(pod)
+	jobId, runId, err := extractIds(pod)
+	if err != nil {
+		return nil, err
+	}
+
+	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+		Created: types.TimestampNow(),
+		Event: &armadaevents.EventSequence_Event_JobRunStarted{
+			JobRunStarted: &armadaevents.JobRunStarted{
+				JobId:     jobId,
+				RunId:     runId,
+				StartedAt: protoutil.ToTimestamp(*startedAt),
+			},
+		},
+	})
+	return sequence, nil
+}
+
 func CreateMinimalJobFailedEvent(jobId string, runId string, jobSet string, queue string, clusterId string, message string, failureCategory string, failureSubcategory string) (*armadaevents.EventSequence, error) {
 	sequence := &armadaevents.EventSequence{}
 	sequence.Queue = queue
@@ -331,13 +401,18 @@ func CreateReturnLeaseEvent(pod *v1.Pod, reason string, debugMessage string, clu
 	if err != nil {
 		return nil, err
 	}
+	var finishedAt *types.Timestamp
+	if timestamp := util.LatestAppContainerFinished(pod); timestamp != nil {
+		finishedAt = protoutil.ToTimestamp(*timestamp)
+	}
 
 	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 		Created: types.TimestampNow(),
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				RunId: runId,
-				JobId: jobId,
+				RunId:      runId,
+				JobId:      jobId,
+				FinishedAt: finishedAt,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal:           true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.

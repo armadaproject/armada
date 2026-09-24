@@ -919,7 +919,11 @@ func calculateRuntime(started, finished *model.PostgreSQLTime) int32 {
 	if finished != nil {
 		endTime = finished.Time
 	}
-	return int32(endTime.Sub(started.Time).Seconds())
+	seconds := int32(endTime.Sub(started.Time).Seconds())
+	if seconds < 0 {
+		return 0
+	}
+	return seconds
 }
 
 func (m *MemoryDatabase) GetJobGroups(_ *context.Context, filters []*model.Filter, order *model.Order, groupedField *model.GroupedField, aggregates []string, skip int, take int) ([]*model.JobGroup, error) {

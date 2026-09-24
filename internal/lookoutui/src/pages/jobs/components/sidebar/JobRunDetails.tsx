@@ -39,7 +39,7 @@ const MarkNodeUnschedulableButtonContainer = styled("div")(({ theme }) => ({
   padding: theme.spacing(SPACING.sm),
 }))
 
-const makeKeyValuePairsData = (
+export const makeKeyValuePairsData = (
   formatIsoTimestamp: (isoTimestampString: string | undefined, format: TimestampFormat) => string,
   {
     runId,
@@ -91,7 +91,7 @@ const makeKeyValuePairsData = (
     d.push({ key: "Finished", value: formatIsoTimestamp(finished, "full") })
   }
   if (started && finished) {
-    const runtimeMs = new Date(finished).getTime() - new Date(started).getTime()
+    const runtimeMs = Math.max(0, new Date(finished).getTime() - new Date(started).getTime())
     d.push({ key: "Runtime", value: formatDuration(runtimeMs / 1000) })
   }
   if (exitCode !== undefined) {

@@ -790,6 +790,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 }
 
 func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) error {
+	instructions = conflateJobRunUpdates(instructions)
 	return l.withDatabaseRetryInsert(ctx, func() error {
 		tmpTable := "job_run_update_tmp"
 
@@ -863,10 +864,13 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						node                 = coalesce(tmp.node, job_run.node),
 						pending              = coalesce(tmp.pending, job_run.pending),
 						started              = coalesce(tmp.started, job_run.started),
-						finished             = coalesce(tmp.finished, job_run.finished),
+						finished             = CASE
+							WHEN job_run.finished IS NULL AND tmp.finished IS NULL THEN NULL
+							ELSE GREATEST(job_run.finished, tmp.finished, coalesce(tmp.started, job_run.started))
+						END,
 						job_run_state        = coalesce(tmp.job_run_state, job_run.job_run_state),
 						error                = coalesce(tmp.error, job_run.error),
-						debug                = coalesce(tmp.debug, job_run.debug),
+						debug                = coalesce(nullif(tmp.debug, ''::bytea), job_run.debug),
 						exit_code            = coalesce(tmp.exit_code, job_run.exit_code),
 						ingress_addresses    = coalesce(tmp.ingress_addresses, job_run.ingress_addresses),
 						failure_category     = coalesce(tmp.failure_category, job_run.failure_category),
@@ -889,12 +893,15 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 		SET
 			node                 = coalesce($2, node),
 			started              = coalesce($3, started),
-			finished             = coalesce($4, finished),
+			finished             = CASE
+				WHEN finished IS NULL AND $4::timestamp IS NULL THEN NULL
+				ELSE GREATEST(finished, $4::timestamp, coalesce($3::timestamp, started))
+			END,
 			job_run_state        = coalesce($5, job_run_state),
 			error                = coalesce($6, error),
 			exit_code            = coalesce($7, exit_code),
 			pending              = coalesce($8, pending),
-			debug                = coalesce($9, debug),
+			debug                = coalesce(nullif($9, ''::bytea), debug),
 			ingress_addresses    = coalesce($10, ingress_addresses),
 			failure_category     = coalesce($11, failure_category),
 			failure_subcategory  = coalesce($12, failure_subcategory),
@@ -1109,16 +1116,19 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 			if update.Node != nil {
 				existing.Node = update.Node
 			}
+			if update.Pending != nil {
+				existing.Pending = update.Pending
+			}
 			if update.Started != nil {
 				existing.Started = update.Started
 			}
-			if update.Finished != nil {
+			if update.Finished != nil && (existing.Finished == nil || update.Finished.After(*existing.Finished)) {
 				existing.Finished = update.Finished
 			}
 			if update.Error != nil {
 				existing.Error = update.Error
 			}
-			if update.Debug != nil {
+			if len(update.Debug) > 0 {
 				existing.Debug = update.Debug
 			}
 			if update.JobRunState != nil {

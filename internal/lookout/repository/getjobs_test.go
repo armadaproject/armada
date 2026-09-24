@@ -16,11 +16,13 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookout/model"
 	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
 	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
 	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (
@@ -65,6 +67,44 @@ func withGetJobsSetup(f func(*instructions.InstructionConverter, *lookoutdb.Look
 		repo.clock = testClock
 		return f(converter, store, repo, testClock)
 	})
+}
+
+func TestJobSimulatorPopulatesLifecycleEventTimestamps(t *testing.T) {
+	started := baseTime.Add(time.Minute)
+	finished := started.Add(time.Minute)
+	leaseReturned := finished.Add(time.Minute)
+	failed := leaseReturned.Add(time.Minute)
+	leaseExpired := failed.Add(time.Minute)
+	simulator := NewJobSimulator(nil, nil).
+		Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+		Running(runId, node, started).
+		RunSucceeded(runId, finished).
+		LeaseReturned(runId, "returned", leaseReturned).
+		RunFailed(runId, node, 1, "failed", "", failed).
+		LeaseExpired(runId, leaseExpired, nil)
+
+	running := simulator.events[1].GetJobRunRunning()
+	require.NotNil(t, running.GetStartedAt())
+	assert.Equal(t, started, protoutil.ToStdTime(running.GetStartedAt()))
+
+	succeeded := simulator.events[2].GetJobRunSucceeded()
+	require.NotNil(t, succeeded.GetFinishedAt())
+	assert.Equal(t, finished, protoutil.ToStdTime(succeeded.GetFinishedAt()))
+
+	for _, tc := range []struct {
+		name     string
+		event    *armadaevents.JobRunErrors
+		finished time.Time
+	}{
+		{name: "lease returned", event: simulator.events[3].GetJobRunErrors(), finished: leaseReturned},
+		{name: "failed", event: simulator.events[4].GetJobRunErrors(), finished: failed},
+		{name: "lease expired", event: simulator.events[5].GetJobRunErrors(), finished: leaseExpired},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.NotNil(t, tc.event.GetFinishedAt())
+			assert.Equal(t, tc.finished, protoutil.ToStdTime(tc.event.GetFinishedAt()))
+		})
+	}
 }
 
 func TestGetJobsSingle(t *testing.T) {
@@ -2315,6 +2355,13 @@ func TestJobRuntimeWhenRunFinishedWithClock(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+}
+
+func TestJobRuntimeNegativeFinishFloorsRuntime(t *testing.T) {
+	started := baseTime.Add(time.Minute)
+	finished := baseTime
+
+	assert.Equal(t, int32(0), formatDuration(started, finished))
 }
 
 func TestGetJobsByNodeOfLatestRun(t *testing.T) {

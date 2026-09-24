@@ -154,8 +154,11 @@ func calculateJobRuntime(started, finished *model.PostgreSQLTime, clock clock.Cl
 }
 
 func formatDuration(start, end time.Time) int32 {
-	duration := end.Sub(start).Round(time.Second)
-	return int32(duration.Seconds())
+	seconds := int32(end.Sub(start).Round(time.Second).Seconds())
+	if seconds < 0 {
+		return 0
+	}
+	return seconds
 }
 
 func jobRowToModel(row *jobRow) *model.Job {

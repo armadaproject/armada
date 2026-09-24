@@ -3,6 +3,7 @@ package repository
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
@@ -19,25 +20,33 @@ func TestGetJobRunDebugMessage(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10, 10)
 
-		debugMessageStrings := []string{
-			"some bad error happened!",
-			"",
+		testCases := []struct {
+			debugMessage string
+			notFound     bool
+		}{
+			{debugMessage: "some bad error happened!"},
+			{debugMessage: "", notFound: true},
 		}
-		for _, expected := range debugMessageStrings {
+		for _, tc := range testCases {
+			runId := uuid.NewString()
 			_ = NewJobSimulator(converter, store).
 				Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 				Lease(runId, cluster, node, pool, baseTime).
 				Pending(runId, cluster, baseTime).
 				Running(runId, node, baseTime).
-				RunFailed(runId, node, 137, "", expected, baseTime).
+				RunFailed(runId, node, 137, "", tc.debugMessage, baseTime).
 				Failed(node, 137, "", baseTime).
 				Build().
 				ApiJob()
 
 			repo := NewSqlGetJobRunDebugMessageRepository(db, &compress.NoOpDecompressor{})
 			result, err := repo.GetJobRunDebugMessage(armadacontext.TODO(), runId)
+			if tc.notFound {
+				assert.ErrorIs(t, err, ErrNotFound)
+				continue
+			}
 			assert.NoError(t, err)
-			assert.Equal(t, expected, result)
+			assert.Equal(t, tc.debugMessage, result)
 		}
 		return nil
 	})
