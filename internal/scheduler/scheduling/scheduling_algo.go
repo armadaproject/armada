@@ -723,7 +723,7 @@ func (l *FairSchedulingAlgo) constructNodeDb(
 		IndexedTaints:      l.schedulingConfig.IndexedTaints,
 		IndexedNodeLabels:  l.schedulingConfig.IndexedNodeLabels,
 		WellKnownNodeTypes: l.schedulingConfig.WellKnownNodeTypes,
-		EnableUrgencyBeforeFairsharePreemptionOrdering: l.schedulingConfig.EnableUrgencyBeforeFairsharePreemptionOrdering,
+		EnableUrgencyBeforeFairsharePreemptionOrdering: l.schedulingConfig.EnableUrgencyBeforeFairSharePreemptionOrdering,
 	}
 
 	return ConstructNodeDb(nodeDbConfig, l.resourceListFactory, priorityClasses, poolConfig, currentPoolJobs, otherPoolsJobs, nodes)

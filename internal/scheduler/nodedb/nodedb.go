@@ -793,12 +793,16 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 		// Schedule by preventing evicted jobs from being re-scheduled.
 		// This method respect fairness by preventing from re-scheduling jobs that appear as far back in the total order as possible.
 		if !nodeDb.disableFairshareScheduling {
-			if node, preemptedJobs, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
+			if node, schedulingType, preemptedJobs, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
 				return nil, nil, err
 			} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 				return nil, nil, err
 			} else if node != nil {
-				pctx.SchedulingMethod = context.ScheduledWithFairSharePreemption
+				schedulingMethod := context.ScheduledWithFairSharePreemption
+				if schedulingType != nil {
+					schedulingMethod = *schedulingType
+				}
+				pctx.SchedulingMethod = schedulingMethod
 				return node, preemptedJobs, nil
 			}
 		}
@@ -806,12 +810,16 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 		// Schedule by preventing evicted jobs from being re-scheduled.
 		// This method respect fairness by preventing from re-scheduling jobs that appear as far back in the total order as possible.
 		if !nodeDb.disableFairshareScheduling {
-			if node, preemptedJobs, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
+			if node, schedulingType, preemptedJobs, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
 				return nil, nil, err
 			} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 				return nil, nil, err
 			} else if node != nil {
-				pctx.SchedulingMethod = context.ScheduledWithFairSharePreemption
+				schedulingMethod := context.ScheduledWithFairSharePreemption
+				if schedulingType != nil {
+					schedulingMethod = *schedulingType
+				}
+				pctx.SchedulingMethod = schedulingMethod
 				return node, preemptedJobs, nil
 			}
 		}
@@ -994,7 +1002,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 //
 // It does this by considering all evicted jobs in the reverse order they would be scheduled in and preventing
 // from being re-scheduled the jobs that would be scheduled last.
-func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *context.JobSchedulingContext) (*internaltypes.Node, []*JobPreemptionInfo, error) {
+func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *context.JobSchedulingContext) (*internaltypes.Node, *context.SchedulingType, []*JobPreemptionInfo, error) {
 	type consideredNode struct {
 		node                     *internaltypes.Node
 		availableResource        internaltypes.ResourceList
@@ -1005,11 +1013,12 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 	pctx := jctx.PodSchedulingContext
 
 	var selectedNode *internaltypes.Node
+	var schedulingType *context.SchedulingType
 	var preemptedJobs []*JobPreemptionInfo
 	nodesById := make(map[string]*consideredNode)
 	it, err := txn.ReverseLowerBound(EvictedJobsTable, IndexIndex, math.MaxInt)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, nil, errors.WithStack(err)
 	}
 	maxPriority := internaltypes.MinPriority
 	for obj := it.Next(); obj != nil && selectedNode == nil; obj = it.Next() {
@@ -1018,7 +1027,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 
 		evictedJobSchedulingPriority, ok := nodeDb.GetScheduledAtPriority(evictedJctx.JobId)
 		if !ok {
-			return nil, nil, errors.Errorf("evicted job %s does not have scheduled at priority set in nodedb", evictedJctx.JobId)
+			return nil, nil, nil, errors.Errorf("evicted job %s does not have scheduled at priority set in nodedb", evictedJctx.JobId)
 		}
 
 		// Jobs should not preempt jobs with a higher priority, even via fairshare
@@ -1028,14 +1037,14 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 
 		nodeId := evictedJctx.GetAssignedNodeId()
 		if nodeId == "" {
-			return nil, nil, errors.Errorf("evicted job %s does not have an assigned nodeId", evictedJctx.JobId)
+			return nil, nil, nil, errors.Errorf("evicted job %s does not have an assigned nodeId", evictedJctx.JobId)
 		}
 
 		node, ok := nodesById[nodeId]
 		if !ok {
 			nodeFromDb, err := nodeDb.GetNodeWithTxn(txn, nodeId)
 			if err != nil {
-				return nil, nil, errors.WithStack(err)
+				return nil, nil, nil, errors.WithStack(err)
 			}
 			availableResource := nodeFromDb.AllocatableAtPriority(internaltypes.EvictedPriority)
 			if nodeDb.urgencyBeforeFairsharePreemption {
@@ -1074,7 +1083,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 
 		staticRequirementsMet, reason, err := StaticJobRequirementsMet(node.node, jctx)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		if !staticRequirementsMet {
 			node.staticRequirementsNotMet = true
@@ -1084,6 +1093,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 		}
 
 		nodeCopy := node.node.DeepCopyNilKeys()
+		fairShareResourcePreempted := node.node.AllocatableAtPriority(internaltypes.EvictedPriority)
 		for _, job := range node.evictedJobs {
 			jobId := job.JobSchedulingContext.JobId
 			priority, ok := nodeDb.GetScheduledAtPriority(jobId)
@@ -1093,11 +1103,11 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 
 			// Remove preempted job from node
 			if err = nodeCopy.RemoveJob(job.JobSchedulingContext.Job); err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			// Remove preempted job from list of evicted jobs
 			if err := txn.Delete(EvictedJobsTable, job); err != nil {
-				return nil, nil, errors.WithStack(err)
+				return nil, nil, nil, errors.WithStack(err)
 			}
 
 			if priority > maxPriority {
@@ -1107,13 +1117,23 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 				PreemptedJob:      job.JobSchedulingContext,
 				PreemptionDetails: &context.PreemptionDetails{PreemptingJob: jctx.Job},
 			})
+			fairShareResourcePreempted = fairShareResourcePreempted.Add(job.JobSchedulingContext.KubernetesResourceRequirements)
 		}
 
 		selectedNode = nodeCopy
 		pctx.NodeId = selectedNode.GetId()
 		pctx.PreemptedAtPriority = maxPriority
+
+		fairShareOnly, _ := DynamicJobRequirementsMet(fairShareResourcePreempted, jctx)
+
+		if fairShareOnly {
+			schedulingType = new(context.ScheduledWithFairSharePreemption)
+		} else {
+			schedulingType = new(context.ScheduledWithFairShareAndUrgencyPreemption)
+		}
 	}
-	return selectedNode, preemptedJobs, nil
+
+	return selectedNode, schedulingType, preemptedJobs, nil
 }
 
 // BindJobToNode returns a copy of node with job bound to it.
