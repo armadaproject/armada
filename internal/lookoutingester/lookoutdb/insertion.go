@@ -790,6 +790,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.Context, instructions
 }
 
 func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions []*model.UpdateJobRunInstruction) error {
+	instructions = conflateJobRunUpdates(instructions)
 	return l.withDatabaseRetryInsert(ctx, func() error {
 		tmpTable := "job_run_update_tmp"
 

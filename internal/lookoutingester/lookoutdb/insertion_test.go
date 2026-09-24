@@ -679,9 +679,7 @@ func testUpdateJobRunsTimestampsAndDebug(t *testing.T, update func(*LookoutDb, [
 			{{RunId: RunId, Started: &started}, {RunId: RunId, Finished: &finished}},
 		} {
 			setupRun()
-			for _, instruction := range updates {
-				assert.NoError(t, update(ldb, []*model.UpdateJobRunInstruction{instruction}))
-			}
+			assert.NoError(t, update(ldb, updates))
 			run := getJobRun(t, db, RunId)
 			assert.Equal(t, &started, run.Started)
 			assert.Equal(t, &started, run.Finished)
@@ -691,16 +689,20 @@ func testUpdateJobRunsTimestampsAndDebug(t *testing.T, update func(*LookoutDb, [
 			setupRun()
 			latest := baseTime.Add(4 * time.Minute)
 			older := baseTime.Add(3 * time.Minute)
-			assert.NoError(t, update(ldb, []*model.UpdateJobRunInstruction{{RunId: RunId, Finished: &latest}}))
-			assert.NoError(t, update(ldb, []*model.UpdateJobRunInstruction{{RunId: RunId, Finished: &older}}))
+			assert.NoError(t, update(ldb, []*model.UpdateJobRunInstruction{
+				{RunId: RunId, Finished: &latest},
+				{RunId: RunId, Finished: &older},
+			}))
 			assert.Equal(t, &latest, getJobRun(t, db, RunId).Finished)
 		})
 
 		t.Run("does not overwrite debug with empty data", func(t *testing.T) {
 			setupRun()
 			debug := []byte("stored debug")
-			assert.NoError(t, update(ldb, []*model.UpdateJobRunInstruction{{RunId: RunId, Debug: debug}}))
-			assert.NoError(t, update(ldb, []*model.UpdateJobRunInstruction{{RunId: RunId, Debug: []byte{}}}))
+			assert.NoError(t, update(ldb, []*model.UpdateJobRunInstruction{
+				{RunId: RunId, Debug: debug},
+				{RunId: RunId, Debug: []byte{}},
+			}))
 			assert.Equal(t, debug, getJobRun(t, db, RunId).Debug)
 		})
 
