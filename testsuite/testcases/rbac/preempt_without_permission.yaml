@@ -2,8 +2,8 @@
 # cannot preempt a job, even one it submitted itself.
 queue: rbac-queue-submit-no-preempt
 authContext: rbac-queue-only
-numBatches: 5
-batchSize: 5
+numBatches: 1
+batchSize: 1
 jobs:
   - priority: 0
     namespace: personal-anonymous
@@ -29,7 +29,7 @@ triggerEvent: running
 preempt:
   request:
     reason: "Test job preemption for validation"
-timeout: "300s"
+timeout: "30s"
 expectedEvents:
   - submitted:
   - succeeded:

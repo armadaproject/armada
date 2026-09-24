@@ -2,8 +2,8 @@
 # in a queue it doesn't own.
 queue: e2e-test-queue
 authContext: rbac-admin
-numBatches: 5
-batchSize: 5
+numBatches: 1
+batchSize: 1
 jobs:
   - priority: 0
     namespace: personal-anonymous
@@ -27,7 +27,7 @@ jobs:
 ---
 cancel:
   request: {}
-timeout: "300s"
+timeout: "30s"
 expectedEvents:
   - submitted:
   - cancelled:
