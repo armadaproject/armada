@@ -3,6 +3,7 @@ package db_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -126,4 +127,28 @@ func TestMemoryDatabase_PopulateHistoricalJobs_UniqueJobIDs(t *testing.T) {
 		assert.False(t, dup, "duplicate job ID: %s", j.JobId)
 		seen[j.JobId] = struct{}{}
 	}
+}
+
+func TestCalculateRuntimeNegativeFinishFloorsRuntime(t *testing.T) {
+	m := db.NewMemoryDatabase()
+	require.NoError(t, m.InitialiseSchema(context.Background()))
+
+	const jobID = "123456789012345678"
+	const runID = jobID + "-0"
+	started := time.Date(2026, time.January, 1, 0, 1, 0, 0, time.UTC)
+	finished := started.Add(-time.Minute)
+	queries := []db.IngestionQuery{
+		db.InsertJob{Job: &db.NewJob{JobID: jobID, Queue: "queue", JobSet: "job-set", Owner: "owner", Submitted: finished}},
+		db.InsertJobRun{JobRunID: runID, JobID: jobID, Time: finished},
+		db.SetJobRunning{JobID: jobID, Time: started, LatestRunID: runID, Submitted: finished},
+		db.SetJobRunStarted{JobRunID: runID, Time: started},
+		db.SetJobRunSucceeded{JobRunID: runID, Time: finished},
+	}
+	require.NoError(t, m.ExecuteIngestionQueryBatch(context.Background(), queries))
+
+	ctx := context.Background()
+	jobs, err := m.GetJobs(&ctx, nil, false, nil, 0, 1)
+	require.NoError(t, err)
+	require.Len(t, jobs, 1)
+	assert.Equal(t, int32(0), jobs[0].RuntimeSeconds)
 }

@@ -2317,6 +2317,13 @@ func TestJobRuntimeWhenRunFinishedWithClock(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestJobRuntimeNegativeFinishFloorsRuntime(t *testing.T) {
+	started := baseTime.Add(time.Minute)
+	finished := baseTime
+
+	assert.Equal(t, int32(0), formatDuration(started, finished))
+}
+
 func TestGetJobsByNodeOfLatestRun(t *testing.T) {
 	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		// Create job that had multiple runs on different nodes, with latest on node-3
