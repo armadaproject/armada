@@ -63,6 +63,11 @@ export const SidebarHeader = memo(({ job, onClose }: SidebarHeaderProps) => (
               Cancelled by <strong>{job.cancelUser}</strong>.
             </Typography>
           )}
+          {job.state === JobState.Preempted && job.preemptUser && (
+            <Typography variant="body2" component="span" display="block" marginTop={SPACING.xs}>
+              Preempted by <strong>{job.preemptUser}</strong>.
+            </Typography>
+          )}
         </div>
       }
     />

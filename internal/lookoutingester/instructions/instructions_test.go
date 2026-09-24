@@ -154,6 +154,7 @@ var expectedPreempted = model.UpdateJobInstruction{
 	State:                     pointer.Int32(lookout.JobPreemptedOrdinal),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+	PreemptUser:               pointer.String(testfixtures.UserId),
 }
 
 var expectedFailedRunWithCategory = model.UpdateJobRunInstruction{
@@ -454,6 +455,22 @@ func TestConvert(t *testing.T) {
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
+		"reprioritized without sequence user keeps actor from event requestor": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				// Scheduler-generated sequences carry no UserId; the actor is only in the event requestor.
+				Events: []*armadaevents.EventSequence{{
+					Queue:      testfixtures.Queue,
+					JobSetName: testfixtures.JobsetName,
+					Events:     []*armadaevents.EventSequence_Event{testfixtures.JobReprioritised},
+					Groups:     testfixtures.Groups,
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
+				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
 		"job preemption requested": {
 			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
 				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobPreemptionRequested)},
@@ -544,6 +561,10 @@ func TestConvert(t *testing.T) {
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:       testfixtures.JobId,
+					PreemptUser: pointer.String(testfixtures.UserId),
+				}},
 				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPreemptedRun},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
@@ -586,6 +607,10 @@ func TestConvert(t *testing.T) {
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:       testfixtures.JobId,
+					PreemptUser: pointer.String(testfixtures.UserId),
+				}},
 				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFairSharePreemptedRun},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
