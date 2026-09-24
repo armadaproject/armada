@@ -390,6 +390,10 @@ func TestSchedule(t *testing.T) {
 		// Uses the same structure as scheduledJobsByExecutorIndexAndNodeIndex.
 		expectedFailedDueToReconciliationByExecutorIndexAndNodeIndex map[int]map[int][]int
 
+		// If true, verify that jobs preempted because of another gang member's
+		// reconciliation failure include that member's failure reason.
+		expectGangReconciliationReason bool
+
 		// Indices of queued jobs expected to be scheduled.
 		expectedScheduledIndices []int
 		// Number of jobs expected to be scheduled by pool
@@ -654,6 +658,7 @@ func TestSchedule(t *testing.T) {
 					0: {0, 1},
 				},
 			},
+			expectGangReconciliationReason: true,
 		},
 		"reconcile - fills gap of preempted": {
 			schedulingConfig: testfixtures.WithReconcilerEnabled(testfixtures.TestSchedulingConfig()),
@@ -1174,6 +1179,15 @@ func TestSchedule(t *testing.T) {
 
 			assert.Equal(t, expectedJobIdsPreemptedDueToReconciliation, actualJobIdsPreemptedDueToReconciliation)
 
+			if tc.expectGangReconciliationReason {
+				expectedReason := fmt.Sprintf("other jobs in the gang failed reconciliation (%s: reconciling this run with the node failed)", jobIdsToFailReconciliation[0])
+				for _, result := range schedulerResult.GetCombinedReconciliationResult().PreemptedJobs {
+					if result.Job.Id() != jobIdsToFailReconciliation[0] {
+						assert.Equal(t, expectedReason, result.Reason)
+					}
+				}
+			}
+
 			// Check that jobs were scheduled as expected.
 			scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
 			actualScheduledIndices := make([]int, 0)
@@ -1348,7 +1362,7 @@ func TestPopulateNodeDb(t *testing.T) {
 					return job.Id()
 				})
 				slices.Sort(expectedJobIds)
-				actualJobIds := maps.Keys(node.AllocatedByJobId)
+				actualJobIds := node.GetRunningJobIds()
 				slices.Sort(actualJobIds)
 				assert.Equal(t, expectedJobIds, actualJobIds)
 			} else {
