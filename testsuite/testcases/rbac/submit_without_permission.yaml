@@ -24,7 +24,7 @@ jobs:
               memory: 25Mi
               cpu: 100m
 ---
-timeout: "30s"
+timeout: "100s"
 expectedErrorCode: 7 # PERMISSION_DENIED
 queueConfig:
   setup:

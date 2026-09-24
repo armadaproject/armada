@@ -1,7 +1,6 @@
-# RBAC: a principal with the global submit_any_jobs permission can submit to a
-# queue it doesn't own.
+# RBAC: a context without authentication is unauthenticated
 queue: e2e-test-queue
-authContext: rbac-admin
+authContext: no-auth
 numBatches: 1
 batchSize: 1
 jobs:
@@ -25,6 +24,5 @@ jobs:
               cpu: 100m
 ---
 timeout: "100s"
-expectedEvents:
-  - submitted:
-  - succeeded:
+expectedErrorCode: 16 # Unauthenticated
+

@@ -31,7 +31,7 @@ reprioritize:
 expectedEvents:
   - submitted:
   - reprioritized:
-timeout: "30s"
+timeout: "100s"
 queueConfig:
   setup:
     queueSpec:

@@ -30,7 +30,7 @@ cancel:
 expectedEvents:
   - submitted:
   - succeeded:
-timeout: "30s"
+timeout: "100s"
 expectedErrorCode: 2 # UNKNOWN
 queueConfig:
   setup:

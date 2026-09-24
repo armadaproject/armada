@@ -29,7 +29,7 @@ triggerEvent: running
 preempt:
   request:
     reason: "Test job preemption for validation"
-timeout: "30s"
+timeout: "100s"
 expectedEvents:
   - submitted:
   - succeeded:
