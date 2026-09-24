@@ -595,7 +595,7 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 			existingJob, ok := txn.jobsById.Get(job.id)
 			if ok {
 				if !aggregateRemoved[existingJob.id] {
-					txn.aggregate.Remove(existingJob)
+					txn.aggregate.remove(existingJob)
 					aggregateRemoved[existingJob.id] = true
 				}
 
@@ -822,8 +822,10 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 
 	// Update the aggregate with the new job state. This is done after the concurrent
 	// inserts above so that the aggregate is mutated sequentially.
+	// Must only be called on a writable transaction; the aggregate never creates
+	// its own transaction, mirroring NodeDb's WithTxn mutation discipline.
 	for _, job := range jobs {
-		txn.aggregate.Add(job)
+		txn.aggregate.add(job)
 	}
 
 	return nil
@@ -942,25 +944,30 @@ func (txn *Txn) GetAllLeasedJobs() []*Job {
 	return txn.leasedJobs.Items()
 }
 
-// CalculateSchedulingInfo derives per-pool scheduling information (demand, allocation,
-// in-use priority classes, and leased jobs by pool/executor) from the incrementally
-// maintained job aggregate, without scanning every job.
-func (txn *Txn) CalculateSchedulingInfo(
-	activeExecutorsSet map[string]bool,
+// GetQueuedDemandWithTxn derives queued demand for currentPool from the
+// incrementally maintained job aggregate, without scanning every job.
+// It is a pure read: it never mutates the aggregate, mirroring NodeDb's
+// SelectNodeForJobWithTxn which takes a txn but does not mutate the db.
+func (txn *Txn) GetQueuedDemandWithTxn(
 	currentPool string,
-	awayAllocationPools []string,
-	allPools []string,
 	knownQueues map[string]bool,
 	cordonedQueues map[string]bool,
-) *SchedulingInfo {
-	return txn.aggregate.CalculateSchedulingInfo(
-		activeExecutorsSet,
+) map[string]map[string]internaltypes.ResourceList {
+	return txn.aggregate.getQueuedDemand(
 		currentPool,
-		awayAllocationPools,
-		allPools,
 		knownQueues,
 		cordonedQueues,
 	)
+}
+
+// GetQueuedDemand is the non-transactional convenience wrapper, mirroring
+// NodeDb.GetNode vs GetNodeWithTxn: it creates its own read transaction.
+func (jobDb *JobDb) GetQueuedDemand(
+	currentPool string,
+	knownQueues map[string]bool,
+	cordonedQueues map[string]bool,
+) map[string]map[string]internaltypes.ResourceList {
+	return jobDb.ReadTxn().GetQueuedDemandWithTxn(currentPool, knownQueues, cordonedQueues)
 }
 
 // GetAll returns all jobs in the database.
@@ -1000,7 +1007,7 @@ func (txn *Txn) BatchDelete(jobIds []string) error {
 func (txn *Txn) delete(jobId string) {
 	job, present := txn.jobsById.Get(jobId)
 	if present {
-		txn.aggregate.Remove(job)
+		txn.aggregate.remove(job)
 		txn.jobsById = txn.jobsById.Delete(jobId)
 		for _, run := range job.runsById {
 			txn.jobsByRunId = txn.jobsByRunId.Delete(run.id)

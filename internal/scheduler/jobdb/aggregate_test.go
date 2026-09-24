@@ -1,7 +1,6 @@
 package jobdb
 
 import (
-	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,15 +30,8 @@ func newAggregateTestJob(t *testing.T, jobDb *JobDb, id, queue string, queued bo
 	return job
 }
 
-func calculateInfo(txn *Txn, currentPool string, awayPools, allPools []string, known, cordoned map[string]bool) *SchedulingInfo {
-	return txn.CalculateSchedulingInfo(
-		map[string]bool{"executor-1": true, "executor-2": true},
-		currentPool,
-		awayPools,
-		allPools,
-		known,
-		cordoned,
-	)
+func queuedDemandOf(txn *Txn, currentPool string, known, cordoned map[string]bool) map[string]map[string]internaltypes.ResourceList {
+	return txn.GetQueuedDemandWithTxn(currentPool, known, cordoned)
 }
 
 func cpuOf(rl internaltypes.ResourceList) int64 {
@@ -47,11 +39,12 @@ func cpuOf(rl internaltypes.ResourceList) int64 {
 	return q.Value()
 }
 
-func TestJobAggregate_Query(t *testing.T) {
+func TestJobAggregate_QueuedDemand(t *testing.T) {
 	jobDb := NewTestJobDb()
 
 	jobA := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1", "pool-2"}, 1)
 	jobB := newAggregateTestJob(t, jobDb, "jobB", "queue-1", true, []string{"pool-1"}, 2)
+	// Leased jobs never contribute to the queued-demand aggregate.
 	jobC := newAggregateTestJob(t, jobDb, "jobC", "queue-2", false, []string{"pool-1"}, 3).
 		WithNewRun("executor-1", "node-1", "node-1", "pool-1", 5)
 	jobD := newAggregateTestJob(t, jobDb, "jobD", "queue-3", false, []string{"pool-2"}, 4).
@@ -63,115 +56,68 @@ func TestJobAggregate_Query(t *testing.T) {
 
 	known := map[string]bool{"queue-1": true, "queue-2": true, "queue-3": true}
 
-	info := calculateInfo(jobDb.ReadTxn(), "pool-1", []string{"pool-2"}, []string{"pool-1", "pool-2"}, known, nil)
+	demand := queuedDemandOf(jobDb.ReadTxn(), "pool-1", known, nil)
 
-	// Demand on pool-1 is the sum of all jobs eligible for (queued) or running on it.
-	assert.Equal(t, int64(3), cpuOf(info.DemandByQueueAndPriorityClass["queue-1"][aggregateTestPriorityClass]))
-	assert.Equal(t, int64(3), cpuOf(info.DemandByQueueAndPriorityClass["queue-2"][aggregateTestPriorityClass]))
-	assert.Equal(t, int64(3), cpuOf(info.AllocatedByQueueAndPriorityClass["queue-2"][aggregateTestPriorityClass]))
-	assert.Equal(t, int64(4), cpuOf(info.AwayAllocatedByQueueAndPriorityClass["queue-3"][aggregateTestPriorityClass]))
+	// Queued demand on pool-1 is the sum of queued jobs eligible for it.
+	assert.Equal(t, int64(3), cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
+	// Leased jobs contribute nothing.
+	assert.Nil(t, demand["queue-2"])
+	assert.Nil(t, demand["queue-3"])
 
-	assert.Equal(t, []string{"jobC"}, jobIds(info.JobsByPool["pool-1"]))
-	assert.Equal(t, []string{"jobD"}, jobIds(info.JobsByPool["pool-2"]))
-	assert.Equal(t, []string{"jobC"}, jobIds(info.JobsByExecutorId["executor-1"]))
-	assert.Equal(t, []string{"jobD"}, jobIds(info.JobsByExecutorId["executor-2"]))
-	assert.Equal(t, map[string]bool{aggregateTestPriorityClass: true}, info.InUsePriorityClasses)
+	// jobA is eligible for pool-2 as well.
+	demandPool2 := queuedDemandOf(jobDb.ReadTxn(), "pool-2", known, nil)
+	assert.Equal(t, int64(1), cpuOf(demandPool2["queue-1"][aggregateTestPriorityClass]))
 
-	// Cordoned queues should not contribute queued demand, but running jobs still do.
+	// Cordoned queues are excluded.
 	cordoned := map[string]bool{"queue-1": true}
-	info = calculateInfo(jobDb.ReadTxn(), "pool-1", []string{"pool-2"}, []string{"pool-1", "pool-2"}, known, cordoned)
-	assert.Nil(t, info.DemandByQueueAndPriorityClass["queue-1"])
-	assert.Equal(t, int64(3), cpuOf(info.DemandByQueueAndPriorityClass["queue-2"][aggregateTestPriorityClass]))
+	demand = queuedDemandOf(jobDb.ReadTxn(), "pool-1", known, cordoned)
+	assert.Nil(t, demand["queue-1"])
 
-	// Unknown queues should be dropped entirely.
+	// Unknown queues are dropped. Use the non-transactional convenience wrapper,
+	// mirroring NodeDb.GetNode vs GetNodeWithTxn.
 	knownWithoutQueue1 := map[string]bool{"queue-2": true, "queue-3": true}
-	info = calculateInfo(jobDb.ReadTxn(), "pool-1", []string{"pool-2"}, []string{"pool-1", "pool-2"}, knownWithoutQueue1, nil)
-	assert.Nil(t, info.DemandByQueueAndPriorityClass["queue-1"])
-	assert.Equal(t, []string{"jobC"}, jobIds(info.JobsByPool["pool-1"]))
+	demand = jobDb.GetQueuedDemand("pool-1", knownWithoutQueue1, nil)
+	assert.Nil(t, demand["queue-1"])
 }
 
-func TestJobAggregate_InUsePriorityClassesPoolScoped(t *testing.T) {
-	jobDb := NewTestJobDb()
-
-	// jobA is queued and eligible only for pool-2.
-	jobA := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-2"}, 1)
-	// jobB is queued and eligible only for pool-1.
-	jobB := newAggregateTestJob(t, jobDb, "jobB", "queue-1", true, []string{"pool-1"}, 1)
-
-	txn := jobDb.WriteTxn()
-	require.NoError(t, txn.Upsert([]*Job{jobA, jobB}))
-	txn.Commit()
-
-	known := map[string]bool{"queue-1": true}
-
-	// Querying for pool-1 only should include jobB's priority class but not jobA's.
-	info := calculateInfo(jobDb.ReadTxn(), "pool-1", nil, []string{"pool-1"}, known, nil)
-	assert.Equal(t, map[string]bool{aggregateTestPriorityClass: true}, info.InUsePriorityClasses)
-
-	// Querying for pool-2 only should include jobA's priority class but not jobB's.
-	info = calculateInfo(jobDb.ReadTxn(), "pool-2", nil, []string{"pool-2"}, known, nil)
-	assert.Equal(t, map[string]bool{aggregateTestPriorityClass: true}, info.InUsePriorityClasses)
-
-	// Querying for both pools should include the priority class.
-	info = calculateInfo(jobDb.ReadTxn(), "pool-1", []string{"pool-2"}, []string{"pool-1", "pool-2"}, known, nil)
-	assert.Equal(t, map[string]bool{aggregateTestPriorityClass: true}, info.InUsePriorityClasses)
-
-	// A leased job on pool-3 (not in allPools) should still contribute its priority class.
-	jobC := newAggregateTestJob(t, jobDb, "jobC", "queue-1", false, []string{"pool-3"}, 1).
-		WithNewRun("executor-1", "node-1", "node-1", "pool-3", 5)
-	txn = jobDb.WriteTxn()
-	require.NoError(t, txn.Upsert([]*Job{jobC}))
-	txn.Commit()
-
-	// Querying for pool-1 only: jobB is queued on pool-1, jobC is leased on pool-3.
-	// Both priority classes should be included (leased jobs contribute from all pools).
-	info = calculateInfo(jobDb.ReadTxn(), "pool-1", nil, []string{"pool-1"}, known, nil)
-	assert.Equal(t, map[string]bool{aggregateTestPriorityClass: true}, info.InUsePriorityClasses)
-}
-
-func TestJobAggregate_UpdateAndDelete(t *testing.T) {
+func TestJobAggregate_QueuedToLeasedTransition(t *testing.T) {
 	jobDb := NewTestJobDb()
 
 	jobA := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1"}, 1)
-	jobB := newAggregateTestJob(t, jobDb, "jobB", "queue-1", false, []string{"pool-1"}, 2).
-		WithNewRun("executor-1", "node-1", "node-1", "pool-1", 5)
 
 	txn := jobDb.WriteTxn()
-	require.NoError(t, txn.Upsert([]*Job{jobA, jobB}))
+	require.NoError(t, txn.Upsert([]*Job{jobA}))
 	txn.Commit()
 
 	known := map[string]bool{"queue-1": true}
+	demand := queuedDemandOf(jobDb.ReadTxn(), "pool-1", known, nil)
+	assert.Equal(t, int64(1), cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
 
-	// Queued jobA becomes leased on pool-2; removal of the old state and addition of the new
-	// state must both be reflected.
+	// Queued jobA becomes leased: removal of the old queued state must drop it
+	// from the aggregate, and the leased state must not re-add it.
 	jobAUpdated := jobA.WithQueued(false).WithNewRun("executor-2", "node-2", "node-2", "pool-2", 5)
 	txn = jobDb.WriteTxn()
 	require.NoError(t, txn.Upsert([]*Job{jobAUpdated}))
 	txn.Commit()
 
-	info := calculateInfo(jobDb.ReadTxn(), "pool-1", nil, []string{"pool-1", "pool-2"}, known, nil)
-	assert.Equal(t, int64(2), cpuOf(info.DemandByQueueAndPriorityClass["queue-1"][aggregateTestPriorityClass]))
-	assert.Equal(t, []string{"jobB"}, jobIds(info.JobsByPool["pool-1"]))
+	demand = queuedDemandOf(jobDb.ReadTxn(), "pool-1", known, nil)
+	assert.Nil(t, demand["queue-1"])
+	demand = queuedDemandOf(jobDb.ReadTxn(), "pool-2", known, nil)
+	assert.Nil(t, demand["queue-1"])
 
-	info = calculateInfo(jobDb.ReadTxn(), "pool-1", []string{"pool-2"}, []string{"pool-1", "pool-2"}, known, nil)
-	assert.Equal(t, int64(1), cpuOf(info.AwayAllocatedByQueueAndPriorityClass["queue-1"][aggregateTestPriorityClass]))
-	assert.Equal(t, []string{"jobA"}, jobIds(info.JobsByPool["pool-2"]))
+	// Deleting a queued job removes it from the aggregate.
+	jobB := newAggregateTestJob(t, jobDb, "jobB", "queue-1", true, []string{"pool-1"}, 2)
+	txn = jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{jobB}))
+	txn.Commit()
+	demand = queuedDemandOf(jobDb.ReadTxn(), "pool-1", known, nil)
+	assert.Equal(t, int64(2), cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
 
-	// Deleting a job removes it from the aggregate.
 	txn = jobDb.WriteTxn()
 	require.NoError(t, txn.BatchDelete([]string{jobB.Id()}))
 	txn.Commit()
-
-	info = calculateInfo(jobDb.ReadTxn(), "pool-1", nil, []string{"pool-1", "pool-2"}, known, nil)
-	assert.Nil(t, info.DemandByQueueAndPriorityClass["queue-1"])
-	assert.Empty(t, info.JobsByPool["pool-1"])
-
-	// Deleting the last job removes it from the in-use priority classes.
-	txn = jobDb.WriteTxn()
-	require.NoError(t, txn.BatchDelete([]string{jobAUpdated.Id()}))
-	txn.Commit()
-	info = calculateInfo(jobDb.ReadTxn(), "pool-1", nil, []string{"pool-1", "pool-2"}, known, nil)
-	assert.Empty(t, info.InUsePriorityClasses)
+	demand = queuedDemandOf(jobDb.ReadTxn(), "pool-1", known, nil)
+	assert.Nil(t, demand["queue-1"])
 }
 
 func TestJobAggregate_TransactionIsolation(t *testing.T) {
@@ -184,14 +130,10 @@ func TestJobAggregate_TransactionIsolation(t *testing.T) {
 
 	known := map[string]bool{"queue-1": true}
 	committedDemand := func() int64 {
-		return cpuOf(jobDb.ReadTxn().CalculateSchedulingInfo(
-			map[string]bool{}, "pool-1", nil, []string{"pool-1"}, known, nil,
-		).DemandByQueueAndPriorityClass["queue-1"][aggregateTestPriorityClass])
+		return cpuOf(jobDb.ReadTxn().GetQueuedDemandWithTxn("pool-1", known, nil)["queue-1"][aggregateTestPriorityClass])
 	}
 	txnDemand := func(t *Txn) int64 {
-		return cpuOf(t.CalculateSchedulingInfo(
-			map[string]bool{}, "pool-1", nil, []string{"pool-1"}, known, nil,
-		).DemandByQueueAndPriorityClass["queue-1"][aggregateTestPriorityClass])
+		return cpuOf(t.GetQueuedDemandWithTxn("pool-1", known, nil)["queue-1"][aggregateTestPriorityClass])
 	}
 	require.Equal(t, int64(1), committedDemand())
 
@@ -220,21 +162,8 @@ func TestJobAggregate_DryRunTxnDoesNotAffectDb(t *testing.T) {
 	txn := jobDb.DryRunTxn()
 	jobA := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1"}, 1)
 	require.NoError(t, txn.Upsert([]*Job{jobA}))
-	assert.Equal(t, int64(1), cpuOf(txn.CalculateSchedulingInfo(
-		map[string]bool{}, "pool-1", nil, []string{"pool-1"}, known, nil,
-	).DemandByQueueAndPriorityClass["queue-1"][aggregateTestPriorityClass]))
+	assert.Equal(t, int64(1), cpuOf(txn.GetQueuedDemandWithTxn("pool-1", known, nil)["queue-1"][aggregateTestPriorityClass]))
 	txn.Commit()
 
-	assert.Nil(t, jobDb.ReadTxn().CalculateSchedulingInfo(
-		map[string]bool{}, "pool-1", nil, []string{"pool-1"}, known, nil,
-	).DemandByQueueAndPriorityClass["queue-1"])
-}
-
-func jobIds(jobs []*Job) []string {
-	ids := make([]string, len(jobs))
-	for i, job := range jobs {
-		ids[i] = job.Id()
-	}
-	sort.Strings(ids)
-	return ids
+	assert.Nil(t, jobDb.ReadTxn().GetQueuedDemandWithTxn("pool-1", known, nil)["queue-1"])
 }

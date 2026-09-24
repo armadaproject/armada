@@ -6,56 +6,33 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 
-// SchedulingInfo is the per-pool scheduling information derived from a JobAggregate.
-// It mirrors the information the scheduler currently computes by scanning every job in
-// the JobDb (see calculateJobSchedulingInfo in the scheduling package).
-type SchedulingInfo struct {
-	// Jobs leased to each executor, restricted to the pools relevant to the round.
-	JobsByExecutorId map[string][]*Job
-	// Jobs leased to each pool.
-	JobsByPool map[string][]*Job
-	// Demand, i.e., the sum of the resource requirements of all jobs eligible for the pool.
-	DemandByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
-	// Allocation, i.e., the sum of the resource requirements of jobs leased to the pool.
-	AllocatedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
-	// Away allocation, i.e., the sum of the resource requirements of jobs leased to away pools.
-	AwayAllocatedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
-	// Priority classes used by any active job.
-	InUsePriorityClasses map[string]bool
-}
-
-// JobAggregate maintains incrementally-updated, per-pool aggregates of the active jobs in
-// the JobDb. Its purpose is to let the scheduler derive the information it needs to make
-// scheduling decisions without re-scanning every job on every scheduling round. This is
-// particularly beneficial for demand/allocation accounting, which otherwise requires
-// iterating over all queued jobs for every pool.
+// JobAggregate maintains an incrementally-updated aggregate of queued jobs in
+// the JobDb. Its sole purpose is to let the scheduler derive queued demand
+// without scanning every queued job on every scheduling round.
 //
-// The aggregate is maintained on JobDb mutations (Upsert/delete). It uses copy-on-write at
-// the pool granularity so that write transactions can mutate it without affecting the
-// committed state until Commit is called, mirroring the rest of the JobDb.
+// Mutation discipline mirrors NodeDb:
+//   - The caller owns the transaction lifecycle (JobDb.WriteTxn/ReadTxn/
+//     DryRunTxn, followed by Commit/Abort). The aggregate never creates its
+//     own transaction.
+//   - Mutating operations (add/remove) are private and only invoked from the
+//     write-transaction path (Txn.Upsert/delete), which requires a writable
+//     transaction. They use copy-on-write at the pool granularity so a write
+//     transaction never affects committed state until Commit.
+//   - Read operations (GetQueuedDemand) are pure and never mutate the
+//     aggregate, mirroring NodeDb's SelectNodeForJobWithTxn which takes a txn
+//     but does not mutate the db.
 type JobAggregate struct {
-	// Per-pool aggregates. A pool is only present while it has at least one job.
+	// Per-pool aggregates. A pool is only present while it has at least one queued job.
 	byPool map[string]*poolAggregate
 	// Pools that this aggregate instance has cloned and may therefore mutate in place.
 	// Pools not in this set are shared with another aggregate and must be cloned before use.
 	ownedPools map[string]bool
 }
 
-// poolAggregate holds the aggregates for a single pool.
+// poolAggregate holds the queued-job aggregate for a single pool.
 type poolAggregate struct {
-	// Resources requested by queued jobs eligible for this pool. Cordon sensitive.
+	// Resources requested by queued jobs eligible for this pool. Cordon sensitive at read time.
 	queuedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
-	// Resources requested by jobs that are neither queued nor leased (i.e., running jobs
-	// without a run). These only contribute to demand and are never cordon sensitive.
-	unleasedDemandByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
-	// Resources requested by all jobs leased to this pool, across all executors.
-	// Used for demand, which includes running jobs.
-	leasedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
-	// Resources requested by jobs leased to this pool, grouped by executor.
-	// Used for allocation, which only counts jobs on active executors.
-	allocatedByExecutor map[string]map[string]map[string]internaltypes.ResourceList
-	// Jobs leased to this pool, keyed by job id.
-	leasedJobs map[string]*Job
 }
 
 func NewJobAggregate() *JobAggregate {
@@ -67,11 +44,7 @@ func NewJobAggregate() *JobAggregate {
 
 func newPoolAggregate() *poolAggregate {
 	return &poolAggregate{
-		queuedByQueueAndPriorityClass:         map[string]map[string]internaltypes.ResourceList{},
-		unleasedDemandByQueueAndPriorityClass: map[string]map[string]internaltypes.ResourceList{},
-		leasedByQueueAndPriorityClass:         map[string]map[string]internaltypes.ResourceList{},
-		allocatedByExecutor:                   map[string]map[string]map[string]internaltypes.ResourceList{},
-		leasedJobs:                            map[string]*Job{},
+		queuedByQueueAndPriorityClass: map[string]map[string]internaltypes.ResourceList{},
 	}
 }
 
@@ -93,11 +66,7 @@ func (p *poolAggregate) clone() *poolAggregate {
 		return newPoolAggregate()
 	}
 	return &poolAggregate{
-		queuedByQueueAndPriorityClass:         cloneQueuePriorityResourceMap(p.queuedByQueueAndPriorityClass),
-		unleasedDemandByQueueAndPriorityClass: cloneQueuePriorityResourceMap(p.unleasedDemandByQueueAndPriorityClass),
-		leasedByQueueAndPriorityClass:         cloneQueuePriorityResourceMap(p.leasedByQueueAndPriorityClass),
-		allocatedByExecutor:                   cloneExecutorQueuePriorityResourceMap(p.allocatedByExecutor),
-		leasedJobs:                            maps.Clone(p.leasedJobs),
+		queuedByQueueAndPriorityClass: cloneQueuePriorityResourceMap(p.queuedByQueueAndPriorityClass),
 	}
 }
 
@@ -135,77 +104,34 @@ func (a *JobAggregate) ownedPoolIfPresent(pool string) *poolAggregate {
 	return cloned
 }
 
-// Add incorporates job into the aggregate. Jobs that are nil or in a terminal state are
-// ignored, matching the scheduler's own filtering.
-func (a *JobAggregate) Add(job *Job) {
-	if job == nil || job.InTerminalState() {
+// add incorporates job into the aggregate. Only queued, non-terminal jobs contribute;
+// all other jobs are ignored. It must only be called from the write-transaction path.
+func (a *JobAggregate) add(job *Job) {
+	if job == nil || job.InTerminalState() || !job.Queued() {
 		return
 	}
 
 	req := job.AllResourceRequirements()
-
-	if job.Queued() {
-		for _, pool := range job.Pools() {
-			pa := a.ensureOwned(pool)
-			addQueuePriorityResource(pa.queuedByQueueAndPriorityClass, job.Queue(), job.PriorityClassName(), req)
-		}
-		return
+	for _, pool := range job.Pools() {
+		pa := a.ensureOwned(pool)
+		addQueuePriorityResource(pa.queuedByQueueAndPriorityClass, job.Queue(), job.PriorityClassName(), req)
 	}
-
-	run := job.LatestRun()
-	if run == nil {
-		// Not queued and no run: only contributes to demand (for the pools it is eligible for).
-		for _, pool := range job.Pools() {
-			pa := a.ensureOwned(pool)
-			addQueuePriorityResource(pa.unleasedDemandByQueueAndPriorityClass, job.Queue(), job.PriorityClassName(), req)
-		}
-		return
-	}
-
-	pool := run.Pool()
-	executor := run.Executor()
-	pa := a.ensureOwned(pool)
-	addQueuePriorityResource(pa.leasedByQueueAndPriorityClass, job.Queue(), job.PriorityClassName(), req)
-	addExecutorQueuePriorityResource(pa.allocatedByExecutor, executor, job.Queue(), job.PriorityClassName(), req)
-	pa.leasedJobs[job.Id()] = job
 }
 
-// Remove removes job from the aggregate. It is the inverse of Add and must be called with
-// the job's state as it was when it was added.
-func (a *JobAggregate) Remove(job *Job) {
-	if job == nil || job.InTerminalState() {
+// remove removes job from the aggregate. It is the inverse of add and must be called with
+// the job's state as it was when it was added. It must only be called from the
+// write-transaction path.
+func (a *JobAggregate) remove(job *Job) {
+	if job == nil || job.InTerminalState() || !job.Queued() {
 		return
 	}
 
 	req := job.AllResourceRequirements()
-
-	if job.Queued() {
-		for _, pool := range job.Pools() {
-			if pa := a.ownedPoolIfPresent(pool); pa != nil {
-				subQueuePriorityResource(pa.queuedByQueueAndPriorityClass, job.Queue(), job.PriorityClassName(), req)
-				a.dropPoolIfEmpty(pool, pa)
-			}
+	for _, pool := range job.Pools() {
+		if pa := a.ownedPoolIfPresent(pool); pa != nil {
+			subQueuePriorityResource(pa.queuedByQueueAndPriorityClass, job.Queue(), job.PriorityClassName(), req)
+			a.dropPoolIfEmpty(pool, pa)
 		}
-		return
-	}
-
-	run := job.LatestRun()
-	if run == nil {
-		for _, pool := range job.Pools() {
-			if pa := a.ownedPoolIfPresent(pool); pa != nil {
-				subQueuePriorityResource(pa.unleasedDemandByQueueAndPriorityClass, job.Queue(), job.PriorityClassName(), req)
-				a.dropPoolIfEmpty(pool, pa)
-			}
-		}
-		return
-	}
-
-	pool := run.Pool()
-	if pa := a.ownedPoolIfPresent(pool); pa != nil {
-		subQueuePriorityResource(pa.leasedByQueueAndPriorityClass, job.Queue(), job.PriorityClassName(), req)
-		subExecutorQueuePriorityResource(pa.allocatedByExecutor, run.Executor(), job.Queue(), job.PriorityClassName(), req)
-		delete(pa.leasedJobs, job.Id())
-		a.dropPoolIfEmpty(pool, pa)
 	}
 }
 
@@ -217,115 +143,29 @@ func (a *JobAggregate) dropPoolIfEmpty(pool string, pa *poolAggregate) {
 }
 
 func (p *poolAggregate) isEmpty() bool {
-	return len(p.queuedByQueueAndPriorityClass) == 0 &&
-		len(p.unleasedDemandByQueueAndPriorityClass) == 0 &&
-		len(p.leasedByQueueAndPriorityClass) == 0 &&
-		len(p.allocatedByExecutor) == 0 &&
-		len(p.leasedJobs) == 0
+	return len(p.queuedByQueueAndPriorityClass) == 0
 }
 
-// CalculateSchedulingInfo derives the per-pool scheduling information for the pool described
-// by currentPool, awayAllocationPools and allPools from the aggregate. It is intended to be
-// a drop-in (and much cheaper) replacement for scanning every job.
-//
-// knownQueues is used to discard jobs whose queue no longer exists, and cordonedQueues to
-// exclude queued jobs on cordoned queues from demand, matching the legacy calculation.
-func (a *JobAggregate) CalculateSchedulingInfo(
-	activeExecutorsSet map[string]bool,
+// getQueuedDemand is a pure read: it never mutates the aggregate. knownQueues discards
+// jobs whose queue no longer exists, and cordonedQueues excludes queued jobs on cordoned
+// queues, matching the legacy calculation.
+func (a *JobAggregate) getQueuedDemand(
 	currentPool string,
-	awayAllocationPools []string,
-	allPools []string,
 	knownQueues map[string]bool,
 	cordonedQueues map[string]bool,
-) *SchedulingInfo {
-	info := &SchedulingInfo{
-		JobsByExecutorId:                     map[string][]*Job{},
-		JobsByPool:                           map[string][]*Job{},
-		DemandByQueueAndPriorityClass:        map[string]map[string]internaltypes.ResourceList{},
-		AllocatedByQueueAndPriorityClass:     map[string]map[string]internaltypes.ResourceList{},
-		AwayAllocatedByQueueAndPriorityClass: map[string]map[string]internaltypes.ResourceList{},
-		InUsePriorityClasses:                 map[string]bool{},
+) map[string]map[string]internaltypes.ResourceList {
+	demand := map[string]map[string]internaltypes.ResourceList{}
+	pa, ok := a.byPool[currentPool]
+	if !ok {
+		return demand
 	}
-	allPoolsSet := make(map[string]bool, len(allPools))
-	for _, pool := range allPools {
-		allPoolsSet[pool] = true
-	}
-	awayPoolsSet := make(map[string]bool, len(awayAllocationPools))
-	for _, pool := range awayAllocationPools {
-		awayPoolsSet[pool] = true
-	}
-
-	// Collect InUsePriorityClasses. The legacy code includes priority classes from:
-	// - ALL leased jobs (regardless of pool)
-	// - Queued jobs eligible for pools in allPools
-	// We derive this from the pool aggregates rather than inUsePriorityClassCounts
-	// to correctly scope queued jobs by pool eligibility.
-	for pool, pa := range a.byPool {
-		// Leased jobs contribute from ALL pools.
-		for queue, byPriorityClass := range pa.leasedByQueueAndPriorityClass {
-			if !queueKnown(knownQueues, queue) {
-				continue
-			}
-			for pc := range byPriorityClass {
-				info.InUsePriorityClasses[pc] = true
-			}
+	for queue, byPriorityClass := range pa.queuedByQueueAndPriorityClass {
+		if cordonedQueues[queue] || !queueKnown(knownQueues, queue) {
+			continue
 		}
-		// Queued jobs only contribute from pools in allPools.
-		if allPoolsSet[pool] {
-			for queue, byPriorityClass := range pa.queuedByQueueAndPriorityClass {
-				if cordonedQueues[queue] || !queueKnown(knownQueues, queue) {
-					continue
-				}
-				for pc := range byPriorityClass {
-					info.InUsePriorityClasses[pc] = true
-				}
-			}
-			// Unleased demand jobs also contribute.
-			for queue, byPriorityClass := range pa.unleasedDemandByQueueAndPriorityClass {
-				if !queueKnown(knownQueues, queue) {
-					continue
-				}
-				for pc := range byPriorityClass {
-					info.InUsePriorityClasses[pc] = true
-				}
-			}
-		}
+		mergeResourceMapForQueue(demand, queue, byPriorityClass)
 	}
-
-	for pool, pa := range a.byPool {
-		if len(pa.leasedJobs) > 0 {
-			jobs := make([]*Job, 0, len(pa.leasedJobs))
-			for _, job := range pa.leasedJobs {
-				if !queueKnown(knownQueues, job.Queue()) {
-					continue
-				}
-				jobs = append(jobs, job)
-				if allPoolsSet[pool] {
-					executor := job.LatestRun().Executor()
-					info.JobsByExecutorId[executor] = append(info.JobsByExecutorId[executor], job)
-				}
-			}
-			if len(jobs) > 0 {
-				info.JobsByPool[pool] = jobs
-			}
-		}
-
-		if pool == currentPool {
-			mergeResourceMaps(info.DemandByQueueAndPriorityClass, pa.leasedByQueueAndPriorityClass, knownQueues)
-			mergeResourceMaps(info.DemandByQueueAndPriorityClass, pa.unleasedDemandByQueueAndPriorityClass, knownQueues)
-			for queue, byPriorityClass := range pa.queuedByQueueAndPriorityClass {
-				if cordonedQueues[queue] || !queueKnown(knownQueues, queue) {
-					continue
-				}
-				mergeResourceMapForQueue(info.DemandByQueueAndPriorityClass, queue, byPriorityClass)
-			}
-			mergeActiveExecutorResourceMaps(info.AllocatedByQueueAndPriorityClass, pa.allocatedByExecutor, activeExecutorsSet, knownQueues)
-		} else if awayPoolsSet[pool] {
-			mergeActiveExecutorResourceMaps(info.AwayAllocatedByQueueAndPriorityClass, pa.allocatedByExecutor, activeExecutorsSet, knownQueues)
-		}
-	}
-
-	return info
+	return demand
 }
 
 func queueKnown(knownQueues map[string]bool, queue string) bool {
@@ -370,38 +210,6 @@ func subQueuePriorityResource(
 	}
 }
 
-func addExecutorQueuePriorityResource(
-	m map[string]map[string]map[string]internaltypes.ResourceList,
-	executor string,
-	queue string,
-	priorityClass string,
-	rl internaltypes.ResourceList,
-) {
-	byQueue, ok := m[executor]
-	if !ok {
-		byQueue = map[string]map[string]internaltypes.ResourceList{}
-		m[executor] = byQueue
-	}
-	addQueuePriorityResource(byQueue, queue, priorityClass, rl)
-}
-
-func subExecutorQueuePriorityResource(
-	m map[string]map[string]map[string]internaltypes.ResourceList,
-	executor string,
-	queue string,
-	priorityClass string,
-	rl internaltypes.ResourceList,
-) {
-	byQueue, ok := m[executor]
-	if !ok {
-		return
-	}
-	subQueuePriorityResource(byQueue, queue, priorityClass, rl)
-	if len(byQueue) == 0 {
-		delete(m, executor)
-	}
-}
-
 func cloneQueuePriorityResourceMap(
 	m map[string]map[string]internaltypes.ResourceList,
 ) map[string]map[string]internaltypes.ResourceList {
@@ -413,32 +221,6 @@ func cloneQueuePriorityResourceMap(
 		clone[queue] = maps.Clone(byPriorityClass)
 	}
 	return clone
-}
-
-func cloneExecutorQueuePriorityResourceMap(
-	m map[string]map[string]map[string]internaltypes.ResourceList,
-) map[string]map[string]map[string]internaltypes.ResourceList {
-	if m == nil {
-		return map[string]map[string]map[string]internaltypes.ResourceList{}
-	}
-	clone := make(map[string]map[string]map[string]internaltypes.ResourceList, len(m))
-	for executor, byQueue := range m {
-		clone[executor] = cloneQueuePriorityResourceMap(byQueue)
-	}
-	return clone
-}
-
-func mergeResourceMaps(
-	dst map[string]map[string]internaltypes.ResourceList,
-	src map[string]map[string]internaltypes.ResourceList,
-	knownQueues map[string]bool,
-) {
-	for queue, byPriorityClass := range src {
-		if !queueKnown(knownQueues, queue) {
-			continue
-		}
-		mergeResourceMapForQueue(dst, queue, byPriorityClass)
-	}
 }
 
 func mergeResourceMapForQueue(
@@ -453,19 +235,5 @@ func mergeResourceMapForQueue(
 	}
 	for priorityClass, rl := range byPriorityClass {
 		dstByPriorityClass[priorityClass] = dstByPriorityClass[priorityClass].Add(rl)
-	}
-}
-
-func mergeActiveExecutorResourceMaps(
-	dst map[string]map[string]internaltypes.ResourceList,
-	src map[string]map[string]map[string]internaltypes.ResourceList,
-	activeExecutorsSet map[string]bool,
-	knownQueues map[string]bool,
-) {
-	for executor, byQueue := range src {
-		if !activeExecutorsSet[executor] {
-			continue
-		}
-		mergeResourceMaps(dst, byQueue, knownQueues)
 	}
 }

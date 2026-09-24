@@ -1507,9 +1507,9 @@ func TestBuildInUsePriorityClasses(t *testing.T) {
 	}
 }
 
-// TestCalculateJobSchedulingInfo_AggregateMatchesLegacy validates that the JobDb aggregate
-// derives exactly the same scheduling information as the legacy per-job calculation. This is
-// the correctness check behind the canary mode.
+// TestCalculateJobSchedulingInfo_AggregateMatchesLegacy validates that the JobDb
+// queued-demand aggregate derives exactly the same queued demand as the legacy
+// per-job calculation. This is the correctness check behind the canary mode.
 func TestCalculateJobSchedulingInfo_AggregateMatchesLegacy(t *testing.T) {
 	ctx := armadacontext.Background()
 
@@ -1555,18 +1555,16 @@ func TestCalculateJobSchedulingInfo_AggregateMatchesLegacy(t *testing.T) {
 		ctx, activeExecutorsSet, queues, txn.GetAll(), currentPool, awayAllocationPools, allPools, nil,
 	)
 	require.NoError(t, err)
-	aggregate := algo.aggregateJobSchedulingInfo(
-		txn, activeExecutorsSet, queues, currentPool, awayAllocationPools, allPools, nil,
-	)
-	components, diff := compareJobSchedulingInfo(legacy, aggregate)
+	aggregate := algo.aggregateQueuedDemand(txn, queues, currentPool)
+	components, diff := compareQueuedDemand(legacy.queuedDemandByQueueAndPriorityClass, aggregate)
 	require.Empty(t, components)
 	require.Empty(t, diff)
 }
 
-// BenchmarkJobSchedulingInfo compares the legacy per-job scan with the JobDb aggregate when
-// deriving the scheduling information for a pool. It demonstrates the gains from maintaining
-// the aggregate incrementally.
-func BenchmarkJobSchedulingInfo(b *testing.B) {
+// BenchmarkQueuedDemand compares the legacy per-job scan for queued demand with
+// the JobDb aggregate lookup. It demonstrates the gains from maintaining the
+// queued-demand aggregate incrementally.
+func BenchmarkQueuedDemand(b *testing.B) {
 	const (
 		numQueues         = 8
 		numQueuedPerQueue = 2000
@@ -1626,9 +1624,7 @@ func BenchmarkJobSchedulingInfo(b *testing.B) {
 	b.Run("impl=aggregate", func(b *testing.B) {
 		b.ReportAllocs()
 		for n := 0; n < b.N; n++ {
-			algo.aggregateJobSchedulingInfo(
-				txn, activeExecutorsSet, queues, currentPool, awayAllocationPools, allPools, nil,
-			)
+			algo.aggregateQueuedDemand(txn, queues, currentPool)
 		}
 	})
 }

@@ -589,37 +589,51 @@ type jobSchedulingInfo struct {
 	awayAllocatedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 	shortJobPenaltyByQueue               map[string]internaltypes.ResourceList
 	inUsePriorityClasses                 map[string]bool
+	// queuedDemandByQueueAndPriorityClass is the queued-only subset of demand,
+	// tracked separately so the queued-demand aggregate can be validated
+	// without an extra scan. For canary comparison only.
+	queuedDemandByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 }
 
 // calculateJobSchedulingInfo returns the per-round scheduling information for the pool.
 //
-// The legacy per-job calculation is always authoritative. In parallel, the incrementally
-// maintained JobDb aggregate computes the same information. The two are compared and any
-// discrepancy is recorded as a metric and logged. This lets us validate the aggregate
-// against the established calculation before it is ever allowed to drive scheduling.
+// The legacy per-job calculation is always authoritative. Alongside it, the
+// incrementally maintained JobDb queued-demand aggregate is read via a pure,
+// non-mutating lookup (mirroring NodeDb's non-mutating reads) and compared
+// against the queued-only subset of the legacy result. Any discrepancy is
+// recorded as a metric and logged. Both paths are timed so the performance
+// improvement of the aggregate lookup over the full scan is visible in the
+// armada_scheduler_job_aggregate_calculation_duration_seconds histogram.
 func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, txn *jobdb.Txn,
 	activeExecutorsSet map[string]bool, queues map[string]*api.Queue, jobs []*jobdb.Job, currentPool string,
 	awayAllocationPools []string, allPools []string, shortJobPenalty *ShortJobPenaltySnapshot,
 ) (*jobSchedulingInfo, error) {
+	legacyStart := time.Now()
 	legacy, err := l.calculateLegacyJobSchedulingInfo(ctx, activeExecutorsSet, queues, jobs, currentPool, awayAllocationPools, allPools, shortJobPenalty)
 	if err != nil {
 		return nil, err
 	}
-	aggregate := l.aggregateJobSchedulingInfo(txn, activeExecutorsSet, queues, currentPool, awayAllocationPools, allPools, shortJobPenalty)
-	mismatchedComponents, diff := compareJobSchedulingInfo(legacy, aggregate)
+	observeJobAggregateCalculationDuration(currentPool, "legacy", time.Since(legacyStart).Seconds())
+
+	aggregateStart := time.Now()
+	aggregateQueuedDemand := l.aggregateQueuedDemand(txn, queues, currentPool)
+	observeJobAggregateCalculationDuration(currentPool, "aggregate", time.Since(aggregateStart).Seconds())
+
+	mismatchedComponents, diff := compareQueuedDemand(
+		legacy.queuedDemandByQueueAndPriorityClass, aggregateQueuedDemand)
 	recordJobAggregateCanaryResult(currentPool, mismatchedComponents)
 	if diff != "" {
-		ctx.Errorf("JobDb aggregate scheduling info mismatch for pool %s (using legacy result): %s", currentPool, diff)
+		ctx.Errorf("JobDb queued-demand aggregate mismatch for pool %s (using legacy result): %s", currentPool, diff)
 	}
 	return legacy, nil
 }
 
-// aggregateJobSchedulingInfo derives the scheduling info of the pool from the incrementally
-// maintained JobDb aggregate instead of scanning every job.
-func (l *FairSchedulingAlgo) aggregateJobSchedulingInfo(txn *jobdb.Txn, activeExecutorsSet map[string]bool,
-	queues map[string]*api.Queue, currentPool string, awayAllocationPools []string, allPools []string,
-	shortJobPenalty *ShortJobPenaltySnapshot,
-) *jobSchedulingInfo {
+// aggregateQueuedDemand derives queued demand for the pool from the
+// incrementally maintained JobDb aggregate instead of scanning every job.
+// It is a pure read and never mutates the JobDb transaction.
+func (l *FairSchedulingAlgo) aggregateQueuedDemand(txn *jobdb.Txn,
+	queues map[string]*api.Queue, currentPool string,
+) map[string]map[string]internaltypes.ResourceList {
 	knownQueues := make(map[string]bool, len(queues))
 	cordonedQueues := make(map[string]bool, len(queues))
 	for name, queue := range queues {
@@ -627,16 +641,7 @@ func (l *FairSchedulingAlgo) aggregateJobSchedulingInfo(txn *jobdb.Txn, activeEx
 		cordonedQueues[name] = queue.Cordoned
 	}
 
-	info := txn.CalculateSchedulingInfo(activeExecutorsSet, currentPool, awayAllocationPools, allPools, knownQueues, cordonedQueues)
-	return &jobSchedulingInfo{
-		jobsByExecutorId:                     info.JobsByExecutorId,
-		jobsByPool:                           info.JobsByPool,
-		demandByQueueAndPriorityClass:        info.DemandByQueueAndPriorityClass,
-		allocatedByQueueAndPriorityClass:     info.AllocatedByQueueAndPriorityClass,
-		awayAllocatedByQueueAndPriorityClass: info.AwayAllocatedByQueueAndPriorityClass,
-		shortJobPenaltyByQueue:               shortJobPenalty.GetPenaltiesForPool(currentPool),
-		inUsePriorityClasses:                 info.InUsePriorityClasses,
-	}
+	return txn.GetQueuedDemandWithTxn(currentPool, knownQueues, cordonedQueues)
 }
 
 func (l *FairSchedulingAlgo) calculateLegacyJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
@@ -646,6 +651,7 @@ func (l *FairSchedulingAlgo) calculateLegacyJobSchedulingInfo(ctx *armadacontext
 	jobsByExecutorId := make(map[string][]*jobdb.Job)
 	jobsByPool := make(map[string][]*jobdb.Job)
 	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
+	queuedDemandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	awayAllocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	inUsePriorityClasses := make(map[string]bool)
@@ -682,6 +688,14 @@ func (l *FairSchedulingAlgo) calculateLegacyJobSchedulingInfo(ctx *armadacontext
 			if !queue.Cordoned || !job.Queued() {
 				pcName := job.PriorityClassName()
 				queueResources[pcName] = queueResources[pcName].Add(job.AllResourceRequirements())
+				if job.Queued() {
+					queuedResources, ok := queuedDemandByQueueAndPriorityClass[job.Queue()]
+					if !ok {
+						queuedResources = map[string]internaltypes.ResourceList{}
+						queuedDemandByQueueAndPriorityClass[job.Queue()] = queuedResources
+					}
+					queuedResources[pcName] = queuedResources[pcName].Add(job.AllResourceRequirements())
+				}
 			}
 		}
 
@@ -741,6 +755,7 @@ func (l *FairSchedulingAlgo) calculateLegacyJobSchedulingInfo(ctx *armadacontext
 		jobsByExecutorId:                     jobsByExecutorId,
 		jobsByPool:                           jobsByPool,
 		demandByQueueAndPriorityClass:        demandByQueueAndPriorityClass,
+		queuedDemandByQueueAndPriorityClass:  queuedDemandByQueueAndPriorityClass,
 		allocatedByQueueAndPriorityClass:     allocatedByQueueAndPriorityClass,
 		awayAllocatedByQueueAndPriorityClass: awayAllocatedByQueueAndPriorityClass,
 		shortJobPenaltyByQueue:               shortJobPenaltyByQueue,
@@ -748,46 +763,16 @@ func (l *FairSchedulingAlgo) calculateLegacyJobSchedulingInfo(ctx *armadacontext
 	}, nil
 }
 
-// compareJobSchedulingInfo compares the legacy and aggregate scheduling info and returns the
-// names of the mismatching components together with a human-readable description of the
-// differences. Both are empty if the two are equivalent. It is used by the canary mode to
+// compareQueuedDemand compares the legacy queued-only demand against the
+// aggregate-derived queued demand and returns the names of the mismatching
+// components together with a human-readable description of the differences.
+// Both are empty if the two are equivalent. It is used by the canary mode to
 // validate the aggregate against the established per-job calculation.
-func compareJobSchedulingInfo(legacy, aggregate *jobSchedulingInfo) ([]string, string) {
-	components := make([]string, 0)
-	diffs := make([]string, 0)
-
-	if !maps.Equal(legacy.inUsePriorityClasses, aggregate.inUsePriorityClasses) {
-		components = append(components, "in_use_priority_classes")
-		diffs = append(diffs, fmt.Sprintf("inUsePriorityClasses: legacy=%v aggregate=%v",
-			sortedKeys(legacy.inUsePriorityClasses), sortedKeys(aggregate.inUsePriorityClasses)))
+func compareQueuedDemand(legacy, aggregate map[string]map[string]internaltypes.ResourceList) ([]string, string) {
+	if diff := compareResourceListMaps("queuedDemandByQueueAndPriorityClass", legacy, aggregate); diff != "" {
+		return []string{"demand_queued"}, diff
 	}
-	if diff := compareResourceListMaps("demandByQueueAndPriorityClass", legacy.demandByQueueAndPriorityClass, aggregate.demandByQueueAndPriorityClass); diff != "" {
-		components = append(components, "demand")
-		diffs = append(diffs, diff)
-	}
-	if diff := compareResourceListMaps("allocatedByQueueAndPriorityClass", legacy.allocatedByQueueAndPriorityClass, aggregate.allocatedByQueueAndPriorityClass); diff != "" {
-		components = append(components, "allocated")
-		diffs = append(diffs, diff)
-	}
-	if diff := compareResourceListMaps("awayAllocatedByQueueAndPriorityClass", legacy.awayAllocatedByQueueAndPriorityClass, aggregate.awayAllocatedByQueueAndPriorityClass); diff != "" {
-		components = append(components, "away_allocated")
-		diffs = append(diffs, diff)
-	}
-	if diff := compareJobsById("jobsByPool", legacy.jobsByPool, aggregate.jobsByPool); diff != "" {
-		components = append(components, "jobs_by_pool")
-		diffs = append(diffs, diff)
-	}
-	if diff := compareJobsById("jobsByExecutorId", legacy.jobsByExecutorId, aggregate.jobsByExecutorId); diff != "" {
-		components = append(components, "jobs_by_executor")
-		diffs = append(diffs, diff)
-	}
-	return components, strings.Join(diffs, "; ")
-}
-
-func sortedKeys(m map[string]bool) []string {
-	keys := maps.Keys(m)
-	slices.Sort(keys)
-	return keys
+	return nil, ""
 }
 
 func compareResourceListMaps(name string, legacy, aggregate map[string]map[string]internaltypes.ResourceList) string {
@@ -805,19 +790,6 @@ func compareResourceListMaps(name string, legacy, aggregate map[string]map[strin
 				diffs = append(diffs, fmt.Sprintf("%s[queue=%s,priorityClass=%s]: legacy=%s aggregate=%s",
 					name, queue, priorityClass, legacyRl.String(), aggregateRl.String()))
 			}
-		}
-	}
-	slices.Sort(diffs)
-	return strings.Join(diffs, ", ")
-}
-
-func compareJobsById(name string, legacy, aggregate map[string][]*jobdb.Job) string {
-	diffs := make([]string, 0)
-	for _, key := range unionJobKeys(legacy, aggregate) {
-		legacyIds := jobIdSet(legacy[key])
-		aggregateIds := jobIdSet(aggregate[key])
-		if !maps.Equal(legacyIds, aggregateIds) {
-			diffs = append(diffs, fmt.Sprintf("%s[%s]: legacy=%v aggregate=%v", name, key, sortedKeys(legacyIds), sortedKeys(aggregateIds)))
 		}
 	}
 	slices.Sort(diffs)
@@ -848,27 +820,6 @@ func unionResourcePriorityClasses(a, b map[string]internaltypes.ResourceList) []
 	keys := maps.Keys(keySet)
 	slices.Sort(keys)
 	return keys
-}
-
-func unionJobKeys(a, b map[string][]*jobdb.Job) []string {
-	keySet := make(map[string]bool, len(a)+len(b))
-	for key := range a {
-		keySet[key] = true
-	}
-	for key := range b {
-		keySet[key] = true
-	}
-	keys := maps.Keys(keySet)
-	slices.Sort(keys)
-	return keys
-}
-
-func jobIdSet(jobs []*jobdb.Job) map[string]bool {
-	result := make(map[string]bool, len(jobs))
-	for _, job := range jobs {
-		result[job.Id()] = true
-	}
-	return result
 }
 
 func (l *FairSchedulingAlgo) buildInUsePriorityClasses(inUse map[string]bool) map[string]types.PriorityClass {
