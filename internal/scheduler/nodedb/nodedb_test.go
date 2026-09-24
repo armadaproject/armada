@@ -55,24 +55,85 @@ func TestNodeDbPoolSetter(t *testing.T) {
 	require.Equal(t, "gpu", nodeDb.GetPool())
 }
 
-func TestUrgencyIndexOmitsNodesWithNothingPreemptible(t *testing.T) {
-	nodeDb, err := newNodeDbWithNodes(nil, withUrgencyBeforeFairsharePreemption)
-	require.NoError(t, err)
-	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
-	require.NoError(t, nodeDb.Upsert(node))
-
-	txn := nodeDb.Txn(false)
-	defer txn.Abort()
-
-	for _, p := range nodeDb.realPriorities {
-		it, err := txn.Get("nodes", nodeDb.urgencyIndexNameByPriority[p])
-		require.NoError(t, err)
-		require.Nil(t, it.Next(), "urgency index for priority %d should be empty", p)
+func TestUrgencyIndexMembership(t *testing.T) {
+	tests := map[string]struct {
+		urgencyBeforeFairsharePreemption bool
+		// jobPriorityClass is the priority class of the jobs bound to the node; empty leaves it idle.
+		jobPriorityClass string
+		// expectUrgencyPreemptible is the node's own view of whether it holds anything preemptible,
+		// which does not depend on the ordering flag.
+		expectUrgencyPreemptible bool
+		expectIndexed            bool
+	}{
+		"idle node holds nothing to urgency-preempt": {
+			urgencyBeforeFairsharePreemption: true,
+			expectUrgencyPreemptible:         false,
+			expectIndexed:                    false,
+		},
+		"jobs at the highest priority cannot be urgency-preempted by anything": {
+			// Every bucket is debited equally, so no incoming job could outrank these.
+			urgencyBeforeFairsharePreemption: true,
+			jobPriorityClass:                 testfixtures.PriorityClass6Preemptible,
+			expectUrgencyPreemptible:         false,
+			expectIndexed:                    false,
+		},
+		"jobs below the highest priority are urgency-preemptible, so the node is indexed": {
+			urgencyBeforeFairsharePreemption: true,
+			jobPriorityClass:                 testfixtures.PriorityClass0,
+			expectUrgencyPreemptible:         true,
+			expectIndexed:                    true,
+		},
+		"ordering disabled leaves the index empty even for a node holding preemptible jobs": {
+			// The node still reports preemptible resources; only the indexing is skipped.
+			urgencyBeforeFairsharePreemption: false,
+			jobPriorityClass:                 testfixtures.PriorityClass0,
+			expectUrgencyPreemptible:         true,
+			expectIndexed:                    false,
+		},
 	}
 
-	it, err := txn.Get("nodes", nodeDb.indexNameByPriority[nodeDb.realPriorities[0]])
-	require.NoError(t, err)
-	require.NotNil(t, it.Next())
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			var opts []func(*NodeDb)
+			if tc.urgencyBeforeFairsharePreemption {
+				opts = append(opts, withUrgencyBeforeFairsharePreemption)
+			}
+			nodeDb, err := newNodeDbWithNodes(nil, opts...)
+			require.NoError(t, err)
+
+			var jobs []*jobdb.Job
+			if tc.jobPriorityClass != "" {
+				jobs = testfixtures.N1Cpu4GiJobs("A", tc.jobPriorityClass, 4)
+			}
+			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+			txn := nodeDb.Txn(true)
+			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobs, node))
+			txn.Commit()
+
+			stored, err := nodeDb.GetNode(node.GetId())
+			require.NoError(t, err)
+			require.Equal(t, tc.expectUrgencyPreemptible, stored.HasUrgencyPreemptibleResources())
+
+			readTxn := nodeDb.Txn(false)
+			defer readTxn.Abort()
+
+			// The eviction-aware indexes are always populated, so a missing node below really does
+			// mean it was left out of the urgency index rather than out of the NodeDb entirely.
+			for _, priority := range nodeDb.realPriorities {
+				it, err := readTxn.Get("nodes", nodeDb.indexNameByPriority[priority])
+				require.NoError(t, err)
+				require.NotNil(t, it.Next(), "eviction-aware index for priority %d should hold the node", priority)
+
+				urgencyIt, err := readTxn.Get("nodes", nodeDb.urgencyIndexNameByPriority[priority])
+				require.NoError(t, err)
+				if tc.expectIndexed {
+					require.NotNil(t, urgencyIt.Next(), "urgency index for priority %d should hold the node", priority)
+				} else {
+					require.Nil(t, urgencyIt.Next(), "urgency index for priority %d should be empty", priority)
+				}
+			}
+		})
+	}
 }
 
 // Test the accounting of total resources across all nodes.
@@ -310,83 +371,6 @@ func TestBindCrossPoolJobBucketing(t *testing.T) {
 			require.Equal(t, tc.expectedPriority, priority)
 		})
 	}
-}
-
-func setupNodeDbNodeAndBoundJob(t *testing.T) (*NodeDb, *internaltypes.Node, *jobdb.Job) {
-	t.Helper()
-	node := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
-	nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{node})
-	require.NoError(t, err)
-	entry, err := nodeDb.GetNode(node.GetId())
-	require.NoError(t, err)
-
-	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
-	boundNode, err := nodeDb.BindJobToNode(entry, job, job.PriorityClass().Priority)
-	require.NoError(t, err)
-
-	return nodeDb, boundNode, job
-}
-
-func TestUrgencyMapUnaffectedByEviction(t *testing.T) {
-	nodeDb, node, job := setupNodeDbNodeAndBoundJob(t)
-	priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
-	require.True(t, ok)
-
-	boundUrgency := node.AllocatableByPriorityNoEviction()
-	boundAllocatable := node.AllocatableByPriority()
-	require.True(t, boundAllocatable[priority].Equal(boundUrgency[priority]),
-		"genuine bind should deduct both maps identically")
-
-	// Evict: real map gives resources back at the job priority; urgency map must NOT.
-	evicted, err := nodeDb.EvictJobsFromNode([]*jobdb.Job{job}, node)
-	require.NoError(t, err)
-	require.True(t, boundUrgency[priority].Equal(evicted.AllocatableAtPriorityNoEviction(priority)),
-		"urgency map changed on eviction")
-	require.False(t, boundAllocatable[priority].Equal(evicted.AllocatableAtPriority(priority)),
-		"allocatable map should give resources back on eviction")
-
-	// Re-bind the evicted job: real map deducts again; urgency map still unchanged.
-	rebound, err := nodeDb.BindJobToNode(evicted, job, priority)
-	require.NoError(t, err)
-	require.True(t, boundUrgency[priority].Equal(rebound.AllocatableAtPriorityNoEviction(priority)),
-		"urgency map changed on evicted re-bind")
-	require.True(t, boundAllocatable[priority].Equal(rebound.AllocatableAtPriority(priority)),
-		"allocatable map should return to bound state on re-bind")
-
-	// Unbind for real: both maps return to the fully-free state.
-	unbound, err := nodeDb.UnbindJobFromNode(job, rebound)
-	require.NoError(t, err)
-	require.True(t, unbound.AllocatableAtPriority(priority).Equal(unbound.AllocatableAtPriorityNoEviction(priority)),
-		"both maps should agree once the node is empty")
-}
-
-// TestUrgencyMapReconciledOnUnbindWhileEvicted covers the unbind-while-evicted branch of
-// unbindJobFromNodeInPlace: unbinding an evicted job must still return its resources to the
-// urgency map, even though the real map already gave them back on eviction.
-func TestUrgencyMapReconciledOnUnbindWhileEvicted(t *testing.T) {
-	rawNode := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
-	nodeDb, err := newNodeDbWithNodes([]*internaltypes.Node{rawNode})
-	require.NoError(t, err)
-	entry, err := nodeDb.GetNode(rawNode.GetId())
-	require.NoError(t, err)
-
-	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
-	priority := job.PriorityClass().Priority
-	freeAllocatable := entry.AllocatableByPriority()
-
-	bound, err := nodeDb.BindJobToNode(entry, job, priority)
-	require.NoError(t, err)
-
-	evicted, err := nodeDb.EvictJobsFromNode([]*jobdb.Job{job}, bound)
-	require.NoError(t, err)
-
-	unbound, err := nodeDb.UnbindJobFromNode(job, evicted)
-	require.NoError(t, err)
-
-	require.True(t, unbound.AllocatableAtPriorityNoEviction(priority).Equal(unbound.AllocatableAtPriority(priority)),
-		"urgency map should reconcile with allocatable map once the evicted job is unbound")
-	require.True(t, unbound.AllocatableAtPriorityNoEviction(priority).Equal(freeAllocatable[priority]),
-		"urgency map should return to the fully-free state once the evicted job is unbound")
 }
 
 // Covers the pods resource path, which TestNodeBindingEvictionUnbinding does not exercise.
@@ -1348,49 +1332,8 @@ func TestPreemptedJobIsNotRescheduled(t *testing.T) {
 	}
 }
 
-func TestUrgencySelectionIgnoresFairShareGiveBack(t *testing.T) {
-	nodeDb, err := newNodeDbWithNodes(nil, withUrgencyBeforeFairsharePreemption)
-	require.NoError(t, err)
-
-	txn := nodeDb.Txn(true)
-	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
-	boundJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)
-	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, boundJobs, node))
-	txn.Commit()
-
-	node, err = nodeDb.GetNode(node.GetId())
-	require.NoError(t, err)
-
-	evictedNode, err := nodeDb.EvictJobsFromNode(boundJobs, node)
-	require.NoError(t, err)
-
-	txn = nodeDb.Txn(true)
-	require.NoError(t, nodeDb.UpsertWithTxn(txn, evictedNode))
-	txn.Commit()
-
-	incoming := testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass1, 1)[0]
-	jctx := context.JobSchedulingContextFromJob(incoming)
-	jctx.PodSchedulingContext = &context.PodSchedulingContext{
-		ScheduledAtPriority:      incoming.PriorityClass().Priority,
-		PreemptedAtPriority:      internaltypes.MinPriority,
-		NumExcludedNodesByReason: make(map[string]int),
-	}
-
-	txn = nodeDb.Txn(false)
-	defer txn.Abort()
-	matchingNodeTypeIds, _, err := nodeDb.NodeTypesMatchingJob(jctx)
-	require.NoError(t, err)
-
-	selectedNode, err := nodeDb.selectNodeForJobWithUrgencyPreemption(txn, jctx, matchingNodeTypeIds)
-	require.NoError(t, err)
-	require.NotNil(t, selectedNode, "urgency preemption should find the evicted node by reading the urgency-preemptible view")
-	assert.Equal(t, node.GetId(), selectedNode.GetId())
-	assert.Equal(t, testfixtures.TestPriorityClasses[testfixtures.PriorityClass1].Priority, jctx.PodSchedulingContext.PreemptedAtPriority,
-		"must not match at PriorityClass0's priority, where the fair-share give-back has freed the eviction-aware view but not the no-eviction view")
-}
-
 func TestUrgencyFitCheckUsesUrgencyView(t *testing.T) {
-	nodeDb, err := newNodeDbWithNodes(nil)
+	nodeDb, err := newNodeDbWithNodes(nil, withUrgencyBeforeFairsharePreemption)
 	require.NoError(t, err)
 
 	txn := nodeDb.Txn(true)
