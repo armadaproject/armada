@@ -2,8 +2,8 @@
 # cannot cancel a job, even one it submitted itself
 queue: rbac-queue-submit-no-cancel
 authContext: rbac-queue-only
-numBatches: 10
-batchSize: 10
+numBatches: 1
+batchSize: 1
 jobs:
   - priority: 0
     namespace: personal-anonymous

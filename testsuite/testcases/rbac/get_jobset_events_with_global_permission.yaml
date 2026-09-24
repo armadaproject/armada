@@ -2,8 +2,8 @@
 # set's events via GetJobSetEvents in a queue it doesn't own.
 queue: e2e-test-queue
 authContext: rbac-admin
-numBatches: 1
-batchSize: 1
+numBatches: 10
+batchSize: 10
 jobs:
   - priority: 0
     namespace: personal-anonymous

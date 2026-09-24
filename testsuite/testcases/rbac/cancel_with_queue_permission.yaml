@@ -2,8 +2,8 @@
 # in a queue it has the cancel permission.
 queue: rbac-queue-submit-and-cancel
 authContext: rbac-queue-only
-numBatches: 1
-batchSize: 1
+numBatches: 10
+batchSize: 10
 jobs:
   - priority: 0
     namespace: personal-anonymous
