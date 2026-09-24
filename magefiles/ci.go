@@ -76,71 +76,6 @@ rules:
 	return f.Name(), nil
 }
 
-// switchToAuthConfig moves `server`, `scheduler`, and `executor` onto the auth config before the
-// rbac suite runs
-func switchToAuthConfig() error {
-	envVars := map[string]string{
-		"ARMADA_SERVER_CONFIG":     "../server/config-auth.yaml",
-		"ARMADA_SCHEDULER_CONFIG":  "../scheduler/config-auth.yaml",
-		"ARMADA_EXECUTOR_CONFIG":   "../executor/config-auth.yaml",
-		"ARMADA_OIDC_PROVIDER_URL": "http://keycloak:8180/realms/armada",
-	}
-	for k, v := range envVars {
-		os.Setenv(k, v)
-	}
-
-	if err := dockerRun("compose", "-f", fullComposeFile, "up", "-d", "--force-recreate", "--wait", "server", "scheduler", "executor"); err != nil {
-		return err
-	}
-	if err := CheckDockerContainerRunning("server", "Armada gRPC server listening on"); err != nil {
-		return err
-	}
-	if err := CheckDockerContainerRunning("scheduler", "Retrieved [1-9]+ executors"); err != nil {
-		return err
-	}
-	if err := CheckDockerContainerRunning("executor", "Reporting current free resource"); err != nil {
-		return err
-	}
-	return nil
-}
-
-// runTests runs each suite's tests via cmd/testsuite. extraArgs is appended verbatim to the
-// "go run cmd/testsuite/main.go test" invocation -- e.g. "--context", "rbac-admin" to give the
-// suite's base connection (used for the end-of-test cleanup cancel, see TestRunner.cleanupConn)
-// an identity with permission to cancel any job, regardless of what AuthContext individual
-// negative RBAC testcases authenticate their calls under test with.
-func runTests(suites []string, extraArgs ...string) error {
-	for i, suite := range suites {
-		var tests []string
-		label := suite
-		if info, err := os.Stat(suite); err == nil && !info.IsDir() {
-			tests = []string{suite}
-			label = strings.TrimSuffix(filepath.Base(suite), filepath.Ext(suite))
-		} else {
-			tests = []string{fmt.Sprintf("testsuite/testcases/%s/*", suite)}
-		}
-		timeTaken := time.Now()
-		args := []string{
-			"run", "cmd/testsuite/main.go", "test",
-			"--tests", strings.Join(tests, ","),
-			"--junit", fmt.Sprintf("junit-%s.xml", label),
-			"--config", "_local/.armadactl.yaml",
-		}
-		args = append(args, extraArgs...)
-		out, err := goOutput(args...)
-		fmt.Println(out)
-		if err != nil {
-			return err
-		}
-		verb := "Time"
-		if i > 0 {
-			verb = "Additional time"
-		}
-		fmt.Printf("(Real) %s to run %s tests: %s\n\n", verb, suite, time.Since(timeTaken))
-	}
-	return nil
-}
-
 // Build images, spin up a test environment, and run the integration tests against it.
 func TestSuite() error {
 	mg.Deps(CheckForArmadaRunning)
@@ -269,6 +204,71 @@ func runArmadaCtlIgnoreExists(args ...string) error {
 		return err
 	}
 
+	return nil
+}
+
+// switchToAuthConfig moves `server`, `scheduler`, and `executor` onto the auth config before the
+// rbac suite runs
+func switchToAuthConfig() error {
+	envVars := map[string]string{
+		"ARMADA_SERVER_CONFIG":     "../server/config-auth.yaml",
+		"ARMADA_SCHEDULER_CONFIG":  "../scheduler/config-auth.yaml",
+		"ARMADA_EXECUTOR_CONFIG":   "../executor/config-auth.yaml",
+		"ARMADA_OIDC_PROVIDER_URL": "http://keycloak:8180/realms/armada",
+	}
+	for k, v := range envVars {
+		os.Setenv(k, v)
+	}
+
+	if err := dockerRun("compose", "-f", fullComposeFile, "up", "-d", "--force-recreate", "--wait", "server", "scheduler", "executor"); err != nil {
+		return err
+	}
+	if err := CheckDockerContainerRunning("server", "Armada gRPC server listening on"); err != nil {
+		return err
+	}
+	if err := CheckDockerContainerRunning("scheduler", "Retrieved [1-9]+ executors"); err != nil {
+		return err
+	}
+	if err := CheckDockerContainerRunning("executor", "Reporting current free resource"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// runTests runs each suite's tests via cmd/testsuite. extraArgs is appended verbatim to the
+// "go run cmd/testsuite/main.go test" invocation -- e.g. "--context", "rbac-admin" to give the
+// suite's base connection (used for the end-of-test cleanup cancel, see TestRunner.cleanupConn)
+// an identity with permission to cancel any job, regardless of what AuthContext individual
+// negative RBAC testcases authenticate their calls under test with.
+func runTests(suites []string, extraArgs ...string) error {
+	for i, suite := range suites {
+		var tests []string
+		label := suite
+		if info, err := os.Stat(suite); err == nil && !info.IsDir() {
+			tests = []string{suite}
+			label = strings.TrimSuffix(filepath.Base(suite), filepath.Ext(suite))
+		} else {
+			tests = []string{fmt.Sprintf("testsuite/testcases/%s/*", suite)}
+		}
+		timeTaken := time.Now()
+		args := []string{
+			"run", "cmd/testsuite/main.go", "test",
+			"--tests", strings.Join(tests, ","),
+			"--junit", fmt.Sprintf("junit-%s.xml", label),
+			"--config", "_local/.armadactl.yaml",
+		}
+		args = append(args, extraArgs...)
+		out, err := goOutput(args...)
+		fmt.Println(out)
+		if err != nil {
+			return err
+		}
+		verb := "Time"
+		if i > 0 {
+			verb = "Additional time"
+		}
+		fmt.Printf("(Real) %s to run %s tests: %s\n\n", verb, suite, time.Since(timeTaken))
+	}
 	return nil
 }
 
