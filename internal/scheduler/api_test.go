@@ -587,6 +587,13 @@ func TestApplyResourceMutations_PodLevelResources(t *testing.T) {
 			wantPodLevel:     "8Gi",
 			wantContainerSum: "6Gi",
 		},
+		"inexact factor keeps the block at or above the rounded container requests": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryFactor: 1.15},
+			podLevel:         memory("25Gi"),
+			containers:       []v1.Container{container("a", "5Gi"), container("b", "20Gi")},
+			wantPodLevel:     "30870077440",
+			wantContainerSum: "30870077440",
+		},
 		"static grows the block by the full amount, not a share": {
 			mutations:        &schedulerobjects.RetryResourceMutations{MemoryStatic: "300Mi"},
 			podLevel:         memory("4Gi"),

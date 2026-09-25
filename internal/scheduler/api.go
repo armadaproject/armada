@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"math"
 	"math/big"
 	"strconv"
 	"sync"
@@ -381,29 +382,29 @@ func applyResourceMutations(job *armadaevents.SubmitJob, mutations *schedulerobj
 		}
 		return 0
 	}
-	bump := func(resources v1.ResourceList, staticShare int64) {
+	bump := func(resources v1.ResourceList, staticShare int64, round func(float64) float64) {
 		if current, ok := resources[v1.ResourceMemory]; ok {
-			grown := int64(float64(current.Value())*factor) + staticShare
+			grown := int64(round(float64(current.Value())*factor)) + staticShare
 			resources[v1.ResourceMemory] = *resource.NewQuantity(grown, current.Format)
 		}
 	}
 	for i := range podSpec.Containers {
 		share := staticShare(podSpec.Containers[i].Resources.Requests)
-		bump(podSpec.Containers[i].Resources.Requests, share)
-		bump(podSpec.Containers[i].Resources.Limits, share)
+		bump(podSpec.Containers[i].Resources.Requests, share, math.Floor)
+		bump(podSpec.Containers[i].Resources.Limits, share, math.Floor)
 	}
 	for i := range podSpec.InitContainers {
 		share := static
 		if pooledMemory {
 			share = staticShare(podSpec.InitContainers[i].Resources.Requests)
 		}
-		bump(podSpec.InitContainers[i].Resources.Requests, share)
-		bump(podSpec.InitContainers[i].Resources.Limits, share)
+		bump(podSpec.InitContainers[i].Resources.Requests, share, math.Floor)
+		bump(podSpec.InitContainers[i].Resources.Limits, share, math.Floor)
 	}
-	// Keep the pod budget in step with the scheduler's reservation and the container requests.
+	// Round up, like the scheduler's reservation, so the budget covers the rounded-down container requests.
 	if podSpec.Resources != nil {
-		bump(podSpec.Resources.Requests, static)
-		bump(podSpec.Resources.Limits, static)
+		bump(podSpec.Resources.Requests, static, math.Ceil)
+		bump(podSpec.Resources.Limits, static, math.Ceil)
 	}
 	return nil
 }
