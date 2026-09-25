@@ -119,6 +119,12 @@ definitions:
       cancelUser:
         type: string
         x-nullable: true
+      preemptUser:
+        type: string
+        x-nullable: true
+      reprioritizeUser:
+        type: string
+        x-nullable: true
       node:
         type: string
         x-nullable: true

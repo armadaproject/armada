@@ -754,6 +754,10 @@ func init() {
           "type": "string",
           "x-nullable": true
         },
+        "preemptUser": {
+          "type": "string",
+          "x-nullable": true
+        },
         "priority": {
           "type": "integer",
           "format": "int64",
@@ -767,6 +771,10 @@ func init() {
           "type": "string",
           "minLength": 1,
           "x-nullable": false
+        },
+        "reprioritizeUser": {
+          "type": "string",
+          "x-nullable": true
         },
         "runs": {
           "type": "array",
@@ -1726,6 +1734,10 @@ func init() {
           "type": "string",
           "x-nullable": true
         },
+        "preemptUser": {
+          "type": "string",
+          "x-nullable": true
+        },
         "priority": {
           "type": "integer",
           "format": "int64",
@@ -1739,6 +1751,10 @@ func init() {
           "type": "string",
           "minLength": 1,
           "x-nullable": false
+        },
+        "reprioritizeUser": {
+          "type": "string",
+          "x-nullable": true
         },
         "runs": {
           "type": "array",
