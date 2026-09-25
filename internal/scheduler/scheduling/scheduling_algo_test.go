@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -1559,6 +1560,88 @@ func TestCalculateJobSchedulingInfo_AggregateMatchesLegacy(t *testing.T) {
 	components, diff := compareQueuedDemand(legacy.queuedDemandByQueueAndPriorityClass, aggregate)
 	require.Empty(t, components)
 	require.Empty(t, diff)
+}
+
+// TestCompareQueuedDemand proves the canary comparison fires when the aggregate
+// diverges from the legacy calculation, and stays silent when they agree.
+func TestCompareQueuedDemand(t *testing.T) {
+	oneCpu := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).AllResourceRequirements()
+	twoCpu := oneCpu.Add(oneCpu)
+	pc := testfixtures.PriorityClass0
+
+	newDemand := func(queue string, rl internaltypes.ResourceList) map[string]map[string]internaltypes.ResourceList {
+		return map[string]map[string]internaltypes.ResourceList{queue: {pc: rl}}
+	}
+
+	t.Run("equal demands match", func(t *testing.T) {
+		components, diff := compareQueuedDemand(newDemand("q1", oneCpu), newDemand("q1", oneCpu))
+		require.Empty(t, components)
+		require.Empty(t, diff)
+	})
+
+	t.Run("both empty match", func(t *testing.T) {
+		components, diff := compareQueuedDemand(
+			map[string]map[string]internaltypes.ResourceList{},
+			map[string]map[string]internaltypes.ResourceList{},
+		)
+		require.Empty(t, components)
+		require.Empty(t, diff)
+	})
+
+	t.Run("different quantity mismatches", func(t *testing.T) {
+		components, diff := compareQueuedDemand(newDemand("q1", twoCpu), newDemand("q1", oneCpu))
+		require.Equal(t, []string{"demand_queued"}, components)
+		require.Contains(t, diff, "q1")
+		require.Contains(t, diff, pc)
+	})
+
+	t.Run("missing queue mismatches", func(t *testing.T) {
+		components, diff := compareQueuedDemand(newDemand("q1", oneCpu), newDemand("q2", oneCpu))
+		require.Equal(t, []string{"demand_queued"}, components)
+		require.NotEmpty(t, diff)
+	})
+}
+
+// TestCalculateJobSchedulingInfo_MismatchUsesLegacyAndRecords proves the full
+// canary path on divergence: the mismatch is recorded in the
+// armada_scheduler_job_aggregate_canary_* metrics, a
+// "JobDb queued-demand aggregate mismatch for pool ..." error is logged, and
+// the authoritative legacy result is returned.
+//
+// Divergence is forced by passing a jobs slice containing a queued job that was
+// never upserted into the JobDb, so the legacy scan sees it but the aggregate
+// does not — the same shape a real aggregate accounting bug would produce.
+func TestCalculateJobSchedulingInfo_MismatchUsesLegacyAndRecords(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "canary-mismatch-pool"
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	queued := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithQueued(true).WithPools([]string{pool})
+	phantom := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithQueued(true).WithPools([]string{pool})
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{}
+
+	beforeComparisons := testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool))
+	beforeMismatches := testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool))
+	beforeComponents := testutil.ToFloat64(jobAggregateCanaryMismatchComponents.WithLabelValues(pool, "demand_queued"))
+
+	info, err := algo.calculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued, phantom}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	// Legacy wins: demand covers both jobs (2 cpu) although the aggregate only knows one.
+	cpu := info.demandByQueueAndPriorityClass["q1"][testfixtures.PriorityClass0].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(2), cpu.Value())
+
+	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool)))
+	require.Equal(t, beforeMismatches+1, testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool)))
+	require.Equal(t, beforeComponents+1, testutil.ToFloat64(jobAggregateCanaryMismatchComponents.WithLabelValues(pool, "demand_queued")))
 }
 
 // BenchmarkQueuedDemand compares the legacy per-job scan for queued demand with
