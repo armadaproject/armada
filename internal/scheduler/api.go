@@ -24,11 +24,13 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	priorityTypes "github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/hami"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/server/permissions"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
+	"github.com/armadaproject/armada/pkg/hamiapi"
 )
 
 const armadaJobPreemptibleLabel = "armada_preemptible"
@@ -155,6 +157,9 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 			addTolerations(submitMsg, PodRequirementsOverlay.Tolerations)
 			addAnnotations(submitMsg, PodRequirementsOverlay.Annotations)
 			if err := applyResourceMutations(submitMsg, PodRequirementsOverlay.ResourceMutations); err != nil {
+				return err
+			}
+			if err := applyHamiDeviceAllocations(submitMsg, PodRequirementsOverlay.HamiDeviceAllocations); err != nil {
 				return err
 			}
 		}
@@ -390,6 +395,24 @@ func addLabels(job *armadaevents.SubmitJob, labels map[string]string) {
 	for k, v := range labels {
 		job.ObjectMeta.Labels[k] = v
 	}
+}
+
+// applyHamiDeviceAllocations pins the job's pod to the HAMi GPUs reserved for
+// the run and sets the per-GPU amounts reserved on them.
+func applyHamiDeviceAllocations(job *armadaevents.SubmitJob, allocations []*hamiapi.DeviceAllocation) error {
+	if len(allocations) == 0 {
+		return nil
+	}
+	podSpec := job.GetMainObject().GetPodSpec().GetPodSpec()
+	if podSpec == nil {
+		return errors.New("cannot apply HAMi device reservation: job has no pod spec")
+	}
+	annotations, err := hami.ApplyAllocations(podSpec, allocations)
+	if err != nil {
+		return err
+	}
+	addAnnotations(job, annotations)
+	return nil
 }
 
 func addAnnotations(job *armadaevents.SubmitJob, annotations map[string]string) {

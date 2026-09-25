@@ -1,0 +1,38 @@
+# Two GPUs on a node with a single A10: the submit check fails the job and it
+# is never leased.
+numBatches: 1
+batchSize: 1
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: workload
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          command:
+            - sh
+          args:
+            - -c
+            - sleep 5
+          resources:
+            limits:
+              memory: 32Mi
+              cpu: 50m
+              nvidia.com/gpu: 2
+              nvidia.com/gpumem: 6144
+              nvidia.com/gpucores: 25
+            requests:
+              memory: 32Mi
+              cpu: 50m
+              nvidia.com/gpu: 2
+              nvidia.com/gpumem: 6144
+              nvidia.com/gpucores: 25
+---
+timeout: "180s"
+expectedEvents:
+  - submitted:
+  - failed:

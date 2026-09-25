@@ -13,7 +13,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/hami"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/pkg/hamiapi"
 )
 
 func TestNode(t *testing.T) {
@@ -656,6 +658,40 @@ func TestNode_RemoveJob(t *testing.T) {
 	}
 }
 
+// A job's view of its requests can change after it is bound. Evicting, rebinding and removing it
+// must move exactly the amount recorded at bind time, so the node's accounting stays balanced.
+func TestNode_UsesAmountRecordedAtBind(t *testing.T) {
+	tests := map[string]func(t *testing.T, node *Node, job *testSchedJob){
+		"remove": func(t *testing.T, node *Node, job *testSchedJob) {
+			require.NoError(t, node.RemoveJob(job))
+		},
+		"evict then remove": func(t *testing.T, node *Node, job *testSchedJob) {
+			require.NoError(t, node.EvictJob(job))
+			require.NoError(t, node.RemoveJob(job))
+		},
+		"evict, rebind, remove": func(t *testing.T, node *Node, job *testSchedJob) {
+			require.NoError(t, node.EvictJob(job))
+			require.NoError(t, node.AddJob(job, 10))
+			assert.Equal(t, testAccountingJobRequests(job.requests.factory), node.AllocatedByJob()[job.id])
+			require.NoError(t, node.RemoveJob(job))
+		},
+	}
+	for name, operations := range tests {
+		t.Run(name, func(t *testing.T) {
+			factory := testAccountingFactory(t)
+			node := testAccountingNode(t, factory)
+			job := testAccountingJob(factory, "job-1")
+			require.NoError(t, node.AddJob(job, 10))
+
+			// Double the job's requests after binding.
+			job.requests = job.requests.Add(job.requests)
+			operations(t, node, job)
+
+			assertNodeAccounting(t, node, factory, nodeAccountingState{})
+		})
+	}
+}
+
 // Copying a node that already has jobs on it must isolate the accounting maps, because the
 // copy is mutated in place afterwards while the original stays in the NodeDb index.
 func TestNode_DeepCopyIsolatesAccountingFromOriginal(t *testing.T) {
@@ -717,4 +753,47 @@ func createNode(allocatableResource ResourceList, allowedPriorities []int32) *No
 	)
 
 	return node
+}
+
+func TestNode_HamiDeviceUsage(t *testing.T) {
+	factory := testAccountingFactory(t)
+	node := testAccountingNode(t, factory).WithHamiInventory(&hamiapi.NodeInventory{
+		Status:  hamiapi.InventoryStatus_INVENTORY_STATUS_USABLE,
+		Devices: []*hamiapi.DeviceInfo{{Id: "gpu-0", SlotCount: 4, MemoryMib: 16384, CorePercent: 100, Healthy: true, Usable: true}},
+	})
+	low, high, evicted := testAccountingJob(factory, "low"), testAccountingJob(factory, "high"), testAccountingJob(factory, "evicted")
+	for _, bound := range []struct {
+		job      *testSchedJob
+		priority int32
+	}{{low, 1}, {high, 10}, {evicted, 10}} {
+		require.NoError(t, node.AddJob(bound.job, bound.priority))
+		node.SetHamiDeviceAllocations(bound.job.id, []*hamiapi.DeviceAllocation{{Id: "gpu-0", MemoryMib: 4096, CorePercent: 25}})
+	}
+	require.NoError(t, node.EvictJob(evicted))
+	node = node.WithReservedHamiUsage(hami.Usage{"gpu-0": {Slots: 1, MemoryMiB: 1024, CorePercent: 10}})
+
+	memory := func(priority int32, urgency bool, exclude string) int64 {
+		return node.HamiDeviceUsage(priority, urgency, exclude)["gpu-0"].MemoryMiB
+	}
+	// Other pools' reservations always count; bound jobs count at or above their priority.
+	assert.Equal(t, int64(1024+4096+4096+4096), memory(EvictedPriority, false, ""))
+	assert.Equal(t, int64(1024+4096+4096), memory(1, false, ""), "the evicted job is released above EvictedPriority")
+	assert.Equal(t, int64(1024+4096), memory(10, false, ""), "lower-priority jobs are released for higher priorities")
+	assert.Equal(t, int64(1024+4096+4096), memory(10, true, ""), "with urgency preemption the evicted job still counts")
+	assert.Equal(t, int64(1024+4096+4096), memory(EvictedPriority, false, "low"))
+	assert.Empty(t, node.HamiOversubscribedPriorities())
+
+	// Rebinding keeps the evicted job's GPUs; removing a job releases them.
+	require.NoError(t, node.AddJob(evicted, 10))
+	assert.NotNil(t, node.HamiDeviceAllocations("evicted"))
+	copied := node.DeepCopyNilKeys()
+	require.NoError(t, copied.RemoveJob(evicted))
+	assert.Nil(t, copied.HamiDeviceAllocations("evicted"))
+	assert.NotNil(t, node.HamiDeviceAllocations("evicted"), "copies do not share the ledger")
+
+	// A job placed onto GPUs held by lower-priority jobs oversubscribes them at the lower priorities.
+	urgent := testAccountingJob(factory, "urgent")
+	require.NoError(t, node.AddJob(urgent, 10))
+	node.SetHamiDeviceAllocations("urgent", []*hamiapi.DeviceAllocation{{Id: "gpu-0", MemoryMib: 4096, CorePercent: 25}})
+	assert.ElementsMatch(t, []int32{CrossPoolPriority, 1}, node.HamiOversubscribedPriorities())
 }

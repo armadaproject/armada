@@ -195,6 +195,7 @@ func setupExecutorApiComponents(
 		config.Kubernetes.NodeIdLabel,
 		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
 		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
+		config.Hami.Enabled,
 	)
 
 	failedPodChecker, err := failedpodchecks.NewPodRetryChecker(config.Kubernetes.FailedPodChecks)
@@ -218,6 +219,9 @@ func setupExecutorApiComponents(
 		config.Application.SubmitConcurrencyLimit,
 		config.Kubernetes.FatalPodSubmissionErrors,
 	)
+	if config.Hami.Enabled {
+		submitter = submitter.WithHamiScheduler(config.Hami.SchedulerNameOrDefault())
+	}
 
 	debugConfig := config.Application.DebugEvents
 	debugRenderer := reporter.NewDebugMessageRenderer(clusterContext, debugConfig)

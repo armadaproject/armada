@@ -71,6 +71,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		ResourceUsageByQueueAndPool: resourceUsageByQueueAndPool,
 		ReportingNodeType:           nodeInfo.NodeType,
 		Reservation:                 util.GetReservationName(pointer.SliceToValues(nodeInfo.Taints)),
+		HamiInventory:               nodeInfo.HamiInventory,
 	}, nil
 }
 

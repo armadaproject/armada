@@ -382,6 +382,10 @@ const (
 	WildCardWellKnownNodeTypeValue                      = "*"
 	InvalidAwayNodeTypeConditionOperatorErrorMessage    = "away node type condition has invalid operator; must be one of >, <, =="
 	PreemptionRateLimitWithMarketSchedulingErrorMessage = "preemption rate limit is not supported with market scheduling enabled on the same pool"
+	HamiWithAwayPoolsErrorMessage                       = "a pool placing onto HAMi GPUs cannot have away pools or be an away pool"
+	HamiWithOptimiserErrorMessage                       = "a pool placing onto HAMi GPUs does not support the optimiser"
+	HamiWithMarketSchedulingErrorMessage                = "a pool placing onto HAMi GPUs does not support market scheduling"
+	HamiWithoutDeviceResourcesErrorMessage              = "placing onto HAMi GPUs requires nvidia.com/gpumem and nvidia.com/gpucores in supportedResourceTypes"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
@@ -441,6 +445,16 @@ type PoolConfig struct {
 	//  where preemption ordering is determined purely by scheduled-at priority.
 	DisablePreemptCrossPoolJobsFirst bool
 	JobDefaults                      *JobDefaults
+	// Hami configures placement of GPU jobs onto HAMi (NVIDIA hami-core) GPUs.
+	Hami HamiPoolConfig
+}
+
+// HamiPoolConfig configures placement of a pool's GPU jobs onto HAMi GPUs.
+type HamiPoolConfig struct {
+	// If true, GPU jobs in this pool are placed only onto usable HAMi GPUs:
+	// Armada chooses the physical GPUs and pins the pod to them. Nodes of the
+	// pool that are not registered with HAMi receive no GPU jobs.
+	Enabled bool
 }
 
 func (p PoolConfig) GetDefaultJobTolerations() []v1.Toleration {

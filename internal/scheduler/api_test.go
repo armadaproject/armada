@@ -26,6 +26,7 @@ import (
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/hami"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
@@ -36,6 +37,7 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
+	"github.com/armadaproject/armada/pkg/hamiapi"
 )
 
 const nodeIdName = "kubernetes.io/hostname"
@@ -198,6 +200,33 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	)
 	submitWithOverlay.JobId = submit.JobId
 
+	gpuContainer := func(name string) v1.Container {
+		requests := v1.ResourceList{hami.GPUResource: resource.MustParse("2")}
+		return v1.Container{Name: name, Resources: v1.ResourceRequirements{Requests: requests, Limits: requests.DeepCopy()}}
+	}
+	hamiReservation := protoutil.MustMarshall(&schedulerobjects.PodRequirements{
+		HamiDeviceAllocations: []*hamiapi.DeviceAllocation{
+			{Id: "gpu-a", MemoryMib: 81920, CorePercent: 100},
+			{Id: "gpu-b", MemoryMib: 81920, CorePercent: 100},
+		},
+	})
+	hamiSubmit, compressedHamiSubmit := submitMsg(t,
+		&armadaevents.ObjectMeta{
+			Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
+			Annotations: map[string]string{constants.PoolAnnotation: "test-pool"},
+		},
+		&v1.PodSpec{NodeSelector: map[string]string{nodeIdName: "node-id"}, Containers: []v1.Container{gpuContainer("main")}},
+	)
+	leaseWithHamiReservation := &database.JobRunLease{
+		RunID: uuid.NewString(), Queue: "test-queue", Pool: "test-pool", JobSet: "test-jobset", UserID: "test-user",
+		Node: "node-id", Groups: compressedGroups, SubmitMessage: compressedHamiSubmit, PodRequirementsOverlay: hamiReservation,
+	}
+	reservedResources := v1.ResourceList{
+		hami.GPUResource:       *resource.NewQuantity(2, resource.DecimalSI),
+		hami.GPUMemoryResource: *resource.NewQuantity(81920, resource.DecimalSI),
+		hami.GPUCoreResource:   *resource.NewQuantity(100, resource.DecimalSI),
+	}
+
 	tests := map[string]struct {
 		request          *executorapi.LeaseRequest
 		runsToCancel     []string
@@ -264,6 +293,42 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 						User:     leaseWithOverlay.UserID,
 						Groups:   groups,
 						Job:      submitWithOverlay,
+					}},
+				},
+				{
+					Event: &executorapi.LeaseStreamMessage_End{End: &executorapi.EndMarker{}},
+				},
+			},
+		},
+		"run with HAMi reservation": {
+			request:          defaultRequest,
+			leases:           []*database.JobRunLease{leaseWithHamiReservation},
+			expectedExecutor: defaultExpectedExecutor,
+			expectedMsgs: []*executorapi.LeaseStreamMessage{
+				{
+					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
+						JobRunId: leaseWithHamiReservation.RunID,
+						Queue:    leaseWithHamiReservation.Queue,
+						Jobset:   leaseWithHamiReservation.JobSet,
+						User:     leaseWithHamiReservation.UserID,
+						Groups:   groups,
+						Job: func() *armadaevents.SubmitJob {
+							expected, _ := submitMsg(t,
+								&armadaevents.ObjectMeta{
+									Labels:      map[string]string{armadaJobPreemptibleLabel: "false"},
+									Annotations: map[string]string{constants.PoolAnnotation: "test-pool", hami.UseGPUUUIDAnnotation: "gpu-a,gpu-b"},
+								},
+								&v1.PodSpec{
+									NodeSelector: map[string]string{nodeIdName: "node-id"},
+									Containers: []v1.Container{{
+										Name:      "main",
+										Resources: v1.ResourceRequirements{Requests: reservedResources, Limits: reservedResources.DeepCopy()},
+									}},
+								},
+							)
+							expected.JobId = hamiSubmit.JobId
+							return expected
+						}(),
 					}},
 				},
 				{
@@ -710,5 +775,6 @@ func groups(t *testing.T) ([]string, []byte) {
 }
 
 func testResourceNames() []string {
-	return slices.Map(testfixtures.GetTestSupportedResourceTypes(), func(rt schedulerconfig.ResourceType) string { return rt.Name })
+	names := slices.Map(testfixtures.GetTestSupportedResourceTypes(), func(rt schedulerconfig.ResourceType) string { return rt.Name })
+	return append(names, hami.GPUMemoryResource, hami.GPUCoreResource)
 }
