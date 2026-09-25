@@ -219,6 +219,19 @@ func TestConvert_RecordsEventSizeMetricsPerTypeAndQueue(t *testing.T) {
 	assert.Greater(t, testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, failedType)), float64(0))
 }
 
+func TestGetEventNameForLifecycleTimestampEvents(t *testing.T) {
+	assert.Equal(t, "JobRunStarted", (&armadaevents.EventSequence_Event{
+		Event: &armadaevents.EventSequence_Event_JobRunStarted{
+			JobRunStarted: &armadaevents.JobRunStarted{},
+		},
+	}).GetEventName())
+	assert.Equal(t, "JobRunTerminated", (&armadaevents.EventSequence_Event{
+		Event: &armadaevents.EventSequence_Event_JobRunTerminated{
+			JobRunTerminated: &armadaevents.JobRunTerminated{},
+		},
+	}).GetEventName())
+}
+
 func TestConvert_DoesNotRecordSizeMetricsWhenCompressionFails(t *testing.T) {
 	msg := NewMsg(jobRunSucceeded, cancelled)
 	failingCompressor := &failingCompressor{}

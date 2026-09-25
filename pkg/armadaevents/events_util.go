@@ -36,6 +36,8 @@ func (ev *EventSequence_Event) GetEventName() string {
 		return "JobRunTerminatedDebugInfo"
 	case *EventSequence_Event_JobRunTerminated:
 		return "JobRunTerminated"
+	case *EventSequence_Event_JobRunStarted:
+		return "JobRunStarted"
 	case *EventSequence_Event_JobRequeued:
 		return "JobRequeued"
 	case *EventSequence_Event_PartitionMarker:
