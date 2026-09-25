@@ -50,6 +50,7 @@ func (it *NodesIterator) Next() interface{} {
 // NodeIndex is an index for internaltypes.Node that returns node.NodeDbKeys[KeyIndex].
 type NodeIndex struct {
 	KeyIndex int
+	Urgency  bool
 }
 
 // FromArgs computes the index key from a set of arguments.
@@ -64,7 +65,28 @@ func (index *NodeIndex) FromArgs(args ...interface{}) ([]byte, error) {
 // FromObject extracts the index key from a *Node.
 func (index *NodeIndex) FromObject(raw interface{}) (bool, []byte, error) {
 	node := raw.(*internaltypes.Node)
+	if index.Urgency {
+		// No key means urgency-before-fairshare ordering is off and UpsertWithTxn never
+		// computed one, so the urgency indexes are unused and must stay empty.
+		if node.Keys[index.KeyIndex] == nil {
+			return false, nil, nil
+		}
+		if !node.HasUrgencyPreemptibleResources() {
+			return false, nil, nil
+		}
+	}
 	return true, node.Keys[index.KeyIndex], nil
+}
+
+// allocatableAtPriority returns the resource view the node's index keys were built from. The urgency
+// indexes are keyed on the no-eviction view, so an iterator over them must read quantities from that
+// same view: mixing the two makes the iterator's lower-bound seeks disagree with the key ordering,
+// which can skip nodes that would have fit.
+func allocatableAtPriority(node *internaltypes.Node, priority int32, urgency bool) internaltypes.ResourceList {
+	if urgency {
+		return node.AllocatableAtPriorityNoEviction(priority)
+	}
+	return node.AllocatableAtPriority(priority)
 }
 
 // NodeTypesIterator is an iterator over all nodes of the given nodeTypes
@@ -84,9 +106,11 @@ func NewNodeTypesIterator(
 	indexedResources []string,
 	indexedResourceRequests []int64,
 	indexedResourceResolution []int64,
+	urgency bool,
 ) (*NodeTypesIterator, error) {
 	pq := &nodeTypesIteratorPQ{
 		priority:         priority,
+		urgency:          urgency,
 		indexedResources: indexedResources,
 		items:            make([]*nodeTypesIteratorPQItem, 0, len(nodeTypeIds)),
 	}
@@ -100,6 +124,7 @@ func NewNodeTypesIterator(
 			indexedResources,
 			indexedResourceRequests,
 			indexedResourceResolution,
+			urgency,
 		)
 		if err != nil {
 			return nil, err
@@ -150,6 +175,7 @@ func (it *NodeTypesIterator) NextNode() (*internaltypes.Node, error) {
 
 type nodeTypesIteratorPQ struct {
 	priority         int32
+	urgency          bool
 	indexedResources []string
 	items            []*nodeTypesIteratorPQItem
 }
@@ -168,8 +194,8 @@ func (pq *nodeTypesIteratorPQ) Less(i, j int) bool {
 }
 
 func (it *nodeTypesIteratorPQ) less(a, b *internaltypes.Node) bool {
-	allocatableByPriorityA := a.AllocatableAtPriority(it.priority)
-	allocatableByPriorityB := b.AllocatableAtPriority(it.priority)
+	allocatableByPriorityA := allocatableAtPriority(a, it.priority, it.urgency)
+	allocatableByPriorityB := allocatableAtPriority(b, it.priority, it.urgency)
 	for _, t := range it.indexedResources {
 		qa := allocatableByPriorityA.GetRawByNameZeroIfMissing(t)
 		qb := allocatableByPriorityB.GetRawByNameZeroIfMissing(t)
@@ -248,6 +274,8 @@ type NodeTypeIterator struct {
 	// Used to detect if the iterator gets stuck in a loop.
 	previousKey  []byte
 	previousNode *internaltypes.Node
+	// Whether indexName refers to an urgency index, and so which resource view to read.
+	urgency bool
 }
 
 func NewNodeTypeIterator(
@@ -259,6 +287,7 @@ func NewNodeTypeIterator(
 	indexedResources []string,
 	indexedResourceRequests []int64,
 	indexedResourceResolution []int64,
+	urgency bool,
 ) (*NodeTypeIterator, error) {
 	if len(indexedResources) != len(indexedResourceRequests) {
 		return nil, errors.Errorf("indexedResources and resourceRequirements are not of equal length")
@@ -280,6 +309,7 @@ func NewNodeTypeIterator(
 		indexedResourceResolution: indexedResourceResolution,
 		lowerBound:                slices.Clone(indexedResourceRequests),
 		newLowerBound:             slices.Clone(indexedResourceRequests),
+		urgency:                   urgency,
 	}
 	memdbIt, err := it.newNodeTypeIterator()
 	if err != nil {
@@ -338,7 +368,7 @@ func (it *NodeTypeIterator) NextNode() (*internaltypes.Node, error) {
 			// There are no more nodes of this nodeType.
 			return nil, nil
 		}
-		allocatableByPriority := node.AllocatableAtPriority(it.priority)
+		allocatableByPriority := allocatableAtPriority(node, it.priority, it.urgency)
 		if allocatableByPriority.IsEmpty() {
 			return nil, errors.Errorf("node %s has no resources registered at priority %d: %v", node.GetId(), it.priority, node.AllocatableByPriority())
 		}

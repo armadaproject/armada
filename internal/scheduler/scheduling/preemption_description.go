@@ -70,7 +70,7 @@ func calculateJobsScheduledWithUrgencyBasedPreemptionByNode(scheduledJobs []*con
 		if schedJctx.PodSchedulingContext == nil {
 			continue
 		}
-		if schedJctx.PodSchedulingContext.SchedulingMethod != context.ScheduledWithUrgencyBasedPreemption {
+		if !(schedJctx.PodSchedulingContext.SchedulingMethod == context.ScheduledWithUrgencyBasedPreemption || schedJctx.PodSchedulingContext.SchedulingMethod == context.ScheduledWithFairShareAndUrgencyPreemption) {
 			continue
 		}
 
