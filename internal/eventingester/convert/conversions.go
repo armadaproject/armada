@@ -56,8 +56,10 @@ func (ec *EventConverter) Convert(ctx *armadacontext.Context, eventsWithIds *uti
 
 		// Remove cancellation reason as it's not needed for public event store
 		clearCancellationReason(es)
-		clearDebugMessages(es)
-		removeDebugOnlyEvents(es)
+		removeEventsNotForRedis(es)
+		if len(es.Events) == 0 {
+			continue
+		}
 
 		bytes, err := proto.Marshal(es)
 		if err != nil {
@@ -115,36 +117,44 @@ func clearCancellationReason(es *armadaevents.EventSequence) {
 	}
 }
 
-// clearDebugMessages removes debug payloads from events that remain in the stream.
-// Debug info is only consumed by Lookout, which reads directly from Pulsar, so it
-// is dead weight in Redis.
-func clearDebugMessages(es *armadaevents.EventSequence) {
-	for _, e := range es.Events {
-		switch event := e.GetEvent().(type) {
-		case *armadaevents.EventSequence_Event_JobRunErrors:
-			for _, err := range event.JobRunErrors.GetErrors() {
-				switch reason := err.Reason.(type) {
-				case *armadaevents.Error_PodError:
-					reason.PodError.DebugMessage = ""
-				case *armadaevents.Error_PodLeaseReturned:
-					reason.PodLeaseReturned.DebugMessage = ""
-				}
-			}
-		}
-	}
-}
-
-// removeDebugOnlyEvents drops events that exist purely to carry debug info and
-// have no value for any Redis consumer. Lookout consumes these from Pulsar.
-func removeDebugOnlyEvents(es *armadaevents.EventSequence) {
+// removeEventsNotForRedis drops event data that has no value for Redis consumers.
+// Lookout consumes the dropped data directly from Pulsar.
+func removeEventsNotForRedis(es *armadaevents.EventSequence) {
 	filtered := es.Events[:0]
 	for _, e := range es.Events {
-		switch e.GetEvent().(type) {
+		switch event := e.GetEvent().(type) {
+		// Do not filter JobRunErrors with LeaseExpired or PodLeaseReturned reasons, as those are consumed
+		case *armadaevents.EventSequence_Event_JobRunErrors:
+			jobRunErrors := event.JobRunErrors
+			if jobRunErrors == nil {
+				continue
+			}
+
+			errors := jobRunErrors.Errors[:0]
+			for _, err := range jobRunErrors.Errors {
+				if err == nil {
+					continue
+				}
+				switch reason := err.Reason.(type) {
+				case *armadaevents.Error_LeaseExpired:
+					errors = append(errors, err)
+				// Clear debug message to further optimize redis memory usage
+				case *armadaevents.Error_PodLeaseReturned:
+					if reason.PodLeaseReturned == nil {
+						continue
+					}
+					reason.PodLeaseReturned.DebugMessage = ""
+					errors = append(errors, err)
+				}
+			}
+			jobRunErrors.Errors = errors
+			if len(errors) == 0 {
+				continue
+			}
 		case *armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo:
 			continue
-		default:
-			filtered = append(filtered, e)
 		}
+		filtered = append(filtered, e)
 	}
 	es.Events = filtered
 }
