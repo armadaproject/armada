@@ -45,3 +45,13 @@ message NodeInventory {
   // Bounded, human-readable reason for a non-usable status.
   string reason = 3;
 }
+
+// DeviceAllocation is the amount of one physical GPU reserved for a job run.
+message DeviceAllocation {
+  // Physical GPU UUID.
+  string id = 1;
+  // Memory reserved on the device, in MiB.
+  int64 memory_mib = 2;
+  // Compute reserved on the device, in percent.
+  int32 core_percent = 3;
+}

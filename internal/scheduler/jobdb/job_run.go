@@ -7,12 +7,14 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"k8s.io/utils/ptr"
+
+	"github.com/armadaproject/armada/pkg/hamiapi"
 )
 
 // JobRun is the scheduler-internal representation of a job run.
 //
-// There are columns in the `runs` table that are not needed in the scheduler,
-// such as `pod_requirements_overlay`; these are not represented here.
+// Of the run's `pod_requirements_overlay`, only the HAMi device allocations
+// are represented here; the rest is only needed when serving the lease.
 type JobRun struct {
 	// Unique identifier for the run.
 	id string
@@ -73,6 +75,9 @@ type JobRun struct {
 	returned bool
 	// True if the job has been returned and the job was given a chance to run.
 	runAttempted bool
+	// Physical HAMi GPUs reserved for this run and the amount reserved on each.
+	// Immutable: never modified after it is set.
+	hamiDeviceAllocations []*hamiapi.DeviceAllocation
 }
 
 func (run *JobRun) String() string {
@@ -215,6 +220,21 @@ func (run *JobRun) Equal(other *JobRun) bool {
 	}
 	if !ptr.Equal(run.preemptUser, other.preemptUser) {
 		return false
+	}
+	if !deviceAllocationsEqual(run.hamiDeviceAllocations, other.hamiDeviceAllocations) {
+		return false
+	}
+	return true
+}
+
+func deviceAllocationsEqual(a, b []*hamiapi.DeviceAllocation) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Id != b[i].Id || a[i].MemoryMib != b[i].MemoryMib || a[i].CorePercent != b[i].CorePercent {
+			return false
+		}
 	}
 	return true
 }
@@ -556,6 +576,31 @@ func (run *JobRun) WithoutTerminal() *JobRun {
 // InTerminalState returns true if the JobRun is in a terminal state
 func (run *JobRun) InTerminalState() bool {
 	return run.succeeded || run.failed || run.cancelled || run.returned
+}
+
+// HamiDeviceAllocations returns the physical HAMi GPUs reserved for this run.
+// The result is shared and must not be modified.
+func (run *JobRun) HamiDeviceAllocations() []*hamiapi.DeviceAllocation {
+	return run.hamiDeviceAllocations
+}
+
+// WithHamiDeviceAllocations returns a copy of the run with the given HAMi GPU reservation.
+func (run *JobRun) WithHamiDeviceAllocations(allocations []*hamiapi.DeviceAllocation) *JobRun {
+	run = run.DeepCopy()
+	run.hamiDeviceAllocations = cloneDeviceAllocations(allocations)
+	return run
+}
+
+func cloneDeviceAllocations(allocations []*hamiapi.DeviceAllocation) []*hamiapi.DeviceAllocation {
+	if len(allocations) == 0 {
+		return nil
+	}
+	result := make([]*hamiapi.DeviceAllocation, len(allocations))
+	for i, allocation := range allocations {
+		clone := *allocation
+		result[i] = &clone
+	}
+	return result
 }
 
 func (run *JobRun) DeepCopy() *JobRun {

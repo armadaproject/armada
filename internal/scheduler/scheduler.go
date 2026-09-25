@@ -1041,6 +1041,9 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 								// spec: the original submit message plus the job's total resource
 								// growth. The executor receives the finished spec.
 								ResourceMutations: internaltypes.RetryResourceMutationsToProto(job.JobSchedulingInfo().ResourceMutations),
+								// Physical GPUs reserved for the run. Persisted with the run so the
+								// reservation survives a scheduler restart.
+								HamiDeviceAllocations: run.HamiDeviceAllocations(),
 							},
 							Pool: run.Pool(),
 						},

@@ -133,6 +133,10 @@ message PodRequirements {
     // mutations. The scheduler applies it to the pod spec when it serves the
     // lease. It is set only on the per-run overlay.
     RetryResourceMutations resource_mutations = 9;
+    // hami_device_allocations are the physical GPUs reserved for the run and the
+    // amount reserved on each. The scheduler writes them into the pod when it
+    // serves the lease. They are set only on the per-run overlay.
+    repeated hamiapi.DeviceAllocation hami_device_allocations = 10;
 }
 
 message ExecutorSettings {

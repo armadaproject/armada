@@ -12,6 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/hamiapi"
 )
 
 // JobStateTransitions captures the process of updating a job.
@@ -223,7 +224,19 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 
 	// Reconcile run state transitions.
 	for _, jobRepoRun := range jobRepoRuns {
-		rst := jobDb.reconcileRunDifferences(job.RunById(jobRepoRun.RunID), jobRepoRun)
+		existingRun := job.RunById(jobRepoRun.RunID)
+		rst := jobDb.reconcileRunDifferences(existingRun, jobRepoRun)
+		if existingRun == nil && rst.JobRun != nil {
+			// Runs created by this scheduler already carry their HAMi reservation;
+			// runs loaded from the database recover it from the persisted overlay.
+			allocations, overlayErr := hamiDeviceAllocationsFromOverlay(jobRepoRun.PodRequirementsOverlay)
+			if overlayErr != nil {
+				return jst, errors.Wrapf(overlayErr, "error unmarshalling pod requirements overlay for run %s", jobRepoRun.RunID)
+			}
+			if len(allocations) > 0 {
+				rst.JobRun = rst.JobRun.WithHamiDeviceAllocations(allocations)
+			}
+		}
 		jst = jst.applyRunStateTransitions(rst)
 		job = job.WithUpdatedRun(rst.JobRun)
 	}
@@ -368,6 +381,17 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		job = job.WithReprioritiseUser(dbJob.ReprioritiseUser)
 	}
 	return job, nil
+}
+
+func hamiDeviceAllocationsFromOverlay(overlayBytes []byte) ([]*hamiapi.DeviceAllocation, error) {
+	if len(overlayBytes) == 0 {
+		return nil, nil
+	}
+	overlay := &schedulerobjects.PodRequirements{}
+	if err := proto.Unmarshal(overlayBytes, overlay); err != nil {
+		return nil, err
+	}
+	return overlay.HamiDeviceAllocations, nil
 }
 
 // schedulerRunFromDatabaseRun creates a new scheduler job run from a database job run

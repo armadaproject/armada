@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/constants"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/hami"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
@@ -56,6 +57,9 @@ type Job struct {
 	allResourceRequirements internaltypes.ResourceList
 	// Kubernetes (i.e. non-floating) resource requirements of this job
 	kubernetesResourceRequirements internaltypes.ResourceList
+	// HAMi device request of this job, and the error if the request is invalid.
+	hamiRequest    hami.Request
+	hamiRequestErr error
 	// Priority class of this job. Populated automatically on job creation.
 	priorityClass types.PriorityClass
 	// True if the user has requested this job be cancelled
@@ -970,7 +974,8 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *internaltypes.JobSchedu
 	// Changing the scheduling info invalidates the scheduling key stored with the job.
 	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)
 
-	j.allResourceRequirements = j.jobDb.getResourceRequirements(jobSchedulingInfo)
+	j.hamiRequest, j.hamiRequestErr = hamiRequestFromSchedulingInfo(jobSchedulingInfo)
+	j.allResourceRequirements = j.jobDb.getResourceRequirements(jobSchedulingInfo, j.hamiRequest, j.hamiRequestErr)
 	j.kubernetesResourceRequirements = j.allResourceRequirements.OfType(internaltypes.Kubernetes)
 
 	return j, nil
