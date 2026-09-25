@@ -30,6 +30,7 @@ var (
 		addGangIdLabel,
 	}
 	podLevelProcessors = []podProcessor{
+		dropPodLevelResourcesIfDisabled,
 		defaultActiveDeadlineSeconds,
 		defaultPriorityClass,
 		defaultResource,
@@ -86,12 +87,13 @@ func defaultActiveDeadlineSeconds(spec *v1.PodSpec, config configuration.Submiss
 		return
 	}
 	var activeDeadlineSeconds float64
+	// Matched against the pod's effective request, as defaultTolerations does, so a resource carried
+	// only by an init container or by the pod-level block (KEP-2837) still selects its deadline.
+	resourceRequest := armadaresource.TotalPodResourceRequest(spec)
 	for resourceType, activeDeadlineForResource := range config.DefaultActiveDeadlineByResourceRequest {
-		for _, c := range spec.Containers {
-			q := c.Resources.Requests[v1.ResourceName(resourceType)]
-			if q.Cmp(resource.Quantity{}) == 1 && activeDeadlineForResource.Seconds() > activeDeadlineSeconds {
-				activeDeadlineSeconds = activeDeadlineForResource.Seconds()
-			}
+		q := resourceRequest[resourceType]
+		if q.Cmp(resource.Quantity{}) == 1 && activeDeadlineForResource.Seconds() > activeDeadlineSeconds {
+			activeDeadlineSeconds = activeDeadlineForResource.Seconds()
 		}
 	}
 	if activeDeadlineSeconds == 0 {
@@ -110,10 +112,35 @@ func defaultPriorityClass(spec *v1.PodSpec, config configuration.SubmissionConfi
 	}
 }
 
+// Clears the pod-level resources block (KEP-2837) unless the feature is enabled, so all downstream
+// accounting ignores it when the feature is off. validatePodLevelResourcesEnabled already rejects
+// such a submission, so this only keeps the conversion layer self-consistent on its own.
+func dropPodLevelResourcesIfDisabled(spec *v1.PodSpec, config configuration.SubmissionConfig) {
+	if !config.PodLevelResources {
+		spec.Resources = nil
+	}
+}
+
 // Adds resources defined in config.DefaultJobLimits to all containers in the podspec if that container is missing
 // requests/limits for that particular resource. This can be used to e.g. ensure that all jobs define at least some
 // ephemeral storage.
+//
+// A resource in the pod-level block gets no container default. A container default becomes a container limit
+// below the pod-level budget, and the containers cannot use that budget. Resources that Kubernetes does not
+// support at the pod level, for example ephemeral-storage, still get the default.
+// This relies on dropPodLevelResourcesIfDisabled to run first.
 func defaultResource(spec *v1.PodSpec, config configuration.SubmissionConfig) {
+	pooledAtPodLevel := func(res string) bool {
+		if spec.Resources == nil {
+			return false
+		}
+		if _, ok := spec.Resources.Requests[v1.ResourceName(res)]; ok {
+			return true
+		}
+		_, ok := spec.Resources.Limits[v1.ResourceName(res)]
+		return ok
+	}
+
 	applyDefaults := func(containers []v1.Container) {
 		for i := range containers {
 			c := &containers[i]
@@ -124,6 +151,9 @@ func defaultResource(spec *v1.PodSpec, config configuration.SubmissionConfig) {
 				c.Resources.Requests = map[v1.ResourceName]resource.Quantity{}
 			}
 			for res, val := range config.DefaultJobLimits {
+				if pooledAtPodLevel(res) {
+					continue
+				}
 				_, hasLimit := c.Resources.Limits[v1.ResourceName(res)]
 				_, hasRequest := c.Resources.Requests[v1.ResourceName(res)]
 				if !hasLimit && !hasRequest {
