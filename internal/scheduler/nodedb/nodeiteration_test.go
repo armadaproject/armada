@@ -345,6 +345,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				nodeDb.indexedResources,
 				indexedResourceRequests,
 				nodeDb.indexedResourceResolution,
+				false,
 			)
 			require.NoError(t, err)
 
@@ -668,6 +669,7 @@ func TestNodeTypesIterator(t *testing.T) {
 				nodeDb.indexedResources,
 				indexedResourceRequests,
 				nodeDb.indexedResourceResolution,
+				false,
 			)
 			require.NoError(t, err)
 
@@ -735,6 +737,7 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 			nodeDb.indexedResources,
 			indexedResourceRequests,
 			nodeDb.indexedResourceResolution,
+			false,
 		)
 		require.NoError(b, err)
 		for {
@@ -755,4 +758,86 @@ func labelsToNodeType(labels map[string]string) *internaltypes.NodeType {
 		util.StringListToSet(testfixtures.TestIndexedNodeLabels),
 	)
 	return nodeType
+}
+
+// The urgency indexes are keyed on the no-eviction view, so an iterator over them must also order
+// nodes by that view. Ordering by the eviction-aware view instead returns a worse-fitting node
+// first, because eviction hands resources back in that view but not in the no-eviction one.
+func TestNodeTypesIterator_UrgencyOrdersByNoEvictionView(t *testing.T) {
+	nodeDb, err := newNodeDbWithNodes(nil, withUrgencyBeforeFairsharePreemption)
+	require.NoError(t, err)
+	priority := testfixtures.TestPriorityClasses[testfixtures.PriorityClass1].Priority
+
+	// Two distinct node types, so the merging priority queue has to order across them rather than
+	// relying on each index's own key order.
+	withLabel := func(node *internaltypes.Node, value string) *internaltypes.Node {
+		labels := node.GetLabels()
+		labels["largeJobsOnly"] = value
+		return node.WithLabels(labels)
+	}
+
+	// node-a keeps its jobs bound, so both views agree: 28 CPU free at priority.
+	nodeA := withLabel(testfixtures.Test32CpuNode(testfixtures.TestPriorities), "a")
+	nodeA = testfixtures.WithIndexNode(0, testfixtures.WithIdNodes("node-a", []*internaltypes.Node{nodeA})[0])
+	// node-b has its jobs evicted, so the eviction-aware view reads 32 CPU free while the
+	// no-eviction view still reads 20.
+	nodeB := withLabel(testfixtures.Test32CpuNode(testfixtures.TestPriorities), "b")
+	nodeB = testfixtures.WithIndexNode(1, testfixtures.WithIdNodes("node-b", []*internaltypes.Node{nodeB})[0])
+
+	txn := nodeDb.Txn(true)
+	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(
+		txn, testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 4), nodeA))
+	evictable := testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass1, 12)
+	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, evictable, nodeB))
+	txn.Commit()
+
+	storedB, err := nodeDb.GetNode(nodeB.GetId())
+	require.NoError(t, err)
+	evictedB, err := nodeDb.EvictJobsFromNode(evictable, storedB)
+	require.NoError(t, err)
+	txn = nodeDb.Txn(true)
+	require.NoError(t, nodeDb.UpsertWithTxn(txn, evictedB))
+	txn.Commit()
+
+	storedA, err := nodeDb.GetNode(nodeA.GetId())
+	require.NoError(t, err)
+	// Preconditions. node-a's views agree; node-b's do not, because eviction gave its resources
+	// back in the eviction-aware view only. That inverts which node looks like the tighter fit:
+	// by the no-eviction view node-b has less free, by the eviction-aware view it has more.
+	require.Equal(t, storedA.AllocatableAtPriority(priority), storedA.AllocatableAtPriorityNoEviction(priority))
+	require.NotEqual(t, evictedB.AllocatableAtPriority(priority), evictedB.AllocatableAtPriorityNoEviction(priority))
+	cpu := func(rl internaltypes.ResourceList) int64 { return rl.GetRawByNameZeroIfMissing("cpu") }
+	require.Less(t, cpu(evictedB.AllocatableAtPriorityNoEviction(priority)), cpu(storedA.AllocatableAtPriorityNoEviction(priority)))
+	require.Greater(t, cpu(evictedB.AllocatableAtPriority(priority)), cpu(storedA.AllocatableAtPriority(priority)))
+
+	indexedResourceRequests := make([]int64, len(testfixtures.TestResourceNames))
+	for i, name := range testfixtures.TestResourceNames {
+		indexedResourceRequests[i], err = testfixtures.CpuMem("1", "1Gi").GetRawByName(name)
+		require.NoError(t, err)
+	}
+
+	it, err := NewNodeTypesIterator(
+		nodeDb.Txn(false),
+		[]uint64{storedA.GetNodeTypeId(), evictedB.GetNodeTypeId()},
+		nodeDb.urgencyIndexNameByPriority[priority],
+		priority,
+		nodeDb.urgencyKeyIndexByPriority[priority],
+		nodeDb.indexedResources,
+		indexedResourceRequests,
+		nodeDb.indexedResourceResolution,
+		true,
+	)
+	require.NoError(t, err)
+
+	actual := []string{}
+	for {
+		node, err := it.NextNode()
+		require.NoError(t, err)
+		if node == nil {
+			break
+		}
+		actual = append(actual, node.GetId())
+	}
+	// Ascending no-eviction capacity: node-b (20 CPU) before node-a (28 CPU).
+	assert.Equal(t, []string{"node-b", "node-a"}, actual)
 }

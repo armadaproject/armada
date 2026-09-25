@@ -26,7 +26,7 @@ import (
 )
 
 func TestNodeDbSchema(t *testing.T) {
-	schema, _, _ := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResourceNames)
+	schema, _, _, _, _ := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResourceNames)
 	assert.NoError(t, schema.Validate())
 }
 
@@ -53,6 +53,87 @@ func TestNodeDbPoolSetter(t *testing.T) {
 
 	nodeDb.SetPool("gpu")
 	require.Equal(t, "gpu", nodeDb.GetPool())
+}
+
+func TestUrgencyIndexMembership(t *testing.T) {
+	tests := map[string]struct {
+		urgencyBeforeFairsharePreemption bool
+		// jobPriorityClass is the priority class of the jobs bound to the node; empty leaves it idle.
+		jobPriorityClass string
+		// expectUrgencyPreemptible is the node's own view of whether it holds anything preemptible,
+		// which does not depend on the ordering flag.
+		expectUrgencyPreemptible bool
+		expectIndexed            bool
+	}{
+		"idle node holds nothing to urgency-preempt": {
+			urgencyBeforeFairsharePreemption: true,
+			expectUrgencyPreemptible:         false,
+			expectIndexed:                    false,
+		},
+		"jobs at the highest priority cannot be urgency-preempted by anything": {
+			// Every bucket is debited equally, so no incoming job could outrank these.
+			urgencyBeforeFairsharePreemption: true,
+			jobPriorityClass:                 testfixtures.PriorityClass6Preemptible,
+			expectUrgencyPreemptible:         false,
+			expectIndexed:                    false,
+		},
+		"jobs below the highest priority are urgency-preemptible, so the node is indexed": {
+			urgencyBeforeFairsharePreemption: true,
+			jobPriorityClass:                 testfixtures.PriorityClass0,
+			expectUrgencyPreemptible:         true,
+			expectIndexed:                    true,
+		},
+		"ordering disabled leaves the index empty even for a node holding preemptible jobs": {
+			// The node still reports preemptible resources; only the indexing is skipped.
+			urgencyBeforeFairsharePreemption: false,
+			jobPriorityClass:                 testfixtures.PriorityClass0,
+			expectUrgencyPreemptible:         true,
+			expectIndexed:                    false,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			var opts []func(*NodeDb)
+			if tc.urgencyBeforeFairsharePreemption {
+				opts = append(opts, withUrgencyBeforeFairsharePreemption)
+			}
+			nodeDb, err := newNodeDbWithNodes(nil, opts...)
+			require.NoError(t, err)
+
+			var jobs []*jobdb.Job
+			if tc.jobPriorityClass != "" {
+				jobs = testfixtures.N1Cpu4GiJobs("A", tc.jobPriorityClass, 4)
+			}
+			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+			txn := nodeDb.Txn(true)
+			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobs, node))
+			txn.Commit()
+
+			stored, err := nodeDb.GetNode(node.GetId())
+			require.NoError(t, err)
+			require.Equal(t, tc.expectUrgencyPreemptible, stored.HasUrgencyPreemptibleResources())
+
+			readTxn := nodeDb.Txn(false)
+			defer readTxn.Abort()
+
+			// The eviction-aware indexes are always populated, so a missing node below really does
+			// mean it was left out of the urgency index rather than out of the NodeDb entirely.
+			for _, priority := range nodeDb.realPriorities {
+				it, err := readTxn.Get("nodes", nodeDb.indexNameByPriority[priority])
+				require.NoError(t, err)
+				require.NotNil(t, it.Next(), "eviction-aware index for priority %d should hold the node", priority)
+
+				urgencyIt, err := readTxn.Get("nodes", nodeDb.urgencyIndexNameByPriority[priority])
+				require.NoError(t, err)
+				if tc.expectIndexed {
+					require.NotNil(t, urgencyIt.Next(), "urgency index for priority %d should hold the node", priority)
+				} else {
+					require.Nil(t, urgencyIt.Next(), "urgency index for priority %d should be empty", priority)
+				}
+			}
+		})
+	}
 }
 
 // Test the accounting of total resources across all nodes.
@@ -994,6 +1075,163 @@ func TestPreemptionScheduling(t *testing.T) {
 	}
 }
 
+func TestFairshareAndUrgencyPreemption(t *testing.T) {
+	tests := map[string]struct {
+		urgencyBeforeFairsharePreemption bool
+		disableUrgencyScheduling         bool
+		urgencyPreemptibleJobs           int
+		fairsharePreemptibleJobs         int
+		incomingJob                      func(queue string, priorityClassName string, n int) []*jobdb.Job
+		expectedSchedulingMethod         context.SchedulingType
+		expectedFairsharePreemptedJobs   int
+		// expectNotScheduled cases leave expectedSchedulingMethod unset.
+		expectNotScheduled bool
+	}{
+		"only urgency-preemptible jobs / fairshare first": {
+			urgencyPreemptibleJobs:         32,
+			incomingJob:                    testfixtures.N1Cpu4GiJobs,
+			expectedSchedulingMethod:       context.ScheduledWithUrgencyBasedPreemption,
+			expectedFairsharePreemptedJobs: 0,
+		},
+		"only urgency-preemptible jobs / urgency first": {
+			urgencyBeforeFairsharePreemption: true,
+			urgencyPreemptibleJobs:           32,
+			incomingJob:                      testfixtures.N1Cpu4GiJobs,
+			expectedSchedulingMethod:         context.ScheduledWithUrgencyBasedPreemption,
+			expectedFairsharePreemptedJobs:   0,
+		},
+		"only fair-share-preemptible jobs / fairshare first": {
+			fairsharePreemptibleJobs:       32,
+			incomingJob:                    testfixtures.N1Cpu4GiJobs,
+			expectedSchedulingMethod:       context.ScheduledWithFairSharePreemption,
+			expectedFairsharePreemptedJobs: 1,
+		},
+		"only fair-share-preemptible jobs / urgency first": {
+			// The evicted jobs share the incoming job's priority, so urgency cannot preempt them
+			// and has to fall through to fair-share even though it is tried first.
+			urgencyBeforeFairsharePreemption: true,
+			fairsharePreemptibleJobs:         32,
+			incomingJob:                      testfixtures.N1Cpu4GiJobs,
+			expectedSchedulingMethod:         context.ScheduledWithFairSharePreemption,
+			expectedFairsharePreemptedJobs:   1,
+		},
+		"both strategies viable / fairshare first": {
+			urgencyPreemptibleJobs:         16,
+			fairsharePreemptibleJobs:       16,
+			incomingJob:                    testfixtures.N1Cpu4GiJobs,
+			expectedSchedulingMethod:       context.ScheduledWithFairSharePreemption,
+			expectedFairsharePreemptedJobs: 1,
+		},
+		"both strategies viable / urgency first": {
+			urgencyBeforeFairsharePreemption: true,
+			urgencyPreemptibleJobs:           16,
+			fairsharePreemptibleJobs:         16,
+			incomingJob:                      testfixtures.N1Cpu4GiJobs,
+			expectedSchedulingMethod:         context.ScheduledWithUrgencyBasedPreemption,
+			expectedFairsharePreemptedJobs:   0,
+		},
+		// 32 CPU is only available as 16 CPU of urgency-preemptible PriorityClass0 jobs plus the
+		// 16 CPU held by the evicted jobs, so neither strategy can place it on its own.
+		"needs both strategies / fairshare first": {
+			// Fair-share starts from the EvictedPriority view and only gains the evicted jobs'
+			// 16 CPU, so it cannot fit the job. Urgency then reads the eviction-aware view, where
+			// eviction has already given those 16 CPU back, so it accepts the node and reports no
+			// preempted jobs, i.e. without committing to keeping the evicted jobs off it.
+			urgencyPreemptibleJobs:         16,
+			fairsharePreemptibleJobs:       16,
+			incomingJob:                    testfixtures.N32Cpu256GiJobs,
+			expectedSchedulingMethod:       context.ScheduledWithUrgencyBasedPreemption,
+			expectedFairsharePreemptedJobs: 0,
+		},
+		"urgency disabled: fair-share must not borrow urgency headroom": {
+			// Fitting this job needs both the 16 CPU held by evicted jobs and the 16 CPU held by
+			// non-evicted PriorityClass0 jobs. Freeing the latter means urgency-preempting them,
+			// which is disabled here, so the job must not be scheduled. Seeding fair-share from the
+			// no-eviction view would hand it that headroom anyway and schedule the job.
+			urgencyBeforeFairsharePreemption: true,
+			disableUrgencyScheduling:         true,
+			urgencyPreemptibleJobs:           16,
+			fairsharePreemptibleJobs:         16,
+			incomingJob:                      testfixtures.N32Cpu256GiJobs,
+			expectNotScheduled:               true,
+		},
+		"needs both strategies / urgency first": {
+			// Urgency reads the no-eviction view, which still counts the evicted jobs, so it
+			// correctly declines. Fair-share then starts from that same view at the incoming job's
+			// priority and adds the evicted jobs on top, so the job fits and all 16 are reported.
+			urgencyBeforeFairsharePreemption: true,
+			urgencyPreemptibleJobs:           16,
+			fairsharePreemptibleJobs:         16,
+			incomingJob:                      testfixtures.N32Cpu256GiJobs,
+			expectedSchedulingMethod:         context.ScheduledWithFairShareAndUrgencyPreemption,
+			expectedFairsharePreemptedJobs:   16,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			var opts []func(*NodeDb)
+			if tc.urgencyBeforeFairsharePreemption {
+				opts = append(opts, withUrgencyBeforeFairsharePreemption)
+			}
+			nodeDb, err := newNodeDbWithNodes(nil, opts...)
+			require.NoError(t, err)
+			if tc.disableUrgencyScheduling {
+				nodeDb.ConfigureScheduling(SchedulingOptions{
+					UrgencyBeforeFairsharePreemption: tc.urgencyBeforeFairsharePreemption,
+					DisableUrgencyScheduling:         true,
+				})
+			}
+
+			urgencyPreemptible := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, tc.urgencyPreemptibleJobs)
+			fairsharePreemptible := testfixtures.N1Cpu4GiJobs("C", testfixtures.PriorityClass1, tc.fairsharePreemptibleJobs)
+
+			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+			txn := nodeDb.Txn(true)
+			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(
+				txn, append(slices.Clone(urgencyPreemptible), fairsharePreemptible...), node))
+			txn.Commit()
+
+			// Evict the fair-share-preemptible jobs so fair-share preemption has candidates.
+			if len(fairsharePreemptible) > 0 {
+				stored, err := nodeDb.GetNode(node.GetId())
+				require.NoError(t, err)
+				evictedNode, err := nodeDb.EvictJobsFromNode(fairsharePreemptible, stored)
+				require.NoError(t, err)
+
+				txn = nodeDb.Txn(true)
+				require.NoError(t, nodeDb.UpsertWithTxn(txn, evictedNode))
+				for i, job := range fairsharePreemptible {
+					evictedJctx := context.JobSchedulingContextFromJob(job)
+					evictedJctx.SetAssignedNode(evictedNode)
+					require.NoError(t, nodeDb.AddEvictedJobSchedulingContextWithTxn(txn, i, evictedJctx))
+				}
+				txn.Commit()
+			}
+
+			incoming := tc.incomingJob("B", testfixtures.PriorityClass1, 1)[0]
+			jctx := context.JobSchedulingContextFromJob(incoming)
+			gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
+
+			txn = nodeDb.Txn(true)
+			defer txn.Abort()
+			ok, preemptedJobs, err := nodeDb.ScheduleManyWithTxn(txn, gctx)
+			require.NoError(t, err)
+
+			if tc.expectNotScheduled {
+				require.False(t, ok, "job should not be scheduled")
+				return
+			}
+			require.True(t, ok, "job should be scheduled")
+			require.NotNil(t, jctx.PodSchedulingContext)
+			assert.True(t, jctx.PodSchedulingContext.IsSuccessful())
+			assert.Equal(t, node.GetId(), jctx.PodSchedulingContext.NodeId)
+			assert.Equal(t, tc.expectedSchedulingMethod, jctx.PodSchedulingContext.SchedulingMethod)
+			assert.Len(t, preemptedJobs, tc.expectedFairsharePreemptedJobs)
+		})
+	}
+}
+
 func TestFairSharePreemption_RespectsPriorityOrder(t *testing.T) {
 	tests := map[string]struct {
 		evictedJobPriorityClass string
@@ -1117,6 +1355,60 @@ func TestPreemptedJobIsNotRescheduled(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUrgencyFitCheckUsesUrgencyView(t *testing.T) {
+	nodeDb, err := newNodeDbWithNodes(nil, withUrgencyBeforeFairsharePreemption)
+	require.NoError(t, err)
+
+	txn := nodeDb.Txn(true)
+	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+	boundJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)
+	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, boundJobs, node))
+	txn.Commit()
+
+	node, err = nodeDb.GetNode(node.GetId())
+	require.NoError(t, err)
+
+	evictedNode, err := nodeDb.EvictJobsFromNode(boundJobs, node)
+	require.NoError(t, err)
+
+	txn = nodeDb.Txn(true)
+	require.NoError(t, nodeDb.UpsertWithTxn(txn, evictedNode))
+	txn.Commit()
+
+	p0 := testfixtures.TestPriorityClasses[testfixtures.PriorityClass0].Priority
+	p1 := testfixtures.TestPriorityClasses[testfixtures.PriorityClass1].Priority
+
+	incoming := testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass1, 1)[0]
+	jctx := context.JobSchedulingContextFromJob(incoming)
+	jctx.PodSchedulingContext = &context.PodSchedulingContext{
+		ScheduledAtPriority:      incoming.PriorityClass().Priority,
+		PreemptedAtPriority:      internaltypes.MinPriority,
+		NumExcludedNodesByReason: make(map[string]int),
+	}
+
+	readTxn := nodeDb.Txn(false)
+	defer readTxn.Abort()
+
+	it, err := readTxn.Get("nodes", "id", evictedNode.GetId())
+	require.NoError(t, err)
+	selected, err := nodeDb.selectNodeForPodWithItAtPriority(it, jctx, p0, false, true)
+	require.NoError(t, err)
+	assert.Nil(t, selected, "at p0 the urgency view still counts the 32 evicted jobs, so the node must not fit")
+
+	it2, err := readTxn.Get("nodes", "id", evictedNode.GetId())
+	require.NoError(t, err)
+	selected2, err := nodeDb.selectNodeForPodWithItAtPriority(it2, jctx, p1, false, true)
+	require.NoError(t, err)
+	require.NotNil(t, selected2, "at p1 the urgency view frees the evicted p0 jobs, so the node must fit")
+	assert.Equal(t, evictedNode.GetId(), selected2.GetId())
+
+	it3, err := readTxn.Get("nodes", "id", evictedNode.GetId())
+	require.NoError(t, err)
+	selected3, err := nodeDb.selectNodeForPodWithItAtPriority(it3, jctx, p0, false, false)
+	require.NoError(t, err)
+	require.NotNil(t, selected3, "with urgency=false the fit-check reads AllocatableByPriority, which the give-back already freed at p0")
 }
 
 func TestMatchesConditions(t *testing.T) {
@@ -1715,7 +2007,14 @@ func TestBindUnbind_NonPreemptibleReleasesEveryBucket(t *testing.T) {
 	}
 }
 
-func newNodeDbWithNodes(nodes []*internaltypes.Node) (*NodeDb, error) {
+// withUrgencyBeforeFairsharePreemption enables urgency-before-fairshare preemption ordering.
+// It has to be applied before any node is inserted, since that is what decides whether nodes are
+// added to the urgency index; newNodeDbWithNodes guarantees that ordering.
+func withUrgencyBeforeFairsharePreemption(nodeDb *NodeDb) {
+	nodeDb.ConfigureScheduling(SchedulingOptions{UrgencyBeforeFairsharePreemption: true})
+}
+
+func newNodeDbWithNodes(nodes []*internaltypes.Node, opts ...func(*NodeDb)) (*NodeDb, error) {
 	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
 		testfixtures.TestResources,
@@ -1726,6 +2025,9 @@ func newNodeDbWithNodes(nodes []*internaltypes.Node) (*NodeDb, error) {
 	)
 	if err != nil {
 		return nil, err
+	}
+	for _, opt := range opts {
+		opt(nodeDb)
 	}
 	txn := nodeDb.Txn(true)
 	for _, node := range nodes {
