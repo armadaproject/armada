@@ -66,9 +66,6 @@ submission:
   defaultActiveDeadlineByResourceRequest:
     nvidia.com/gpu: "336h" # 14 days.
   assertInitContainersRequestFractionalCpu: true
-  # Honour podSpec.resources (KEP-2837). Must be listed here even when false, or
-  # ARMADA_SUBMISSION_PODLEVELRESOURCES is silently ignored: viper's AutomaticEnv
-  # only resolves keys a config file or default already declares.
   podLevelResources: false
 pulsar:
   URL: "pulsar://pulsar:6650"

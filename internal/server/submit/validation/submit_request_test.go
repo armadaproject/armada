@@ -1290,9 +1290,10 @@ func TestValidateResources_PodLevelKubernetesParity(t *testing.T) {
 	emptyContainer := []v1.Container{{Name: "main"}}
 
 	tests := map[string]struct {
-		req             *api.JobSubmitRequestItem
-		expectSuccess   bool
-		expectErrSubstr string
+		req                                  *api.JobSubmitRequestItem
+		maxOversubscriptionByResourceRequest map[string]float64
+		expectSuccess                        bool
+		expectErrSubstr                      string
 	}{
 		"cpu and memory accepted at the pod level": {
 			req: req(&v1.ResourceRequirements{
@@ -1395,11 +1396,34 @@ func TestValidateResources_PodLevelKubernetesParity(t *testing.T) {
 			expectSuccess:   false,
 			expectErrSubstr: "must be less than or equal to the pod-level limit",
 		},
+		"classic init container limit above the pod-level limit rejected": {
+			req: req(&v1.ResourceRequirements{Requests: cpu("4"), Limits: cpu("4")},
+				[]v1.Container{container("main", "1")},
+				[]v1.Container{{Name: "init", Resources: v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("5")}}}),
+			maxOversubscriptionByResourceRequest: map[string]float64{"cpu": 4},
+			expectSuccess:                        false,
+			expectErrSubstr:                      `container "init" cpu limit (5) must be less than or equal to the pod-level limit`,
+		},
+		"native sidecar limit above the pod-level limit rejected": {
+			req: req(&v1.ResourceRequirements{Requests: cpu("4"), Limits: cpu("4")},
+				[]v1.Container{container("main", "1")},
+				[]v1.Container{{Name: "side", RestartPolicy: &always, Resources: v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("5")}}}),
+			maxOversubscriptionByResourceRequest: map[string]float64{"cpu": 4},
+			expectSuccess:                        false,
+			expectErrSubstr:                      `container "side" cpu limit (5) must be less than or equal to the pod-level limit`,
+		},
+		"init container limit equal to the pod-level limit accepted": {
+			req: req(&v1.ResourceRequirements{Requests: cpu("4"), Limits: cpu("4")},
+				[]v1.Container{container("main", "1")},
+				[]v1.Container{{Name: "init", Resources: v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("4")}}}),
+			maxOversubscriptionByResourceRequest: map[string]float64{"cpu": 4},
+			expectSuccess:                        true,
+		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			cfg := configuration.SubmissionConfig{PodLevelResources: true}
+			cfg := configuration.SubmissionConfig{PodLevelResources: true, MaxOversubscriptionByResourceRequest: tc.maxOversubscriptionByResourceRequest}
 			err := validateResources(tc.req, cfg)
 			if tc.expectSuccess {
 				assert.NoError(t, err)

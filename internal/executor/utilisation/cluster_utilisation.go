@@ -280,9 +280,7 @@ func getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) armadaresource.Comput
 	podsOnNodes := util.GetPodsOnNodes(pods, cordonedNodes)
 	usage := armadaresource.ComputeResources{}
 	for _, pod := range podsOnNodes {
-		// Account for the pod's limits, including its init containers and pod-level budget.
-		limits := api.SchedulingResourceRequirementsFromPodSpec(&pod.Spec).Limits
-		usage.Add(armadaresource.FromResourceList(limits))
+		usage.Add(armadaresource.TotalPodResourceRequest(&pod.Spec))
 	}
 	return usage
 }

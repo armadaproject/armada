@@ -403,7 +403,7 @@ func validatePodLevelResources(
 				resourceName, &podRequest, &containerTotal)
 		}
 	}
-	for _, container := range spec.Containers {
+	for _, container := range armadaslices.Concatenate(spec.Containers, spec.InitContainers) {
 		for resourceName, containerLimit := range container.Resources.Limits {
 			podLimit, ok := resources.Limits[resourceName]
 			if !ok {
