@@ -541,6 +541,9 @@ func (node *Node) AddJob(job SchedulableJob, priority int32) error {
 				jobId, node.GetId(), evictedAtPriority, priority,
 			)
 		}
+		// Rebinding keeps the amount recorded when the job was first bound; the
+		// job's current view of its requests may have changed since then.
+		requests = node.allocatedByJobId[jobId]
 		if err := node.RemoveJob(job); err != nil {
 			return err
 		}
@@ -561,10 +564,12 @@ func (node *Node) AddJob(job SchedulableJob, priority int32) error {
 // at the priority it was bound at to the EvictedPriority bucket within
 // allocatableByPriority. Ownership (allocatedByJobId) is
 // intentionally left in place, and the stored priority is preserved so a later
-// RemoveJob can still release correctly.
+// RemoveJob can still release correctly. The amount moved is the amount recorded
+// when the job was bound.
 func (node *Node) EvictJob(job SchedulableJob) error {
 	jobId := job.Id()
-	if _, ok := node.allocatedByJobId[jobId]; !ok {
+	jobRequests, ok := node.allocatedByJobId[jobId]
+	if !ok {
 		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.GetId())
 	}
 
@@ -574,7 +579,6 @@ func (node *Node) EvictJob(job SchedulableJob) error {
 	node.evictedJobRunIds[jobId] = true
 
 	allocatableByPriority := node.allocatableByPriority
-	jobRequests := job.KubernetesResourceRequirements()
 	markAllocatable(allocatableByPriority, node.priorityByJobId[jobId], jobRequests)
 	markAllocated(allocatableByPriority, EvictedPriority, jobRequests)
 
@@ -584,15 +588,16 @@ func (node *Node) EvictJob(job SchedulableJob) error {
 // RemoveJob unbinds job from the node, releasing its ownership and returning its
 // resources to allocatableByPriority. If the job was evicted, its resources are
 // released from the EvictedPriority bucket; otherwise from the bucket at the priority
-// it was bound at. Removing a job that is not bound is a no-op.
+// it was bound at. The amount released is the amount recorded when the job was bound,
+// not the job's current requests. Removing a job that is not bound is a no-op.
 func (node *Node) RemoveJob(job SchedulableJob) error {
 	jobId := job.Id()
-	requests := job.KubernetesResourceRequirements()
 
 	isEvicted := node.IsJobEvicted(jobId)
 	delete(node.evictedJobRunIds, jobId)
 
-	if _, ok := node.allocatedByJobId[jobId]; !ok {
+	requests, ok := node.allocatedByJobId[jobId]
+	if !ok {
 		return nil
 	}
 	delete(node.allocatedByJobId, jobId)

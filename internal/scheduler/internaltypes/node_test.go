@@ -656,6 +656,40 @@ func TestNode_RemoveJob(t *testing.T) {
 	}
 }
 
+// A job's view of its requests can change after it is bound. Evicting, rebinding and removing it
+// must move exactly the amount recorded at bind time, so the node's accounting stays balanced.
+func TestNode_UsesAmountRecordedAtBind(t *testing.T) {
+	tests := map[string]func(t *testing.T, node *Node, job *testSchedJob){
+		"remove": func(t *testing.T, node *Node, job *testSchedJob) {
+			require.NoError(t, node.RemoveJob(job))
+		},
+		"evict then remove": func(t *testing.T, node *Node, job *testSchedJob) {
+			require.NoError(t, node.EvictJob(job))
+			require.NoError(t, node.RemoveJob(job))
+		},
+		"evict, rebind, remove": func(t *testing.T, node *Node, job *testSchedJob) {
+			require.NoError(t, node.EvictJob(job))
+			require.NoError(t, node.AddJob(job, 10))
+			assert.Equal(t, testAccountingJobRequests(job.requests.factory), node.AllocatedByJob()[job.id])
+			require.NoError(t, node.RemoveJob(job))
+		},
+	}
+	for name, operations := range tests {
+		t.Run(name, func(t *testing.T) {
+			factory := testAccountingFactory(t)
+			node := testAccountingNode(t, factory)
+			job := testAccountingJob(factory, "job-1")
+			require.NoError(t, node.AddJob(job, 10))
+
+			// Double the job's requests after binding.
+			job.requests = job.requests.Add(job.requests)
+			operations(t, node, job)
+
+			assertNodeAccounting(t, node, factory, nodeAccountingState{})
+		})
+	}
+}
+
 // Copying a node that already has jobs on it must isolate the accounting maps, because the
 // copy is mutated in place afterwards while the original stays in the NodeDb index.
 func TestNode_DeepCopyIsolatesAccountingFromOriginal(t *testing.T) {
