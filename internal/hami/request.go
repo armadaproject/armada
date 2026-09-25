@@ -43,6 +43,17 @@ func (r Request) CoresPerDevice() int64 {
 	return r.CorePercent
 }
 
+// HasDeviceAmounts reports whether resources include HAMi per-GPU memory or
+// cores, which only have meaning for placement onto HAMi GPUs.
+func HasDeviceAmounts(resources v1.ResourceList) bool {
+	for _, name := range []v1.ResourceName{GPUMemoryResource, GPUCoreResource, GPUMemoryPercentageResource} {
+		if _, ok := resources[name]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // RequestFromResources extracts and validates a job's HAMi device request from
 // its pod-level resource requests. Omitted memory or cores mean the whole
 // device. An explicit value must be a positive integer.

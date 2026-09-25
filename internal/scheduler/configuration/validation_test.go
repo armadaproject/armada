@@ -5,7 +5,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	"github.com/armadaproject/armada/internal/common/observability"
@@ -320,5 +322,63 @@ func TestSchedulingConfigValidate(t *testing.T) {
 	s := err.Error()
 	for _, expected := range expected {
 		assert.Contains(t, s, expected)
+	}
+}
+
+func TestValidate_HamiPools(t *testing.T) {
+	deviceResources := []ResourceType{
+		{Name: "cpu", Resolution: resource.MustParse("1m")},
+		{Name: "nvidia.com/gpumem", Resolution: resource.MustParse("1")},
+		{Name: "nvidia.com/gpucores", Resolution: resource.MustParse("1")},
+	}
+	hamiPool := PoolConfig{Name: "gpu", Hami: HamiPoolConfig{Enabled: true}}
+	tests := map[string]struct {
+		pools          []PoolConfig
+		resourceTypes  []ResourceType
+		expectedErrMsg string
+	}{
+		"HAMi pool": {pools: []PoolConfig{hamiPool}, resourceTypes: deviceResources},
+		"HAMi pool without device resources": {
+			pools:          []PoolConfig{hamiPool},
+			resourceTypes:  []ResourceType{{Name: "cpu", Resolution: resource.MustParse("1m")}},
+			expectedErrMsg: HamiWithoutDeviceResourcesErrorMessage,
+		},
+		"HAMi pool with away pools": {
+			pools:          []PoolConfig{{Name: "gpu", Hami: HamiPoolConfig{Enabled: true}, AwayPools: []AwayPoolConfig{{Name: "cpu"}}}, {Name: "cpu"}},
+			resourceTypes:  deviceResources,
+			expectedErrMsg: HamiWithAwayPoolsErrorMessage,
+		},
+		"HAMi pool as an away pool": {
+			pools:          []PoolConfig{hamiPool, {Name: "cpu", AwayPools: []AwayPoolConfig{{Name: "gpu"}}}},
+			resourceTypes:  deviceResources,
+			expectedErrMsg: HamiWithAwayPoolsErrorMessage,
+		},
+		"HAMi pool with the optimiser": {
+			pools:          []PoolConfig{{Name: "gpu", Hami: HamiPoolConfig{Enabled: true}, ExperimentalOptimiser: &OptimiserConfig{Enabled: true}}},
+			resourceTypes:  deviceResources,
+			expectedErrMsg: HamiWithOptimiserErrorMessage,
+		},
+		"HAMi pool with market scheduling": {
+			pools: []PoolConfig{{
+				Name: "gpu", Hami: HamiPoolConfig{Enabled: true},
+				ExperimentalMarketScheduling: &MarketSchedulingConfig{Enabled: true, GangIndicativePricingTimeout: time.Second},
+			}},
+			resourceTypes:  deviceResources,
+			expectedErrMsg: HamiWithMarketSchedulingErrorMessage,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			c := createValidMinimalConfig()
+			c.Scheduling.Pools = tc.pools
+			c.Scheduling.SupportedResourceTypes = tc.resourceTypes
+			err := c.Validate()
+			if tc.expectedErrMsg == "" {
+				assert.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+			}
+		})
 	}
 }

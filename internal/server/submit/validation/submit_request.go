@@ -2,6 +2,7 @@ package validation
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/constants"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/hami"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
@@ -42,6 +44,7 @@ var (
 		validateClientId,
 		validateTolerations,
 		validatePriceBand,
+		validateGpuRequests,
 	}
 )
 
@@ -452,6 +455,32 @@ func validateTolerations(j *api.JobSubmitRequestItem, config configuration.Submi
 	for _, restricted := range config.RestrictedTolerationKeys {
 		if jobTolerationKeys[restricted] {
 			return fmt.Errorf("toleration %s is not user settable", restricted)
+		}
+	}
+	return nil
+}
+
+// validateGpuRequests checks GPU requests against the supported contract: only
+// the primary container (the first container) may request GPUs, HAMi memory and
+// core amounts are explicit per-GPU integers (memory in MiB), and the GPU
+// pinning annotation is Armada's to set.
+func validateGpuRequests(j *api.JobSubmitRequestItem, _ configuration.SubmissionConfig) error {
+	if _, ok := j.GetAnnotations()[hami.UseGPUUUIDAnnotation]; ok {
+		return fmt.Errorf("annotation %s is managed by Armada and cannot be set", hami.UseGPUUUIDAnnotation)
+	}
+	spec := j.GetMainPodSpec()
+	if spec == nil || len(spec.Containers) == 0 {
+		return nil
+	}
+	for _, container := range append(slices.Clone(spec.Containers[1:]), spec.InitContainers...) {
+		if hami.RequestsGPUs(container.Resources) {
+			return fmt.Errorf("container %s requests GPUs; only the primary container %s may", container.Name, spec.Containers[0].Name)
+		}
+	}
+	primary := spec.Containers[0].Resources
+	if hami.HasDeviceAmounts(primary.Requests) || hami.HasDeviceAmounts(primary.Limits) {
+		if _, err := hami.RequestFromResources(primary.Requests); err != nil {
+			return fmt.Errorf("container %s: %w", spec.Containers[0].Name, err)
 		}
 	}
 	return nil

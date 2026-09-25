@@ -1416,3 +1416,69 @@ func podSpecFromNodeSelector(requirement v1.NodeSelectorRequirement) *v1.PodSpec
 		},
 	}
 }
+
+func TestValidateGpuRequests(t *testing.T) {
+	gpuContainer := func(requests map[string]string) v1.Container {
+		list := v1.ResourceList{}
+		for name, value := range requests {
+			list[v1.ResourceName(name)] = resource.MustParse(value)
+		}
+		return v1.Container{Name: "c", Resources: v1.ResourceRequirements{Requests: list, Limits: list}}
+	}
+	fractional := map[string]string{"nvidia.com/gpu": "1", "nvidia.com/gpumem": "4096", "nvidia.com/gpucores": "25"}
+	tests := map[string]struct {
+		req           *api.JobSubmitRequestItem
+		expectSuccess bool
+	}{
+		"fractional GPU request": {
+			req:           &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{Containers: []v1.Container{gpuContainer(fractional)}}},
+			expectSuccess: true,
+		},
+		"GPU request with a CPU sidecar": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{Containers: []v1.Container{
+				gpuContainer(fractional), gpuContainer(map[string]string{"cpu": "1"}),
+			}}},
+			expectSuccess: true,
+		},
+		"GPU request in a sidecar": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{Containers: []v1.Container{
+				gpuContainer(map[string]string{"nvidia.com/gpu": "1"}), gpuContainer(map[string]string{"nvidia.com/gpu": "1"}),
+			}}},
+		},
+		"GPU request in an init container": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				InitContainers: []v1.Container{gpuContainer(map[string]string{"nvidia.com/gpu": "1"})},
+				Containers:     []v1.Container{gpuContainer(map[string]string{"cpu": "1"})},
+			}},
+		},
+		"memory without gpu": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{Containers: []v1.Container{gpuContainer(map[string]string{"nvidia.com/gpumem": "4096"})}}},
+		},
+		"memory with a binary suffix": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{Containers: []v1.Container{gpuContainer(map[string]string{"nvidia.com/gpu": "1", "nvidia.com/gpumem": "4Gi"})}}},
+		},
+		"memory percentage": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{Containers: []v1.Container{gpuContainer(map[string]string{"nvidia.com/gpu": "1", "nvidia.com/gpumem-percentage": "50"})}}},
+		},
+		"GPU pinning annotation": {
+			req: &api.JobSubmitRequestItem{
+				Annotations: map[string]string{"nvidia.com/use-gpuuuid": "GPU-1"},
+				PodSpec:     &v1.PodSpec{Containers: []v1.Container{gpuContainer(map[string]string{"nvidia.com/gpu": "1"})}},
+			},
+		},
+		"fractional whole GPU count without HAMi amounts is not HAMi's concern": {
+			req:           &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{Containers: []v1.Container{gpuContainer(map[string]string{"nvidia.com/gpu": "500m"})}}},
+			expectSuccess: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateGpuRequests(tc.req, configuration.SubmissionConfig{})
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}

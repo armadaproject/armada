@@ -970,11 +970,11 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *internaltypes.JobSchedu
 	j.jobSchedulingInfo = jobSchedulingInfo
 	j.ensureJobSchedulingInfoFieldsInitialised()
 	j.updateReservations()
+	j.hamiRequest, j.hamiRequestErr = hamiRequestFromSchedulingInfo(jobSchedulingInfo)
 
 	// Changing the scheduling info invalidates the scheduling key stored with the job.
 	j.schedulingKey = SchedulingKeyFromJob(j.jobDb.schedulingKeyGenerator, j)
 
-	j.hamiRequest, j.hamiRequestErr = hamiRequestFromSchedulingInfo(jobSchedulingInfo)
 	j.allResourceRequirements = j.jobDb.getResourceRequirements(jobSchedulingInfo, j.hamiRequest, j.hamiRequestErr)
 	j.kubernetesResourceRequirements = j.allResourceRequirements.OfType(internaltypes.Kubernetes)
 

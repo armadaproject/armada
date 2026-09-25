@@ -219,6 +219,9 @@ func setupExecutorApiComponents(
 		config.Application.SubmitConcurrencyLimit,
 		config.Kubernetes.FatalPodSubmissionErrors,
 	)
+	if config.Hami.Enabled {
+		submitter = submitter.WithHamiScheduler(config.Hami.SchedulerNameOrDefault())
+	}
 
 	debugConfig := config.Application.DebugEvents
 	debugRenderer := reporter.NewDebugMessageRenderer(clusterContext, debugConfig)

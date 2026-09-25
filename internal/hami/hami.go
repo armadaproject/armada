@@ -5,7 +5,8 @@
 // A node's GPUs are assumed to be uniform: the same memory and compute on every
 // device. Inventory validation enforces this, so placement never has to choose
 // between device sizes and a request's per-GPU amounts apply to every GPU it is
-// placed on.
+// placed on. A job's GPU request is that of its primary container, the first
+// regular container of its pod (see pod.go).
 package hami
 
 const (
