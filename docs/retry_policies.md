@@ -191,7 +191,7 @@ Delete a policy:
 armadactl delete retry-policy ml-training-retries
 ```
 
-Deletion always succeeds. The server detaches the policy from every queue that references it and logs those queues. Those queues fall back to the default behaviour at the next policy cache refresh, so detach the policy first when the queues must keep retries.
+Deletion always succeeds. The server detaches the policy from every queue that references it and logs those queues. Those queues lose the policy within about one `queueRefreshPeriod`. The scheduler's queue cache and policy cache refresh on their own schedules, so a queue can pass through the legacy behaviour for one refresh before `defaultPolicyName` applies, if one is configured. When a queue must keep its retries, attach a replacement policy to it before you delete the old one.
 
 Managing policies requires the `create_retry_policy`, `update_retry_policy`, and `delete_retry_policy` permissions. Grant them through the server's permission group mapping; without them the corresponding CRUD calls return `PermissionDenied`.
 
