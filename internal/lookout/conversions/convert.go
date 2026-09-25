@@ -39,6 +39,8 @@ func ToSwaggerJob(job *model.Job) *models.Job {
 		Submitted:          strfmt.DateTime(job.Submitted),
 		CancelReason:       job.CancelReason,
 		CancelUser:         job.CancelUser,
+		PreemptUser:        job.PreemptUser,
+		ReprioritizeUser:   job.ReprioritizeUser,
 		Node:               job.Node,
 		Cluster:            job.Cluster,
 		Pool:               job.Pool,
