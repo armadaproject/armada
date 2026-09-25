@@ -65,6 +65,14 @@ rules:
       resources:
         memory:
           factor: 2.0
+  # The static bump exceeds every node, so the scheduler grants the retry
+  # and then fails the job because the grown job fits no node.
+  - action: Retry
+    onCategory: "transient"
+    mutate:
+      resources:
+        memory:
+          static: "1Ti"
 `
 	f, err := os.CreateTemp("", "retry-policy-*.yaml")
 	if err != nil {

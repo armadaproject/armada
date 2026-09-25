@@ -36,3 +36,11 @@ application:
           - onExitCodes:
               operator: In
               values: [1, 2, 126, 127]
+      # Exit code 75 is EX_TEMPFAIL from sysexits.h. The retry policy bumps
+      # the memory of this category beyond every node, so the retry fails as
+      # unschedulable and no pod is created again.
+      - name: transient
+        rules:
+          - onExitCodes:
+              operator: In
+              values: [75]
