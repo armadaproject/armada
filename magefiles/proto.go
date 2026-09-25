@@ -103,6 +103,7 @@ func protoGenerate() error {
 		"pkg/executorapi/*.proto",
 		"pkg/priorityoverride/*.proto",
 		"pkg/bidstore/*.proto",
+		"pkg/hamiapi/*.proto",
 	}
 	for _, pattern := range patterns {
 		matches, err := filepath.Glob(pattern)
@@ -178,7 +179,7 @@ func protoGenerate() error {
 	}
 
 	err = sh.Run("goimports", "-w", "-local", "github.com/armadaproject/armada", "./pkg/api/", "./pkg/armadaevents/",
-		"./pkg/controlplaneevents/", "./pkg/metricevents/", "./internal/scheduler/schedulerobjects/", "./pkg/executorapi/", "./pkg/api/schedulerobjects/", "./pkg/priorityoverride/", "./pkg/bidstore/")
+		"./pkg/controlplaneevents/", "./pkg/metricevents/", "./internal/scheduler/schedulerobjects/", "./pkg/executorapi/", "./pkg/api/schedulerobjects/", "./pkg/priorityoverride/", "./pkg/bidstore/", "./pkg/hamiapi/")
 	if err != nil {
 		return err
 	}

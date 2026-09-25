@@ -13,6 +13,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/label"
 	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/hamiapi"
 )
 
 const (
@@ -92,6 +93,10 @@ type Node struct {
 	// Sorted ascending as HasUrgencyPreemptibleResources relies on the ordering to find the highest/lowest priority
 	// This must stay sorted
 	knownPriorities []int32
+
+	// HAMi device inventory reported for this node, or nil if the node is not
+	// registered with HAMi. Read-only and shared between copies of the node.
+	hamiInventory *hamiapi.NodeInventory
 }
 
 func FromSchedulerObjectsNode(node *schedulerobjects.Node,
@@ -111,7 +116,7 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		}
 	}
 
-	return CreateNodeAndType(
+	result := CreateNodeAndType(
 		node.Id,
 		nodeIndex,
 		node.Executor,
@@ -127,6 +132,8 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		allocatableResources,
 		allowedPriorities,
 	)
+	result.hamiInventory = node.HamiInventory
+	return result
 }
 
 func CreateNodeAndType(
@@ -354,6 +361,20 @@ func (node *Node) AllocatableByPriorityNoEviction() map[int32]ResourceList {
 	return maps.Clone(node.allocatableByPriorityNoEviction)
 }
 
+// HamiInventory returns the node's HAMi device inventory, or nil if the node is
+// not registered with HAMi. The result is shared and must not be modified.
+func (node *Node) HamiInventory() *hamiapi.NodeInventory {
+	return node.hamiInventory
+}
+
+// WithHamiInventory returns a copy of node with the given HAMi inventory. The
+// inventory must not be modified afterwards.
+func (node *Node) WithHamiInventory(inventory *hamiapi.NodeInventory) *Node {
+	result := node.DeepCopyNilKeys()
+	result.hamiInventory = inventory
+	return result
+}
+
 func (node *Node) WithNodeType(nodeType *NodeType) *Node {
 	result := node.DeepCopyNilKeys()
 	result.nodeType = nodeType
@@ -485,6 +506,7 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		evictedJobRunIds:                maps.Clone(node.evictedJobRunIds),
 		priorityByJobId:                 maps.Clone(node.priorityByJobId),
 		knownPriorities:                 node.knownPriorities,
+		hamiInventory:                   node.hamiInventory,
 	}
 }
 
@@ -506,6 +528,9 @@ func (node *Node) SummaryString() string {
 	result += fmt.Sprintf("AllocatableResources: %s\n", node.allocatableResources.String())
 	result += fmt.Sprintf("Labels: %v\n", node.labels)
 	result += fmt.Sprintf("Taints: %v\n", node.taints)
+	if node.hamiInventory != nil {
+		result += fmt.Sprintf("HamiInventory: %v\n", node.hamiInventory)
+	}
 	return result
 }
 

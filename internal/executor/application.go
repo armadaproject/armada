@@ -195,6 +195,7 @@ func setupExecutorApiComponents(
 		config.Kubernetes.NodeIdLabel,
 		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
 		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
+		config.Hami.Enabled,
 	)
 
 	failedPodChecker, err := failedpodchecks.NewPodRetryChecker(config.Kubernetes.FailedPodChecks)

@@ -14,6 +14,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/hamiapi"
 )
 
 func TestNode(t *testing.T) {
@@ -751,4 +753,26 @@ func createNode(allocatableResource ResourceList, allowedPriorities []int32) *No
 	)
 
 	return node
+}
+
+func TestFromSchedulerObjectsNode_CarriesHamiInventoryThroughCopies(t *testing.T) {
+	factory := testAccountingFactory(t)
+	inventory := &hamiapi.NodeInventory{
+		Status:  hamiapi.InventoryStatus_INVENTORY_STATUS_USABLE,
+		Devices: []*hamiapi.DeviceInfo{{Id: "gpu-1", SlotCount: 4, MemoryMib: 16384, CorePercent: 100, Healthy: true, Usable: true}},
+	}
+	node := FromSchedulerObjectsNode(
+		&schedulerobjects.Node{
+			Id:             "node-1",
+			Name:           "node-1",
+			TotalResources: &schedulerobjects.ResourceList{},
+			HamiInventory:  inventory,
+		},
+		1, nil, nil, []int32{0}, factory,
+	)
+	assert.Same(t, inventory, node.HamiInventory())
+	assert.Same(t, inventory, node.DeepCopyNilKeys().HamiInventory())
+	assert.Same(t, inventory, node.WithLabels(map[string]string{"a": "b"}).HamiInventory())
+	assert.Same(t, inventory, node.WithSchedulable(false).HamiInventory())
+	assert.Nil(t, node.WithHamiInventory(nil).HamiInventory())
 }

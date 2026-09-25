@@ -223,4 +223,12 @@ type ExecutorConfiguration struct {
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration
+	Hami       HamiConfiguration
+}
+
+// HamiConfiguration configures the executor's integration with HAMi's NVIDIA
+// hami-core backend. The HAMi deployment must use memoryFactor=1 (gpumem in MiB).
+type HamiConfiguration struct {
+	// If true, the executor reports the HAMi device inventory of each node.
+	Enabled bool
 }

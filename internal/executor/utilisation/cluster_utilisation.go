@@ -12,10 +12,13 @@ import (
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/node"
 	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/internal/hami"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/executorapi"
+	"github.com/armadaproject/armada/pkg/hamiapi"
 )
 
 type UtilisationService interface {
@@ -31,6 +34,7 @@ type ClusterUtilisationService struct {
 	nodeIdLabel                                                   string
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode         armadaresource.ComputeResources
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority int32
+	reportHamiInventory                                           bool
 }
 
 func NewClusterUtilisationService(
@@ -41,6 +45,7 @@ func NewClusterUtilisationService(
 	nodeIdLabel string,
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode armadaresource.ComputeResources,
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority int32,
+	reportHamiInventory bool,
 ) *ClusterUtilisationService {
 	return &ClusterUtilisationService{
 		clusterContext:          clusterContext,
@@ -50,6 +55,7 @@ func NewClusterUtilisationService(
 		nodeIdLabel:             nodeIdLabel,
 		minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode:         minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
 		minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority: minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
+		reportHamiInventory: reportHamiInventory,
 	}
 }
 
@@ -85,6 +91,7 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 
 	nodes := make([]executorapi.NodeInfo, 0, len(allNodes))
 	totalAvailable := armadaresource.ComputeResources{}
+	hamiNodesByStatus := map[string]int{}
 	for _, node := range allNodes {
 		isSchedulable := cls.nodeInfoService.IsAvailableProcessingNode(node)
 		allocatable := armadaresource.FromResourceList(node.Status.Allocatable)
@@ -108,6 +115,17 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
 			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority)
 
+		var hamiInventory *hamiapi.NodeInventory
+		if cls.reportHamiInventory {
+			hamiInventory = hami.NodeInventoryFromAnnotations(node.Annotations)
+			if hami.IsRegistered(hamiInventory) {
+				hamiNodesByStatus[hamiInventory.Status.String()]++
+				if !hami.IsUsable(hamiInventory) {
+					log.Warnf("HAMi inventory of node %s is %s: %s", node.Name, hamiInventory.Status, hamiInventory.Reason)
+				}
+			}
+		}
+
 		nodePool := cls.nodeInfoService.GetPool(node)
 		nodes = append(nodes, executorapi.NodeInfo{
 			Name:   node.Name,
@@ -124,7 +142,11 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			NodeType:                    cls.nodeInfoService.GetType(node),
 			Pool:                        nodePool,
 			ResourceUsageByQueueAndPool: cls.getPoolQueueResources(runningNodePodsArmada, nodePool),
+			HamiInventory:               hamiInventory,
 		})
+	}
+	if cls.reportHamiInventory {
+		metrics.SetHamiInventoryNodes(hamiNodesByStatus)
 	}
 
 	return &ClusterAvailableCapacityReport{
