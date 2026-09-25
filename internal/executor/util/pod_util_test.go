@@ -862,3 +862,20 @@ func TestLongestAppContainerRunDuration(t *testing.T) {
 		})
 	}
 }
+
+func TestPodTerminationTime_ReturnsLatestTerminatedContainerTime(t *testing.T) {
+	earlier := time.Date(2026, time.August, 25, 19, 56, 46, 0, time.UTC)
+	later := earlier.Add(time.Minute)
+	pod := &v1.Pod{Status: v1.PodStatus{
+		InitContainerStatuses: []v1.ContainerStatus{{
+			State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(earlier)}},
+		}},
+		ContainerStatuses: []v1.ContainerStatus{{
+			State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(later)}},
+		}},
+	}}
+
+	got, ok := PodTerminationTime(pod)
+	assert.True(t, ok)
+	assert.True(t, later.Equal(got))
+}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
 
@@ -459,18 +460,22 @@ func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armada
 // JobRunCancelled event owns the state, and Lookout coalesces column updates so arrival order does
 // not matter.
 func (c *InstructionConverter) handleJobRunTerminatedDebugInfo(event *armadaevents.JobRunTerminatedDebugInfo, update *model.InstructionSet) error {
-	jobRun := model.UpdateJobRunInstruction{
-		RunId: event.RunId,
-		Debug: tryCompressError(event.JobId, event.DebugMessage, c.compressor),
+	jobRun := model.UpdateJobRunInstruction{RunId: event.RunId}
+	if event.DebugMessage != "" {
+		jobRun.Debug = tryCompressError(event.JobId, event.DebugMessage, c.compressor)
+	}
+	if finished, ok := stdTimeIfSet(event.TerminatedAt); ok {
+		jobRun.Finished = &finished
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
 }
 
 func (c *InstructionConverter) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
+	finished := terminationTime(event.TerminatedAt, ts)
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       event.RunId,
-		Finished:    &ts,
+		Finished:    &finished,
 		JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal),
 		ExitCode:    pointer.Int32(0),
 	}
@@ -501,6 +506,10 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 				}
 			}
 			jobRunUpdate.ExitCode = pointer.Int32(exitCode)
+			if e.Terminal {
+				finished := podErrorTerminationTime(reason.PodError, ts)
+				jobRunUpdate.Finished = &finished
+			}
 		case *armadaevents.Error_JobRunPreemptedError:
 			// The JobRunPreempted event sets the run state and the error text.
 			// This case persists only the failure classification.
@@ -546,6 +555,37 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 		break
 	}
 	return nil
+}
+
+func stdTimeIfSet(ts *types.Timestamp) (time.Time, bool) {
+	if ts == nil {
+		return time.Time{}, false
+	}
+	t := protoutil.ToStdTime(ts)
+	return t, !t.IsZero()
+}
+
+func terminationTime(terminatedAt *types.Timestamp, fallback time.Time) time.Time {
+	if t, ok := stdTimeIfSet(terminatedAt); ok {
+		return t
+	}
+	return fallback
+}
+
+func podErrorTerminationTime(podError *armadaevents.PodError, fallback time.Time) time.Time {
+	if t, ok := stdTimeIfSet(podError.GetTerminatedAt()); ok {
+		return t
+	}
+	var latest time.Time
+	for _, containerError := range podError.GetContainerErrors() {
+		if t, ok := stdTimeIfSet(containerError.GetFinishedAt()); ok && t.After(latest) {
+			latest = t
+		}
+	}
+	if !latest.IsZero() {
+		return latest
+	}
+	return fallback
 }
 
 func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, requestor string, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
