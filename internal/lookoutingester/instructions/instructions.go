@@ -97,13 +97,15 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_SubmitJob:
 			err = c.handleSubmitJob(queue, owner, jobset, ts, event.GetSubmitJob(), update)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
-			err = c.handleReprioritiseJob(ts, event.GetReprioritisedJob(), update)
+			err = c.handleReprioritiseJob(ts, owner, event.GetReprioritisedJob(), update)
 		case *armadaevents.EventSequence_Event_CancelledJob:
 			err = c.handleCancelledJob(ts, owner, event.GetCancelledJob(), update)
+		case *armadaevents.EventSequence_Event_JobPreemptionRequested:
+			err = c.handleJobPreemptionRequested(owner, event.GetJobPreemptionRequested(), update)
 		case *armadaevents.EventSequence_Event_JobSucceeded:
 			err = c.handleJobSucceeded(ts, event.GetJobSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobErrors:
-			err = c.handleJobErrors(ts, event.GetJobErrors(), update)
+			err = c.handleJobErrors(ts, owner, event.GetJobErrors(), update)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
 			err = c.handleJobRunAssigned(ts, event.GetJobRunAssigned(), update)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
@@ -245,10 +247,18 @@ func sanitizeForJsonb(s string) string {
 	return strings.ReplaceAll(s, "\x00", "")
 }
 
-func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, requestor string, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
+	if event.Requestor != "" {
+		requestor = event.Requestor
+	}
+	var reprioritizeUser *string
+	if requestor := strings.TrimSpace(requestor); requestor != "" {
+		reprioritizeUser = &requestor
+	}
 	jobUpdate := model.UpdateJobInstruction{
-		JobId:    event.JobId,
-		Priority: pointer.Int64(int64(event.Priority)),
+		JobId:            event.JobId,
+		Priority:         pointer.Int64(int64(event.Priority)),
+		ReprioritizeUser: reprioritizeUser,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
@@ -264,9 +274,10 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, requestor string
 	}
 
 	var cancelUser *string
-	if requestor != "" {
+	if requestor := strings.TrimSpace(requestor); requestor != "" {
 		cancelUser = &requestor
 	}
+
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:                     event.GetJobId(),
 		State:                     pointer.Int32(int32(lookout.JobCancelledOrdinal)),
@@ -275,6 +286,20 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, requestor string
 		CancelUser:                cancelUser,
 		LastTransitionTime:        &ts,
 		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
+	}
+	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
+	return nil
+}
+
+func (c *InstructionConverter) handleJobPreemptionRequested(requestor string, event *armadaevents.JobPreemptionRequested, update *model.InstructionSet) error {
+	var preemptUser *string
+	if requestor := strings.TrimSpace(requestor); requestor != "" {
+		preemptUser = &requestor
+	}
+
+	jobUpdate := model.UpdateJobInstruction{
+		JobId:       event.JobId,
+		PreemptUser: preemptUser,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
@@ -291,17 +316,21 @@ func (c *InstructionConverter) handleJobSucceeded(ts time.Time, event *armadaeve
 	return nil
 }
 
-func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobErrors(ts time.Time, requestor string, event *armadaevents.JobErrors, update *model.InstructionSet) error {
 	for _, e := range event.GetErrors() {
 		if !e.Terminal {
 			continue
 		}
 
 		state := lookout.JobFailedOrdinal
+		var preemptUser *string
 		switch reason := e.Reason.(type) {
 		// Preempted and Rejected jobs are modelled as Reasons on a JobErrors msg
 		case *armadaevents.Error_JobRunPreemptedError:
 			state = lookout.JobPreemptedOrdinal
+			if requestor := strings.TrimSpace(requestor); requestor != "" {
+				preemptUser = &requestor
+			}
 		case *armadaevents.Error_JobRejected:
 			state = lookout.JobRejectedOrdinal
 			update.JobErrorsToCreate = append(update.JobErrorsToCreate, &model.CreateJobErrorInstruction{
@@ -315,6 +344,7 @@ func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents
 			State:                     pointer.Int32(int32(state)),
 			LastTransitionTime:        &ts,
 			LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
+			PreemptUser:               preemptUser,
 		}
 		update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 		break
@@ -544,6 +574,16 @@ func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, requestor str
 		SchedulerTerminationReason: terminationReason,
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+
+	// The requestor of an API-driven preemption is carried on this event, not on
+	// the event sequence. Record it against the job so Lookout can show who
+	// requested the preemption.
+	if requestor := strings.TrimSpace(requestor); requestor != "" {
+		update.JobsToUpdate = append(update.JobsToUpdate, &model.UpdateJobInstruction{
+			JobId:       event.PreemptedJobId,
+			PreemptUser: &requestor,
+		})
+	}
 	return nil
 }
 
