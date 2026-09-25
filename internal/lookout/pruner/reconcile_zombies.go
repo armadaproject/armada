@@ -20,6 +20,34 @@ import (
 // parameters) is safe because they are compile-time constants from
 // internal/common/database/lookout, not user input. It also lets PostgreSQL
 // infer mapping.new_state as smallint without explicit casts.
+//
+// LEASE_RETURNED and LEASE_EXPIRED are mapped to job FAILED rather than left
+// unhandled. Ordinarily a lease-returned/expired run is followed by either a
+// JobRequeued or a terminal JobErrors event, so the run itself is not a
+// reliable terminal signal for the job. But if that follow-up event is lost
+// (e.g. dropped by the ingester), the job is stuck showing a non-terminal
+// state forever with no other event to correct it. FAILED is a conservative
+// choice: it may mislabel a job that was actually still being retried, but it
+// stops a permanently stuck job from being reported as active indefinitely.
+//
+// LEASE_RETURNED/LEASE_EXPIRED use a separate, longer cutoff ($2) than the
+// other four run states ($1): unlike the other four, which are unconditionally
+// terminal for the job the moment the run reaches them, a lease-returned or
+// lease-expired run is normally expected to be followed by a legitimate
+// scheduler decision (retry or fail) that can take substantially longer than
+// ordinary ingester lag to arrive.
+//
+// The LEASE_RETURNED/LEASE_EXPIRED branch additionally requires
+// job.last_transition_time < run.finished (strictly). A successful requeue
+// moves job.state to QUEUED (advancing last_transition_time) without
+// changing latest_run_id, which still keeps pointing at the old
+// lease-returned/expired run until the next lease is granted. Without this
+// check, a job that was legitimately requeued and is simply waiting for its
+// next lease -- rather than one whose follow-up event was lost -- would be
+// misdetected as a zombie and incorrectly marked FAILED. The comparison must
+// be strict rather than <=: a requeue timestamped identically to the
+// lease-returned/expired event (e.g. both derived from the same ingested
+// batch) still counts as having touched the job.
 var reconcileZombiesQuery = fmt.Sprintf(`
 	UPDATE job
 	SET state                        = mapping.new_state,
@@ -32,10 +60,12 @@ var reconcileZombiesQuery = fmt.Sprintf(`
 		       j.state         AS old_state,
 		       j.latest_run_id AS run_id,
 		       CASE r.job_run_state
-		           WHEN %[1]d THEN %[2]d -- run succeeded -> job succeeded
-		           WHEN %[3]d THEN %[4]d -- run failed    -> job failed
-		           WHEN %[5]d THEN %[6]d -- run cancelled -> job cancelled
-		           WHEN %[7]d THEN %[8]d -- run preempted -> job preempted
+		           WHEN %[1]d THEN %[2]d  -- run succeeded      -> job succeeded
+		           WHEN %[3]d THEN %[4]d  -- run failed         -> job failed
+		           WHEN %[5]d THEN %[6]d  -- run cancelled      -> job cancelled
+		           WHEN %[7]d THEN %[8]d  -- run preempted      -> job preempted
+		           WHEN %[13]d THEN %[4]d -- run lease returned -> job failed
+		           WHEN %[14]d THEN %[4]d -- run lease expired  -> job failed
 		           ELSE j.state          -- defensive: a job_run_state that
 		                                 -- passes the IN filter but is not
 		                                 -- listed above (e.g. after a future
@@ -47,10 +77,28 @@ var reconcileZombiesQuery = fmt.Sprintf(`
 		FROM job j
 		JOIN job_run r ON r.run_id = j.latest_run_id
 		WHERE j.state IN (%[9]d, %[10]d, %[11]d, %[12]d)
-		  AND r.job_run_state IN (%[1]d, %[3]d, %[5]d, %[7]d)
 		  AND r.finished IS NOT NULL
-		  AND r.finished < $1
-		LIMIT $2
+		  AND (
+		    (r.job_run_state IN (%[1]d, %[3]d, %[5]d, %[7]d) AND r.finished < $1)
+		    OR
+		    (
+		      r.job_run_state IN (%[13]d, %[14]d)
+		      AND r.finished < $2
+		      -- A JobRequeued event moves job.state to QUEUED and advances
+		      -- last_transition_time, but leaves latest_run_id pointing at the
+		      -- now-stale lease-returned/expired run until the next lease is
+		      -- granted. Without this check, a job that was legitimately
+		      -- requeued and is simply waiting for its next lease would be
+		      -- misdetected as a zombie. The comparison is strict (<, not <=)
+		      -- because a requeue recorded with the same timestamp as the
+		      -- lease-returned/expired event (e.g. both derived from the same
+		      -- ingested batch) must still count as "touched": only a
+		      -- last_transition_time strictly before finished proves no
+		      -- later event has updated the job since the run finished.
+		      AND j.last_transition_time < r.finished
+		    )
+		  )
+		LIMIT $3
 	) AS mapping
 	WHERE job.job_id = mapping.job_id
 	  -- Filter out ELSE-branch rows so they don't (a) get last_transition_time
@@ -66,6 +114,8 @@ var reconcileZombiesQuery = fmt.Sprintf(`
 	lookout.JobLeasedOrdinal,
 	lookout.JobPendingOrdinal,
 	lookout.JobRunningOrdinal,
+	lookout.JobRunLeaseReturnedOrdinal,
+	lookout.JobRunLeaseExpiredOrdinal,
 )
 
 // countZombiesWithNullFinishedQuery counts jobs that match the zombie shape
@@ -76,13 +126,15 @@ var countZombiesWithNullFinishedQuery = fmt.Sprintf(`
 	SELECT COUNT(*)
 	FROM job j
 	JOIN job_run r ON r.run_id = j.latest_run_id
-	WHERE j.state IN (%[5]d, %[6]d, %[7]d, %[8]d)
-	  AND r.job_run_state IN (%[1]d, %[2]d, %[3]d, %[4]d)
+	WHERE j.state IN (%[7]d, %[8]d, %[9]d, %[10]d)
+	  AND r.job_run_state IN (%[1]d, %[2]d, %[3]d, %[4]d, %[5]d, %[6]d)
 	  AND r.finished IS NULL`,
 	lookout.JobRunSucceededOrdinal,
 	lookout.JobRunFailedOrdinal,
 	lookout.JobRunCancelledOrdinal,
 	lookout.JobRunPreemptedOrdinal,
+	lookout.JobRunLeaseReturnedOrdinal,
+	lookout.JobRunLeaseExpiredOrdinal,
 	lookout.JobQueuedOrdinal,
 	lookout.JobLeasedOrdinal,
 	lookout.JobPendingOrdinal,
@@ -90,20 +142,47 @@ var countZombiesWithNullFinishedQuery = fmt.Sprintf(`
 )
 
 // ReconcileZombieJobs finds jobs whose state column is non-terminal but whose
-// latest run is in a terminal state and finished more than zombieRepairThreshold
-// ago, and updates job.state (and last_transition_time) to match the run.
-// Returns the number of jobs repaired.
+// latest run is in a terminal state, or in a lease-returned/lease-expired
+// state that never received its expected follow-up event, and updates
+// job.state (and last_transition_time) to match the run. The two cases use
+// separate grace periods: zombieRepairThreshold for the unconditionally
+// terminal run states, and leaseReturnedZombieRepairThreshold (normally much
+// longer) for lease-returned/lease-expired, since those are legitimately
+// followed by a scheduler retry-or-fail decision that can take a while to
+// arrive. A zero threshold disables reconciliation for its run-state group
+// independently of the other. Returns the number of jobs repaired.
 func ReconcileZombieJobs(
 	ctx *armadacontext.Context,
 	db *pgx.Conn,
 	zombieRepairThreshold time.Duration,
+	leaseReturnedZombieRepairThreshold time.Duration,
 	batchLimit int,
 	clock clock.Clock,
 ) (int, error) {
-	cutOffTime := clock.Now().Add(-zombieRepairThreshold)
+	// A zero threshold disables reconciliation for that run-state group. Using
+	// the zero time.Time (year 1) as the cutoff, rather than clock.Now(),
+	// ensures "r.finished < cutoff" can never match instead of matching
+	// everything already finished.
+	//
+	// clock.Now() is normalized to UTC before use: job_run.finished and
+	// job.last_transition_time are always written in UTC (see
+	// protoutil.ToStdTime(...).UTC() in the ingester), but clock.Now() is not
+	// guaranteed to return a UTC-zoned time.Time -- Postgres's naive
+	// "timestamp" columns encode the wall-clock digits of whatever zone the
+	// bind parameter is in, not a zone-normalized instant, so comparing a
+	// non-UTC cutoff against a UTC-stored value would silently skew every
+	// comparison in this file by the process's UTC offset.
+	cutOffTime := time.Time{}
+	if zombieRepairThreshold > 0 {
+		cutOffTime = clock.Now().UTC().Add(-zombieRepairThreshold)
+	}
+	leaseReturnedCutOffTime := time.Time{}
+	if leaseReturnedZombieRepairThreshold > 0 {
+		leaseReturnedCutOffTime = clock.Now().UTC().Add(-leaseReturnedZombieRepairThreshold)
+	}
 	totalRepaired := 0
 	for {
-		batchRepaired, err := reconcileZombieBatch(ctx, db, cutOffTime, batchLimit)
+		batchRepaired, err := reconcileZombieBatch(ctx, db, cutOffTime, leaseReturnedCutOffTime, batchLimit)
 		if err != nil {
 			return totalRepaired, err
 		}
@@ -151,6 +230,7 @@ func reconcileZombieBatch(
 	ctx *armadacontext.Context,
 	db *pgx.Conn,
 	cutOffTime time.Time,
+	leaseReturnedCutOffTime time.Time,
 	batchLimit int,
 ) (int, error) {
 	type repair struct {
@@ -168,7 +248,7 @@ func reconcileZombieBatch(
 		IsoLevel:   pgx.ReadCommitted,
 		AccessMode: pgx.ReadWrite,
 	}, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, reconcileZombiesQuery, cutOffTime, batchLimit)
+		rows, err := tx.Query(ctx, reconcileZombiesQuery, cutOffTime, leaseReturnedCutOffTime, batchLimit)
 		if err != nil {
 			return errors.WithStack(err)
 		}
