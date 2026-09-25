@@ -85,9 +85,29 @@ func (stateReporter *JobStateReporter) reportStatusUpdate(old *v1.Pod, new *v1.P
 	// This prevents reporting JobFailed when we delete a pod - for example due to cancellation
 	if util.IsMarkedForDeletion(new) {
 		log.Infof("not sending event to report pod %s moving into phase %s as pod is marked for deletion", new.Name, new.Status.Phase)
+		stateReporter.reportRealTerminationTime(new)
 		return
 	}
 	stateReporter.reportCurrentStatus(new)
+}
+
+func (stateReporter *JobStateReporter) reportRealTerminationTime(pod *v1.Pod) {
+	if !util.IsManagedPod(pod) || !util.IsInTerminalState(pod) {
+		return
+	}
+	if _, ok := util.PodTerminationTime(pod); !ok {
+		return
+	}
+	event, err := reporter.CreateJobRunTerminatedDebugEvent(pod, "")
+	if err != nil {
+		log.Errorf("Failed to create run-terminated event for pod %s: %v", pod.Name, err)
+		return
+	}
+	stateReporter.eventReporter.QueueEvent(reporter.EventMessage{Event: event, JobRunId: util.ExtractJobRunId(pod)}, func(err error) {
+		if err != nil {
+			log.Errorf("Failed to report run termination time for pod %s: %s", pod.Name, err)
+		}
+	})
 }
 
 // Two kinds of failure are worth the debug data: a pod whose app container never started, where the

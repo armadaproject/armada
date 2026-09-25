@@ -884,7 +884,10 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						node                 = coalesce(tmp.node, job_run.node),
 						pending              = coalesce(tmp.pending, job_run.pending),
 						started              = coalesce(tmp.started, job_run.started),
-						finished             = coalesce(tmp.finished, job_run.finished),
+						finished             = CASE
+							WHEN tmp.finished IS NULL THEN job_run.finished
+							ELSE GREATEST(tmp.finished, job_run.finished, coalesce(tmp.started, job_run.started), coalesce(tmp.pending, job_run.pending))
+						END,
 						job_run_state        = coalesce(tmp.job_run_state, job_run.job_run_state),
 						error                = coalesce(tmp.error, job_run.error),
 						debug                = coalesce(tmp.debug, job_run.debug),
@@ -910,7 +913,10 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 		SET
 			node                 = coalesce($2, node),
 			started              = coalesce($3, started),
-			finished             = coalesce($4, finished),
+			finished             = CASE
+				WHEN $4::timestamp IS NULL THEN finished
+				ELSE GREATEST($4::timestamp, finished, coalesce($3::timestamp, started), coalesce($8::timestamp, pending))
+			END,
 			job_run_state        = coalesce($5, job_run_state),
 			error                = coalesce($6, error),
 			exit_code            = coalesce($7, exit_code),
@@ -1148,7 +1154,7 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 			if update.Started != nil {
 				existing.Started = update.Started
 			}
-			if update.Finished != nil {
+			if update.Finished != nil && (existing.Finished == nil || update.Finished.After(*existing.Finished)) {
 				existing.Finished = update.Finished
 			}
 			if update.Error != nil {

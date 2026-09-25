@@ -6,12 +6,14 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gogo/protobuf/types"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 
 	"github.com/armadaproject/armada/internal/common/constants"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
 )
@@ -227,6 +229,35 @@ func LastStatusChange(pod *v1.Pod) (time.Time, error) {
 		return maxStatusChange, errors.New("cannot determine last status change")
 	}
 	return maxStatusChange, nil
+}
+
+// PodTerminationTime returns the latest completion time across terminated init
+// and application containers. It never falls back to non-terminal pod times.
+func PodTerminationTime(pod *v1.Pod) (time.Time, bool) {
+	var finished time.Time
+	for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
+		if terminated := containerStatus.State.Terminated; terminated != nil {
+			finished = maxTime(finished, terminated.FinishedAt.Time)
+		}
+	}
+	if finished.IsZero() {
+		return time.Time{}, false
+	}
+	return finished, true
+}
+
+func PodTerminationTimeProto(pod *v1.Pod) *types.Timestamp {
+	if finished, ok := PodTerminationTime(pod); ok {
+		return protoutil.ToTimestamp(finished)
+	}
+	return nil
+}
+
+func protoTimestampOrNil(t time.Time) *types.Timestamp {
+	if t.IsZero() {
+		return nil
+	}
+	return protoutil.ToTimestamp(t)
 }
 
 func HasPodBeenInStateForLongerThanGivenDuration(pod *v1.Pod, duration time.Duration) bool {
