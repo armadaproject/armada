@@ -73,7 +73,7 @@ jobs:
       # Free disk space to prevent "no space left on device" during Docker builds.
       # This runs on every build since GitHub runners are ephemeral.
       - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
         with:
           tool-cache: false
 
@@ -87,7 +87,7 @@ jobs:
 
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: "Docker login"
         uses: "docker/login-action@dbcb813823bdd20940b903addbd779551569679f" # v4.6.0
