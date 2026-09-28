@@ -77,22 +77,26 @@ func (stateReporter *JobStateReporter) podEventHandler() cache.ResourceEventHand
 }
 
 func (stateReporter *JobStateReporter) reportStatusUpdate(old *v1.Pod, new *v1.Pod) {
-	// Don't report status if the pod phase didn't change
-	if old.Status.Phase == new.Status.Phase {
-		return
-	}
 	// Don't report status change for pods Armada is deleting
 	// This prevents reporting JobFailed when we delete a pod - for example due to cancellation
 	if util.IsMarkedForDeletion(new) {
 		log.Infof("not sending event to report pod %s moving into phase %s as pod is marked for deletion", new.Name, new.Status.Phase)
-		stateReporter.reportRealTerminationTime(new)
+		oldTerminationTime, oldTerminated := util.PodTerminationTime(old)
+		newTerminationTime, newTerminated := util.PodTerminationTime(new)
+		if newTerminated && (!oldTerminated || !newTerminationTime.Equal(oldTerminationTime)) {
+			stateReporter.reportRealTerminationTime(new)
+		}
+		return
+	}
+	// Don't report status if the pod phase didn't change.
+	if old.Status.Phase == new.Status.Phase {
 		return
 	}
 	stateReporter.reportCurrentStatus(new)
 }
 
 func (stateReporter *JobStateReporter) reportRealTerminationTime(pod *v1.Pod) {
-	if !util.IsManagedPod(pod) || !util.IsInTerminalState(pod) {
+	if !util.IsManagedPod(pod) {
 		return
 	}
 	if _, ok := util.PodTerminationTime(pod); !ok {
