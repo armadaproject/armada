@@ -1682,6 +1682,45 @@ func TestShadowQueuedDemandSource_PublishesAndReturnsScan(t *testing.T) {
 	require.Equal(t, before+1, testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool)))
 }
 
+// TestCalculateJobSchedulingInfo_ShadowAgreementPublishesComparisonOnly proves
+// that when the aggregate agrees with the scan the shadow records a comparison
+// but no mismatch, and the scan-derived queued demand is used.
+func TestCalculateJobSchedulingInfo_ShadowAgreementPublishesComparisonOnly(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "shadow-agreement-pool"
+	pc := testfixtures.PriorityClass0
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	queued := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{queuedDemand: shadowQueuedDemandSource{}, aggregateDemandShadow: true}
+
+	beforeComparisons := testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool))
+	beforeMismatches := testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool))
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool)))
+	require.Equal(t, beforeMismatches, testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool)))
+
+	cpu := info.queuedDemandByQueueAndPriorityClass["q1"][pc].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(1), cpu.Value())
+}
+
+// TestNewQueuedDemandSource checks the feature-flag selection and the default
+// used by structs built without the constructor.
+func TestNewQueuedDemandSource(t *testing.T) {
+	require.IsType(t, scanQueuedDemandSource{}, newQueuedDemandSource(false))
+	require.IsType(t, shadowQueuedDemandSource{}, newQueuedDemandSource(true))
+	require.IsType(t, scanQueuedDemandSource{}, (&FairSchedulingAlgo{}).queuedDemandSource())
+	require.IsType(t, shadowQueuedDemandSource{}, (&FairSchedulingAlgo{queuedDemand: shadowQueuedDemandSource{}}).queuedDemandSource())
+}
+
 // BenchmarkQueuedDemand is an end-to-end comparison, not a like-for-like one:
 // the scan case gathers the jobs and builds the full scheduling info, while the
 // aggregate case only performs the isolated queued-demand lookup. For the

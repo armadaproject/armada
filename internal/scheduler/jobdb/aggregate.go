@@ -103,9 +103,9 @@ func (a *JobAggregate) remove(job *Job) {
 	})
 }
 
-// getJobAggregate returns queued demand for currentPool by queue and priority
+// getQueuedDemand returns queued demand for currentPool by queue and priority
 // class. Unknown and cordoned queues are excluded.
-func (a *JobAggregate) getJobAggregate(
+func (a *JobAggregate) getQueuedDemand(
 	currentPool string,
 	knownQueues map[string]bool,
 	cordonedQueues map[string]bool,

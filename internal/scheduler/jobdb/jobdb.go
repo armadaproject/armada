@@ -976,7 +976,7 @@ func (txn *Txn) GetQueuedDemand(
 	knownQueues map[string]bool,
 	cordonedQueues map[string]bool,
 ) map[string]map[string]internaltypes.ResourceList {
-	return txn.aggregate.getJobAggregate(
+	return txn.aggregate.getQueuedDemand(
 		currentPool,
 		knownQueues,
 		cordonedQueues,
