@@ -464,8 +464,10 @@ func (c *InstructionConverter) handleJobRunTerminatedDebugInfo(event *armadaeven
 	if event.DebugMessage != "" {
 		jobRun.Debug = tryCompressError(event.JobId, event.DebugMessage, c.compressor)
 	}
-	if finished, ok := stdTimeIfSet(event.TerminatedAt); ok {
-		jobRun.Finished = &finished
+	if event.DebugMessage == "" {
+		if finished, ok := stdTimeIfSet(event.TerminatedAt); ok {
+			jobRun.Finished = &finished
+		}
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil

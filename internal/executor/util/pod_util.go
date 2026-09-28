@@ -253,6 +253,17 @@ func PodTerminationTimeProto(pod *v1.Pod) *types.Timestamp {
 	return nil
 }
 
+// HasAppContainerTerminated reports whether a workload container, rather than
+// only an init container, has a real completion time.
+func HasAppContainerTerminated(pod *v1.Pod) bool {
+	for _, containerStatus := range pod.Status.ContainerStatuses {
+		if terminated := containerStatus.State.Terminated; terminated != nil && !terminated.FinishedAt.IsZero() {
+			return true
+		}
+	}
+	return false
+}
+
 func protoTimestampOrNil(t time.Time) *types.Timestamp {
 	if t.IsZero() {
 		return nil

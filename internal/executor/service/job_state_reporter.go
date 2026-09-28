@@ -99,6 +99,9 @@ func (stateReporter *JobStateReporter) reportRealTerminationTime(pod *v1.Pod) {
 	if !util.IsManagedPod(pod) {
 		return
 	}
+	if !util.HasAppContainerTerminated(pod) {
+		return
+	}
 	if _, ok := util.PodTerminationTime(pod); !ok {
 		return
 	}
