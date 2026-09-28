@@ -209,6 +209,10 @@ type SchedulingConfig struct {
 	MaxNewJobSchedulingDurationPerQueue time.Duration `validate:"omitempty,ltfield=MaxSchedulingDuration"`
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
+	// Experimental - when enabled, the scheduler also computes queued demand from
+	// the JobDb aggregate, compares it against the scan-derived value, and
+	// publishes any diff. The scan-derived value remains authoritative.
+	ExperimentalAggregateDemand bool
 	// If true, the scheduler tracks per-node pod capacity and refuses to schedule
 	// jobs onto nodes that have exhausted their pod limit.
 	RespectNodePodLimits bool

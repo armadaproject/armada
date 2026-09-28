@@ -1,8 +1,10 @@
 package jobdb
 
 import (
+	"math/rand"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -13,7 +15,7 @@ import (
 
 const aggregateTestPriorityClass = "foo"
 
-func newAggregateTestJob(t *testing.T, jobDb *JobDb, id, queue string, queued bool, pools []string, cpu int64) *Job {
+func newAggregateTestJob(t testing.TB, jobDb *JobDb, id, queue string, queued bool, pools []string, cpu int64) *Job {
 	t.Helper()
 	info := &internaltypes.JobSchedulingInfo{
 		PriorityClass: aggregateTestPriorityClass,
@@ -190,4 +192,141 @@ func TestJobAggregate_DryRunTxnDoesNotAffectDb(t *testing.T) {
 	txn.Commit()
 
 	assert.Nil(t, jobDb.ReadTxn().GetQueuedDemandWithTxn("pool-1", known, nil)["queue-1"])
+}
+
+func TestJobAggregate_DuplicatePoolsCountedOnce(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	job := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1", "pool-1"}, 2)
+
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{job}))
+	txn.Commit()
+
+	known := map[string]bool{"queue-1": true}
+	demand := queuedDemandOf(jobDb.ReadTxn(), "pool-1", known, nil)
+	assert.Equal(t, int64(2), cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
+}
+
+func TestJobAggregate_TerminalTransitionRemovesFromAggregate(t *testing.T) {
+	jobDb := NewTestJobDb()
+	known := map[string]bool{"queue-1": true}
+
+	job := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1"}, 3)
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{job}))
+	txn.Commit()
+	require.Equal(t, int64(3), cpuOf(queuedDemandOf(jobDb.ReadTxn(), "pool-1", known, nil)["queue-1"][aggregateTestPriorityClass]))
+
+	terminal := job.WithFailed(true)
+	txn = jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{terminal}))
+	txn.Commit()
+	assert.Nil(t, queuedDemandOf(jobDb.ReadTxn(), "pool-1", known, nil)["queue-1"])
+}
+
+func TestJobAggregate_RemoveInvariantViolationRecorded(t *testing.T) {
+	jobDb := NewTestJobDb()
+	job := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1"}, 1)
+
+	before := testutil.ToFloat64(jobAggregateInvariantViolations.WithLabelValues("remove_missing_entry"))
+
+	// A write transaction removing a job that was never added must record a violation.
+	txn := jobDb.WriteTxn()
+	txn.aggregate.remove(job)
+	txn.Abort()
+
+	after := testutil.ToFloat64(jobAggregateInvariantViolations.WithLabelValues("remove_missing_entry"))
+	assert.Equal(t, before+1, after)
+}
+
+type aggregateTestKey struct {
+	pool  string
+	queue string
+	pc    string
+}
+
+func TestJobAggregate_ChurnMatchesReference(t *testing.T) {
+	jobDb := NewTestJobDb()
+	rng := rand.New(rand.NewSource(42))
+	pools := []string{"pool-1", "pool-2", "pool-3"}
+	queues := []string{"q1", "q2"}
+	ids := []string{"a", "b", "c", "d", "e", "f"}
+
+	for i := 0; i < 400; i++ {
+		if rng.Intn(6) == 0 {
+			id := ids[rng.Intn(len(ids))]
+			txn := jobDb.WriteTxn()
+			require.NoError(t, txn.BatchDelete([]string{id}))
+			txn.Commit()
+		} else {
+			id := ids[rng.Intn(len(ids))]
+			queued := rng.Intn(3) != 0
+			selectedPools := randomPoolSubset(rng, pools)
+			job := newAggregateTestJob(t, jobDb, id, queues[rng.Intn(len(queues))], queued, selectedPools, int64(1+rng.Intn(4)))
+			if !queued && rng.Intn(2) == 0 {
+				job = job.WithNewRun("executor", "node", id, selectedPools[0], 0)
+			}
+			if rng.Intn(7) == 0 {
+				job = job.WithFailed(true)
+			}
+			txn := jobDb.WriteTxn()
+			require.NoError(t, txn.Upsert([]*Job{job}))
+			txn.Commit()
+		}
+
+		require.Equal(t,
+			referenceAggregate(jobDb.ReadTxn().GetAll()),
+			observedAggregate(jobDb.aggregate),
+			"op %d", i,
+		)
+	}
+}
+
+func randomPoolSubset(rng *rand.Rand, pools []string) []string {
+	n := 1 + rng.Intn(len(pools))
+	perm := rng.Perm(len(pools))[:n]
+	result := make([]string, 0, n+1)
+	for _, idx := range perm {
+		result = append(result, pools[idx])
+	}
+	// Occasionally duplicate a pool to exercise deduplication.
+	if rng.Intn(5) == 0 {
+		result = append(result, result[0])
+	}
+	return result
+}
+
+// referenceAggregate computes the expected aggregate from the current jobs,
+// independently of the incremental maintenance.
+func referenceAggregate(jobs []*Job) map[aggregateTestKey]int64 {
+	result := map[aggregateTestKey]int64{}
+	for _, job := range jobs {
+		if job.InTerminalState() || !job.Queued() {
+			continue
+		}
+		cpu := cpuOf(job.AllResourceRequirements())
+		seen := make(map[string]bool, len(job.Pools()))
+		for _, pool := range job.Pools() {
+			if seen[pool] {
+				continue
+			}
+			seen[pool] = true
+			result[aggregateTestKey{pool: pool, queue: job.Queue(), pc: job.PriorityClassName()}] += cpu
+		}
+	}
+	return result
+}
+
+func observedAggregate(a *JobAggregate) map[aggregateTestKey]int64 {
+	result := map[aggregateTestKey]int64{}
+	if a == nil || a.byKey == nil {
+		return result
+	}
+	it := a.byKey.Iterator()
+	for !it.Done() {
+		key, rl, _ := it.Next()
+		result[aggregateTestKey{pool: key.pool, queue: key.queue, pc: key.priorityClass}] = cpuOf(rl)
+	}
+	return result
 }

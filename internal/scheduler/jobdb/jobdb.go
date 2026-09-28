@@ -73,8 +73,7 @@ type JobDb struct {
 	jobsByPoolAndQueue map[string]map[string]immutable.SortedSet[*Job]
 	leasedJobs         *immutable.Set[*Job]
 	unvalidatedJobs    *immutable.Set[*Job]
-	// Incrementally-maintained aggregate over the active jobs in the db.
-	// Used to derive scheduling decisions without scanning every job.
+	// Incrementally maintained aggregate of queued demand.
 	aggregate *JobAggregate
 	// Configured priority classes.
 	priorityClasses map[string]types.PriorityClass
@@ -447,7 +446,7 @@ type Txn struct {
 	leasedJobs *immutable.Set[*Job]
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
-	// Incrementally-maintained aggregate over the active jobs in the db.
+	// Incrementally maintained aggregate of queued demand.
 	aggregate *JobAggregate
 	// The current snapshot of bid prices - allowing look up of bidding prices on job creation
 	bidPriceSnapshot *pricing.BidPriceSnapshot
@@ -589,13 +588,14 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 
 	// First, delete any jobs to be upserted from the sets of queued and unvalidated jobs
 	// We will replace these jobs later if they are still queued
+	removedJobs := make([]*Job, 0, len(jobs))
 	if hasJobs {
 		aggregateRemoved := make(map[string]bool, len(jobs))
 		for _, job := range jobs {
 			existingJob, ok := txn.jobsById.Get(job.id)
 			if ok {
 				if !aggregateRemoved[existingJob.id] {
-					txn.aggregate.remove(existingJob)
+					removedJobs = append(removedJobs, existingJob)
 					aggregateRemoved[existingJob.id] = true
 				}
 
@@ -629,12 +629,14 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 		}
 	}
 
+	// Apply the queued-demand aggregate delta in a single place so the aggregate
+	// can only change together with the job indexes above/below. jobsById is
+	// last-write-wins for duplicate IDs, hence dedupeJobsLastWins.
+	txn.applyAggregateDelta(removedJobs, dedupeJobsLastWins(jobs))
+
 	// Now need to insert jobs, runs and queuedJobs. This can be done in parallel.
-	// Each goroutine owns a disjoint piece of txn state, including the
-	// aggregate goroutine below which is the sole writer of txn.aggregate,
-	// so the aggregate is still mutated sequentially job-by-job.
 	wg := sync.WaitGroup{}
-	wg.Add(7)
+	wg.Add(6)
 
 	// jobs
 	go func() {
@@ -821,33 +823,36 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 		}
 	}()
 
-	// Queued-demand aggregate. Runs concurrently with the index inserts above;
-	// it only reads jobs and is the sole writer of txn.aggregate, which is a
-	// per-transaction clone (see Clone). Jobs are still added sequentially
-	// within this goroutine as add does a non-atomic Get+Set on byPool.
-	// Must only be called on a writable transaction; the aggregate never creates
-	// its own transaction, mirroring NodeDb's WithTxn mutation discipline.
-	go func() {
-		defer wg.Done()
-		// jobsById is keyed by job ID and last-write-wins, so a batch containing
-		// duplicate IDs ultimately stores only the last job for each ID. Match
-		// that here by iterating from the back and adding each ID at most once,
-		// otherwise duplicate entries would be counted more than once and leave
-		// the aggregate persistently over-counted.
-		added := make(map[string]bool, len(jobs))
-		for i := len(jobs) - 1; i >= 0; i-- {
-			job := jobs[i]
-			if added[job.id] {
-				continue
-			}
-			added[job.id] = true
-			txn.aggregate.add(job)
-		}
-	}()
-
 	wg.Wait()
 
 	return nil
+}
+
+// applyAggregateDelta applies the queued-demand aggregate changes for a set of
+// removed and added jobs. It is the single mutation point for the aggregate.
+func (txn *Txn) applyAggregateDelta(removed, added []*Job) {
+	for _, job := range removed {
+		txn.aggregate.remove(job)
+	}
+	for _, job := range added {
+		txn.aggregate.add(job)
+	}
+}
+
+// dedupeJobsLastWins returns jobs with duplicate IDs collapsed to the last
+// occurrence, matching the last-write-wins behaviour of jobsById.
+func dedupeJobsLastWins(jobs []*Job) []*Job {
+	result := make([]*Job, 0, len(jobs))
+	seen := make(map[string]bool, len(jobs))
+	for i := len(jobs) - 1; i >= 0; i-- {
+		job := jobs[i]
+		if seen[job.id] {
+			continue
+		}
+		seen[job.id] = true
+		result = append(result, job)
+	}
+	return result
 }
 
 // NewJob creates a new scheduler job.
@@ -964,10 +969,8 @@ func (txn *Txn) GetAllLeasedJobs() []*Job {
 	return txn.leasedJobs.Items()
 }
 
-// GetQueuedDemandWithTxn derives queued demand for currentPool from the
-// incrementally maintained job aggregate, without scanning every job.
-// It is a pure read: it never mutates the aggregate, mirroring NodeDb's
-// SelectNodeForJobWithTxn which takes a txn but does not mutate the db.
+// GetQueuedDemandWithTxn returns queued demand for currentPool by queue and
+// priority class, derived from the aggregate.
 func (txn *Txn) GetQueuedDemandWithTxn(
 	currentPool string,
 	knownQueues map[string]bool,
@@ -980,8 +983,7 @@ func (txn *Txn) GetQueuedDemandWithTxn(
 	)
 }
 
-// GetQueuedDemand is the non-transactional convenience wrapper, mirroring
-// NodeDb.GetNode vs GetNodeWithTxn: it creates its own read transaction.
+// GetQueuedDemand is the non-transactional wrapper around GetQueuedDemandWithTxn.
 func (jobDb *JobDb) GetQueuedDemand(
 	currentPool string,
 	knownQueues map[string]bool,
@@ -1027,7 +1029,7 @@ func (txn *Txn) BatchDelete(jobIds []string) error {
 func (txn *Txn) delete(jobId string) {
 	job, present := txn.jobsById.Get(jobId)
 	if present {
-		txn.aggregate.remove(job)
+		txn.applyAggregateDelta([]*Job{job}, nil)
 		txn.jobsById = txn.jobsById.Delete(jobId)
 		for _, run := range job.runsById {
 			txn.jobsByRunId = txn.jobsByRunId.Delete(run.id)

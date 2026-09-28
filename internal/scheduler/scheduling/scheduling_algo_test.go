@@ -1508,10 +1508,10 @@ func TestBuildInUsePriorityClasses(t *testing.T) {
 	}
 }
 
-// TestCalculateJobSchedulingInfo_AggregateMatchesLegacy validates that the JobDb
-// queued-demand aggregate derives exactly the same queued demand as the legacy
-// per-job calculation. This is the correctness check behind the canary mode.
-func TestCalculateJobSchedulingInfo_AggregateMatchesLegacy(t *testing.T) {
+// TestCalculateJobSchedulingInfo_AggregateMatchesScan validates that the JobDb
+// queued-demand aggregate derives exactly the same queued demand as the job scan.
+// This is the correctness check behind the canary mode.
+func TestCalculateJobSchedulingInfo_AggregateMatchesScan(t *testing.T) {
 	ctx := armadacontext.Background()
 
 	queues := map[string]*api.Queue{
@@ -1552,18 +1552,18 @@ func TestCalculateJobSchedulingInfo_AggregateMatchesLegacy(t *testing.T) {
 	activeExecutorsSet := map[string]bool{"executor-1": true, "executor-2": true}
 
 	algo := &FairSchedulingAlgo{}
-	legacy, err := algo.calculateLegacyJobSchedulingInfo(
+	scan, err := algo.calculateJobSchedulingInfo(
 		ctx, activeExecutorsSet, queues, txn.GetAll(), currentPool, awayAllocationPools, allPools, nil,
 	)
 	require.NoError(t, err)
-	aggregate := algo.aggregateQueuedDemand(txn, queues, currentPool)
-	components, diff := compareQueuedDemand(legacy.queuedDemandByQueueAndPriorityClass, aggregate)
+	aggregate := queuedDemandFromAggregate(txn, queues, currentPool)
+	components, diff := compareQueuedDemand(scan.queuedDemandByQueueAndPriorityClass, aggregate)
 	require.Empty(t, components)
 	require.Empty(t, diff)
 }
 
 // TestCompareQueuedDemand proves the canary comparison fires when the aggregate
-// diverges from the legacy calculation, and stays silent when they agree.
+// diverges from the scan, and stays silent when they agree.
 func TestCompareQueuedDemand(t *testing.T) {
 	oneCpu := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).AllResourceRequirements()
 	twoCpu := oneCpu.Add(oneCpu)
@@ -1602,16 +1602,16 @@ func TestCompareQueuedDemand(t *testing.T) {
 	})
 }
 
-// TestCalculateJobSchedulingInfo_MismatchUsesLegacyAndRecords proves the full
+// TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords proves the full
 // canary path on divergence: the mismatch is recorded in the
 // armada_scheduler_job_aggregate_canary_* metrics, a
-// "JobDb queued-demand aggregate mismatch for pool ..." error is logged, and
-// the authoritative legacy result is returned.
+// "JobDb queued demand aggregate mismatch for pool ..." error is logged, and
+// the authoritative scan result is returned.
 //
 // Divergence is forced by passing a jobs slice containing a queued job that was
-// never upserted into the JobDb, so the legacy scan sees it but the aggregate
-// does not — the same shape a real aggregate accounting bug would produce.
-func TestCalculateJobSchedulingInfo_MismatchUsesLegacyAndRecords(t *testing.T) {
+// never upserted into the JobDb, so the scan sees it but the aggregate does not
+// — the same shape a real aggregate accounting bug would produce.
+func TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords(t *testing.T) {
 	ctx := armadacontext.Background()
 	pool := "canary-mismatch-pool"
 	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
@@ -1623,19 +1623,19 @@ func TestCalculateJobSchedulingInfo_MismatchUsesLegacyAndRecords(t *testing.T) {
 
 	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
 	txn := jobDb.ReadTxn()
-	algo := &FairSchedulingAlgo{}
+	algo := &FairSchedulingAlgo{queuedDemand: shadowQueuedDemandSource{}, aggregateDemandShadow: true}
 
 	beforeComparisons := testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool))
 	beforeMismatches := testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool))
 	beforeComponents := testutil.ToFloat64(jobAggregateCanaryMismatchComponents.WithLabelValues(pool, "demand_queued"))
 
-	info, err := algo.calculateJobSchedulingInfo(
+	info, err := algo.newCalculateJobSchedulingInfo(
 		ctx, txn, map[string]bool{}, queues,
 		[]*jobdb.Job{queued, phantom}, pool, nil, []string{pool}, nil,
 	)
 	require.NoError(t, err)
 
-	// Legacy wins: demand covers both jobs (2 cpu) although the aggregate only knows one.
+	// Scan wins: demand covers both jobs (2 cpu) although the aggregate only knows one.
 	cpu := info.demandByQueueAndPriorityClass["q1"][testfixtures.PriorityClass0].GetByNameZeroIfMissing("cpu")
 	require.Equal(t, int64(2), cpu.Value())
 
@@ -1644,12 +1644,49 @@ func TestCalculateJobSchedulingInfo_MismatchUsesLegacyAndRecords(t *testing.T) {
 	require.Equal(t, beforeComponents+1, testutil.ToFloat64(jobAggregateCanaryMismatchComponents.WithLabelValues(pool, "demand_queued")))
 }
 
+// TestScanQueuedDemandSource_ReturnsScanWithoutPublishing proves the default
+// source is a pure pass-through that publishes nothing.
+func TestScanQueuedDemandSource_ReturnsScanWithoutPublishing(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "scan-source-pool"
+	pc := testfixtures.PriorityClass0
+	scanned := map[string]map[string]internaltypes.ResourceList{
+		"q1": {pc: testfixtures.Test1Cpu4GiJob("q1", pc).AllResourceRequirements()},
+	}
+
+	before := testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool))
+	got := scanQueuedDemandSource{}.QueuedDemand(ctx, scanned, nil, nil, pool)
+	require.Equal(t, scanned, got)
+	require.Equal(t, before, testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool)))
+}
+
+// TestShadowQueuedDemandSource_PublishesAndReturnsScan proves the shadow source
+// publishes a divergence while still returning the authoritative scan value.
+func TestShadowQueuedDemandSource_PublishesAndReturnsScan(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "shadow-source-pool"
+	pc := testfixtures.PriorityClass0
+	queued := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
+	txn := jobDb.ReadTxn()
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	// Scan claims two cpu while the aggregate only knows one: divergence.
+	scanned := map[string]map[string]internaltypes.ResourceList{
+		"q1": {pc: queued.AllResourceRequirements().Add(queued.AllResourceRequirements())},
+	}
+
+	before := testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool))
+	got := shadowQueuedDemandSource{}.QueuedDemand(ctx, scanned, txn, queues, pool)
+	require.Equal(t, scanned, got)
+	require.Equal(t, before+1, testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool)))
+}
+
 // BenchmarkQueuedDemand is an end-to-end comparison, not a like-for-like one:
-// the legacy case gathers the jobs and builds the full scheduling info, while the
-// aggregate case only performs the isolated queued-demand lookup. It is intended
-// to show the cost of the aggregate lookup relative to the legacy round, not to
-// isolate the demand calculation. For the isolated scan-vs-aggregate comparison,
-// see BenchmarkQueuedDemandAggregate in internal/scheduler/jobdb.
+// the scan case gathers the jobs and builds the full scheduling info, while the
+// aggregate case only performs the isolated queued-demand lookup. For the
+// isolated scan-vs-aggregate comparison, see BenchmarkQueuedDemandAggregate in
+// internal/scheduler/jobdb.
 func BenchmarkQueuedDemand(b *testing.B) {
 	const (
 		numQueues         = 8
@@ -1695,11 +1732,11 @@ func BenchmarkQueuedDemand(b *testing.B) {
 	algo := &FairSchedulingAlgo{}
 	ctx := armadacontext.Background()
 
-	b.Run("impl=legacy_full_scheduling_info", func(b *testing.B) {
+	b.Run("impl=full_scheduling_info", func(b *testing.B) {
 		b.ReportAllocs()
 		for n := 0; n < b.N; n++ {
 			allJobs := append(txn.GetAllLeasedJobs(), getQueuedJobs(txn, allPools)...)
-			if _, err := algo.calculateLegacyJobSchedulingInfo(
+			if _, err := algo.calculateJobSchedulingInfo(
 				ctx, activeExecutorsSet, queues, allJobs, currentPool, awayAllocationPools, allPools, nil,
 			); err != nil {
 				b.Fatal(err)
@@ -1710,7 +1747,7 @@ func BenchmarkQueuedDemand(b *testing.B) {
 	b.Run("impl=aggregate_queued_demand", func(b *testing.B) {
 		b.ReportAllocs()
 		for n := 0; n < b.N; n++ {
-			algo.aggregateQueuedDemand(txn, queues, currentPool)
+			queuedDemandFromAggregate(txn, queues, currentPool)
 		}
 	})
 }

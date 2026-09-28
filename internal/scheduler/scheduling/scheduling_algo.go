@@ -69,6 +69,10 @@ type FairSchedulingAlgo struct {
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
 	shortJobPenalty       *ShortJobPenalty
 	tracer                trace.Tracer
+	// Derives the queued demand used for scheduling; see queuedDemandSource.
+	queuedDemand queuedDemandSource
+	// Whether the aggregate queued-demand shadow comparison is enabled.
+	aggregateDemandShadow bool
 }
 
 func NewFairSchedulingAlgo(
@@ -106,6 +110,8 @@ func NewFairSchedulingAlgo(
 		shortJobPenalty:              shortJobPenalty,
 		stateValidator:               stateValidator,
 		tracer:                       otel.Tracer("armada.scheduler.fair_scheduling_algo"),
+		queuedDemand:                 newQueuedDemandSource(config.ExperimentalAggregateDemand),
+		aggregateDemandShadow:        config.ExperimentalAggregateDemand,
 	}, nil
 }
 
@@ -455,7 +461,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	allJobs = append(allJobs, leasedJobs...)
 	allJobs = append(allJobs, queuedJobs...)
 
-	jobSchedulingInfo, err := l.calculateJobSchedulingInfo(ctx,
+	jobSchedulingInfo, err := l.newCalculateJobSchedulingInfo(ctx,
 		txn,
 		activeExecutorsSet,
 		queueByName,
@@ -589,26 +595,15 @@ type jobSchedulingInfo struct {
 	awayAllocatedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 	shortJobPenaltyByQueue               map[string]internaltypes.ResourceList
 	inUsePriorityClasses                 map[string]bool
-	// queuedDemandByQueueAndPriorityClass is the queued-only subset of demand,
-	// tracked separately so the queued-demand aggregate can be validated
-	// without an extra scan. For canary comparison only.
+	// Queued-only subset of demand, used only to validate the aggregate.
 	queuedDemandByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 }
 
-// calculateJobSchedulingInfo returns the per-round scheduling information for the pool.
+// newCalculateJobSchedulingInfo returns the per-round scheduling information for the pool.
 //
-// The legacy per-job calculation is always authoritative. Alongside it, the
-// incrementally maintained JobDb queued-demand aggregate is read via a pure,
-// non-mutating lookup (mirroring NodeDb's non-mutating reads) and compared
-// against the queued-only subset of the legacy result. Any discrepancy is
-// recorded as a metric and logged.
-//
-// Both paths are timed, but into separate histograms because they measure
-// different scopes: the legacy timer covers the whole scheduling-info build,
-// while the lookup timer covers only the isolated aggregate queued-demand
-// lookup. The two must not be read as a like-for-like speedup; the isolated
-// scan-vs-aggregate comparison is covered by the aggregate benchmarks.
-func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(
+// The scan-derived queued demand is authoritative. If the aggregate shadow is
+// enabled, l.queuedDemand also computes the aggregate value and publishes any diff.
+func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
 	activeExecutorsSet map[string]bool,
@@ -619,44 +614,36 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(
 	allPools []string,
 	shortJobPenalty *ShortJobPenaltySnapshot,
 ) (*jobSchedulingInfo, error) {
-	legacyStart := time.Now()
-	legacy, err := l.calculateLegacyJobSchedulingInfo(ctx, activeExecutorsSet, queues, jobs, currentPool, awayAllocationPools, allPools, shortJobPenalty)
+	start := time.Now()
+	info, err := l.calculateJobSchedulingInfo(ctx, activeExecutorsSet, queues, jobs, currentPool, awayAllocationPools, allPools, shortJobPenalty)
 	if err != nil {
 		return nil, err
 	}
-	observeJobAggregateLegacySchedulingInfoDuration(currentPool, time.Since(legacyStart).Seconds())
+	if l.aggregateDemandShadow {
+		observeJobAggregateSchedulingInfoDuration(currentPool, time.Since(start).Seconds())
+	}
 
-	aggregateStart := time.Now()
-	aggregateQueuedDemand := l.aggregateQueuedDemand(txn, queues, currentPool)
-	observeJobAggregateLookupDuration(currentPool, time.Since(aggregateStart).Seconds())
-
-	mismatchedComponents, diff := compareQueuedDemand(
-		legacy.queuedDemandByQueueAndPriorityClass, aggregateQueuedDemand,
+	info.queuedDemandByQueueAndPriorityClass = l.queuedDemandSource().QueuedDemand(
+		ctx,
+		info.queuedDemandByQueueAndPriorityClass,
+		txn,
+		queues,
+		currentPool,
 	)
-	recordJobAggregateCanaryResult(currentPool, mismatchedComponents)
-	if diff != "" {
-		ctx.Errorf("JobDb queued-demand aggregate mismatch for pool %s (using legacy result): %s", currentPool, diff)
-	}
-	return legacy, nil
+	return info, nil
 }
 
-// aggregateQueuedDemand derives queued demand for the pool from the
-// incrementally maintained JobDb aggregate instead of scanning every job.
-// It is a pure read and never mutates the JobDb transaction.
-func (l *FairSchedulingAlgo) aggregateQueuedDemand(txn *jobdb.Txn,
-	queues map[string]*api.Queue, currentPool string,
-) map[string]map[string]internaltypes.ResourceList {
-	knownQueues := make(map[string]bool, len(queues))
-	cordonedQueues := make(map[string]bool, len(queues))
-	for name, queue := range queues {
-		knownQueues[name] = true
-		cordonedQueues[name] = queue.Cordoned
+// queuedDemandSource returns the configured queued-demand source, defaulting to
+// the scan source so that structs built without the constructor stay on the
+// current behaviour.
+func (l *FairSchedulingAlgo) queuedDemandSource() queuedDemandSource {
+	if l.queuedDemand == nil {
+		return scanQueuedDemandSource{}
 	}
-
-	return txn.GetQueuedDemandWithTxn(currentPool, knownQueues, cordonedQueues)
+	return l.queuedDemand
 }
 
-func (l *FairSchedulingAlgo) calculateLegacyJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
+func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
 	queues map[string]*api.Queue, jobs []*jobdb.Job, currentPool string, awayAllocationPools []string, allPools []string,
 	shortJobPenalty *ShortJobPenaltySnapshot,
 ) (*jobSchedulingInfo, error) {
@@ -775,32 +762,30 @@ func (l *FairSchedulingAlgo) calculateLegacyJobSchedulingInfo(ctx *armadacontext
 	}, nil
 }
 
-// compareQueuedDemand compares the legacy queued-only demand against the
-// aggregate-derived queued demand and returns the names of the mismatching
-// components together with a human-readable description of the differences.
-// Both are empty if the two are equivalent. It is used by the canary mode to
-// validate the aggregate against the established per-job calculation.
-func compareQueuedDemand(legacy, aggregate map[string]map[string]internaltypes.ResourceList) ([]string, string) {
-	if diff := compareResourceListMaps("queuedDemandByQueueAndPriorityClass", legacy, aggregate); diff != "" {
+// compareQueuedDemand returns the mismatching component names and a description
+// of the differences between scan-derived and aggregate-derived queued demand.
+// Both are empty if the two are equivalent.
+func compareQueuedDemand(scan, aggregate map[string]map[string]internaltypes.ResourceList) ([]string, string) {
+	if diff := compareResourceListMaps("queuedDemandByQueueAndPriorityClass", scan, aggregate); diff != "" {
 		return []string{"demand_queued"}, diff
 	}
 	return nil, ""
 }
 
-func compareResourceListMaps(name string, legacy, aggregate map[string]map[string]internaltypes.ResourceList) string {
+func compareResourceListMaps(name string, scan, aggregate map[string]map[string]internaltypes.ResourceList) string {
 	diffs := make([]string, 0)
-	for _, queue := range unionKeys(legacy, aggregate) {
-		for _, priorityClass := range unionResourcePriorityClasses(legacy[queue], aggregate[queue]) {
-			legacyRl := legacy[queue][priorityClass]
+	for _, queue := range unionKeys(scan, aggregate) {
+		for _, priorityClass := range unionResourcePriorityClasses(scan[queue], aggregate[queue]) {
+			scanRl := scan[queue][priorityClass]
 			aggregateRl := aggregate[queue][priorityClass]
-			legacyZero := legacyRl.AllZero()
+			scanZero := scanRl.AllZero()
 			aggregateZero := aggregateRl.AllZero()
-			if legacyZero && aggregateZero {
+			if scanZero && aggregateZero {
 				continue
 			}
-			if legacyZero != aggregateZero || !legacyRl.Equal(aggregateRl) {
-				diffs = append(diffs, fmt.Sprintf("%s[queue=%s,priorityClass=%s]: legacy=%s aggregate=%s",
-					name, queue, priorityClass, legacyRl.String(), aggregateRl.String()))
+			if scanZero != aggregateZero || !scanRl.Equal(aggregateRl) {
+				diffs = append(diffs, fmt.Sprintf("%s[queue=%s,priorityClass=%s]: scan=%s aggregate=%s",
+					name, queue, priorityClass, scanRl.String(), aggregateRl.String()))
 			}
 		}
 	}
