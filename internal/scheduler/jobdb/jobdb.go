@@ -74,7 +74,7 @@ type JobDb struct {
 	leasedJobs         *immutable.Set[*Job]
 	unvalidatedJobs    *immutable.Set[*Job]
 	// Incrementally maintained aggregate of queued demand.
-	aggregate *JobAggregate
+	aggregate *QueuedDemand
 	// Configured priority classes.
 	priorityClasses map[string]types.PriorityClass
 	// Priority class assigned to jobs with a priorityClassName not in jobDb.priorityClasses.
@@ -146,7 +146,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 		jobsByPoolAndQueue:     map[string]map[string]immutable.SortedSet[*Job]{},
 		leasedJobs:             &leasedJobs,
 		unvalidatedJobs:        &unvalidatedJobs,
-		aggregate:              NewJobAggregate(),
+		aggregate:              NewQueuedDemand(),
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
@@ -447,7 +447,7 @@ type Txn struct {
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
 	// Incrementally maintained aggregate of queued demand.
-	aggregate *JobAggregate
+	aggregate *QueuedDemand
 	// The current snapshot of bid prices - allowing look up of bidding prices on job creation
 	bidPriceSnapshot *pricing.BidPriceSnapshot
 	// The jobDb from which this transaction was created.
@@ -969,9 +969,9 @@ func (txn *Txn) GetAllLeasedJobs() []*Job {
 	return txn.leasedJobs.Items()
 }
 
-// GetQueuedDemandWithTxn returns queued demand for currentPool by queue and
-// priority class, derived from the aggregate.
-func (txn *Txn) GetQueuedDemandWithTxn(
+// GetQueuedDemand returns queued demand for currentPool by queue and priority
+// class, derived from the aggregate.
+func (txn *Txn) GetQueuedDemand(
 	currentPool string,
 	knownQueues map[string]bool,
 	cordonedQueues map[string]bool,
@@ -981,15 +981,6 @@ func (txn *Txn) GetQueuedDemandWithTxn(
 		knownQueues,
 		cordonedQueues,
 	)
-}
-
-// GetQueuedDemand is the non-transactional wrapper around GetQueuedDemandWithTxn.
-func (jobDb *JobDb) GetQueuedDemand(
-	currentPool string,
-	knownQueues map[string]bool,
-	cordonedQueues map[string]bool,
-) map[string]map[string]internaltypes.ResourceList {
-	return jobDb.ReadTxn().GetQueuedDemandWithTxn(currentPool, knownQueues, cordonedQueues)
 }
 
 // GetAll returns all jobs in the database.

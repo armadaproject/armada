@@ -79,5 +79,5 @@ func queuedDemandFromAggregate(
 		knownQueues[name] = true
 		cordonedQueues[name] = queue.Cordoned
 	}
-	return txn.GetQueuedDemandWithTxn(currentPool, knownQueues, cordonedQueues)
+	return txn.GetQueuedDemand(currentPool, knownQueues, cordonedQueues)
 }

@@ -33,7 +33,7 @@ func newAggregateTestJob(t testing.TB, jobDb *JobDb, id, queue string, queued bo
 }
 
 func queuedDemandOf(txn *Txn, currentPool string, known, cordoned map[string]bool) map[string]map[string]internaltypes.ResourceList {
-	return txn.GetQueuedDemandWithTxn(currentPool, known, cordoned)
+	return txn.GetQueuedDemand(currentPool, known, cordoned)
 }
 
 func cpuOf(rl internaltypes.ResourceList) int64 {
@@ -75,10 +75,9 @@ func TestJobAggregate_QueuedDemand(t *testing.T) {
 	demand = queuedDemandOf(jobDb.ReadTxn(), "pool-1", known, cordoned)
 	assert.Nil(t, demand["queue-1"])
 
-	// Unknown queues are dropped. Use the non-transactional convenience wrapper,
-	// mirroring NodeDb.GetNode vs GetNodeWithTxn.
+	// Unknown queues are dropped.
 	knownWithoutQueue1 := map[string]bool{"queue-2": true, "queue-3": true}
-	demand = jobDb.GetQueuedDemand("pool-1", knownWithoutQueue1, nil)
+	demand = jobDb.ReadTxn().GetQueuedDemand("pool-1", knownWithoutQueue1, nil)
 	assert.Nil(t, demand["queue-1"])
 }
 
@@ -156,10 +155,10 @@ func TestJobAggregate_TransactionIsolation(t *testing.T) {
 
 	known := map[string]bool{"queue-1": true}
 	committedDemand := func() int64 {
-		return cpuOf(jobDb.ReadTxn().GetQueuedDemandWithTxn("pool-1", known, nil)["queue-1"][aggregateTestPriorityClass])
+		return cpuOf(jobDb.ReadTxn().GetQueuedDemand("pool-1", known, nil)["queue-1"][aggregateTestPriorityClass])
 	}
 	txnDemand := func(t *Txn) int64 {
-		return cpuOf(t.GetQueuedDemandWithTxn("pool-1", known, nil)["queue-1"][aggregateTestPriorityClass])
+		return cpuOf(t.GetQueuedDemand("pool-1", known, nil)["queue-1"][aggregateTestPriorityClass])
 	}
 	require.Equal(t, int64(1), committedDemand())
 
@@ -188,10 +187,10 @@ func TestJobAggregate_DryRunTxnDoesNotAffectDb(t *testing.T) {
 	txn := jobDb.DryRunTxn()
 	jobA := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1"}, 1)
 	require.NoError(t, txn.Upsert([]*Job{jobA}))
-	assert.Equal(t, int64(1), cpuOf(txn.GetQueuedDemandWithTxn("pool-1", known, nil)["queue-1"][aggregateTestPriorityClass]))
+	assert.Equal(t, int64(1), cpuOf(txn.GetQueuedDemand("pool-1", known, nil)["queue-1"][aggregateTestPriorityClass]))
 	txn.Commit()
 
-	assert.Nil(t, jobDb.ReadTxn().GetQueuedDemandWithTxn("pool-1", known, nil)["queue-1"])
+	assert.Nil(t, jobDb.ReadTxn().GetQueuedDemand("pool-1", known, nil)["queue-1"])
 }
 
 func TestJobAggregate_DuplicatePoolsCountedOnce(t *testing.T) {
@@ -208,35 +207,68 @@ func TestJobAggregate_DuplicatePoolsCountedOnce(t *testing.T) {
 	assert.Equal(t, int64(2), cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
 }
 
-func TestJobAggregate_TerminalTransitionRemovesFromAggregate(t *testing.T) {
-	jobDb := NewTestJobDb()
+func TestJobAggregate_Transitions(t *testing.T) {
+	const pool = "pool-1"
 	known := map[string]bool{"queue-1": true}
 
-	job := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1"}, 3)
-	txn := jobDb.WriteTxn()
-	require.NoError(t, txn.Upsert([]*Job{job}))
-	txn.Commit()
-	require.Equal(t, int64(3), cpuOf(queuedDemandOf(jobDb.ReadTxn(), "pool-1", known, nil)["queue-1"][aggregateTestPriorityClass]))
+	queued := func(t *testing.T, jobDb *JobDb) *Job {
+		return newAggregateTestJob(t, jobDb, "job", "queue-1", true, []string{pool}, 1)
+	}
+	leased := func(t *testing.T, jobDb *JobDb) *Job {
+		return newAggregateTestJob(t, jobDb, "job", "queue-1", false, []string{pool}, 1).
+			WithNewRun("executor-1", "node-1", "node-1", pool, 0)
+	}
 
-	terminal := job.WithFailed(true)
-	txn = jobDb.WriteTxn()
-	require.NoError(t, txn.Upsert([]*Job{terminal}))
-	txn.Commit()
-	assert.Nil(t, queuedDemandOf(jobDb.ReadTxn(), "pool-1", known, nil)["queue-1"])
+	tests := map[string]struct {
+		initial func(t *testing.T, jobDb *JobDb) *Job
+		updated func(*Job) *Job
+		wantCPU int64
+	}{
+		"queued to leased":    {queued, func(j *Job) *Job { return j.WithQueued(false).WithNewRun("executor-1", "node-1", "node-1", pool, 0) }, 0},
+		"queued to cancelled": {queued, func(j *Job) *Job { return j.WithCancelled(true) }, 0},
+		"queued to failed":    {queued, func(j *Job) *Job { return j.WithFailed(true) }, 0},
+		"queued to succeeded": {queued, func(j *Job) *Job { return j.WithSucceeded(true) }, 0},
+		"leased to cancelled": {leased, func(j *Job) *Job { return j.WithCancelled(true) }, 0},
+		"leased to failed":    {leased, func(j *Job) *Job { return j.WithFailed(true) }, 0},
+		"leased to succeeded": {leased, func(j *Job) *Job { return j.WithSucceeded(true) }, 0},
+		"queued unchanged":    {queued, func(j *Job) *Job { return j }, 1},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			jobDb := NewTestJobDb()
+			initial := tc.initial(t, jobDb)
+			txn := jobDb.WriteTxn()
+			require.NoError(t, txn.Upsert([]*Job{initial}))
+			txn.Commit()
+
+			updated := tc.updated(initial)
+			txn = jobDb.WriteTxn()
+			require.NoError(t, txn.Upsert([]*Job{updated}))
+			txn.Commit()
+
+			demand := jobDb.ReadTxn().GetQueuedDemand(pool, known, nil)
+			if tc.wantCPU == 0 {
+				assert.Nil(t, demand["queue-1"])
+			} else {
+				assert.Equal(t, tc.wantCPU, cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
+			}
+		})
+	}
 }
 
 func TestJobAggregate_RemoveInvariantViolationRecorded(t *testing.T) {
 	jobDb := NewTestJobDb()
 	job := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1"}, 1)
 
-	before := testutil.ToFloat64(jobAggregateInvariantViolations.WithLabelValues("remove_missing_entry"))
+	before := testutil.ToFloat64(jobAggregateInvariantViolations.WithLabelValues("remove_missing_pool"))
 
 	// A write transaction removing a job that was never added must record a violation.
 	txn := jobDb.WriteTxn()
 	txn.aggregate.remove(job)
 	txn.Abort()
 
-	after := testutil.ToFloat64(jobAggregateInvariantViolations.WithLabelValues("remove_missing_entry"))
+	after := testutil.ToFloat64(jobAggregateInvariantViolations.WithLabelValues("remove_missing_pool"))
 	assert.Equal(t, before+1, after)
 }
 
@@ -318,15 +350,29 @@ func referenceAggregate(jobs []*Job) map[aggregateTestKey]int64 {
 	return result
 }
 
-func observedAggregate(a *JobAggregate) map[aggregateTestKey]int64 {
+func observedAggregate(a *QueuedDemand) map[aggregateTestKey]int64 {
 	result := map[aggregateTestKey]int64{}
-	if a == nil || a.byKey == nil {
+	if a == nil || a.byPool == nil {
 		return result
 	}
-	it := a.byKey.Iterator()
-	for !it.Done() {
-		key, rl, _ := it.Next()
-		result[aggregateTestKey{pool: key.pool, queue: key.queue, pc: key.priorityClass}] = cpuOf(rl)
+	poolIt := a.byPool.Iterator()
+	for !poolIt.Done() {
+		pool, queueMap, _ := poolIt.Next()
+		if queueMap == nil {
+			continue
+		}
+		queueIt := queueMap.Iterator()
+		for !queueIt.Done() {
+			queue, pcMap, _ := queueIt.Next()
+			if pcMap == nil {
+				continue
+			}
+			pcIt := pcMap.Iterator()
+			for !pcIt.Done() {
+				pc, rl, _ := pcIt.Next()
+				result[aggregateTestKey{pool: pool, queue: queue, pc: pc}] = cpuOf(rl)
+			}
+		}
 	}
 	return result
 }

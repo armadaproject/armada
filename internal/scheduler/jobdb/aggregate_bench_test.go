@@ -70,7 +70,7 @@ func BenchmarkQueuedDemandAggregate(b *testing.B) {
 	b.Run("impl=aggregate", func(b *testing.B) {
 		b.ReportAllocs()
 		for n := 0; n < b.N; n++ {
-			_ = readTxn.GetQueuedDemandWithTxn(pool, knownQueues, nil)
+			_ = readTxn.GetQueuedDemand(pool, knownQueues, nil)
 		}
 	})
 }
