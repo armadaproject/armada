@@ -52,14 +52,16 @@ func BenchmarkQueuedDemandAggregate(b *testing.B) {
 	b.Run("impl=scan", func(b *testing.B) {
 		b.ReportAllocs()
 		for n := 0; n < b.N; n++ {
-			queued := readTxn.GetQueuedJobsByPool(pool)
-			demand := map[string]map[string]int64{}
-			for _, job := range queued {
-				q := job.Queue()
-				if demand[q] == nil {
-					demand[q] = map[string]int64{}
+			demand := map[string]map[string]internaltypes.ResourceList{}
+			for _, job := range readTxn.GetQueuedJobsByPool(pool) {
+				queue := job.Queue()
+				byPriorityClass, ok := demand[queue]
+				if !ok {
+					byPriorityClass = map[string]internaltypes.ResourceList{}
+					demand[queue] = byPriorityClass
 				}
-				demand[q][job.PriorityClassName()]++
+				pc := job.PriorityClassName()
+				byPriorityClass[pc] = byPriorityClass[pc].Add(job.AllResourceRequirements())
 			}
 			_ = demand
 		}

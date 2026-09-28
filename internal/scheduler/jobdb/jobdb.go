@@ -829,7 +829,18 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	// its own transaction, mirroring NodeDb's WithTxn mutation discipline.
 	go func() {
 		defer wg.Done()
-		for _, job := range jobs {
+		// jobsById is keyed by job ID and last-write-wins, so a batch containing
+		// duplicate IDs ultimately stores only the last job for each ID. Match
+		// that here by iterating from the back and adding each ID at most once,
+		// otherwise duplicate entries would be counted more than once and leave
+		// the aggregate persistently over-counted.
+		added := make(map[string]bool, len(jobs))
+		for i := len(jobs) - 1; i >= 0; i-- {
+			job := jobs[i]
+			if added[job.id] {
+				continue
+			}
+			added[job.id] = true
 			txn.aggregate.add(job)
 		}
 	}()

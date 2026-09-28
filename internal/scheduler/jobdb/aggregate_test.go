@@ -120,6 +120,30 @@ func TestJobAggregate_QueuedToLeasedTransition(t *testing.T) {
 	assert.Nil(t, demand["queue-1"])
 }
 
+func TestJobAggregate_UpsertDeduplicatesJobIds(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	// Two distinct job instances sharing an ID. jobsById keeps only the last one,
+	// so the aggregate must also count the ID once rather than once per entry.
+	jobA := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1"}, 1)
+	jobADuplicate := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1"}, 1)
+
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{jobA, jobADuplicate}))
+	txn.Commit()
+
+	known := map[string]bool{"queue-1": true}
+	demand := queuedDemandOf(jobDb.ReadTxn(), "pool-1", known, nil)
+	assert.Equal(t, int64(1), cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
+
+	// Deleting the job must clear the single counted entry.
+	txn = jobDb.WriteTxn()
+	require.NoError(t, txn.BatchDelete([]string{jobA.Id()}))
+	txn.Commit()
+	demand = queuedDemandOf(jobDb.ReadTxn(), "pool-1", known, nil)
+	assert.Nil(t, demand["queue-1"])
+}
+
 func TestJobAggregate_TransactionIsolation(t *testing.T) {
 	jobDb := NewTestJobDb()
 

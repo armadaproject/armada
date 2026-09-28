@@ -1644,9 +1644,12 @@ func TestCalculateJobSchedulingInfo_MismatchUsesLegacyAndRecords(t *testing.T) {
 	require.Equal(t, beforeComponents+1, testutil.ToFloat64(jobAggregateCanaryMismatchComponents.WithLabelValues(pool, "demand_queued")))
 }
 
-// BenchmarkQueuedDemand compares the legacy per-job scan for queued demand with
-// the JobDb aggregate lookup. It demonstrates the gains from maintaining the
-// queued-demand aggregate incrementally.
+// BenchmarkQueuedDemand is an end-to-end comparison, not a like-for-like one:
+// the legacy case gathers the jobs and builds the full scheduling info, while the
+// aggregate case only performs the isolated queued-demand lookup. It is intended
+// to show the cost of the aggregate lookup relative to the legacy round, not to
+// isolate the demand calculation. For the isolated scan-vs-aggregate comparison,
+// see BenchmarkQueuedDemandAggregate in internal/scheduler/jobdb.
 func BenchmarkQueuedDemand(b *testing.B) {
 	const (
 		numQueues         = 8
@@ -1692,7 +1695,7 @@ func BenchmarkQueuedDemand(b *testing.B) {
 	algo := &FairSchedulingAlgo{}
 	ctx := armadacontext.Background()
 
-	b.Run("impl=legacy", func(b *testing.B) {
+	b.Run("impl=legacy_full_scheduling_info", func(b *testing.B) {
 		b.ReportAllocs()
 		for n := 0; n < b.N; n++ {
 			allJobs := append(txn.GetAllLeasedJobs(), getQueuedJobs(txn, allPools)...)
@@ -1704,7 +1707,7 @@ func BenchmarkQueuedDemand(b *testing.B) {
 		}
 	})
 
-	b.Run("impl=aggregate", func(b *testing.B) {
+	b.Run("impl=aggregate_queued_demand", func(b *testing.B) {
 		b.ReportAllocs()
 		for n := 0; n < b.N; n++ {
 			algo.aggregateQueuedDemand(txn, queues, currentPool)

@@ -601,9 +601,13 @@ type jobSchedulingInfo struct {
 // incrementally maintained JobDb queued-demand aggregate is read via a pure,
 // non-mutating lookup (mirroring NodeDb's non-mutating reads) and compared
 // against the queued-only subset of the legacy result. Any discrepancy is
-// recorded as a metric and logged. Both paths are timed so the performance
-// improvement of the aggregate lookup over the full scan is visible in the
-// armada_scheduler_job_aggregate_calculation_duration_seconds histogram.
+// recorded as a metric and logged.
+//
+// Both paths are timed, but into separate histograms because they measure
+// different scopes: the legacy timer covers the whole scheduling-info build,
+// while the lookup timer covers only the isolated aggregate queued-demand
+// lookup. The two must not be read as a like-for-like speedup; the isolated
+// scan-vs-aggregate comparison is covered by the aggregate benchmarks.
 func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
@@ -620,11 +624,11 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(
 	if err != nil {
 		return nil, err
 	}
-	observeJobAggregateCalculationDuration(currentPool, "legacy", time.Since(legacyStart).Seconds())
+	observeJobAggregateLegacySchedulingInfoDuration(currentPool, time.Since(legacyStart).Seconds())
 
 	aggregateStart := time.Now()
 	aggregateQueuedDemand := l.aggregateQueuedDemand(txn, queues, currentPool)
-	observeJobAggregateCalculationDuration(currentPool, "aggregate", time.Since(aggregateStart).Seconds())
+	observeJobAggregateLookupDuration(currentPool, time.Since(aggregateStart).Seconds())
 
 	mismatchedComponents, diff := compareQueuedDemand(
 		legacy.queuedDemandByQueueAndPriorityClass, aggregateQueuedDemand,
