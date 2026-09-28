@@ -885,7 +885,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 						pending              = coalesce(tmp.pending, job_run.pending),
 						started              = coalesce(tmp.started, job_run.started),
 						finished             = CASE
-							WHEN tmp.finished IS NULL THEN job_run.finished
+							WHEN tmp.finished IS NULL AND job_run.finished IS NULL THEN NULL
 							ELSE GREATEST(tmp.finished, job_run.finished, coalesce(tmp.started, job_run.started), coalesce(tmp.pending, job_run.pending))
 						END,
 						job_run_state        = coalesce(tmp.job_run_state, job_run.job_run_state),
@@ -914,7 +914,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 			node                 = coalesce($2, node),
 			started              = coalesce($3, started),
 			finished             = CASE
-				WHEN $4::timestamp IS NULL THEN finished
+				WHEN $4::timestamp IS NULL AND finished IS NULL THEN NULL
 				ELSE GREATEST($4::timestamp, finished, coalesce($3::timestamp, started), coalesce($8::timestamp, pending))
 			END,
 			job_run_state        = coalesce($5, job_run_state),
