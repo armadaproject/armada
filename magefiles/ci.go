@@ -162,15 +162,18 @@ func CheckDockerContainerRunning(containerName string, expectedLogRegex string) 
 		return fmt.Errorf("invalid log regex %s - %s", expectedLogRegex, err)
 	}
 
+	var lastLogs string
 	for {
 		select {
 		case <-timeout:
+			fmt.Printf("\n--- %s logs at timeout ---\n%s\n--- end %s logs ---\n\n", containerName, lastLogs, containerName)
 			return fmt.Errorf("timed out waiting for %s to start", containerName)
 		case <-tick:
 			out, err := dockerOutput("compose", "-f", "_local/compose/full.yaml", "logs", containerName)
 			if err != nil {
 				return err
 			}
+			lastLogs = out
 			if len(logMatchRegex.FindStringSubmatch(out)) > 0 {
 				if seconds < 1 {
 					fmt.Printf("\n%s had already started!\n\n", containerName)
