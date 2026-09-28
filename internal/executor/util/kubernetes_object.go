@@ -137,9 +137,14 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 
 	injectArmadaEnvVars(podSpec, jobId, job.Queue, job.Jobset, annotation)
 
+	podName := common.PodName(jobId)
+	if job.PodNameWithRunIndex {
+		podName = common.PodNameForRun(jobId, job.RunIndex)
+	}
+
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        common.PodNamePrefix + job.Job.JobId + "-" + strconv.Itoa(0),
+			Name:        podName,
 			Labels:      labels,
 			Annotations: annotation,
 			Namespace:   job.Job.ObjectMeta.Namespace,

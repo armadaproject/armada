@@ -632,6 +632,13 @@ func TestFetchJobRunLeases(t *testing.T) {
 			Failed:   true, // should be ignored as terminal
 		},
 	}
+	// The runs of one job get increasing created times, so the run index is
+	// the position of the run among the runs of its job.
+	for i := range dbRuns {
+		dbRuns[i].Created = int64(i + 1)
+	}
+	// dbRuns[3] is the second run of dbJobs[2].
+	expectedRunIndexes := []uint32{0, 0, 0, 1}
 	expectedLeases := make([]*JobRunLease, 4)
 	for i := range expectedLeases {
 		jobID := dbRuns[i].JobID
@@ -644,6 +651,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 			SubmitMessage:          jobMetadata[jobID].SubmitMessage,
 			Groups:                 jobMetadata[jobID].Groups,
 			PodRequirementsOverlay: dbRuns[i].PodRequirementsOverlay,
+			RunIndex:               expectedRunIndexes[i],
 		}
 	}
 	tests := map[string]struct {

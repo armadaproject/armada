@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -133,6 +134,47 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 	result, err := CreatePodFromExecutorApiJob(validJobLease, &configuration.PodDefaults{SchedulerName: "scheduler-name"})
 	assert.NoError(t, err)
 	assert.Equal(t, expectedPod, result)
+}
+
+func TestCreatePodFromExecutorApiJob_PodNameWithRunIndex(t *testing.T) {
+	runId := util.NewULID()
+	jobId := util.NewULID()
+
+	lease := &executorapi.JobRunLease{
+		JobRunId:            runId,
+		Queue:               "queue",
+		Jobset:              "job-set",
+		User:                "user",
+		PodNameWithRunIndex: true,
+		RunIndex:            2,
+		Job: &armadaevents.SubmitJob{
+			ObjectMeta: &armadaevents.ObjectMeta{Namespace: "test-namespace"},
+			JobId:      jobId,
+			MainObject: &armadaevents.KubernetesMainObject{
+				Object: &armadaevents.KubernetesMainObject_PodSpec{
+					PodSpec: &armadaevents.PodSpecWithAvoidList{
+						PodSpec: &v1.PodSpec{
+							Containers: []v1.Container{{Name: "test", Image: "test"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result, err := CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	require.NoError(t, err)
+
+	assert.Equal(t, fmt.Sprintf("armada-%s-2", jobId), result.Name)
+	assert.Equal(t, jobId, result.Labels[domain.JobId])
+	assert.Equal(t, runId, result.Labels[domain.JobRunId])
+	assert.Equal(t, "0", result.Labels[domain.PodNumber])
+
+	// The first run keeps the name that the flag off gives it.
+	lease.RunIndex = 0
+	result, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	require.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("armada-%s-0", jobId), result.Name)
 }
 
 func TestCreatePodFromExecutorApiJob_Invalid(t *testing.T) {

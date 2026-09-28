@@ -335,6 +335,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.PriorityClassNameOverride,
 		config.Scheduling.PriorityClasses,
 		authorizer,
+		config.Scheduling.RetryPolicy.PodNameWithRunIndex,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")
