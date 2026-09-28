@@ -6,33 +6,33 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 
-// QueuedDemand maintains an incrementally updated aggregate of queued demand by
-// pool, then queue, then priority class, so the scheduler can read queued demand
-// without scanning every queued job.
-type QueuedDemand struct {
-	byPool *immutable.Map[string, *immutable.Map[string, *immutable.Map[string, internaltypes.ResourceList]]]
+// JobAggregate maintains an incrementally updated aggregate of queued demand so
+// the scheduler can read queued demand without scanning every queued job.
+type JobAggregate struct {
+	// Queued demand by pool, then queue, then priority class.
+	queuedDemand *immutable.Map[string, *immutable.Map[string, *immutable.Map[string, internaltypes.ResourceList]]]
 }
 
-func NewQueuedDemand() *QueuedDemand {
-	return &QueuedDemand{
-		byPool: immutable.NewMap[string, *immutable.Map[string, *immutable.Map[string, internaltypes.ResourceList]]](nil),
+func NewJobAggregate() *JobAggregate {
+	return &JobAggregate{
+		queuedDemand: immutable.NewMap[string, *immutable.Map[string, *immutable.Map[string, internaltypes.ResourceList]]](nil),
 	}
 }
 
 // Clone returns a copy of the aggregate for use by a write transaction. The copy
 // shares the current state; changes to it are not visible until committed.
-func (a *QueuedDemand) Clone() *QueuedDemand {
+func (a *JobAggregate) Clone() *JobAggregate {
 	if a == nil {
-		return NewQueuedDemand()
+		return NewJobAggregate()
 	}
-	return &QueuedDemand{
-		byPool: a.byPool,
+	return &JobAggregate{
+		queuedDemand: a.queuedDemand,
 	}
 }
 
 // add incorporates job into the aggregate. Jobs that are not queued or are in a
 // terminal state are ignored.
-func (a *QueuedDemand) add(job *Job) {
+func (a *JobAggregate) add(job *Job) {
 	if a == nil || job == nil || job.InTerminalState() || !job.Queued() {
 		return
 	}
@@ -41,7 +41,7 @@ func (a *QueuedDemand) add(job *Job) {
 	queue := job.Queue()
 	pc := job.PriorityClassName()
 	forEachDistinctPool(job.pools, func(pool string) {
-		poolMap, _ := a.byPool.Get(pool)
+		poolMap, _ := a.queuedDemand.Get(pool)
 		if poolMap == nil {
 			poolMap = immutable.NewMap[string, *immutable.Map[string, internaltypes.ResourceList]](nil)
 		}
@@ -50,13 +50,13 @@ func (a *QueuedDemand) add(job *Job) {
 			queueMap = immutable.NewMap[string, internaltypes.ResourceList](nil)
 		}
 		current, _ := queueMap.Get(pc)
-		a.byPool = a.byPool.Set(pool, poolMap.Set(queue, queueMap.Set(pc, current.Add(req))))
+		a.queuedDemand = a.queuedDemand.Set(pool, poolMap.Set(queue, queueMap.Set(pc, current.Add(req))))
 	})
 }
 
 // remove removes job from the aggregate. The job must be in the same state as
 // when it was added; any inconsistency is reported as an invariant violation.
-func (a *QueuedDemand) remove(job *Job) {
+func (a *JobAggregate) remove(job *Job) {
 	if a == nil || job == nil || job.InTerminalState() || !job.Queued() {
 		return
 	}
@@ -65,7 +65,7 @@ func (a *QueuedDemand) remove(job *Job) {
 	queue := job.Queue()
 	pc := job.PriorityClassName()
 	forEachDistinctPool(job.pools, func(pool string) {
-		poolMap, ok := a.byPool.Get(pool)
+		poolMap, ok := a.queuedDemand.Get(pool)
 		if !ok || poolMap == nil {
 			recordAggregateInvariantViolation("remove_missing_pool")
 			return
@@ -96,25 +96,25 @@ func (a *QueuedDemand) remove(job *Job) {
 			poolMap = poolMap.Set(queue, queueMap)
 		}
 		if poolMap.Len() == 0 {
-			a.byPool = a.byPool.Delete(pool)
+			a.queuedDemand = a.queuedDemand.Delete(pool)
 		} else {
-			a.byPool = a.byPool.Set(pool, poolMap)
+			a.queuedDemand = a.queuedDemand.Set(pool, poolMap)
 		}
 	})
 }
 
-// getQueuedDemand returns queued demand for currentPool by queue and priority
+// getJobAggregate returns queued demand for currentPool by queue and priority
 // class. Unknown and cordoned queues are excluded.
-func (a *QueuedDemand) getQueuedDemand(
+func (a *JobAggregate) getJobAggregate(
 	currentPool string,
 	knownQueues map[string]bool,
 	cordonedQueues map[string]bool,
 ) map[string]map[string]internaltypes.ResourceList {
 	demand := map[string]map[string]internaltypes.ResourceList{}
-	if a == nil || a.byPool == nil {
+	if a == nil || a.queuedDemand == nil {
 		return demand
 	}
-	poolMap, ok := a.byPool.Get(currentPool)
+	poolMap, ok := a.queuedDemand.Get(currentPool)
 	if !ok || poolMap == nil {
 		return demand
 	}

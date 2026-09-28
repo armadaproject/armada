@@ -41,7 +41,7 @@ func cpuOf(rl internaltypes.ResourceList) int64 {
 	return q.Value()
 }
 
-func TestJobAggregate_QueuedDemand(t *testing.T) {
+func TestJobAggregate_JobAggregate(t *testing.T) {
 	jobDb := NewTestJobDb()
 
 	jobA := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1", "pool-2"}, 1)
@@ -350,12 +350,12 @@ func referenceAggregate(jobs []*Job) map[aggregateTestKey]int64 {
 	return result
 }
 
-func observedAggregate(a *QueuedDemand) map[aggregateTestKey]int64 {
+func observedAggregate(a *JobAggregate) map[aggregateTestKey]int64 {
 	result := map[aggregateTestKey]int64{}
-	if a == nil || a.byPool == nil {
+	if a == nil || a.queuedDemand == nil {
 		return result
 	}
-	poolIt := a.byPool.Iterator()
+	poolIt := a.queuedDemand.Iterator()
 	for !poolIt.Done() {
 		pool, queueMap, _ := poolIt.Next()
 		if queueMap == nil {

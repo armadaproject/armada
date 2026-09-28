@@ -74,7 +74,7 @@ type JobDb struct {
 	leasedJobs         *immutable.Set[*Job]
 	unvalidatedJobs    *immutable.Set[*Job]
 	// Incrementally maintained aggregate of queued demand.
-	aggregate *QueuedDemand
+	aggregate *JobAggregate
 	// Configured priority classes.
 	priorityClasses map[string]types.PriorityClass
 	// Priority class assigned to jobs with a priorityClassName not in jobDb.priorityClasses.
@@ -146,7 +146,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 		jobsByPoolAndQueue:     map[string]map[string]immutable.SortedSet[*Job]{},
 		leasedJobs:             &leasedJobs,
 		unvalidatedJobs:        &unvalidatedJobs,
-		aggregate:              NewQueuedDemand(),
+		aggregate:              NewJobAggregate(),
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
@@ -447,7 +447,7 @@ type Txn struct {
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
 	// Incrementally maintained aggregate of queued demand.
-	aggregate *QueuedDemand
+	aggregate *JobAggregate
 	// The current snapshot of bid prices - allowing look up of bidding prices on job creation
 	bidPriceSnapshot *pricing.BidPriceSnapshot
 	// The jobDb from which this transaction was created.
@@ -976,7 +976,7 @@ func (txn *Txn) GetQueuedDemand(
 	knownQueues map[string]bool,
 	cordonedQueues map[string]bool,
 ) map[string]map[string]internaltypes.ResourceList {
-	return txn.aggregate.getQueuedDemand(
+	return txn.aggregate.getJobAggregate(
 		currentPool,
 		knownQueues,
 		cordonedQueues,
