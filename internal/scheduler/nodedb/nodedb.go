@@ -124,6 +124,14 @@ type NodeDb struct {
 	indexNameByPriority map[int32]string
 	// Map from priority class priority to the index of node.keys corresponding to that priority.
 	keyIndexByPriority map[int32]int
+	// Like indexNameByPriority, but for the sparse urgency-preemptible resource view.
+	urgencyIndexNameByPriority map[int32]string
+	// Like keyIndexByPriority, but for the sparse urgency-preemptible resource view.
+	urgencyKeyIndexByPriority map[int32]int
+	// Number of priorities in nodeDbPriorities; also the size of each key block in node.Keys.
+	numPriorities int
+	// Priority class priorities, ascending, excluding EvictedPriority.
+	realPriorities []int32
 	// Taint keys that to create indexes for.
 	// Should include taints frequently used for scheduling.
 	// Since the NodeDb can efficiently sort out nodes with taints not tolerated
@@ -180,6 +188,8 @@ type NodeDb struct {
 	disableFairshareScheduling bool
 	disableUrgencyScheduling   bool
 
+	urgencyBeforeFairsharePreemption bool
+
 	defaultTolerations []v1.Toleration
 
 	// pool is the pool this NodeDb is scheduling for.
@@ -202,7 +212,7 @@ func NewNodeDb(
 	nodeDbPriorities = append(nodeDbPriorities, types.AllowedPriorities(priorityClasses)...)
 
 	indexedResourceNames := slices.Map(indexedResources, func(v configuration.ResourceType) string { return v.Name })
-	schema, indexNameByPriority, keyIndexByPriority := nodeDbSchema(nodeDbPriorities, indexedResourceNames)
+	schema, indexNameByPriority, keyIndexByPriority, urgencyIndexNameByPriority, urgencyKeyIndexByPriority := nodeDbSchema(nodeDbPriorities, indexedResourceNames)
 	db, err := memdb.NewMemDB(schema)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -233,21 +243,25 @@ func NewNodeDb(
 	}
 
 	nodeDb := NodeDb{
-		priorityClasses:           priorityClasses,
-		nodeDbPriorities:          nodeDbPriorities,
-		indexedResources:          indexedResourceNames,
-		indexedResourcesSet:       util.StringListToSet(indexedResourceNames),
-		indexedResourceResolution: indexedResourceResolution,
-		indexNameByPriority:       indexNameByPriority,
-		keyIndexByPriority:        keyIndexByPriority,
-		indexedTaints:             util.StringListToSet(indexedTaints),
-		indexedNodeLabels:         util.StringListToSet(indexedNodeLabels),
-		indexedNodeLabelValues:    indexedNodeLabelValues,
-		nodeTypes:                 make(map[uint64]*internaltypes.NodeType),
-		wellKnownNodeTypes:        make(map[string]*configuration.WellKnownNodeType),
-		numNodesByNodeType:        make(map[uint64]int),
-		totalAllocatableResources: resourceListFactory.MakeAllZero(),
-		db:                        db,
+		priorityClasses:            priorityClasses,
+		nodeDbPriorities:           nodeDbPriorities,
+		indexedResources:           indexedResourceNames,
+		indexedResourcesSet:        util.StringListToSet(indexedResourceNames),
+		indexedResourceResolution:  indexedResourceResolution,
+		indexNameByPriority:        indexNameByPriority,
+		keyIndexByPriority:         keyIndexByPriority,
+		urgencyIndexNameByPriority: urgencyIndexNameByPriority,
+		urgencyKeyIndexByPriority:  urgencyKeyIndexByPriority,
+		numPriorities:              len(nodeDbPriorities),
+		realPriorities:             types.AllowedPriorities(priorityClasses),
+		indexedTaints:              util.StringListToSet(indexedTaints),
+		indexedNodeLabels:          util.StringListToSet(indexedNodeLabels),
+		indexedNodeLabelValues:     indexedNodeLabelValues,
+		nodeTypes:                  make(map[uint64]*internaltypes.NodeType),
+		wellKnownNodeTypes:         make(map[string]*configuration.WellKnownNodeType),
+		numNodesByNodeType:         make(map[uint64]int),
+		totalAllocatableResources:  resourceListFactory.MakeAllZero(),
+		db:                         db,
 		// Set the initial capacity (somewhat arbitrarily) to 128 reasons.
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
 
@@ -381,6 +395,9 @@ type SchedulingOptions struct {
 	DisableUrgencyScheduling   bool
 	DisallowedJobResources     []string
 	DefaultTolerations         []v1.Toleration
+	// UrgencyBeforeFairsharePreemption tries urgency-based preemption before fair-share preemption.
+	// Must be set before nodes are inserted, as it decides whether they are added to the urgency index.
+	UrgencyBeforeFairsharePreemption bool
 }
 
 func (nodeDb *NodeDb) ConfigureScheduling(opts SchedulingOptions) {
@@ -391,6 +408,7 @@ func (nodeDb *NodeDb) ConfigureScheduling(opts SchedulingOptions) {
 	nodeDb.disableUrgencyScheduling = opts.DisableUrgencyScheduling
 	nodeDb.disallowedJobResources = opts.DisallowedJobResources
 	nodeDb.defaultTolerations = opts.DefaultTolerations
+	nodeDb.urgencyBeforeFairsharePreemption = opts.UrgencyBeforeFairsharePreemption
 }
 
 func (nodeDb *NodeDb) GetNodes() ([]*internaltypes.Node, error) {
@@ -584,7 +602,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *context.JobS
 		if it, err := txn.Get(NodesTable, IdIndex, nodeId); err != nil {
 			return nil, nil, errors.WithStack(err)
 		} else {
-			if node, err := nodeDb.selectNodeForPodWithItAtPriority(it, jctx, priority, true); err != nil {
+			if node, err := nodeDb.selectNodeForPodWithItAtPriority(it, jctx, priority, true, false); err != nil {
 				return nil, nil, err
 			} else {
 				jctx.PodSchedulingContext.SchedulingMethod = context.Rescheduled
@@ -733,7 +751,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 
 	// Try scheduling at evictedPriority. If this succeeds, no preemption is necessary.
 	pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
-	if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, internaltypes.EvictedPriority); err != nil {
+	if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, internaltypes.EvictedPriority, false); err != nil {
 		return nil, nil, err
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, nil, err
@@ -745,7 +763,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	// Try scheduling at the job priority. If this fails, scheduling is impossible and we return.
 	// This is an optimisation to avoid looking for preemption targets for unschedulable jobs.
 	pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
-	if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, pctx.ScheduledAtPriority); err != nil {
+	if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, pctx.ScheduledAtPriority, false); err != nil {
 		return nil, nil, err
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, nil, err
@@ -755,32 +773,71 @@ func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
 	pctx.NodeId = ""
 	pctx.PreemptedAtPriority = internaltypes.MinPriority
 
-	// Schedule by preventing evicted jobs from being re-scheduled.
-	// This method respect fairness by preventing from re-scheduling jobs that appear as far back in the total order as possible.
-	if !nodeDb.disableFairshareScheduling {
-		if node, preemptedJobs, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
-			return nil, nil, err
-		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
-			return nil, nil, err
-		} else if node != nil {
-			pctx.SchedulingMethod = context.ScheduledWithFairSharePreemption
-			return node, preemptedJobs, nil
+	if nodeDb.urgencyBeforeFairsharePreemption {
+		// Schedule by kicking off jobs currently bound to a node.
+		// This method does not respect fairness when choosing on which node to schedule the job.
+		if !nodeDb.disableUrgencyScheduling {
+			if node, err := nodeDb.selectNodeForJobWithUrgencyPreemption(txn, jctx, matchingNodeTypeIds); err != nil {
+				return nil, nil, err
+			} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
+				return nil, nil, err
+			} else if node != nil {
+				pctx.SchedulingMethod = context.ScheduledWithUrgencyBasedPreemption
+				return node, nil, nil
+			}
 		}
-	}
 
-	pctx.NodeId = ""
-	pctx.PreemptedAtPriority = internaltypes.MinPriority
+		pctx.NodeId = ""
+		pctx.PreemptedAtPriority = internaltypes.MinPriority
 
-	// Schedule by kicking off jobs currently bound to a node.
-	// This method does not respect fairness when choosing on which node to schedule the job.
-	if !nodeDb.disableUrgencyScheduling {
-		if node, err := nodeDb.selectNodeForJobWithUrgencyPreemption(txn, jctx, matchingNodeTypeIds); err != nil {
-			return nil, nil, err
-		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
-			return nil, nil, err
-		} else if node != nil {
-			pctx.SchedulingMethod = context.ScheduledWithUrgencyBasedPreemption
-			return node, nil, nil
+		// Schedule by preventing evicted jobs from being re-scheduled.
+		// This method respect fairness by preventing from re-scheduling jobs that appear as far back in the total order as possible.
+		if !nodeDb.disableFairshareScheduling {
+			if node, schedulingType, preemptedJobs, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
+				return nil, nil, err
+			} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
+				return nil, nil, err
+			} else if node != nil {
+				schedulingMethod := context.ScheduledWithFairSharePreemption
+				if schedulingType != nil {
+					schedulingMethod = *schedulingType
+				}
+				pctx.SchedulingMethod = schedulingMethod
+				return node, preemptedJobs, nil
+			}
+		}
+	} else {
+		// Schedule by preventing evicted jobs from being re-scheduled.
+		// This method respect fairness by preventing from re-scheduling jobs that appear as far back in the total order as possible.
+		if !nodeDb.disableFairshareScheduling {
+			if node, schedulingType, preemptedJobs, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
+				return nil, nil, err
+			} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
+				return nil, nil, err
+			} else if node != nil {
+				schedulingMethod := context.ScheduledWithFairSharePreemption
+				if schedulingType != nil {
+					schedulingMethod = *schedulingType
+				}
+				pctx.SchedulingMethod = schedulingMethod
+				return node, preemptedJobs, nil
+			}
+		}
+
+		pctx.NodeId = ""
+		pctx.PreemptedAtPriority = internaltypes.MinPriority
+
+		// Schedule by kicking off jobs currently bound to a node.
+		// This method does not respect fairness when choosing on which node to schedule the job.
+		if !nodeDb.disableUrgencyScheduling {
+			if node, err := nodeDb.selectNodeForJobWithUrgencyPreemption(txn, jctx, matchingNodeTypeIds); err != nil {
+				return nil, nil, err
+			} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
+				return nil, nil, err
+			} else if node != nil {
+				pctx.SchedulingMethod = context.ScheduledWithUrgencyBasedPreemption
+				return node, nil, nil
+			}
 		}
 	}
 
@@ -825,7 +882,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithUrgencyPreemption(
 		pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
 
 		// Try to find a node at this priority.
-		if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, priority); err != nil {
+		if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, matchingNodeTypeIds, priority, nodeDb.urgencyBeforeFairsharePreemption); err != nil {
 			return nil, err
 		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 			return nil, err
@@ -841,18 +898,27 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	jctx *context.JobSchedulingContext,
 	matchingNodeTypeIds []uint64,
 	priority int32,
+	urgency bool,
 ) (*internaltypes.Node, error) {
 	indexResourceRequests := make([]int64, len(nodeDb.indexedResources))
 	for i, t := range nodeDb.indexedResources {
 		indexResourceRequests[i] = jctx.KubernetesResourceRequirements.GetRawByNameZeroIfMissing(t)
 	}
-	indexName, ok := nodeDb.indexNameByPriority[priority]
-	if !ok {
-		return nil, errors.Errorf("no index for priority %d; must be in %v", priority, nodeDb.indexNameByPriority)
+
+	indexNameByPriority := nodeDb.indexNameByPriority
+	keyIndexByPriority := nodeDb.keyIndexByPriority
+	if urgency {
+		indexNameByPriority = nodeDb.urgencyIndexNameByPriority
+		keyIndexByPriority = nodeDb.urgencyKeyIndexByPriority
 	}
-	keyIndex, ok := nodeDb.keyIndexByPriority[priority]
+
+	indexName, ok := indexNameByPriority[priority]
 	if !ok {
-		return nil, errors.Errorf("no key index for priority %d; must be in %v", priority, nodeDb.keyIndexByPriority)
+		return nil, errors.Errorf("no index for priority %d; must be in %v", priority, indexNameByPriority)
+	}
+	keyIndex, ok := keyIndexByPriority[priority]
+	if !ok {
+		return nil, errors.Errorf("no key index for priority %d; must be in %v", priority, keyIndexByPriority)
 	}
 	it, err := NewNodeTypesIterator(
 		txn,
@@ -863,12 +929,13 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 		nodeDb.indexedResources,
 		indexResourceRequests,
 		nodeDb.indexedResourceResolution,
+		urgency,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	if node, err := nodeDb.selectNodeForPodWithItAtPriority(it, jctx, priority, false); err != nil {
+	if node, err := nodeDb.selectNodeForPodWithItAtPriority(it, jctx, priority, false, urgency); err != nil {
 		return nil, err
 	} else if node != nil {
 		return node, nil
@@ -882,6 +949,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 	jctx *context.JobSchedulingContext,
 	priority int32,
 	onlyCheckDynamicRequirements bool,
+	urgency bool,
 ) (*internaltypes.Node, error) {
 	var selectedNode *internaltypes.Node
 	for obj := it.Next(); obj != nil; obj = it.Next() {
@@ -900,9 +968,13 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 			// It should be safe as the nodes are also unschedulable, so no new resource should get scheduled there
 			if node.IsUnschedulable() && node.IsOverAllocated() {
 				matches = true
+			} else if urgency {
+				matches, reason = DynamicJobRequirementsMet(node.AllocatableAtPriorityNoEviction(priority), jctx)
 			} else {
 				matches, reason = DynamicJobRequirementsMet(node.AllocatableAtPriority(priority), jctx)
 			}
+		} else if urgency {
+			matches, reason, err = JobRequirementsMetForView(node, node.AllocatableAtPriorityNoEviction(priority), jctx)
 		} else {
 			matches, reason, err = JobRequirementsMet(node, priority, jctx)
 		}
@@ -931,7 +1003,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 //
 // It does this by considering all evicted jobs in the reverse order they would be scheduled in and preventing
 // from being re-scheduled the jobs that would be scheduled last.
-func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *context.JobSchedulingContext) (*internaltypes.Node, []*JobPreemptionInfo, error) {
+func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *context.JobSchedulingContext) (*internaltypes.Node, *context.SchedulingType, []*JobPreemptionInfo, error) {
 	type consideredNode struct {
 		node                     *internaltypes.Node
 		availableResource        internaltypes.ResourceList
@@ -941,12 +1013,17 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 
 	pctx := jctx.PodSchedulingContext
 
+	// Some jobs can only be scheduled using a mix of urgency and fairshare preemption,
+	// however we may only use this mix if urgency preemption is enabled
+	allowUrgencyPreemption := nodeDb.urgencyBeforeFairsharePreemption && !nodeDb.disableUrgencyScheduling
+
 	var selectedNode *internaltypes.Node
+	var schedulingType *context.SchedulingType
 	var preemptedJobs []*JobPreemptionInfo
 	nodesById := make(map[string]*consideredNode)
 	it, err := txn.ReverseLowerBound(EvictedJobsTable, IndexIndex, math.MaxInt)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, nil, errors.WithStack(err)
 	}
 	maxPriority := internaltypes.MinPriority
 	for obj := it.Next(); obj != nil && selectedNode == nil; obj = it.Next() {
@@ -955,7 +1032,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 
 		evictedJobSchedulingPriority, ok := nodeDb.GetScheduledAtPriority(evictedJctx.JobId)
 		if !ok {
-			return nil, nil, errors.Errorf("evicted job %s does not have scheduled at priority set in nodedb", evictedJctx.JobId)
+			return nil, nil, nil, errors.Errorf("evicted job %s does not have scheduled at priority set in nodedb", evictedJctx.JobId)
 		}
 
 		// Jobs should not preempt jobs with a higher priority, even via fairshare
@@ -965,18 +1042,22 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 
 		nodeId := evictedJctx.GetAssignedNodeId()
 		if nodeId == "" {
-			return nil, nil, errors.Errorf("evicted job %s does not have an assigned nodeId", evictedJctx.JobId)
+			return nil, nil, nil, errors.Errorf("evicted job %s does not have an assigned nodeId", evictedJctx.JobId)
 		}
 
 		node, ok := nodesById[nodeId]
 		if !ok {
 			nodeFromDb, err := nodeDb.GetNodeWithTxn(txn, nodeId)
 			if err != nil {
-				return nil, nil, errors.WithStack(err)
+				return nil, nil, nil, errors.WithStack(err)
+			}
+			availableResource := nodeFromDb.AllocatableAtPriority(internaltypes.EvictedPriority)
+			if allowUrgencyPreemption {
+				availableResource = nodeFromDb.AllocatableAtPriorityNoEviction(jctx.PodSchedulingContext.ScheduledAtPriority)
 			}
 			node = &consideredNode{
 				node:                     nodeFromDb,
-				availableResource:        nodeFromDb.AllocatableAtPriority(internaltypes.EvictedPriority),
+				availableResource:        availableResource,
 				staticRequirementsNotMet: false,
 				evictedJobs:              []*EvictedJobSchedulingContext{},
 			}
@@ -989,7 +1070,15 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 		}
 
 		// Evict job, update available resource
-		node.availableResource = node.availableResource.Add(evictedJctx.KubernetesResourceRequirements)
+		if allowUrgencyPreemption {
+			// Jobs with a lower priority will already have their resource accounted for above
+			// We should only add extra capacity from jobs will not have been accounted for due to urgency preemption
+			if evictedJobSchedulingPriority >= jctx.PodSchedulingContext.ScheduledAtPriority {
+				node.availableResource = node.availableResource.Add(evictedJctx.KubernetesResourceRequirements)
+			}
+		} else {
+			node.availableResource = node.availableResource.Add(evictedJctx.KubernetesResourceRequirements)
+		}
 		node.evictedJobs = append(node.evictedJobs, evictedJobSchedulingContext)
 
 		dynamicRequirementsMet, _ := DynamicJobRequirementsMet(node.availableResource, jctx)
@@ -999,7 +1088,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 
 		staticRequirementsMet, reason, err := StaticJobRequirementsMet(node.node, jctx)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		if !staticRequirementsMet {
 			node.staticRequirementsNotMet = true
@@ -1009,6 +1098,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 		}
 
 		nodeCopy := node.node.DeepCopyNilKeys()
+		fairShareResourcePreempted := node.node.AllocatableAtPriority(internaltypes.EvictedPriority)
 		for _, job := range node.evictedJobs {
 			jobId := job.JobSchedulingContext.JobId
 			priority, ok := nodeDb.GetScheduledAtPriority(jobId)
@@ -1018,11 +1108,11 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 
 			// Remove preempted job from node
 			if err = nodeCopy.RemoveJob(job.JobSchedulingContext.Job); err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			// Remove preempted job from list of evicted jobs
 			if err := txn.Delete(EvictedJobsTable, job); err != nil {
-				return nil, nil, errors.WithStack(err)
+				return nil, nil, nil, errors.WithStack(err)
 			}
 
 			if priority > maxPriority {
@@ -1032,13 +1122,23 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 				PreemptedJob:      job.JobSchedulingContext,
 				PreemptionDetails: &context.PreemptionDetails{PreemptingJob: jctx.Job},
 			})
+			fairShareResourcePreempted = fairShareResourcePreempted.Add(job.JobSchedulingContext.KubernetesResourceRequirements)
 		}
 
 		selectedNode = nodeCopy
 		pctx.NodeId = selectedNode.GetId()
 		pctx.PreemptedAtPriority = maxPriority
+
+		fairShareOnly, _ := DynamicJobRequirementsMet(fairShareResourcePreempted, jctx)
+
+		if fairShareOnly {
+			schedulingType = new(context.ScheduledWithFairSharePreemption)
+		} else {
+			schedulingType = new(context.ScheduledWithFairShareAndUrgencyPreemption)
+		}
 	}
-	return selectedNode, preemptedJobs, nil
+
+	return selectedNode, schedulingType, preemptedJobs, nil
 }
 
 // BindJobToNode returns a copy of node with job bound to it.
@@ -1161,9 +1261,16 @@ func (nodeDb *NodeDb) Upsert(node *internaltypes.Node) error {
 }
 
 func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *internaltypes.Node) error {
-	keys := make([][]byte, len(nodeDb.nodeDbPriorities))
+	keys := make([][]byte, 2*nodeDb.numPriorities)
 	for i, p := range nodeDb.nodeDbPriorities {
 		keys[i] = nodeDb.nodeDbKey(keys[i], node.GetNodeTypeId(), node.AllocatableAtPriority(p), node.GetIndex())
+		if !nodeDb.urgencyBeforeFairsharePreemption {
+			// Nothing reads the urgency indexes, so leave their keys nil and let
+			// NodeIndex.FromObject omit this node from them entirely.
+			continue
+		}
+		urgencyKeyIndex := nodeDb.numPriorities + i
+		keys[urgencyKeyIndex] = nodeDb.nodeDbKey(keys[urgencyKeyIndex], node.GetNodeTypeId(), node.AllocatableAtPriorityNoEviction(p), node.GetIndex())
 	}
 	node.Keys = keys
 
@@ -1185,26 +1292,31 @@ func (nodeDb *NodeDb) AddEvictedJobSchedulingContextWithTxn(txn *memdb.Txn, inde
 	return nil
 }
 
-func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, map[int32]string, map[int32]int) {
-	nodesTable, indexNameByPriority, keyIndexByPriority := nodesTableSchema(priorities)
+func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, map[int32]string, map[int32]int, map[int32]string, map[int32]int) {
+	nodesTable, indexNameByPriority, keyIndexByPriority, urgencyIndexNameByPriority, urgencyKeyIndexByPriority := nodesTableSchema(priorities)
 	evictionsTable := evictionsTableSchema()
 	return &memdb.DBSchema{
 		Tables: map[string]*memdb.TableSchema{
 			nodesTable.Name:     nodesTable,
 			evictionsTable.Name: evictionsTable,
 		},
-	}, indexNameByPriority, keyIndexByPriority
+	}, indexNameByPriority, keyIndexByPriority, urgencyIndexNameByPriority, urgencyKeyIndexByPriority
 }
 
-func nodesTableSchema(priorities []int32) (*memdb.TableSchema, map[int32]string, map[int32]int) {
-	indexes := make(map[string]*memdb.IndexSchema, len(priorities)+1)
+func nodesTableSchema(priorities []int32) (*memdb.TableSchema, map[int32]string, map[int32]int, map[int32]string, map[int32]int) {
+	n := len(priorities)
+	indexes := make(map[string]*memdb.IndexSchema, 2*n+1)
 	indexes[IdIndex] = &memdb.IndexSchema{
 		Name:    IdIndex,
 		Unique:  true,
 		Indexer: createNodeIdIndex(),
 	}
-	indexNameByPriority := make(map[int32]string, len(priorities))
-	keyIndexByPriority := make(map[int32]int, len(priorities))
+
+	indexNameByPriority := make(map[int32]string, n)
+	keyIndexByPriority := make(map[int32]int, n)
+	urgencyIndexNameByPriority := make(map[int32]string, n)
+	urgencyKeyIndexByPriority := make(map[int32]int, n)
+
 	for i, priority := range priorities {
 		name := nodeIndexName(i)
 		indexNameByPriority[priority] = name
@@ -1214,11 +1326,22 @@ func nodesTableSchema(priorities []int32) (*memdb.TableSchema, map[int32]string,
 			Unique:  true,
 			Indexer: &NodeIndex{KeyIndex: i},
 		}
+
+		urgencyKeyIndex := n + i
+		urgencyName := nodeIndexName(urgencyKeyIndex)
+		urgencyIndexNameByPriority[priority] = urgencyName
+		urgencyKeyIndexByPriority[priority] = urgencyKeyIndex
+		indexes[urgencyName] = &memdb.IndexSchema{
+			Name:         urgencyName,
+			Unique:       true,
+			AllowMissing: true,
+			Indexer:      &NodeIndex{KeyIndex: urgencyKeyIndex, Urgency: true},
+		}
 	}
 	return &memdb.TableSchema{
 		Name:    NodesTable,
 		Indexes: indexes,
-	}, indexNameByPriority, keyIndexByPriority
+	}, indexNameByPriority, keyIndexByPriority, urgencyIndexNameByPriority, urgencyKeyIndexByPriority
 }
 
 func evictionsTableSchema() *memdb.TableSchema {

@@ -464,11 +464,12 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	if err != nil {
 		return nil, err
 	}
+	inUsePriorityClasses := l.buildInUsePriorityClasses(jobSchedulingInfo.inUsePriorityClasses)
 
 	nodeFactory := internaltypes.NewNodeFactory(
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,
-		l.schedulingConfig.PriorityClasses,
+		inUsePriorityClasses,
 		l.resourceListFactory,
 	)
 
@@ -509,7 +510,6 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}
 
 	nodePools := append(currentPool.AwayPoolNames(), currentPool.Name)
-	inUsePriorityClasses := l.buildInUsePriorityClasses(jobSchedulingInfo.inUsePriorityClasses)
 	poolNodes := armadaslices.Filter(nodes, func(node *internaltypes.Node) bool {
 		return slices.Contains(nodePools, node.GetPool())
 	})
@@ -723,16 +723,18 @@ func (l *FairSchedulingAlgo) constructNodeDb(
 		IndexedTaints:      l.schedulingConfig.IndexedTaints,
 		IndexedNodeLabels:  l.schedulingConfig.IndexedNodeLabels,
 		WellKnownNodeTypes: l.schedulingConfig.WellKnownNodeTypes,
+		EnableUrgencyBeforeFairsharePreemptionOrdering: l.schedulingConfig.EnableUrgencyBeforeFairSharePreemptionOrdering,
 	}
 
 	return ConstructNodeDb(nodeDbConfig, l.resourceListFactory, priorityClasses, poolConfig, currentPoolJobs, otherPoolsJobs, nodes)
 }
 
 type NodeDbIndexConfiguration struct {
-	IndexedResources   []configuration.ResourceType
-	IndexedTaints      []string
-	IndexedNodeLabels  []string
-	WellKnownNodeTypes []configuration.WellKnownNodeType
+	IndexedResources                               []configuration.ResourceType
+	IndexedTaints                                  []string
+	IndexedNodeLabels                              []string
+	WellKnownNodeTypes                             []configuration.WellKnownNodeType
+	EnableUrgencyBeforeFairsharePreemptionOrdering bool
 }
 
 func ConstructNodeDb(
@@ -771,6 +773,8 @@ func ConstructNodeDb(
 		DisableUrgencyScheduling:   poolConfig.DisableUrgencyScheduling,
 		DisallowedJobResources:     poolConfig.ExperimentalUnscheduledResources,
 		DefaultTolerations:         poolConfig.GetDefaultJobTolerations(),
+
+		UrgencyBeforeFairsharePreemption: config.EnableUrgencyBeforeFairsharePreemptionOrdering,
 	})
 
 	if err := populateNodeDb(poolConfig, nodeDb, currentPoolJobs, otherPoolsJobs, nodes); err != nil {
