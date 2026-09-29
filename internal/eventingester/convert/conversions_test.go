@@ -57,29 +57,21 @@ var cancelled = &armadaevents.EventSequence_Event{
 	},
 }
 
-func TestSingle(t *testing.T) {
+func TestConvert_DropsSequenceContainingOnlyJobRunSucceeded(t *testing.T) {
 	msg := NewMsg(jobRunSucceeded)
 	converter := simpleEventConverter()
 	batchUpdate := converter.Convert(armadacontext.Background(), msg)
-	expectedSequence := armadaevents.EventSequence{
-		Events: []*armadaevents.EventSequence_Event{jobRunSucceeded},
-	}
+
 	assert.Equal(t, msg.MessageIds, batchUpdate.MessageIds)
-	assert.Equal(t, 1, len(batchUpdate.Events))
-	event := batchUpdate.Events[0]
-	assert.Equal(t, queue, event.Queue)
-	assert.Equal(t, jobset, event.Jobset)
-	es, err := extractEventSeq(event.Event)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedSequence.Events, es.Events)
+	assert.Empty(t, batchUpdate.Events)
 }
 
-func TestMultiple(t *testing.T) {
+func TestConvert_DropsJobRunSucceededFromSequence(t *testing.T) {
 	msg := NewMsg(cancelled, jobRunSucceeded)
 	converter := simpleEventConverter()
 	batchUpdate := converter.Convert(armadacontext.Background(), msg)
 	expectedSequence := armadaevents.EventSequence{
-		Events: []*armadaevents.EventSequence_Event{cancelled, jobRunSucceeded},
+		Events: []*armadaevents.EventSequence_Event{cancelled},
 	}
 	assert.Equal(t, msg.MessageIds, batchUpdate.MessageIds)
 	assert.Equal(t, 1, len(batchUpdate.Events))
@@ -100,11 +92,40 @@ func TestConvert_RemovesJobRunErrors(t *testing.T) {
 	}
 	converter := simpleEventConverter()
 
-	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(jobRunSucceeded, jobRunErrors))
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(cancelled, jobRunErrors))
 	require.Len(t, batchUpdate.Events, 1)
 	es, err := extractEventSeq(batchUpdate.Events[0].Event)
 	require.NoError(t, err)
-	assert.Equal(t, []*armadaevents.EventSequence_Event{jobRunSucceeded}, es.Events)
+	assert.Equal(t, []*armadaevents.EventSequence_Event{cancelled}, es.Events)
+}
+
+func TestConvert_DropsSequenceContainingOnlyJobValidated(t *testing.T) {
+	jobValidated := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobValidated{
+			JobValidated: &armadaevents.JobValidated{JobId: JobId},
+		},
+	}
+	converter := simpleEventConverter()
+
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(jobValidated))
+	assert.Empty(t, batchUpdate.Events)
+}
+
+func TestConvert_DropsJobValidatedFromSequence(t *testing.T) {
+	jobValidated := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobValidated{
+			JobValidated: &armadaevents.JobValidated{JobId: JobId},
+		},
+	}
+	converter := simpleEventConverter()
+
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(cancelled, jobValidated))
+	require.Len(t, batchUpdate.Events, 1)
+	es, err := extractEventSeq(batchUpdate.Events[0].Event)
+	require.NoError(t, err)
+	assert.Equal(t, []*armadaevents.EventSequence_Event{cancelled}, es.Events)
 }
 
 func TestConvert_RetainsJobRunErrorsConsumedByRedis(t *testing.T) {
@@ -312,9 +333,9 @@ func TestConvert_RecordsEventSizeMetricsPerTypeAndQueue(t *testing.T) {
 	batchUpdate := converter.Convert(armadacontext.Background(), msg)
 	require.Equal(t, 1, len(batchUpdate.Events))
 
-	assert.Greater(t, testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, succeededType)), float64(0))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, succeededType)))
 	assert.Greater(t, testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, cancelledType)), float64(0))
-	assert.Greater(t, testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)), float64(0))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)))
 	assert.Greater(t, testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, cancelledType)), float64(0))
 }
 
