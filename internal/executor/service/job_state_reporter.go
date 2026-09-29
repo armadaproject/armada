@@ -81,11 +81,17 @@ func (stateReporter *JobStateReporter) reportStatusUpdate(old *v1.Pod, new *v1.P
 	// This prevents reporting JobFailed when we delete a pod - for example due to cancellation
 	if util.IsMarkedForDeletion(new) {
 		log.Infof("not sending event to report pod %s moving into phase %s as pod is marked for deletion", new.Name, new.Status.Phase)
+
+		// Report termination time using latest timestamp of all application containers once all
+		// application containers have terminated
 		oldTerminationTime, oldTerminated := util.PodTerminationTime(old)
-		newTerminationTime, newTerminated := util.PodTerminationTime(new)
-		if newTerminated && (!oldTerminated || !newTerminationTime.Equal(oldTerminationTime)) {
+		newTerminationTime, _ := util.PodTerminationTime(new)
+		oldAppsTerminated := util.HaveAllAppContainersTerminated(old)
+		newAppsTerminated := util.HaveAllAppContainersTerminated(new)
+		if newAppsTerminated && (!oldAppsTerminated || !oldTerminated || !newTerminationTime.Equal(oldTerminationTime)) {
 			stateReporter.reportRealTerminationTime(new)
 		}
+
 		return
 	}
 	// Don't report status if the pod phase didn't change.

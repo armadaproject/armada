@@ -147,6 +147,31 @@ func TestJobStateReporter_ReportsTerminationTimeWhenDeletedPodStaysRunning(t *te
 	assert.True(t, finishedAt.Equal(protoutil.ToStdTime(event.JobRunTerminatedDebugInfo.TerminatedAt)))
 }
 
+func TestJobStateReporter_ReportsTerminationTimeWhenFinalContainerMatchesExistingTimestamp(t *testing.T) {
+	stateReporter, _, eventReporter, _ := setUpJobStateReporterTest(t)
+	finishedAt := time.Date(2026, time.September, 28, 19, 7, 33, 0, time.UTC)
+
+	before := makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
+	before.Annotations[domain.MarkedForDeletion] = time.Now().String()
+	firstTerminated := before.DeepCopy()
+	firstTerminated.Status.ContainerStatuses = []v1.ContainerStatus{
+		{Name: "main", State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(finishedAt)}}},
+		{Name: "sidecar", State: v1.ContainerState{Running: &v1.ContainerStateRunning{StartedAt: metav1.NewTime(finishedAt)}}},
+	}
+	allTerminated := firstTerminated.DeepCopy()
+	allTerminated.Status.ContainerStatuses[1].State = v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(finishedAt)}}
+
+	stateReporter.reportStatusUpdate(before, firstTerminated)
+	assert.Empty(t, eventReporter.GetReceivedEvents())
+	stateReporter.reportStatusUpdate(firstTerminated, allTerminated)
+
+	messages := eventReporter.GetReceivedEvents()
+	require.Len(t, messages, 1)
+	event, ok := messages[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo)
+	require.True(t, ok)
+	assert.True(t, finishedAt.Equal(protoutil.ToStdTime(event.JobRunTerminatedDebugInfo.TerminatedAt)))
+}
+
 // Drives the update through the registered informer handler, covering the
 // UpdateFunc wiring. The wait works as in the add-handler test above.
 func TestJobStateReporter_PodUpdateEventHandlerReportsAsync(t *testing.T) {
