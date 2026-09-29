@@ -1510,7 +1510,7 @@ func TestBuildInUsePriorityClasses(t *testing.T) {
 
 // TestCalculateJobSchedulingInfo_AggregateMatchesScan validates that the JobDb
 // queued-demand aggregate derives exactly the same queued demand as the job scan.
-// This is the correctness check behind the canary mode.
+// This is the correctness check behind the aggregate comparison.
 func TestCalculateJobSchedulingInfo_AggregateMatchesScan(t *testing.T) {
 	ctx := armadacontext.Background()
 
@@ -1563,7 +1563,7 @@ func TestCalculateJobSchedulingInfo_AggregateMatchesScan(t *testing.T) {
 	require.Empty(t, diff)
 }
 
-// TestCompareQueuedDemand proves the canary comparison fires when the aggregate
+// TestCompareQueuedDemand proves the aggregate comparison fires when the aggregate
 // diverges from the scan, and stays silent when they agree.
 func TestCompareQueuedDemand(t *testing.T) {
 	oneCpu := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).AllResourceRequirements()
@@ -1604,8 +1604,8 @@ func TestCompareQueuedDemand(t *testing.T) {
 }
 
 // TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords proves the full
-// canary path on divergence: the mismatch is recorded in the
-// armada_scheduler_job_aggregate_canary_* metrics, a
+// aggregate comparison path on divergence: the mismatch is recorded in the
+// armada_scheduler_job_aggregate_* metrics, a
 // "JobDb queued demand aggregate mismatch for pool ..." error is logged, and
 // the authoritative scan result is returned.
 //
@@ -1614,7 +1614,7 @@ func TestCompareQueuedDemand(t *testing.T) {
 // — the same shape a real aggregate accounting bug would produce.
 func TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords(t *testing.T) {
 	ctx := armadacontext.Background()
-	pool := "canary-mismatch-pool"
+	pool := "aggregate-mismatch-pool"
 	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
 
 	queued := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
@@ -1624,11 +1624,11 @@ func TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords(t *testing.T) {
 
 	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
 	txn := jobDb.ReadTxn()
-	algo := &FairSchedulingAlgo{aggregateDemandShadow: true}
+	algo := &FairSchedulingAlgo{computeAggregateDemand: true}
 
-	beforeComparisons := testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool))
-	beforeMismatches := testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool))
-	beforeComponents := testutil.ToFloat64(jobAggregateCanaryMismatchComponents.WithLabelValues(pool, "demand_queued"))
+	beforeComparisons := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
+	beforeMismatches := testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool))
+	beforeComponents := testutil.ToFloat64(jobAggregateMismatchComponents.WithLabelValues(pool, "demand_queued"))
 
 	info, err := algo.newCalculateJobSchedulingInfo(
 		ctx, txn, map[string]bool{}, queues,
@@ -1640,16 +1640,16 @@ func TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords(t *testing.T) {
 	cpu := info.demandByQueueAndPriorityClass["q1"][testfixtures.PriorityClass0].GetByNameZeroIfMissing("cpu")
 	require.Equal(t, int64(2), cpu.Value())
 
-	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool)))
-	require.Equal(t, beforeMismatches+1, testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool)))
-	require.Equal(t, beforeComponents+1, testutil.ToFloat64(jobAggregateCanaryMismatchComponents.WithLabelValues(pool, "demand_queued")))
+	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
+	require.Equal(t, beforeMismatches+1, testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool)))
+	require.Equal(t, beforeComponents+1, testutil.ToFloat64(jobAggregateMismatchComponents.WithLabelValues(pool, "demand_queued")))
 }
 
-// TestCalculateJobSchedulingInfo_ShadowDisabledPublishesNothing proves the
+// TestCalculateJobSchedulingInfo_AggregateDemandDisabledPublishesNothing proves the
 // default (flag off) path neither computes nor publishes anything.
-func TestCalculateJobSchedulingInfo_ShadowDisabledPublishesNothing(t *testing.T) {
+func TestCalculateJobSchedulingInfo_AggregateDemandDisabledPublishesNothing(t *testing.T) {
 	ctx := armadacontext.Background()
-	pool := "shadow-disabled-pool"
+	pool := "aggregate-demand-disabled-pool"
 	queued := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).WithQueued(true).WithPools([]string{pool})
 	phantom := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).WithQueued(true).WithPools([]string{pool})
 	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
@@ -1657,31 +1657,31 @@ func TestCalculateJobSchedulingInfo_ShadowDisabledPublishesNothing(t *testing.T)
 	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
 	algo := &FairSchedulingAlgo{}
 
-	before := testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool))
+	before := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
 	_, err := algo.newCalculateJobSchedulingInfo(
 		ctx, txn, map[string]bool{}, queues,
 		[]*jobdb.Job{queued, phantom}, pool, nil, []string{pool}, nil,
 	)
 	require.NoError(t, err)
-	require.Equal(t, before, testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool)))
+	require.Equal(t, before, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
 }
 
-// TestCalculateJobSchedulingInfo_ShadowAgreementPublishesComparisonOnly proves
-// that when the aggregate agrees with the scan the shadow records a comparison
+// TestCalculateJobSchedulingInfo_AggregateDemandAgreementPublishesComparisonOnly proves
+// that when the aggregate agrees with the scan the aggregate comparison records a comparison
 // but no mismatch, and the scan-derived queued demand is used.
-func TestCalculateJobSchedulingInfo_ShadowAgreementPublishesComparisonOnly(t *testing.T) {
+func TestCalculateJobSchedulingInfo_AggregateDemandAgreementPublishesComparisonOnly(t *testing.T) {
 	ctx := armadacontext.Background()
-	pool := "shadow-agreement-pool"
+	pool := "aggregate-demand-agreement-pool"
 	pc := testfixtures.PriorityClass0
 	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
 
 	queued := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
 	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
 	txn := jobDb.ReadTxn()
-	algo := &FairSchedulingAlgo{aggregateDemandShadow: true}
+	algo := &FairSchedulingAlgo{computeAggregateDemand: true}
 
-	beforeComparisons := testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool))
-	beforeMismatches := testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool))
+	beforeComparisons := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
+	beforeMismatches := testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool))
 
 	info, err := algo.newCalculateJobSchedulingInfo(
 		ctx, txn, map[string]bool{}, queues,
@@ -1689,8 +1689,8 @@ func TestCalculateJobSchedulingInfo_ShadowAgreementPublishesComparisonOnly(t *te
 	)
 	require.NoError(t, err)
 
-	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool)))
-	require.Equal(t, beforeMismatches, testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool)))
+	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
+	require.Equal(t, beforeMismatches, testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool)))
 
 	cpu := info.demandByQueueAndPriorityClass["q1"][pc].GetByNameZeroIfMissing("cpu")
 	require.Equal(t, int64(1), cpu.Value())

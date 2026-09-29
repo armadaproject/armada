@@ -7,7 +7,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/metrics"
 )
 
-// Metrics for the JobDb queued-demand aggregate canary comparison.
+// Metrics for the JobDb queued-demand aggregate comparison.
 //
 // While the aggregate is validated, queued demand is computed both by scanning
 // jobs and from the aggregate, and the two are compared. The comparison counter
@@ -19,24 +19,24 @@ import (
 // scheduling-info build, the other only the aggregate lookup. The isolated
 // scan-vs-aggregate comparison lives in the aggregate benchmarks.
 var (
-	jobAggregateCanaryComparisons = promauto.NewCounterVec(
+	jobAggregateComparisons = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: metrics.MetricPrefix + "scheduler_job_aggregate_canary_comparisons_total",
+			Name: metrics.MetricPrefix + "scheduler_job_aggregate_comparisons_total",
 			Help: "Number of times the JobDb queued-demand aggregate was compared against the per-job calculation.",
 		},
 		[]string{"pool"},
 	)
-	jobAggregateCanaryMismatches = promauto.NewCounterVec(
+	jobAggregateMismatches = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: metrics.MetricPrefix + "scheduler_job_aggregate_canary_mismatches_total",
+			Name: metrics.MetricPrefix + "scheduler_job_aggregate_mismatches_total",
 			Help: "Number of times the JobDb queued-demand aggregate disagreed with the per-job calculation.",
 		},
 		[]string{"pool"},
 	)
-	jobAggregateCanaryMismatchComponents = promauto.NewCounterVec(
+	jobAggregateMismatchComponents = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: metrics.MetricPrefix + "scheduler_job_aggregate_canary_mismatch_components_total",
-			Help: "Number of mismatching components in JobDb queued-demand aggregate canary comparisons, by component.",
+			Name: metrics.MetricPrefix + "scheduler_job_aggregate_mismatch_components_total",
+			Help: "Number of mismatching components in JobDb queued-demand aggregate comparisons, by component.",
 		},
 		[]string{"pool", "component"},
 	)
@@ -62,14 +62,14 @@ var (
 	)
 )
 
-func recordJobAggregateCanaryResult(pool string, mismatchedComponents []string) {
-	jobAggregateCanaryComparisons.WithLabelValues(pool).Inc()
+func recordJobAggregateComparisonResult(pool string, mismatchedComponents []string) {
+	jobAggregateComparisons.WithLabelValues(pool).Inc()
 	if len(mismatchedComponents) == 0 {
 		return
 	}
-	jobAggregateCanaryMismatches.WithLabelValues(pool).Inc()
+	jobAggregateMismatches.WithLabelValues(pool).Inc()
 	for _, component := range mismatchedComponents {
-		jobAggregateCanaryMismatchComponents.WithLabelValues(pool, component).Inc()
+		jobAggregateMismatchComponents.WithLabelValues(pool, component).Inc()
 	}
 }
 

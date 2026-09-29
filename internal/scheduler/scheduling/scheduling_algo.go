@@ -69,8 +69,8 @@ type FairSchedulingAlgo struct {
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
 	shortJobPenalty       *ShortJobPenalty
 	tracer                trace.Tracer
-	// Whether the aggregate queued-demand shadow comparison is enabled.
-	aggregateDemandShadow bool
+	// Whether to compute the aggregate queued demand and compare it against the scan.
+	computeAggregateDemand bool
 }
 
 func NewFairSchedulingAlgo(
@@ -108,7 +108,7 @@ func NewFairSchedulingAlgo(
 		shortJobPenalty:              shortJobPenalty,
 		stateValidator:               stateValidator,
 		tracer:                       otel.Tracer("armada.scheduler.fair_scheduling_algo"),
-		aggregateDemandShadow:        config.ExperimentalAggregateDemand,
+		computeAggregateDemand:       config.ExperimentalAggregateDemand,
 	}, nil
 }
 
@@ -596,9 +596,9 @@ type jobSchedulingInfo struct {
 
 // newCalculateJobSchedulingInfo returns the per-round scheduling information for the pool.
 //
-// The scan-derived queued demand is authoritative. If the aggregate shadow is
-// enabled, the aggregate queued demand is additionally computed, compared against
-// the scan-derived value, and any diff published.
+// The scan-derived queued demand is authoritative. If aggregate demand
+// computation is enabled, the aggregate queued demand is additionally computed,
+// compared against the scan-derived value, and any diff published.
 func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
@@ -615,9 +615,9 @@ func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 	if err != nil {
 		return nil, err
 	}
-	if l.aggregateDemandShadow {
+	if l.computeAggregateDemand {
 		observeJobAggregateSchedulingInfoDuration(currentPool, time.Since(start).Seconds())
-		l.checkQueuedDemand(ctx, jobs, txn, queues, currentPool)
+		l.compareAggregateQueuedDemand(ctx, jobs, txn, queues, currentPool)
 	}
 	return info, nil
 }

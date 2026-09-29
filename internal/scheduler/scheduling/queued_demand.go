@@ -14,10 +14,10 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-// checkQueuedDemand computes queued demand by scanning jobs and from the JobDb
+// compareAggregateQueuedDemand computes queued demand by scanning jobs and from the JobDb
 // aggregate, compares them, and publishes any difference. The scan-derived value
 // remains authoritative.
-func (l *FairSchedulingAlgo) checkQueuedDemand(
+func (l *FairSchedulingAlgo) compareAggregateQueuedDemand(
 	ctx *armadacontext.Context,
 	jobs []*jobdb.Job,
 	txn *jobdb.Txn,
@@ -31,7 +31,7 @@ func (l *FairSchedulingAlgo) checkQueuedDemand(
 	observeJobAggregateLookupDuration(currentPool, time.Since(start).Seconds())
 
 	mismatchedComponents, diff := compareQueuedDemand(scanned, aggregate)
-	recordJobAggregateCanaryResult(currentPool, mismatchedComponents)
+	recordJobAggregateComparisonResult(currentPool, mismatchedComponents)
 	if diff != "" {
 		ctx.Errorf("JobDb queued demand aggregate mismatch for pool %s (using scan result): %s", currentPool, diff)
 	}
