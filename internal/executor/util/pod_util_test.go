@@ -880,7 +880,7 @@ func TestPodTerminationTime_ReturnsLatestTerminatedContainerTime(t *testing.T) {
 	assert.True(t, later.Equal(got))
 }
 
-func TestHasAppContainerTerminated_ExcludesCompletedInitContainers(t *testing.T) {
+func TestHaveAllAppContainersTerminated_RequiresEveryApplicationContainer(t *testing.T) {
 	finishedAt := time.Date(2026, time.September, 28, 19, 7, 33, 0, time.UTC)
 	pod := &v1.Pod{Status: v1.PodStatus{
 		InitContainerStatuses: []v1.ContainerStatus{{
@@ -888,9 +888,15 @@ func TestHasAppContainerTerminated_ExcludesCompletedInitContainers(t *testing.T)
 		}},
 	}}
 
-	assert.False(t, HasAppContainerTerminated(pod))
+	assert.False(t, HaveAllAppContainersTerminated(pod))
 	pod.Status.ContainerStatuses = []v1.ContainerStatus{{
 		State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(finishedAt)}},
 	}}
-	assert.True(t, HasAppContainerTerminated(pod))
+	assert.True(t, HaveAllAppContainersTerminated(pod))
+	pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, v1.ContainerStatus{
+		State: v1.ContainerState{Running: &v1.ContainerStateRunning{StartedAt: metav1.NewTime(finishedAt)}},
+	})
+	assert.False(t, HaveAllAppContainersTerminated(pod))
+	pod.Status.ContainerStatuses[1].State = v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(finishedAt)}}
+	assert.True(t, HaveAllAppContainersTerminated(pod))
 }
