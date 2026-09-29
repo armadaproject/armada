@@ -1,9 +1,10 @@
 package scheduling
 
 import (
-	"github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"github.com/armadaproject/armada/internal/common/metrics"
 )
 
 // Metrics for the JobDb queued-demand aggregate canary comparison.
