@@ -1,7 +1,3 @@
-# Two simultaneous cluster targets, each on its own kind cluster, with different node-group
-# shapes. Bring up both clusters with `mage kindRegatta cmd/regatta/config/armada/kind/two-cluster`
-# (mirrors `mage kind`, but skips the ingress-nginx/priorityclass/namespace install since
-# Armada's own components run via goreman on the host, not inside either kind cluster).
 armadactl: ~/.armadactl.yaml
 
 metrics:
