@@ -86,7 +86,7 @@ func (Dev) Up(profiles string, dap *bool) error {
 	procfileDir := "_local/procfiles/"
 	procfileName := profile
 	if profile == "regatta" {
-		procfileDir = "cmd/regatta/config/armada/procfiles/"
+		procfileDir = "cmd/regatta/config/procfiles/"
 	}
 	procfile := procfileDir + procfileName + debugSuffix + ".Procfile"
 	if _, err := os.Stat(procfile); err != nil {
