@@ -2,7 +2,7 @@ armadactl: ~/.armadactl.yaml
 
 metrics:
   prometheus: http://localhost:9090
-  postRunDelay: 90s
+  postRunDelay: 30s
   resultsPath: ./results/
 
 executionTargets:
