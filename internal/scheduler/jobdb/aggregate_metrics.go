@@ -5,11 +5,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/metrics"
 )
 
 var jobAggregateInvariantViolations = promauto.NewCounterVec(
 	prometheus.CounterOpts{
-		Name: "armada_scheduler_job_aggregate_invariant_violations_total",
+		Name: metrics.MetricPrefix + "scheduler_job_aggregate_invariant_violations_total",
 		Help: "Number of JobDb queued-demand aggregate invariant violations, by kind.",
 	},
 	[]string{"kind"},

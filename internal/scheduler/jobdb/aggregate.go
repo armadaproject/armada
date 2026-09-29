@@ -2,6 +2,7 @@ package jobdb
 
 import (
 	"github.com/benbjohnson/immutable"
+	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
@@ -40,7 +41,11 @@ func (a *JobAggregate) add(job *Job) {
 	req := job.AllResourceRequirements()
 	queue := job.Queue()
 	pc := job.PriorityClassName()
-	forEachDistinctPool(job.pools, func(pool string) {
+	pools := job.pools
+	for i, pool := range pools {
+		if slices.Contains(pools[:i], pool) {
+			continue
+		}
 		poolMap, _ := a.queuedDemand.Get(pool)
 		if poolMap == nil {
 			poolMap = immutable.NewMap[string, *immutable.Map[string, internaltypes.ResourceList]](nil)
@@ -51,7 +56,7 @@ func (a *JobAggregate) add(job *Job) {
 		}
 		current, _ := queueMap.Get(pc)
 		a.queuedDemand = a.queuedDemand.Set(pool, poolMap.Set(queue, queueMap.Set(pc, current.Add(req))))
-	})
+	}
 }
 
 // remove removes job from the aggregate. The job must be in the same state as
@@ -64,26 +69,30 @@ func (a *JobAggregate) remove(job *Job) {
 	req := job.AllResourceRequirements()
 	queue := job.Queue()
 	pc := job.PriorityClassName()
-	forEachDistinctPool(job.pools, func(pool string) {
+	pools := job.pools
+	for i, pool := range pools {
+		if slices.Contains(pools[:i], pool) {
+			continue
+		}
 		poolMap, ok := a.queuedDemand.Get(pool)
 		if !ok || poolMap == nil {
 			recordAggregateInvariantViolation("remove_missing_pool")
-			return
+			continue
 		}
 		queueMap, ok := poolMap.Get(queue)
 		if !ok || queueMap == nil {
 			recordAggregateInvariantViolation("remove_missing_queue")
-			return
+			continue
 		}
 		current, ok := queueMap.Get(pc)
 		if !ok {
 			recordAggregateInvariantViolation("remove_missing_priority_class")
-			return
+			continue
 		}
 		remaining := current.Subtract(req)
 		if remaining.HasNegativeValues() {
 			recordAggregateInvariantViolation("remove_negative_remaining")
-			return
+			continue
 		}
 		if remaining.AllZero() {
 			queueMap = queueMap.Delete(pc)
@@ -100,7 +109,7 @@ func (a *JobAggregate) remove(job *Job) {
 		} else {
 			a.queuedDemand = a.queuedDemand.Set(pool, poolMap)
 		}
-	})
+	}
 }
 
 // getQueuedDemand returns queued demand for currentPool by queue and priority
@@ -136,22 +145,6 @@ func (a *JobAggregate) getQueuedDemand(
 		}
 	}
 	return demand
-}
-
-// forEachDistinctPool calls f once per distinct pool in pools.
-func forEachDistinctPool(pools []string, f func(pool string)) {
-	for i, pool := range pools {
-		duplicate := false
-		for _, previous := range pools[:i] {
-			if previous == pool {
-				duplicate = true
-				break
-			}
-		}
-		if !duplicate {
-			f(pool)
-		}
-	}
 }
 
 func queueKnown(knownQueues map[string]bool, queue string) bool {
