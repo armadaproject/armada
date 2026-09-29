@@ -1,4 +1,4 @@
-# Models a plain CPU-only worker node, no accelerator.
+# Models a plain CPU-only worker node.
 name: cpu-only
 allocatable:
   cpu: "32"
