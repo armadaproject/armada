@@ -54,8 +54,9 @@ var (
 				},
 			},
 		},
-		State:     string(lookout.JobFailed),
-		Submitted: baseTimeSwagger,
+		State:      string(lookout.JobFailed),
+		Submitted:  baseTimeSwagger,
+		CancelUser: pointer.String("cancel-user"),
 	}
 
 	job = &model.Job{
@@ -94,8 +95,9 @@ var (
 				},
 			},
 		},
-		State:     string(lookout.JobFailed),
-		Submitted: baseTime,
+		State:      string(lookout.JobFailed),
+		Submitted:  baseTime,
+		CancelUser: pointer.String("cancel-user"),
 	}
 
 	swaggerGroup = &models.Group{

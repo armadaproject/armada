@@ -23,6 +23,7 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 		makeJobSchedulingContext("job-5", "node-1", context.ScheduledWithFairSharePreemption),
 		makeJobSchedulingContext("job-5", "node-2", context.ScheduledWithFairSharePreemption),
 		makeJobSchedulingContext("job-6", "node-3", context.ScheduledWithFairSharePreemption),
+		makeJobSchedulingContext("job-9", "node-5", context.ScheduledWithFairShareAndUrgencyPreemption),
 	}
 	expectedScheduleJobContexts := []*context.JobSchedulingContext{
 		makeJobSchedulingContext("job-2", "node-1", context.ScheduledWithUrgencyBasedPreemption),
@@ -31,6 +32,7 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 		makeJobSchedulingContext("job-5", "node-1", context.ScheduledWithFairSharePreemption),
 		makeJobSchedulingContext("job-5", "node-2", context.ScheduledWithFairSharePreemption),
 		makeJobSchedulingContext("job-6", "node-3", context.ScheduledWithFairSharePreemption),
+		makeJobSchedulingContext("job-9", "node-5", context.ScheduledWithFairShareAndUrgencyPreemption),
 	}
 
 	tests := map[string]struct {
@@ -91,6 +93,20 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 				AssignedNode:          testfixtures.TestSimpleNode("node-2"),
 				Job:                   makeJob(t, "job-1", false),
 				PreemptionDescription: fmt.Sprintf(urgencyPreemptionMultiJobTemplate, "job-3,job-4"),
+				PreemptionType:        context.PreemptedWithUrgencyPreemption,
+			}},
+		},
+		"urgency preemption - preempting job used both fairshare and urgency": {
+			preemptedJobContexts: []*context.JobSchedulingContext{{
+				JobId:        "job-1",
+				AssignedNode: testfixtures.TestSimpleNode("node-5"),
+				Job:          makeJob(t, "job-1", false),
+			}},
+			expectedPreemptedJobContexts: []*context.JobSchedulingContext{{
+				JobId:                 "job-1",
+				AssignedNode:          testfixtures.TestSimpleNode("node-5"),
+				Job:                   makeJob(t, "job-1", false),
+				PreemptionDescription: fmt.Sprintf(urgencyPreemptionTemplate, "job-9"),
 				PreemptionType:        context.PreemptedWithUrgencyPreemption,
 			}},
 		},

@@ -10,12 +10,13 @@ import (
 type SchedulingType string
 
 const (
-	None                                SchedulingType = "none"
-	Rescheduled                         SchedulingType = "rescheduled"
-	ScheduledWithoutPreemption          SchedulingType = "no-preemption"
-	ScheduledWithFairSharePreemption    SchedulingType = "fairshare"
-	ScheduledWithUrgencyBasedPreemption SchedulingType = "urgency"
-	ScheduledWithFairnessOptimiser      SchedulingType = "optimiser"
+	None                                       SchedulingType = "none"
+	Rescheduled                                SchedulingType = "rescheduled"
+	ScheduledWithoutPreemption                 SchedulingType = "no-preemption"
+	ScheduledWithFairSharePreemption           SchedulingType = "fairshare"
+	ScheduledWithUrgencyBasedPreemption        SchedulingType = "urgency"
+	ScheduledWithFairShareAndUrgencyPreemption SchedulingType = "fairshare-and-urgency"
+	ScheduledWithFairnessOptimiser             SchedulingType = "optimiser"
 )
 
 type PreemptionType string

@@ -53,7 +53,7 @@ func (n *PreemptingNodeScheduler) Schedule(schedContext *SchedulingContext, jctx
 		}, nil
 	}
 
-	availableResource := node.AllocatableByPriority[internaltypes.EvictedPriority]
+	availableResource := node.AllocatableAtPriority(internaltypes.EvictedPriority)
 	if !jctx.Job.KubernetesResourceRequirements().Exceeds(availableResource) {
 		return &nodeSchedulingResult{
 			jctx:      jctx,
@@ -138,7 +138,7 @@ func (n *PreemptingNodeScheduler) getPreemptibleJobDetailsByQueue(
 ) (map[string][]*preemptibleJobDetails, error) {
 	queues := map[string][]*preemptibleJobDetails{}
 	start := time.Now()
-	for jobId, jobResource := range node.AllocatedByJobId {
+	for jobId, jobResource := range node.AllocatedByJob() {
 		job := n.jobDb.GetById(jobId)
 		if job == nil {
 			return nil, fmt.Errorf("job %s not found in jobDb", jobId)

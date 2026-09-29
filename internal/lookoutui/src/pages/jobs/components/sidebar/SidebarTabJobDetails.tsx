@@ -27,6 +27,8 @@ export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetailsProps) => {
     { key: "Submitted", value: formatIsoTimestamp(job.submitted, "full") },
     ...(job.cancelReason ? [{ key: "Cancel Reason", value: job.cancelReason, allowCopy: true }] : []),
     ...(job.cancelUser ? [{ key: "Cancelled By", value: job.cancelUser, allowCopy: true }] : []),
+    ...(job.preemptUser ? [{ key: "Preempted By", value: job.preemptUser, allowCopy: true }] : []),
+    ...(job.reprioritizeUser ? [{ key: "Reprioritized By", value: job.reprioritizeUser, allowCopy: true }] : []),
   ]
   return (
     <>
