@@ -1009,6 +1009,20 @@ func (txn *Txn) BatchDelete(jobIds []string) error {
 	if err := txn.checkWritableTransaction(); err != nil {
 		return err
 	}
+	// Collect the jobs to remove up front so the aggregate delta can be applied
+	// once, mirroring Upsert.
+	removed := make([]*Job, 0, len(jobIds))
+	seen := make(map[string]bool, len(jobIds))
+	for _, id := range jobIds {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		if job, present := txn.jobsById.Get(id); present {
+			removed = append(removed, job)
+		}
+	}
+	txn.applyAggregateDelta(removed, nil)
 	for _, id := range jobIds {
 		txn.delete(id)
 	}
@@ -1020,7 +1034,6 @@ func (txn *Txn) BatchDelete(jobIds []string) error {
 func (txn *Txn) delete(jobId string) {
 	job, present := txn.jobsById.Get(jobId)
 	if present {
-		txn.applyAggregateDelta([]*Job{job}, nil)
 		txn.jobsById = txn.jobsById.Delete(jobId)
 		for _, run := range job.runsById {
 			txn.jobsByRunId = txn.jobsByRunId.Delete(run.id)

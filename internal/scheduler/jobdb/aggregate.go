@@ -110,14 +110,14 @@ func (a *JobAggregate) getQueuedDemand(
 	knownQueues map[string]bool,
 	cordonedQueues map[string]bool,
 ) map[string]map[string]internaltypes.ResourceList {
-	demand := map[string]map[string]internaltypes.ResourceList{}
 	if a == nil || a.queuedDemand == nil {
-		return demand
+		return map[string]map[string]internaltypes.ResourceList{}
 	}
 	poolMap, ok := a.queuedDemand.Get(currentPool)
 	if !ok || poolMap == nil {
-		return demand
+		return map[string]map[string]internaltypes.ResourceList{}
 	}
+	demand := make(map[string]map[string]internaltypes.ResourceList, poolMap.Len())
 	poolIt := poolMap.Iterator()
 	for !poolIt.Done() {
 		queue, queueMap, _ := poolIt.Next()
@@ -126,7 +126,7 @@ func (a *JobAggregate) getQueuedDemand(
 		}
 		byPriorityClass, ok := demand[queue]
 		if !ok {
-			byPriorityClass = map[string]internaltypes.ResourceList{}
+			byPriorityClass = make(map[string]internaltypes.ResourceList, queueMap.Len())
 			demand[queue] = byPriorityClass
 		}
 		queueIt := queueMap.Iterator()

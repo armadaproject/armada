@@ -323,6 +323,21 @@ func TestJobAggregate_BatchUpsertAndDelete(t *testing.T) {
 	assert.Equal(t, int64(4), cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
 }
 
+func TestJobAggregate_BatchDeleteDuplicateIds(t *testing.T) {
+	jobDb := NewTestJobDb()
+	job := newAggregateTestJob(t, jobDb, "job", "queue-1", true, []string{"pool-1"}, 2)
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{job}))
+	txn.Commit()
+
+	before := testutil.ToFloat64(jobAggregateInvariantViolations.WithLabelValues("remove_missing_pool"))
+	txn = jobDb.WriteTxn()
+	require.NoError(t, txn.BatchDelete([]string{"job", "job"}))
+	txn.Commit()
+	assert.Equal(t, before, testutil.ToFloat64(jobAggregateInvariantViolations.WithLabelValues("remove_missing_pool")))
+	assert.Nil(t, jobDb.ReadTxn().GetQueuedDemand("pool-1", map[string]bool{"queue-1": true}, nil)["queue-1"])
+}
+
 func TestJobAggregate_NilKnownQueues(t *testing.T) {
 	jobDb := NewTestJobDb()
 	job := newAggregateTestJob(t, jobDb, "job", "queue-1", true, []string{"pool-1"}, 2)

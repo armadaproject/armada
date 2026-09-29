@@ -1,6 +1,7 @@
 package scheduling
 
 import (
+	"github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -19,28 +20,28 @@ import (
 var (
 	jobAggregateCanaryComparisons = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "armada_scheduler_job_aggregate_canary_comparisons_total",
+			Name: metrics.MetricPrefix + "scheduler_job_aggregate_canary_comparisons_total",
 			Help: "Number of times the JobDb queued-demand aggregate was compared against the per-job calculation.",
 		},
 		[]string{"pool"},
 	)
 	jobAggregateCanaryMismatches = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "armada_scheduler_job_aggregate_canary_mismatches_total",
+			Name: metrics.MetricPrefix + "scheduler_job_aggregate_canary_mismatches_total",
 			Help: "Number of times the JobDb queued-demand aggregate disagreed with the per-job calculation.",
 		},
 		[]string{"pool"},
 	)
 	jobAggregateCanaryMismatchComponents = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "armada_scheduler_job_aggregate_canary_mismatch_components_total",
+			Name: metrics.MetricPrefix + "scheduler_job_aggregate_canary_mismatch_components_total",
 			Help: "Number of mismatching components in JobDb queued-demand aggregate canary comparisons, by component.",
 		},
 		[]string{"pool", "component"},
 	)
 	jobAggregateSchedulingInfoDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "armada_scheduler_job_aggregate_scheduling_info_duration_seconds",
+			Name: metrics.MetricPrefix + "scheduler_job_aggregate_scheduling_info_duration_seconds",
 			Help: "Time spent per scheduling round building the full job scheduling info. Recorded for context only; it is not a like-for-like comparison with the aggregate lookup.",
 			Buckets: []float64{
 				0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0,
@@ -50,7 +51,7 @@ var (
 	)
 	jobAggregateLookupDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "armada_scheduler_job_aggregate_lookup_duration_seconds",
+			Name: metrics.MetricPrefix + "scheduler_job_aggregate_lookup_duration_seconds",
 			Help: "Time spent per scheduling round deriving queued demand from the JobDb aggregate.",
 			Buckets: []float64{
 				0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0,
