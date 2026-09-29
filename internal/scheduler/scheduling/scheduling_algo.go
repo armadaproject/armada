@@ -69,8 +69,6 @@ type FairSchedulingAlgo struct {
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
 	shortJobPenalty       *ShortJobPenalty
 	tracer                trace.Tracer
-	// Derives the queued demand used for scheduling; see queuedDemandSource.
-	queuedDemand queuedDemandSource
 	// Whether the aggregate queued-demand shadow comparison is enabled.
 	aggregateDemandShadow bool
 }
@@ -110,7 +108,6 @@ func NewFairSchedulingAlgo(
 		shortJobPenalty:              shortJobPenalty,
 		stateValidator:               stateValidator,
 		tracer:                       otel.Tracer("armada.scheduler.fair_scheduling_algo"),
-		queuedDemand:                 newQueuedDemandSource(config.ExperimentalAggregateDemand),
 		aggregateDemandShadow:        config.ExperimentalAggregateDemand,
 	}, nil
 }
@@ -595,14 +592,13 @@ type jobSchedulingInfo struct {
 	awayAllocatedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 	shortJobPenaltyByQueue               map[string]internaltypes.ResourceList
 	inUsePriorityClasses                 map[string]bool
-	// Queued-only subset of demand, used only to validate the aggregate.
-	queuedDemandByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 }
 
 // newCalculateJobSchedulingInfo returns the per-round scheduling information for the pool.
 //
 // The scan-derived queued demand is authoritative. If the aggregate shadow is
-// enabled, l.queuedDemand also computes the aggregate value and publishes any diff.
+// enabled, the aggregate queued demand is additionally computed, compared against
+// the scan-derived value, and any diff published.
 func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
@@ -621,26 +617,9 @@ func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 	}
 	if l.aggregateDemandShadow {
 		observeJobAggregateSchedulingInfoDuration(currentPool, time.Since(start).Seconds())
+		l.checkQueuedDemand(ctx, jobs, txn, queues, currentPool)
 	}
-
-	info.queuedDemandByQueueAndPriorityClass = l.queuedDemandSource().QueuedDemand(
-		ctx,
-		info.queuedDemandByQueueAndPriorityClass,
-		txn,
-		queues,
-		currentPool,
-	)
 	return info, nil
-}
-
-// queuedDemandSource returns the configured queued-demand source, defaulting to
-// the scan source so that structs built without the constructor stay on the
-// current behaviour.
-func (l *FairSchedulingAlgo) queuedDemandSource() queuedDemandSource {
-	if l.queuedDemand == nil {
-		return scanQueuedDemandSource{}
-	}
-	return l.queuedDemand
 }
 
 func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
@@ -650,7 +629,6 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 	jobsByExecutorId := make(map[string][]*jobdb.Job)
 	jobsByPool := make(map[string][]*jobdb.Job)
 	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
-	queuedDemandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	awayAllocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	inUsePriorityClasses := make(map[string]bool)
@@ -687,14 +665,6 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 			if !queue.Cordoned || !job.Queued() {
 				pcName := job.PriorityClassName()
 				queueResources[pcName] = queueResources[pcName].Add(job.AllResourceRequirements())
-				if job.Queued() {
-					queuedResources, ok := queuedDemandByQueueAndPriorityClass[job.Queue()]
-					if !ok {
-						queuedResources = map[string]internaltypes.ResourceList{}
-						queuedDemandByQueueAndPriorityClass[job.Queue()] = queuedResources
-					}
-					queuedResources[pcName] = queuedResources[pcName].Add(job.AllResourceRequirements())
-				}
 			}
 		}
 
@@ -754,69 +724,11 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		jobsByExecutorId:                     jobsByExecutorId,
 		jobsByPool:                           jobsByPool,
 		demandByQueueAndPriorityClass:        demandByQueueAndPriorityClass,
-		queuedDemandByQueueAndPriorityClass:  queuedDemandByQueueAndPriorityClass,
 		allocatedByQueueAndPriorityClass:     allocatedByQueueAndPriorityClass,
 		awayAllocatedByQueueAndPriorityClass: awayAllocatedByQueueAndPriorityClass,
 		shortJobPenaltyByQueue:               shortJobPenaltyByQueue,
 		inUsePriorityClasses:                 inUsePriorityClasses,
 	}, nil
-}
-
-// compareQueuedDemand returns the mismatching component names and a description
-// of the differences between scan-derived and aggregate-derived queued demand.
-// Both are empty if the two are equivalent.
-func compareQueuedDemand(scan, aggregate map[string]map[string]internaltypes.ResourceList) ([]string, string) {
-	if diff := compareResourceListMaps("queuedDemandByQueueAndPriorityClass", scan, aggregate); diff != "" {
-		return []string{"demand_queued"}, diff
-	}
-	return nil, ""
-}
-
-func compareResourceListMaps(name string, scan, aggregate map[string]map[string]internaltypes.ResourceList) string {
-	diffs := make([]string, 0)
-	for _, queue := range unionKeys(scan, aggregate) {
-		for _, priorityClass := range unionResourcePriorityClasses(scan[queue], aggregate[queue]) {
-			scanRl := scan[queue][priorityClass]
-			aggregateRl := aggregate[queue][priorityClass]
-			scanZero := scanRl.AllZero()
-			aggregateZero := aggregateRl.AllZero()
-			if scanZero && aggregateZero {
-				continue
-			}
-			if scanZero != aggregateZero || !scanRl.Equal(aggregateRl) {
-				diffs = append(diffs, fmt.Sprintf("%s[queue=%s,priorityClass=%s]: scan=%s aggregate=%s",
-					name, queue, priorityClass, scanRl.String(), aggregateRl.String()))
-			}
-		}
-	}
-	slices.Sort(diffs)
-	return strings.Join(diffs, ", ")
-}
-
-func unionKeys(a, b map[string]map[string]internaltypes.ResourceList) []string {
-	keySet := make(map[string]bool, len(a)+len(b))
-	for key := range a {
-		keySet[key] = true
-	}
-	for key := range b {
-		keySet[key] = true
-	}
-	keys := maps.Keys(keySet)
-	slices.Sort(keys)
-	return keys
-}
-
-func unionResourcePriorityClasses(a, b map[string]internaltypes.ResourceList) []string {
-	keySet := make(map[string]bool, len(a)+len(b))
-	for key := range a {
-		keySet[key] = true
-	}
-	for key := range b {
-		keySet[key] = true
-	}
-	keys := maps.Keys(keySet)
-	slices.Sort(keys)
-	return keys
 }
 
 func (l *FairSchedulingAlgo) buildInUsePriorityClasses(inUse map[string]bool) map[string]types.PriorityClass {

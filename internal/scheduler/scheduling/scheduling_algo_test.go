@@ -1552,12 +1552,13 @@ func TestCalculateJobSchedulingInfo_AggregateMatchesScan(t *testing.T) {
 	activeExecutorsSet := map[string]bool{"executor-1": true, "executor-2": true}
 
 	algo := &FairSchedulingAlgo{}
-	scan, err := algo.calculateJobSchedulingInfo(
+	_, err := algo.calculateJobSchedulingInfo(
 		ctx, activeExecutorsSet, queues, txn.GetAll(), currentPool, awayAllocationPools, allPools, nil,
 	)
 	require.NoError(t, err)
+	scanned := scanQueuedDemand(txn.GetAll(), queues, currentPool)
 	aggregate := queuedDemandFromAggregate(txn, queues, currentPool)
-	components, diff := compareQueuedDemand(scan.queuedDemandByQueueAndPriorityClass, aggregate)
+	components, diff := compareQueuedDemand(scanned, aggregate)
 	require.Empty(t, components)
 	require.Empty(t, diff)
 }
@@ -1623,7 +1624,7 @@ func TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords(t *testing.T) {
 
 	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
 	txn := jobDb.ReadTxn()
-	algo := &FairSchedulingAlgo{queuedDemand: shadowQueuedDemandSource{}, aggregateDemandShadow: true}
+	algo := &FairSchedulingAlgo{aggregateDemandShadow: true}
 
 	beforeComparisons := testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool))
 	beforeMismatches := testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool))
@@ -1644,42 +1645,25 @@ func TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords(t *testing.T) {
 	require.Equal(t, beforeComponents+1, testutil.ToFloat64(jobAggregateCanaryMismatchComponents.WithLabelValues(pool, "demand_queued")))
 }
 
-// TestScanQueuedDemandSource_ReturnsScanWithoutPublishing proves the default
-// source is a pure pass-through that publishes nothing.
-func TestScanQueuedDemandSource_ReturnsScanWithoutPublishing(t *testing.T) {
+// TestCalculateJobSchedulingInfo_ShadowDisabledPublishesNothing proves the
+// default (flag off) path neither computes nor publishes anything.
+func TestCalculateJobSchedulingInfo_ShadowDisabledPublishesNothing(t *testing.T) {
 	ctx := armadacontext.Background()
-	pool := "scan-source-pool"
-	pc := testfixtures.PriorityClass0
-	scanned := map[string]map[string]internaltypes.ResourceList{
-		"q1": {pc: testfixtures.Test1Cpu4GiJob("q1", pc).AllResourceRequirements()},
-	}
-
-	before := testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool))
-	got := scanQueuedDemandSource{}.QueuedDemand(ctx, scanned, nil, nil, pool)
-	require.Equal(t, scanned, got)
-	require.Equal(t, before, testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool)))
-}
-
-// TestShadowQueuedDemandSource_PublishesAndReturnsScan proves the shadow source
-// publishes a divergence while still returning the authoritative scan value.
-func TestShadowQueuedDemandSource_PublishesAndReturnsScan(t *testing.T) {
-	ctx := armadacontext.Background()
-	pool := "shadow-source-pool"
-	pc := testfixtures.PriorityClass0
-	queued := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
+	pool := "shadow-disabled-pool"
+	queued := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).WithQueued(true).WithPools([]string{pool})
+	phantom := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).WithQueued(true).WithPools([]string{pool})
 	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
 	txn := jobDb.ReadTxn()
 	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+	algo := &FairSchedulingAlgo{}
 
-	// Scan claims two cpu while the aggregate only knows one: divergence.
-	scanned := map[string]map[string]internaltypes.ResourceList{
-		"q1": {pc: queued.AllResourceRequirements().Add(queued.AllResourceRequirements())},
-	}
-
-	before := testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool))
-	got := shadowQueuedDemandSource{}.QueuedDemand(ctx, scanned, txn, queues, pool)
-	require.Equal(t, scanned, got)
-	require.Equal(t, before+1, testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool)))
+	before := testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool))
+	_, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued, phantom}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, before, testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool)))
 }
 
 // TestCalculateJobSchedulingInfo_ShadowAgreementPublishesComparisonOnly proves
@@ -1694,7 +1678,7 @@ func TestCalculateJobSchedulingInfo_ShadowAgreementPublishesComparisonOnly(t *te
 	queued := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
 	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
 	txn := jobDb.ReadTxn()
-	algo := &FairSchedulingAlgo{queuedDemand: shadowQueuedDemandSource{}, aggregateDemandShadow: true}
+	algo := &FairSchedulingAlgo{aggregateDemandShadow: true}
 
 	beforeComparisons := testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool))
 	beforeMismatches := testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool))
@@ -1708,17 +1692,8 @@ func TestCalculateJobSchedulingInfo_ShadowAgreementPublishesComparisonOnly(t *te
 	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateCanaryComparisons.WithLabelValues(pool)))
 	require.Equal(t, beforeMismatches, testutil.ToFloat64(jobAggregateCanaryMismatches.WithLabelValues(pool)))
 
-	cpu := info.queuedDemandByQueueAndPriorityClass["q1"][pc].GetByNameZeroIfMissing("cpu")
+	cpu := info.demandByQueueAndPriorityClass["q1"][pc].GetByNameZeroIfMissing("cpu")
 	require.Equal(t, int64(1), cpu.Value())
-}
-
-// TestNewQueuedDemandSource checks the feature-flag selection and the default
-// used by structs built without the constructor.
-func TestNewQueuedDemandSource(t *testing.T) {
-	require.IsType(t, scanQueuedDemandSource{}, newQueuedDemandSource(false))
-	require.IsType(t, shadowQueuedDemandSource{}, newQueuedDemandSource(true))
-	require.IsType(t, scanQueuedDemandSource{}, (&FairSchedulingAlgo{}).queuedDemandSource())
-	require.IsType(t, shadowQueuedDemandSource{}, (&FairSchedulingAlgo{queuedDemand: shadowQueuedDemandSource{}}).queuedDemandSource())
 }
 
 // BenchmarkQueuedDemand is an end-to-end comparison, not a like-for-like one:

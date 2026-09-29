@@ -1,7 +1,12 @@
 package scheduling
 
 import (
+	"fmt"
+	"strings"
 	"time"
+
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -9,53 +14,18 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-// queuedDemandSource supplies the queued demand used for scheduling.
-//
-// The scan-derived value is authoritative. The shadow source additionally
-// computes queued demand from the JobDb aggregate and publishes any diff,
-// without changing the result. A future aggregate source can return the
-// aggregate value directly.
-type queuedDemandSource interface {
-	QueuedDemand(
-		ctx *armadacontext.Context,
-		scanned map[string]map[string]internaltypes.ResourceList,
-		txn *jobdb.Txn,
-		queues map[string]*api.Queue,
-		currentPool string,
-	) map[string]map[string]internaltypes.ResourceList
-}
-
-func newQueuedDemandSource(shadow bool) queuedDemandSource {
-	if shadow {
-		return shadowQueuedDemandSource{}
-	}
-	return scanQueuedDemandSource{}
-}
-
-// scanQueuedDemandSource uses the scan-derived queued demand (current behaviour).
-type scanQueuedDemandSource struct{}
-
-func (scanQueuedDemandSource) QueuedDemand(
-	_ *armadacontext.Context,
-	scanned map[string]map[string]internaltypes.ResourceList,
-	_ *jobdb.Txn,
-	_ map[string]*api.Queue,
-	_ string,
-) map[string]map[string]internaltypes.ResourceList {
-	return scanned
-}
-
-// shadowQueuedDemandSource uses the scan-derived queued demand, but also computes
-// the JobDb aggregate queued demand and publishes any difference.
-type shadowQueuedDemandSource struct{}
-
-func (shadowQueuedDemandSource) QueuedDemand(
+// checkQueuedDemand computes queued demand by scanning jobs and from the JobDb
+// aggregate, compares them, and publishes any difference. The scan-derived value
+// remains authoritative.
+func (l *FairSchedulingAlgo) checkQueuedDemand(
 	ctx *armadacontext.Context,
-	scanned map[string]map[string]internaltypes.ResourceList,
+	jobs []*jobdb.Job,
 	txn *jobdb.Txn,
 	queues map[string]*api.Queue,
 	currentPool string,
-) map[string]map[string]internaltypes.ResourceList {
+) {
+	scanned := scanQueuedDemand(jobs, queues, currentPool)
+
 	start := time.Now()
 	aggregate := queuedDemandFromAggregate(txn, queues, currentPool)
 	observeJobAggregateLookupDuration(currentPool, time.Since(start).Seconds())
@@ -65,7 +35,36 @@ func (shadowQueuedDemandSource) QueuedDemand(
 	if diff != "" {
 		ctx.Errorf("JobDb queued demand aggregate mismatch for pool %s (using scan result): %s", currentPool, diff)
 	}
-	return scanned
+}
+
+// scanQueuedDemand derives queued demand from queued jobs eligible for currentPool.
+func scanQueuedDemand(
+	jobs []*jobdb.Job,
+	queues map[string]*api.Queue,
+	currentPool string,
+) map[string]map[string]internaltypes.ResourceList {
+	demand := map[string]map[string]internaltypes.ResourceList{}
+	for _, job := range jobs {
+		if job.InTerminalState() || !job.Queued() {
+			continue
+		}
+		queue, present := queues[job.Queue()]
+		if !present || queue.Cordoned {
+			continue
+		}
+		if !slices.Contains(job.Pools(), currentPool) {
+			continue
+		}
+		queueName := job.Queue()
+		pc := job.PriorityClassName()
+		byPriorityClass, ok := demand[queueName]
+		if !ok {
+			byPriorityClass = map[string]internaltypes.ResourceList{}
+			demand[queueName] = byPriorityClass
+		}
+		byPriorityClass[pc] = byPriorityClass[pc].Add(job.AllResourceRequirements())
+	}
+	return demand
 }
 
 func queuedDemandFromAggregate(
@@ -80,4 +79,61 @@ func queuedDemandFromAggregate(
 		cordonedQueues[name] = queue.Cordoned
 	}
 	return txn.GetQueuedDemand(currentPool, knownQueues, cordonedQueues)
+}
+
+// compareQueuedDemand returns the mismatching component names and a description
+// of the differences between scan-derived and aggregate-derived queued demand.
+// Both are empty if the two are equivalent.
+func compareQueuedDemand(scan, aggregate map[string]map[string]internaltypes.ResourceList) ([]string, string) {
+	if diff := compareResourceListMaps("queuedDemandByQueueAndPriorityClass", scan, aggregate); diff != "" {
+		return []string{"demand_queued"}, diff
+	}
+	return nil, ""
+}
+
+func compareResourceListMaps(name string, scan, aggregate map[string]map[string]internaltypes.ResourceList) string {
+	diffs := make([]string, 0)
+	for _, queue := range unionKeys(scan, aggregate) {
+		for _, priorityClass := range unionResourcePriorityClasses(scan[queue], aggregate[queue]) {
+			scanRl := scan[queue][priorityClass]
+			aggregateRl := aggregate[queue][priorityClass]
+			scanZero := scanRl.AllZero()
+			aggregateZero := aggregateRl.AllZero()
+			if scanZero && aggregateZero {
+				continue
+			}
+			if scanZero != aggregateZero || !scanRl.Equal(aggregateRl) {
+				diffs = append(diffs, fmt.Sprintf("%s[queue=%s,priorityClass=%s]: scan=%s aggregate=%s",
+					name, queue, priorityClass, scanRl.String(), aggregateRl.String()))
+			}
+		}
+	}
+	slices.Sort(diffs)
+	return strings.Join(diffs, ", ")
+}
+
+func unionKeys(a, b map[string]map[string]internaltypes.ResourceList) []string {
+	keySet := make(map[string]bool, len(a)+len(b))
+	for key := range a {
+		keySet[key] = true
+	}
+	for key := range b {
+		keySet[key] = true
+	}
+	keys := maps.Keys(keySet)
+	slices.Sort(keys)
+	return keys
+}
+
+func unionResourcePriorityClasses(a, b map[string]internaltypes.ResourceList) []string {
+	keySet := make(map[string]bool, len(a)+len(b))
+	for key := range a {
+		keySet[key] = true
+	}
+	for key := range b {
+		keySet[key] = true
+	}
+	keys := maps.Keys(keySet)
+	slices.Sort(keys)
+	return keys
 }
