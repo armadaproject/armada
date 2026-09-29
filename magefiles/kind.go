@@ -7,8 +7,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/magefile/mage/mg"
-
 	semver "github.com/Masterminds/semver/v3"
 	"github.com/magefile/mage/sh"
 	"github.com/pkg/errors"
@@ -19,7 +17,7 @@ const (
 	KIND_VERSION_CONSTRAINT = ">= 0.21.0"
 	KIND_CONFIG_INTERNAL    = ".kube/internal/config"
 	KIND_CONFIG_EXTERNAL    = ".kube/external/config"
-	KIND_NAME               = "armada-test"
+	KIND_CONFIG_DIR         = "_local/kind/cluster"
 )
 
 func getImagesUsedInTestsOrControllers() []string {
@@ -66,28 +64,8 @@ func kindCheck() error {
 	return constraintCheck(version, KIND_VERSION_CONSTRAINT, "kind")
 }
 
-func kindInitCluster() error {
-	out, err := kindOutput("get", "clusters")
-	if err != nil {
-		return err
-	}
-	if strings.Contains(out, KIND_NAME) {
-		return nil
-	}
-	err = kindRun("create", "cluster", "--config", "_local/kind/cluster.yaml")
-	if err != nil {
-		return err
-	}
-	if err := kindWriteKubeConfig(); err != nil {
-		return err
-	}
-	return nil
-}
-
-// kindInitRegattaCluster creates one dedicated regatta cluster (idempotent) and writes its
-// external kubeconfig - parameterized over name/kind-config/kubeconfig path so every cluster a
-// regatta example needs shares one implementation.
-func kindInitRegattaCluster(name, kindConfigPath, kubeconfigPath string) error {
+// kindInitCluster creates one kind cluster (idempotent) and writes its external kubeconfig.
+func kindInitCluster(name, kindConfigPath, kubeconfigPath string) error {
 	out, err := kindOutput("get", "clusters")
 	if err != nil {
 		return err
@@ -107,9 +85,7 @@ func kindInitRegattaCluster(name, kindConfigPath, kubeconfigPath string) error {
 	return kindWriteExternalKubeConfig(name, kubeconfigPath)
 }
 
-// kindWriteExternalKubeConfig writes only the external kubeconfig for the named cluster - no
-// goreman process needs an internal one, since nothing regatta-specific runs inside either kind
-// cluster.
+// kindWriteExternalKubeConfig writes the named cluster's external kubeconfig to kubeconfigPath.
 func kindWriteExternalKubeConfig(name, kubeconfigPath string) error {
 	out, err := kindOutput("get", "kubeconfig", "--name", name)
 	if err != nil {
@@ -127,18 +103,14 @@ func kindWriteExternalKubeConfig(name, kubeconfigPath string) error {
 	return err
 }
 
-// REGATTA_RENDERED_KUBECONFIG_DIR is where kindInitRegattaClustersFromDir writes each cluster's
-// external kubeconfig, one file per target name. A scenario file with a non-quickstart set of
-// cluster targets (e.g. cmd/regatta/config/ten-cluster.example.yaml) must point its
-// cluster.kubeconfig fields at REGATTA_RENDERED_KUBECONFIG_DIR/<target-name> to match - this is
-// a documented convention (see cmd/regatta/README.md), not something mage or regatta enforce for
-// each other.
-const REGATTA_RENDERED_KUBECONFIG_DIR = ".kube/external/regatta"
+// KIND_MULTI_CLUSTER_KUBECONFIG_DIR is where kindClustersFromDir writes each cluster's external
+// kubeconfig, one file per config-file basename, unless overridden by a fixed kubeconfigPath.
+// Consumers (e.g. regatta's scenario files, see cmd/regatta/README.md) must reference
+// kubeconfigs at KIND_MULTI_CLUSTER_KUBECONFIG_DIR/<basename> to match.
+const KIND_MULTI_CLUSTER_KUBECONFIG_DIR = ".kube/external/regatta"
 
 // kindConfigClusterName reads the top-level "name:" field out of a kind-cluster config YAML
-// file, so a directory of checked-in kind-cluster configs (named by execution-target name, not
-// a hardcoded constant) can be provisioned without mage needing to know target names in
-// advance.
+// file.
 func kindConfigClusterName(path string) (string, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -156,37 +128,45 @@ func kindConfigClusterName(path string) (string, error) {
 	return doc.Name, nil
 }
 
-// kindInitRegattaClustersFromDir provisions one kind cluster per *.yaml file in configDir (e.g.
-// cmd/regatta/config/armada/kind/two-cluster/ or .../ten-cluster/), calling kindInitRegattaCluster
-// for each so every regatta example shares one provisioning implementation regardless of its
-// cluster count. Each cluster's external kubeconfig is written to
-// REGATTA_RENDERED_KUBECONFIG_DIR/<target-name>, where <target-name> is the config file's own
-// basename (without extension).
-func kindInitRegattaClustersFromDir(configDir string) error {
+// kindClustersFromDir provisions one kind cluster per *.yaml file in configDir, returning the
+// created cluster names in the same order as the globbed config files. Each cluster's external
+// kubeconfig goes to kubeconfigDir/<config-file-basename>, unless kubeconfigPath is set, in which
+// case (only valid for a single-file configDir) that exact path is used instead - the default
+// dev/CI cluster needs this, since other tooling (the executor's .run configs,
+// _local/compose/full.yaml) depends on its kubeconfig living at one fixed path.
+func kindClustersFromDir(configDir, kubeconfigDir, kubeconfigPath string) ([]string, error) {
 	entries, err := filepath.Glob(filepath.Join(configDir, "*.yaml"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(entries) == 0 {
-		return errors.Errorf("no *.yaml kind-cluster configs found in %s", configDir)
+		return nil, errors.Errorf("no *.yaml kind-cluster configs found in %s", configDir)
 	}
+	if kubeconfigPath != "" && len(entries) != 1 {
+		return nil, errors.Errorf("expected exactly one *.yaml kind-cluster config in %s, found %d", configDir, len(entries))
+	}
+	names := make([]string, 0, len(entries))
 	for _, configPath := range entries {
 		clusterName, err := kindConfigClusterName(configPath)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		targetName := strings.TrimSuffix(filepath.Base(configPath), ".yaml")
-		kubeconfigPath := filepath.Join(REGATTA_RENDERED_KUBECONFIG_DIR, targetName)
-		if err := kindInitRegattaCluster(clusterName, configPath, kubeconfigPath); err != nil {
-			return err
+		targetKubeconfigPath := kubeconfigPath
+		if targetKubeconfigPath == "" {
+			targetName := strings.TrimSuffix(filepath.Base(configPath), ".yaml")
+			targetKubeconfigPath = filepath.Join(kubeconfigDir, targetName)
 		}
+		if err := kindInitCluster(clusterName, configPath, targetKubeconfigPath); err != nil {
+			return nil, err
+		}
+		names = append(names, clusterName)
 	}
-	return nil
+	return names, nil
 }
 
-// kindTeardownRegattaClustersFromDir deletes one kind cluster per *.yaml file in configDir,
-// parallel to kindInitRegattaClustersFromDir.
-func kindTeardownRegattaClustersFromDir(configDir string) error {
+// kindTeardownClustersFromDir deletes one kind cluster per *.yaml file in configDir, parallel to
+// kindClustersFromDir.
+func kindTeardownClustersFromDir(configDir string) error {
 	entries, err := filepath.Glob(filepath.Join(configDir, "*.yaml"))
 	if err != nil {
 		return err
@@ -271,14 +251,14 @@ func remapDockerImagesInKubernetesManifest(filePath string, images []string, bui
 	return f.Name(), nil
 }
 
-func kindSetupExternalImages(buildConfig BuildConfig, images []string) error {
+func kindSetupExternalImages(buildConfig BuildConfig, images []string, clusterName string) error {
 	for _, image := range images {
 		image = remapDockerRegistryIfRequired(image, buildConfig.DockerRegistries)
 		if err := dockerRun("pull", image); err != nil {
 			return fmt.Errorf("error pulling image: %w", err)
 		}
 
-		err := kindRun("load", "docker-image", image, "--name", KIND_NAME)
+		err := kindRun("load", "docker-image", image, "--name", clusterName)
 		if err != nil {
 			return fmt.Errorf("error loading image to kind: %w", err)
 		}
@@ -287,17 +267,35 @@ func kindSetupExternalImages(buildConfig BuildConfig, images []string) error {
 	return nil
 }
 
-func kindSetup() error {
-	mg.Deps(kindInitCluster)
+// kindSetup provisions every cluster in configDir. Only when isDefault also writes the internal
+// kubeconfig and applies the extra dev/CI resources (ingress-nginx, namespace, preloaded images)
+// - a multi-cluster config dir gets just the cluster + priorityclasses.
+func kindSetup(configDir string, isDefault bool) (string, error) {
+	kubeconfigPath := ""
+	if isDefault {
+		kubeconfigPath = KIND_CONFIG_EXTERNAL
+	}
+	names, err := kindClustersFromDir(configDir, KIND_MULTI_CLUSTER_KUBECONFIG_DIR, kubeconfigPath)
+	if err != nil {
+		return "", err
+	}
+	name := names[0]
+	if !isDefault {
+		return name, nil
+	}
+
+	if err := kindWriteInternalKubeConfig(name); err != nil {
+		return "", err
+	}
 
 	buildConfig, err := getBuildConfig()
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	err = kindSetupExternalImages(buildConfig, getImagesUsedInTestsOrControllers())
+	err = kindSetupExternalImages(buildConfig, getImagesUsedInTestsOrControllers(), name)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	resources := []string{
@@ -308,76 +306,56 @@ func kindSetup() error {
 	for _, f := range resources {
 		images, err := imagesFromFile(f)
 		if err != nil {
-			return err
+			return "", err
 		}
 
-		err = kindSetupExternalImages(buildConfig, images)
+		err = kindSetupExternalImages(buildConfig, images, name)
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		file, err := remapDockerImagesInKubernetesManifest(f, images, buildConfig)
 		if err != nil {
-			return err
+			return "", err
 		}
 
-		err = kubectlRun("apply", "-f", file, "--context", "kind-armada-test")
+		err = kubectlRun("apply", "-f", file, "--context", "kind-"+name)
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
-	return nil
+	return name, nil
 }
 
-// Write kubeconfig to disk.
-// Needed by the executor to interact with the cluster.
-func kindWriteKubeConfig() error {
-	out, err := kindOutput("get", "kubeconfig", "--name", KIND_NAME)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(KIND_CONFIG_EXTERNAL), os.ModeDir|0o755); err != nil {
-		return err
-	}
-	if f, err := os.Create(KIND_CONFIG_EXTERNAL); err != nil {
-		return err
-	} else {
-		defer f.Close()
-		if _, err := f.WriteString(out); err != nil {
-			return err
-		}
-	}
-
-	out, err = kindOutput("get", "kubeconfig", "--internal", "--name", KIND_NAME)
+// kindWriteInternalKubeConfig writes the named cluster's internal kubeconfig to
+// KIND_CONFIG_INTERNAL. Needed by the executor to interact with the cluster from inside the
+// compose network.
+func kindWriteInternalKubeConfig(name string) error {
+	out, err := kindOutput("get", "kubeconfig", "--internal", "--name", name)
 	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(KIND_CONFIG_INTERNAL), os.ModeDir|0o755); err != nil {
 		return err
 	}
-	if f, err := os.Create(KIND_CONFIG_INTERNAL); err != nil {
+	f, err := os.Create(KIND_CONFIG_INTERNAL)
+	if err != nil {
 		return err
-	} else {
-		defer f.Close()
-		if _, err := f.WriteString(out); err != nil {
-			return err
-		}
 	}
-	return nil
+	defer f.Close()
+	_, err = f.WriteString(out)
+	return err
 }
 
-func kindWaitUntilReady() error {
+// kindWaitUntilReady waits for the named cluster's ingress-nginx controller to be ready.
+func kindWaitUntilReady(name string) error {
 	return kubectlRun(
 		"wait",
 		"--namespace", "ingress-nginx",
 		"--for=condition=ready", "pod",
 		"--selector=app.kubernetes.io/component=controller",
 		"--timeout=2m",
-		"--context", "kind-armada-test",
+		"--context", "kind-"+name,
 	)
-}
-
-func kindTeardown() error {
-	return kindRun("delete", "cluster", "--name", KIND_NAME)
 }

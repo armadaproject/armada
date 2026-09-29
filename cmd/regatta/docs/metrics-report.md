@@ -26,4 +26,4 @@ metrics:
 
 The `--metrics-results-path` CLI flag overrides `metrics.resultsPath` when explicitly passed. A failure to reach Prometheus is logged but never fails the run itself, since the run already succeeded by the time metrics collection starts.
 
-`mage dev:up regatta,prometheus` and `mage dev:up regatta-ten-cluster,prometheus` point Prometheus at a scrape config covering every executor in that topology (`cmd/regatta/config/armada/prometheus/two-cluster.yaml`/`ten-cluster.yaml`), not just one, so the executor/Pulsar tier of the report reflects all clusters.
+`mage dev:up regatta,prometheus` points Prometheus at a scrape config covering every executor in that topology (`cmd/regatta/config/armada/prometheus/two-cluster.yaml`), not just one, so the executor/Pulsar tier of the report reflects all clusters.

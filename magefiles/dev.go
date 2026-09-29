@@ -35,14 +35,8 @@ const (
 //   - "fake-executor"       - no Kubernetes needed; sets goreman profile to "fake-executor"
 //   - "auth-fake-executor"  - auth server/scheduler/lookout/binoculars plus the fake executor (no Kubernetes)
 //   - "hot-cold"            - runs the hot-cold scheduler setup
-//   - "regatta"             - like "no-auth", but the executor tolerates the kwok.x-k8s.io/node
-//     taint so jobs can schedule onto KWOK-simulated fake nodes; starts the 2-cluster quickstart's
-//     two executors (see cmd/regatta). When the "prometheus" compose profile is also active,
-//     points it at cmd/regatta/config/armada/prometheus/two-cluster.yaml so both executors are
-//     scraped instead of just one.
-//   - "regatta-ten-cluster" - like "regatta", but starts the 10-cluster example's ten executors
-//     instead (see cmd/regatta), and (with the "prometheus" compose profile) scrapes all ten via
-//     cmd/regatta/config/armada/prometheus/ten-cluster.yaml
+//   - "regatta"             - the 2-cluster quickstart (see cmd/regatta): executor tolerates the
+//     kwok.x-k8s.io/node taint so jobs schedule onto KWOK-simulated fake nodes
 //   - anything else         - forwarded as a docker-compose --profile flag for extra services
 //
 // The optional -dap flag selects the "-dap" procfile variant, which starts each component
@@ -60,7 +54,6 @@ const (
 //	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
 //	mage dev:up hot-cold                  # hot-cold scheduler setup
 //	mage dev:up regatta                   # no-auth + executor tolerates KWOK fake-node taint
-//	mage dev:up regatta-ten-cluster        # regatta's 10-cluster example instead of the 2-cluster quickstart
 func (Dev) Up(profiles string, dap *bool) error {
 	var (
 		profile         = "no-auth"
@@ -73,9 +66,9 @@ func (Dev) Up(profiles string, dap *bool) error {
 			continue
 		}
 		switch token {
-		case "auth", "fake-executor", "hot-cold", "auth-fake-executor", "regatta", "regatta-ten-cluster":
+		case "auth", "fake-executor", "hot-cold", "auth-fake-executor", "regatta":
 			if profile != "no-auth" {
-				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold/auth-fake-executor/regatta/regatta-ten-cluster may be used\n", token, profile)
+				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold/auth-fake-executor/regatta may be used\n", token, profile)
 			} else {
 				profile = token
 			}
@@ -92,11 +85,8 @@ func (Dev) Up(profiles string, dap *bool) error {
 	}
 	procfileDir := "_local/procfiles/"
 	procfileName := profile
-	if profile == "regatta" || profile == "regatta-ten-cluster" {
+	if profile == "regatta" {
 		procfileDir = "cmd/regatta/config/armada/procfiles/"
-		if profile == "regatta-ten-cluster" {
-			procfileName = "ten-cluster"
-		}
 	}
 	procfile := procfileDir + procfileName + debugSuffix + ".Procfile"
 	if _, err := os.Stat(procfile); err != nil {
@@ -183,7 +173,10 @@ func (Dev) Down() error {
 // .kube/internal/config), then brings the stack up. Migrations run as compose services
 // ordered ahead of the components, so no separate init step is needed.
 func (Dev) Full() error {
-	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"), Kind)
+	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"))
+	if err := (Kind{}).SingleCluster(); err != nil {
+		return err
+	}
 	return sh.RunV("docker", "compose", "-f", fullComposeFile, "up", "-d", "--wait")
 }
 
@@ -192,27 +185,20 @@ func (Dev) FullDown() error {
 	if err := sh.RunV("docker", "compose", "-f", fullComposeFile, "down", "-v"); err != nil {
 		return err
 	}
-	return kindTeardown()
+	return KindTeardown{}.SingleCluster()
 }
 
-// setPrometheusConfig points the prometheus compose service (profile: prometheus, see
-// _local/compose/stack.yaml) at a per-topology scrape config for the regatta profiles, since
-// _local/prometheus.yml only scrapes a single executor target and regatta's 2/10-cluster
-// topologies each run their own executor per cluster on its own metrics port (see
-// cmd/regatta/config/armada/prometheus/two-cluster.yaml and ten-cluster.yaml). Every other
-// profile leaves PROMETHEUS_CONFIG unset, so stack.yaml's
-// "${PROMETHEUS_CONFIG:-../prometheus.yml}" volume mount falls back to the existing default.
+// setPrometheusConfig points the prometheus compose profile at the regatta scrape config, since
+// regatta runs one executor per cluster and the default _local/prometheus.yml only scrapes one.
+// Other profiles leave PROMETHEUS_CONFIG unset, so stack.yaml falls back to that default.
 //
-// The path is resolved to absolute before being set: compose resolves relative bind-mount
-// sources against the compose file's own directory (_local/compose/), not the caller's cwd, so a
-// repo-root-relative path here would resolve to the wrong location.
+// Resolved to absolute: compose resolves relative bind-mount sources against the compose file's
+// own directory, not the caller's cwd.
 func setPrometheusConfig(profile string) error {
 	var relPath string
 	switch profile {
 	case "regatta":
 		relPath = "cmd/regatta/config/armada/prometheus/two-cluster.yaml"
-	case "regatta-ten-cluster":
-		relPath = "cmd/regatta/config/armada/prometheus/ten-cluster.yaml"
 	default:
 		return nil
 	}

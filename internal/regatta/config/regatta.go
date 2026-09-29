@@ -103,7 +103,7 @@ type ClusterTarget struct {
 	// trusted directly. Defaults to the ExecutionTarget's own Name if left unset.
 	Name string `json:"name,omitempty"`
 
-	// Kind marks this target as a kind-provisioned cluster (created via `mage kindRegatta`).
+	// Kind marks this target as a kind-provisioned cluster (created via `mage kind:multiCluster`).
 	// A kind cluster's API server isn't reachable at its host-facing Kubeconfig address from the
 	// kwok-controller's own docker container, so Kind additionally opts into two kind-only
 	// behaviors: InternalAPIServerAddress is auto-derived from Name (kind's own internal-DNS

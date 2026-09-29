@@ -165,45 +165,47 @@ func Clean() {
 	}
 }
 
-// Setup Kind and wait for it to be ready
-func Kind() {
+// Kind namespace: setup/teardown of Kind clusters.
+type Kind mg.Namespace
+
+// Setup the shared dev/CI Kind cluster and wait for it to be ready.
+func (Kind) SingleCluster() error {
 	timeTaken := time.Now()
 	mg.Deps(kindCheck)
-	mg.Deps(kindSetup)
-	mg.Deps(kindWaitUntilReady)
+	name, err := kindSetup(KIND_CONFIG_DIR, true)
+	if err != nil {
+		return err
+	}
+	if err := kindWaitUntilReady(name); err != nil {
+		return err
+	}
 	fmt.Println("Time to setup kind:", time.Since(timeTaken))
+	return nil
 }
 
-// Teardown Kind Cluster
-func KindTeardown() {
+// Setup one Kind cluster per *.yaml file in configDir.
+//
+//	mage kind:multiCluster cmd/regatta/config/kind/two-cluster   # 2-cluster quickstart
+func (Kind) MultiCluster(configDir string) error {
 	mg.Deps(kindCheck)
-	mg.Deps(kindTeardown)
+	_, err := kindSetup(configDir, false)
+	return err
 }
 
-// Setup dedicated Kind clusters for regatta's cluster-type execution targets.
-//
-// Provisions one cluster per *.yaml file in configDir - e.g.
-// cmd/regatta/config/armada/kind/two-cluster/ for the 2-cluster quickstart, or
-// cmd/regatta/config/armada/kind/ten-cluster/ for the 10-cluster example. Each cluster's
-// external kubeconfig is written to .kube/external/regatta/<config-file-basename>; the matching
-// scenario file's cluster.kubeconfig fields must point there to match (see
-// cmd/regatta/README.md).
-//
-// Examples:
-//
-//	mage kindRegatta cmd/regatta/config/armada/kind/two-cluster   # 2-cluster quickstart
-//	mage kindRegatta cmd/regatta/config/armada/kind/ten-cluster   # 10-cluster example
-func KindRegatta(configDir string) error {
+// KindTeardown namespace: teardown counterpart to Kind.
+type KindTeardown mg.Namespace
+
+// Teardown the shared dev/CI Kind cluster.
+func (KindTeardown) SingleCluster() error {
 	mg.Deps(kindCheck)
-	return kindInitRegattaClustersFromDir(configDir)
+	return kindTeardownClustersFromDir(KIND_CONFIG_DIR)
 }
 
-// Teardown regatta Kind clusters.
-//
-// Pass the same configDir used with KindRegatta.
-func KindTeardownRegatta(configDir string) error {
+// Teardown every Kind cluster described by configDir (the same configDir used with
+// kind:multiCluster).
+func (KindTeardown) MultiCluster(configDir string) error {
 	mg.Deps(kindCheck)
-	return kindTeardownRegattaClustersFromDir(configDir)
+	return kindTeardownClustersFromDir(configDir)
 }
 
 // Generate scheduler SQL.

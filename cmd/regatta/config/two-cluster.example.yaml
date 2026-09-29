@@ -28,10 +28,10 @@ executionTargets:
 
 nodeGroups:
   gb200:
-    - nodeProfile: node-profiles/gb200-slice.yaml
+    - nodeProfile: node-profiles/eks/p6e-gb200.36xlarge.yaml
       count: 300
   cpu:
-    - nodeProfile: node-profiles/cpu-only.yaml
+    - nodeProfile: node-profiles/generic/cpu-only.yaml
       count: 200
 
 load:

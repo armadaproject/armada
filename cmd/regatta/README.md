@@ -11,7 +11,7 @@ It drives job submissions, installs simulated nodes, scrapes metrics, and output
 Run from the repo root. This command stands up two kind clusters which regatta will install kwok nodes on.
 
 ```
-mage kindRegatta cmd/regatta/config/armada/kind/two-cluster
+mage kind:multiCluster cmd/regatta/config/kind/two-cluster
 ```
 
 ### Run armada (with regatta-specific configs) and prometheus
@@ -56,5 +56,5 @@ mage dev:down
 
 Stops the kind clusters.
 ```
-mage kindTeardownRegatta cmd/regatta/config/armada/kind/two-cluster
+mage kindTeardown:multiCluster cmd/regatta/config/kind/two-cluster
 ```
