@@ -1,0 +1,12 @@
+# Models one tray (1/18th) of an NVIDIA GB300 NVL72 rack. No AWS instance exists yet
+# for this, so values are approximated from NVIDIA's spec sheet; see README.md.
+name: gb300-tray
+allocatable:
+  cpu: "144"
+  memory: "880Gi"
+  ephemeral-storage: "20954Gi"
+  pods: "1913"
+  nvidia.com/gpu: "4"
+labels:
+  nvidia.com/gpu.memory: "266075" # MiB per GPU
+taints: []

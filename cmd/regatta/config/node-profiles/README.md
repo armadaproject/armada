@@ -50,14 +50,24 @@ GB200 NVL72 Specs
 | | GB200 NVL72 | GB200 Grace Blackwell Superchip |
 |---|---|---|
 | Configuration | 36 Grace CPU \| 72 Blackwell GPUs | 1 Grace CPU \| 2 Blackwell GPU |
-| NVFP4 Tensor Core² | 1,440 / 720 PFLOPS | 40 / 20 PFLOPS |
-| FP8/FP6 Tensor Core² | 720 PFLOPS | 20 PFLOPS |
-| INT8 Tensor Core² | 720 POPS | 20 POPS |
-| FP16/BF16 Tensor Core² | 360 PFLOPS | 10 PFLOPS |
-| TF32 Tensor Core² | 180 PFLOPS | 5 PFLOPS |
-| FP32 | 5,760 TFLOPS | 160 TFLOPS |
-| FP64 / FP64 Tensor Core | 2,880 TFLOPS | 80 TFLOPS |
 | GPU Memory / Bandwidth | 13.4 TB HBM3e / 576 TB/s | 372 GB HBM3e / 16 TB/s |
 | NVLink Bandwidth | 130 TB/s | 3.6 TB/s |
 | CPU Core Count | 2,592 Arm® Neoverse V2 cores | 72 Arm Neoverse V2 cores |
 | CPU Memory / Bandwidth | 17 TB LPDDR5X / 14 TB/s | Up to 480 GB LPDDR5X / Up to 512 GB/s |
+
+Spec sheet: [NVIDIA GB300 NVL72](https://www.nvidia.com/en-us/data-center/gb300-nvl72/)
+
+GB300 NVL72 Specs
+
+| | GB300 NVL72 | Individual Blackwell Ultra GPU |
+|---|---|---|
+| Configuration | 36 Grace CPUs \| 72 Blackwell Ultra GPUs | - |
+| CPU Core Count | 2,592 Arm Neoverse V2 cores | - |
+| GPU Memory / Bandwidth | 20 TB / Up to 576 TB/s | 279 GB HBM3e / 8 TB/s |
+| NVLink Bandwidth | 130 TB/s | 1.8 TB/s (Fifth-Gen) |
+| CPU Memory / Bandwidth | 17 TB LPDDR5X / 14 TB/s | - |
+
+No AWS instance type exists yet for a GB300 NVL72 tray (unlike `p6e-gb200.36xlarge` for
+GB200), so `nvidia/gb300-tray.yaml` is derived from the specs above (rack totals ÷ 18
+trays, GPU memory from the per-GPU column) rather than a real cloud spec sheet. Replace
+it once a real instance type ships.
