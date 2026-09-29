@@ -1,11 +1,9 @@
 package scheduling
 
 import (
-	"fmt"
-	"strings"
+	"maps"
 	"time"
 
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -14,9 +12,9 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-// compareAggregateQueuedDemand computes queued demand by scanning jobs and from the JobDb
-// aggregate, compares them, and publishes any difference. The scan-derived value
-// remains authoritative.
+// compareAggregateQueuedDemand computes queued demand by scanning jobs and from
+// the JobDb aggregate, compares them, and publishes any difference. The
+// scan-derived value remains authoritative.
 func (l *FairSchedulingAlgo) compareAggregateQueuedDemand(
 	ctx *armadacontext.Context,
 	jobs []*jobdb.Job,
@@ -30,10 +28,10 @@ func (l *FairSchedulingAlgo) compareAggregateQueuedDemand(
 	aggregate := queuedDemandFromAggregate(txn, queues, currentPool)
 	observeJobAggregateLookupDuration(currentPool, time.Since(start).Seconds())
 
-	mismatchedComponents, diff := compareQueuedDemand(scanned, aggregate)
-	recordJobAggregateComparisonResult(currentPool, mismatchedComponents)
-	if diff != "" {
-		ctx.Errorf("JobDb queued demand aggregate mismatch for pool %s (using scan result): %s", currentPool, diff)
+	jobAggregateComparisons.WithLabelValues(currentPool).Inc()
+	if !queuedDemandEqual(scanned, aggregate) {
+		jobAggregateMismatches.WithLabelValues(currentPool).Inc()
+		ctx.Errorf("JobDb queued demand aggregate mismatch for pool %s", currentPool)
 	}
 }
 
@@ -81,59 +79,12 @@ func queuedDemandFromAggregate(
 	return txn.GetQueuedDemand(currentPool, knownQueues, cordonedQueues)
 }
 
-// compareQueuedDemand returns the mismatching component names and a description
-// of the differences between scan-derived and aggregate-derived queued demand.
-// Both are empty if the two are equivalent.
-func compareQueuedDemand(scan, aggregate map[string]map[string]internaltypes.ResourceList) ([]string, string) {
-	if diff := compareResourceListMaps("queuedDemandByQueueAndPriorityClass", scan, aggregate); diff != "" {
-		return []string{"demand_queued"}, diff
-	}
-	return nil, ""
-}
-
-func compareResourceListMaps(name string, scan, aggregate map[string]map[string]internaltypes.ResourceList) string {
-	diffs := make([]string, 0)
-	for _, queue := range unionKeys(scan, aggregate) {
-		for _, priorityClass := range unionResourcePriorityClasses(scan[queue], aggregate[queue]) {
-			scanRl := scan[queue][priorityClass]
-			aggregateRl := aggregate[queue][priorityClass]
-			scanZero := scanRl.AllZero()
-			aggregateZero := aggregateRl.AllZero()
-			if scanZero && aggregateZero {
-				continue
-			}
-			if scanZero != aggregateZero || !scanRl.Equal(aggregateRl) {
-				diffs = append(diffs, fmt.Sprintf("%s[queue=%s,priorityClass=%s]: scan=%s aggregate=%s",
-					name, queue, priorityClass, scanRl.String(), aggregateRl.String()))
-			}
-		}
-	}
-	slices.Sort(diffs)
-	return strings.Join(diffs, ", ")
-}
-
-func unionKeys(a, b map[string]map[string]internaltypes.ResourceList) []string {
-	keySet := make(map[string]bool, len(a)+len(b))
-	for key := range a {
-		keySet[key] = true
-	}
-	for key := range b {
-		keySet[key] = true
-	}
-	keys := maps.Keys(keySet)
-	slices.Sort(keys)
-	return keys
-}
-
-func unionResourcePriorityClasses(a, b map[string]internaltypes.ResourceList) []string {
-	keySet := make(map[string]bool, len(a)+len(b))
-	for key := range a {
-		keySet[key] = true
-	}
-	for key := range b {
-		keySet[key] = true
-	}
-	keys := maps.Keys(keySet)
-	slices.Sort(keys)
-	return keys
+// queuedDemandEqual reports whether the scan-derived and aggregate-derived
+// queued demand are equivalent.
+func queuedDemandEqual(a, b map[string]map[string]internaltypes.ResourceList) bool {
+	return maps.EqualFunc(a, b, func(x, y map[string]internaltypes.ResourceList) bool {
+		return maps.EqualFunc(x, y, func(x, y internaltypes.ResourceList) bool {
+			return x.AllZero() && y.AllZero() || x.Equal(y)
+		})
+	})
 }

@@ -33,13 +33,6 @@ var (
 		},
 		[]string{"pool"},
 	)
-	jobAggregateMismatchComponents = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: metrics.MetricPrefix + "scheduler_job_aggregate_mismatch_components_total",
-			Help: "Number of mismatching components in JobDb queued-demand aggregate comparisons, by component.",
-		},
-		[]string{"pool", "component"},
-	)
 	jobAggregateSchedulingInfoDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: metrics.MetricPrefix + "scheduler_job_aggregate_scheduling_info_duration_seconds",
@@ -61,17 +54,6 @@ var (
 		[]string{"pool"},
 	)
 )
-
-func recordJobAggregateComparisonResult(pool string, mismatchedComponents []string) {
-	jobAggregateComparisons.WithLabelValues(pool).Inc()
-	if len(mismatchedComponents) == 0 {
-		return
-	}
-	jobAggregateMismatches.WithLabelValues(pool).Inc()
-	for _, component := range mismatchedComponents {
-		jobAggregateMismatchComponents.WithLabelValues(pool, component).Inc()
-	}
-}
 
 func observeJobAggregateSchedulingInfoDuration(pool string, seconds float64) {
 	jobAggregateSchedulingInfoDuration.WithLabelValues(pool).Observe(seconds)

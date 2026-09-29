@@ -1558,14 +1558,12 @@ func TestCalculateJobSchedulingInfo_AggregateMatchesScan(t *testing.T) {
 	require.NoError(t, err)
 	scanned := scanQueuedDemand(txn.GetAll(), queues, currentPool)
 	aggregate := queuedDemandFromAggregate(txn, queues, currentPool)
-	components, diff := compareQueuedDemand(scanned, aggregate)
-	require.Empty(t, components)
-	require.Empty(t, diff)
+	require.True(t, queuedDemandEqual(scanned, aggregate))
 }
 
-// TestCompareQueuedDemand proves the aggregate comparison fires when the aggregate
+// TestQueuedDemandEqual proves the equality check fires when the aggregate
 // diverges from the scan, and stays silent when they agree.
-func TestCompareQueuedDemand(t *testing.T) {
+func TestQueuedDemandEqual(t *testing.T) {
 	oneCpu := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).AllResourceRequirements()
 	twoCpu := oneCpu.Add(oneCpu)
 	pc := testfixtures.PriorityClass0
@@ -1575,31 +1573,22 @@ func TestCompareQueuedDemand(t *testing.T) {
 	}
 
 	t.Run("equal demands match", func(t *testing.T) {
-		components, diff := compareQueuedDemand(newDemand("q1", oneCpu), newDemand("q1", oneCpu))
-		require.Empty(t, components)
-		require.Empty(t, diff)
+		require.True(t, queuedDemandEqual(newDemand("q1", oneCpu), newDemand("q1", oneCpu)))
 	})
 
 	t.Run("both empty match", func(t *testing.T) {
-		components, diff := compareQueuedDemand(
+		require.True(t, queuedDemandEqual(
 			map[string]map[string]internaltypes.ResourceList{},
 			map[string]map[string]internaltypes.ResourceList{},
-		)
-		require.Empty(t, components)
-		require.Empty(t, diff)
+		))
 	})
 
 	t.Run("different quantity mismatches", func(t *testing.T) {
-		components, diff := compareQueuedDemand(newDemand("q1", twoCpu), newDemand("q1", oneCpu))
-		require.Equal(t, []string{"demand_queued"}, components)
-		require.Contains(t, diff, "q1")
-		require.Contains(t, diff, pc)
+		require.False(t, queuedDemandEqual(newDemand("q1", twoCpu), newDemand("q1", oneCpu)))
 	})
 
 	t.Run("missing queue mismatches", func(t *testing.T) {
-		components, diff := compareQueuedDemand(newDemand("q1", oneCpu), newDemand("q2", oneCpu))
-		require.Equal(t, []string{"demand_queued"}, components)
-		require.NotEmpty(t, diff)
+		require.False(t, queuedDemandEqual(newDemand("q1", oneCpu), newDemand("q2", oneCpu)))
 	})
 }
 
@@ -1628,7 +1617,6 @@ func TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords(t *testing.T) {
 
 	beforeComparisons := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
 	beforeMismatches := testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool))
-	beforeComponents := testutil.ToFloat64(jobAggregateMismatchComponents.WithLabelValues(pool, "demand_queued"))
 
 	info, err := algo.newCalculateJobSchedulingInfo(
 		ctx, txn, map[string]bool{}, queues,
@@ -1642,7 +1630,6 @@ func TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords(t *testing.T) {
 
 	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
 	require.Equal(t, beforeMismatches+1, testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool)))
-	require.Equal(t, beforeComponents+1, testutil.ToFloat64(jobAggregateMismatchComponents.WithLabelValues(pool, "demand_queued")))
 }
 
 // TestCalculateJobSchedulingInfo_AggregateDemandDisabledPublishesNothing proves the
