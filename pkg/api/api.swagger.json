@@ -1422,6 +1422,10 @@
         "retryable": {
           "description": "retryable indicates the scheduler emitted this failure for an\nintermediate (non-terminal) run that will be retried. When true,\na subsequent leased/succeeded/failed event for the same job is\nexpected. Default false preserves the prior behavior where every\nemitted JobFailedEvent was terminal.",
           "type": "boolean"
+        },
+        "runId": {
+          "description": "The run that failed. Empty when the job failed before it had a run, for example when the scheduler rejects it.\nAlso empty in events from a scheduler that does not set this field.",
+          "type": "string"
         }
       }
     },
@@ -1465,6 +1469,9 @@
         },
         "queue": {
           "type": "string"
+        },
+        "runId": {
+          "type": "string"
         }
       }
     },
@@ -1482,6 +1489,9 @@
           "type": "string"
         },
         "queue": {
+          "type": "string"
+        },
+        "runId": {
           "type": "string"
         }
       }
@@ -1517,6 +1527,9 @@
         },
         "runAttempted": {
           "type": "boolean"
+        },
+        "runId": {
+          "type": "string"
         }
       }
     },
@@ -1540,6 +1553,9 @@
           "type": "string"
         },
         "queue": {
+          "type": "string"
+        },
+        "runId": {
           "type": "string"
         }
       }
@@ -1577,6 +1593,9 @@
           "type": "string"
         },
         "queue": {
+          "type": "string"
+        },
+        "runId": {
           "type": "string"
         }
       }
@@ -1881,6 +1900,9 @@
         },
         "queue": {
           "type": "string"
+        },
+        "runId": {
+          "type": "string"
         }
       }
     },
@@ -2147,6 +2169,9 @@
         },
         "queue": {
           "type": "string"
+        },
+        "runId": {
+          "type": "string"
         }
       }
     },
@@ -2195,6 +2220,9 @@
           "format": "int32"
         },
         "queue": {
+          "type": "string"
+        },
+        "runId": {
           "type": "string"
         },
         "totalCumulativeUsage": {

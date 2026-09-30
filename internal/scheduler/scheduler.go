@@ -840,6 +840,7 @@ func createEventsForFailedJob(jobId string, runId string, error *armadaevents.Er
 			Event: &armadaevents.EventSequence_Event_JobErrors{
 				JobErrors: &armadaevents.JobErrors{
 					JobId:  jobId,
+					RunId:  runId,
 					Errors: []*armadaevents.Error{error},
 				},
 			},
@@ -877,6 +878,7 @@ func createEventsForLeaseExpiredRetry(job *jobdb.Job, leaseExpiredError *armadae
 			Event: &armadaevents.EventSequence_Event_JobErrors{
 				JobErrors: &armadaevents.JobErrors{
 					JobId: job.Id(),
+					RunId: job.LatestRun().Id(),
 					Errors: []*armadaevents.Error{
 						{
 							Terminal:           false,
@@ -945,6 +947,7 @@ func createEventsForPreemptedJob(jobId string, runId string, preemptingJobId str
 			Event: &armadaevents.EventSequence_Event_JobErrors{
 				JobErrors: &armadaevents.JobErrors{
 					JobId: jobId,
+					RunId: runId,
 					Errors: []*armadaevents.Error{
 						{
 							Terminal:           true,
@@ -1305,6 +1308,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 				Event: &armadaevents.EventSequence_Event_JobSucceeded{
 					JobSucceeded: &armadaevents.JobSucceeded{
 						JobId: job.Id(),
+						RunId: lastRun.Id(),
 					},
 				},
 			}
@@ -1397,6 +1401,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 						Event: &armadaevents.EventSequence_Event_JobErrors{
 							JobErrors: &armadaevents.JobErrors{
 								JobId:  job.Id(),
+								RunId:  lastRun.Id(),
 								Errors: []*armadaevents.Error{retryError},
 							},
 						},
@@ -1478,6 +1483,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 					Event: &armadaevents.EventSequence_Event_JobErrors{
 						JobErrors: &armadaevents.JobErrors{
 							JobId:  job.Id(),
+							RunId:  lastRun.Id(),
 							Errors: []*armadaevents.Error{runError},
 						},
 					},

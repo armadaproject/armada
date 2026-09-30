@@ -105,6 +105,7 @@ func TestEventServer_ForceNew(t *testing.T) {
 				JobSetId: jobSetId,
 				Queue:    q.Name,
 				Created:  protoutil.ToTimestamp(baseTime),
+				RunId:    runId,
 			}}
 			assert.Equal(t, expected, stream.sendMessages[len(stream.sendMessages)-1].Message.Events)
 		},
