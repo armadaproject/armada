@@ -26,7 +26,7 @@ One failure travels this path:
 
 1. A run's pod fails on a cluster.
 2. The executor's error categorizer inspects the failure and assigns a category and subcategory, for example `oom` or `internal` / `node-failure`.
-3. When the category is configured with `action: Delete`, the executor deletes the failed pod and confirms it is gone. This frees the pod name for the next attempt (see [Pod naming and collision avoidance](#pod-naming-and-collision-avoidance)).
+3. When the category is configured with `action: Delete`, the executor deletes the failed pod and confirms it is gone. With job-scoped pod names, this frees the pod name for the next attempt (see [Pod naming and collision avoidance](#pod-naming-and-collision-avoidance)).
 4. The executor reports the failed run, with its category, to the scheduler.
 5. The scheduler looks up the retry policy attached to the job's queue and evaluates the rules against the category. The first matching rule decides.
 6. On a `Retry` verdict within budget, the scheduler requeues the same job: same job id, a new run, and any mutations from the rule applied. On a `Fail` verdict, or an exhausted budget, the job fails terminally with the category attached.
@@ -145,9 +145,11 @@ Gang retry support is tracked in [armadaproject/armada#4683](https://github.com/
 
 ## Pod naming and collision avoidance
 
-The `action: Delete` pod-deletion behaviour described in this section ships with the executor failed-pod-deletion change. Until that is deployed, the executor does not delete failed pods on categorisation, so the collision this section describes can occur on retry.
+The executor names pods in one of two formats, see [Pod names](pod_names.md).
 
-Every attempt of a job reuses the same pod name, `armada-<jobId>-0`. A retry can therefore collide with the failed pod of the previous attempt if that pod is still terminating on the same cluster. To avoid this, the executor deletes a failed pod as soon as its failure is classified into a category configured with `action: Delete`, which frees the name before the retry is leased.
+With run-scoped pod names (`runScopedPodNames: true`), each attempt has its own pod. A retry can start on the same cluster while the failed pod of the previous attempt stays, so a retried category can keep `action: Retain` and keep the pod for debugging. The rest of this section applies only to job-scoped pod names.
+
+With job-scoped pod names, every attempt of a job reuses the same pod name, `<prefix>-<jobId>-0`. A retry can therefore collide with the failed pod of the previous attempt if that pod is still terminating on the same cluster. To avoid this, the executor deletes a failed pod as soon as its failure is classified into a category configured with `action: Delete`, which frees the name before the retry is leased.
 
 This has an operational consequence: **every failure category that a retry rule matches on must be configured with `action: Delete` on the executor.** If a retried category is left as the default `action: Retain`, the retained pod causes the retry's lease to fail with an `AlreadyExists` error. That surfaces as a recoverable submit error, so the run's lease is returned to the scheduler. A returned lease is not a categorized pod failure, so the retry engine does not decide it and it falls through to the legacy attempt-limit path. Once the legacy attempt limit is hit the job fails terminally with a `MaxRunsExceeded` reason that does not mention the collision, so the real cause is easy to miss. Collision handling also deletes the retained pod, so the debugging evidence that `Retain` was meant to preserve is gone anyway.
 
@@ -197,7 +199,7 @@ Managing policies requires the `create_retry_policy`, `update_retry_policy`, and
 
 ## Rollout guide for operators
 
-**Configure `action: Delete` on retried categories before enabling the flag.** Every failure category a retry rule matches on must set `action: Delete` in the executor's categorizer config. A missing Delete action leads to a pod-name collision and a misleading terminal failure. [Pod naming and collision avoidance](#pod-naming-and-collision-avoidance) describes the full failure mode. Audit the categorizer config against your retry rules before you turn the flag on.
+**Configure `action: Delete` on retried categories before enabling the flag, or use run-scoped pod names.** With job-scoped pod names, every failure category a retry rule matches on must set `action: Delete` in the executor's categorizer config. A missing Delete action leads to a pod-name collision and a misleading terminal failure. [Pod naming and collision avoidance](#pod-naming-and-collision-avoidance) describes the full failure mode. Audit the categorizer config against your retry rules before you turn the flag on.
 
 **Disabling the flag mid-flight is safe.** Jobs that were already retried keep running. New failures fall back to legacy behaviour: the legacy attempt limit applies instead of policy budgets. No job state is lost.
 
