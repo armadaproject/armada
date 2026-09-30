@@ -72,25 +72,22 @@ var jobValidated = &armadaevents.EventSequence_Event{
 }
 
 func TestConvert_RetainsEvents(t *testing.T) {
-	tests := []struct {
-		name  string
+	tests := map[string]struct {
 		input []*armadaevents.EventSequence_Event
 		want  []*armadaevents.EventSequence_Event
 	}{
-		{
-			name:  "single retained event",
+		"single retained event": {
 			input: []*armadaevents.EventSequence_Event{cancelled},
 			want:  []*armadaevents.EventSequence_Event{cancelled},
 		},
-		{
-			name:  "multiple retained events preserve order",
+		"multiple retained events preserve order": {
 			input: []*armadaevents.EventSequence_Event{cancelled, jobPreemptionRequested},
 			want:  []*armadaevents.EventSequence_Event{cancelled, jobPreemptionRequested},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
 			msg := NewMsg(tt.input...)
 			batchUpdate := simpleEventConverter().Convert(armadacontext.Background(), msg)
 
@@ -107,33 +104,28 @@ func TestConvert_RetainsEvents(t *testing.T) {
 }
 
 func TestConvert_FiltersEventsNotForRedis(t *testing.T) {
-	tests := []struct {
-		name  string
+	tests := map[string]struct {
 		input []*armadaevents.EventSequence_Event
 		want  []*armadaevents.EventSequence_Event
 	}{
-		{
-			name:  "JobRunSucceeded only",
+		"JobRunSucceeded only": {
 			input: []*armadaevents.EventSequence_Event{jobRunSucceeded},
 		},
-		{
-			name:  "JobRunSucceeded with retained event",
+		"JobRunSucceeded with retained event": {
 			input: []*armadaevents.EventSequence_Event{cancelled, jobRunSucceeded},
 			want:  []*armadaevents.EventSequence_Event{cancelled},
 		},
-		{
-			name:  "JobValidated only",
+		"JobValidated only": {
 			input: []*armadaevents.EventSequence_Event{jobValidated},
 		},
-		{
-			name:  "JobValidated with retained event",
+		"JobValidated with retained event": {
 			input: []*armadaevents.EventSequence_Event{cancelled, jobValidated},
 			want:  []*armadaevents.EventSequence_Event{cancelled},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
 			msg := NewMsg(tt.input...)
 			batchUpdate := simpleEventConverter().Convert(armadacontext.Background(), msg)
 			require.Equal(t, msg.MessageIds, batchUpdate.MessageIds)
