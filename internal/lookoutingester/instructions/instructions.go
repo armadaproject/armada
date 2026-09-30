@@ -54,10 +54,13 @@ type jobResources struct {
 }
 
 func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, blocklistAnnotations []string, compressor compress.Compressor) *InstructionConverter {
-	blocked := make(map[string]struct{}, len(blocklistAnnotations))
+	blocked := make(map[string]struct{}, len(blocklistAnnotations)+1)
 	for _, b := range blocklistAnnotations {
 		blocked[strings.ToLower(b)] = struct{}{}
 	}
+	// The server sets the object name prefix on every job for the executor. It is not data from the user, so Lookout
+	// does not store it.
+	blocked[strings.ToLower(constants.ObjectNamePrefixAnnotation)] = struct{}{}
 	return &InstructionConverter{
 		metrics:              m,
 		userAnnotationPrefix: userAnnotationPrefix,

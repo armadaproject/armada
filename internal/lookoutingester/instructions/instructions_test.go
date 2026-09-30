@@ -879,6 +879,13 @@ func TestExtractUserAnnotations_Blocklist(t *testing.T) {
 	assert.Equal(t, expected, result)
 }
 
+func TestNewInstructionConverter_BlocksObjectNamePrefixAnnotation(t *testing.T) {
+	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
+	annotations := map[string]string{constants.ObjectNamePrefixAnnotation: "armada", userAnnotationPrefix + "team": "ml"}
+	result := extractUserAnnotations("test-job", userAnnotationPrefix, converter.blocklistAnnotations, annotations)
+	assert.Equal(t, map[string]string{"team": "ml"}, result)
+}
+
 func TestExtractUserAnnotations_SanitizesNullBytes(t *testing.T) {
 	annotations := map[string]string{
 		"clean":            "no nulls here",
