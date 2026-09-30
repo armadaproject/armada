@@ -138,6 +138,26 @@ type ClusterTarget struct {
 	// Kubernetes configures this target's Kubernetes API client, notably its request rate limit -
 	// see KubernetesClientConfiguration. Left unset, every field defaults as documented there.
 	Kubernetes KubernetesClientConfiguration `json:"kubernetes,omitempty"`
+
+	// NodeConcurrency caps how many fake-node create/delete calls are in flight at once for this
+	// target. Defaults to 50 when left unset (zero).
+	NodeConcurrency int `json:"nodeConcurrency,omitempty"`
+
+	// ReadyTimeout is how long to wait for this target's fake nodes to report Ready before giving
+	// up. Duration string (e.g. "5m"); empty defaults to 5 minutes.
+	ReadyTimeout string `json:"readyTimeout,omitempty"`
+
+	// ReadyTimeoutDuration is ReadyTimeout parsed by LoadScenario. Not part of the file format.
+	ReadyTimeoutDuration time.Duration `json:"-"`
+
+	// StagesPath overrides the kwok Stage-set YAML applied to this target (see kwok.ApplyStages),
+	// resolved relative to the scenario file like every other path field. Left unset, kwok's
+	// embedded default stage set is used. This is a deliberate extension point for varying pod
+	// lifecycle timing/behavior per scenario (e.g. a slower-completing GPU-job stage) - not just a
+	// path convenience, since a custom set can also be used to model stuck/never-completing pods
+	// and observe how Armada reacts to them, so kwok only warns (never errors) if a custom set
+	// looks incomplete against the required Pod-kind transitions - see kwok.ApplyStages.
+	StagesPath string `json:"stagesPath,omitempty"`
 }
 
 // KubernetesClientConfiguration controls the rate limit regatta's own Kubernetes client applies
@@ -209,6 +229,27 @@ type RampUpConfig struct {
 
 const defaultStepInterval = 5 * time.Second
 
+// defaultReadyTimeout has headroom above what even a large (300+ node) target needs on an idle
+// machine, since several targets' worth of concurrent node creates/kwok-controller reconciliation
+// compete for the same host CPU when multiple execution targets are set up at once (see
+// orchestrate.Setup) - observed flakiness right around a 60s value at 10 concurrent targets was
+// host contention, not a stuck controller.
+const defaultReadyTimeout = 5 * time.Minute
+
+// DefaultNodeConcurrency caps how many fake-node create/delete calls are in flight at once -
+// plenty to turn hundreds of nodes from a multi-second sequential slog into a sub-second burst,
+// without hammering the API server harder than KubernetesClientConfiguration's QPS/Burst allow.
+// Applies whenever NodeConcurrency is left unset (zero) - see ClusterTarget.EffectiveNodeConcurrency.
+const DefaultNodeConcurrency = 50
+
+// EffectiveNodeConcurrency reports NodeConcurrency, applying DefaultNodeConcurrency when unset.
+func (c *ClusterTarget) EffectiveNodeConcurrency() int {
+	if c.NodeConcurrency != 0 {
+		return c.NodeConcurrency
+	}
+	return DefaultNodeConcurrency
+}
+
 // LoadScenario reads a Scenario from path and resolves every path field it contains (Armadactl,
 // each target's Kubeconfig, each NodeGroup member's NodeProfile, each Load.Jobs[].JobSpec)
 // relative to the scenario file's own directory, so a scenario file's relative paths behave the
@@ -254,12 +295,22 @@ func LoadScenario(path string) (*Scenario, error) {
 			return nil, fmt.Errorf("executionTargets[%d]: type is %q but cluster is not set", i, target.Type)
 		}
 		target.Cluster.Kubeconfig = resolveRelative(dir, target.Cluster.Kubeconfig)
+		target.Cluster.StagesPath = resolveRelative(dir, target.Cluster.StagesPath)
 		if target.Cluster.ProbeDelay != "" {
 			delay, err := time.ParseDuration(target.Cluster.ProbeDelay)
 			if err != nil {
 				return nil, fmt.Errorf("executionTargets[%d]: parsing cluster.probeDelay %q: %w", i, target.Cluster.ProbeDelay, err)
 			}
 			target.Cluster.ProbeDelayDuration = delay
+		}
+		if target.Cluster.ReadyTimeout != "" {
+			timeout, err := time.ParseDuration(target.Cluster.ReadyTimeout)
+			if err != nil {
+				return nil, fmt.Errorf("executionTargets[%d]: parsing cluster.readyTimeout %q: %w", i, target.Cluster.ReadyTimeout, err)
+			}
+			target.Cluster.ReadyTimeoutDuration = timeout
+		} else {
+			target.Cluster.ReadyTimeoutDuration = defaultReadyTimeout
 		}
 
 		for _, groupName := range target.NodeGroups {

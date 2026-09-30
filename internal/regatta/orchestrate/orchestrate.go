@@ -17,11 +17,6 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-const (
-	stageCRDPath = "cmd/regatta/kwok/stage-crd.yaml"
-	stagesPath   = "cmd/regatta/kwok/stages.yaml"
-)
-
 // Setup stands up every target in scenario.ExecutionTargets concurrently, since each target is
 // an independent cluster/process with no cross-target dependency - running them sequentially
 // meant one target's slow schedulability probe (WaitUntilSchedulable can retry for minutes)
@@ -78,7 +73,7 @@ func Teardown(ctx context.Context, scenario *config.Scenario) {
 			continue
 		}
 		log.Infof("target %q: tearing down KWOK fake nodes", target.Name)
-		if err := kwok.Teardown(ctx, kubeClient, target.Name); err != nil {
+		if err := kwok.Teardown(ctx, kubeClient, target.Name, target.Cluster.EffectiveNodeConcurrency()); err != nil {
 			log.Errorf("target %q: KWOK teardown failed: %s", target.Name, err)
 		}
 	}
@@ -109,13 +104,16 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 		}
 	}
 
+	stagesYAML, err := kwok.ResolveStagesYAML(target.Cluster.StagesPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolving stages: %w", err)
+	}
+
 	cfg := kwok.Config{
 		Name:                     target.Name,
 		Kind:                     target.Cluster.Kind,
 		KubeconfigPath:           target.Cluster.Kubeconfig,
 		InternalAPIServerAddress: internalAPIServerAddress,
-		StageCRDPath:             stageCRDPath,
-		StagesPath:               stagesPath,
 		NodeGroup:                nodeGroup,
 		ApiConnectionDetails:     apiConnectionDetails,
 		SchedulableProbe: kwok.ProbeConfig{
@@ -123,6 +121,9 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 			InitialDelay: target.Cluster.ProbeDelayDuration,
 		},
 		EvaluateReadiness: target.Cluster.ShouldEvaluateReadiness(),
+		NodeConcurrency:   target.Cluster.EffectiveNodeConcurrency(),
+		ReadyTimeout:      target.Cluster.ReadyTimeoutDuration,
+		StagesYAML:        stagesYAML,
 	}
 
 	log.Infof("target %q: setting up KWOK fake nodes", target.Name)
@@ -132,7 +133,7 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 
 	return func(ctx context.Context) {
 		log.Infof("target %q: tearing down KWOK fake nodes", target.Name)
-		if err := kwok.Teardown(ctx, kubeClient, target.Name); err != nil {
+		if err := kwok.Teardown(ctx, kubeClient, target.Name, cfg.NodeConcurrency); err != nil {
 			log.Errorf("target %q: KWOK teardown failed: %s", target.Name, err)
 		}
 	}, nil

@@ -1,20 +1,37 @@
 package kwok
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"gopkg.in/yaml.v3"
 	"k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
 const ControllerImage = "registry.k8s.io/kwok/kwok:v0.7.0"
+
+// stageCRDYAML/stagesYAML are baked into the binary rather than read from disk, so `regatta run`
+// doesn't depend on being invoked from the repo root - every other file a scenario needs is
+// resolved relative to the scenario file itself, but these two are fixed fixtures shipped with
+// the code, not user content.
+//
+//go:embed stage-crd.yaml
+var stageCRDYAML []byte
+
+//go:embed stages.yaml
+var stagesYAML []byte
 
 // controllerName derives a per-target docker container name so N simultaneous cluster targets
 // don't collide on a single fixed container name.
@@ -34,27 +51,50 @@ func controllerKubeconfigPath(targetName string) string {
 // ApplyStageCRD installs the Stage CRD (stages.kwok.x-k8s.io) into the cluster. Out-of-cluster
 // mode needs this as a real CRD - unlike the all-in-one image, which reads Stage definitions
 // from a local -c stages.yaml config file at container-create time.
-func ApplyStageCRD(ctx context.Context, kubeconfig, crdPath string) error {
-	return kubectlApply(ctx, kubeconfig, crdPath)
+func ApplyStageCRD(ctx context.Context, kubeconfig string) error {
+	return kubectlApply(ctx, kubeconfig, stageCRDYAML)
 }
 
 // ApplyStages applies the Stage resources (node-heartbeat plus the Pod-kind stage set - see
 // stages.yaml's header comment on why the Pod-kind set must stay complete) as real objects in
-// the cluster.
-func ApplyStages(ctx context.Context, kubeconfig, stagesPath string) error {
-	return kubectlApply(ctx, kubeconfig, stagesPath)
+// the cluster. content is the target's own resolved Stage set - the embedded default when the
+// scenario left ClusterTarget.StagesPath unset, or a custom override otherwise (see
+// ResolveStagesYAML).
+func ApplyStages(ctx context.Context, kubeconfig string, content []byte) error {
+	return kubectlApply(ctx, kubeconfig, content)
+}
+
+// ResolveStagesYAML returns stagesPath's contents if set, otherwise kwok's embedded default
+// Stage set. A non-empty stagesPath is a deliberate per-scenario override (see
+// ClusterTarget.StagesPath's doc comment) - custom content is logged as a warning, never
+// rejected, if it looks incomplete against the required Pod-kind transitions (a scenario
+// deliberately modeling stuck/never-completing pods is a legitimate use, not a mistake).
+func ResolveStagesYAML(stagesPath string) ([]byte, error) {
+	if stagesPath == "" {
+		return stagesYAML, nil
+	}
+	content, err := os.ReadFile(stagesPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", stagesPath, err)
+	}
+	warnIfStagesIncomplete(stagesPath, content)
+	return content, nil
 }
 
 // kubectlApply trusts the kubeconfig file's own current-context - regatta writes one kubeconfig
-// file per execution target, so current-context is never ambiguous between targets.
-func kubectlApply(ctx context.Context, kubeconfig, path string) error {
-	args := []string{"apply", "-f", path}
+// file per execution target, so current-context is never ambiguous between targets. content is
+// piped over stdin rather than a file path, since the caller's manifests are embedded fixtures,
+// not files on disk.
+func kubectlApply(ctx context.Context, kubeconfig string, content []byte) error {
+	args := []string{"apply", "-f", "-"}
 	if kubeconfig != "" {
 		args = append(args, "--kubeconfig", kubeconfig)
 	}
-	out, err := exec.CommandContext(ctx, "kubectl", args...).CombinedOutput()
+	cmd := exec.CommandContext(ctx, "kubectl", args...)
+	cmd.Stdin = bytes.NewReader(content)
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("kubectl apply -f %s: %w: %s", path, err, out)
+		return fmt.Errorf("kubectl apply -f -: %w: %s", err, out)
 	}
 	return nil
 }
@@ -117,6 +157,69 @@ func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress
 		return fmt.Errorf("starting kwok-controller: %w: %s", err, runOut)
 	}
 	return nil
+}
+
+// stageDoc is the minimal shape of a Stage object needed to identify which Pod-kind lifecycle
+// transition (if any) it targets - not a full decode of the Stage CRD's schema.
+type stageDoc struct {
+	Kind string `yaml:"kind"`
+	Spec struct {
+		ResourceRef struct {
+			Kind string `yaml:"kind"`
+		} `yaml:"resourceRef"`
+		Selector struct {
+			MatchExpressions []struct {
+				Key string `yaml:"key"`
+			} `yaml:"matchExpressions"`
+		} `yaml:"selector"`
+	} `yaml:"spec"`
+}
+
+// requiredPodTransitions are substrings expected to appear in some Pod-kind Stage's selector
+// key(s), one per lifecycle transition a complete Pod-kind stage set needs to handle (see
+// stages.yaml's header comment). Matched loosely (substring, not a real JQ-selector
+// evaluation) - this is a best-effort warning, not a validator of kwok's actual selector
+// semantics.
+var requiredPodTransitions = map[string]string{
+	"podIP":             "pod becoming Ready",
+	"status.phase":      "pod completing",
+	"deletionTimestamp": "pod deletion",
+}
+
+// warnIfStagesIncomplete logs a warning (never an error) if content's Pod-kind Stage set
+// appears to leave one of the required lifecycle transitions unhandled. A custom stages.yaml is
+// a deliberate per-scenario override (see ClusterTarget.StagesPath) that may intentionally model
+// stuck/never-completing pods to observe how Armada reacts - so this only informs, it never
+// blocks ApplyStages from running.
+func warnIfStagesIncomplete(stagesPath string, content []byte) {
+	seen := map[string]bool{}
+	decoder := yaml.NewDecoder(bytes.NewReader(content))
+	for {
+		var doc stageDoc
+		err := decoder.Decode(&doc)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Warnf("%s: could not parse as YAML to check Pod-stage completeness: %s", stagesPath, err)
+			return
+		}
+		if doc.Kind != "Stage" || doc.Spec.ResourceRef.Kind != "Pod" {
+			continue
+		}
+		for _, expr := range doc.Spec.Selector.MatchExpressions {
+			for substr := range requiredPodTransitions {
+				if strings.Contains(expr.Key, substr) {
+					seen[substr] = true
+				}
+			}
+		}
+	}
+	for substr, description := range requiredPodTransitions {
+		if !seen[substr] {
+			log.Warnf("%s: no Pod-kind Stage selector appears to handle %s (looking for %q) - pods may get stuck at this transition; if that's intentional, ignore this warning", stagesPath, description, substr)
+		}
+	}
 }
 
 // KubeconfigServerAddress reports the current-context cluster's server address from the
