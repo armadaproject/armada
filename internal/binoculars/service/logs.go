@@ -7,14 +7,18 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/cluster"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
@@ -23,9 +27,12 @@ type LogService interface {
 }
 
 type LogParams struct {
-	Principal  auth.Principal
-	Namespace  string
+	Principal auth.Principal
+	Namespace string
+	// PodName is the pod to read. GetLogs ignores it when RunId is set.
 	PodName    string
+	JobId      string
+	RunId      string
 	SinceTime  string
 	LogOptions *v1.PodLogOptions
 }
@@ -64,9 +71,20 @@ func (l *KubernetesLogService) GetLogs(ctx *armadacontext.Context, params *LogPa
 		params.Namespace = "default"
 	}
 
+	podName := params.PodName
+	if params.RunId != "" {
+		if err := canReadLogs(ctx, client, params.Namespace); err != nil {
+			return nil, err
+		}
+		podName, err = l.findPodName(ctx, params.Namespace, params.JobId, params.RunId)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	req := client.CoreV1().
 		Pods(params.Namespace).
-		GetLogs(params.PodName, params.LogOptions)
+		GetLogs(podName, params.LogOptions)
 
 	result := req.Do(ctx)
 	if err := result.Error(); err != nil {
@@ -86,11 +104,76 @@ func (l *KubernetesLogService) GetLogs(ctx *armadacontext.Context, params *LogPa
 		log.Errorf(
 			"failed to parse log line for namespace: %q, pod: %q: %v",
 			params.Namespace,
-			params.PodName,
+			podName,
 			err)
 	}
 
 	return logLines, nil
+}
+
+// canReadLogs checks that the user may read pod logs in the namespace. Binoculars looks up the pod only after
+// this check. The lookup then never reveals pods to a user who cannot read their logs. Binoculars does not
+// cache the result, so a removed permission takes effect on the next request.
+func canReadLogs(ctx *armadacontext.Context, client kubernetes.Interface, namespace string) error {
+	review, err := client.AuthorizationV1().SelfSubjectAccessReviews().Create(ctx, &authorizationv1.SelfSubjectAccessReview{
+		Spec: authorizationv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
+				Namespace:   namespace,
+				Verb:        "get",
+				Resource:    "pods",
+				Subresource: "log",
+			},
+		},
+	}, metav1.CreateOptions{})
+	if errors.IsForbidden(err) {
+		return status.Errorf(codes.PermissionDenied, "not allowed to check log permission in namespace %s: %v", namespace, err)
+	}
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to check log permission in namespace %s: %v", namespace, err)
+	}
+	if !review.Status.Allowed {
+		return status.Errorf(codes.PermissionDenied, "not allowed to read pod logs in namespace %s", namespace)
+	}
+	return nil
+}
+
+// findPodName finds the pod of a run by its labels, so binoculars does not depend on the pod name.
+// The lookup uses the binoculars service account, and GetLogs then reads the logs with the client of the user.
+// Any pod in the namespace can carry these labels, so more than one match is an error. Binoculars does not
+// cache the pod name, because a later run can reuse a job-scoped pod name.
+func (l *KubernetesLogService) findPodName(ctx *armadacontext.Context, namespace, jobId, runId string) (string, error) {
+	selector, err := labels.ValidatedSelectorFromSet(labels.Set{domain.JobId: jobId, domain.JobRunId: runId})
+	if err != nil {
+		return "", status.Errorf(codes.InvalidArgument, "invalid job ID or run ID: %v", err)
+	}
+	// The first list reads the watch cache of the API server, which is in memory. The watch cache can be behind,
+	// so a new pod can be missing from it. A second list without a resource version then reads etcd.
+	pods, err := l.listPods(ctx, namespace, selector.String(), "0")
+	if err == nil && len(pods) == 0 {
+		pods, err = l.listPods(ctx, namespace, selector.String(), "")
+	}
+	if err != nil {
+		return "", err
+	}
+	switch len(pods) {
+	case 0:
+		return "", status.Errorf(codes.NotFound, "no pod exists for run %s of job %s", runId, jobId)
+	case 1:
+		return pods[0].Name, nil
+	default:
+		return "", status.Errorf(codes.FailedPrecondition, "%d pods exist for run %s of job %s, expected one", len(pods), runId, jobId)
+	}
+}
+
+func (l *KubernetesLogService) listPods(ctx *armadacontext.Context, namespace string, selector string, resourceVersion string) ([]v1.Pod, error) {
+	pods, err := l.clientProvider.Client().CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector:   selector,
+		ResourceVersion: resourceVersion,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return pods.Items, nil
 }
 
 func ConvertLogs(rawLog []byte) ([]*binoculars.LogLine, []error) {

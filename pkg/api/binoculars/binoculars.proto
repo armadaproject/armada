@@ -15,6 +15,8 @@ message LogRequest {
     string pod_namespace = 3;
     string since_time = 4; // allows to specify high precision time as string
     k8s.io.api.core.v1.PodLogOptions log_options = 5;
+    // When set, binoculars finds the pod by its job ID and run ID labels, and ignores pod_number.
+    string run_id = 6;
 }
 
 // swagger:model

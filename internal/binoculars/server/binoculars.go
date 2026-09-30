@@ -32,6 +32,8 @@ func (b *BinocularsServer) Logs(ctx context.Context, request *binoculars.LogRequ
 		Principal:  principal,
 		Namespace:  request.PodNamespace,
 		PodName:    common.PodNamePrefix + request.JobId + "-" + strconv.Itoa(int(request.PodNumber)),
+		JobId:      request.JobId,
+		RunId:      request.RunId,
 		SinceTime:  request.SinceTime,
 		LogOptions: request.LogOptions,
 	})
