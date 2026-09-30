@@ -955,3 +955,82 @@ func TestBuildTerminationReason_WireFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestGetJobResources(t *testing.T) {
+	requests := func(cpu, memory string) v1.ResourceRequirements {
+		return v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				v1.ResourceCPU:    resource.MustParse(cpu),
+				v1.ResourceMemory: resource.MustParse(memory),
+			},
+		}
+	}
+	alwaysRestart := v1.ContainerRestartPolicyAlways
+
+	tests := map[string]struct {
+		podSpec  *v1.PodSpec
+		expected jobResources
+	}{
+		"main containers are summed": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{Name: "a", Resources: requests("1", "1Gi")},
+					{Name: "b", Resources: requests("2", "2Gi")},
+				},
+			},
+			expected: jobResources{Cpu: 3000, Memory: 3 * 1024 * 1024 * 1024},
+		},
+		"native sidecar is summed with main containers": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main", Resources: requests("15", "1Gi")}},
+				InitContainers: []v1.Container{{
+					Name:          "solver",
+					RestartPolicy: &alwaysRestart,
+					Resources:     requests("14900m", "1Gi"),
+				}},
+			},
+			expected: jobResources{Cpu: 29900, Memory: 2 * 1024 * 1024 * 1024},
+		},
+		"classic init container uses max, not sum": {
+			podSpec: &v1.PodSpec{
+				Containers:     []v1.Container{{Name: "main", Resources: requests("1", "1Gi")}},
+				InitContainers: []v1.Container{{Name: "setup", Resources: requests("4", "4Gi")}},
+			},
+			expected: jobResources{Cpu: 4000, Memory: 4 * 1024 * 1024 * 1024},
+		},
+		"pod-level block above the container sum wins": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main", Resources: requests("500m", "256Mi")}},
+				Resources:  &v1.ResourceRequirements{Requests: requests("2", "2Gi").Requests},
+			},
+			expected: jobResources{Cpu: 2000, Memory: 2 * 1024 * 1024 * 1024},
+		},
+		"pod-level block below the container sum is ignored": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main", Resources: requests("2", "2Gi")}},
+				Resources:  &v1.ResourceRequirements{Requests: requests("500m", "256Mi").Requests},
+			},
+			expected: jobResources{Cpu: 2000, Memory: 2 * 1024 * 1024 * 1024},
+		},
+		"ephemeral storage and gpu are container-only": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main", Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						v1.ResourceEphemeralStorage: resource.MustParse("3Gi"),
+						"nvidia.com/gpu":            resource.MustParse("8"),
+					},
+				}}},
+			},
+			expected: jobResources{EphemeralStorage: 3 * 1024 * 1024 * 1024, Gpu: 8},
+		},
+		"no resources declared": {
+			podSpec:  &v1.PodSpec{Containers: []v1.Container{{Name: "main"}}},
+			expected: jobResources{},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, getJobResources(&api.Job{PodSpec: tc.podSpec}))
+		})
+	}
+}

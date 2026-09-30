@@ -69,6 +69,13 @@ func SchedulingResourceRequirementsFromPodSpec(podSpec *v1.PodSpec) *v1.Resource
 			maxResourcesToList(rv.Limits, c.Resources.Limits)
 		}
 	}
+
+	// Kubernetes requires the pod-level request to be at least the sum of the container requests.
+	// Max keeps the accounting correct for a pod that breaks that rule.
+	if podSpec.Resources != nil {
+		maxResourcesToList(rv.Requests, podSpec.Resources.Requests)
+		maxResourcesToList(rv.Limits, podSpec.Resources.Limits)
+	}
 	return &rv
 }
 
