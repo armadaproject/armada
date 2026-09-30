@@ -138,18 +138,12 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
     return getJobSpecResult.status === "success" ? (getJobSpecResult.data.namespace ?? "") : ""
   }, [getJobSpecResult.status, getJobSpecResult.data])
 
-  const cluster = useMemo(() => {
-    if (job.runs.length === 0) {
-      // eslint-disable-next-line no-console
-      console.error("job has no runs")
-      return ""
-    }
-    return job.runs[job.runs.length - 1].cluster
-  }, [job])
+  const cluster = runsNewestFirst[runIndex]?.cluster ?? ""
+  const podName = runsNewestFirst[runIndex]?.podName ?? ""
 
   // Get logs
-  const getLogsEnabled = Boolean(cluster && namespace && job.jobId && selectedContainer && job.runs.length > 0)
-  const getLogsResult = useGetLogs(cluster, namespace, job.jobId, selectedContainer, loadFromStart, getLogsEnabled)
+  const getLogsEnabled = Boolean(cluster && namespace && podName && selectedContainer)
+  const getLogsResult = useGetLogs(cluster, namespace, podName, selectedContainer, loadFromStart, getLogsEnabled)
 
   // Periodically refetch logs
   useEffect(() => {
@@ -194,7 +188,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
 
     setDownloadingLogs(true)
     try {
-      const allLogLines = await fetchAllLogsFromStart(cluster, namespace, job.jobId, selectedContainer)
+      const allLogLines = await fetchAllLogsFromStart(cluster, namespace, podName, selectedContainer)
       downloadLogLines(allLogLines)
     } catch (e) {
       openSnackbar(`Failed to download logs for Job with ID: ${job.jobId}: ${await getErrorMessage(e)}`, "error")
@@ -207,6 +201,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
     fetchAllLogsFromStart,
     cluster,
     namespace,
+    podName,
     job.jobId,
     selectedContainer,
     openSnackbar,
@@ -222,11 +217,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
         <div>
           <FormControl
             variant="standard"
-            disabled={
-              getJobSpecResult.status === "pending" ||
-              getLogsResult.status === "pending" ||
-              runsNewestFirst.length === 0
-            }
+            disabled={getJobSpecResult.status === "pending" || getLogsResult.isLoading || runsNewestFirst.length === 0}
           >
             <InputLabel id="select-job-run-label">Job Run</InputLabel>
             <Select
@@ -252,10 +243,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
           </FormControl>
         </div>
         <div>
-          <FormControl
-            variant="standard"
-            disabled={getJobSpecResult.status === "pending" || getLogsResult.status === "pending"}
-          >
+          <FormControl variant="standard" disabled={getJobSpecResult.status === "pending" || getLogsResult.isLoading}>
             <InputLabel id="select-container-label">Container</InputLabel>
             <ContainerSelect
               labelId="select-container-label"
@@ -288,7 +276,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
                 />
               }
               label="Load from start"
-              disabled={getJobSpecResult.status === "pending" || getLogsResult.status === "pending"}
+              disabled={getJobSpecResult.status === "pending" || getLogsResult.isLoading}
             />
           </FormGroup>
         </div>
@@ -303,7 +291,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
               component={Button}
               eventName={ANALYTICS_EVENTS.DOWNLOAD_LOGS_CLICKED}
               aria-label="download logs from start"
-              loading={getLogsResult.status === "pending" || downloadingLogs}
+              loading={getLogsResult.isLoading || downloadingLogs}
               disabled={getLogsResult.status !== "success"}
               startIcon={<Download />}
               variant="outlined"
@@ -337,7 +325,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
         </LogsSettingsContainer>
       </LogsControlsContainer>
       {getJobSpecResult.status === "pending" ||
-        (getLogsResult.status === "pending" && (
+        (getLogsResult.isLoading && (
           <LogsContainer textSize={textSize}>
             <Skeleton />
             <Skeleton />
@@ -346,6 +334,11 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
             <Skeleton />
           </LogsContainer>
         ))}
+      {!podName && (
+        <Alert variant="outlined" severity="info">
+          Lookout has no pod name for this run, so it cannot show the logs.
+        </Alert>
+      )}
       {getLogsResult.status === "success" && <LogView logLines={logLines} />}
       {getLogsResult.status === "error" && (
         <div>
