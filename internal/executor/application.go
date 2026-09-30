@@ -202,6 +202,10 @@ func setupExecutorApiComponents(
 		ctx.Fatalf("Config error in failed pod checks: %s", err)
 	}
 
+	if config.Kubernetes.RunScopedPodNames {
+		ctx.Fatalf("kubernetes.runScopedPodNames needs executor support for two runs of one job on a cluster, which this executor does not have")
+	}
+
 	var classifier *categorizer.Classifier
 	if config.Application.ErrorCategories.Enabled {
 		classifier, err = categorizer.NewClassifier(config.Application.ErrorCategories)
@@ -233,6 +237,7 @@ func setupExecutorApiComponents(
 		jobRunState,
 		clusterUtilisationService,
 		config.Kubernetes.PodDefaults,
+		config.Kubernetes.RunScopedPodNames,
 		config.Application.MaxLeasedJobs,
 		config.Application.JobLeaseRequestTimeout,
 	)

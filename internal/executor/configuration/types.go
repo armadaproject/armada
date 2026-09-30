@@ -122,6 +122,9 @@ type KubernetesConfiguration struct {
 	FailedPodChecks           podchecks.FailedChecks
 	PendingPodChecks          *podchecks.Checks
 	FatalPodSubmissionErrors  []string
+	// RunScopedPodNames names each pod <prefix>-<runId>. When false, the executor names each pod <prefix>-<jobId>-0.
+	// The server sets the prefix on the job, see submission.objectNamePrefix.
+	RunScopedPodNames bool
 	// Minimum amount of resources marked as allocated to non-Armada pods on each node.
 	// I.e., if the total resources allocated to non-Armada pods on some node drops below this value,
 	// the executor adds a fictional allocation to make up the difference, such that the total is at least this.

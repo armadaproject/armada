@@ -13,8 +13,9 @@ import (
 func CreateSubmitJobFromExecutorApiJobRunLease(
 	jobRunLease *executorapi.JobRunLease,
 	podDefaults *configuration.PodDefaults,
+	runScopedPodNames bool,
 ) (*SubmitJob, error) {
-	pod, err := util2.CreatePodFromExecutorApiJob(jobRunLease, podDefaults)
+	pod, err := util2.CreatePodFromExecutorApiJob(jobRunLease, podDefaults, runScopedPodNames)
 	if err != nil {
 		return nil, err
 	}

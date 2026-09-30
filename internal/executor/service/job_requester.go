@@ -24,6 +24,7 @@ type JobRequester struct {
 	utilisationService utilisation.UtilisationService
 	clusterId          executorContext.ClusterIdentity
 	podDefaults        *configuration.PodDefaults
+	runScopedPodNames  bool
 	jobRunStateStore   job.RunStateStore
 	maxLeasedJobs      int
 	maxRequestDuration time.Duration
@@ -36,6 +37,7 @@ func NewJobRequester(
 	jobRunStateStore job.RunStateStore,
 	utilisationService utilisation.UtilisationService,
 	podDefaults *configuration.PodDefaults,
+	runScopedPodNames bool,
 	maxLeasedJobs int,
 	maxRequestDuration time.Duration,
 ) *JobRequester {
@@ -46,6 +48,7 @@ func NewJobRequester(
 		jobRunStateStore:   jobRunStateStore,
 		clusterId:          clusterId,
 		podDefaults:        podDefaults,
+		runScopedPodNames:  runScopedPodNames,
 		maxLeasedJobs:      maxLeasedJobs,
 		maxRequestDuration: maxRequestDuration,
 	}
@@ -136,7 +139,7 @@ func (r *JobRequester) createSubmitJobs(newJobRuns []*executorapi.JobRunLease) (
 			continue
 		}
 
-		submitJob, err := job.CreateSubmitJobFromExecutorApiJobRunLease(jobToSubmit, r.podDefaults)
+		submitJob, err := job.CreateSubmitJobFromExecutorApiJobRunLease(jobToSubmit, r.podDefaults, r.runScopedPodNames)
 		if err != nil {
 			failedJobCreations = append(failedJobCreations, &failedJobCreationDetails{
 				JobRunMeta: jobMeta,
