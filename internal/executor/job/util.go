@@ -39,7 +39,7 @@ func CreateSubmitJobFromExecutorApiJobRunLease(
 		},
 		Pod:       pod,
 		Ingresses: util2.ExtractIngresses(jobRunLease, pod, podDefaultIngress),
-		Services:  util2.ExtractServices(jobRunLease, pod),
+		Services:  util2.ExtractServices(jobRunLease, pod, runScopedPodNames),
 	}, nil
 }
 
