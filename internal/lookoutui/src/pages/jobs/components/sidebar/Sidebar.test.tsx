@@ -146,14 +146,17 @@ describe("Sidebar", () => {
 
     await userEvent.click(getByRole("tab", { name: /Result/ }))
 
-    const debugJson = await findByText(/"schemaVersion"/)
-    expect(debugJson.closest("pre")?.textContent).toBe(`{
+    const expectedDebugJson = `{
   "schemaVersion": 1,
   "trigger": "podFailed",
   "pod": {
     "phase": "Failed"
   }
-}`)
+}`
+    const debugJson = await findByText(
+      (_, element) => element?.tagName === "PRE" && element.textContent === expectedDebugJson,
+    )
+    expect(debugJson).toBeInTheDocument()
   })
 
   it("should handle no runs", async () => {
