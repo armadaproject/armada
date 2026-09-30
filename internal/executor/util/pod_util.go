@@ -139,8 +139,10 @@ func ExtractPodNumber(pod *v1.Pod) int {
 	return i
 }
 
+// ExtractPodKey includes the run ID, so that the pods of two runs of one job
+// get different keys when both pods exist on the cluster.
 func ExtractPodKey(pod *v1.Pod) string {
-	return fmt.Sprintf("%s_%d", ExtractJobId(pod), ExtractPodNumber(pod))
+	return fmt.Sprintf("%s_%s_%d", ExtractJobId(pod), ExtractJobRunId(pod), ExtractPodNumber(pod))
 }
 
 func FilterCompletedPods(pods []*v1.Pod) []*v1.Pod {

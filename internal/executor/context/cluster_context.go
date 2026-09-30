@@ -503,12 +503,19 @@ func (c *KubernetesClusterContext) GetEndpointSlices(namespace string, labelName
 
 func createPodAssociationSelector(pod *v1.Pod) (*labels.Selector, error) {
 	jobId, jobIdPresent := pod.Labels[domain.JobId]
+	runId, runIdPresent := pod.Labels[domain.JobRunId]
 	queue, queuePresent := pod.Labels[domain.Queue]
 	podNumber, podNumberPresent := pod.Labels[domain.PodNumber]
-	if !jobIdPresent || !queuePresent || !podNumberPresent {
+	if !jobIdPresent || !runIdPresent || !queuePresent || !podNumberPresent {
 		return nil, fmt.Errorf("Cannot create pod association selector as pod %s (%s) is missing Armada identifier labels", pod.Name, pod.Namespace)
 	}
 	jobIdMatchesSelector, err := labels.NewRequirement(domain.JobId, selection.Equals, []string{jobId})
+	if err != nil {
+		return nil, err
+	}
+	// The run ID keeps the services and ingresses of two runs of one job apart
+	// when both pods exist on the cluster.
+	runIdMatchesSelector, err := labels.NewRequirement(domain.JobRunId, selection.Equals, []string{runId})
 	if err != nil {
 		return nil, err
 	}
@@ -521,7 +528,7 @@ func createPodAssociationSelector(pod *v1.Pod) (*labels.Selector, error) {
 		return nil, err
 	}
 
-	selector := labels.NewSelector().Add(*jobIdMatchesSelector, *queueMatchesSelector, *podNumberMatchesSelector)
+	selector := labels.NewSelector().Add(*jobIdMatchesSelector, *runIdMatchesSelector, *queueMatchesSelector, *podNumberMatchesSelector)
 	return &selector, nil
 }
 
