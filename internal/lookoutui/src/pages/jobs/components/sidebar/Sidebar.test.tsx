@@ -137,6 +137,25 @@ describe("Sidebar", () => {
     within(getByRole("row", { name: /Exit code/ })).getByText(137)
   })
 
+  it("should display debug JSON with indentation", async () => {
+    mockServer.setPostJobRunDebugMessageResponseForRunId(
+      "1234-5678",
+      '{"schemaVersion":1,"trigger":"podFailed","pod":{"phase":"Failed"}}',
+    )
+    const { getByRole, findByText } = renderComponent()
+
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
+
+    const debugJson = await findByText(/"schemaVersion"/)
+    expect(debugJson.closest("pre")?.textContent).toBe(`{
+  "schemaVersion": 1,
+  "trigger": "podFailed",
+  "pod": {
+    "phase": "Failed"
+  }
+}`)
+  })
+
   it("should handle no runs", async () => {
     job.runs = []
     const { getByRole, getByText } = renderComponent()

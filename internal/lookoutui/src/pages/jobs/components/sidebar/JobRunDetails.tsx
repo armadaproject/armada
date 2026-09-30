@@ -182,6 +182,13 @@ export const JobRunDetails = ({
 
   // Ignore any errors from this call - the API returns an error if there is no debug message, which is happy-path
   const { data: debugMessage, status: debugMessageStatus } = useGetJobRunDebugMessage(runId)
+  const formattedDebugMessage = useMemo(() => {
+    try {
+      return { code: JSON.stringify(JSON.parse(debugMessage ?? ""), undefined, 2), language: "json" as const }
+    } catch {
+      return { code: debugMessage ?? "", language: "text" as const }
+    }
+  }, [debugMessage])
 
   // Ignore any errors from this call - the API returns an error if there is no scheduler termination reason, which is happy-path
   const { data: schedulerTerminationReason, status: schedulerTerminationReasonStatus } =
@@ -328,8 +335,8 @@ export const JobRunDetails = ({
               <AccordionSummary>Debug</AccordionSummary>
               <AccordionDetails>
                 <CodeBlock
-                  code={debugMessage}
-                  language="text"
+                  code={formattedDebugMessage.code}
+                  language={formattedDebugMessage.language}
                   downloadable={false}
                   showLineNumbers={false}
                   loading={false}
