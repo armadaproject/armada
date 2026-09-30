@@ -2,7 +2,6 @@ package util
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -134,13 +133,10 @@ func ExtractJobRunId(pod *v1.Pod) string {
 	return pod.Labels[domain.JobRunId]
 }
 
-func ExtractPodNumber(pod *v1.Pod) int {
-	i, _ := strconv.Atoi(pod.Labels[domain.PodNumber])
-	return i
-}
-
+// ExtractPodKey returns the run ID of the pod. The executor creates exactly one pod for each run, so the run ID
+// identifies the pod. Two runs of one job can have a pod on one cluster at the same time.
 func ExtractPodKey(pod *v1.Pod) string {
-	return fmt.Sprintf("%s_%d", ExtractJobId(pod), ExtractPodNumber(pod))
+	return ExtractJobRunId(pod)
 }
 
 func FilterCompletedPods(pods []*v1.Pod) []*v1.Pod {
