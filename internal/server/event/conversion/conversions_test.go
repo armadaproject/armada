@@ -251,6 +251,7 @@ func TestConvertLeased(t *testing.T) {
 		Event: &armadaevents.EventSequence_Event_JobRunLeased{
 			JobRunLeased: &armadaevents.JobRunLeased{
 				JobId:      jobId,
+				RunId:      runId,
 				ExecutorId: executorId,
 				Pool:       "test-pool",
 				PodRequirementsOverlay: &schedulerobjects.PodRequirements{
@@ -271,6 +272,7 @@ func TestConvertLeased(t *testing.T) {
 			Events: &api.EventMessage_Leased{
 				Leased: &api.JobLeasedEvent{
 					JobId:     jobId,
+					RunId:     runId,
 					JobSetId:  jobSetName,
 					Queue:     queue,
 					Created:   protoutil.ToTimestamp(baseTime),
@@ -310,6 +312,7 @@ func TestConvertLeaseExpired(t *testing.T) {
 			Events: &api.EventMessage_LeaseExpired{
 				LeaseExpired: &api.JobLeaseExpiredEvent{
 					JobId:    jobId,
+					RunId:    runId,
 					JobSetId: jobSetName,
 					Queue:    queue,
 					Created:  protoutil.ToTimestamp(baseTime),
@@ -338,6 +341,7 @@ func TestConvertJobReconciliationError(t *testing.T) {
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
 				JobId:  jobId,
+				RunId:  runId,
 				Errors: []*armadaevents.Error{reconciliationError},
 			},
 		},
@@ -348,6 +352,7 @@ func TestConvertJobReconciliationError(t *testing.T) {
 			Events: &api.EventMessage_Failed{
 				Failed: &api.JobFailedEvent{
 					JobId:    jobId,
+					RunId:    runId,
 					Reason:   "reconciliation error",
 					JobSetId: jobSetName,
 					Queue:    queue,
@@ -397,6 +402,7 @@ func TestConvertRetryableJobError(t *testing.T) {
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
 				JobId:  jobId,
+				RunId:  runId,
 				Errors: []*armadaevents.Error{retryableError},
 			},
 		},
@@ -411,6 +417,7 @@ func TestConvertRetryableJobError(t *testing.T) {
 	assert.Equal(t, "oom", failed.FailureCategory)
 	assert.Equal(t, "kernel", failed.FailureSubcategory)
 	assert.Equal(t, "out of memory", failed.Reason)
+	assert.Equal(t, runId, failed.RunId)
 }
 
 func TestConvertPodLeaseReturned(t *testing.T) {
@@ -447,6 +454,7 @@ func TestConvertPodLeaseReturned(t *testing.T) {
 			Events: &api.EventMessage_LeaseReturned{
 				LeaseReturned: &api.JobLeaseReturnedEvent{
 					JobId:        jobId,
+					RunId:        runId,
 					ClusterId:    executorId,
 					KubernetesId: runId,
 					Reason:       "couldn't schedule pod",
@@ -471,6 +479,7 @@ func TestConvertJobError(t *testing.T) {
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
 				JobId: jobId,
+				RunId: runId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -510,6 +519,7 @@ func TestConvertJobError(t *testing.T) {
 		Event: &armadaevents.EventSequence_Event_JobErrors{
 			JobErrors: &armadaevents.JobErrors{
 				JobId: jobId,
+				RunId: runId,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
@@ -534,6 +544,7 @@ func TestConvertJobError(t *testing.T) {
 			Events: &api.EventMessage_Failed{
 				Failed: &api.JobFailedEvent{
 					JobId:        jobId,
+					RunId:        runId,
 					ClusterId:    executorId,
 					PodNamespace: namespace,
 					PodName:      podName,
@@ -561,6 +572,7 @@ func TestConvertJobError(t *testing.T) {
 			Events: &api.EventMessage_Failed{
 				Failed: &api.JobFailedEvent{
 					JobId:              jobId,
+					RunId:              runId,
 					Reason:             "Max runs",
 					JobSetId:           jobSetName,
 					Queue:              queue,
@@ -584,6 +596,7 @@ func TestConvertJobSucceeded(t *testing.T) {
 		Event: &armadaevents.EventSequence_Event_JobSucceeded{
 			JobSucceeded: &armadaevents.JobSucceeded{
 				JobId: jobId,
+				RunId: runId,
 				ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 					{
 						ObjectMeta: &armadaevents.ObjectMeta{
@@ -609,6 +622,7 @@ func TestConvertJobSucceeded(t *testing.T) {
 			Events: &api.EventMessage_Succeeded{
 				Succeeded: &api.JobSucceededEvent{
 					JobId:        jobId,
+					RunId:        runId,
 					JobSetId:     jobSetName,
 					Queue:        queue,
 					Created:      protoutil.ToTimestamp(baseTime),
@@ -661,6 +675,7 @@ func TestConvertJobRunning(t *testing.T) {
 			Events: &api.EventMessage_Running{
 				Running: &api.JobRunningEvent{
 					JobId:        jobId,
+					RunId:        runId,
 					JobSetId:     jobSetName,
 					Queue:        queue,
 					Created:      protoutil.ToTimestamp(baseTime),
@@ -721,6 +736,7 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 			Events: &api.EventMessage_LeaseExpired{
 				LeaseExpired: &api.JobLeaseExpiredEvent{
 					JobId:    jobId,
+					RunId:    runId,
 					JobSetId: jobSetName,
 					Queue:    queue,
 					Created:  protoutil.ToTimestamp(baseTime),
@@ -779,6 +795,7 @@ func TestConvertJobAssigned(t *testing.T) {
 			Events: &api.EventMessage_Pending{
 				Pending: &api.JobPendingEvent{
 					JobId:        jobId,
+					RunId:        runId,
 					JobSetId:     jobSetName,
 					Queue:        queue,
 					Created:      protoutil.ToTimestamp(baseTime),
@@ -840,6 +857,7 @@ func TestConvertResourceUtilisation(t *testing.T) {
 			Events: &api.EventMessage_Utilisation{
 				Utilisation: &api.JobUtilisationEvent{
 					JobId:        jobId,
+					RunId:        runId,
 					JobSetId:     jobSetName,
 					Queue:        queue,
 					Created:      protoutil.ToTimestamp(baseTime),
@@ -900,6 +918,7 @@ func TestConvertIngressInfo(t *testing.T) {
 			Events: &api.EventMessage_IngressInfo{
 				IngressInfo: &api.JobIngressInfoEvent{
 					JobId:        jobId,
+					RunId:        runId,
 					JobSetId:     jobSetName,
 					Queue:        queue,
 					Created:      protoutil.ToTimestamp(baseTime),
