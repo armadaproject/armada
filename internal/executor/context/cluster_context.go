@@ -63,6 +63,8 @@ type ClusterContext interface {
 	SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error)
 	SubmitService(service *v1.Service) (*v1.Service, error)
 	SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error)
+	GetService(namespace string, name string) (*v1.Service, error)
+	GetIngress(namespace string, name string) (*networking.Ingress, error)
 	DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error
 	DeletePods(pods []*v1.Pod)
 	DeleteService(service *v1.Service) error
@@ -89,6 +91,7 @@ type KubernetesClusterContext struct {
 	kubernetesClientProvider cluster.KubernetesClientProvider
 	eventInformer            informer.EventInformer
 	podKillTimeout           time.Duration
+	runScopedPodNames        bool
 	clock                    clock.Clock
 }
 
@@ -105,6 +108,7 @@ func NewClusterContext(
 	minTimeBetweenRepeatDeletionCalls time.Duration,
 	kubernetesClientProvider cluster.KubernetesClientProvider,
 	killTimeout time.Duration,
+	runScopedPodNames bool,
 ) *KubernetesClusterContext {
 	kubernetesClient := kubernetesClientProvider.Client()
 
@@ -126,6 +130,7 @@ func NewClusterContext(
 		kubernetesClient:         kubernetesClient,
 		kubernetesClientProvider: kubernetesClientProvider,
 		podKillTimeout:           killTimeout,
+		runScopedPodNames:        runScopedPodNames,
 		clock:                    clock.RealClock{},
 	}
 
@@ -277,9 +282,31 @@ func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGro
 
 	returnedPod, err := ownerClient.CoreV1().Pods(pod.Namespace).Create(armadacontext.Background(), pod, metav1.CreateOptions{})
 	if err != nil {
+		if existing := c.existingPodOfSameRun(pod, err); existing != nil {
+			return existing, nil
+		}
 		c.submittedPods.Delete(util.ExtractPodKey(pod))
 	}
 	return returnedPod, err
+}
+
+// existingPodOfSameRun returns the pod that holds a run-scoped name when it belongs to the same run and Kubernetes is
+// not deleting it, for example after a duplicate lease. The submit then uses that pod, and its cache entry stays. It
+// reads the API server, because the informer can miss a pod that was just created. With job-scoped names, the submit
+// deletes the existing pod, so it returns nil.
+func (c *KubernetesClusterContext) existingPodOfSameRun(pod *v1.Pod, createErr error) *v1.Pod {
+	if !c.runScopedPodNames || !k8s_errors.IsAlreadyExists(createErr) {
+		return nil
+	}
+	existing, err := c.kubernetesClient.CoreV1().Pods(pod.Namespace).Get(armadacontext.Background(), pod.Name, metav1.GetOptions{})
+	if err != nil {
+		log.Warnf("Failed to read pod %s (%s) that holds the name of run %s: %v", pod.Name, pod.Namespace, util.ExtractJobRunId(pod), err)
+		return nil
+	}
+	if existing.DeletionTimestamp != nil || util.ExtractJobRunId(existing) != util.ExtractJobRunId(pod) {
+		return nil
+	}
+	return existing
 }
 
 func (c *KubernetesClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
@@ -288,6 +315,17 @@ func (c *KubernetesClusterContext) SubmitService(service *v1.Service) (*v1.Servi
 
 func (c *KubernetesClusterContext) SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error) {
 	return c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Create(armadacontext.Background(), ingress, metav1.CreateOptions{})
+}
+
+// GetService reads a service from the API server, not from the informer. It finds a service that the informer does
+// not have yet.
+func (c *KubernetesClusterContext) GetService(namespace string, name string) (*v1.Service, error) {
+	return c.kubernetesClient.CoreV1().Services(namespace).Get(armadacontext.Background(), name, metav1.GetOptions{})
+}
+
+// GetIngress reads an ingress from the API server, like GetService.
+func (c *KubernetesClusterContext) GetIngress(namespace string, name string) (*networking.Ingress, error) {
+	return c.kubernetesClient.NetworkingV1().Ingresses(namespace).Get(armadacontext.Background(), name, metav1.GetOptions{})
 }
 
 func (c *KubernetesClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
@@ -369,19 +407,31 @@ func (c *KubernetesClusterContext) DeletePods(pods []*v1.Pod) {
 	}
 }
 
+// DeleteService deletes the service of a run. Services keep one name per job, so a later run can create a service
+// with the same name. The informer can still show the service of the earlier run. Thus the delete has a precondition
+// on the UID, and it ignores a service that a later run created.
 func (c *KubernetesClusterContext) DeleteService(service *v1.Service) error {
-	deleteOptions := createDeleteOptions()
-	err := c.kubernetesClient.CoreV1().Services(service.Namespace).Delete(armadacontext.Background(), service.Name, deleteOptions)
-	if err != nil && k8s_errors.IsNotFound(err) {
-		return nil
-	}
-	return err
+	err := c.kubernetesClient.CoreV1().Services(service.Namespace).Delete(armadacontext.Background(), service.Name, deleteOptionsForObject(service.UID))
+	return ignoreGoneOrReplaced(err)
 }
 
+// DeleteIngress deletes the ingress of a run, with the same precondition as DeleteService.
 func (c *KubernetesClusterContext) DeleteIngress(ingress *networking.Ingress) error {
+	err := c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Delete(armadacontext.Background(), ingress.Name, deleteOptionsForObject(ingress.UID))
+	return ignoreGoneOrReplaced(err)
+}
+
+// deleteOptionsForObject makes the delete apply only to the object with the given UID.
+func deleteOptionsForObject(uid types.UID) metav1.DeleteOptions {
 	deleteOptions := createDeleteOptions()
-	err := c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Delete(armadacontext.Background(), ingress.Name, deleteOptions)
-	if err != nil && k8s_errors.IsNotFound(err) {
+	deleteOptions.Preconditions = &metav1.Preconditions{UID: &uid}
+	return deleteOptions
+}
+
+// ignoreGoneOrReplaced ignores a delete of an object that no longer exists, or that another object with the same name
+// replaced. The API server reports the replacement as a conflict on the UID precondition.
+func ignoreGoneOrReplaced(err error) error {
+	if k8s_errors.IsNotFound(err) || k8s_errors.IsConflict(err) {
 		return nil
 	}
 	return err

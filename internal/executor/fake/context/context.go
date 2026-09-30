@@ -192,23 +192,23 @@ func (c *FakeClusterContext) savePod(pod *v1.Pod) *v1.Pod {
 }
 
 func (c *FakeClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
-	return nil, errors.Errorf("Services not implemented in FakeClusterContext")
+	return nil, errors.Errorf("GetService not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) GetServices(pod *v1.Pod) ([]*v1.Service, error) {
-	return nil, errors.Errorf("Services not implemented in FakeClusterContext")
+	return nil, errors.Errorf("GetService not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) DeleteService(service *v1.Service) error {
-	return errors.Errorf("Services not implemented in FakeClusterContext")
+	return errors.Errorf("GetService not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error) {
-	return nil, errors.Errorf("Ingresses not implemented in FakeClusterContext")
+	return nil, errors.Errorf("GetIngress not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error) {
-	return nil, errors.Errorf("Ingresses not implemented in FakeClusterContext")
+	return nil, errors.Errorf("GetIngress not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) GetEndpointSlices(namespace string, labelName string, labelValue string) ([]*discovery.EndpointSlice, error) {
@@ -216,7 +216,7 @@ func (c *FakeClusterContext) GetEndpointSlices(namespace string, labelName strin
 }
 
 func (c *FakeClusterContext) DeleteIngress(ingress *networking.Ingress) error {
-	return errors.Errorf("Ingresses not implemented in FakeClusterContext")
+	return errors.Errorf("GetIngress not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, state v1.ContainerState) (*v1.Pod, *v1.Pod) {
@@ -446,4 +446,12 @@ func tolerationsTolerateTaint(tolerations []v1.Toleration, taint *v1.Taint) bool
 		}
 	}
 	return false
+}
+
+func (c *FakeClusterContext) GetService(namespace string, name string) (*v1.Service, error) {
+	return nil, errors.Errorf("GetService not implemented in FakeClusterContext")
+}
+
+func (c *FakeClusterContext) GetIngress(namespace string, name string) (*networking.Ingress, error) {
+	return nil, errors.Errorf("GetIngress not implemented in FakeClusterContext")
 }

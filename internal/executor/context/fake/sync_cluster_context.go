@@ -92,23 +92,23 @@ func (c *SyncFakeClusterContext) GetNodeEvents(nodeName string) ([]*v1.Event, er
 }
 
 func (c *SyncFakeClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
-	return nil, fmt.Errorf("Services not implemented in SyncFakeClusterContext")
+	return nil, fmt.Errorf("GetService not implemented in SyncFakeClusterContext")
 }
 
 func (c *SyncFakeClusterContext) GetServices(pod *v1.Pod) ([]*v1.Service, error) {
-	return nil, fmt.Errorf("Services not implemented in SyncFakeClusterContext")
+	return nil, fmt.Errorf("GetService not implemented in SyncFakeClusterContext")
 }
 
 func (c *SyncFakeClusterContext) DeleteService(service *v1.Service) error {
-	return fmt.Errorf("Services not implemented in SyncFakeClusterContext")
+	return fmt.Errorf("GetService not implemented in SyncFakeClusterContext")
 }
 
 func (c *SyncFakeClusterContext) SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error) {
-	return nil, fmt.Errorf("Ingresses not implemented in SyncFakeClusterContext")
+	return nil, fmt.Errorf("GetIngress not implemented in SyncFakeClusterContext")
 }
 
 func (c *SyncFakeClusterContext) GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error) {
-	return nil, fmt.Errorf("Ingresses not implemented in SyncFakeClusterContext")
+	return nil, fmt.Errorf("GetIngress not implemented in SyncFakeClusterContext")
 }
 
 func (c *SyncFakeClusterContext) GetEndpointSlices(namespace string, labelName string, labelValue string) ([]*discovery.EndpointSlice, error) {
@@ -116,7 +116,7 @@ func (c *SyncFakeClusterContext) GetEndpointSlices(namespace string, labelName s
 }
 
 func (c *SyncFakeClusterContext) DeleteIngress(ingress *networking.Ingress) error {
-	return fmt.Errorf("Ingresses not implemented in SyncFakeClusterContext")
+	return fmt.Errorf("GetIngress not implemented in SyncFakeClusterContext")
 }
 
 func (c *SyncFakeClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {
@@ -228,4 +228,12 @@ func (f *FakeClusterIdentity) GetClusterId() string {
 
 func (f *FakeClusterIdentity) GetClusterPool() string {
 	return f.clusterPool
+}
+
+func (c *SyncFakeClusterContext) GetService(namespace string, name string) (*v1.Service, error) {
+	return nil, fmt.Errorf("GetService not implemented in SyncFakeClusterContext")
+}
+
+func (c *SyncFakeClusterContext) GetIngress(namespace string, name string) (*networking.Ingress, error) {
+	return nil, fmt.Errorf("GetIngress not implemented in SyncFakeClusterContext")
 }
