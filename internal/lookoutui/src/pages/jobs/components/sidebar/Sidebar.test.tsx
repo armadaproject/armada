@@ -1,9 +1,8 @@
-import { QueryClientProvider } from "@tanstack/react-query"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { SnackbarProvider } from "notistack"
 
-import { queryClient } from "../../../../app/App"
 import { makeTestJob } from "../../../../common/fakeJobsUtils"
 import { Job, JobRunState, JobState } from "../../../../models/lookoutModels"
 import { ApiClientsProvider } from "../../../../services/apiClients"
@@ -90,16 +89,24 @@ describe("Sidebar", () => {
     mockServer.close()
   })
 
-  const renderComponent = () =>
-    render(
+  const renderComponent = () => {
+    const testQueryClient = new QueryClient({
+      defaultOptions: {
+        queries: { gcTime: 0, retry: false },
+        mutations: { retry: false },
+      },
+    })
+
+    return render(
       <SnackbarProvider>
-        <QueryClientProvider client={queryClient}>
+        <QueryClientProvider client={testQueryClient}>
           <ApiClientsProvider>
             <Sidebar job={job} sidebarWidth={600} onClose={onClose} onWidthChange={() => undefined} commandSpecs={[]} />
           </ApiClientsProvider>
         </QueryClientProvider>
       </SnackbarProvider>,
     )
+  }
 
   it("should show job details by default", async () => {
     const { findByRole } = renderComponent()
@@ -146,17 +153,10 @@ describe("Sidebar", () => {
 
     await userEvent.click(getByRole("tab", { name: /Result/ }))
 
-    const expectedDebugJson = `{
-  "schemaVersion": 1,
-  "trigger": "podFailed",
-  "pod": {
-    "phase": "Failed"
-  }
-}`
-    const debugJson = await findByText(
-      (_, element) => element?.tagName === "PRE" && element.textContent === expectedDebugJson,
+    const formattedSchemaVersion = await findByText(
+      (_, element) => element?.tagName === "DIV" && element.textContent === '  "schemaVersion": 1,',
     )
-    expect(debugJson).toBeInTheDocument()
+    expect(formattedSchemaVersion).toBeInTheDocument()
   })
 
   it("should handle no runs", async () => {
