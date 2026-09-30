@@ -7,31 +7,31 @@ on:
     branches:
       - master
     paths:
-      - 'client/python/**'
-      - 'build/python-client/**'
-      - 'pkg/api/*.proto'
-      - '.github/workflows/python-client.yml'
-      - 'docs/python_armada_client.md'
-      - 'scripts/build-python-client.sh'
-      - 'makefile'
-      - '.github/workflows/python-tests/*'
-      - './magefiles/tests.go'
-      - './magefiles/python.go'
+      - "client/python/**"
+      - "build/python-client/**"
+      - "pkg/api/*.proto"
+      - ".github/workflows/python-client.yml"
+      - "docs/python_armada_client.md"
+      - "scripts/build-python-client.sh"
+      - "makefile"
+      - ".github/workflows/python-tests/*"
+      - "./magefiles/tests.go"
+      - "./magefiles/python.go"
 
   pull_request:
     branches-ignore:
       - gh-pages
     paths:
-      - 'client/python/**'
-      - 'build/python-client/**'
-      - 'pkg/api/*.proto'
-      - '.github/workflows/python-client.yml'
-      - 'docs/python_armada_client.md'
-      - 'scripts/build-python-client.sh'
-      - 'makefile'
-      - '.github/workflows/python-tests/*'
-      - './magefiles/tests.go'
-      - './magefiles/python.go'
+      - "client/python/**"
+      - "build/python-client/**"
+      - "pkg/api/*.proto"
+      - ".github/workflows/python-client.yml"
+      - "docs/python_armada_client.md"
+      - "scripts/build-python-client.sh"
+      - "makefile"
+      - ".github/workflows/python-tests/*"
+      - "./magefiles/tests.go"
+      - "./magefiles/python.go"
 
 jobs:
   # Formatting, linting and docs only need to run once. They are pinned to
@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.12'
+          python-version: "3.12"
       - run: pip install 'tox>=4,<5'
       - name: Setup Docker
         uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5.5.0
@@ -54,9 +54,9 @@ jobs:
         with:
           cache-prefix: python-client-lint
       - name: Install Protoc
-        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
+        uses: rustfs/setup-protoc@a3705324d8f9bf5b6c3573fb6cf8ae421db55dd6 # v3.0.1
         with:
-          version: '23.3'
+          version: "23.3"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       # The armada_client package is the generated proto code, so docs autodoc
       # needs it built before it can import the package.
@@ -73,14 +73,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [ '3.10', '3.12', '3.14' ]
+        python-version: ["3.10", "3.12", "3.14"]
         include:
-          - tox-env: 'py310'
-            python-version: '3.10'
-          - tox-env: 'py312'
-            python-version: '3.12'
-          - tox-env: 'py314'
-            python-version: '3.14'
+          - tox-env: "py310"
+            python-version: "3.10"
+          - tox-env: "py312"
+            python-version: "3.12"
+          - tox-env: "py314"
+            python-version: "3.14"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup Docker
@@ -95,7 +95,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           tox-env: ${{ matrix.tox-env }}
-          path: 'client/python'
+          path: "client/python"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   python-client-integration-tests:
@@ -137,9 +137,9 @@ jobs:
           mkdir -p .kube/external
           go run github.com/magefile/mage@v1.17.2 -v dev:full
       - name: Install Protoc
-        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
+        uses: rustfs/setup-protoc@a3705324d8f9bf5b6c3573fb6cf8ae421db55dd6 # v3.0.1
         with:
-          version: '23.3'
+          version: "23.3"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - run: go run github.com/magefile/mage@v1.17.2 -v teste2epython
       - name: Disk usage report

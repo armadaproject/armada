@@ -10,7 +10,7 @@ jobs:
     environment:
       name: maven-release
       # a different URL for each point in the matrix, but the same URLs accross commits
-      url: 'https://github.com/armadaproject/armada/tree/master/client/scala/armada-scala-client?scala=${{ matrix.scala-version }}'
+      url: "https://github.com/armadaproject/armada/tree/master/client/scala/armada-scala-client?scala=${{ matrix.scala-version }}"
     permissions: {}
     strategy:
       fail-fast: false
@@ -26,9 +26,9 @@ jobs:
           cache-prefix: bootstrap-proto
 
       - name: Install Protoc
-        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
+        uses: rustfs/setup-protoc@a3705324d8f9bf5b6c3573fb6cf8ae421db55dd6 # v3.0.1
         with:
-          version: '23.3'
+          version: "23.3"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Bootstrap Proto files
@@ -38,8 +38,8 @@ jobs:
       - name: Setup JDK
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
-          distribution: 'temurin'
-          java-version: '11'
+          distribution: "temurin"
+          java-version: "11"
           server-id: central
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD

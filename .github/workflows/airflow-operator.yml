@@ -7,35 +7,35 @@ on:
     branches:
       - master
     paths:
-      - '.github/workflows/airflow-operator.yml'
-      - '.github/workflows/python-client.yml'
-      - '.github/workflows/python-tests/*'
-      - 'build/airflow-operator/**'
-      - 'build/python-client/**'
-      - 'client/python/**'
-      - 'docs/python_airflow_operator.md'
-      - 'docs/python_armada_client.md'
-      - 'pkg/api/*.proto'
-      - 'scripts/build-python-client.sh'
-      - 'third_party/airflow/**'
-      - './magefiles/tests.go'
-      - './magefiles/python.go'
+      - ".github/workflows/airflow-operator.yml"
+      - ".github/workflows/python-client.yml"
+      - ".github/workflows/python-tests/*"
+      - "build/airflow-operator/**"
+      - "build/python-client/**"
+      - "client/python/**"
+      - "docs/python_airflow_operator.md"
+      - "docs/python_armada_client.md"
+      - "pkg/api/*.proto"
+      - "scripts/build-python-client.sh"
+      - "third_party/airflow/**"
+      - "./magefiles/tests.go"
+      - "./magefiles/python.go"
 
   pull_request:
     branches-ignore:
       - gh-pages
     paths:
-      - '.github/workflows/airflow-operator.yml'
-      - '.github/workflows/python-client.yml'
-      - '.github/workflows/python-tests/*'
-      - 'build/airflow-operator/**'
-      - 'build/python-client/**'
-      - 'client/python/**'
-      - 'docs/python_airflow_operator.md'
-      - 'docs/python_armada_client.md'
-      - 'pkg/api/*.proto'
-      - 'scripts/build-python-client.sh'
-      - 'third_party/airflow/**'
+      - ".github/workflows/airflow-operator.yml"
+      - ".github/workflows/python-client.yml"
+      - ".github/workflows/python-tests/*"
+      - "build/airflow-operator/**"
+      - "build/python-client/**"
+      - "client/python/**"
+      - "docs/python_airflow_operator.md"
+      - "docs/python_armada_client.md"
+      - "pkg/api/*.proto"
+      - "scripts/build-python-client.sh"
+      - "third_party/airflow/**"
 
 jobs:
   # Formatting, linting and docs only need to run once. They are pinned to
@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.12'
+          python-version: "3.12"
       - run: pip install 'tox>=4,<5'
       - name: Check formatting and lint
         run: tox -e format-check
@@ -69,13 +69,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        airflow: ['2.10.5', '3.1.8', '3.2.1']
-        python: ['3.10', '3.12', '3.14']
+        airflow: ["2.10.5", "3.1.8", "3.2.1"]
+        python: ["3.10", "3.12", "3.14"]
         exclude:
-          - airflow: '2.10.5'
-            python: '3.14'
-          - airflow: '3.1.8'
-            python: '3.14'
+          - airflow: "2.10.5"
+            python: "3.14"
+          - airflow: "3.1.8"
+            python: "3.14"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -86,9 +86,9 @@ jobs:
         with:
           cache-prefix: airflow-compat
       - name: Install Protoc
-        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
+        uses: rustfs/setup-protoc@a3705324d8f9bf5b6c3573fb6cf8ae421db55dd6 # v3.0.1
         with:
-          version: '23.3'
+          version: "23.3"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       # Generates the armada_client proto code (typings, *_pb2) that the operator imports.
       # Without this the local client install is incomplete and the tests fail to collect.
@@ -100,14 +100,14 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python: [ '3.10', '3.12', '3.14' ]
+        python: ["3.10", "3.12", "3.14"]
         include:
-          - tox-env: 'py310'
-            python: '3.10'
-          - tox-env: 'py312'
-            python: '3.12'
-          - tox-env: 'py314'
-            python: '3.14'
+          - tox-env: "py310"
+            python: "3.10"
+          - tox-env: "py312"
+            python: "3.12"
+          - tox-env: "py314"
+            python: "3.14"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup Go
@@ -115,9 +115,9 @@ jobs:
         with:
           cache-prefix: airflow-tox
       - name: Install Protoc
-        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
+        uses: rustfs/setup-protoc@a3705324d8f9bf5b6c3573fb6cf8ae421db55dd6 # v3.0.1
         with:
-          version: '23.3'
+          version: "23.3"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - run: go run github.com/magefile/mage@v1.17.2 -v airflowOperator
       - uses: ./.github/workflows/python-tests
@@ -165,9 +165,9 @@ jobs:
           mkdir -p .kube/external
           go run github.com/magefile/mage@v1.17.2 -v dev:full
       - name: Install Protoc
-        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
+        uses: rustfs/setup-protoc@a3705324d8f9bf5b6c3573fb6cf8ae421db55dd6 # v3.0.1
         with:
-          version: '23.3'
+          version: "23.3"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - run: go run github.com/magefile/mage@v1.17.2 -v teste2eAirflow
       - name: Disk usage report
