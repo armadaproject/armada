@@ -28,6 +28,7 @@ type SubmitService struct {
 	podDefaults              *configuration.PodDefaults
 	submissionThreadCount    int
 	fatalPodSubmissionErrors []string
+	runScopedPodNames        bool
 }
 
 func NewSubmitter(
@@ -35,12 +36,14 @@ func NewSubmitter(
 	podDefaults *configuration.PodDefaults,
 	submissionThreadCount int,
 	fatalPodSubmissionErrors []string,
+	runScopedPodNames bool,
 ) *SubmitService {
 	return &SubmitService{
 		clusterContext:           clusterContext,
 		podDefaults:              podDefaults,
 		submissionThreadCount:    submissionThreadCount,
 		fatalPodSubmissionErrors: fatalPodSubmissionErrors,
+		runScopedPodNames:        runScopedPodNames,
 	}
 }
 
@@ -85,10 +88,7 @@ func (submitService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToSubmi
 	defer wg.Done()
 
 	for job := range jobsToSubmitChannel {
-		jobPods := []*v1.Pod{}
-		pod, err := submitService.submitPod(job)
-		jobPods = append(jobPods, pod)
-
+		pod, podOfOtherRun, err := submitService.submitPod(job)
 		if err != nil {
 			log.Errorf("Failed to submit job %s because %s", job.Meta.RunMeta.JobId, err)
 
@@ -101,8 +101,11 @@ func (submitService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToSubmi
 
 			failedJobsChannel <- errDetails
 
-			// remove just created pods
-			submitService.clusterContext.DeletePods(jobPods)
+			// The delete by name frees a job-scoped name that a pod of an earlier run holds. It also deletes the pod
+			// of this run when a service or an ingress create fails. A pod of another run with a run-scoped name stays.
+			if !podOfOtherRun {
+				submitService.clusterContext.DeletePods([]*v1.Pod{pod})
+			}
 		}
 	}
 }
@@ -110,7 +113,9 @@ func (submitService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToSubmi
 // submitPod submits a pod to k8s together with any services and ingresses bundled with the Armada job.
 // This function may fail partly, i.e., it may successfully create a subset of the requested objects before failing.
 // In case of failure, any already created objects are not cleaned up.
-func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, error) {
+// The returned bool is true when the pod that holds the run-scoped name belongs to another run, or to an unknown run.
+// The caller then keeps that pod.
+func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, bool, error) {
 	pod := job.Pod
 	// Ensure the K8SService and K8SIngress fields are populated
 	submitService.applyExecutorSpecificIngressDetails(job)
@@ -124,27 +129,79 @@ func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, error) {
 	}
 
 	submittedPod, err := submitService.clusterContext.SubmitPod(pod, job.Meta.Owner, job.Meta.OwnershipGroups)
+	if submitService.isRunScopedConflict(err) {
+		var podOfOtherRun bool
+		submittedPod, podOfOtherRun, err = submitService.existingPodOfRun(pod, err)
+		if podOfOtherRun {
+			return pod, true, err
+		}
+	}
 	if err != nil {
-		return pod, err
+		return pod, false, err
 	}
 
 	for _, service := range job.Services {
 		service.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
 		_, err = submitService.clusterContext.SubmitService(service)
+		if submitService.isRunScopedConflict(err) {
+			existing, getErr := submitService.clusterContext.GetService(service.Namespace, service.Name)
+			if getErr == nil {
+				err = errUnlessObjectOfRun(&existing.ObjectMeta, pod, err)
+			}
+		}
 		if err != nil {
-			return pod, err
+			return pod, false, err
 		}
 	}
 
 	for _, ingress := range job.Ingresses {
 		ingress.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
 		_, err = submitService.clusterContext.SubmitIngress(ingress)
+		if submitService.isRunScopedConflict(err) {
+			existing, getErr := submitService.clusterContext.GetIngress(ingress.Namespace, ingress.Name)
+			if getErr == nil {
+				err = errUnlessObjectOfRun(&existing.ObjectMeta, pod, err)
+			}
+		}
 		if err != nil {
-			return pod, err
+			return pod, false, err
 		}
 	}
 
-	return pod, err
+	return pod, false, nil
+}
+
+// isRunScopedConflict is true when a create fails because the object exists and pod names are run-scoped.
+func (submitService *SubmitService) isRunScopedConflict(err error) bool {
+	return err != nil && submitService.runScopedPodNames && k8s_errors.IsAlreadyExists(err)
+}
+
+// errUnlessObjectOfRun returns nil when an existing service or ingress belongs to the run of the pod, for example after a
+// duplicate lease, and Kubernetes is not deleting it. Services and ingresses keep one name per job, so the object can
+// also belong to an earlier run, until the cleanup of that run removes it. An object that Kubernetes is deleting goes
+// away after the run starts. In both cases it returns the original error, which is recoverable, so the lease goes back
+// and a later run creates the object.
+func errUnlessObjectOfRun(existing metav1.Object, pod *v1.Pod, alreadyExistsErr error) error {
+	if existing.GetDeletionTimestamp() == nil && existing.GetLabels()[domain.JobRunId] == util2.ExtractJobRunId(pod) {
+		return nil
+	}
+	return alreadyExistsErr
+}
+
+// existingPodOfRun reads the pod that holds a run-scoped name. A pod of the same run, for example after a duplicate
+// lease, is a success. For a pod of another run, it returns the original error and true, so that pod stays. When the
+// read fails, the run is unknown, so it also returns true. It returns the original error in that case too, because
+// isRecoverable treats an error that is not an API status as permanent.
+func (submitService *SubmitService) existingPodOfRun(pod *v1.Pod, alreadyExistsErr error) (*v1.Pod, bool, error) {
+	existing, err := submitService.clusterContext.GetPod(pod.Namespace, pod.Name)
+	if err != nil {
+		log.Warnf("Failed to read pod %s (%s) that holds the name of run %s: %v", pod.Name, pod.Namespace, util2.ExtractJobRunId(pod), err)
+		return nil, true, alreadyExistsErr
+	}
+	if util2.ExtractJobRunId(existing) != util2.ExtractJobRunId(pod) {
+		return nil, true, alreadyExistsErr
+	}
+	return existing, false, nil
 }
 
 // applyExecutorSpecificIngressDetails populates the executor specific details on ingresses

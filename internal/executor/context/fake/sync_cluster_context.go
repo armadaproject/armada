@@ -229,3 +229,15 @@ func (f *FakeClusterIdentity) GetClusterId() string {
 func (f *FakeClusterIdentity) GetClusterPool() string {
 	return f.clusterPool
 }
+
+func (c *SyncFakeClusterContext) GetPod(namespace string, name string) (*v1.Pod, error) {
+	return nil, fmt.Errorf("GetPod not implemented in SyncFakeClusterContext")
+}
+
+func (c *SyncFakeClusterContext) GetService(namespace string, name string) (*v1.Service, error) {
+	return nil, fmt.Errorf("Services not implemented in SyncFakeClusterContext")
+}
+
+func (c *SyncFakeClusterContext) GetIngress(namespace string, name string) (*networking.Ingress, error) {
+	return nil, fmt.Errorf("Ingresses not implemented in SyncFakeClusterContext")
+}

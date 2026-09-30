@@ -447,3 +447,15 @@ func tolerationsTolerateTaint(tolerations []v1.Toleration, taint *v1.Taint) bool
 	}
 	return false
 }
+
+func (c *FakeClusterContext) GetPod(namespace string, name string) (*v1.Pod, error) {
+	return nil, errors.Errorf("GetPod not implemented in FakeClusterContext")
+}
+
+func (c *FakeClusterContext) GetService(namespace string, name string) (*v1.Service, error) {
+	return nil, errors.Errorf("Services not implemented in FakeClusterContext")
+}
+
+func (c *FakeClusterContext) GetIngress(namespace string, name string) (*networking.Ingress, error) {
+	return nil, errors.Errorf("Ingresses not implemented in FakeClusterContext")
+}

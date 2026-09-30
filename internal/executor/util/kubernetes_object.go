@@ -64,7 +64,7 @@ func ExtractIngresses(job *executorapi.JobRunLease, pod *v1.Pod, executorIngress
 	return result
 }
 
-func ExtractServices(job *executorapi.JobRunLease, pod *v1.Pod) []*v1.Service {
+func ExtractServices(job *executorapi.JobRunLease, pod *v1.Pod, runScopedPodNames bool) []*v1.Service {
 	result := make([]*v1.Service, 0, 10)
 
 	for _, additionalObject := range job.Job.Objects {
@@ -92,11 +92,14 @@ func ExtractServices(job *executorapi.JobRunLease, pod *v1.Pod) []*v1.Service {
 				Spec: *typed.Service,
 			}
 
-			// TODO Once migrated  fully executor api - consider adding jobRunId here
 			service.Spec.Selector = map[string]string{
 				domain.JobId:     pod.Labels[domain.JobId],
 				domain.Queue:     pod.Labels[domain.Queue],
 				domain.PodNumber: pod.Labels[domain.PodNumber],
+			}
+			if runScopedPodNames {
+				// A pod of an earlier run can still exist, so the service selects only the pod of its own run.
+				service.Spec.Selector[domain.JobRunId] = pod.Labels[domain.JobRunId]
 			}
 			result = append(result, service)
 		}

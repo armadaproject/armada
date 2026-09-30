@@ -3,6 +3,7 @@ package context
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -71,6 +72,33 @@ func TestKubernetesClusterContext_SubmitPod(t *testing.T) {
 	assert.Equal(t, createAction.GetObject(), pod)
 }
 
+func TestKubernetesClusterContext_SubmitPod_ExistingPod(t *testing.T) {
+	tests := map[string]struct {
+		sameRun        bool
+		wantCachedPods int
+	}{
+		"a pod of the same run keeps the cache entry":  {sameRun: true, wantCachedPods: 1},
+		"a pod of another run removes the cache entry": {sameRun: false, wantCachedPods: 0},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			clusterContext, client := setupTest()
+			pod := createBatchPod()
+			existing := pod.DeepCopy()
+			if !tc.sameRun {
+				existing.Labels[domain.JobRunId] = "other-run"
+			}
+			_, err := client.CoreV1().Pods(pod.Namespace).Create(armadacontext.Background(), existing, metav1.CreateOptions{})
+			require.NoError(t, err)
+
+			_, err = clusterContext.SubmitPod(pod, "user1", []string{})
+
+			assert.True(t, errors2.IsAlreadyExists(err))
+			assert.Len(t, clusterContext.submittedPods.GetAll(), tc.wantCachedPods)
+		})
+	}
+}
+
 func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotCallClient_WhenNoPodsMarkedForDeletion(t *testing.T) {
 	clusterContext, client := setupTest()
 
@@ -98,23 +126,41 @@ func TestKubernetesClusterContext_SubmitService(t *testing.T) {
 }
 
 func TestKubernetesClusterContext_DeleteService(t *testing.T) {
-	clusterContext, client := setupTest()
+	tests := map[string]struct {
+		// replaced makes the API server answer as for a service that a later run created with the same name.
+		replaced bool
+	}{
+		"the service is deleted": {},
+		"a service that a later run created with the same name stays": {replaced: true},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			clusterContext, client := setupTest()
+			service := createService()
+			service.UID = "uid-of-run-1"
+			_, err := client.CoreV1().Services(service.Namespace).Create(armadacontext.Background(), service, metav1.CreateOptions{})
+			require.NoError(t, err)
+			var preconditions *metav1.Preconditions
+			// The fake API server does not check preconditions, so the reactor returns the conflict of a real one.
+			client.PrependReactor("delete", "services", func(action clientTesting.Action) (bool, runtime.Object, error) {
+				preconditions = action.(clientTesting.DeleteAction).GetDeleteOptions().Preconditions
+				if tc.replaced {
+					return true, nil, errors2.NewConflict(v1.Resource("services"), service.Name, fmt.Errorf("precondition failed"))
+				}
+				return false, nil, nil
+			})
 
-	service := createService()
+			err = clusterContext.DeleteService(service)
 
-	_, err := clusterContext.SubmitService(service)
-	assert.NoError(t, err)
-	client.Fake.ClearActions()
-
-	err = clusterContext.DeleteService(service)
-	assert.NoError(t, err)
-
-	assert.Equal(t, len(client.Fake.Actions()), 1)
-	assert.True(t, client.Fake.Actions()[0].Matches("delete", "services"))
-
-	deleteAction, ok := client.Fake.Actions()[0].(clientTesting.DeleteAction)
-	assert.True(t, ok)
-	assert.Equal(t, deleteAction.GetName(), service.Name)
+			assert.NoError(t, err)
+			require.NotNil(t, preconditions)
+			assert.Equal(t, service.UID, *preconditions.UID)
+			if !tc.replaced {
+				_, err = client.CoreV1().Services(service.Namespace).Get(armadacontext.Background(), service.Name, metav1.GetOptions{})
+				assert.True(t, errors2.IsNotFound(err))
+			}
+		})
+	}
 }
 
 func TestKubernetesClusterContext_DeleteService_NonExistent(t *testing.T) {
@@ -223,23 +269,41 @@ func TestKubernetesClusterContext_SubmitIngress(t *testing.T) {
 }
 
 func TestKubernetesClusterContext_DeleteIngress(t *testing.T) {
-	clusterContext, client := setupTest()
+	tests := map[string]struct {
+		// replaced makes the API server answer as for an ingress that a later run created with the same name.
+		replaced bool
+	}{
+		"the ingress is deleted": {},
+		"an ingress that a later run created with the same name stays": {replaced: true},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			clusterContext, client := setupTest()
+			ingress := createIngress()
+			ingress.UID = "uid-of-run-1"
+			_, err := client.NetworkingV1().Ingresses(ingress.Namespace).Create(armadacontext.Background(), ingress, metav1.CreateOptions{})
+			require.NoError(t, err)
+			var preconditions *metav1.Preconditions
+			// The fake API server does not check preconditions, so the reactor returns the conflict of a real one.
+			client.PrependReactor("delete", "ingresses", func(action clientTesting.Action) (bool, runtime.Object, error) {
+				preconditions = action.(clientTesting.DeleteAction).GetDeleteOptions().Preconditions
+				if tc.replaced {
+					return true, nil, errors2.NewConflict(networking.Resource("ingresses"), ingress.Name, fmt.Errorf("precondition failed"))
+				}
+				return false, nil, nil
+			})
 
-	ingress := createIngress()
+			err = clusterContext.DeleteIngress(ingress)
 
-	_, err := clusterContext.SubmitIngress(ingress)
-	assert.NoError(t, err)
-	client.Fake.ClearActions()
-
-	err = clusterContext.DeleteIngress(ingress)
-	assert.NoError(t, err)
-
-	assert.Equal(t, len(client.Fake.Actions()), 1)
-	assert.True(t, client.Fake.Actions()[0].Matches("delete", "ingresses"))
-
-	deleteAction, ok := client.Fake.Actions()[0].(clientTesting.DeleteAction)
-	assert.True(t, ok)
-	assert.Equal(t, deleteAction.GetName(), ingress.Name)
+			assert.NoError(t, err)
+			require.NotNil(t, preconditions)
+			assert.Equal(t, ingress.UID, *preconditions.UID)
+			if !tc.replaced {
+				_, err = client.NetworkingV1().Ingresses(ingress.Namespace).Get(armadacontext.Background(), ingress.Name, metav1.GetOptions{})
+				assert.True(t, errors2.IsNotFound(err))
+			}
+		})
+	}
 }
 
 func TestKubernetesClusterContext_DeleteIngress_NonExistent(t *testing.T) {

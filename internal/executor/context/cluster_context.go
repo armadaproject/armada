@@ -63,6 +63,9 @@ type ClusterContext interface {
 	SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error)
 	SubmitService(service *v1.Service) (*v1.Service, error)
 	SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error)
+	GetPod(namespace string, name string) (*v1.Pod, error)
+	GetService(namespace string, name string) (*v1.Service, error)
+	GetIngress(namespace string, name string) (*networking.Ingress, error)
 	DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error
 	DeletePods(pods []*v1.Pod)
 	DeleteService(service *v1.Service) error
@@ -276,10 +279,21 @@ func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGro
 	}
 
 	returnedPod, err := ownerClient.CoreV1().Pods(pod.Namespace).Create(armadacontext.Background(), pod, metav1.CreateOptions{})
-	if err != nil {
+	if err != nil && !c.isPodOfSameRun(pod, err) {
 		c.submittedPods.Delete(util.ExtractPodKey(pod))
 	}
 	return returnedPod, err
+}
+
+// isPodOfSameRun is true when the create fails because a pod of the same run exists, for example after a duplicate
+// lease. Then the cache entry stays. With job-scoped names, a pod of another run can hold the name, so the check reads
+// the run ID of the existing pod.
+func (c *KubernetesClusterContext) isPodOfSameRun(pod *v1.Pod, createErr error) bool {
+	if !k8s_errors.IsAlreadyExists(createErr) {
+		return false
+	}
+	existing, err := c.GetPod(pod.Namespace, pod.Name)
+	return err == nil && util.ExtractJobRunId(existing) == util.ExtractJobRunId(pod)
 }
 
 func (c *KubernetesClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
@@ -288,6 +302,21 @@ func (c *KubernetesClusterContext) SubmitService(service *v1.Service) (*v1.Servi
 
 func (c *KubernetesClusterContext) SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error) {
 	return c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Create(armadacontext.Background(), ingress, metav1.CreateOptions{})
+}
+
+// GetPod reads a pod from the API server, not from the informer. It finds a pod that the informer does not have yet.
+func (c *KubernetesClusterContext) GetPod(namespace string, name string) (*v1.Pod, error) {
+	return c.kubernetesClient.CoreV1().Pods(namespace).Get(armadacontext.Background(), name, metav1.GetOptions{})
+}
+
+// GetService reads a service from the API server, not from the informer, like GetPod.
+func (c *KubernetesClusterContext) GetService(namespace string, name string) (*v1.Service, error) {
+	return c.kubernetesClient.CoreV1().Services(namespace).Get(armadacontext.Background(), name, metav1.GetOptions{})
+}
+
+// GetIngress reads an ingress from the API server, like GetService.
+func (c *KubernetesClusterContext) GetIngress(namespace string, name string) (*networking.Ingress, error) {
+	return c.kubernetesClient.NetworkingV1().Ingresses(namespace).Get(armadacontext.Background(), name, metav1.GetOptions{})
 }
 
 func (c *KubernetesClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
@@ -369,19 +398,33 @@ func (c *KubernetesClusterContext) DeletePods(pods []*v1.Pod) {
 	}
 }
 
+// DeleteService deletes the service of a run. Services keep one name per job, so a later run can create a service
+// with the same name. The informer can still show the service of the earlier run. Thus the delete has a precondition
+// on the UID, and it ignores a service that a later run created.
 func (c *KubernetesClusterContext) DeleteService(service *v1.Service) error {
-	deleteOptions := createDeleteOptions()
-	err := c.kubernetesClient.CoreV1().Services(service.Namespace).Delete(armadacontext.Background(), service.Name, deleteOptions)
-	if err != nil && k8s_errors.IsNotFound(err) {
-		return nil
-	}
-	return err
+	err := c.kubernetesClient.CoreV1().Services(service.Namespace).Delete(armadacontext.Background(), service.Name, deleteOptionsForObject(service.UID))
+	return ignoreGoneOrReplaced(err)
 }
 
+// DeleteIngress deletes the ingress of a run, with the same precondition as DeleteService.
 func (c *KubernetesClusterContext) DeleteIngress(ingress *networking.Ingress) error {
+	err := c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Delete(armadacontext.Background(), ingress.Name, deleteOptionsForObject(ingress.UID))
+	return ignoreGoneOrReplaced(err)
+}
+
+// deleteOptionsForObject makes the delete apply only to the object with the given UID.
+func deleteOptionsForObject(uid types.UID) metav1.DeleteOptions {
 	deleteOptions := createDeleteOptions()
-	err := c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Delete(armadacontext.Background(), ingress.Name, deleteOptions)
-	if err != nil && k8s_errors.IsNotFound(err) {
+	if uid != "" {
+		deleteOptions.Preconditions = &metav1.Preconditions{UID: &uid}
+	}
+	return deleteOptions
+}
+
+// ignoreGoneOrReplaced ignores a delete of an object that no longer exists, or that another object with the same name
+// replaced. The API server reports the replacement as a conflict on the UID precondition.
+func ignoreGoneOrReplaced(err error) error {
+	if k8s_errors.IsNotFound(err) || k8s_errors.IsConflict(err) {
 		return nil
 	}
 	return err
