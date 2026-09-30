@@ -92,9 +92,10 @@ func ExtractServices(job *executorapi.JobRunLease, pod *v1.Pod) []*v1.Service {
 				Spec: *typed.Service,
 			}
 
-			// TODO Once migrated  fully executor api - consider adding jobRunId here
+			// The run ID keeps the service on the pod of its own run when two runs of one job have a pod on one cluster.
 			service.Spec.Selector = map[string]string{
 				domain.JobId:     pod.Labels[domain.JobId],
+				domain.JobRunId:  pod.Labels[domain.JobRunId],
 				domain.Queue:     pod.Labels[domain.Queue],
 				domain.PodNumber: pod.Labels[domain.PodNumber],
 			}
