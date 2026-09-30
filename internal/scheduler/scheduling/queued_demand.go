@@ -1,7 +1,9 @@
 package scheduling
 
 import (
-	"maps"
+	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"golang.org/x/exp/slices"
@@ -31,7 +33,7 @@ func (l *FairSchedulingAlgo) compareAggregateQueuedDemand(
 	jobAggregateComparisons.WithLabelValues(currentPool).Inc()
 	if !queuedDemandEqual(scanned, aggregate) {
 		jobAggregateMismatches.WithLabelValues(currentPool).Inc()
-		ctx.Errorf("JobDb queued demand aggregate mismatch for pool %s", currentPool)
+		ctx.Errorf("JobDb queued demand aggregate mismatch for pool %s: %s", currentPool, queuedDemandDiff(scanned, aggregate))
 	}
 }
 
@@ -81,10 +83,77 @@ func queuedDemandFromAggregate(
 
 // queuedDemandEqual reports whether the scan-derived and aggregate-derived
 // queued demand are equivalent.
+//
+// An absent bucket is treated as an empty (zero) bucket. The aggregate drops
+// buckets once their resources reach zero, so a queue/priority-class that only
+// ever held zero-resource jobs may be present in one side and absent in the
+// other; that is not a difference in demand. A bucket holding non-zero demand
+// on either side must be present and equal on both.
 func queuedDemandEqual(a, b map[string]map[string]internaltypes.ResourceList) bool {
-	return maps.EqualFunc(a, b, func(x, y map[string]internaltypes.ResourceList) bool {
-		return maps.EqualFunc(x, y, func(x, y internaltypes.ResourceList) bool {
-			return x.AllZero() && y.AllZero() || x.Equal(y)
-		})
-	})
+	return queuedDemandSubsetEqual(a, b) && queuedDemandSubsetEqual(b, a)
+}
+
+func queuedDemandSubsetEqual(a, b map[string]map[string]internaltypes.ResourceList) bool {
+	for queue, aByPriorityClass := range a {
+		bByPriorityClass := b[queue]
+		for priorityClass, aRL := range aByPriorityClass {
+			if !resourceListsEqual(aRL, bByPriorityClass[priorityClass]) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func resourceListsEqual(a, b internaltypes.ResourceList) bool {
+	return a.AllZero() && b.AllZero() || a.Equal(b)
+}
+
+// queuedDemandDiff renders the queue/priority-class buckets that differ between
+// the scan-derived and aggregate-derived queued demand. It is only called when a
+// mismatch is detected, so the extra allocation is kept off the hot path.
+func queuedDemandDiff(scanned, aggregate map[string]map[string]internaltypes.ResourceList) string {
+	var differences []string
+	for _, queue := range unionQueueNames(scanned, aggregate) {
+		for _, priorityClass := range unionPriorityClasses(scanned[queue], aggregate[queue]) {
+			scannedRL := scanned[queue][priorityClass]
+			aggregateRL := aggregate[queue][priorityClass]
+			if !resourceListsEqual(scannedRL, aggregateRL) {
+				differences = append(differences, fmt.Sprintf("%s/%s scan=%s aggregate=%s", queue, priorityClass, scannedRL, aggregateRL))
+			}
+		}
+	}
+	return strings.Join(differences, "; ")
+}
+
+func unionQueueNames(a, b map[string]map[string]internaltypes.ResourceList) []string {
+	names := make(map[string]bool, len(a)+len(b))
+	for queue := range a {
+		names[queue] = true
+	}
+	for queue := range b {
+		names[queue] = true
+	}
+	result := make([]string, 0, len(names))
+	for queue := range names {
+		result = append(result, queue)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func unionPriorityClasses(a, b map[string]internaltypes.ResourceList) []string {
+	names := make(map[string]bool, len(a)+len(b))
+	for priorityClass := range a {
+		names[priorityClass] = true
+	}
+	for priorityClass := range b {
+		names[priorityClass] = true
+	}
+	result := make([]string, 0, len(names))
+	for priorityClass := range names {
+		result = append(result, priorityClass)
+	}
+	sort.Strings(result)
+	return result
 }

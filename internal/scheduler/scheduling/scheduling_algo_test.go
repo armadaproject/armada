@@ -1561,6 +1561,30 @@ func TestCalculateJobSchedulingInfo_AggregateMatchesScan(t *testing.T) {
 	require.True(t, queuedDemandEqual(scanned, aggregate))
 }
 
+// TestCalculateJobSchedulingInfo_AggregateMatchesScanWithZeroResourceJobs proves
+// that a zero-resource queued job does not trigger a false mismatch once the last
+// non-zero job in its queue and priority class is removed. The aggregate drops the
+// zeroed bucket while the scan keeps a zero-valued one.
+func TestCalculateJobSchedulingInfo_AggregateMatchesScanWithZeroResourceJobs(t *testing.T) {
+	pool := "aggregate-zero-resource-pool"
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	nonZero := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithQueued(true).WithPools([]string{pool})
+	zero := testfixtures.TestJobWithResources("q1", testfixtures.PriorityClass0, v1.ResourceList{}).
+		WithQueued(true).WithPools([]string{pool})
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{nonZero, zero})
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.BatchDelete([]string{nonZero.Id()}))
+	writeTxn.Commit()
+	txn := jobDb.ReadTxn()
+
+	scanned := scanQueuedDemand(txn.GetAll(), queues, pool)
+	aggregate := queuedDemandFromAggregate(txn, queues, pool)
+	require.True(t, queuedDemandEqual(scanned, aggregate), "scanned=%v aggregate=%v", scanned, aggregate)
+}
+
 // TestQueuedDemandEqual proves the equality check fires when the aggregate
 // diverges from the scan, and stays silent when they agree.
 func TestQueuedDemandEqual(t *testing.T) {
@@ -1589,6 +1613,41 @@ func TestQueuedDemandEqual(t *testing.T) {
 
 	t.Run("missing queue mismatches", func(t *testing.T) {
 		require.False(t, queuedDemandEqual(newDemand("q1", oneCpu), newDemand("q2", oneCpu)))
+	})
+
+	t.Run("zero bucket matches absent bucket", func(t *testing.T) {
+		zero := oneCpu.Subtract(oneCpu)
+		require.True(t, queuedDemandEqual(newDemand("q1", zero), map[string]map[string]internaltypes.ResourceList{}))
+		require.True(t, queuedDemandEqual(map[string]map[string]internaltypes.ResourceList{}, newDemand("q1", zero)))
+		require.True(t, queuedDemandEqual(newDemand("q1", zero), newDemand("q2", zero)))
+	})
+
+	t.Run("zero bucket does not mask non-zero demand", func(t *testing.T) {
+		zero := oneCpu.Subtract(oneCpu)
+		require.False(t, queuedDemandEqual(newDemand("q1", zero), newDemand("q2", oneCpu)))
+		require.False(t, queuedDemandEqual(newDemand("q2", oneCpu), newDemand("q1", zero)))
+	})
+}
+
+// TestQueuedDemandDiff proves the mismatch diagnostics report the queue,
+// priority class and both values for the differing buckets.
+func TestQueuedDemandDiff(t *testing.T) {
+	oneCpu := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).AllResourceRequirements()
+	twoCpu := oneCpu.Add(oneCpu)
+	pc := testfixtures.PriorityClass0
+
+	t.Run("no differences yields empty string", func(t *testing.T) {
+		demand := map[string]map[string]internaltypes.ResourceList{"q1": {pc: oneCpu}}
+		require.Empty(t, queuedDemandDiff(demand, demand))
+	})
+
+	t.Run("reports differing quantity", func(t *testing.T) {
+		diff := queuedDemandDiff(
+			map[string]map[string]internaltypes.ResourceList{"q1": {pc: twoCpu}},
+			map[string]map[string]internaltypes.ResourceList{"q2": {pc: oneCpu}},
+		)
+		require.Contains(t, diff, "q1/"+pc)
+		require.Contains(t, diff, "q2/"+pc)
 	})
 }
 
