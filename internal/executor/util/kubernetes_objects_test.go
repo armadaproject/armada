@@ -89,7 +89,8 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 				Annotations: map[string]string{"runtime_gang_cardinality": "3"},
 				Namespace:   "test-namespace",
 			},
-			JobId: jobId,
+			JobId:            jobId,
+			ObjectNamePrefix: "team",
 			MainObject: &armadaevents.KubernetesMainObject{
 				Object: &armadaevents.KubernetesMainObject_PodSpec{
 					PodSpec: &armadaevents.PodSpecWithAvoidList{
@@ -110,7 +111,7 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 	}
 	expectedPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("armada-%s-0", jobId),
+			Name:      fmt.Sprintf("team-%s-0", jobId),
 			Namespace: "test-namespace",
 			Labels: map[string]string{
 				domain.JobId:     jobId,
@@ -132,32 +133,32 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 		},
 	}
 
-	result, err := CreatePodFromExecutorApiJob(validJobLease, &configuration.PodDefaults{SchedulerName: "scheduler-name"})
+	result, err := CreatePodFromExecutorApiJob(validJobLease, &configuration.PodDefaults{SchedulerName: "scheduler-name"}, false)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedPod, result)
 }
 
 func TestCreatePodFromExecutorApiJob_Invalid(t *testing.T) {
 	lease := createBasicJobRunLease()
-	_, err := CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	_, err := CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{}, false)
 	assert.NoError(t, err)
 
 	// Invalid run id
 	lease = createBasicJobRunLease()
 	lease.JobRunId = ""
-	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{}, false)
 	assert.Error(t, err)
 
 	// Invalid job id
 	lease = createBasicJobRunLease()
 	lease.Job.JobId = ""
-	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{}, false)
 	assert.Error(t, err)
 
 	// no pod spec
 	lease = createBasicJobRunLease()
 	lease.Job.MainObject = &armadaevents.KubernetesMainObject{}
-	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{}, false)
 	assert.Error(t, err)
 }
 
@@ -378,4 +379,12 @@ func TestExtractServices_SelectsThePodOfTheRun(t *testing.T) {
 
 	require.Len(t, services, 1)
 	assert.Equal(t, map[string]string{domain.JobId: "job-1", domain.JobRunId: "run-1", domain.Queue: "queue", domain.PodNumber: "0"}, services[0].Spec.Selector)
+}
+
+func TestPodName_RunScoped(t *testing.T) {
+	assert.Equal(t, "team-run-1", podName("team", "job-1", "run-1", true))
+}
+
+func TestObjectNamePrefix_JobFromAServerWithoutTheField(t *testing.T) {
+	assert.Equal(t, "armada", objectNamePrefix(&armadaevents.SubmitJob{}))
 }

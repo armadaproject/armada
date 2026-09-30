@@ -233,6 +233,7 @@ func setupExecutorApiComponents(
 		jobRunState,
 		clusterUtilisationService,
 		config.Kubernetes.PodDefaults,
+		config.Kubernetes.RunScopedPodNames,
 		config.Application.MaxLeasedJobs,
 		config.Application.JobLeaseRequestTimeout,
 	)

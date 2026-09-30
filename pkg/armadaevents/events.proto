@@ -161,6 +161,9 @@ message SubmitJob {
     // URI identifying this job in an external system (e.g. Airflow).
     // If not set, falls back to the "armadaproject.io/externalJobUri" annotation.
     string external_job_uri = 16;
+    // Prefix of the names of the pod, the services and the ingresses of the job. The server sets it at submission,
+    // and the executor uses it for the pod name.
+    string object_name_prefix = 17;
 }
 
 // Kubernetes objects that can serve as main objects for an Armada job.

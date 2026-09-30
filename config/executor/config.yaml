@@ -43,6 +43,7 @@ metric:
   exposeQueueUsageMetrics: false
 kubernetes:
   impersonateUsers: false
+  runScopedPodNames: false
   trackedNodeLabels:
     - kubernetes.io/hostname
   QPS: 10000
