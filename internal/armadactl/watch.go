@@ -32,13 +32,8 @@ func (a *App) Watch(queue string, jobSetId string, raw bool, exitOnInactive bool
 				case *api.JobFailedEvent:
 					a.printSummary(state, event)
 					fmt.Fprintf(a.Out, "Job failed: %s\n", event2.Reason)
-
-					jobInfo := state.GetJobInfo(event2.JobId)
-					if jobInfo != nil && jobInfo.ClusterId != "" && jobInfo.Job != nil {
-						fmt.Fprintf(
-							a.Out, "Found no logs for job; try '%s --tail=50\n",
-							client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, event2.JobId, int(event2.PodNumber), "logs"),
-						)
+					if hint := kubectlLogsHint(event2); hint != "" {
+						fmt.Fprintf(a.Out, "To see the logs, try '%s --tail=50'\n", hint)
 					}
 				default:
 					a.printSummary(state, event)
@@ -85,4 +80,12 @@ func requestorFromEvent(e api.Event) string {
 	default:
 		return ""
 	}
+}
+
+// kubectlLogsHint returns a kubectl logs command for the pod of a failed run. It returns "" for a run without a pod.
+func kubectlLogsHint(event *api.JobFailedEvent) string {
+	if event.PodName == "" {
+		return ""
+	}
+	return client.GetKubectlCommandForPod(event.ClusterId, event.PodNamespace, event.PodName, "logs")
 }
