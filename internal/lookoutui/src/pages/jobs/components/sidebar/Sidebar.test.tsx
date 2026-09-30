@@ -159,6 +159,14 @@ describe("Sidebar", () => {
     expect(formattedSchemaVersion).toBeInTheDocument()
   })
 
+  it("should display plain-text debug messages unchanged", async () => {
+    const { getByRole, findByText } = renderComponent()
+
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
+
+    expect(await findByText("job run debug message")).toBeInTheDocument()
+  })
+
   it("should handle no runs", async () => {
     job.runs = []
     const { getByRole, getByText } = renderComponent()
