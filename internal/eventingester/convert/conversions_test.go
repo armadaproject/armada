@@ -57,30 +57,98 @@ var cancelled = &armadaevents.EventSequence_Event{
 	},
 }
 
-func TestConvert_DropsSequenceContainingOnlyJobRunSucceeded(t *testing.T) {
-	msg := NewMsg(jobRunSucceeded)
-	converter := simpleEventConverter()
-	batchUpdate := converter.Convert(armadacontext.Background(), msg)
-
-	assert.Equal(t, msg.MessageIds, batchUpdate.MessageIds)
-	assert.Empty(t, batchUpdate.Events)
+var jobPreemptionRequested = &armadaevents.EventSequence_Event{
+	Created: baseTimeProto,
+	Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
+		JobPreemptionRequested: &armadaevents.JobPreemptionRequested{JobId: JobId},
+	},
 }
 
-func TestConvert_DropsJobRunSucceededFromSequence(t *testing.T) {
-	msg := NewMsg(cancelled, jobRunSucceeded)
-	converter := simpleEventConverter()
-	batchUpdate := converter.Convert(armadacontext.Background(), msg)
-	expectedSequence := armadaevents.EventSequence{
-		Events: []*armadaevents.EventSequence_Event{cancelled},
+var jobValidated = &armadaevents.EventSequence_Event{
+	Created: baseTimeProto,
+	Event: &armadaevents.EventSequence_Event_JobValidated{
+		JobValidated: &armadaevents.JobValidated{JobId: JobId},
+	},
+}
+
+func TestConvert_RetainsEvents(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []*armadaevents.EventSequence_Event
+		want  []*armadaevents.EventSequence_Event
+	}{
+		{
+			name:  "single retained event",
+			input: []*armadaevents.EventSequence_Event{cancelled},
+			want:  []*armadaevents.EventSequence_Event{cancelled},
+		},
+		{
+			name:  "multiple retained events preserve order",
+			input: []*armadaevents.EventSequence_Event{cancelled, jobPreemptionRequested},
+			want:  []*armadaevents.EventSequence_Event{cancelled, jobPreemptionRequested},
+		},
 	}
-	assert.Equal(t, msg.MessageIds, batchUpdate.MessageIds)
-	assert.Equal(t, 1, len(batchUpdate.Events))
-	event := batchUpdate.Events[0]
-	assert.Equal(t, queue, event.Queue)
-	assert.Equal(t, jobset, event.Jobset)
-	es, err := extractEventSeq(event.Event)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedSequence.Events, es.Events)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := NewMsg(tt.input...)
+			batchUpdate := simpleEventConverter().Convert(armadacontext.Background(), msg)
+
+			require.Equal(t, msg.MessageIds, batchUpdate.MessageIds)
+			require.Len(t, batchUpdate.Events, 1)
+			event := batchUpdate.Events[0]
+			assert.Equal(t, queue, event.Queue)
+			assert.Equal(t, jobset, event.Jobset)
+			es, err := extractEventSeq(event.Event)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, es.Events)
+		})
+	}
+}
+
+func TestConvert_FiltersEventsNotForRedis(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []*armadaevents.EventSequence_Event
+		want  []*armadaevents.EventSequence_Event
+	}{
+		{
+			name:  "JobRunSucceeded only",
+			input: []*armadaevents.EventSequence_Event{jobRunSucceeded},
+		},
+		{
+			name:  "JobRunSucceeded with retained event",
+			input: []*armadaevents.EventSequence_Event{cancelled, jobRunSucceeded},
+			want:  []*armadaevents.EventSequence_Event{cancelled},
+		},
+		{
+			name:  "JobValidated only",
+			input: []*armadaevents.EventSequence_Event{jobValidated},
+		},
+		{
+			name:  "JobValidated with retained event",
+			input: []*armadaevents.EventSequence_Event{cancelled, jobValidated},
+			want:  []*armadaevents.EventSequence_Event{cancelled},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := NewMsg(tt.input...)
+			batchUpdate := simpleEventConverter().Convert(armadacontext.Background(), msg)
+			require.Equal(t, msg.MessageIds, batchUpdate.MessageIds)
+
+			if len(tt.want) == 0 {
+				assert.Empty(t, batchUpdate.Events)
+				return
+			}
+
+			require.Len(t, batchUpdate.Events, 1)
+			es, err := extractEventSeq(batchUpdate.Events[0].Event)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, es.Events)
+		})
+	}
 }
 
 func TestConvert_RemovesJobRunErrors(t *testing.T) {
@@ -93,35 +161,6 @@ func TestConvert_RemovesJobRunErrors(t *testing.T) {
 	converter := simpleEventConverter()
 
 	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(cancelled, jobRunErrors))
-	require.Len(t, batchUpdate.Events, 1)
-	es, err := extractEventSeq(batchUpdate.Events[0].Event)
-	require.NoError(t, err)
-	assert.Equal(t, []*armadaevents.EventSequence_Event{cancelled}, es.Events)
-}
-
-func TestConvert_DropsSequenceContainingOnlyJobValidated(t *testing.T) {
-	jobValidated := &armadaevents.EventSequence_Event{
-		Created: baseTimeProto,
-		Event: &armadaevents.EventSequence_Event_JobValidated{
-			JobValidated: &armadaevents.JobValidated{JobId: JobId},
-		},
-	}
-	converter := simpleEventConverter()
-
-	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(jobValidated))
-	assert.Empty(t, batchUpdate.Events)
-}
-
-func TestConvert_DropsJobValidatedFromSequence(t *testing.T) {
-	jobValidated := &armadaevents.EventSequence_Event{
-		Created: baseTimeProto,
-		Event: &armadaevents.EventSequence_Event_JobValidated{
-			JobValidated: &armadaevents.JobValidated{JobId: JobId},
-		},
-	}
-	converter := simpleEventConverter()
-
-	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(cancelled, jobValidated))
 	require.Len(t, batchUpdate.Events, 1)
 	es, err := extractEventSeq(batchUpdate.Events[0].Event)
 	require.NoError(t, err)
