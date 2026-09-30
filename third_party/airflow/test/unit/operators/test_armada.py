@@ -1,7 +1,7 @@
 import dataclasses
 from datetime import timedelta
 from typing import Optional, Callable
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import MagicMock, patch, ANY, call
 
 import pytest
 from airflow.exceptions import TaskDeferred
@@ -22,6 +22,8 @@ DEFAULT_TASK_ID = "test_task_1"
 DEFAULT_JOB_SET = "prefix-test_run_1"
 DEFAULT_QUEUE = "test_queue_1"
 DEFAULT_CLUSTER = "cluster-1"
+DEFAULT_RUN_ID = "test_run"
+DEFAULT_POD = "armada-test_run"
 
 
 def default_hook() -> MagicMock:
@@ -31,7 +33,10 @@ def default_hook() -> MagicMock:
     mock.job_by_external_job_uri.return_value = None
     mock.job_termination_reason.return_value = "FAILED"
     mock.refresh_context.return_value = dataclasses.replace(
-        job_context, job_state=JobState.SUCCEEDED.name, cluster=DEFAULT_CLUSTER
+        job_context,
+        job_state=JobState.SUCCEEDED.name,
+        cluster=DEFAULT_CLUSTER,
+        run_id=DEFAULT_RUN_ID,
     )
     mock.cancel_job.return_value = dataclasses.replace(
         job_context, job_state=JobState.CANCELLED.name
@@ -49,6 +54,10 @@ def mock_operator_dependencies():
         patch(
             "armada.log_manager.KubernetesPodLogManager.fetch_container_logs"
         ) as logs,
+        patch(
+            "armada.log_manager.KubernetesPodLogManager.pod_name_for_run",
+            return_value=DEFAULT_POD,
+        ),
         patch(
             "armada.operators.armada.ArmadaOperator.hook", new_callable=default_hook
         ) as hook,
@@ -269,15 +278,85 @@ def test_polls_for_logs(context):
     )
     op.execute(context)
 
-    # We polled logs as expected.
+    op.pod_manager.pod_name_for_run.assert_called_once_with(
+        k8s_context="cluster-1",
+        namespace="namespace-1",
+        job_id=DEFAULT_JOB_ID,
+        run_id=DEFAULT_RUN_ID,
+    )
     op.pod_manager.fetch_container_logs.assert_called_once_with(
         k8s_context="cluster-1",
         namespace="namespace-1",
-        pod="armada-test_job-0",
+        pod=DEFAULT_POD,
         container="alpine",
         since_time=None,
         link_extractor=ANY,
     )
+
+
+def test_reuses_the_pod_name_of_the_run(context):
+    op = operator(
+        JobSubmitRequestItem(namespace="namespace-1"), container_logs="alpine"
+    )
+    op.hook.refresh_context.return_value = dataclasses.replace(
+        op.hook.refresh_context.return_value, pod_name=DEFAULT_POD
+    )
+    op.execute(context)
+
+    op.pod_manager.pod_name_for_run.assert_not_called()
+    op.pod_manager.fetch_container_logs.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "earlier_pod, earlier_pod_of_earlier_run, reads_earlier_pod",
+    [
+        ("armada-earlier_run", "armada-earlier_run", True),
+        ("armada-test_job-0", None, False),
+    ],
+    ids=[
+        "the pod of the earlier run still exists",
+        "a job-scoped pod name belongs to the new run",
+    ],
+)
+def test_reads_the_last_logs_of_the_earlier_run_when_the_run_changes(
+    context, earlier_pod, earlier_pod_of_earlier_run, reads_earlier_pod
+):
+    op = operator(
+        JobSubmitRequestItem(namespace="namespace-1"), container_logs="alpine"
+    )
+    op.hook.submit_job.return_value = dataclasses.replace(
+        running_job_context(cluster="cluster-0", job_state=JobState.RUNNING.name),
+        run_id="earlier_run",
+        pod_name=earlier_pod,
+        last_log_time=DEFAULT_CURRENT_TIME,
+    )
+    op.pod_manager.pod_name_for_run.side_effect = lambda run_id, **_: (
+        earlier_pod_of_earlier_run if run_id == "earlier_run" else DEFAULT_POD
+    )
+    op.execute(context)
+
+    common = dict(namespace="namespace-1", container="alpine", link_extractor=ANY)
+    earlier = call(
+        k8s_context="cluster-0",
+        pod=earlier_pod,
+        since_time=DEFAULT_CURRENT_TIME,
+        **common,
+    )
+    latest = call(
+        k8s_context=DEFAULT_CLUSTER, pod=DEFAULT_POD, since_time=None, **common
+    )
+    expected = [earlier, latest] if reads_earlier_pod else [latest]
+    assert op.pod_manager.fetch_container_logs.call_args_list == expected
+
+
+def test_does_not_poll_for_logs_when_the_run_has_no_pod(context):
+    op = operator(
+        JobSubmitRequestItem(namespace="namespace-1"), container_logs="alpine"
+    )
+    op.pod_manager.pod_name_for_run.return_value = None
+    op.execute(context)
+
+    op.pod_manager.fetch_container_logs.assert_not_called()
 
 
 def test_publishes_xcom_state(context):

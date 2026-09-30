@@ -134,9 +134,11 @@ class ArmadaHook(LoggingMixin):
         )
         if last_submitted:
             cluster = None
+            run_id = None
             latest_run = self._get_latest_job_run_details(last_submitted)
             if latest_run:
                 cluster = latest_run.cluster
+                run_id = latest_run.run_id
             return RunningJobContext(
                 armada_queue,
                 last_submitted.job_id,
@@ -145,6 +147,7 @@ class ArmadaHook(LoggingMixin):
                 last_log_time=None,
                 cluster=cluster,
                 job_state=JobState(last_submitted.state).name,
+                run_id=run_id,
             )
 
         return None
@@ -167,15 +170,31 @@ class ArmadaHook(LoggingMixin):
             )
 
         cluster = job_context.cluster
-        if not cluster:
-            # Job is running / or completed already
-            if state == JobState.RUNNING or state.is_terminal():
-                job_id = job_context.job_id
-                job_details = self.client.get_job_details([job_id]).job_details[job_id]
-                run_details = self._get_latest_job_run_details(job_details)
-                if run_details:
-                    cluster = run_details.cluster
-        return dataclasses.replace(job_context, job_state=state.name, cluster=cluster)
+        run_id = job_context.run_id
+        # A retry starts a new run, possibly on another cluster. Two polls that both see
+        # a running job can see two runs, so the hook reads the latest run on each poll.
+        if state == JobState.RUNNING or state.is_terminal():
+            job_id = job_context.job_id
+            job_details = self.client.get_job_details([job_id]).job_details[job_id]
+            run_details = self._get_latest_job_run_details(job_details)
+            if run_details:
+                cluster = run_details.cluster
+                run_id = run_details.run_id
+        # The log cursor belongs to the pod of one run. A new pod can start before the
+        # cursor, so the operator reads it from the start.
+        last_log_time = job_context.last_log_time
+        pod_name = job_context.pod_name
+        if run_id != job_context.run_id:
+            last_log_time = None
+            pod_name = None
+        return dataclasses.replace(
+            job_context,
+            job_state=state.name,
+            cluster=cluster,
+            run_id=run_id,
+            last_log_time=last_log_time,
+            pod_name=pod_name,
+        )
 
     @log_exceptions
     def context_from_xcom(self, ti: TaskInstance) -> RunningJobContext:
@@ -188,6 +207,9 @@ class ArmadaHook(LoggingMixin):
                 job_state=result.get("armada_job_state", "UNKNOWN"),
                 submit_time=(result.get("armada_job_submit_time", DateTime.utcnow())),
                 last_log_time=result.get("armada_job_last_log_time", None),
+                cluster=result.get("armada_job_cluster", None),
+                run_id=result.get("armada_job_run_id", None),
+                pod_name=result.get("armada_job_pod_name", None),
             )
 
         return None
@@ -208,6 +230,11 @@ class ArmadaHook(LoggingMixin):
                 "armada_job_submit_time": ctx.submit_time,
                 "armada_job_state": ctx.job_state,
                 "armada_job_last_log_time": ctx.last_log_time,
+                # The deferred operator gets the context back from the XCom on each
+                # poll. Without the run, it sees a new run and reads the logs again.
+                "armada_job_cluster": ctx.cluster,
+                "armada_job_run_id": ctx.run_id,
+                "armada_job_pod_name": ctx.pod_name,
             },
         )
 
