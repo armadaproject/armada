@@ -64,7 +64,6 @@ func (f *NodeFactory) CreateNodeAndType(
 	labels map[string]string,
 	totalResources ResourceList,
 	allocatableResources ResourceList,
-	allocatableByPriority map[int32]ResourceList,
 ) *Node {
 	return CreateNodeAndType(
 		id,
@@ -80,7 +79,7 @@ func (f *NodeFactory) CreateNodeAndType(
 		f.indexedNodeLabels,
 		totalResources,
 		allocatableResources,
-		allocatableByPriority,
+		f.allowedPriorities,
 	)
 }
 
@@ -115,22 +114,7 @@ func (f *NodeFactory) ResourceListFactory() *ResourceListFactory {
 func (f *NodeFactory) AddLabels(nodes []*Node, extraLabels map[string]string) []*Node {
 	result := make([]*Node, len(nodes))
 	for i, node := range nodes {
-		newLabels := util.MergeMaps(node.GetLabels(), extraLabels)
-		result[i] = CreateNodeAndType(node.GetId(),
-			node.GetIndex(),
-			node.GetExecutor(),
-			node.GetName(),
-			node.GetPool(),
-			node.GetReportingNodeType(),
-			false,
-			node.GetTaints(),
-			newLabels,
-			f.indexedTaints,
-			f.indexedNodeLabels,
-			node.GetTotalResources(),
-			node.GetAllocatableResources(),
-			node.AllocatableByPriority,
-		)
+		result[i] = node.WithLabels(util.MergeMaps(node.GetLabels(), extraLabels))
 	}
 	return result
 }
@@ -138,21 +122,7 @@ func (f *NodeFactory) AddLabels(nodes []*Node, extraLabels map[string]string) []
 func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 	result := make([]*Node, len(nodes))
 	for i, node := range nodes {
-		result[i] = CreateNodeAndType(node.GetId(),
-			node.GetIndex(),
-			node.GetExecutor(),
-			node.GetName(),
-			node.GetPool(),
-			node.GetReportingNodeType(),
-			false,
-			append(node.GetTaints(), extraTaints...),
-			node.GetLabels(),
-			f.indexedTaints,
-			f.indexedNodeLabels,
-			node.GetTotalResources(),
-			node.GetAllocatableResources(),
-			node.AllocatableByPriority,
-		)
+		result[i] = node.WithTaints(append(node.GetTaints(), extraTaints...))
 	}
 	return result
 }
@@ -166,8 +136,8 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 // node.kubernetes.io/unschedulable when the node is unschedulable, and the Armada taint is only
 // synthesized for unschedulable nodes), so the flag alone identifies the nodes to fix.
 //
-// Like AddTaints/AddLabels, this rebuilds via CreateNodeAndType so NodeType (used for nodeDb
-// indexing) is recomputed from the reduced taint set and stays consistent.
+// WithSchedulable only strips the Armada taint, so we strip the whole cordon taint set here
+// and let WithSchedulable clear the flag.
 func (f *NodeFactory) RemoveCordonTaint(nodes []*Node) []*Node {
 	result := make([]*Node, len(nodes))
 	for i, node := range nodes {
@@ -183,21 +153,7 @@ func (f *NodeFactory) RemoveCordonTaint(nodes []*Node) []*Node {
 				nonCordonTaints = append(nonCordonTaints, taint)
 			}
 		}
-		result[i] = CreateNodeAndType(node.GetId(),
-			node.GetIndex(),
-			node.GetExecutor(),
-			node.GetName(),
-			node.GetPool(),
-			node.GetReportingNodeType(),
-			false,
-			nonCordonTaints,
-			node.GetLabels(),
-			f.indexedTaints,
-			f.indexedNodeLabels,
-			node.GetTotalResources(),
-			node.GetAllocatableResources(),
-			node.AllocatableByPriority,
-		)
+		result[i] = node.WithTaints(nonCordonTaints).WithSchedulable(true)
 	}
 	return result
 }
