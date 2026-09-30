@@ -14,13 +14,6 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-// queueVisibilityRetries/-Delay work around a known Armada race: a freshly created queue isn't
-// always immediately visible to the very next submit call on the same connection.
-const (
-	queueVisibilityRetries = 5
-	queueVisibilityDelay   = 1 * time.Second
-)
-
 // Run submits spec's jobs into spec.Queue/spec.JobSetId, either all at once (Mode "" /
 // "one-shot") or spread out over time (Mode "ramp-up"), and returns once submission is done.
 // Regatta is a load generator, not a job-completion tracker: it never polls job state, so it
@@ -71,12 +64,12 @@ func submitItems(apiConnectionDetails *client.ApiConnectionDetails, queue, jobSe
 		for _, request := range requests {
 			var response *api.JobSubmitResponse
 			var err error
-			for i := 0; i < queueVisibilityRetries; i++ {
+			for i := 0; i < QueueVisibilityRetries; i++ {
 				response, err = client.SubmitJobs(submitClient, request)
 				if err == nil || status.Code(err) != codes.PermissionDenied {
 					break
 				}
-				time.Sleep(queueVisibilityDelay)
+				time.Sleep(QueueVisibilityDelay)
 			}
 			if err != nil {
 				return fmt.Errorf("submitting jobs: %w", err)

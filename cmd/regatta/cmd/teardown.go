@@ -72,7 +72,7 @@ even if there's nothing to tear down.`,
 		}
 
 		log.Info("tearing down KWOK fake nodes")
-		if err := kwok.Teardown(context.Background(), kubeClient, targetName); err != nil {
+		if err := kwok.Teardown(context.Background(), kubeClient, targetName, regattaconfig.DefaultNodeConcurrency); err != nil {
 			log.Errorf("teardown failed: %s", err)
 			os.Exit(1)
 		}
