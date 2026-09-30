@@ -105,7 +105,24 @@ func ExtractServices(job *executorapi.JobRunLease, pod *v1.Pod) []*v1.Service {
 	return result
 }
 
-func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configuration.PodDefaults) (*v1.Pod, error) {
+// ObjectNamePrefix returns the prefix that the server set on the job for the names of its objects. A job without the
+// annotation gets the default prefix, because its services and ingresses use that prefix.
+func ObjectNamePrefix(annotations map[string]string) string {
+	if prefix, ok := annotations[serverconfiguration.ObjectNamePrefixAnnotation]; ok {
+		return prefix
+	}
+	return common.DefaultObjectNamePrefix
+}
+
+// PodName returns the name of the pod of a run.
+func PodName(prefix string, jobId string, runId string, runScopedPodNames bool) string {
+	if runScopedPodNames {
+		return prefix + "-" + runId
+	}
+	return common.JobScopedName(prefix, jobId)
+}
+
+func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configuration.PodDefaults, runScopedPodNames bool) (*v1.Pod, error) {
 	podSpec, err := getPodSpec(job)
 	if err != nil {
 		return nil, err
@@ -139,7 +156,7 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        common.PodNamePrefix + job.Job.JobId + "-" + strconv.Itoa(0),
+			Name:        PodName(ObjectNamePrefix(job.Job.ObjectMeta.Annotations), jobId, runId, runScopedPodNames),
 			Labels:      labels,
 			Annotations: annotation,
 			Namespace:   job.Job.ObjectMeta.Namespace,

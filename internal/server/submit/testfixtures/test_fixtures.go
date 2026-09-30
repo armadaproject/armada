@@ -9,6 +9,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/auth"
+	"github.com/armadaproject/armada/internal/common/constants"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/server/configuration"
@@ -76,6 +77,7 @@ func DefaultSubmissionConfig() configuration.SubmissionConfig {
 		MinTerminationGracePeriod: 30 * time.Second,
 		MaxTerminationGracePeriod: 300 * time.Second,
 		DefaultActiveDeadline:     1 * time.Hour,
+		ObjectNamePrefix:          "armada",
 	}
 }
 
@@ -90,6 +92,7 @@ func SubmissionConfigWithCustomServiceNamesEnabled() configuration.SubmissionCon
 		MinTerminationGracePeriod: 30 * time.Second,
 		MaxTerminationGracePeriod: 300 * time.Second,
 		DefaultActiveDeadline:     1 * time.Hour,
+		ObjectNamePrefix:          "armada",
 		AllowCustomServiceNames:   true,
 	}
 }
@@ -205,9 +208,12 @@ func JobSubmitRequestItem(i int) *api.JobSubmitRequestItem {
 func SubmitJob(i int) *armadaevents.SubmitJob {
 	jobId := TestUlid(i)
 	return &armadaevents.SubmitJob{
-		JobId:           jobId,
-		Priority:        DefaultPriorityInt,
-		ObjectMeta:      &armadaevents.ObjectMeta{Namespace: DefaultNamespace},
+		JobId:    jobId,
+		Priority: DefaultPriorityInt,
+		ObjectMeta: &armadaevents.ObjectMeta{
+			Namespace:   DefaultNamespace,
+			Annotations: map[string]string{constants.ObjectNamePrefixAnnotation: "armada"},
+		},
 		Objects:         []*armadaevents.KubernetesObject{},
 		DeduplicationId: fmt.Sprintf("%d", i),
 		MainObject: &armadaevents.KubernetesMainObject{

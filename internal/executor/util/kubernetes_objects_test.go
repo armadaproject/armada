@@ -85,7 +85,7 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 		Job: &armadaevents.SubmitJob{
 			ObjectMeta: &armadaevents.ObjectMeta{
 				Labels:      map[string]string{},
-				Annotations: map[string]string{"runtime_gang_cardinality": "3"},
+				Annotations: map[string]string{"runtime_gang_cardinality": "3", serverconfiguration.ObjectNamePrefixAnnotation: "team"},
 				Namespace:   "test-namespace",
 			},
 			JobId: jobId,
@@ -109,7 +109,7 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 	}
 	expectedPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("armada-%s-0", jobId),
+			Name:      fmt.Sprintf("team-%s-0", jobId),
 			Namespace: "test-namespace",
 			Labels: map[string]string{
 				domain.JobId:     jobId,
@@ -122,6 +122,7 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 				domain.JobSetId:            "job-set",
 				domain.Owner:               "user",
 				"runtime_gang_cardinality": "3",
+				serverconfiguration.ObjectNamePrefixAnnotation: "team",
 			},
 		},
 		Spec: v1.PodSpec{
@@ -131,32 +132,32 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 		},
 	}
 
-	result, err := CreatePodFromExecutorApiJob(validJobLease, &configuration.PodDefaults{SchedulerName: "scheduler-name"})
+	result, err := CreatePodFromExecutorApiJob(validJobLease, &configuration.PodDefaults{SchedulerName: "scheduler-name"}, false)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedPod, result)
 }
 
 func TestCreatePodFromExecutorApiJob_Invalid(t *testing.T) {
 	lease := createBasicJobRunLease()
-	_, err := CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	_, err := CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{}, false)
 	assert.NoError(t, err)
 
 	// Invalid run id
 	lease = createBasicJobRunLease()
 	lease.JobRunId = ""
-	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{}, false)
 	assert.Error(t, err)
 
 	// Invalid job id
 	lease = createBasicJobRunLease()
 	lease.Job.JobId = ""
-	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{}, false)
 	assert.Error(t, err)
 
 	// no pod spec
 	lease = createBasicJobRunLease()
 	lease.Job.MainObject = &armadaevents.KubernetesMainObject{}
-	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{}, false)
 	assert.Error(t, err)
 }
 
@@ -353,6 +354,40 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 					assert.NotContains(t, envMap, name)
 				}
 			}
+		})
+	}
+}
+
+func TestPodName(t *testing.T) {
+	tests := []struct {
+		name              string
+		prefix            string
+		runScopedPodNames bool
+		want              string
+	}{
+		{name: "the flag off gives <prefix>-<jobId>-0", prefix: "team", want: "team-job-1-0"},
+		{name: "the flag on gives <prefix>-<runId>", prefix: "team", runScopedPodNames: true, want: "team-run-1"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, PodName(tc.prefix, "job-1", "run-1", tc.runScopedPodNames))
+		})
+	}
+}
+
+func TestObjectNamePrefix(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		want        string
+	}{
+		{name: "the annotation gives the prefix", annotations: map[string]string{serverconfiguration.ObjectNamePrefixAnnotation: "team"}, want: "team"},
+		{name: "a job without the annotation gets the default prefix", annotations: map[string]string{"other": "value"}, want: "armada"},
+		{name: "a job without annotations gets the default prefix", want: "armada"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, ObjectNamePrefix(tc.annotations))
 		})
 	}
 }

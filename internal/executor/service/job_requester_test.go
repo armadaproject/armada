@@ -271,6 +271,7 @@ func setupJobRequesterTest(initialJobRuns []*job.RunState) (*JobRequester, *mock
 		stateStore,
 		utilisationService,
 		podDefaults,
+		false,
 		defaultMaxLeasedJobs,
 		defaultMaxRequestDuration)
 	return jobRequester, eventReporter, leaseRequester, stateStore, utilisationService
