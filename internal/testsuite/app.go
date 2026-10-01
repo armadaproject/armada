@@ -56,6 +56,8 @@ type Params struct {
 	// Exported metrics are annotated with job=PrometheusPushGatewayJobName.
 	// Must be non-empty.
 	PrometheusPushGatewayJobName string
+	// ConfigHook applies the config overrides of test cases. When it is nil, the testsuite skips test cases with overrides.
+	ConfigHook ConfigHook
 }
 
 // New instantiates an App with default parameters, including standard output
@@ -162,10 +164,12 @@ func (tsr *TestSuiteReport) Collect(c chan<- prometheus.Metric) {
 }
 
 type TestCaseReport struct {
-	Out             *bytes.Buffer
-	Start           time.Time
-	Finish          time.Time
-	FailureReason   string
+	Out           *bytes.Buffer
+	Start         time.Time
+	Finish        time.Time
+	FailureReason string
+	// SkipReason says why the testsuite skipped the test case.
+	SkipReason      string
 	BenchmarkReport *eventbenchmark.TestCaseBenchmarkReport
 	TestSpec        *api.TestSpec
 
@@ -278,7 +282,20 @@ func (report *TestSuiteReport) NumSuccesses() int {
 	}
 	rv := 0
 	for _, r := range report.TestCaseReports {
-		if r != nil && r.FailureReason == "" {
+		if r != nil && r.FailureReason == "" && r.SkipReason == "" {
+			rv++
+		}
+	}
+	return rv
+}
+
+func (report *TestSuiteReport) NumSkipped() int {
+	if report == nil {
+		return 0
+	}
+	rv := 0
+	for _, r := range report.TestCaseReports {
+		if r != nil && r.SkipReason != "" {
 			rv++
 		}
 	}
@@ -307,34 +324,58 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 		rv.Finish = time.Now()
 	}()
 
+	groups, err := groupByConfig(testSpecs)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	g, ctx := errgroup.WithContext(ctx)
 	eventLogger := eventlogger.New(make(chan *api.EventMessage), time.Second)
 	eventLogger.Out = a.Out
-
-	wg := sync.WaitGroup{}
-	wg.Add(len(testSpecs))
-	for i, testSpec := range testSpecs {
-		i := i
-		testRunner := TestRunner{
-			Out:                  a.Out,
-			apiConnectionDetails: a.Params.ApiConnectionDetails,
-			testSpec:             testSpec,
-			eventLogger:          eventLogger,
-		}
-		go func() {
-			_ = testRunner.Run(ctx)
-			rv.TestCaseReports[i] = testRunner.TestCaseReport
-			wg.Done()
-		}()
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	fmt.Fprintf(a.Out, "---\n")
 	g.Go(func() error { return eventLogger.Run(ctx) })
 
-	wg.Wait()
+	// An interrupted run can leave overrides applied, and the test cases without overrides must not inherit them.
+	if a.Params.ConfigHook != nil {
+		if err := applyConfig(ctx, a.Params.ConfigHook, nil); err != nil {
+			return nil, errors.WithMessage(err, "failed to remove config overrides before the test run")
+		}
+	}
+
+	applied := false
+	var restoreErr error
+	for _, group := range groups {
+		if group.key == "" {
+			a.runConcurrently(ctx, testSpecs, group.indexes, eventLogger, rv)
+			continue
+		}
+		if a.Params.ConfigHook == nil {
+			for _, i := range group.indexes {
+				rv.TestCaseReports[i] = finishedTestCaseReport(testSpecs[i], "", "the test case has config overrides, and no config hook is set")
+			}
+			continue
+		}
+		fmt.Fprintf(a.Out, "applying config overrides %s\n", group.key)
+		applied = true
+		if err := applyConfig(ctx, a.Params.ConfigHook, group.config); err != nil {
+			for _, i := range group.indexes {
+				rv.TestCaseReports[i] = finishedTestCaseReport(testSpecs[i], fmt.Sprintf("failed to apply config overrides: %s", err), "")
+			}
+			continue
+		}
+		a.runConcurrently(ctx, testSpecs, group.indexes, eventLogger, rv)
+	}
+	if applied {
+		fmt.Fprintf(a.Out, "removing config overrides\n")
+		// A signal cancels ctx, and the overrides must still go, so the removal gets its own context.
+		restoreCtx, cancelRestore := context.WithTimeout(context.WithoutCancel(ctx), configRestoreTimeout)
+		defer cancelRestore()
+		if err := applyConfig(restoreCtx, a.Params.ConfigHook, nil); err != nil {
+			restoreErr = errors.WithMessage(err, "failed to remove config overrides")
+		}
+	}
+
 	cancel()
 	if err := g.Wait(); err != nil {
 		return nil, err
@@ -346,7 +387,40 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 			return nil, err
 		}
 	}
-	return rv, nil
+	// The report stays valid when the hook cannot remove the overrides, so the caller can still write it.
+	return rv, restoreErr
+}
+
+// runConcurrently runs the test cases at the given indexes at the same time, and waits until all of them finish.
+func (a *App) runConcurrently(ctx context.Context, testSpecs []*api.TestSpec, indexes []int, eventLogger *eventlogger.EventLogger, rv *TestSuiteReport) {
+	wg := sync.WaitGroup{}
+	wg.Add(len(indexes))
+	for _, i := range indexes {
+		testRunner := TestRunner{
+			Out:                  a.Out,
+			apiConnectionDetails: a.Params.ApiConnectionDetails,
+			testSpec:             testSpecs[i],
+			eventLogger:          eventLogger,
+		}
+		go func() {
+			_ = testRunner.Run(ctx)
+			rv.TestCaseReports[i] = testRunner.TestCaseReport
+			wg.Done()
+		}()
+		time.Sleep(100 * time.Millisecond)
+	}
+	fmt.Fprintf(a.Out, "---\n")
+	wg.Wait()
+}
+
+// finishedTestCaseReport returns the report of a test case that did not run.
+func finishedTestCaseReport(testSpec *api.TestSpec, failureReason string, skipReason string) *TestCaseReport {
+	report := NewTestCaseReport(testSpec)
+	report.Finish = report.Start
+	report.FailureReason = failureReason
+	report.SkipReason = skipReason
+	report.Out = bytes.NewBufferString(failureReason + skipReason + "\n")
+	return report
 }
 
 func pushTestSuiteReportMetrics(tsr *TestSuiteReport, url, job string) error {
@@ -397,5 +471,12 @@ func UnmarshalTestCase(yamlBytes []byte, testSpec *api.TestSpec) error {
 	if !successExpectedEvents || !successEverythingElse {
 		return result.ErrorOrNil()
 	}
+	// The YAML decoder leaves the config values empty, and the jsonpb decoder fails on a document with pod specs.
+	// So config has its own decoder.
+	config, err := configFromDocs(docs)
+	if err != nil {
+		return err
+	}
+	testSpec.Config = config
 	return nil
 }
