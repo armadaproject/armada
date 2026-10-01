@@ -255,6 +255,7 @@ services:
       lookout-migration: {condition: service_completed_successfully}
     volumes:
       - ../lookout/config.yaml:/config/config.yaml:ro
+      - ../../internal/lookoutui/build:/app/internal/lookoutui/build:ro
     environment:
       ARMADA_POSTGRES_CONNECTION_HOST: postgres
     command: ./lookout --config /config/config.yaml

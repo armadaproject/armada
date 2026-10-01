@@ -321,7 +321,7 @@ Alternatively, build a production version with:
 mage ui
 ```
 
-This builds the UI and makes it available at http://localhost:8089.
+This builds the UI into `internal/lookoutui/build`. `mage dev:full` mounts that directory into the Lookout container, so run `mage ui` first and the UI is served at http://localhost:8089.
 
 ## Troubleshooting
 

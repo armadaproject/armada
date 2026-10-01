@@ -21,10 +21,11 @@ import (
 type Dev mg.Namespace
 
 const (
-	goremanPackage   = "github.com/mattn/goreman@v0.3.15"
-	stackComposeFile = "_local/compose/stack.yaml"
-	fullComposeFile  = "_local/compose/full.yaml"
-	initScript       = "_local/scripts/init.sh"
+	goremanPackage    = "github.com/mattn/goreman@v0.3.15"
+	stackComposeFile  = "_local/compose/stack.yaml"
+	fullComposeFile   = "_local/compose/full.yaml"
+	initScript        = "_local/scripts/init.sh"
+	lookoutUIBuildDir = "internal/lookoutui/build"
 )
 
 // Up brings up dependencies and runs Armada components via goreman with the chosen profile.
@@ -177,6 +178,9 @@ func (Dev) Down() error {
 func (Dev) Full() error {
 	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"))
 	if err := (Kind{}).SingleCluster(); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(lookoutUIBuildDir, os.ModeDir|0o755); err != nil {
 		return err
 	}
 	return sh.RunV("docker", "compose", "-f", fullComposeFile, "up", "-d", "--wait")
