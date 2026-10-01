@@ -184,12 +184,29 @@ describe("Sidebar", () => {
 
   it("should display unstructured debug data as text", async () => {
     mockServer.setPostJobRunDebugMessageResponseForRunId("1234-5678", "legacy debug message")
-    const { getByRole, findByRole, findByText } = renderComponent()
+    const { getByRole, findByRole, findByText, queryByRole } = renderComponent()
 
     await userEvent.click(getByRole("tab", { name: /Result/ }))
     await userEvent.click(await findByRole("button", { name: "Debug" }))
 
     expect(await findByText("legacy debug message")).toBeInTheDocument()
+    expect(queryByRole("button", { name: "Details" })).toBeNull()
+  })
+
+  it("should display valid JSON with an unsupported schema as formatted JSON", async () => {
+    mockServer.setPostJobRunDebugMessageResponseForRunId(
+      "1234-5678",
+      '{"schemaVersion":1,"trigger":"podFailed","pod":{"containers":"unavailable"}}',
+    )
+    const { getByRole, findByRole, findByText, queryByRole } = renderComponent()
+
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
+    await userEvent.click(await findByRole("button", { name: "Debug" }))
+
+    expect(queryByRole("button", { name: "Details" })).toBeNull()
+    expect(
+      await findByText((_, element) => element?.tagName === "DIV" && element.textContent === '  "schemaVersion": 1,'),
+    ).toBeInTheDocument()
   })
 
   it("should handle no runs", async () => {

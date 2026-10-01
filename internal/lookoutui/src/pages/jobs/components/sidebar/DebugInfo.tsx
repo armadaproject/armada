@@ -1,6 +1,7 @@
 import { useState } from "react"
 
 import { Accordion, AccordionDetails, AccordionSummary, Stack, ToggleButton, ToggleButtonGroup } from "@mui/material"
+import { ErrorBoundary } from "react-error-boundary"
 
 import { SPACING } from "../../../../common/spacing"
 import { CodeBlock } from "../../../../components/CodeBlock"
@@ -66,28 +67,6 @@ const toRows = (values: Record<string, string | number | boolean | undefined>) =
   Object.entries(values)
     .filter(([, value]) => value !== undefined && value !== "")
     .map(([key, value]) => ({ key, value: value!.toString() }))
-
-const parseDebugInfo = (message: string): DebugInfoPayload | undefined => {
-  try {
-    const payload: unknown = JSON.parse(message)
-    if (
-      !payload ||
-      typeof payload !== "object" ||
-      !("schemaVersion" in payload) ||
-      !("trigger" in payload) ||
-      !("pod" in payload) ||
-      typeof payload.schemaVersion !== "number" ||
-      typeof payload.trigger !== "string" ||
-      !payload.pod ||
-      typeof payload.pod !== "object"
-    ) {
-      return undefined
-    }
-    return payload as DebugInfoPayload
-  } catch {
-    return undefined
-  }
-}
 
 const ContainerDetails = ({ container }: { container: ContainerInfo }) => (
   <Accordion variant="elevation" square>
@@ -212,13 +191,25 @@ const DebugInfoContent = ({ payload }: { payload: DebugInfoPayload }) => {
 }
 
 export const DebugInfo = ({ message }: { message: string }) => {
-  const payload = parseDebugInfo(message)
-  if (!payload) {
+  let parsedMessage: unknown
+  try {
+    parsedMessage = JSON.parse(message)
+  } catch {
     return <CodeBlock code={message} language="text" downloadable={false} showLineNumbers={false} loading={false} />
   }
 
-  return <StructuredDebugInfo payload={payload} />
+  const formattedMessage = JSON.stringify(parsedMessage, undefined, 2)
+
+  return (
+    <ErrorBoundary fallbackRender={() => <JsonCodeBlock code={formattedMessage} />}>
+      <StructuredDebugInfo payload={parsedMessage as DebugInfoPayload} />
+    </ErrorBoundary>
+  )
 }
+
+const JsonCodeBlock = ({ code }: { code: string }) => (
+  <CodeBlock code={code} language="json" downloadable={false} showLineNumbers={false} loading={false} />
+)
 
 const StructuredDebugInfo = ({ payload }: { payload: DebugInfoPayload }) => {
   const [view, setView] = useState<"details" | "json">("details")
