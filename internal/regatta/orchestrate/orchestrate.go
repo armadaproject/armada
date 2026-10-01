@@ -6,6 +6,7 @@ package orchestrate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -14,20 +15,26 @@ import (
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/regatta/config"
 	"github.com/armadaproject/armada/internal/regatta/kwok"
+	"github.com/armadaproject/armada/internal/regatta/metrics"
 	"github.com/armadaproject/armada/pkg/client"
 )
 
 // Setup stands up every target in scenario.ExecutionTargets concurrently, since each target is
 // an independent cluster/process with no cross-target dependency - running them sequentially
-// meant one target's slow schedulability probe (WaitUntilSchedulable can retry for minutes)
+// meant one target's slow readiness check (WaitUntilSchedulable can retry for minutes)
 // starved every later target of even starting. Returns a teardown func that reverses every
 // target that successfully started, even if another target's Setup failed (best-effort-all, not
 // strict-LIFO-on-success-only) - any failure still tears down everything that did come up.
-func Setup(ctx context.Context, scenario *config.Scenario, apiConnectionDetails *client.ApiConnectionDetails) (func(context.Context), error) {
+//
+// A target whose readiness check fails does not fail Setup if it sets
+// cluster.continueOnReadinessFailure: it is logged and returned in the second result instead, in
+// scenario target order, for the caller to put in the metrics report.
+func Setup(ctx context.Context, scenario *config.Scenario, apiConnectionDetails *client.ApiConnectionDetails) (func(context.Context), []metrics.ReadinessFailure, error) {
 	var (
 		mu        sync.Mutex
 		teardowns []func(context.Context)
 	)
+	failures := make([]*metrics.ReadinessFailure, len(scenario.ExecutionTargets))
 	teardownAll := func(ctx context.Context) {
 		for i := len(teardowns) - 1; i >= 0; i-- {
 			teardowns[i](ctx)
@@ -35,8 +42,8 @@ func Setup(ctx context.Context, scenario *config.Scenario, apiConnectionDetails 
 	}
 
 	group, groupCtx := errgroup.WithContext(ctx)
-	for _, target := range scenario.ExecutionTargets {
-		target := target
+	for i, target := range scenario.ExecutionTargets {
+		i, target := i, target
 		group.Go(func() error {
 			nodeGroup, err := config.ResolveTargetNodeGroups(target, scenario.NodeGroups)
 			if err != nil {
@@ -44,7 +51,10 @@ func Setup(ctx context.Context, scenario *config.Scenario, apiConnectionDetails 
 			}
 
 			teardown, err := setupCluster(groupCtx, target, nodeGroup, apiConnectionDetails)
-			if err != nil {
+			if failure, tolerated := toleratedReadinessFailure(target, err); tolerated {
+				log.Warnf("target %q: readiness check failed, continuing anyway because cluster.continueOnReadinessFailure is set: %s", target.Name, failure.Error)
+				failures[i] = failure
+			} else if err != nil {
 				return fmt.Errorf("target %q: %w", target.Name, err)
 			}
 
@@ -57,10 +67,28 @@ func Setup(ctx context.Context, scenario *config.Scenario, apiConnectionDetails 
 
 	if err := group.Wait(); err != nil {
 		teardownAll(ctx)
-		return nil, err
+		return nil, nil, err
 	}
 
-	return teardownAll, nil
+	var readinessFailures []metrics.ReadinessFailure
+	for _, failure := range failures {
+		if failure != nil {
+			readinessFailures = append(readinessFailures, *failure)
+		}
+	}
+	return teardownAll, readinessFailures, nil
+}
+
+// toleratedReadinessFailure reports whether err is a failed readiness check the target has opted
+// to continue past, and if so the failure to record. Only a readiness failure qualifies: by then
+// the nodes exist and setupCluster has returned a teardown for them, whereas any other setup error
+// means the target is not usable.
+func toleratedReadinessFailure(target config.ExecutionTarget, err error) (*metrics.ReadinessFailure, bool) {
+	var readinessErr *kwok.ReadinessError
+	if err == nil || target.Cluster == nil || !target.Cluster.ContinueOnReadinessFailure || !errors.As(err, &readinessErr) {
+		return nil, false
+	}
+	return &metrics.ReadinessFailure{Target: target.Name, Error: readinessErr.Err.Error()}, true
 }
 
 // Teardown tears down every cluster target in scenario.ExecutionTargets, best-effort - a failure
@@ -116,9 +144,10 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 		InternalAPIServerAddress: internalAPIServerAddress,
 		NodeGroup:                nodeGroup,
 		ApiConnectionDetails:     apiConnectionDetails,
-		SchedulableProbe: kwok.ProbeConfig{
-			Retries:      target.Cluster.ProbeRetries,
-			InitialDelay: target.Cluster.ProbeDelayDuration,
+		Readiness: kwok.ReadinessConfig{
+			Retries:      target.Cluster.EffectiveReadinessRetries(),
+			InitialDelay: target.Cluster.EffectiveReadinessDelay(),
+			SelectTarget: target.Cluster.ShouldReadinessSelectTarget(),
 		},
 		EvaluateReadiness: target.Cluster.ShouldEvaluateReadiness(),
 		NodeConcurrency:   target.Cluster.EffectiveNodeConcurrency(),
@@ -126,15 +155,23 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 		StagesYAML:        stagesYAML,
 	}
 
-	log.Infof("target %q: setting up KWOK fake nodes", target.Name)
-	if err := kwok.Setup(ctx, kubeClient, cfg); err != nil {
-		return nil, fmt.Errorf("KWOK setup failed: %w", err)
-	}
-
-	return func(ctx context.Context) {
+	teardown := func(ctx context.Context) {
 		log.Infof("target %q: tearing down KWOK fake nodes", target.Name)
 		if err := kwok.Teardown(ctx, kubeClient, target.Name, cfg.NodeConcurrency); err != nil {
 			log.Errorf("target %q: KWOK teardown failed: %s", target.Name, err)
 		}
-	}, nil
+	}
+
+	log.Infof("target %q: setting up KWOK fake nodes", target.Name)
+	if err := kwok.Setup(ctx, kubeClient, cfg); err != nil {
+		var readinessErr *kwok.ReadinessError
+		if errors.As(err, &readinessErr) {
+			// Everything was created and only the readiness check gave up, so the fake nodes
+			// exist: hand back their teardown alongside the error for a caller that carries on.
+			return teardown, fmt.Errorf("KWOK setup failed: %w", err)
+		}
+		return nil, fmt.Errorf("KWOK setup failed: %w", err)
+	}
+
+	return teardown, nil
 }

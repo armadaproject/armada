@@ -14,6 +14,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/regatta/metrics"
 	"github.com/armadaproject/armada/pkg/client/util"
 )
@@ -25,6 +26,12 @@ type Scenario struct {
 	// Armadactl is a path to an .armadactl.yaml file. Empty uses the same default resolution as
 	// armadactl ($HOME/.armadactl.yaml).
 	Armadactl string `json:"armadactl,omitempty"`
+
+	// AuthContext names the context, within the .armadactl.yaml file above, that selects which
+	// Armada instance (and credentials) this scenario runs against - the same contexts
+	// `armadactl config get-contexts` lists. Empty uses that file's own currentContext. The
+	// --context flag on `regatta run`, when passed, takes precedence over this field.
+	AuthContext string `json:"authContext,omitempty"`
 
 	// Metrics configures the post-run Prometheus metrics report - see MetricsConfig.
 	Metrics MetricsConfig `json:"metrics,omitempty"`
@@ -121,19 +128,39 @@ type ClusterTarget struct {
 	// non-default-network remote cluster, or a kind cluster reached some other way.
 	InternalAPIServerAddress string `json:"internalApiServerAddress,omitempty"`
 
-	ProbeRetries int `json:"probeRetries,omitempty"`
-	// ProbeDelay is a duration string (e.g. "5s"), parsed by Load into ProbeDelayDuration.
-	ProbeDelay string `json:"probeDelay,omitempty"`
+	// ReadinessRetries is how many canary-job attempts the readiness check makes before giving up.
+	// Defaults to DefaultReadinessRetries when left unset (zero).
+	ReadinessRetries int `json:"readinessRetries,omitempty"`
+	// ReadinessDelay is a duration string (e.g. "5s"): how long the readiness check's first attempt waits for its
+	// canary job to start running. Each retry doubles it, so the defaults wait about 2.5 minutes in
+	// total. Parsed by Load into ReadinessDelayDuration. Defaults to DefaultReadinessDelay when left unset.
+	ReadinessDelay string `json:"readinessDelay,omitempty"`
 
-	// ProbeDelayDuration is ProbeDelay parsed by Load. Not part of the file format.
-	ProbeDelayDuration time.Duration `json:"-"`
+	// ReadinessDelayDuration is ReadinessDelay parsed by Load. Not part of the file format.
+	ReadinessDelayDuration time.Duration `json:"-"`
 
 	// EvaluateReadiness controls whether a canary job is submitted to confirm the fake nodes are
-	// actually schedulable before load is submitted (see kwok.WaitUntilSchedulable). Left unset,
-	// it defaults to true when Kind is set (a kind-provisioned target: the environment is fully
-	// known/controlled, so the probe is meaningful and cheap) and false otherwise (an unknown,
-	// externally-provided cluster is assumed already schedulable rather than probed).
+	// actually schedulable before load is submitted (see kwok.WaitUntilSchedulable). The scheduler
+	// takes a while to learn about freshly created nodes, so without the readiness check load starts before
+	// it can place anything and the first stretch of the run measures that warm-up. Left unset it
+	// defaults to true for every target; set it to false to skip the wait.
 	EvaluateReadiness *bool `json:"evaluateReadiness,omitempty"`
+
+	// ContinueOnReadinessFailure lets the run carry on when the readiness check gives up, instead
+	// of failing setup. For environments that are known to be faulty, where the test is still
+	// wanted: the failure is logged as a warning when it happens and again at the end of the run,
+	// and recorded under readinessFailures in the metrics report. The fake nodes are kept. Only a
+	// failed check is tolerated - not a failure to create the nodes - and it does nothing when
+	// EvaluateReadiness is false. Defaults to false.
+	ContinueOnReadinessFailure bool `json:"continueOnReadinessFailure,omitempty"`
+
+	// ReadinessSelectsTarget makes the readiness canary also select on this target's
+	// armadaproject.io/regatta-target node label, so it can only land on this target's own fake
+	// nodes. That matters when several targets share one Armada, and it requires the executors to
+	// report that label (trackedNodeLabels). Left unset it defaults to Kind: the kind quickstart's
+	// executors are configured for it, while an external cluster's executors may not be, and there
+	// the canary selects on the KWOK annotation alone.
+	ReadinessSelectsTarget *bool `json:"readinessSelectsTarget,omitempty"`
 
 	// Kubernetes configures this target's Kubernetes API client, notably its request rate limit -
 	// see KubernetesClientConfiguration. Left unset, every field defaults as documented there.
@@ -176,13 +203,45 @@ type KubernetesClientConfiguration struct {
 	Burst int `json:"burst,omitempty"`
 }
 
-// ShouldEvaluateReadiness reports whether a canary-job readiness probe should run for this
-// target, applying EvaluateReadiness's kind-provisioned-target default when unset.
+// Readiness check defaults, used when a target leaves readinessRetries/readinessDelay unset. With the
+// check doubling its delay each retry they wait 5+10+20+40+80s = 155s in total.
+const (
+	DefaultReadinessRetries = 5
+	DefaultReadinessDelay   = 5 * time.Second
+)
+
+// ShouldEvaluateReadiness reports whether the canary-job readiness check should run for this
+// target: always, unless EvaluateReadiness is explicitly false.
 func (c *ClusterTarget) ShouldEvaluateReadiness() bool {
 	if c.EvaluateReadiness != nil {
 		return *c.EvaluateReadiness
 	}
+	return true
+}
+
+// ShouldReadinessSelectTarget reports whether the readiness canary should also select on this
+// target's regatta-target node label, applying ReadinessSelectsTarget's Kind default when unset.
+func (c *ClusterTarget) ShouldReadinessSelectTarget() bool {
+	if c.ReadinessSelectsTarget != nil {
+		return *c.ReadinessSelectsTarget
+	}
 	return c.Kind
+}
+
+// EffectiveReadinessRetries returns ReadinessRetries, or DefaultReadinessRetries when unset.
+func (c *ClusterTarget) EffectiveReadinessRetries() int {
+	if c.ReadinessRetries > 0 {
+		return c.ReadinessRetries
+	}
+	return DefaultReadinessRetries
+}
+
+// EffectiveReadinessDelay returns the parsed ReadinessDelay, or DefaultReadinessDelay when unset.
+func (c *ClusterTarget) EffectiveReadinessDelay() time.Duration {
+	if c.ReadinessDelayDuration > 0 {
+		return c.ReadinessDelayDuration
+	}
+	return DefaultReadinessDelay
 }
 
 // Load describes the submission batch: which job-spec files to submit, how many of each, and
@@ -296,12 +355,15 @@ func LoadScenario(path string) (*Scenario, error) {
 		}
 		target.Cluster.Kubeconfig = resolveRelative(dir, target.Cluster.Kubeconfig)
 		target.Cluster.StagesPath = resolveRelative(dir, target.Cluster.StagesPath)
-		if target.Cluster.ProbeDelay != "" {
-			delay, err := time.ParseDuration(target.Cluster.ProbeDelay)
+		if target.Cluster.ReadinessDelay != "" {
+			delay, err := time.ParseDuration(target.Cluster.ReadinessDelay)
 			if err != nil {
-				return nil, fmt.Errorf("executionTargets[%d]: parsing cluster.probeDelay %q: %w", i, target.Cluster.ProbeDelay, err)
+				return nil, fmt.Errorf("executionTargets[%d]: parsing cluster.readinessDelay %q: %w", i, target.Cluster.ReadinessDelay, err)
 			}
-			target.Cluster.ProbeDelayDuration = delay
+			target.Cluster.ReadinessDelayDuration = delay
+		}
+		if !target.Cluster.ShouldEvaluateReadiness() && (target.Cluster.ReadinessRetries != 0 || target.Cluster.ReadinessDelay != "") {
+			log.Warnf("executionTargets[%d]: cluster.readinessRetries/readinessDelay are set but cluster.evaluateReadiness is false, so the readiness check will not run", i)
 		}
 		if target.Cluster.ReadyTimeout != "" {
 			timeout, err := time.ParseDuration(target.Cluster.ReadyTimeout)

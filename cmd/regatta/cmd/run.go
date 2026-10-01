@@ -6,10 +6,12 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
 	regattaconfig "github.com/armadaproject/armada/internal/regatta/config"
@@ -24,13 +26,34 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 }
 
+// loadArmadaConnection loads the scenario's armadactl config and returns the connection details
+// for the context to run against: the --context flag if contextFlagSet, else the scenario's
+// authContext if set, else the config file's own currentContext.
+func loadArmadaConnection(scenario *regattaconfig.Scenario, contextFlagSet bool) (*client.ApiConnectionDetails, error) {
+	if err := client.LoadCommandlineArgsFromConfigFile(scenario.Armadactl); err != nil {
+		return nil, fmt.Errorf("loading armadactl config: %w", err)
+	}
+	if scenario.AuthContext != "" && !contextFlagSet {
+		if err := client.SetDefaultContext(scenario.AuthContext); err != nil {
+			return nil, fmt.Errorf("scenario authContext %q: %w (available: %s)", scenario.AuthContext, err, strings.Join(client.ExtractConfigurationContexts(), ", "))
+		}
+	}
+	details, err := client.ExtractCommandlineArmadaApiConnectionDetails()
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve Armada API connection details: %w", err)
+	}
+	log.Infof("running against Armada at %s (armadactl context %q)", details.ArmadaUrl, viper.GetString("currentContext"))
+	return details, nil
+}
+
 var runCmd = &cobra.Command{
 	Use:   "run ./path/to/scenario.yaml",
 	Short: "Assemble a benchmarking environment (KWOK fake nodes) and run a submission against Armada",
 	Long: `Assemble a benchmarking environment and run a submission against Armada.
 
 A scenario file mostly points to other files - an .armadactl.yaml, kubeconfigs, node-profile
-YAML files, job-spec files - rather than embedding everything inline. executionTargets contains
+YAML files, job-spec files - rather than embedding everything inline. Its authContext field picks
+which context of that .armadactl.yaml to use (the --context flag overrides it). executionTargets contains
 any number of "cluster" targets. See cmd/regatta/config/two-cluster.example.yaml.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -40,13 +63,9 @@ any number of "cluster" targets. See cmd/regatta/config/two-cluster.example.yaml
 			os.Exit(1)
 		}
 
-		if err := client.LoadCommandlineArgsFromConfigFile(scenario.Armadactl); err != nil {
-			log.Errorf("loading armadactl config: %s", err)
-			os.Exit(1)
-		}
-		apiConnectionDetails, err := client.ExtractCommandlineArmadaApiConnectionDetails()
+		apiConnectionDetails, err := loadArmadaConnection(scenario, cmd.Flags().Changed("context"))
 		if err != nil {
-			log.Errorf("could not retrieve Armada API connection details: %s", err)
+			log.Errorf("%s", err)
 			os.Exit(1)
 		}
 
@@ -63,7 +82,8 @@ any number of "cluster" targets. See cmd/regatta/config/two-cluster.example.yaml
 		}()
 		defer cancel()
 
-		if _, err := orchestrate.Setup(ctx, scenario, apiConnectionDetails); err != nil {
+		_, readinessFailures, err := orchestrate.Setup(ctx, scenario, apiConnectionDetails)
+		if err != nil {
 			log.Errorf("setup failed: %s", err)
 			os.Exit(1)
 		}
@@ -95,6 +115,7 @@ any number of "cluster" targets. See cmd/regatta/config/two-cluster.example.yaml
 			log.Errorf("collecting metrics report: %s", err)
 		} else {
 			report.Scenario = scenario
+			report.ReadinessFailures = readinessFailures
 			outputFilename := fmt.Sprintf("regatta-result-%s.json", runTimestamp)
 			outputPath := filepath.Join(resultsPath, outputFilename)
 			if err := report.WriteJSON(outputPath); err != nil {
@@ -104,6 +125,9 @@ any number of "cluster" targets. See cmd/regatta/config/two-cluster.example.yaml
 			}
 		}
 
+		for _, failure := range readinessFailures {
+			log.Warnf("target %q never passed its readiness check and the run continued anyway (cluster.continueOnReadinessFailure), so these results may include scheduler warm-up or faults: %s", failure.Target, failure.Error)
+		}
 		log.Info("run complete - nothing was torn down: tear down cluster targets with `regatta teardown`")
 	},
 }

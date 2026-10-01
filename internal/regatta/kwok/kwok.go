@@ -24,12 +24,27 @@ type Config struct {
 	InternalAPIServerAddress string
 	NodeGroup                []config.ResolvedNodeGroupMember
 	ApiConnectionDetails     *client.ApiConnectionDetails
-	SchedulableProbe         ProbeConfig
+	Readiness                ReadinessConfig
 	EvaluateReadiness        bool
 	NodeConcurrency          int
 	ReadyTimeout             time.Duration
 	StagesYAML               []byte
 }
+
+// ReadinessError is what Setup returns when everything was created but the readiness check never
+// saw the scheduler place a canary on the fake nodes. It is distinct from every other Setup error
+// because the nodes exist by then: a caller that chooses to carry on anyway (see
+// config.ClusterTarget.ContinueOnReadinessFailure) can, whereas any other failure leaves nothing
+// usable.
+type ReadinessError struct {
+	Err error
+}
+
+func (e *ReadinessError) Error() string {
+	return fmt.Sprintf("waiting for fake nodes to become schedulable: %s", e.Err)
+}
+
+func (e *ReadinessError) Unwrap() error { return e.Err }
 
 // Setup applies the Stage CRD, Stage objects, starts the kwok-controller, creates the fake
 // nodes, and waits for them to report Ready and become schedulable.
@@ -57,8 +72,8 @@ func Setup(ctx context.Context, kubeClient kubernetes.Interface, cfg Config) err
 		return fmt.Errorf("waiting for fake nodes: %w", err)
 	}
 	if cfg.EvaluateReadiness {
-		if err := WaitUntilSchedulable(ctx, kubeClient, cfg.ApiConnectionDetails, cfg.SchedulableProbe, cfg.Name); err != nil {
-			return fmt.Errorf("waiting for fake nodes to become schedulable: %w", err)
+		if err := WaitUntilSchedulable(ctx, cfg.ApiConnectionDetails, cfg.Readiness, cfg.Name); err != nil {
+			return &ReadinessError{Err: err}
 		}
 	}
 	return nil

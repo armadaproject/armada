@@ -33,11 +33,25 @@ type Report struct {
 	// an import cycle: regatta/config already imports regatta/metrics for DefaultSettleDelay.
 	Scenario any `json:"scenario,omitempty"`
 
+	// ReadinessFailures lists every target whose readiness check gave up but whose run carried on
+	// regardless (cluster.continueOnReadinessFailure). Empty means every target passed its check,
+	// or had it switched off. A report with entries here comes from an environment the scheduler
+	// never confirmed it could place jobs on, so its numbers may include that warm-up or worse.
+	ReadinessFailures []ReadinessFailure `json:"readinessFailures,omitempty"`
+
 	EndToEndLatency   LatencyTier        `json:"endToEndLatency"`
 	Scheduler         SchedulerTier      `json:"scheduler"`
 	QueueDepth        QueueDepthTier     `json:"queueDepth"`
 	APISurface        APISurfaceTier     `json:"apiSurface"`
 	ExecutorAndPulsar ExecutorPulsarTier `json:"executorAndPulsar"`
+}
+
+// ReadinessFailure records one target's failed readiness check that the run continued past.
+type ReadinessFailure struct {
+	Target string `json:"target"`
+	// Error is the readiness check's own message, including the last canary event seen and the
+	// scheduler's job report when it had one.
+	Error string `json:"error"`
 }
 
 type LatencyTier struct {

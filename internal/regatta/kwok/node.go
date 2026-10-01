@@ -18,11 +18,11 @@ const (
 	NodeAnnotation   = "kwok.x-k8s.io/node"
 	NodeAnnotationOK = "fake"
 
-	// TargetLabel identifies which execution target created a fake node. The schedulability
-	// probe overlays this onto its canary job's node selector so a probe submitted for one
-	// target can't false-positive by landing on a different target's fake nodes - Armada's
-	// scheduler has no cluster-affinity concept, so without this a canary can land on any
-	// target's nodes that satisfy the generic fake-node taint/selector. Real, user-authored
+	// TargetLabel identifies which execution target created a fake node. The readiness check
+	// overlays this onto its canary job's node selector (when the target's readinessSelectsTarget
+	// is set) so a canary submitted for one target can't false-positive by landing on a different
+	// target's fake nodes - Armada's scheduler has no cluster-affinity concept, so without this a
+	// canary can land on any target's nodes that satisfy the generic fake-node taint/selector. Real, user-authored
 	// load.jobs[] specs never carry this label and remain free to schedule on any target's nodes.
 	TargetLabel = "armadaproject.io/regatta-target"
 )
@@ -30,7 +30,7 @@ const (
 // BuildFakeNode constructs a single fake v1.Node shaped by profile, with name/hostname
 // parameterized by index so multiple profiles/counts can coexist on one cluster. The
 // KWOK fake-node taint/annotation is always added, on top of whatever the profile itself
-// specifies, since KWOK's controller and the schedulability probe both key off of it.
+// specifies, since KWOK's controller and the readiness check both key off of it.
 func BuildFakeNode(profile *regattaconfig.NodeProfile, index int, targetName string) *v1.Node {
 	name := fmt.Sprintf("kwok-node-%s-%d", profile.Name, index)
 

@@ -6,6 +6,8 @@ Once drained, it waits a further `metrics.postRunDelay` (`30s` in the checked-in
 
 The report's `start`/`end` window spans from just before the real jobs were submitted to the moment the queue was actually observed drained (or the drain-poll timeout, if it never drained) — not just how long the submission API call itself took — so the range/rate queries above cover the jobs' actual queued/running lifetime.
 
+If a target's readiness check failed and the run continued anyway (`cluster.continueOnReadinessFailure`, see `scenario-files.md`), the report lists it under `readinessFailures` as `{target, error}` entries, where `error` is the check's own message. The field is absent when every check passed or was switched off. Treat the numbers from such a run as coming from an environment the scheduler never confirmed it could place jobs on.
+
 The report also embeds the fully-resolved scenario config under its `scenario` field (absolute paths, defaults applied — what actually ran, not just what the file said), so a results file is self-describing without needing to keep the original scenario file around.
 
 This is a single post-run snapshot, not a live/continuous feed: regatta still never polls individual job state while a run is in progress. The drain poll itself has a generous internal safety-net timeout (10 minutes) in case the signal never arrives (e.g. Prometheus isn't scraping the relevant target), so a stuck/absent signal doesn't hang the run forever.

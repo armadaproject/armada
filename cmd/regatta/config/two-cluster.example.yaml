@@ -13,8 +13,8 @@ executionTargets:
       kubeconfig: ../../../.kube/external/multicluster/cluster-1
       name: armada-cluster-1
       kind: true
-      probeRetries: 5
-      probeDelay: 5s
+      readinessRetries: 5
+      readinessDelay: 5s
 
   - name: cpu-cluster
     type: cluster
@@ -23,8 +23,8 @@ executionTargets:
       kubeconfig: ../../../.kube/external/multicluster/cluster-2
       name: armada-cluster-2
       kind: true
-      probeRetries: 5
-      probeDelay: 5s
+      readinessRetries: 5
+      readinessDelay: 5s
 
 nodeGroups:
   gb200:
