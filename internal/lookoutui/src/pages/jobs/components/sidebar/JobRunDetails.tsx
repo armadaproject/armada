@@ -30,6 +30,7 @@ import { useGetJobRunDebugMessage } from "../../../../services/lookout/useGetJob
 import { useGetJobRunError } from "../../../../services/lookout/useGetJobRunError"
 import { useGetJobRunSchedulerTerminationReason } from "../../../../services/lookout/useGetJobRunSchedulerTerminationReason"
 
+import { DebugInfo } from "./DebugInfo"
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import { SidebarTabSubheading } from "./sidebarTabContentComponents"
 
@@ -182,13 +183,6 @@ export const JobRunDetails = ({
 
   // Ignore any errors from this call - the API returns an error if there is no debug message, which is happy-path
   const { data: debugMessage, status: debugMessageStatus } = useGetJobRunDebugMessage(runId)
-  const formattedDebugMessage = useMemo(() => {
-    try {
-      return { code: JSON.stringify(JSON.parse(debugMessage ?? ""), undefined, 2), language: "json" as const }
-    } catch {
-      return { code: debugMessage ?? "", language: "text" as const }
-    }
-  }, [debugMessage])
 
   // Ignore any errors from this call - the API returns an error if there is no scheduler termination reason, which is happy-path
   const { data: schedulerTerminationReason, status: schedulerTerminationReasonStatus } =
@@ -334,13 +328,7 @@ export const JobRunDetails = ({
             <Accordion variant="elevation" square>
               <AccordionSummary>Debug</AccordionSummary>
               <AccordionDetails>
-                <CodeBlock
-                  code={formattedDebugMessage.code}
-                  language={formattedDebugMessage.language}
-                  downloadable={false}
-                  showLineNumbers={false}
-                  loading={false}
-                />
+                <DebugInfo message={debugMessage} />
               </AccordionDetails>
             </Accordion>
           )}

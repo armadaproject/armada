@@ -42,7 +42,26 @@ describe("Sidebar", () => {
       ],
     )
     mockServer.setPostJobRunErrorResponseForRunId("1234-5678", "job run error")
-    mockServer.setPostJobRunDebugMessageResponseForRunId("1234-5678", "job run debug message")
+    mockServer.setPostJobRunDebugMessageResponseForRunId(
+      "1234-5678",
+      JSON.stringify({
+        schemaVersion: 1,
+        trigger: "podFailed",
+        pod: {
+          phase: "Failed",
+          restartPolicy: "Never",
+          containers: [
+            {
+              name: "main",
+              state: "terminated",
+              exitCode: 137,
+              reason: "OOMKilled",
+              runSeconds: 120,
+            },
+          ],
+        },
+      }),
+    )
     mockServer.setPostJobSpecResponse({
       // eslint-disable-next-line @cspell/spellchecker
       clientId: "01gvgjbr0jrzvschp2f8jhk6n5",
@@ -144,27 +163,33 @@ describe("Sidebar", () => {
     within(getByRole("row", { name: /Exit code/ })).getByText(137)
   })
 
-  it("should display debug JSON with indentation", async () => {
-    mockServer.setPostJobRunDebugMessageResponseForRunId(
-      "1234-5678",
-      '{"schemaVersion":1,"trigger":"podFailed","pod":{"phase":"Failed"}}',
-    )
-    const { getByRole, findByText } = renderComponent()
+  it("should display structured debug data in tables", async () => {
+    const { getByRole, findByRole, findByText } = renderComponent()
 
     await userEvent.click(getByRole("tab", { name: /Result/ }))
+    await userEvent.click(await findByRole("button", { name: "Debug" }))
 
-    const formattedSchemaVersion = await findByText(
-      (_, element) => element?.tagName === "DIV" && element.textContent === '  "schemaVersion": 1,',
-    )
-    expect(formattedSchemaVersion).toBeInTheDocument()
+    within(await findByRole("row", { name: /Trigger/ })).getByText("podFailed")
+    await userEvent.click(getByRole("button", { name: "Pod" }))
+    within(await findByRole("row", { name: /Phase/ })).getByText("Failed")
+    await userEvent.click(getByRole("button", { name: "Container: main" }))
+    within(await findByRole("row", { name: /Name/ })).getByText("main")
+    within(await findByRole("row", { name: /Exit code/ })).getByText("137")
+
+    await userEvent.click(getByRole("button", { name: "JSON" }))
+    expect(
+      await findByText((_, element) => element?.tagName === "DIV" && element.textContent === '  "schemaVersion": 1,'),
+    ).toBeInTheDocument()
   })
 
-  it("should display plain-text debug messages unchanged", async () => {
-    const { getByRole, findByText } = renderComponent()
+  it("should display unstructured debug data as text", async () => {
+    mockServer.setPostJobRunDebugMessageResponseForRunId("1234-5678", "legacy debug message")
+    const { getByRole, findByRole, findByText } = renderComponent()
 
     await userEvent.click(getByRole("tab", { name: /Result/ }))
+    await userEvent.click(await findByRole("button", { name: "Debug" }))
 
-    expect(await findByText("job run debug message")).toBeInTheDocument()
+    expect(await findByText("legacy debug message")).toBeInTheDocument()
   })
 
   it("should handle no runs", async () => {
