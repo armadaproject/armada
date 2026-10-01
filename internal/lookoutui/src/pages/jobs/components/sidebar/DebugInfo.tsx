@@ -132,7 +132,7 @@ const isNodeInfo = (value: unknown): value is NodeInfo =>
 const parseDebugInfo = (payload: unknown): DebugInfoPayload | undefined => {
   if (
     !isRecord(payload) ||
-    typeof payload.schemaVersion !== "number" ||
+    payload.schemaVersion !== 1 ||
     typeof payload.trigger !== "string" ||
     !isPodInfo(payload.pod) ||
     (payload.node !== undefined && !isNodeInfo(payload.node))
