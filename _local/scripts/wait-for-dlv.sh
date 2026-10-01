@@ -18,7 +18,7 @@ case "$MODE" in
   standard)      MODE_SERVICE=2349:executor ;;
   fake-executor) MODE_SERVICE=2353:fakeexecutor ;;
   hot-cold)      MODE_SERVICE=2349:executor ;;
-  two-cluster)   MODE_SERVICE=2349:executor ;;
+  two-cluster)   MODE_SERVICE=2349:executor-1 ;;
   *)
     echo "Unknown mode: $MODE (expected standard, fake-executor, hot-cold or two-cluster)"
     exit 1
@@ -32,7 +32,7 @@ case "$MODE" in
     ENTRIES+=("2354:lookouthc" "2355:lookouthcingester")
     ;;
   two-cluster)
-    ENTRIES+=("2356:executor2")
+    ENTRIES+=("2356:executor-2")
     ;;
 esac
 

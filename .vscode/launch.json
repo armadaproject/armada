@@ -85,7 +85,7 @@
       "outputMode": "remote",
       "port": 2349,
       "host": "127.0.0.1",
-      "program": "${workspaceFolder}/dist/armada-executor",
+      "program": "${workspaceFolder}/dist/armada-executor-1",
       "args": [
         "--config",
         "${workspaceFolder}/_local/executor/config-cluster-1.yaml"
@@ -101,7 +101,7 @@
       "outputMode": "remote",
       "port": 2356,
       "host": "127.0.0.1",
-      "program": "${workspaceFolder}/dist/armada-executor2",
+      "program": "${workspaceFolder}/dist/armada-executor-2",
       "args": [
         "--config",
         "${workspaceFolder}/_local/executor/config-cluster-2.yaml"
