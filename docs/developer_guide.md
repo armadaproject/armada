@@ -191,6 +191,28 @@ export ARMADA_EXECUTOR_INGRESS_PORT=5001
 go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
 ```
 
+### Overriding component config in a test case
+
+A test case can override the config of Armada components. Use this to test a feature flag, for example. The keys under `config` are component names, and each value has the shape of the config file of the component:
+
+```yaml
+config:
+  executor:
+    kubernetes:
+      runScopedPodNames: true
+```
+
+The overrides merge over the config of the component. Maps merge key by key, and a list in the overrides replaces the whole list. An `ARMADA_*` environment variable of the component still wins over the overrides. The local stack uses fixed ports, so the hook refuses an override of a port.
+
+A config change applies to the whole stack, so the testsuite groups the test cases by their overrides:
+
+1. The testsuite removes overrides that an interrupted run left behind.
+2. The test cases without overrides run, all at the same time.
+3. The testsuite applies the overrides of each group, and runs the test cases of the group at the same time.
+4. At the end, the testsuite removes the overrides, also after Ctrl-C.
+
+The testsuite applies the overrides through the executable that `--configHook` names. `mage testsuite` uses `_local/scripts/apply-test-config.sh`, which recreates only the changed components of the `mage dev:full` stack. The script waits until the recreated components are healthy. It fails when a component does not use a key of its overrides, so the script reports a typo in a key. After a failure, the next call recreates all components. Without `--configHook`, the testsuite skips test cases with overrides and reports them as skipped.
+
 ### Running the UI
 
 In the goreman flow (`dev:up`), the `lookoutui` process runs the Vite dev server with hot reload on http://localhost:3000. In the containerized flow (`mage dev:full`), the UI is built with `mage ui` and served by lookout on http://localhost:8089.
