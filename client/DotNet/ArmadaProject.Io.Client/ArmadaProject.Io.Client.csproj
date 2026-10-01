@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <PackageId>ArmadaProject.Io.Client</PackageId>
     <Version>0.0.1</Version>
     <Authors>G-Research</Authors>
@@ -14,34 +14,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Google.Protobuf" Version="3.21.1" />
-    <PackageReference Include="Grpc.Tools" Version="2.47.0" />
-    <PackageReference Include="Grpc.Net.Client" Version="2.52.0" />
+    <PackageReference Include="Google.Protobuf" Version="3.36.2" />
+    <PackageReference Include="Grpc.Tools" Version="2.84.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Grpc.Net.Client" Version="2.84.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf
-      Include="
-        ../../../proto/k8s.io/apimachinery/pkg/api/resource/generated.proto;
-        ../../../proto/k8s.io/apimachinery/pkg/apis/meta/v1/generated.proto;
-        ../../../proto/k8s.io/apimachinery/pkg/runtime/generated.proto;
-        ../../../proto/k8s.io/apimachinery/pkg/runtime/schema/generated.proto;
-        ../../../proto/k8s.io/apimachinery/pkg/util/intstr/generated.proto;
-        ../../../proto/k8s.io/api/networking/v1/generated.proto;
-        ../../../proto/k8s.io/api/core/v1/generated.proto;
-        ../../../proto/github.com/gogo/protobuf/gogoproto/gogo.proto;
-        ../../../proto/google/api/*.proto
-      "
-      ProtoRoot="../../../proto/"
-      GrpcServices="None"
-    />
-    <Protobuf
-      Include="../../../pkg/api/*.proto"
-      Exclude="../../../pkg/api/job.proto"
-      AdditionalProtocArguments="--proto_path=../../../proto"
-      ProtoRoot="../../../"
-      GrpcServices="Client"
-    />
+    <Protobuf Include="&#xA;        ../../../proto/k8s.io/apimachinery/pkg/api/resource/generated.proto;&#xA;        ../../../proto/k8s.io/apimachinery/pkg/apis/meta/v1/generated.proto;&#xA;        ../../../proto/k8s.io/apimachinery/pkg/runtime/generated.proto;&#xA;        ../../../proto/k8s.io/apimachinery/pkg/runtime/schema/generated.proto;&#xA;        ../../../proto/k8s.io/apimachinery/pkg/util/intstr/generated.proto;&#xA;        ../../../proto/k8s.io/api/networking/v1/generated.proto;&#xA;        ../../../proto/k8s.io/api/core/v1/generated.proto;&#xA;        ../../../proto/github.com/gogo/protobuf/gogoproto/gogo.proto;&#xA;        ../../../proto/google/api/*.proto&#xA;      " ProtoRoot="../../../proto/" GrpcServices="None" />
+    <Protobuf Include="../../../pkg/api/*.proto" Exclude="../../../pkg/api/job.proto" AdditionalProtocArguments="--proto_path=../../../proto" ProtoRoot="../../../" GrpcServices="Client" />
   </ItemGroup>
 
 </Project>

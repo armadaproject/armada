@@ -390,31 +390,17 @@ func WithMaxQueueLookbackConfig(maxQueueLookback uint, config schedulerconfigura
 }
 
 func WithUsedResourcesNodes(p int32, rl internaltypes.ResourceList, nodes []*internaltypes.Node) []*internaltypes.Node {
-	for _, node := range nodes {
-		internaltypes.MarkAllocated(node.AllocatableByPriority, p, rl)
+	result := make([]*internaltypes.Node, len(nodes))
+	for i, node := range nodes {
+		result[i] = node.WithResourcesUsedAtPriority(p, rl)
 	}
-	return nodes
+	return result
 }
 
 func WithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltypes.Node) []*internaltypes.Node {
 	result := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
-		result[i] = internaltypes.CreateNode(node.GetId(),
-			nodeType,
-			node.GetIndex(),
-			node.GetExecutor(),
-			node.GetName(),
-			node.GetPool(),
-			node.GetReportingNodeType(),
-			node.GetTaints(),
-			node.GetLabels(),
-			false,
-			node.GetTotalResources(),
-			node.GetAllocatableResources(),
-			node.AllocatableByPriority,
-			node.AllocatedByJobId,
-			node.EvictedJobRunIds,
-			nil)
+		result[i] = node.WithNodeType(nodeType)
 	}
 	return result
 }
@@ -422,45 +408,13 @@ func WithNodeTypeNodes(nodeType *internaltypes.NodeType, nodes []*internaltypes.
 func WithIdNodes(nodeId string, nodes []*internaltypes.Node) []*internaltypes.Node {
 	result := make([]*internaltypes.Node, len(nodes))
 	for i, node := range nodes {
-		result[i] = internaltypes.CreateNode(nodeId,
-			node.GetNodeType(),
-			node.GetIndex(),
-			node.GetExecutor(),
-			node.GetName(),
-			node.GetPool(),
-			node.GetReportingNodeType(),
-			node.GetTaints(),
-			node.GetLabels(),
-			false,
-			node.GetTotalResources(),
-			node.GetAllocatableResources(),
-			node.AllocatableByPriority,
-			node.AllocatedByJobId,
-			node.EvictedJobRunIds,
-			nil,
-		)
+		result[i] = node.WithId(nodeId)
 	}
 	return result
 }
 
 func WithIndexNode(idx uint64, node *internaltypes.Node) *internaltypes.Node {
-	return internaltypes.CreateNode(node.GetId(),
-		node.GetNodeType(),
-		idx,
-		node.GetExecutor(),
-		node.GetName(),
-		node.GetPool(),
-		node.GetReportingNodeType(),
-		node.GetTaints(),
-		node.GetLabels(),
-		false,
-		node.GetTotalResources(),
-		node.GetAllocatableResources(),
-		node.AllocatableByPriority,
-		node.AllocatedByJobId,
-		node.EvictedJobRunIds,
-		nil,
-	)
+	return node.WithIndex(idx)
 }
 
 func WithPriorityJobs(priority uint32, jobs []*jobdb.Job) []*jobdb.Job {
@@ -979,7 +933,6 @@ func TestSchedulerObjectsNode(_ []int32, resources map[string]*resource.Quantity
 func TestSimpleNode(id string) *internaltypes.Node {
 	return internaltypes.CreateNode(
 		id,
-		nil,
 		0,
 		"",
 		"",
@@ -987,11 +940,11 @@ func TestSimpleNode(id string) *internaltypes.Node {
 		"",
 		nil,
 		nil,
+		nil,
+		nil,
 		false,
 		internaltypes.ResourceList{},
 		internaltypes.ResourceList{},
-		nil,
-		nil,
 		nil,
 		nil)
 }
@@ -1011,8 +964,7 @@ func TestNode(priorities []int32, resources map[string]*resource.Quantity) *inte
 			schedulerconfiguration.NodeIdLabel: id,
 		},
 		rl,
-		rl,
-		internaltypes.NewAllocatableByPriorityAndResourceType(priorities, rl))
+		rl)
 }
 
 func Test16CpuNode(priorities []int32) *internaltypes.Node {

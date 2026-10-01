@@ -119,7 +119,7 @@ rules:
 ```
 
 * `affinity.avoidSameNode`: when `true`, the retry avoids every node a previous run attempted. This matches the lease-return retry behaviour: the job fails if the anti-affinity makes it unschedulable. The check costs a per-job scheduling probe. The probe checks static fit only: can any node in the fleet ever fit the job, ignoring current occupancy and fair share. It is the same check Armada runs at submission, so only a job that could never schedule fails here. Leave it off (the default) for categories where the node is not the cause, for example a plain application error. Turn it on for node-specific failures.
-* `avoidSameNode` needs two node-label config entries. The scheduler expresses the avoidance through its `nodeIdLabel`, so that label must be in the executor's `trackedNodeLabels`. An untracked label is invisible to the scheduler, the avoidance matches every node without effect, and the scheduler warns once per executor about it. The scheduler also requires the label in `scheduling.indexedNodeLabels` when the retry engine is enabled, and fails config validation at startup without it. The index keeps node matching fast when many retried jobs carry the anti-affinity.
+* `avoidSameNode` needs one node-label config entry. The scheduler expresses the avoidance through its `nodeIdLabel`, so that label must be in the executor's `trackedNodeLabels`. An untracked label is invisible to the scheduler, the avoidance matches every node without effect, and the scheduler warns once per executor about it.
 * `resources.memory`: grows the job's memory on retry. Set exactly one of `factor` (multiply, must exceed 1.0) or `static` (add a fixed quantity, for example `"512Mi"`). Requests and limits grow together, and the retried pod runs with the grown memory. The bump compounds across retries. If the grown job fits no node, it fails terminally. A job accumulates one bump kind: when a later retry matches a rule with the other kind, the scheduler skips that bump.
 
 Mutations apply on the failed-run retry path only. A lease-expiry retry (a lost executor) requeues the job unchanged: the lost node is not a node to avoid, and growing the job does not cure a lost executor.
@@ -191,7 +191,7 @@ Delete a policy:
 armadactl delete retry-policy ml-training-retries
 ```
 
-Deletion is rejected while any queue still references the policy. Detach it from all queues first, then delete it.
+Deletion always succeeds. The server detaches the policy from every queue that references it and logs those queues. Those queues lose the policy within about one `queueRefreshPeriod`. The scheduler's queue cache and policy cache refresh on their own schedules, so a queue can pass through the legacy behaviour for one refresh before `defaultPolicyName` applies, if one is configured. When a queue must keep its retries, attach a replacement policy to it, wait one `queueRefreshPeriod` so both caches hold the new attachment, and then delete the old one.
 
 Managing policies requires the `create_retry_policy`, `update_retry_policy`, and `delete_retry_policy` permissions. Grant them through the server's permission group mapping; without them the corresponding CRUD calls return `PermissionDenied`.
 

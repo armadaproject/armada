@@ -61,7 +61,7 @@ For more information about Armada's design, see the following pages:
 
 Before you can start using Armada, you first need to install the following items:
 
-- [`Go`](https://go.dev/doc/install) (version 1.26 or later)
+- [`Go`](https://go.dev/doc/install) (version 1.27 or later)
 - `gcc` (for Windows, [see `tdm-gcc`](https://jmeubank.github.io/tdm-gcc/))
 - [`mage`](https://magefile.org/) (version 1.16 or later) - optional, every target also runs as `go run github.com/magefile/mage@v1.17.2 <target>`, which is how CI invokes mage
 - [`docker`](https://docs.docker.com/get-docker/)

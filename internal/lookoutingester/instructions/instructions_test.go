@@ -115,8 +115,9 @@ var expectedJobCancelled = model.UpdateJobInstruction{
 }
 
 var expectedJobReprioritised = model.UpdateJobInstruction{
-	JobId:    testfixtures.JobId,
-	Priority: pointer.Int64(testfixtures.NewPriority),
+	JobId:            testfixtures.JobId,
+	Priority:         pointer.Int64(testfixtures.NewPriority),
+	ReprioritizeUser: pointer.String(testfixtures.UserId),
 }
 
 var expectedFailed = model.UpdateJobInstruction{
@@ -153,6 +154,7 @@ var expectedPreempted = model.UpdateJobInstruction{
 	State:                     pointer.Int32(lookout.JobPreemptedOrdinal),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+	PreemptUser:               pointer.String(testfixtures.UserId),
 }
 
 var expectedFailedRunWithCategory = model.UpdateJobRunInstruction{
@@ -282,6 +284,9 @@ func TestConvert(t *testing.T) {
 	cancelledWithReason, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
 	assert.NoError(t, err)
 	cancelledWithReason.GetCancelledJob().Reason = testfixtures.CancelReason
+	cancelledWithoutLegacyActorField, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
+	assert.NoError(t, err)
+	cancelledWithoutLegacyActorField.GetCancelledJob().Requestor = ""
 
 	tests := map[string]struct {
 		events   *utils.EventsWithIds[*armadaevents.EventSequence]
@@ -371,6 +376,27 @@ func TestConvert(t *testing.T) {
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
+		"job cancelled without cancel user keeps actor empty": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events: []*armadaevents.EventSequence{{
+					Queue:      testfixtures.Queue,
+					JobSetName: testfixtures.JobsetName,
+					Events:     []*armadaevents.EventSequence_Event{cancelledWithoutLegacyActorField},
+					Groups:     testfixtures.Groups,
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:                     testfixtures.JobId,
+					State:                     pointer.Int32(lookout.JobCancelledOrdinal),
+					Cancelled:                 &testfixtures.BaseTime,
+					LastTransitionTime:        &testfixtures.BaseTime,
+					LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
 		"job cancelled with reason": {
 			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
 				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(cancelledWithReason)},
@@ -427,6 +453,35 @@ func TestConvert(t *testing.T) {
 			expected: &model.InstructionSet{
 				JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"reprioritized without sequence user keeps actor from event requestor": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				// Scheduler-generated sequences carry no UserId; the actor is only in the event requestor.
+				Events: []*armadaevents.EventSequence{{
+					Queue:      testfixtures.Queue,
+					JobSetName: testfixtures.JobsetName,
+					Events:     []*armadaevents.EventSequence_Event{testfixtures.JobReprioritised},
+					Groups:     testfixtures.Groups,
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
+				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job preemption requested": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobPreemptionRequested)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:       testfixtures.JobId,
+					PreemptUser: pointer.String(testfixtures.UserId),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"job run failed": {
@@ -506,6 +561,10 @@ func TestConvert(t *testing.T) {
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:       testfixtures.JobId,
+					PreemptUser: pointer.String(testfixtures.UserId),
+				}},
 				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPreemptedRun},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
@@ -548,6 +607,10 @@ func TestConvert(t *testing.T) {
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:       testfixtures.JobId,
+					PreemptUser: pointer.String(testfixtures.UserId),
+				}},
 				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFairSharePreemptedRun},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
@@ -889,6 +952,85 @@ func TestBuildTerminationReason_WireFormat(t *testing.T) {
 			b, err := json.Marshal(result)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedJSON, string(b))
+		})
+	}
+}
+
+func TestGetJobResources(t *testing.T) {
+	requests := func(cpu, memory string) v1.ResourceRequirements {
+		return v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				v1.ResourceCPU:    resource.MustParse(cpu),
+				v1.ResourceMemory: resource.MustParse(memory),
+			},
+		}
+	}
+	alwaysRestart := v1.ContainerRestartPolicyAlways
+
+	tests := map[string]struct {
+		podSpec  *v1.PodSpec
+		expected jobResources
+	}{
+		"main containers are summed": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{Name: "a", Resources: requests("1", "1Gi")},
+					{Name: "b", Resources: requests("2", "2Gi")},
+				},
+			},
+			expected: jobResources{Cpu: 3000, Memory: 3 * 1024 * 1024 * 1024},
+		},
+		"native sidecar is summed with main containers": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main", Resources: requests("15", "1Gi")}},
+				InitContainers: []v1.Container{{
+					Name:          "solver",
+					RestartPolicy: &alwaysRestart,
+					Resources:     requests("14900m", "1Gi"),
+				}},
+			},
+			expected: jobResources{Cpu: 29900, Memory: 2 * 1024 * 1024 * 1024},
+		},
+		"classic init container uses max, not sum": {
+			podSpec: &v1.PodSpec{
+				Containers:     []v1.Container{{Name: "main", Resources: requests("1", "1Gi")}},
+				InitContainers: []v1.Container{{Name: "setup", Resources: requests("4", "4Gi")}},
+			},
+			expected: jobResources{Cpu: 4000, Memory: 4 * 1024 * 1024 * 1024},
+		},
+		"pod-level block above the container sum wins": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main", Resources: requests("500m", "256Mi")}},
+				Resources:  &v1.ResourceRequirements{Requests: requests("2", "2Gi").Requests},
+			},
+			expected: jobResources{Cpu: 2000, Memory: 2 * 1024 * 1024 * 1024},
+		},
+		"pod-level block below the container sum is ignored": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main", Resources: requests("2", "2Gi")}},
+				Resources:  &v1.ResourceRequirements{Requests: requests("500m", "256Mi").Requests},
+			},
+			expected: jobResources{Cpu: 2000, Memory: 2 * 1024 * 1024 * 1024},
+		},
+		"ephemeral storage and gpu are container-only": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main", Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						v1.ResourceEphemeralStorage: resource.MustParse("3Gi"),
+						"nvidia.com/gpu":            resource.MustParse("8"),
+					},
+				}}},
+			},
+			expected: jobResources{EphemeralStorage: 3 * 1024 * 1024 * 1024, Gpu: 8},
+		},
+		"no resources declared": {
+			podSpec:  &v1.PodSpec{Containers: []v1.Container{{Name: "main"}}},
+			expected: jobResources{},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, getJobResources(&api.Job{PodSpec: tc.podSpec}))
 		})
 	}
 }

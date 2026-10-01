@@ -46,7 +46,7 @@ func (c *CachedQueueRepository) Run(ctx *armadacontext.Context) error {
 }
 
 func (c *CachedQueueRepository) GetQueue(_ *armadacontext.Context, name string) (queue.Queue, error) {
-	queues := *(c.queues.Load())
+	queues := *c.queues.Load()
 	if queues == nil {
 		return queue.Queue{}, &ErrQueueNotFound{QueueName: name}
 	}

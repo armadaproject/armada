@@ -215,7 +215,7 @@ func allocatedByPriorityAndResourceTypeFromPods(pods []*v1.Pod) (map[int32]armad
 	for _, pod := range pods {
 		var priority int32 = 0
 		if pod.Spec.Priority != nil {
-			priority = *(pod.Spec.Priority)
+			priority = *pod.Spec.Priority
 		}
 		request := armadaresource.TotalPodResourceRequest(&pod.Spec)
 		// Always reported so the scheduler can track non-Armada pods against per-node pod capacity
@@ -280,10 +280,7 @@ func getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) armadaresource.Comput
 	podsOnNodes := util.GetPodsOnNodes(pods, cordonedNodes)
 	usage := armadaresource.ComputeResources{}
 	for _, pod := range podsOnNodes {
-		for _, container := range pod.Spec.Containers {
-			containerResource := armadaresource.FromResourceList(container.Resources.Limits) // Not 100% on whether this should be Requests or Limits
-			usage.Add(containerResource)
-		}
+		usage.Add(armadaresource.TotalPodResourceRequest(&pod.Spec))
 	}
 	return usage
 }

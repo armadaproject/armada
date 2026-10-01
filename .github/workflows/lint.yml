@@ -61,7 +61,7 @@ jobs:
       - name: Lint using golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v2.9.0
+          version: v2.13.2
           # Do not enable only-new-issues
           # While it provides a small performance improvement on PRs,
           # it can mean releases which do a full lint fail resulting in a failed release.

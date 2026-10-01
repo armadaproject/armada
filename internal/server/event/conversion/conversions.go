@@ -253,6 +253,9 @@ func FromInternalJobSucceeded(queueName string, jobSetName string, time time.Tim
 func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunErrors) ([]*api.EventMessage, error) {
 	events := make([]*api.EventMessage, 0)
 	for _, msgErr := range e.GetErrors() {
+		if msgErr == nil {
+			continue
+		}
 		switch reason := msgErr.Reason.(type) {
 		case *armadaevents.Error_LeaseExpired:
 			event := &api.EventMessage{

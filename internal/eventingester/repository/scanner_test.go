@@ -118,6 +118,31 @@ func TestScanAll_ContextCancelled(t *testing.T) {
 	})
 }
 
+func TestScanAll_VanishedKeySkipped(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+	defer cancel()
+	withRedisClient(ctx, func(client redis.UniversalClient) {
+		vanishedKey := seedRedisStream(t, client, ctx, "queue-a", "jobset-a", 10)
+		survivingKey := seedRedisStream(t, client, ctx, "queue-b", "jobset-b", 10)
+
+		// Delete one key after it would have been returned by SCAN
+		require.NoError(t, client.Del(ctx, vanishedKey).Err())
+
+		config := configuration.RedisMemoryMetricsConfig{
+			ScanBatchSize:     10,
+			PipelineBatchSize: 5,
+			InterBatchDelay:   0,
+		}
+
+		scanner := NewScanner(client, config)
+		results, err := scanner.executePipelineBatch(ctx, []string{vanishedKey, survivingKey})
+
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, survivingKey, results[0].Key)
+	})
+}
+
 func withRedisClient(ctx *armadacontext.Context, action func(client redis.UniversalClient)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 8})
 	defer client.FlushDB(ctx)
