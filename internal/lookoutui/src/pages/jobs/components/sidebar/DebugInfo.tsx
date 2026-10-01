@@ -68,6 +68,86 @@ const toRows = (values: Record<string, string | number | boolean | undefined>) =
     .filter(([, value]) => value !== undefined && value !== "")
     .map(([key, value]) => ({ key, value: value!.toString() }))
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value)
+
+const isOptionalString = (value: unknown) => value === undefined || typeof value === "string"
+const isOptionalNumber = (value: unknown) => value === undefined || typeof value === "number"
+const isOptionalBoolean = (value: unknown) => value === undefined || typeof value === "boolean"
+const isArrayOf = <T,>(value: unknown, isEntry: (entry: unknown) => entry is T): value is T[] =>
+  Array.isArray(value) && value.every(isEntry)
+const isOptionalArrayOf = <T,>(value: unknown, isEntry: (entry: unknown) => entry is T): value is T[] | undefined =>
+  value === undefined || isArrayOf(value, isEntry)
+const isStringMap = (value: unknown): value is Record<string, string> =>
+  isRecord(value) && Object.values(value).every((entry) => typeof entry === "string")
+
+const isContainerInfo = (value: unknown): value is ContainerInfo =>
+  isRecord(value) &&
+  typeof value.name === "string" &&
+  typeof value.state === "string" &&
+  isOptionalString(value.restartPolicy) &&
+  isOptionalNumber(value.exitCode) &&
+  isOptionalString(value.reason) &&
+  isOptionalNumber(value.runSeconds)
+
+const isConditionInfo = (value: unknown): value is ConditionInfo =>
+  isRecord(value) &&
+  typeof value.type === "string" &&
+  typeof value.status === "string" &&
+  isOptionalString(value.reason) &&
+  isOptionalString(value.message)
+
+const isEventInfo = (value: unknown): value is EventInfo =>
+  isRecord(value) &&
+  isOptionalString(value.type) &&
+  isOptionalString(value.reason) &&
+  isOptionalString(value.from) &&
+  isOptionalString(value.message) &&
+  isOptionalString(value.timestamp)
+
+const isPodInfo = (value: unknown): value is PodInfo =>
+  isRecord(value) &&
+  isOptionalString(value.phase) &&
+  isOptionalString(value.reason) &&
+  isOptionalString(value.restartPolicy) &&
+  isOptionalString(value.deletionTimestamp) &&
+  isOptionalBoolean(value.forceTerminated) &&
+  isOptionalArrayOf(value.finalizers, (entry): entry is string => typeof entry === "string") &&
+  isOptionalArrayOf(value.initContainers, isContainerInfo) &&
+  isOptionalArrayOf(value.containers, isContainerInfo) &&
+  isOptionalArrayOf(value.events, isEventInfo)
+
+const isNodeInfo = (value: unknown): value is NodeInfo =>
+  isRecord(value) &&
+  typeof value.name === "string" &&
+  isOptionalBoolean(value.exists) &&
+  isOptionalBoolean(value.unschedulable) &&
+  isOptionalString(value.ready) &&
+  isOptionalString(value.readyReason) &&
+  (value.labels === undefined || isStringMap(value.labels)) &&
+  (value.annotations === undefined || isStringMap(value.annotations)) &&
+  isOptionalArrayOf(value.conditions, isConditionInfo) &&
+  isOptionalArrayOf(value.events, isEventInfo)
+
+const parseDebugInfo = (payload: unknown): DebugInfoPayload | undefined => {
+  if (
+    !isRecord(payload) ||
+    typeof payload.schemaVersion !== "number" ||
+    typeof payload.trigger !== "string" ||
+    !isPodInfo(payload.pod) ||
+    (payload.node !== undefined && !isNodeInfo(payload.node))
+  ) {
+    return undefined
+  }
+
+  return {
+    schemaVersion: payload.schemaVersion,
+    trigger: payload.trigger,
+    pod: payload.pod,
+    node: payload.node,
+  }
+}
+
 const ContainerDetails = ({ container }: { container: ContainerInfo }) => (
   <Accordion variant="elevation" square>
     <AccordionSummary>Container: {container.name}</AccordionSummary>
@@ -199,10 +279,14 @@ export const DebugInfo = ({ message }: { message: string }) => {
   }
 
   const formattedMessage = JSON.stringify(parsedMessage, undefined, 2)
+  const payload = parseDebugInfo(parsedMessage)
+  if (!payload) {
+    return <JsonCodeBlock code={formattedMessage} />
+  }
 
   return (
     <ErrorBoundary fallbackRender={() => <JsonCodeBlock code={formattedMessage} />}>
-      <StructuredDebugInfo payload={parsedMessage as DebugInfoPayload} />
+      <StructuredDebugInfo payload={payload} />
     </ErrorBoundary>
   )
 }

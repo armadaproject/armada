@@ -209,6 +209,22 @@ describe("Sidebar", () => {
     ).toBeInTheDocument()
   })
 
+  it("should not display details for JSON with an unsupported pod value", async () => {
+    mockServer.setPostJobRunDebugMessageResponseForRunId(
+      "1234-5678",
+      '{"schemaVersion":1,"trigger":"podFailed","pod":"unavailable"}',
+    )
+    const { getByRole, findByRole, findByText, queryByRole } = renderComponent()
+
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
+    await userEvent.click(await findByRole("button", { name: "Debug" }))
+
+    expect(queryByRole("button", { name: "Details" })).toBeNull()
+    expect(
+      await findByText((_, element) => element?.tagName === "DIV" && element.textContent === '  "pod": "unavailable"'),
+    ).toBeInTheDocument()
+  })
+
   it("should handle no runs", async () => {
     job.runs = []
     const { getByRole, getByText } = renderComponent()
