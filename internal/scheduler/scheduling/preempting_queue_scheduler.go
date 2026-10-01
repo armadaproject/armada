@@ -88,8 +88,8 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		sch.schedulingContext.Finished = time.Now()
 	}()
 
-	preemptedJobsById := make(map[string]*schedulercontext.JobSchedulingContext, 16)
-	scheduledJobsById := make(map[string]*schedulercontext.JobSchedulingContext, 16)
+	preemptedJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
+	scheduledJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
 
 	// Evict preemptible jobs.
 	ctx.Logger().WithField("stage", "scheduling-algo").Infof("Evicting preemptible jobs")

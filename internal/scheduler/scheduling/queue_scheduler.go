@@ -19,13 +19,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 )
 
-// maxPreallocatedGangCardinality caps the capacity pre-allocated for a gang when
-// its first member is seen. Gang cardinality comes from a tenant-supplied
-// annotation and may be arbitrarily large, so pre-allocating capacity equal to
-// it could exhaust scheduler memory. Larger gangs still work; their slice simply
-// grows as members are appended.
-const maxPreallocatedGangCardinality = 1024
-
 type CandidateGangIterator interface {
 	Peek() (*schedulercontext.GangSchedulingContext, float64, error)
 	Clear() error
@@ -338,7 +331,7 @@ func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobConte
 		queuedJobsIterator:         it,
 		maxLookback:                maxLookback,
 		skipKnownUnschedulableJobs: skipKnownUnschedulableJobs,
-		jctxsByGangId:              make(map[string][]*schedulercontext.JobSchedulingContext, 16),
+		jctxsByGangId:              make(map[string][]*schedulercontext.JobSchedulingContext),
 	}
 }
 
@@ -423,9 +416,6 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 			gang := it.jctxsByGangId[gangId]
 			if gang == nil {
 				if cardinality := jctx.CurrentGangCardinality; cardinality > 1 {
-					if cardinality > maxPreallocatedGangCardinality {
-						cardinality = maxPreallocatedGangCardinality
-					}
 					gang = make([]*schedulercontext.JobSchedulingContext, 0, cardinality)
 				}
 			}
