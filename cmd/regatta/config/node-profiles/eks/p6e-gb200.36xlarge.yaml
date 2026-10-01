@@ -1,5 +1,5 @@
 # Models one AWS p6e-gb200.36xlarge, which is 1/18th of a GB200 NVL72 rack.
-name: gb200-slice
+name: gb200-tray
 allocatable:
   cpu: "144"
   memory: "960Gi"
