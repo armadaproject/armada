@@ -82,6 +82,11 @@ func kindInitCluster(name, kindConfigPath, kubeconfigPath string) error {
 	if err := kubectlRun("apply", "-f", "_local/kind/priorityclasses.yaml", "--context", "kind-"+name); err != nil {
 		return err
 	}
+	// The anonymous-user namespace and its RBAC, needed when running without auth. Its
+	// ingress-nginx service account subject is harmless on clusters without ingress-nginx.
+	if err := kubectlRun("apply", "-f", "_local/kind/namespace.yaml", "--context", "kind-"+name); err != nil {
+		return err
+	}
 	return kindWriteExternalKubeConfig(name, kubeconfigPath)
 }
 
@@ -105,9 +110,9 @@ func kindWriteExternalKubeConfig(name, kubeconfigPath string) error {
 
 // KIND_MULTI_CLUSTER_KUBECONFIG_DIR is where kindClustersFromDir writes each cluster's external
 // kubeconfig, one file per config-file basename, unless overridden by a fixed kubeconfigPath.
-// Consumers (e.g. regatta's scenario files, see cmd/regatta/README.md) must reference
+// Consumers (e.g. a multi-cluster test scenario) must reference
 // kubeconfigs at KIND_MULTI_CLUSTER_KUBECONFIG_DIR/<basename> to match.
-const KIND_MULTI_CLUSTER_KUBECONFIG_DIR = ".kube/external/regatta"
+const KIND_MULTI_CLUSTER_KUBECONFIG_DIR = ".kube/external/multicluster"
 
 // kindConfigClusterName reads the top-level "name:" field out of a kind-cluster config YAML
 // file.
@@ -301,7 +306,6 @@ func kindSetup(configDir string, isDefault bool) (string, error) {
 	resources := []string{
 		"_local/kind/ingress-nginx.yaml",
 		"_local/kind/priorityclasses.yaml",
-		"_local/kind/namespace.yaml",
 	}
 	for _, f := range resources {
 		images, err := imagesFromFile(f)

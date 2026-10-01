@@ -11,10 +11,10 @@ The `mage dev:up regatta` profile used by the quickstart starts the scheduler wi
 The 2-cluster quickstart is a hand-authored, checked-in scenario file, kind-cluster configs, executor configs, and Procfile — there's no code-generation/templating step. Writing your own scenario at some other N follows the same pattern:
 
 1. Pick a target count.
-2. Write one kind-cluster config per target: `cmd/regatta/config/kind/<your-example>/<name>.yaml` (the `name:` field must match the filename).
+2. Write one kind-cluster config per target: `_local/kind/<your-example>/<name>.yaml` (the `name:` field must match the filename).
 3. Write one executor config per target: `cmd/regatta/config/armada/executor/<your-example>/<name>.yaml`. `httpPort`/`metric.port`/`application.clusterId` each need to be offset by index — copy the two-cluster example's values as a reference.
 4. Write one Procfile with one line per cluster target (`export KUBECONFIG=<path> && ...`, following the two-cluster example's Procfile pattern). Use a directory per example once there's more than one file (as with `kind/`/`executor/` above); otherwise the example name goes in the filename instead if it's a single file.
-5. Write a scenario file whose `executionTargets[].cluster.kubeconfig` fields point at `.kube/external/regatta/<config-file-basename>` (relative to the scenario file's own location) — the path `mage kind:multiCluster <dir>` writes each cluster's external kubeconfig to.
+5. Write a scenario file whose `executionTargets[].cluster.kubeconfig` fields point at `.kube/external/multicluster/<config-file-basename>` (relative to the scenario file's own location) — the path `mage kind:multiCluster <dir>` writes each cluster's external kubeconfig to.
 
 A target's cluster name (used to name the kind cluster, and, when `cluster.kind: true`, to derive its network-internal API server address for the kwok-controller container) comes from `cluster.name` if set, otherwise defaults to the target's own `name`.
 

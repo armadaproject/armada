@@ -33,7 +33,7 @@ This tears down every cluster target the scenario file declares. To tear down a 
 hand instead of via a scenario file, omit the scenario file and use --kubeconfig/--name to
 identify it directly, e.g.:
 
-  go run ./cmd/regatta teardown --kubeconfig .kube/external/regatta/regatta-1 --name gpu-cluster
+  go run ./cmd/regatta teardown --kubeconfig .kube/external/multicluster/cluster-1 --name gpu-cluster
 
 Only touches nodes tagged kwok.x-k8s.io/node=fake, so real nodes are never affected. Safe to run
 even if there's nothing to tear down.`,

@@ -15,7 +15,7 @@ go run ./cmd/regatta teardown cmd/regatta/config/two-cluster.example.yaml
 To tear down a single target by hand instead, omit the scenario file and use `--kubeconfig`/`--name`:
 
 ```bash
-go run ./cmd/regatta teardown --kubeconfig .kube/external/regatta/regatta-1 --name gpu-cluster
+go run ./cmd/regatta teardown --kubeconfig .kube/external/multicluster/cluster-1 --name gpu-cluster
 ```
 
 `--name` identifies which execution target's kwok controller/kubeconfig to remove — it must match the target's `name` in the scenario file that was running (or the auto-generated `cluster-0`, `cluster-1`, ... if the target left `name` unset).

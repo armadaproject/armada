@@ -185,7 +185,7 @@ func (Kind) SingleCluster() error {
 
 // Setup one Kind cluster per *.yaml file in configDir.
 //
-//	mage kind:multiCluster cmd/regatta/config/kind/two-cluster   # 2-cluster quickstart
+//	mage kind:multiCluster _local/kind/two-cluster
 func (Kind) MultiCluster(configDir string) error {
 	mg.Deps(kindCheck)
 	_, err := kindSetup(configDir, false)

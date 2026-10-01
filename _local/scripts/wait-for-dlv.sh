@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: wait-for-dlv.sh standard|fake-executor
+# Usage: wait-for-dlv.sh standard|fake-executor|hot-cold|two-cluster
 set -euo pipefail
 
 MODE="${1:-standard}"
@@ -18,8 +18,9 @@ case "$MODE" in
   standard)      MODE_SERVICE=2349:executor ;;
   fake-executor) MODE_SERVICE=2353:fakeexecutor ;;
   hot-cold)      MODE_SERVICE=2349:executor ;;
+  two-cluster)   MODE_SERVICE=2349:executor ;;
   *)
-    echo "Unknown mode: $MODE (expected standard or fake-executor)"
+    echo "Unknown mode: $MODE (expected standard, fake-executor, hot-cold or two-cluster)"
     exit 1
     ;;
 esac
@@ -29,6 +30,9 @@ ENTRIES=("${COMMON_SERVICES[@]}" "$MODE_SERVICE")
 case "$MODE" in
   hot-cold)
     ENTRIES+=("2354:lookouthc" "2355:lookouthcingester")
+    ;;
+  two-cluster)
+    ENTRIES+=("2356:executor2")
     ;;
 esac
 

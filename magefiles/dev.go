@@ -35,8 +35,9 @@ const (
 //   - "fake-executor"       - no Kubernetes needed; sets goreman profile to "fake-executor"
 //   - "auth-fake-executor"  - auth server/scheduler/lookout/binoculars plus the fake executor (no Kubernetes)
 //   - "hot-cold"            - runs the hot-cold scheduler setup
-//   - "regatta"             - the 2-cluster quickstart (see cmd/regatta): executor tolerates the
-//     kwok.x-k8s.io/node taint so jobs schedule onto KWOK-simulated fake nodes
+//   - "two-cluster"         - no-auth with two real executors, one per Kubernetes cluster
+//   - "regatta"             - two-cluster plus KWOK: executors tolerate the kwok.x-k8s.io/node
+//     taint so jobs schedule onto KWOK-simulated fake nodes (see cmd/regatta)
 //   - anything else         - forwarded as a docker-compose --profile flag for extra services
 //
 // The optional -dap flag selects the "-dap" procfile variant, which starts each component
@@ -53,7 +54,8 @@ const (
 //	mage dev:up fake-executor -dap        # fake executor + dap procfile
 //	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
 //	mage dev:up hot-cold                  # hot-cold scheduler setup
-//	mage dev:up regatta                   # no-auth + executor tolerates KWOK fake-node taint
+//	mage dev:up two-cluster               # no-auth with two executors, one per Kind cluster
+//	mage dev:up regatta                   # two-cluster + executors tolerate KWOK fake-node taint
 func (Dev) Up(profiles string, dap *bool) error {
 	var (
 		profile         = "no-auth"
@@ -66,9 +68,9 @@ func (Dev) Up(profiles string, dap *bool) error {
 			continue
 		}
 		switch token {
-		case "auth", "fake-executor", "hot-cold", "auth-fake-executor", "regatta":
+		case "auth", "fake-executor", "hot-cold", "auth-fake-executor", "two-cluster", "regatta":
 			if profile != "no-auth" {
-				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold/auth-fake-executor/regatta may be used\n", token, profile)
+				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold/auth-fake-executor/two-cluster/regatta may be used\n", token, profile)
 			} else {
 				profile = token
 			}
@@ -188,8 +190,9 @@ func (Dev) FullDown() error {
 	return KindTeardown{}.SingleCluster()
 }
 
-// setPrometheusConfig points the prometheus compose profile at the regatta scrape config, since
-// regatta runs one executor per cluster and the default _local/prometheus.yml only scrapes one.
+// setPrometheusConfig points the prometheus compose profile at the two-cluster scrape config for
+// profiles that run one executor per cluster, since the default _local/prometheus/config.yaml only
+// scrapes one.
 // Other profiles leave PROMETHEUS_CONFIG unset, so stack.yaml falls back to that default.
 //
 // Resolved to absolute: compose resolves relative bind-mount sources against the compose file's
@@ -197,8 +200,8 @@ func (Dev) FullDown() error {
 func setPrometheusConfig(profile string) error {
 	var relPath string
 	switch profile {
-	case "regatta":
-		relPath = "cmd/regatta/config/armada/prometheus/two-cluster.yaml"
+	case "two-cluster", "regatta":
+		relPath = "_local/prometheus/config-two-cluster.yaml"
 	default:
 		return nil
 	}
