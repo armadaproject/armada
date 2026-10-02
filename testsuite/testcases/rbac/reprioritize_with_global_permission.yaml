@@ -1,0 +1,34 @@
+# RBAC: a principal with the global reprioritize_any_jobs permission can
+# reprioritize jobs in a queue it doesn't own.
+queue: e2e-test-queue
+authContext: rbac-admin
+numBatches: 1
+batchSize: 1
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: reprioritize-by-id
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          args:
+            - "sleep"
+            - "100s"
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+reprioritize:
+  request:
+    newPriority: 100
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - reprioritized:
