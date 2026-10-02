@@ -560,9 +560,16 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
     def _check_job_status_and_fetch_logs(
         self, context, job_context: RunningJobContext
     ) -> RunningJobContext:
+        previous_context = job_context
         job_context = self.hook.refresh_context(
             job_context, self._trigger_tracking_message(job_context.job_id)
         )
+        if (
+            self.container_logs
+            and previous_context.pod_name
+            and previous_context.run_id != job_context.run_id
+        ):
+            self._fetch_last_logs_of_earlier_run(context, previous_context)
 
         if self._not_acknowledged_within_timeout(job_context):
             self.log.info(
@@ -572,29 +579,63 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
             job_context = self.hook.cancel_job(job_context)
             return job_context
 
-        if self._should_have_a_pod_in_k8s(job_context) and self.container_logs:
+        if (
+            self._should_have_a_pod_in_k8s(job_context)
+            and self.container_logs
+            and job_context.run_id
+        ):
             try:
-                link_extractor = UrlFromLogsExtractor.create(
-                    self.extra_links, context["ti"]
-                )
-                last_log_time = self.pod_manager.fetch_container_logs(
+                # The name of the pod of a run never changes, so the operator looks
+                # it up once per run.
+                pod = job_context.pod_name or self.pod_manager.pod_name_for_run(
                     k8s_context=job_context.cluster,
                     namespace=self.job_request.namespace,
-                    pod=f"armada-{job_context.job_id}-0",
-                    container=self.container_logs,
-                    since_time=job_context.last_log_time,
-                    link_extractor=link_extractor,
+                    job_id=job_context.job_id,
+                    run_id=job_context.run_id,
                 )
-                if last_log_time:
-                    job_context = dataclasses.replace(
-                        job_context, last_log_time=last_log_time
-                    )
+                if pod:
+                    job_context = dataclasses.replace(job_context, pod_name=pod)
+                    last_log_time = self._fetch_container_logs(context, job_context)
+                    if last_log_time:
+                        job_context = dataclasses.replace(
+                            job_context, last_log_time=last_log_time
+                        )
             except Exception as e:
                 self.log.warning(f"Error fetching logs {e}")
 
         self.hook.context_to_xcom(context["ti"], job_context)
 
         return job_context
+
+    def _fetch_last_logs_of_earlier_run(
+        self, context, previous_context: RunningJobContext
+    ) -> None:
+        # A new run can start between two polls, so the operator reads the last lines
+        # of the earlier run first. A job-scoped pod name can already belong to the new
+        # run. The labels confirm that the pod still belongs to the earlier run.
+        try:
+            earlier_pod = self.pod_manager.pod_name_for_run(
+                k8s_context=previous_context.cluster,
+                namespace=self.job_request.namespace,
+                job_id=previous_context.job_id,
+                run_id=previous_context.run_id,
+            )
+            if earlier_pod == previous_context.pod_name:
+                self._fetch_container_logs(context, previous_context)
+        except Exception as e:
+            self.log.warning(f"Error fetching logs {e}")
+
+    def _fetch_container_logs(
+        self, context, job_context: RunningJobContext
+    ) -> Optional[DateTime]:
+        return self.pod_manager.fetch_container_logs(
+            k8s_context=job_context.cluster,
+            namespace=self.job_request.namespace,
+            pod=job_context.pod_name,
+            container=self.container_logs,
+            since_time=job_context.last_log_time,
+            link_extractor=UrlFromLogsExtractor.create(self.extra_links, context["ti"]),
+        )
 
     @tenacity.retry(
         wait=tenacity.wait_random_exponential(max=3),
