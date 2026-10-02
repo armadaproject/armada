@@ -55,8 +55,10 @@ type ExecutorApi struct {
 	nodeIdLabelWarnings sync.Map
 	// See scheduling schedulingConfig.
 	priorityClassNameOverride *string
-	clock                     clock.Clock
-	authorizer                auth.ActionAuthorizer
+	// Sent on every lease. See RetryPolicyConfig.PodNameWithRunIndex.
+	podNameWithRunIndex bool
+	clock               clock.Clock
+	authorizer          auth.ActionAuthorizer
 }
 
 func NewExecutorApi(publisher pulsarutils.Publisher[*armadaevents.EventSequence],
@@ -68,6 +70,7 @@ func NewExecutorApi(publisher pulsarutils.Publisher[*armadaevents.EventSequence]
 	priorityClassNameOverride *string,
 	priorityClasses map[string]priorityTypes.PriorityClass,
 	authorizer auth.ActionAuthorizer,
+	podNameWithRunIndex bool,
 ) (*ExecutorApi, error) {
 	if len(allowedPriorities) == 0 {
 		return nil, errors.New("allowedPriorities cannot be empty")
@@ -82,6 +85,7 @@ func NewExecutorApi(publisher pulsarutils.Publisher[*armadaevents.EventSequence]
 		priorityClassNameOverride: priorityClassNameOverride,
 		priorityClasses:           priorityClasses,
 		clock:                     clock.RealClock{},
+		podNameWithRunIndex:       podNameWithRunIndex,
 		authorizer:                authorizer,
 	}, nil
 }
@@ -181,12 +185,14 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_Lease{
 				Lease: &executorapi.JobRunLease{
-					JobRunId: lease.RunID,
-					Queue:    lease.Queue,
-					Jobset:   lease.JobSet,
-					User:     lease.UserID,
-					Groups:   groups,
-					Job:      submitMsg,
+					JobRunId:            lease.RunID,
+					Queue:               lease.Queue,
+					Jobset:              lease.JobSet,
+					User:                lease.UserID,
+					Groups:              groups,
+					Job:                 submitMsg,
+					PodNameWithRunIndex: srv.podNameWithRunIndex,
+					RunIndex:            lease.RunIndex,
 				},
 			},
 		})

@@ -118,6 +118,8 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		Groups:        compressedGroups,
 		SubmitMessage: compressedSubmit,
 	}
+	leaseWithRunIndex := *defaultLease
+	leaseWithRunIndex.RunIndex = 2
 
 	submitWithoutNodeSelector, compressedSubmitNoNodeSelector := submitMsg(t,
 		&armadaevents.ObjectMeta{
@@ -205,6 +207,8 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		leases           []*database.JobRunLease
 		expectedExecutor *schedulerobjects.Executor
 		expectedMsgs     []*executorapi.LeaseStreamMessage
+		// podNameWithRunIndex is the scheduler config value the lease must carry.
+		podNameWithRunIndex bool
 	}{
 		"lease and cancel": {
 			request:          defaultRequest,
@@ -225,6 +229,29 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 						User:     defaultLease.UserID,
 						Groups:   groups,
 						Job:      submit,
+					}},
+				},
+				{
+					Event: &executorapi.LeaseStreamMessage_End{End: &executorapi.EndMarker{}},
+				},
+			},
+		},
+		"lease carries the pod name flag and the run index": {
+			request:             defaultRequest,
+			leases:              []*database.JobRunLease{&leaseWithRunIndex},
+			expectedExecutor:    defaultExpectedExecutor,
+			podNameWithRunIndex: true,
+			expectedMsgs: []*executorapi.LeaseStreamMessage{
+				{
+					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
+						JobRunId:            defaultLease.RunID,
+						Queue:               defaultLease.Queue,
+						Jobset:              defaultLease.JobSet,
+						User:                defaultLease.UserID,
+						Groups:              groups,
+						Job:                 submit,
+						PodNameWithRunIndex: true,
+						RunIndex:            2,
 					}},
 				},
 				{
@@ -343,6 +370,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				nil,
 				priorityClasses,
 				mockAuthorizer,
+				tc.podNameWithRunIndex,
 			)
 			require.NoError(t, err)
 			server.clock = testClock
@@ -400,6 +428,7 @@ func TestExecutorApi_LeaseJobRuns_Unauthorised(t *testing.T) {
 		nil,
 		priorityClasses,
 		mockAuthorizer,
+		false,
 	)
 
 	require.NoError(t, err)
@@ -750,6 +779,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				nil,
 				priorityClasses,
 				mockAuthorizer,
+				false,
 			)
 
 			require.NoError(t, err)
@@ -797,6 +827,7 @@ func TestExecutorApi_Publish_Unauthorised(t *testing.T) {
 		nil,
 		priorityClasses,
 		mockAuthorizer,
+		false,
 	)
 
 	require.NoError(t, err)

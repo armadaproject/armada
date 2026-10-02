@@ -373,6 +373,13 @@ type RetryPolicyConfig struct {
 	// Optional: when empty, only queues with an attached policy get engine
 	// decisions and every other queue keeps the existing behaviour.
 	DefaultPolicyName string
+	// PodNameWithRunIndex makes the executor name each pod
+	// armada-<jobId>-<runIndex>, where the index counts the runs of the job
+	// from 0. The first attempt keeps its name, and a retry never
+	// collides with the pod of an earlier run, so a retried category does not
+	// need action Delete to free the name. Tooling that builds the pod name
+	// from the job id alone needs the run id when this is on.
+	PodNameWithRunIndex bool
 }
 
 const (

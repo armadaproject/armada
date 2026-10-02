@@ -111,6 +111,7 @@ scheduling:
   retryPolicy:
     enabled: false
     globalMaxRetries: 5
+    podNameWithRunIndex: false
   dominantResourceFairnessResourcesToConsider:
     - "cpu"
     - "memory"

@@ -32,6 +32,8 @@ type JobRunLease struct {
 	Groups                 []byte
 	SubmitMessage          []byte
 	PodRequirementsOverlay []byte
+	// RunIndex is the position of the run among the runs of its job, from 0.
+	RunIndex uint32
 }
 
 // JobRepository is an interface to be implemented by structs which provide job and run information
@@ -359,7 +361,10 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		}
 
 		query := fmt.Sprintf(`
-				SELECT jr.run_id, jr.node, j.queue, j.job_set, jr.pool, j.user_id, jm.groups, jm.submit_message, jr.pod_requirements_overlay
+				SELECT jr.run_id, jr.node, j.queue, j.job_set, jr.pool, j.user_id, jm.groups, jm.submit_message, jr.pod_requirements_overlay,
+				    (SELECT count(*) FROM runs earlier
+				     WHERE earlier.job_id = jr.job_id
+				     AND (earlier.created < jr.created OR (earlier.created = jr.created AND earlier.run_id < jr.run_id))) AS run_index
 				FROM runs jr
 				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)
 			    JOIN jobs j
@@ -379,10 +384,12 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, ex
 		defer rows.Close()
 		for rows.Next() {
 			run := JobRunLease{}
-			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.Pool, &run.UserID, &run.Groups, &run.SubmitMessage, &run.PodRequirementsOverlay)
+			var runIndex int64
+			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.Pool, &run.UserID, &run.Groups, &run.SubmitMessage, &run.PodRequirementsOverlay, &runIndex)
 			if err != nil {
 				return errors.WithStack(err)
 			}
+			run.RunIndex = uint32(runIndex)
 			newRuns = append(newRuns, &run)
 		}
 		return nil
