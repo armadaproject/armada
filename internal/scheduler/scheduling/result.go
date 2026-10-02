@@ -171,7 +171,7 @@ func (s *SchedulerResult) GetDuration() time.Duration {
 }
 
 func (s *SchedulerResult) GetAllScheduledJobs() []*schedulercontext.JobSchedulingContext {
-	result := []*schedulercontext.JobSchedulingContext{}
+	result := make([]*schedulercontext.JobSchedulingContext, 0, len(s.PoolResults))
 	for _, poolResult := range s.PoolResults {
 		result = append(result, poolResult.GetScheduledJobs()...)
 	}
@@ -179,7 +179,7 @@ func (s *SchedulerResult) GetAllScheduledJobs() []*schedulercontext.JobSchedulin
 }
 
 func (s *SchedulerResult) GetAllPreemptedJobs() []*schedulercontext.JobSchedulingContext {
-	result := []*schedulercontext.JobSchedulingContext{}
+	result := make([]*schedulercontext.JobSchedulingContext, 0, len(s.PoolResults))
 	for _, poolResult := range s.PoolResults {
 		result = append(result, poolResult.GetPreemptedJobs()...)
 	}
@@ -187,7 +187,7 @@ func (s *SchedulerResult) GetAllPreemptedJobs() []*schedulercontext.JobSchedulin
 }
 
 func (s *SchedulerResult) GetAllSchedulingContexts() []*schedulercontext.SchedulingContext {
-	result := []*schedulercontext.SchedulingContext{}
+	result := make([]*schedulercontext.SchedulingContext, 0, len(s.PoolResults))
 	for _, poolResult := range s.PoolResults {
 		if poolResult.GetSchedulingContext() != nil {
 			result = append(result, poolResult.GetSchedulingContext())
@@ -198,8 +198,8 @@ func (s *SchedulerResult) GetAllSchedulingContexts() []*schedulercontext.Schedul
 
 func (s *SchedulerResult) GetCombinedReconciliationResult() *ReconciliationResult {
 	result := &ReconciliationResult{
-		PreemptedJobs: []*FailedReconciliationResult{},
-		FailedJobs:    []*FailedReconciliationResult{},
+		PreemptedJobs: make([]*FailedReconciliationResult, 0, len(s.PoolResults)),
+		FailedJobs:    make([]*FailedReconciliationResult, 0, len(s.PoolResults)),
 	}
 	for _, poolResult := range s.PoolResults {
 		if poolResult.ReconciliationResult != nil {
