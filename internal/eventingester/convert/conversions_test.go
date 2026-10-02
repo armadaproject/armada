@@ -57,38 +57,202 @@ var cancelled = &armadaevents.EventSequence_Event{
 	},
 }
 
-func TestSingle(t *testing.T) {
-	msg := NewMsg(jobRunSucceeded)
-	converter := simpleEventConverter()
-	batchUpdate := converter.Convert(armadacontext.Background(), msg)
-	expectedSequence := armadaevents.EventSequence{
-		Events: []*armadaevents.EventSequence_Event{jobRunSucceeded},
-	}
-	assert.Equal(t, msg.MessageIds, batchUpdate.MessageIds)
-	assert.Equal(t, 1, len(batchUpdate.Events))
-	event := batchUpdate.Events[0]
-	assert.Equal(t, queue, event.Queue)
-	assert.Equal(t, jobset, event.Jobset)
-	es, err := extractEventSeq(event.Event)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedSequence.Events, es.Events)
+var jobPreemptionRequested = &armadaevents.EventSequence_Event{
+	Created: baseTimeProto,
+	Event: &armadaevents.EventSequence_Event_JobPreemptionRequested{
+		JobPreemptionRequested: &armadaevents.JobPreemptionRequested{JobId: JobId},
+	},
 }
 
-func TestMultiple(t *testing.T) {
-	msg := NewMsg(cancelled, jobRunSucceeded)
-	converter := simpleEventConverter()
-	batchUpdate := converter.Convert(armadacontext.Background(), msg)
-	expectedSequence := armadaevents.EventSequence{
-		Events: []*armadaevents.EventSequence_Event{cancelled, jobRunSucceeded},
+var jobValidated = &armadaevents.EventSequence_Event{
+	Created: baseTimeProto,
+	Event: &armadaevents.EventSequence_Event_JobValidated{
+		JobValidated: &armadaevents.JobValidated{JobId: JobId},
+	},
+}
+
+func TestConvert_RetainsEvents(t *testing.T) {
+	tests := map[string]struct {
+		input []*armadaevents.EventSequence_Event
+		want  []*armadaevents.EventSequence_Event
+	}{
+		"single retained event": {
+			input: []*armadaevents.EventSequence_Event{cancelled},
+			want:  []*armadaevents.EventSequence_Event{cancelled},
+		},
+		"multiple retained events preserve order": {
+			input: []*armadaevents.EventSequence_Event{cancelled, jobPreemptionRequested},
+			want:  []*armadaevents.EventSequence_Event{cancelled, jobPreemptionRequested},
+		},
 	}
-	assert.Equal(t, msg.MessageIds, batchUpdate.MessageIds)
-	assert.Equal(t, 1, len(batchUpdate.Events))
-	event := batchUpdate.Events[0]
-	assert.Equal(t, queue, event.Queue)
-	assert.Equal(t, jobset, event.Jobset)
-	es, err := extractEventSeq(event.Event)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedSequence.Events, es.Events)
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			msg := NewMsg(tt.input...)
+			batchUpdate := simpleEventConverter().Convert(armadacontext.Background(), msg)
+
+			require.Equal(t, msg.MessageIds, batchUpdate.MessageIds)
+			require.Len(t, batchUpdate.Events, 1)
+			event := batchUpdate.Events[0]
+			assert.Equal(t, queue, event.Queue)
+			assert.Equal(t, jobset, event.Jobset)
+			es, err := extractEventSeq(event.Event)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, es.Events)
+		})
+	}
+}
+
+func TestConvert_FiltersEventsNotForRedis(t *testing.T) {
+	tests := map[string]struct {
+		input []*armadaevents.EventSequence_Event
+		want  []*armadaevents.EventSequence_Event
+	}{
+		"JobRunSucceeded only": {
+			input: []*armadaevents.EventSequence_Event{jobRunSucceeded},
+		},
+		"JobRunSucceeded with retained event": {
+			input: []*armadaevents.EventSequence_Event{cancelled, jobRunSucceeded},
+			want:  []*armadaevents.EventSequence_Event{cancelled},
+		},
+		"JobValidated only": {
+			input: []*armadaevents.EventSequence_Event{jobValidated},
+		},
+		"JobValidated with retained event": {
+			input: []*armadaevents.EventSequence_Event{cancelled, jobValidated},
+			want:  []*armadaevents.EventSequence_Event{cancelled},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			msg := NewMsg(tt.input...)
+			batchUpdate := simpleEventConverter().Convert(armadacontext.Background(), msg)
+			require.Equal(t, msg.MessageIds, batchUpdate.MessageIds)
+
+			if len(tt.want) == 0 {
+				assert.Empty(t, batchUpdate.Events)
+				return
+			}
+
+			require.Len(t, batchUpdate.Events, 1)
+			es, err := extractEventSeq(batchUpdate.Events[0].Event)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, es.Events)
+		})
+	}
+}
+
+func TestConvert_RemovesJobRunErrors(t *testing.T) {
+	jobRunErrors := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{JobId: JobId, RunId: RunId},
+		},
+	}
+	converter := simpleEventConverter()
+
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(cancelled, jobRunErrors))
+	require.Len(t, batchUpdate.Events, 1)
+	es, err := extractEventSeq(batchUpdate.Events[0].Event)
+	require.NoError(t, err)
+	assert.Equal(t, []*armadaevents.EventSequence_Event{cancelled}, es.Events)
+}
+
+func TestConvert_RetainsJobRunErrorsConsumedByRedis(t *testing.T) {
+	leaseExpired := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId: JobId,
+				RunId: RunId,
+				Errors: []*armadaevents.Error{
+					{
+						Reason: &armadaevents.Error_LeaseExpired{
+							LeaseExpired: &armadaevents.LeaseExpired{},
+						},
+					},
+				},
+			},
+		},
+	}
+	converter := simpleEventConverter()
+
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(leaseExpired))
+	require.Len(t, batchUpdate.Events, 1)
+	es, err := extractEventSeq(batchUpdate.Events[0].Event)
+	require.NoError(t, err)
+	assert.Equal(t, []*armadaevents.EventSequence_Event{leaseExpired}, es.Events)
+}
+
+func TestConvert_RetainsOnlyLifecycleJobRunErrors(t *testing.T) {
+	jobRunErrors := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId: JobId,
+				RunId: RunId,
+				Errors: []*armadaevents.Error{
+					{
+						Reason: &armadaevents.Error_LeaseExpired{
+							LeaseExpired: &armadaevents.LeaseExpired{},
+						},
+					},
+					{
+						Reason: &armadaevents.Error_PodLeaseReturned{
+							PodLeaseReturned: &armadaevents.PodLeaseReturned{DebugMessage: "not for redis"},
+						},
+					},
+					{
+						Reason: &armadaevents.Error_PodError{
+							PodError: &armadaevents.PodError{Message: "internal error"},
+						},
+					},
+				},
+			},
+		},
+	}
+	converter := simpleEventConverter()
+
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(jobRunErrors))
+	require.Len(t, batchUpdate.Events, 1)
+	es, err := extractEventSeq(batchUpdate.Events[0].Event)
+	require.NoError(t, err)
+	require.Len(t, es.Events, 1)
+	storedErrors := es.Events[0].GetJobRunErrors().GetErrors()
+	require.Len(t, storedErrors, 2)
+	assert.NotNil(t, storedErrors[0].GetLeaseExpired())
+	assert.Empty(t, storedErrors[1].GetPodLeaseReturned().GetDebugMessage())
+}
+
+func TestConvert_DropsNilJobRunErrors(t *testing.T) {
+	jobRunErrors := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId:  JobId,
+				RunId:  RunId,
+				Errors: []*armadaevents.Error{nil},
+			},
+		},
+	}
+	converter := simpleEventConverter()
+
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(jobRunErrors))
+	assert.Empty(t, batchUpdate.Events)
+}
+
+func TestConvert_DropsSequenceContainingOnlyJobRunErrors(t *testing.T) {
+	jobRunErrors := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{JobId: JobId, RunId: RunId},
+		},
+	}
+	converter := simpleEventConverter()
+
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(jobRunErrors))
+	assert.Empty(t, batchUpdate.Events)
 }
 
 // Cancellation reason should not be in event storage
@@ -188,17 +352,7 @@ func extractEventSeq(b []byte) (*armadaevents.EventSequence, error) {
 }
 
 func TestConvert_RecordsEventSizeMetricsPerTypeAndQueue(t *testing.T) {
-	jobRunFailed := &armadaevents.EventSequence_Event{
-		Created: baseTimeProto,
-		Event: &armadaevents.EventSequence_Event_JobRunErrors{
-			JobRunErrors: &armadaevents.JobRunErrors{
-				RunId: RunId,
-				JobId: JobId,
-			},
-		},
-	}
-
-	msg := NewMsg(jobRunSucceeded, cancelled, jobRunFailed)
+	msg := NewMsg(jobRunSucceeded, cancelled)
 	compressor, _ := compress.NewZlibCompressor(0)
 	testRegistry := prometheus.NewRegistry()
 	testMetrics := metrics.NewMetricsWithRegistry("test_happy_path_", testRegistry)
@@ -206,17 +360,32 @@ func TestConvert_RecordsEventSizeMetricsPerTypeAndQueue(t *testing.T) {
 
 	succeededType := jobRunSucceeded.GetEventName()
 	cancelledType := cancelled.GetEventName()
-	failedType := jobRunFailed.GetEventName()
 
 	batchUpdate := converter.Convert(armadacontext.Background(), msg)
 	require.Equal(t, 1, len(batchUpdate.Events))
 
-	assert.Greater(t, testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, succeededType)), float64(0))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, succeededType)))
 	assert.Greater(t, testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, cancelledType)), float64(0))
-	assert.Greater(t, testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, failedType)), float64(0))
-	assert.Greater(t, testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)), float64(0))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, succeededType)))
 	assert.Greater(t, testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, cancelledType)), float64(0))
-	assert.Greater(t, testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, failedType)), float64(0))
+}
+
+func TestConvert_DoesNotRecordSizeMetricsForFilteredJobRunErrors(t *testing.T) {
+	jobRunErrors := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{RunId: RunId, JobId: JobId},
+		},
+	}
+	compressor, _ := compress.NewZlibCompressor(0)
+	testRegistry := prometheus.NewRegistry()
+	testMetrics := metrics.NewMetricsWithRegistry("test_filtered_", testRegistry)
+	converter := NewEventConverter(compressor, 1024, testMetrics, true)
+
+	batchUpdate := converter.Convert(armadacontext.Background(), NewMsg(jobRunErrors))
+	assert.Empty(t, batchUpdate.Events)
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetUncompressedEventBytesTotal().WithLabelValues(queue, jobRunErrors.GetEventName())))
+	assert.Equal(t, float64(0), testutil.ToFloat64(testMetrics.GetEstimatedCompressedEventBytesTotal().WithLabelValues(queue, jobRunErrors.GetEventName())))
 }
 
 func TestConvert_DoesNotRecordSizeMetricsWhenCompressionFails(t *testing.T) {

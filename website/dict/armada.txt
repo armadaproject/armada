@@ -38,3 +38,14 @@ preemptibility
 krew
 uncordon
 gcflags
+magefile
+ingesters
+scheduleringester
+containerised
+initialise
+behaviour
+categorised
+categorisation
+retryable
+organisations
+KUBECONFIG
