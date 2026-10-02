@@ -795,6 +795,32 @@ func TestAddGangIdLabel(t *testing.T) {
 	}
 }
 
+func TestSetObjectNamePrefix(t *testing.T) {
+	tests := map[string]struct {
+		annotations         map[string]string
+		expectedAnnotations map[string]string
+	}{
+		"a job without annotations gets the prefix": {
+			expectedAnnotations: map[string]string{constants.ObjectNamePrefixAnnotation: "team"},
+		},
+		"other annotations stay": {
+			annotations:         map[string]string{"fish": "chips"},
+			expectedAnnotations: map[string]string{"fish": "chips", constants.ObjectNamePrefixAnnotation: "team"},
+		},
+		"the server overwrites a prefix that the user set": {
+			annotations:         map[string]string{constants.ObjectNamePrefixAnnotation: "user"},
+			expectedAnnotations: map[string]string{constants.ObjectNamePrefixAnnotation: "team"},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			submitMsg := submitMsgFromAnnotations(tc.annotations)
+			setObjectNamePrefix(submitMsg, configuration.SubmissionConfig{ObjectNamePrefix: "team"})
+			assert.Equal(t, tc.expectedAnnotations, submitMsg.ObjectMeta.Annotations)
+		})
+	}
+}
+
 func submitMsgFromAnnotations(annotations map[string]string) *armadaevents.SubmitJob {
 	return &armadaevents.SubmitJob{
 		ObjectMeta: &armadaevents.ObjectMeta{

@@ -28,6 +28,7 @@ var (
 		defaultGangNodeUniformityLabel,
 		defaultGangFailFastFlag,
 		addGangIdLabel,
+		setObjectNamePrefix,
 	}
 	podLevelProcessors = []podProcessor{
 		dropPodLevelResourcesIfDisabled,
@@ -265,6 +266,15 @@ func addGangIdLabel(msg *armadaevents.SubmitJob, config configuration.Submission
 		labels[constants.GangIdAnnotation] = gangId
 		msg.GetObjectMeta().Labels = labels
 	}
+}
+
+// setObjectNamePrefix writes the prefix of the service and ingress names to the job. The executor reads it for the
+// pod name. The server overwrites a value that the user set, so the pod has the same prefix as the services.
+func setObjectNamePrefix(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig) {
+	if msg.ObjectMeta.Annotations == nil {
+		msg.ObjectMeta.Annotations = map[string]string{}
+	}
+	msg.ObjectMeta.Annotations[constants.ObjectNamePrefixAnnotation] = config.ObjectNamePrefix
 }
 
 // Templates the JobId in labels and annotations. This allows users to define labels and annotations containing the string

@@ -42,6 +42,10 @@ const (
 	// ExternalJobUriAnnotation is the legacy annotation key for setting an external job URI.
 	// Prefer the ExternalJobUri proto field on JobSubmitRequestItem / SubmitJob instead.
 	ExternalJobUriAnnotation = "armadaproject.io/externalJobUri"
+
+	// ObjectNamePrefixAnnotation holds the prefix of the names of the pod, the services and the ingresses of a job.
+	// The server sets it on each job, so all objects of one job use the same prefix.
+	ObjectNamePrefixAnnotation = "armadaproject.io/objectNamePrefix"
 )
 
 var schedulingAnnotations = map[string]bool{
