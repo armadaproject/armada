@@ -73,6 +73,8 @@ type JobDb struct {
 	jobsByPoolAndQueue map[string]map[string]immutable.SortedSet[*Job]
 	leasedJobs         *immutable.Set[*Job]
 	unvalidatedJobs    *immutable.Set[*Job]
+	// Incrementally maintained aggregate of queued demand.
+	aggregate *JobAggregate
 	// Configured priority classes.
 	priorityClasses map[string]types.PriorityClass
 	// Priority class assigned to jobs with a priorityClassName not in jobDb.priorityClasses.
@@ -144,6 +146,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 		jobsByPoolAndQueue:     map[string]map[string]immutable.SortedSet[*Job]{},
 		leasedJobs:             &leasedJobs,
 		unvalidatedJobs:        &unvalidatedJobs,
+		aggregate:              NewJobAggregate(),
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
@@ -176,6 +179,7 @@ func (jobDb *JobDb) Clone() *JobDb {
 		jobsByPoolAndQueue:     deepClone(jobDb.jobsByPoolAndQueue),
 		leasedJobs:             jobDb.leasedJobs,
 		unvalidatedJobs:        jobDb.unvalidatedJobs,
+		aggregate:              jobDb.aggregate.Clone(),
 		priorityClasses:        jobDb.priorityClasses,
 		defaultPriorityClass:   jobDb.defaultPriorityClass,
 		schedulingKeyGenerator: jobDb.schedulingKeyGenerator,
@@ -350,6 +354,7 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 		jobsByPoolAndQueue: jobDb.jobsByPoolAndQueue,
 		leasedJobs:         jobDb.leasedJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		aggregate:          jobDb.aggregate,
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
@@ -372,6 +377,7 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
 		leasedJobs:         jobDb.leasedJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		aggregate:          jobDb.aggregate.Clone(),
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
@@ -394,6 +400,7 @@ func (jobDb *JobDb) DryRunTxn() *Txn {
 		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
 		leasedJobs:         jobDb.leasedJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		aggregate:          jobDb.aggregate.Clone(),
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
@@ -439,6 +446,8 @@ type Txn struct {
 	leasedJobs *immutable.Set[*Job]
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
+	// Incrementally maintained aggregate of queued demand.
+	aggregate *JobAggregate
 	// The current snapshot of bid prices - allowing look up of bidding prices on job creation
 	bidPriceSnapshot *pricing.BidPriceSnapshot
 	// The jobDb from which this transaction was created.
@@ -465,6 +474,7 @@ func (txn *Txn) Commit() {
 	txn.jobDb.jobsByPoolAndQueue = txn.jobsByPoolAndQueue
 	txn.jobDb.leasedJobs = txn.leasedJobs
 	txn.jobDb.unvalidatedJobs = txn.unvalidatedJobs
+	txn.jobDb.aggregate = txn.aggregate
 	txn.jobDb.bidPriceSnapshot = txn.bidPriceSnapshot
 
 	txn.active = false
@@ -578,10 +588,17 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 
 	// First, delete any jobs to be upserted from the sets of queued and unvalidated jobs
 	// We will replace these jobs later if they are still queued
+	removedJobs := make([]*Job, 0, len(jobs))
 	if hasJobs {
+		aggregateRemoved := make(map[string]bool, len(jobs))
 		for _, job := range jobs {
 			existingJob, ok := txn.jobsById.Get(job.id)
 			if ok {
+				if !aggregateRemoved[existingJob.id] {
+					removedJobs = append(removedJobs, existingJob)
+					aggregateRemoved[existingJob.id] = true
+				}
+
 				existingQueue, ok := txn.jobsByQueue[existingJob.queue]
 				if ok {
 					txn.jobsByQueue[existingJob.queue] = existingQueue.Delete(existingJob)
@@ -611,6 +628,11 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 			}
 		}
 	}
+
+	// Apply the queued-demand aggregate delta in a single place so the aggregate
+	// can only change together with the job indexes above/below. jobsById is
+	// last-write-wins for duplicate IDs, hence dedupeJobsLastWins.
+	txn.applyAggregateDelta(removedJobs, dedupeJobsLastWins(jobs))
 
 	// Now need to insert jobs, runs and queuedJobs. This can be done in parallel.
 	wg := sync.WaitGroup{}
@@ -802,7 +824,35 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	}()
 
 	wg.Wait()
+
 	return nil
+}
+
+// applyAggregateDelta applies the queued-demand aggregate changes for a set of
+// removed and added jobs. It is the single mutation point for the aggregate.
+func (txn *Txn) applyAggregateDelta(removed, added []*Job) {
+	for _, job := range removed {
+		txn.aggregate.remove(job)
+	}
+	for _, job := range added {
+		txn.aggregate.add(job)
+	}
+}
+
+// dedupeJobsLastWins returns jobs with duplicate IDs collapsed to the last
+// occurrence, matching the last-write-wins behaviour of jobsById.
+func dedupeJobsLastWins(jobs []*Job) []*Job {
+	result := make([]*Job, 0, len(jobs))
+	seen := make(map[string]bool, len(jobs))
+	for i := len(jobs) - 1; i >= 0; i-- {
+		job := jobs[i]
+		if seen[job.id] {
+			continue
+		}
+		seen[job.id] = true
+		result = append(result, job)
+	}
+	return result
 }
 
 // NewJob creates a new scheduler job.
@@ -823,7 +873,8 @@ func (txn *Txn) NewJob(
 	pools []string,
 	priceBand int32,
 ) (*Job, error) {
-	return txn.jobDb.NewJob(jobId,
+	return txn.jobDb.NewJob(
+		jobId,
 		jobSet,
 		queue,
 		priority,
@@ -918,6 +969,20 @@ func (txn *Txn) GetAllLeasedJobs() []*Job {
 	return txn.leasedJobs.Items()
 }
 
+// GetQueuedDemand returns queued demand for currentPool by queue and priority
+// class, derived from the aggregate.
+func (txn *Txn) GetQueuedDemand(
+	currentPool string,
+	knownQueues map[string]bool,
+	cordonedQueues map[string]bool,
+) map[string]map[string]internaltypes.ResourceList {
+	return txn.aggregate.getQueuedDemand(
+		currentPool,
+		knownQueues,
+		cordonedQueues,
+	)
+}
+
 // GetAll returns all jobs in the database.
 func (txn *Txn) GetAll() []*Job {
 	allJobs := make([]*Job, 0, txn.jobsById.Len())
@@ -944,6 +1009,20 @@ func (txn *Txn) BatchDelete(jobIds []string) error {
 	if err := txn.checkWritableTransaction(); err != nil {
 		return err
 	}
+	// Collect the jobs to remove up front so the aggregate delta can be applied
+	// once, mirroring Upsert.
+	removed := make([]*Job, 0, len(jobIds))
+	seen := make(map[string]bool, len(jobIds))
+	for _, id := range jobIds {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		if job, present := txn.jobsById.Get(id); present {
+			removed = append(removed, job)
+		}
+	}
+	txn.applyAggregateDelta(removed, nil)
 	for _, id := range jobIds {
 		txn.delete(id)
 	}

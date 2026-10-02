@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -1519,6 +1520,310 @@ func TestBuildInUsePriorityClasses(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCalculateJobSchedulingInfo_AggregateMatchesScan validates that the JobDb
+// queued-demand aggregate derives exactly the same queued demand as the job scan.
+// This is the correctness check behind the aggregate comparison.
+func TestCalculateJobSchedulingInfo_AggregateMatchesScan(t *testing.T) {
+	ctx := armadacontext.Background()
+
+	queues := map[string]*api.Queue{
+		"q1": {Name: "q1"},
+		"q2": {Name: "q2", Cordoned: true},
+		"q3": {Name: "q3"},
+	}
+
+	queuedQ1 := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithQueued(true).WithPools([]string{"pool-1", "pool-2"})
+	queuedQ2Cordoned := testfixtures.Test1Cpu4GiJob("q2", testfixtures.PriorityClass1).
+		WithQueued(true).WithPools([]string{"pool-1"})
+	queuedQ3 := testfixtures.Test1Cpu4GiJob("q3", testfixtures.PriorityClass2).
+		WithQueued(true).WithPools([]string{"pool-1"})
+	queuedUnknownQueue := testfixtures.Test1Cpu4GiJob("unknown", testfixtures.PriorityClass0).
+		WithQueued(true).WithPools([]string{"pool-1"})
+	leasedQ1Active := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithNewRun("executor-1", "node-1", "node-1", "pool-1", 0)
+	leasedQ1Inactive := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithNewRun("executor-3", "node-3", "node-3", "pool-1", 0)
+	leasedQ2Cordoned := testfixtures.Test1Cpu4GiJob("q2", testfixtures.PriorityClass1).
+		WithNewRun("executor-1", "node-5", "node-5", "pool-1", 0)
+	leasedQ2Away := testfixtures.Test1Cpu4GiJob("q2", testfixtures.PriorityClass1).
+		WithNewRun("executor-2", "node-2", "node-2", "pool-2", 0)
+	leasedOtherPool := testfixtures.Test1Cpu4GiJob("q3", testfixtures.PriorityClass2).
+		WithNewRun("executor-2", "node-4", "node-4", "pool-3", 0)
+	terminal := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).WithFailed(true)
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{
+		queuedQ1, queuedQ2Cordoned, queuedQ3, queuedUnknownQueue,
+		leasedQ1Active, leasedQ1Inactive, leasedQ2Cordoned, leasedQ2Away, leasedOtherPool, terminal,
+	})
+	txn := jobDb.ReadTxn()
+
+	currentPool := "pool-1"
+	awayAllocationPools := []string{"pool-2"}
+	allPools := []string{"pool-1", "pool-2"}
+	activeExecutorsSet := map[string]bool{"executor-1": true, "executor-2": true}
+
+	algo := &FairSchedulingAlgo{}
+	_, err := algo.calculateJobSchedulingInfo(
+		ctx, activeExecutorsSet, queues, txn.GetAll(), currentPool, awayAllocationPools, allPools, nil,
+	)
+	require.NoError(t, err)
+	scanned := scanQueuedDemand(txn.GetAll(), queues, currentPool)
+	aggregate := queuedDemandFromAggregate(txn, queues, currentPool)
+	require.True(t, queuedDemandEqual(scanned, aggregate))
+}
+
+// TestCalculateJobSchedulingInfo_AggregateMatchesScanWithZeroResourceJobs proves
+// that a zero-resource queued job does not trigger a false mismatch once the last
+// non-zero job in its queue and priority class is removed. The aggregate drops the
+// zeroed bucket while the scan keeps a zero-valued one.
+func TestCalculateJobSchedulingInfo_AggregateMatchesScanWithZeroResourceJobs(t *testing.T) {
+	pool := "aggregate-zero-resource-pool"
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	nonZero := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithQueued(true).WithPools([]string{pool})
+	zero := testfixtures.TestJobWithResources("q1", testfixtures.PriorityClass0, v1.ResourceList{}).
+		WithQueued(true).WithPools([]string{pool})
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{nonZero, zero})
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.BatchDelete([]string{nonZero.Id()}))
+	writeTxn.Commit()
+	txn := jobDb.ReadTxn()
+
+	scanned := scanQueuedDemand(txn.GetAll(), queues, pool)
+	aggregate := queuedDemandFromAggregate(txn, queues, pool)
+	require.True(t, queuedDemandEqual(scanned, aggregate), "scanned=%v aggregate=%v", scanned, aggregate)
+}
+
+// TestQueuedDemandEqual proves the equality check fires when the aggregate
+// diverges from the scan, and stays silent when they agree.
+func TestQueuedDemandEqual(t *testing.T) {
+	oneCpu := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).AllResourceRequirements()
+	twoCpu := oneCpu.Add(oneCpu)
+	pc := testfixtures.PriorityClass0
+
+	newDemand := func(queue string, rl internaltypes.ResourceList) map[string]map[string]internaltypes.ResourceList {
+		return map[string]map[string]internaltypes.ResourceList{queue: {pc: rl}}
+	}
+
+	t.Run("equal demands match", func(t *testing.T) {
+		require.True(t, queuedDemandEqual(newDemand("q1", oneCpu), newDemand("q1", oneCpu)))
+	})
+
+	t.Run("both empty match", func(t *testing.T) {
+		require.True(t, queuedDemandEqual(
+			map[string]map[string]internaltypes.ResourceList{},
+			map[string]map[string]internaltypes.ResourceList{},
+		))
+	})
+
+	t.Run("different quantity mismatches", func(t *testing.T) {
+		require.False(t, queuedDemandEqual(newDemand("q1", twoCpu), newDemand("q1", oneCpu)))
+	})
+
+	t.Run("missing queue mismatches", func(t *testing.T) {
+		require.False(t, queuedDemandEqual(newDemand("q1", oneCpu), newDemand("q2", oneCpu)))
+	})
+
+	t.Run("zero bucket matches absent bucket", func(t *testing.T) {
+		zero := oneCpu.Subtract(oneCpu)
+		require.True(t, queuedDemandEqual(newDemand("q1", zero), map[string]map[string]internaltypes.ResourceList{}))
+		require.True(t, queuedDemandEqual(map[string]map[string]internaltypes.ResourceList{}, newDemand("q1", zero)))
+		require.True(t, queuedDemandEqual(newDemand("q1", zero), newDemand("q2", zero)))
+	})
+
+	t.Run("zero bucket does not mask non-zero demand", func(t *testing.T) {
+		zero := oneCpu.Subtract(oneCpu)
+		require.False(t, queuedDemandEqual(newDemand("q1", zero), newDemand("q2", oneCpu)))
+		require.False(t, queuedDemandEqual(newDemand("q2", oneCpu), newDemand("q1", zero)))
+	})
+}
+
+// TestQueuedDemandDiff proves the mismatch diagnostics report the queue,
+// priority class and both values for the differing buckets.
+func TestQueuedDemandDiff(t *testing.T) {
+	oneCpu := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).AllResourceRequirements()
+	twoCpu := oneCpu.Add(oneCpu)
+	pc := testfixtures.PriorityClass0
+
+	t.Run("no differences yields empty string", func(t *testing.T) {
+		demand := map[string]map[string]internaltypes.ResourceList{"q1": {pc: oneCpu}}
+		require.Empty(t, queuedDemandDiff(demand, demand))
+	})
+
+	t.Run("reports differing quantity", func(t *testing.T) {
+		diff := queuedDemandDiff(
+			map[string]map[string]internaltypes.ResourceList{"q1": {pc: twoCpu}},
+			map[string]map[string]internaltypes.ResourceList{"q2": {pc: oneCpu}},
+		)
+		require.Contains(t, diff, "q1/"+pc)
+		require.Contains(t, diff, "q2/"+pc)
+	})
+}
+
+// TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords proves the full
+// aggregate comparison path on divergence: the mismatch is recorded in the
+// armada_scheduler_job_aggregate_* metrics, a
+// "JobDb queued demand aggregate mismatch for pool ..." error is logged, and
+// the authoritative scan result is returned.
+//
+// Divergence is forced by passing a jobs slice containing a queued job that was
+// never upserted into the JobDb, so the scan sees it but the aggregate does not
+// — the same shape a real aggregate accounting bug would produce.
+func TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-mismatch-pool"
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	queued := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithQueued(true).WithPools([]string{pool})
+	phantom := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithQueued(true).WithPools([]string{pool})
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{computeAggregateDemand: true}
+
+	beforeComparisons := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
+	beforeMismatches := testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool))
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued, phantom}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	// Scan wins: demand covers both jobs (2 cpu) although the aggregate only knows one.
+	cpu := info.demandByQueueAndPriorityClass["q1"][testfixtures.PriorityClass0].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(2), cpu.Value())
+
+	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
+	require.Equal(t, beforeMismatches+1, testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool)))
+}
+
+// TestCalculateJobSchedulingInfo_AggregateDemandDisabledPublishesNothing proves the
+// default (flag off) path neither computes nor publishes anything.
+func TestCalculateJobSchedulingInfo_AggregateDemandDisabledPublishesNothing(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-demand-disabled-pool"
+	queued := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).WithQueued(true).WithPools([]string{pool})
+	phantom := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).WithQueued(true).WithPools([]string{pool})
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
+	txn := jobDb.ReadTxn()
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+	algo := &FairSchedulingAlgo{}
+
+	before := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
+	_, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued, phantom}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, before, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
+}
+
+// TestCalculateJobSchedulingInfo_AggregateDemandAgreementPublishesComparisonOnly proves
+// that when the aggregate agrees with the scan the aggregate comparison records a comparison
+// but no mismatch, and the scan-derived queued demand is used.
+func TestCalculateJobSchedulingInfo_AggregateDemandAgreementPublishesComparisonOnly(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-demand-agreement-pool"
+	pc := testfixtures.PriorityClass0
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	queued := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{computeAggregateDemand: true}
+
+	beforeComparisons := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
+	beforeMismatches := testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool))
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
+	require.Equal(t, beforeMismatches, testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool)))
+
+	cpu := info.demandByQueueAndPriorityClass["q1"][pc].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(1), cpu.Value())
+}
+
+// BenchmarkQueuedDemand is an end-to-end comparison, not a like-for-like one:
+// the scan case gathers the jobs and builds the full scheduling info, while the
+// aggregate case only performs the isolated queued-demand lookup. For the
+// isolated scan-vs-aggregate comparison, see BenchmarkQueuedDemandAggregate in
+// internal/scheduler/jobdb.
+func BenchmarkQueuedDemand(b *testing.B) {
+	const (
+		numQueues         = 8
+		numQueuedPerQueue = 2000
+		numLeasedPerQueue = 500
+	)
+
+	poolNames := []string{"pool-1", "pool-2", "pool-3", "pool-4"}
+	queueNames := make([]string, numQueues)
+	for i := range queueNames {
+		queueNames[i] = fmt.Sprintf("queue-%d", i)
+	}
+
+	jobs := make([]*jobdb.Job, 0, numQueues*(numQueuedPerQueue+numLeasedPerQueue))
+	for _, queueName := range queueNames {
+		for i := 0; i < numQueuedPerQueue; i++ {
+			jobs = append(jobs, testfixtures.Test1Cpu4GiJob(queueName, testfixtures.PriorityClass0).
+				WithQueued(true).WithPools(poolNames))
+		}
+		for i := 0; i < numLeasedPerQueue; i++ {
+			pool := poolNames[i%len(poolNames)]
+			executor := fmt.Sprintf("executor-%d", i%len(poolNames))
+			jobs = append(jobs, testfixtures.Test1Cpu4GiJob(queueName, testfixtures.PriorityClass0).
+				WithNewRun(executor, fmt.Sprintf("node-%d", i), fmt.Sprintf("node-%d", i), pool, 0))
+		}
+	}
+
+	jobDb := testfixtures.NewJobDbWithJobs(jobs)
+	txn := jobDb.ReadTxn()
+
+	queues := make(map[string]*api.Queue, numQueues)
+	for _, queueName := range queueNames {
+		queues[queueName] = &api.Queue{Name: queueName}
+	}
+	activeExecutorsSet := map[string]bool{}
+	for i := 0; i < len(poolNames); i++ {
+		activeExecutorsSet[fmt.Sprintf("executor-%d", i)] = true
+	}
+
+	currentPool := poolNames[0]
+	awayAllocationPools := poolNames[1:]
+	allPools := poolNames
+	algo := &FairSchedulingAlgo{}
+	ctx := armadacontext.Background()
+
+	b.Run("impl=full_scheduling_info", func(b *testing.B) {
+		b.ReportAllocs()
+		for n := 0; n < b.N; n++ {
+			allJobs := append(txn.GetAllLeasedJobs(), getQueuedJobs(txn, allPools)...)
+			if _, err := algo.calculateJobSchedulingInfo(
+				ctx, activeExecutorsSet, queues, allJobs, currentPool, awayAllocationPools, allPools, nil,
+			); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("impl=aggregate_queued_demand", func(b *testing.B) {
+		b.ReportAllocs()
+		for n := 0; n < b.N; n++ {
+			queuedDemandFromAggregate(txn, queues, currentPool)
+		}
+	})
 }
 
 type testRunReconciler struct {

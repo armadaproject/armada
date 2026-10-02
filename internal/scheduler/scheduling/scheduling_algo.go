@@ -69,6 +69,8 @@ type FairSchedulingAlgo struct {
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
 	shortJobPenalty       *ShortJobPenalty
 	tracer                trace.Tracer
+	// Whether to compute the aggregate queued demand and compare it against the scan.
+	computeAggregateDemand bool
 }
 
 func NewFairSchedulingAlgo(
@@ -106,6 +108,7 @@ func NewFairSchedulingAlgo(
 		shortJobPenalty:              shortJobPenalty,
 		stateValidator:               stateValidator,
 		tracer:                       otel.Tracer("armada.scheduler.fair_scheduling_algo"),
+		computeAggregateDemand:       config.ExperimentalAggregateDemand,
 	}, nil
 }
 
@@ -439,6 +442,10 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	allPools = append(allPools, awayAllocationPools...)
 	allPools = armadaslices.Unique(allPools)
 
+	activeExecutorsSet := armadamaps.FromSlice(executors,
+		func(ex *schedulerobjects.Executor) string { return ex.Id },
+		func(_ *schedulerobjects.Executor) bool { return true })
+
 	// We must include jobs in the following states:
 	// - Jobs active on the nodes of this pool
 	//   - These are used to populate the jobdb, calculate demand/fairshare
@@ -451,10 +458,9 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	allJobs = append(allJobs, leasedJobs...)
 	allJobs = append(allJobs, queuedJobs...)
 
-	jobSchedulingInfo, err := l.calculateJobSchedulingInfo(ctx,
-		armadamaps.FromSlice(executors,
-			func(ex *schedulerobjects.Executor) string { return ex.Id },
-			func(_ *schedulerobjects.Executor) bool { return true }),
+	jobSchedulingInfo, err := l.newCalculateJobSchedulingInfo(ctx,
+		txn,
+		activeExecutorsSet,
 		queueByName,
 		allJobs,
 		currentPool.Name,
@@ -586,6 +592,34 @@ type jobSchedulingInfo struct {
 	awayAllocatedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 	shortJobPenaltyByQueue               map[string]internaltypes.ResourceList
 	inUsePriorityClasses                 map[string]bool
+}
+
+// newCalculateJobSchedulingInfo returns the per-round scheduling information for the pool.
+//
+// The scan-derived queued demand is authoritative. If aggregate demand
+// computation is enabled, the aggregate queued demand is additionally computed,
+// compared against the scan-derived value, and any diff published.
+func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
+	ctx *armadacontext.Context,
+	txn *jobdb.Txn,
+	activeExecutorsSet map[string]bool,
+	queues map[string]*api.Queue,
+	jobs []*jobdb.Job,
+	currentPool string,
+	awayAllocationPools []string,
+	allPools []string,
+	shortJobPenalty *ShortJobPenaltySnapshot,
+) (*jobSchedulingInfo, error) {
+	start := time.Now()
+	info, err := l.calculateJobSchedulingInfo(ctx, activeExecutorsSet, queues, jobs, currentPool, awayAllocationPools, allPools, shortJobPenalty)
+	if err != nil {
+		return nil, err
+	}
+	if l.computeAggregateDemand {
+		observeJobAggregateSchedulingInfoDuration(currentPool, time.Since(start).Seconds())
+		l.compareAggregateQueuedDemand(ctx, jobs, txn, queues, currentPool)
+	}
+	return info, nil
 }
 
 func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
