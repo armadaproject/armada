@@ -20,7 +20,7 @@ export interface SidebarTabJobCommandsProps {
   commandSpecs: CommandSpec[]
 }
 
-function getCommandText(job: Job, commandSpec: CommandSpec): string {
+export function getCommandText(job: Job, commandSpec: CommandSpec): string {
   try {
     templateSettings.interpolate = /{{([\s\S]+?)}}/g
     const compiledTemplate = template(commandSpec.template)
