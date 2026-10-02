@@ -14,6 +14,10 @@ const (
 	// A floating resource that is not tied to a Kubernetes cluster or node,
 	// e.g. "external-storage-connections".
 	Floating = iota
+	// A per-device resource, e.g. HAMi GPU memory. Device resources count
+	// towards fair share but are not checked against node resources: physical
+	// device placement is responsible for fitting them.
+	Device = iota
 )
 
 type Resource struct {

@@ -71,6 +71,23 @@ var podTerminatedWithinGracePeriodTotal = promauto.NewCounterVec(
 	[]string{poolLabel},
 )
 
+var hamiInventoryNodes = promauto.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: ArmadaExecutorMetricsPrefix + "hami_inventory_nodes",
+		Help: "Number of nodes registered with HAMi, by inventory status. Nodes with invalid or unavailable " +
+			"inventory receive no GPU jobs.",
+	},
+	[]string{"status"},
+)
+
+// SetHamiInventoryNodes records the number of nodes registered with HAMi by inventory status.
+func SetHamiInventoryNodes(countByStatus map[string]int) {
+	hamiInventoryNodes.Reset()
+	for status, count := range countByStatus {
+		hamiInventoryNodes.WithLabelValues(status).Set(float64(count))
+	}
+}
+
 // Counts escalations issued, not pods that overran their grace period: the escalation is gated on the
 // repeat-deletion debounce, so a pod that overran its deadline but disappeared during that window is
 // never force deleted and never counted. RecordPodTerminationOverdue measures pod behaviour.

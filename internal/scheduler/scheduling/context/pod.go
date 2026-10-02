@@ -5,6 +5,8 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"github.com/armadaproject/armada/pkg/hamiapi"
 )
 
 type SchedulingType string
@@ -53,6 +55,8 @@ type PodSchedulingContext struct {
 	ScheduledAway bool
 	// The method of scheduling that was used to schedule this job
 	SchedulingMethod SchedulingType
+	// HAMi GPUs reserved on the node the pod was assigned to, if any.
+	HamiDeviceAllocations []*hamiapi.DeviceAllocation
 }
 
 func (pctx *PodSchedulingContext) IsSuccessful() bool {

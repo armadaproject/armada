@@ -7,6 +7,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/config"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/hami"
 )
 
 func (c *Configuration) Mutate() (config.Config, error) {
@@ -47,6 +48,8 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 		}
 	}
 
+	validateHamiPools(sl, c)
+
 	wellKnownNodeTypes := make(map[string]bool)
 	for i, wellKnownNodeType := range c.WellKnownNodeTypes {
 		if wellKnownNodeTypes[wellKnownNodeType.Name] {
@@ -81,6 +84,44 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 						sl.ReportError(cond.Operator, fieldName, "", InvalidAwayNodeTypeConditionOperatorErrorMessage, "")
 					}
 				}
+			}
+		}
+	}
+}
+
+func validateHamiPools(sl validator.StructLevel, c SchedulingConfig) {
+	hamiPools := map[string]bool{}
+	for _, pool := range c.Pools {
+		if pool.Hami.Enabled {
+			hamiPools[pool.Name] = true
+		}
+	}
+	if len(hamiPools) == 0 {
+		return
+	}
+	supported := map[string]bool{}
+	for _, resourceType := range c.SupportedResourceTypes {
+		supported[resourceType.Name] = true
+	}
+	if !supported[hami.GPUMemoryResource] || !supported[hami.GPUCoreResource] {
+		sl.ReportError(c.SupportedResourceTypes, "SupportedResourceTypes", "", HamiWithoutDeviceResourcesErrorMessage, "")
+	}
+	for i, pool := range c.Pools {
+		fieldName := fmt.Sprintf("Pools[%d].Hami", i)
+		if pool.Hami.Enabled {
+			if len(pool.AwayPools) > 0 {
+				sl.ReportError(pool.Hami, fieldName, "", HamiWithAwayPoolsErrorMessage, "")
+			}
+			if pool.ExperimentalOptimiser != nil && pool.ExperimentalOptimiser.Enabled {
+				sl.ReportError(pool.Hami, fieldName, "", HamiWithOptimiserErrorMessage, "")
+			}
+			if pool.ExperimentalMarketScheduling != nil && pool.ExperimentalMarketScheduling.Enabled {
+				sl.ReportError(pool.Hami, fieldName, "", HamiWithMarketSchedulingErrorMessage, "")
+			}
+		}
+		for _, awayPool := range pool.AwayPools {
+			if hamiPools[awayPool.Name] {
+				sl.ReportError(pool.AwayPools, fmt.Sprintf("Pools[%d].AwayPools", i), "", HamiWithAwayPoolsErrorMessage, "")
 			}
 		}
 	}

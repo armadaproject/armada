@@ -2,6 +2,7 @@ package simulator
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -11,8 +12,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/pointer"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/hami"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/hamiapi"
 )
 
 func NodeTemplate32Cpu(n int64) *NodeTemplate {
@@ -192,4 +195,62 @@ func EventSequenceSummary(eventSequence *armadaevents.EventSequence) string {
 
 func EventSummary(event *armadaevents.EventSequence_Event) string {
 	return strings.ReplaceAll(fmt.Sprintf("%T", event.Event), "*armadaevents.EventSequence_Event_", "")
+}
+
+// NodeTemplateHamiGpu returns n nodes with the given number of uniform HAMi GPUs
+// of 4 slots, memoryMiB and 100% cores each. unhealthy lists device indexes that
+// are registered but unusable. The nodes advertise one nvidia.com/gpu per slot,
+// as HAMi's device plugin does.
+func NodeTemplateHamiGpu(n int64, gpus int, memoryMiB int64, unhealthy ...int) *NodeTemplate {
+	const slots = 4
+	devices := make([]*hamiapi.DeviceInfo, gpus)
+	for i := range devices {
+		healthy := !slices.Contains(unhealthy, i)
+		devices[i] = &hamiapi.DeviceInfo{
+			Id:          fmt.Sprintf("gpu-%d", i),
+			SlotCount:   slots,
+			MemoryMib:   memoryMiB,
+			CorePercent: hami.SupportedCoreCapacity,
+			Mode:        hami.SupportedMode,
+			Healthy:     healthy,
+			Usable:      healthy,
+		}
+	}
+	return &NodeTemplate{
+		Number: n,
+		TotalResources: &schedulerobjects.ResourceList{
+			Resources: map[string]*resource.Quantity{
+				"cpu":            pointer.MustParseResource("128"),
+				"memory":         pointer.MustParseResource("4096Gi"),
+				hami.GPUResource: resource.NewQuantity(int64(gpus*slots), resource.DecimalSI),
+			},
+		},
+		HamiInventory: &hamiapi.NodeInventory{Status: hamiapi.InventoryStatus_INVENTORY_STATUS_USABLE, Devices: devices},
+	}
+}
+
+// JobTemplateHamiGpu returns n one-minute jobs requesting gpus GPUs with the
+// given memory (MiB) and compute (percent) on each. Zero memory or cores mean
+// the whole device.
+func JobTemplateHamiGpu(n int64, jobSet, priorityClassName string, gpus, memoryMiB, corePercent int64) *JobTemplate {
+	requests := v1.ResourceList{
+		"cpu":            resource.MustParse("1"),
+		"memory":         resource.MustParse("1Gi"),
+		hami.GPUResource: *resource.NewQuantity(gpus, resource.DecimalSI),
+	}
+	if memoryMiB > 0 {
+		requests[hami.GPUMemoryResource] = *resource.NewQuantity(memoryMiB, resource.DecimalSI)
+	}
+	if corePercent > 0 {
+		requests[hami.GPUCoreResource] = *resource.NewQuantity(corePercent, resource.DecimalSI)
+	}
+	return &JobTemplate{
+		Number:            n,
+		JobSet:            jobSet,
+		PriorityClassName: priorityClassName,
+		Requirements: &schedulerobjects.PodRequirements{
+			ResourceRequirements: &v1.ResourceRequirements{Requests: requests},
+		},
+		RuntimeDistribution: &ShiftedExponential{Minimum: protoutil.ToDuration(time.Minute)},
+	}
 }

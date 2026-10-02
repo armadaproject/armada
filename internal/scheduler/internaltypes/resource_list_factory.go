@@ -8,6 +8,7 @@ import (
 
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/hami"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 )
 
@@ -42,7 +43,7 @@ func NewResourceListFactory(
 		if _, exists := nameToIndex[t.Name]; exists {
 			return nil, fmt.Errorf("duplicate resource type name %q", t.Name)
 		}
-		add(t.Name, t.Resolution, Kubernetes)
+		add(t.Name, t.Resolution, supportedResourceType(t.Name))
 	}
 	for _, t := range floatingResourceTypes {
 		if _, exists := nameToIndex[t.Name]; exists {
@@ -56,6 +57,14 @@ func NewResourceListFactory(
 		scales:      scales,
 		types:       types,
 	}, nil
+}
+
+// supportedResourceType returns the type of a supported (non-floating) resource.
+func supportedResourceType(name string) ResourceType {
+	if hami.IsDeviceResource(name) {
+		return Device
+	}
+	return Kubernetes
 }
 
 // Convert resolution to a k8sResource.Scale

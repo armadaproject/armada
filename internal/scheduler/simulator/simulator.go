@@ -58,6 +58,9 @@ type accounting struct {
 	demandByQueue map[string]internaltypes.ResourceList
 	// Total resources across all executorGroups for each pool.
 	totalResourcesByPool map[string]internaltypes.ResourceList
+	// Mean memory of the usable HAMi GPUs of each pool placing onto HAMi GPUs,
+	// used to charge whole-GPU requests before they are placed.
+	hamiMemoryEstimateMiBByPool map[string]int64
 }
 
 // Simulator captures the parameters and state of the Armada simulator.
@@ -182,6 +185,7 @@ func NewSimulator(
 			allocationByPoolAndQueueAndPriorityClass: make(map[string]map[string]map[string]internaltypes.ResourceList),
 			demandByQueue:                            make(map[string]internaltypes.ResourceList),
 			totalResourcesByPool:                     make(map[string]internaltypes.ResourceList),
+			hamiMemoryEstimateMiBByPool:              make(map[string]int64),
 		},
 	}
 	jobDb.SetClock(s)
@@ -355,8 +359,12 @@ func (s *Simulator) setupClusters() error {
 					Taints:         slices.Clone(nodeTemplate.Taints),
 					Labels:         labels,
 					TotalResources: nodeTemplate.TotalResources.DeepCopy(),
+					HamiInventory:  nodeTemplate.HamiInventory,
 				}
 				dbNode := nodeFactory.FromSchedulerObjectsNode(node)
+				if s.isHamiPool(cluster.Pool) {
+					dbNode = dbNode.WithHamiPool()
+				}
 
 				txn := nodeDb.Txn(true)
 				if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, dbNode); err != nil {
@@ -371,10 +379,54 @@ func (s *Simulator) setupClusters() error {
 	}
 
 	for pool, nodeDb := range s.accounting.nodeDbByPool {
-		s.accounting.totalResourcesByPool[pool] = nodeDb.TotalKubernetesResources()
+		s.accounting.totalResourcesByPool[pool] = nodeDb.TotalKubernetesResources().Add(nodeDb.TotalHamiDeviceResources())
+		if s.isHamiPool(pool) {
+			s.accounting.hamiMemoryEstimateMiBByPool[pool] = hamiMeanDeviceMemoryMiB(s.ClusterSpec, pool)
+		}
 	}
 
 	return nil
+}
+
+func (s *Simulator) isHamiPool(pool string) bool {
+	for _, poolConfig := range s.schedulingConfig.Pools {
+		if poolConfig.Name == pool {
+			return poolConfig.Hami.Enabled
+		}
+	}
+	return false
+}
+
+// hamiMeanDeviceMemoryMiB returns the mean memory of the usable HAMi GPUs of a
+// pool, rounded down, or zero if there are none.
+func hamiMeanDeviceMemoryMiB(clusterSpec *ClusterSpec, pool string) int64 {
+	var count, totalMiB int64
+	for _, cluster := range clusterSpec.Clusters {
+		if cluster.Pool != pool {
+			continue
+		}
+		for _, nodeTemplate := range cluster.NodeTemplates {
+			for _, device := range nodeTemplate.HamiInventory.GetDevices() {
+				if device.Usable {
+					count += nodeTemplate.Number
+					totalMiB += nodeTemplate.Number * device.MemoryMib
+				}
+			}
+		}
+	}
+	if count == 0 {
+		return 0
+	}
+	return totalMiB / count
+}
+
+// hamiCharged returns job charged for HAMi GPUs the way the scheduler charges it
+// (see jobdb.Job.WithHamiCharge), so that demand and allocation agree.
+func (s *Simulator) hamiCharged(job *jobdb.Job, pool string) *jobdb.Job {
+	if !s.isHamiPool(pool) {
+		return job
+	}
+	return job.WithHamiCharge(s.accounting.hamiMemoryEstimateMiBByPool[pool])
 }
 
 func (s *Simulator) bootstrapWorkload() error {
@@ -598,12 +650,19 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			s.time.Sub(s.lastOptimiserRoundTimeByPool[pool]) > optimiserConfig.Interval {
 			shouldRunOptimiser = true
 		}
+		// In a pool placing onto HAMi GPUs, jobs are charged for their GPUs as the
+		// scheduler does: running jobs for their reservation and queued jobs for
+		// their request, with omitted memory estimated at the pool's mean GPU memory.
+		jobRepo := jobdb.JobRepository(txn)
+		if s.isHamiPool(pool) {
+			jobRepo = jobdb.NewHamiChargingRepository(txn, s.accounting.hamiMemoryEstimateMiBByPool[pool])
+		}
 		sch := scheduling.NewPreemptingQueueScheduler(
 			sctx,
 			constraints,
 			s.floatingResourceTypes,
 			s.schedulingConfig,
-			txn,
+			jobRepo,
 			nodeDb,
 			shouldRunOptimiser,
 			clock.RealClock{},
@@ -668,7 +727,13 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				if !ok {
 					return errors.Errorf("job %s not mapped to a priority", job.Id())
 				}
-				scheduledJobs[i].Job = job.WithQueued(false).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority)
+				job = job.WithQueued(false).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority)
+				if allocations := jctx.PodSchedulingContext.HamiDeviceAllocations; len(allocations) > 0 {
+					if job, err = job.WithHamiDeviceAllocations(allocations); err != nil {
+						return err
+					}
+				}
+				scheduledJobs[i].Job = job
 			}
 		}
 		if err := txn.Upsert(armadaslices.Map(preemptedJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job })); err != nil {
@@ -1021,12 +1086,24 @@ func maxTime(a, b time.Time) time.Time {
 	return a
 }
 
+// Demand is tracked per queue across pools, so a job's HAMi charge in demand
+// uses the estimate of the first pool placing onto HAMi GPUs. This is exact when
+// every HAMi pool has the same GPU size.
+func (s *Simulator) demandOf(job *jobdb.Job) internaltypes.ResourceList {
+	for _, pool := range s.schedulingConfig.Pools {
+		if pool.Hami.Enabled {
+			return s.hamiCharged(job, pool.Name).AllResourceRequirements()
+		}
+	}
+	return job.AllResourceRequirements()
+}
+
 func (s *Simulator) addJobToDemand(job *jobdb.Job) {
-	s.accounting.demandByQueue[job.Queue()] = s.accounting.demandByQueue[job.Queue()].Add(job.AllResourceRequirements())
+	s.accounting.demandByQueue[job.Queue()] = s.accounting.demandByQueue[job.Queue()].Add(s.demandOf(job))
 }
 
 func (s *Simulator) removeJobFromDemand(job *jobdb.Job) {
-	s.accounting.demandByQueue[job.Queue()] = s.accounting.demandByQueue[job.Queue()].Subtract(job.AllResourceRequirements())
+	s.accounting.demandByQueue[job.Queue()] = s.accounting.demandByQueue[job.Queue()].Subtract(s.demandOf(job))
 }
 
 func expandRepeatingTemplates(w *WorkloadSpec) *WorkloadSpec {
