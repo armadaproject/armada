@@ -439,6 +439,10 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	allPools = append(allPools, awayAllocationPools...)
 	allPools = armadaslices.Unique(allPools)
 
+	activeExecutorsSet := armadamaps.FromSlice(executors,
+		func(ex *schedulerobjects.Executor) string { return ex.Id },
+		func(_ *schedulerobjects.Executor) bool { return true })
+
 	// We must include jobs in the following states:
 	// - Jobs active on the nodes of this pool
 	//   - These are used to populate the jobdb, calculate demand/fairshare
@@ -452,9 +456,8 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	allJobs = append(allJobs, queuedJobs...)
 
 	jobSchedulingInfo, err := l.calculateJobSchedulingInfo(ctx,
-		armadamaps.FromSlice(executors,
-			func(ex *schedulerobjects.Executor) string { return ex.Id },
-			func(_ *schedulerobjects.Executor) bool { return true }),
+		txn,
+		activeExecutorsSet,
 		queueByName,
 		allJobs,
 		currentPool.Name,
@@ -588,7 +591,55 @@ type jobSchedulingInfo struct {
 	inUsePriorityClasses                 map[string]bool
 }
 
-func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
+// calculateJobSchedulingInfo returns the per-round scheduling information for the pool.
+//
+// The legacy per-job calculation is always authoritative. In parallel, the incrementally
+// maintained JobDb aggregate computes the same information. The two are compared and any
+// discrepancy is recorded as a metric and logged. This lets us validate the aggregate
+// against the established calculation before it is ever allowed to drive scheduling.
+func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, txn *jobdb.Txn,
+	activeExecutorsSet map[string]bool, queues map[string]*api.Queue, jobs []*jobdb.Job, currentPool string,
+	awayAllocationPools []string, allPools []string, shortJobPenalty *ShortJobPenaltySnapshot,
+) (*jobSchedulingInfo, error) {
+	legacy, err := l.calculateLegacyJobSchedulingInfo(ctx, activeExecutorsSet, queues, jobs, currentPool, awayAllocationPools, allPools, shortJobPenalty)
+	if err != nil {
+		return nil, err
+	}
+	aggregate := l.aggregateJobSchedulingInfo(txn, activeExecutorsSet, queues, currentPool, awayAllocationPools, allPools, shortJobPenalty)
+	mismatchedComponents, diff := compareJobSchedulingInfo(legacy, aggregate)
+	recordJobAggregateCanaryResult(currentPool, mismatchedComponents)
+	if diff != "" {
+		ctx.Errorf("JobDb aggregate scheduling info mismatch for pool %s (using legacy result): %s", currentPool, diff)
+	}
+	return legacy, nil
+}
+
+// aggregateJobSchedulingInfo derives the scheduling info of the pool from the incrementally
+// maintained JobDb aggregate instead of scanning every job.
+func (l *FairSchedulingAlgo) aggregateJobSchedulingInfo(txn *jobdb.Txn, activeExecutorsSet map[string]bool,
+	queues map[string]*api.Queue, currentPool string, awayAllocationPools []string, allPools []string,
+	shortJobPenalty *ShortJobPenaltySnapshot,
+) *jobSchedulingInfo {
+	knownQueues := make(map[string]bool, len(queues))
+	cordonedQueues := make(map[string]bool, len(queues))
+	for name, queue := range queues {
+		knownQueues[name] = true
+		cordonedQueues[name] = queue.Cordoned
+	}
+
+	info := txn.CalculateSchedulingInfo(activeExecutorsSet, currentPool, awayAllocationPools, allPools, knownQueues, cordonedQueues)
+	return &jobSchedulingInfo{
+		jobsByExecutorId:                     info.JobsByExecutorId,
+		jobsByPool:                           info.JobsByPool,
+		demandByQueueAndPriorityClass:        info.DemandByQueueAndPriorityClass,
+		allocatedByQueueAndPriorityClass:     info.AllocatedByQueueAndPriorityClass,
+		awayAllocatedByQueueAndPriorityClass: info.AwayAllocatedByQueueAndPriorityClass,
+		shortJobPenaltyByQueue:               shortJobPenalty.GetPenaltiesForPool(currentPool),
+		inUsePriorityClasses:                 info.InUsePriorityClasses,
+	}
+}
+
+func (l *FairSchedulingAlgo) calculateLegacyJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
 	queues map[string]*api.Queue, jobs []*jobdb.Job, currentPool string, awayAllocationPools []string, allPools []string,
 	shortJobPenalty *ShortJobPenaltySnapshot,
 ) (*jobSchedulingInfo, error) {
@@ -695,6 +746,129 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		shortJobPenaltyByQueue:               shortJobPenaltyByQueue,
 		inUsePriorityClasses:                 inUsePriorityClasses,
 	}, nil
+}
+
+// compareJobSchedulingInfo compares the legacy and aggregate scheduling info and returns the
+// names of the mismatching components together with a human-readable description of the
+// differences. Both are empty if the two are equivalent. It is used by the canary mode to
+// validate the aggregate against the established per-job calculation.
+func compareJobSchedulingInfo(legacy, aggregate *jobSchedulingInfo) ([]string, string) {
+	components := make([]string, 0)
+	diffs := make([]string, 0)
+
+	if !maps.Equal(legacy.inUsePriorityClasses, aggregate.inUsePriorityClasses) {
+		components = append(components, "in_use_priority_classes")
+		diffs = append(diffs, fmt.Sprintf("inUsePriorityClasses: legacy=%v aggregate=%v",
+			sortedKeys(legacy.inUsePriorityClasses), sortedKeys(aggregate.inUsePriorityClasses)))
+	}
+	if diff := compareResourceListMaps("demandByQueueAndPriorityClass", legacy.demandByQueueAndPriorityClass, aggregate.demandByQueueAndPriorityClass); diff != "" {
+		components = append(components, "demand")
+		diffs = append(diffs, diff)
+	}
+	if diff := compareResourceListMaps("allocatedByQueueAndPriorityClass", legacy.allocatedByQueueAndPriorityClass, aggregate.allocatedByQueueAndPriorityClass); diff != "" {
+		components = append(components, "allocated")
+		diffs = append(diffs, diff)
+	}
+	if diff := compareResourceListMaps("awayAllocatedByQueueAndPriorityClass", legacy.awayAllocatedByQueueAndPriorityClass, aggregate.awayAllocatedByQueueAndPriorityClass); diff != "" {
+		components = append(components, "away_allocated")
+		diffs = append(diffs, diff)
+	}
+	if diff := compareJobsById("jobsByPool", legacy.jobsByPool, aggregate.jobsByPool); diff != "" {
+		components = append(components, "jobs_by_pool")
+		diffs = append(diffs, diff)
+	}
+	if diff := compareJobsById("jobsByExecutorId", legacy.jobsByExecutorId, aggregate.jobsByExecutorId); diff != "" {
+		components = append(components, "jobs_by_executor")
+		diffs = append(diffs, diff)
+	}
+	return components, strings.Join(diffs, "; ")
+}
+
+func sortedKeys(m map[string]bool) []string {
+	keys := maps.Keys(m)
+	slices.Sort(keys)
+	return keys
+}
+
+func compareResourceListMaps(name string, legacy, aggregate map[string]map[string]internaltypes.ResourceList) string {
+	diffs := make([]string, 0)
+	for _, queue := range unionKeys(legacy, aggregate) {
+		for _, priorityClass := range unionResourcePriorityClasses(legacy[queue], aggregate[queue]) {
+			legacyRl := legacy[queue][priorityClass]
+			aggregateRl := aggregate[queue][priorityClass]
+			legacyZero := legacyRl.AllZero()
+			aggregateZero := aggregateRl.AllZero()
+			if legacyZero && aggregateZero {
+				continue
+			}
+			if legacyZero != aggregateZero || !legacyRl.Equal(aggregateRl) {
+				diffs = append(diffs, fmt.Sprintf("%s[queue=%s,priorityClass=%s]: legacy=%s aggregate=%s",
+					name, queue, priorityClass, legacyRl.String(), aggregateRl.String()))
+			}
+		}
+	}
+	slices.Sort(diffs)
+	return strings.Join(diffs, ", ")
+}
+
+func compareJobsById(name string, legacy, aggregate map[string][]*jobdb.Job) string {
+	diffs := make([]string, 0)
+	for _, key := range unionJobKeys(legacy, aggregate) {
+		legacyIds := jobIdSet(legacy[key])
+		aggregateIds := jobIdSet(aggregate[key])
+		if !maps.Equal(legacyIds, aggregateIds) {
+			diffs = append(diffs, fmt.Sprintf("%s[%s]: legacy=%v aggregate=%v", name, key, sortedKeys(legacyIds), sortedKeys(aggregateIds)))
+		}
+	}
+	slices.Sort(diffs)
+	return strings.Join(diffs, ", ")
+}
+
+func unionKeys(a, b map[string]map[string]internaltypes.ResourceList) []string {
+	keySet := make(map[string]bool, len(a)+len(b))
+	for key := range a {
+		keySet[key] = true
+	}
+	for key := range b {
+		keySet[key] = true
+	}
+	keys := maps.Keys(keySet)
+	slices.Sort(keys)
+	return keys
+}
+
+func unionResourcePriorityClasses(a, b map[string]internaltypes.ResourceList) []string {
+	keySet := make(map[string]bool, len(a)+len(b))
+	for key := range a {
+		keySet[key] = true
+	}
+	for key := range b {
+		keySet[key] = true
+	}
+	keys := maps.Keys(keySet)
+	slices.Sort(keys)
+	return keys
+}
+
+func unionJobKeys(a, b map[string][]*jobdb.Job) []string {
+	keySet := make(map[string]bool, len(a)+len(b))
+	for key := range a {
+		keySet[key] = true
+	}
+	for key := range b {
+		keySet[key] = true
+	}
+	keys := maps.Keys(keySet)
+	slices.Sort(keys)
+	return keys
+}
+
+func jobIdSet(jobs []*jobdb.Job) map[string]bool {
+	result := make(map[string]bool, len(jobs))
+	for _, job := range jobs {
+		result[job.Id()] = true
+	}
+	return result
 }
 
 func (l *FairSchedulingAlgo) buildInUsePriorityClasses(inUse map[string]bool) map[string]types.PriorityClass {

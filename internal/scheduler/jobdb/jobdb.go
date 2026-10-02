@@ -73,6 +73,9 @@ type JobDb struct {
 	jobsByPoolAndQueue map[string]map[string]immutable.SortedSet[*Job]
 	leasedJobs         *immutable.Set[*Job]
 	unvalidatedJobs    *immutable.Set[*Job]
+	// Incrementally-maintained aggregate over the active jobs in the db.
+	// Used to derive scheduling decisions without scanning every job.
+	aggregate *JobAggregate
 	// Configured priority classes.
 	priorityClasses map[string]types.PriorityClass
 	// Priority class assigned to jobs with a priorityClassName not in jobDb.priorityClasses.
@@ -144,6 +147,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 		jobsByPoolAndQueue:     map[string]map[string]immutable.SortedSet[*Job]{},
 		leasedJobs:             &leasedJobs,
 		unvalidatedJobs:        &unvalidatedJobs,
+		aggregate:              NewJobAggregate(),
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
@@ -176,6 +180,7 @@ func (jobDb *JobDb) Clone() *JobDb {
 		jobsByPoolAndQueue:     deepClone(jobDb.jobsByPoolAndQueue),
 		leasedJobs:             jobDb.leasedJobs,
 		unvalidatedJobs:        jobDb.unvalidatedJobs,
+		aggregate:              jobDb.aggregate.Clone(),
 		priorityClasses:        jobDb.priorityClasses,
 		defaultPriorityClass:   jobDb.defaultPriorityClass,
 		schedulingKeyGenerator: jobDb.schedulingKeyGenerator,
@@ -350,6 +355,7 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 		jobsByPoolAndQueue: jobDb.jobsByPoolAndQueue,
 		leasedJobs:         jobDb.leasedJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		aggregate:          jobDb.aggregate,
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
@@ -372,6 +378,7 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
 		leasedJobs:         jobDb.leasedJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		aggregate:          jobDb.aggregate.Clone(),
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
@@ -394,6 +401,7 @@ func (jobDb *JobDb) DryRunTxn() *Txn {
 		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
 		leasedJobs:         jobDb.leasedJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		aggregate:          jobDb.aggregate.Clone(),
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
@@ -439,6 +447,8 @@ type Txn struct {
 	leasedJobs *immutable.Set[*Job]
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
+	// Incrementally-maintained aggregate over the active jobs in the db.
+	aggregate *JobAggregate
 	// The current snapshot of bid prices - allowing look up of bidding prices on job creation
 	bidPriceSnapshot *pricing.BidPriceSnapshot
 	// The jobDb from which this transaction was created.
@@ -465,6 +475,7 @@ func (txn *Txn) Commit() {
 	txn.jobDb.jobsByPoolAndQueue = txn.jobsByPoolAndQueue
 	txn.jobDb.leasedJobs = txn.leasedJobs
 	txn.jobDb.unvalidatedJobs = txn.unvalidatedJobs
+	txn.jobDb.aggregate = txn.aggregate
 	txn.jobDb.bidPriceSnapshot = txn.bidPriceSnapshot
 
 	txn.active = false
@@ -579,9 +590,15 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	// First, delete any jobs to be upserted from the sets of queued and unvalidated jobs
 	// We will replace these jobs later if they are still queued
 	if hasJobs {
+		aggregateRemoved := make(map[string]bool, len(jobs))
 		for _, job := range jobs {
 			existingJob, ok := txn.jobsById.Get(job.id)
 			if ok {
+				if !aggregateRemoved[existingJob.id] {
+					txn.aggregate.Remove(existingJob)
+					aggregateRemoved[existingJob.id] = true
+				}
+
 				existingQueue, ok := txn.jobsByQueue[existingJob.queue]
 				if ok {
 					txn.jobsByQueue[existingJob.queue] = existingQueue.Delete(existingJob)
@@ -802,6 +819,13 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	}()
 
 	wg.Wait()
+
+	// Update the aggregate with the new job state. This is done after the concurrent
+	// inserts above so that the aggregate is mutated sequentially.
+	for _, job := range jobs {
+		txn.aggregate.Add(job)
+	}
+
 	return nil
 }
 
@@ -918,6 +942,27 @@ func (txn *Txn) GetAllLeasedJobs() []*Job {
 	return txn.leasedJobs.Items()
 }
 
+// CalculateSchedulingInfo derives per-pool scheduling information (demand, allocation,
+// in-use priority classes, and leased jobs by pool/executor) from the incrementally
+// maintained job aggregate, without scanning every job.
+func (txn *Txn) CalculateSchedulingInfo(
+	activeExecutorsSet map[string]bool,
+	currentPool string,
+	awayAllocationPools []string,
+	allPools []string,
+	knownQueues map[string]bool,
+	cordonedQueues map[string]bool,
+) *SchedulingInfo {
+	return txn.aggregate.CalculateSchedulingInfo(
+		activeExecutorsSet,
+		currentPool,
+		awayAllocationPools,
+		allPools,
+		knownQueues,
+		cordonedQueues,
+	)
+}
+
 // GetAll returns all jobs in the database.
 func (txn *Txn) GetAll() []*Job {
 	allJobs := make([]*Job, 0, txn.jobsById.Len())
@@ -955,6 +1000,7 @@ func (txn *Txn) BatchDelete(jobIds []string) error {
 func (txn *Txn) delete(jobId string) {
 	job, present := txn.jobsById.Get(jobId)
 	if present {
+		txn.aggregate.Remove(job)
 		txn.jobsById = txn.jobsById.Delete(jobId)
 		for _, run := range job.runsById {
 			txn.jobsByRunId = txn.jobsByRunId.Delete(run.id)
