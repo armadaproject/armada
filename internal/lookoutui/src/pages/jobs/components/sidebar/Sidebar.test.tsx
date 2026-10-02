@@ -168,7 +168,6 @@ describe("Sidebar", () => {
     await userEvent.click(getByRole("button", { name: "diagnostic" }))
     within(await findByRole("row", { name: /status/ })).getByText("Failed")
     await userEvent.click(getByRole("button", { name: "attempts" }))
-    await userEvent.click(getByRole("button", { name: "1" }))
     within(await findByRole("row", { name: /host/ })).getByText("worker-1")
     await userEvent.click(getByRole("button", { name: "result" }))
     within(await findByRole("row", { name: /code/ })).getByText("137")
@@ -203,8 +202,8 @@ describe("Sidebar", () => {
     expect(getByRole("button", { name: "Details" })).toBeInTheDocument()
     within(await findByRole("row", { name: /message/ })).getByText("unknown payload")
     await userEvent.click(getByRole("button", { name: "values" }))
-    within(await findByRole("row", { name: "1 true" })).getByText("true")
-    within(await findByRole("row", { name: "2 null" })).getByText("null")
+    within(await findByRole("row", { name: "Value true" })).getByText("true")
+    within(await findByRole("row", { name: "Value null" })).getByText("null")
   })
 
   it("should handle no runs", async () => {

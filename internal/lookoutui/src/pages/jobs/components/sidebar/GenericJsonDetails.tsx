@@ -1,4 +1,6 @@
-import { Accordion, AccordionDetails, AccordionSummary } from "@mui/material"
+import { Fragment } from "react"
+
+import { Accordion, AccordionDetails, AccordionSummary, Divider } from "@mui/material"
 
 import { KeyValuePairTable } from "./KeyValuePairTable"
 
@@ -14,9 +16,20 @@ export const GenericJsonDetails = ({ value }: { value: JsonValue }) => {
     return <KeyValuePairTable data={[{ key: "Value", value: formatScalar(value) }]} />
   }
 
-  const entries: [string, JsonValue][] = Array.isArray(value)
-    ? value.map((entry, index) => [(index + 1).toString(), entry])
-    : Object.entries(value)
+  if (Array.isArray(value)) {
+    return (
+      <>
+        {value.map((entry, index) => (
+          <Fragment key={index}>
+            {index > 0 && <Divider />}
+            <GenericJsonDetails value={entry} />
+          </Fragment>
+        ))}
+      </>
+    )
+  }
+
+  const entries: [string, JsonValue][] = Object.entries(value)
   const scalarEntries = entries.filter((entry): entry is [string, string | number | boolean | null] =>
     isScalar(entry[1]),
   )
