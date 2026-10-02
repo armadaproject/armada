@@ -146,10 +146,19 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
     }
     return job.runs[job.runs.length - 1].cluster
   }, [job])
+  const runId = job.runs[job.runs.length - 1]?.runId ?? ""
 
   // Get logs
   const getLogsEnabled = Boolean(cluster && namespace && job.jobId && selectedContainer && job.runs.length > 0)
-  const getLogsResult = useGetLogs(cluster, namespace, job.jobId, selectedContainer, loadFromStart, getLogsEnabled)
+  const getLogsResult = useGetLogs(
+    cluster,
+    namespace,
+    job.jobId,
+    runId,
+    selectedContainer,
+    loadFromStart,
+    getLogsEnabled,
+  )
 
   // Periodically refetch logs
   useEffect(() => {
@@ -194,7 +203,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
 
     setDownloadingLogs(true)
     try {
-      const allLogLines = await fetchAllLogsFromStart(cluster, namespace, job.jobId, selectedContainer)
+      const allLogLines = await fetchAllLogsFromStart(cluster, namespace, job.jobId, runId, selectedContainer)
       downloadLogLines(allLogLines)
     } catch (e) {
       openSnackbar(`Failed to download logs for Job with ID: ${job.jobId}: ${await getErrorMessage(e)}`, "error")
@@ -208,6 +217,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
     cluster,
     namespace,
     job.jobId,
+    runId,
     selectedContainer,
     openSnackbar,
   ])

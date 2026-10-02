@@ -113,6 +113,10 @@
           "type": "integer",
           "format": "int32"
         },
+        "runId": {
+          "description": "When set, binoculars finds the pod by its job ID and run ID labels, and ignores pod_number.",
+          "type": "string"
+        },
         "sinceTime": {
           "type": "string"
         }

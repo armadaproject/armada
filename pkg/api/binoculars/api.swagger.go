@@ -124,6 +124,10 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
+		"        \"runId\": {\n" +
+		"          \"description\": \"When set, binoculars finds the pod by its job ID and run ID labels, and ignores pod_number.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"sinceTime\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
