@@ -389,6 +389,7 @@ message JobRunSucceeded {
     repeated KubernetesResourceInfo resourceInfos = 3;
     string job_id = 4;
     string run_id = 5;
+    google.protobuf.Timestamp terminated_at = 6;
 }
 
 // Message containing a set of errors associated with a particular job.
@@ -476,6 +477,7 @@ message PodError {
     repeated ContainerError containerErrors = 5;
     KubernetesReason  kubernetes_reason = 6;
     string debugMessage = 7;
+    google.protobuf.Timestamp terminated_at = 8;
 }
 
 message ContainerError {
@@ -487,6 +489,8 @@ message ContainerError {
     string message = 3;
     // Corresponds to v1.ContainerStateTerminated.Reason
     string reason = 4;
+    google.protobuf.Timestamp started_at = 5;
+    google.protobuf.Timestamp finished_at = 6;
     // Reason reported by Kubernetes.
     KubernetesReason  kubernetes_reason = 9;
 }
@@ -606,4 +610,5 @@ message JobRunTerminatedDebugInfo {
     string job_id = 1;
     string run_id = 2;
     string debugMessage = 3;
+    google.protobuf.Timestamp terminated_at = 4;
 }
