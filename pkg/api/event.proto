@@ -33,6 +33,7 @@ message JobLeasedEvent {
     google.protobuf.Timestamp created = 4;
     string cluster_id = 5;
     string pool = 6;
+    string run_id = 7;
 }
 
 message JobLeaseReturnedEvent {
@@ -45,6 +46,7 @@ message JobLeaseReturnedEvent {
     string kubernetes_id = 7;
     int32  pod_number = 8;
     bool run_attempted = 9;
+    string run_id = 10;
 }
 
 message JobLeaseExpiredEvent {
@@ -52,6 +54,7 @@ message JobLeaseExpiredEvent {
     string job_set_id = 2;
     string queue = 3;
     google.protobuf.Timestamp created = 4;
+    string run_id = 5;
 }
 
 message JobPendingEvent {
@@ -65,6 +68,7 @@ message JobPendingEvent {
     string pod_name = 8;
     string pod_namespace = 9;
     string pool = 10;
+    string run_id = 11;
 }
 
 message JobRunningEvent {
@@ -79,6 +83,7 @@ message JobRunningEvent {
     string pod_name = 9;
     string pod_namespace = 10;
     string pool = 11;
+    string run_id = 12;
 }
 
 message JobIngressInfoEvent {
@@ -93,6 +98,7 @@ message JobIngressInfoEvent {
     string pod_name = 10;
     string pod_namespace = 11;
     map<int32, string> ingress_addresses = 9;
+    string run_id = 12;
 }
 
 message JobFailedEvent {
@@ -119,6 +125,9 @@ message JobFailedEvent {
     // expected. Default false preserves the prior behavior where every
     // emitted JobFailedEvent was terminal.
     bool retryable = 18;
+    // The run that failed. Empty when the job failed before it had a run, for example when the scheduler rejects it.
+    // Also empty in events from a scheduler that does not set this field.
+    string run_id = 19;
 }
 
 message JobPreemptingEvent {
@@ -155,6 +164,7 @@ message JobSucceededEvent {
     int32 pod_number = 8;
     string pod_name = 9;
     string pod_namespace = 10;
+    string run_id = 11;
 }
 
 message JobUtilisationEvent {
@@ -171,6 +181,7 @@ message JobUtilisationEvent {
     string pod_namespace = 11;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 12;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> AvgResourcesForPeriod = 13;
+    string run_id = 14;
 }
 
 message JobReprioritizingEvent {

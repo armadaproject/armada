@@ -1648,6 +1648,8 @@ pub struct JobLeasedEvent {
     pub cluster_id: ::prost::alloc::string::String,
     #[prost(string, tag = "6")]
     pub pool: ::prost::alloc::string::String,
+    #[prost(string, tag = "7")]
+    pub run_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct JobLeaseReturnedEvent {
@@ -1669,6 +1671,8 @@ pub struct JobLeaseReturnedEvent {
     pub pod_number: i32,
     #[prost(bool, tag = "9")]
     pub run_attempted: bool,
+    #[prost(string, tag = "10")]
+    pub run_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct JobLeaseExpiredEvent {
@@ -1680,6 +1684,8 @@ pub struct JobLeaseExpiredEvent {
     pub queue: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "4")]
     pub created: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(string, tag = "5")]
+    pub run_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct JobPendingEvent {
@@ -1703,6 +1709,8 @@ pub struct JobPendingEvent {
     pub pod_namespace: ::prost::alloc::string::String,
     #[prost(string, tag = "10")]
     pub pool: ::prost::alloc::string::String,
+    #[prost(string, tag = "11")]
+    pub run_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct JobRunningEvent {
@@ -1728,6 +1736,8 @@ pub struct JobRunningEvent {
     pub pod_namespace: ::prost::alloc::string::String,
     #[prost(string, tag = "11")]
     pub pool: ::prost::alloc::string::String,
+    #[prost(string, tag = "12")]
+    pub run_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct JobIngressInfoEvent {
@@ -1756,6 +1766,8 @@ pub struct JobIngressInfoEvent {
         i32,
         ::prost::alloc::string::String,
     >,
+    #[prost(string, tag = "12")]
+    pub run_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct JobFailedEvent {
@@ -1798,6 +1810,10 @@ pub struct JobFailedEvent {
     /// emitted JobFailedEvent was terminal.
     #[prost(bool, tag = "18")]
     pub retryable: bool,
+    /// The run that failed. Empty when the job failed before it had a run, for example when the scheduler rejects it.
+    /// Also empty in events from a scheduler that does not set this field.
+    #[prost(string, tag = "19")]
+    pub run_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct JobPreemptingEvent {
@@ -1859,6 +1875,8 @@ pub struct JobSucceededEvent {
     pub pod_name: ::prost::alloc::string::String,
     #[prost(string, tag = "10")]
     pub pod_namespace: ::prost::alloc::string::String,
+    #[prost(string, tag = "11")]
+    pub run_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct JobUtilisationEvent {
@@ -1897,6 +1915,8 @@ pub struct JobUtilisationEvent {
         ::prost::alloc::string::String,
         crate::k8s::io::apimachinery::pkg::api::resource::Quantity,
     >,
+    #[prost(string, tag = "14")]
+    pub run_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct JobReprioritizingEvent {
