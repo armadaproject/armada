@@ -9,7 +9,6 @@ import { CodeBlock } from "../../../../components/CodeBlock"
 import { GenericJsonDetails, JsonValue } from "./GenericJsonDetails"
 
 export const DebugInfo = ({ message }: { message: string }) => {
-  message = "invalid json message"
   let parsedMessage: JsonValue
   try {
     parsedMessage = JSON.parse(message)
