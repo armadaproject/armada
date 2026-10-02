@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -388,6 +389,46 @@ func TestObjectNamePrefix(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.want, ObjectNamePrefix(tc.annotations))
+		})
+	}
+}
+
+func TestExtractServices_Selector(t *testing.T) {
+	lease := &executorapi.JobRunLease{
+		Job: &armadaevents.SubmitJob{
+			Objects: []*armadaevents.KubernetesObject{{
+				ObjectMeta: &armadaevents.ObjectMeta{Name: "armada-job-1-0-service-0"},
+				Object:     &armadaevents.KubernetesObject_Service{Service: &v1.ServiceSpec{}},
+			}},
+		},
+	}
+	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+		domain.JobId:     "job-1",
+		domain.JobRunId:  "run-1",
+		domain.Queue:     "queue",
+		domain.PodNumber: "0",
+	}}}
+	tests := []struct {
+		name              string
+		runScopedPodNames bool
+		want              map[string]string
+	}{
+		{
+			name: "job-scoped pod names select the pods of the job",
+			want: map[string]string{domain.JobId: "job-1", domain.Queue: "queue", domain.PodNumber: "0"},
+		},
+		{
+			name:              "run-scoped pod names select only the pod of the run",
+			runScopedPodNames: true,
+			want:              map[string]string{domain.JobId: "job-1", domain.JobRunId: "run-1", domain.Queue: "queue", domain.PodNumber: "0"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			services := ExtractServices(lease, pod, tc.runScopedPodNames)
+
+			require.Len(t, services, 1)
+			assert.Equal(t, tc.want, services[0].Spec.Selector)
 		})
 	}
 }
