@@ -45,18 +45,14 @@ describe("Sidebar", () => {
     mockServer.setPostJobRunDebugMessageResponseForRunId(
       "1234-5678",
       JSON.stringify({
-        schemaVersion: 1,
-        trigger: "podFailed",
-        pod: {
-          phase: "Failed",
-          restartPolicy: "Never",
-          containers: [
+        diagnostic: {
+          status: "Failed",
+          attempts: [
             {
-              name: "main",
-              state: "terminated",
-              exitCode: 137,
-              reason: "OOMKilled",
-              runSeconds: 120,
+              host: "worker-1",
+              result: {
+                code: 137,
+              },
             },
           ],
         },
@@ -163,22 +159,23 @@ describe("Sidebar", () => {
     within(getByRole("row", { name: /Exit code/ })).getByText(137)
   })
 
-  it("should display structured debug data in tables", async () => {
+  it("should display arbitrary JSON data in nested detail sections", async () => {
     const { getByRole, findByRole, findByText } = renderComponent()
 
     await userEvent.click(getByRole("tab", { name: /Result/ }))
     await userEvent.click(await findByRole("button", { name: "Debug" }))
 
-    within(await findByRole("row", { name: /Trigger/ })).getByText("podFailed")
-    await userEvent.click(getByRole("button", { name: "Pod" }))
-    within(await findByRole("row", { name: /Phase/ })).getByText("Failed")
-    await userEvent.click(getByRole("button", { name: "Container: main" }))
-    within(await findByRole("row", { name: /Name/ })).getByText("main")
-    within(await findByRole("row", { name: /Exit code/ })).getByText("137")
+    await userEvent.click(getByRole("button", { name: "diagnostic" }))
+    within(await findByRole("row", { name: /status/ })).getByText("Failed")
+    await userEvent.click(getByRole("button", { name: "attempts" }))
+    await userEvent.click(getByRole("button", { name: "1" }))
+    within(await findByRole("row", { name: /host/ })).getByText("worker-1")
+    await userEvent.click(getByRole("button", { name: "result" }))
+    within(await findByRole("row", { name: /code/ })).getByText("137")
 
     await userEvent.click(getByRole("button", { name: "JSON" }))
     expect(
-      await findByText((_, element) => element?.tagName === "DIV" && element.textContent === '  "schemaVersion": 1,'),
+      await findByText((_, element) => element?.tagName === "DIV" && element.textContent === '  "diagnostic": {'),
     ).toBeInTheDocument()
   })
 
@@ -193,36 +190,21 @@ describe("Sidebar", () => {
     expect(queryByRole("button", { name: "Details" })).toBeNull()
   })
 
-  it("should display valid JSON with an unsupported schema as formatted JSON", async () => {
+  it("should display valid JSON with any shape in the details view", async () => {
     mockServer.setPostJobRunDebugMessageResponseForRunId(
       "1234-5678",
-      '{"schemaVersion":1,"trigger":"podFailed","pod":{"containers":"unavailable"}}',
+      '{"message":"unknown payload","values":[true,null]}',
     )
-    const { getByRole, findByRole, findByText, queryByRole } = renderComponent()
+    const { getByRole, findByRole } = renderComponent()
 
     await userEvent.click(getByRole("tab", { name: /Result/ }))
     await userEvent.click(await findByRole("button", { name: "Debug" }))
 
-    expect(queryByRole("button", { name: "Details" })).toBeNull()
-    expect(
-      await findByText((_, element) => element?.tagName === "DIV" && element.textContent === '  "schemaVersion": 1,'),
-    ).toBeInTheDocument()
-  })
-
-  it("should not display details for JSON with an unsupported pod value", async () => {
-    mockServer.setPostJobRunDebugMessageResponseForRunId(
-      "1234-5678",
-      '{"schemaVersion":1,"trigger":"podFailed","pod":"unavailable"}',
-    )
-    const { getByRole, findByRole, findByText, queryByRole } = renderComponent()
-
-    await userEvent.click(getByRole("tab", { name: /Result/ }))
-    await userEvent.click(await findByRole("button", { name: "Debug" }))
-
-    expect(queryByRole("button", { name: "Details" })).toBeNull()
-    expect(
-      await findByText((_, element) => element?.tagName === "DIV" && element.textContent === '  "pod": "unavailable"'),
-    ).toBeInTheDocument()
+    expect(getByRole("button", { name: "Details" })).toBeInTheDocument()
+    within(await findByRole("row", { name: /message/ })).getByText("unknown payload")
+    await userEvent.click(getByRole("button", { name: "values" }))
+    within(await findByRole("row", { name: "1 true" })).getByText("true")
+    within(await findByRole("row", { name: "2 null" })).getByText("null")
   })
 
   it("should handle no runs", async () => {
