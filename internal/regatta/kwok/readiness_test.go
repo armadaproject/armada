@@ -155,3 +155,25 @@ func TestCanaryJobSpec_NodeSelector(t *testing.T) {
 	selectsTarget := canaryJobSpec("target-a", true).PodSpec.NodeSelector
 	require.Equal(t, map[string]string{NodeAnnotation: NodeAnnotationOK, TargetLabel: "target-a"}, selectsTarget)
 }
+
+func TestWaitRemaining(t *testing.T) {
+	t.Run("waits out the rest of the budget after an early finish", func(t *testing.T) {
+		start := time.Now()
+		require.NoError(t, waitRemaining(context.Background(), start, 60*time.Millisecond))
+		require.GreaterOrEqual(t, time.Since(start), 60*time.Millisecond)
+	})
+
+	t.Run("returns at once when the budget is already spent", func(t *testing.T) {
+		begin := time.Now()
+		require.NoError(t, waitRemaining(context.Background(), begin.Add(-time.Minute), 10*time.Millisecond))
+		require.Less(t, time.Since(begin), 50*time.Millisecond)
+	})
+
+	t.Run("stops early when the context is cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		begin := time.Now()
+		require.ErrorIs(t, waitRemaining(ctx, begin, time.Minute), context.Canceled)
+		require.Less(t, time.Since(begin), time.Second)
+	})
+}

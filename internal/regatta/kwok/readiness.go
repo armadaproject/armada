@@ -56,6 +56,7 @@ func WaitUntilSchedulable(ctx context.Context, apiConnectionDetails *client.ApiC
 	delay := cfg.InitialDelay
 	var lastErr error
 	for attempt := 1; attempt <= cfg.Retries; attempt++ {
+		attemptStart := time.Now()
 		jobId, err := submitCanaryJob(apiConnectionDetails, jobSetId, targetName, cfg.SelectTarget)
 		if err != nil {
 			lastErr = err
@@ -88,9 +89,35 @@ func WaitUntilSchedulable(ctx context.Context, apiConnectionDetails *client.ApiC
 			}
 		}
 
+		// An attempt can end in well under its delay: the scheduler's submit check fails a canary
+		// that fits no node it knows of within about a second, and that view of the nodes only
+		// refreshes every scheduling.executorUpdateFrequency (60s by default). Retrying at once
+		// would spend every attempt inside that window, so pace retries by the backoff instead.
+		if attempt < cfg.Retries {
+			if err := waitRemaining(ctx, attemptStart, delay); err != nil {
+				return err
+			}
+		}
 		delay *= 2
 	}
 	return fmt.Errorf("fake nodes never became schedulable after %d attempts: %w", cfg.Retries, lastErr)
+}
+
+// waitRemaining blocks until budget has elapsed since start, or ctx ends (returning its error).
+// It returns at once if the budget has already been used up.
+func waitRemaining(ctx context.Context, start time.Time, budget time.Duration) error {
+	remaining := budget - time.Since(start)
+	if remaining <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(remaining)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // canaryOutcome is what awaitCanaryRunning observed about one canary job.
