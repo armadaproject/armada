@@ -5,21 +5,21 @@ on:
     branches:
       - master
     paths:
-      - 'client/rust/**'
-      - 'pkg/api/*.proto'
-      - '.github/workflows/rust-client.yml'
-      - 'magefiles/proto.go'
-      - 'magefiles/main.go'
+      - "client/rust/**"
+      - "pkg/api/*.proto"
+      - ".github/workflows/rust-client.yml"
+      - "magefiles/proto.go"
+      - "magefiles/main.go"
 
   pull_request:
     branches-ignore:
       - gh-pages
     paths:
-      - 'client/rust/**'
-      - 'pkg/api/*.proto'
-      - '.github/workflows/rust-client.yml'
-      - 'magefiles/proto.go'
-      - 'magefiles/main.go'
+      - "client/rust/**"
+      - "pkg/api/*.proto"
+      - ".github/workflows/rust-client.yml"
+      - "magefiles/proto.go"
+      - "magefiles/main.go"
 
 jobs:
   rust-client:
@@ -27,11 +27,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - toolchain: '1.85'
+          - toolchain: "1.85"
             cache-key: cargo-msrv
           - toolchain: stable
             cache-key: cargo
-            extra-components: 'clippy,rustfmt'
+            extra-components: "clippy,rustfmt"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -58,9 +58,9 @@ jobs:
           cache-prefix: rust-client-${{ matrix.cache-key }}
 
       - name: Install protoc
-        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
+        uses: rustfs/setup-protoc@a3705324d8f9bf5b6c3573fb6cf8ae421db55dd6 # v3.0.1
         with:
-          version: '23.3'
+          version: "23.3"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Bootstrap proto dependencies
@@ -85,4 +85,3 @@ jobs:
       - name: Clippy
         if: matrix.toolchain == 'stable'
         run: cargo clippy --manifest-path client/rust/Cargo.toml --all-targets -- -D warnings
-
