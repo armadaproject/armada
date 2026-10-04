@@ -586,18 +586,18 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 
 	hasJobs := txn.jobsById.Len() > 0
 
+	// jobsById is last-write-wins for duplicate IDs. Dedupe up front so every
+	// index below, as well as the aggregate, sees the same jobs.
+	jobs = dedupeJobsLastWins(jobs)
+
 	// First, delete any jobs to be upserted from the sets of queued and unvalidated jobs
 	// We will replace these jobs later if they are still queued
 	removedJobs := make([]*Job, 0, len(jobs))
 	if hasJobs {
-		aggregateRemoved := make(map[string]bool, len(jobs))
 		for _, job := range jobs {
 			existingJob, ok := txn.jobsById.Get(job.id)
 			if ok {
-				if !aggregateRemoved[existingJob.id] {
-					removedJobs = append(removedJobs, existingJob)
-					aggregateRemoved[existingJob.id] = true
-				}
+				removedJobs = append(removedJobs, existingJob)
 
 				existingQueue, ok := txn.jobsByQueue[existingJob.queue]
 				if ok {
@@ -630,9 +630,8 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	}
 
 	// Apply the queued-demand aggregate delta in a single place so the aggregate
-	// can only change together with the job indexes above/below. jobsById is
-	// last-write-wins for duplicate IDs, hence dedupeJobsLastWins.
-	txn.applyAggregateDelta(removedJobs, dedupeJobsLastWins(jobs))
+	// can only change together with the job indexes above/below.
+	txn.applyAggregateDelta(removedJobs, jobs)
 
 	// Now need to insert jobs, runs and queuedJobs. This can be done in parallel.
 	wg := sync.WaitGroup{}
@@ -969,18 +968,11 @@ func (txn *Txn) GetAllLeasedJobs() []*Job {
 	return txn.leasedJobs.Items()
 }
 
-// GetQueuedDemand returns queued demand for currentPool by queue and priority
-// class, derived from the aggregate.
-func (txn *Txn) GetQueuedDemand(
-	currentPool string,
-	knownQueues map[string]bool,
-	cordonedQueues map[string]bool,
-) map[string]map[string]internaltypes.ResourceList {
-	return txn.aggregate.getQueuedDemand(
-		currentPool,
-		knownQueues,
-		cordonedQueues,
-	)
+// GetQueueDemand returns queued demand for the given pool and queue by priority
+// class, derived from the aggregate. It is the caller's responsibility to
+// decide whether to query cordoned or unknown queues.
+func (txn *Txn) GetQueueDemand(pool string, queue string) map[string]internaltypes.ResourceList {
+	return txn.aggregate.getQueueDemand(pool, queue)
 }
 
 // GetAll returns all jobs in the database.

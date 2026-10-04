@@ -154,6 +154,19 @@ type HistogramConfig struct {
 	Count  int
 }
 
+// AggregateDemandConfig controls the rollout of the JobDb queued-demand
+// aggregate. The JobDb always maintains the aggregate; these flags control
+// whether the scheduler uses it.
+type AggregateDemandConfig struct {
+	// Compare computes queued demand both from the aggregate and by scanning
+	// jobs, and publishes any difference. The scan-derived value remains
+	// authoritative.
+	Compare bool
+	// Use sources queued demand from the aggregate instead of scanning jobs.
+	// Running jobs are still derived from the scan.
+	Use bool
+}
+
 // SchedulingConfig contains config controlling the Armada scheduler.
 //
 // The Armada scheduler is in charge of assigning pods to cluster and nodes.
@@ -209,11 +222,10 @@ type SchedulingConfig struct {
 	MaxNewJobSchedulingDurationPerQueue time.Duration `validate:"omitempty,ltfield=MaxSchedulingDuration"`
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
-	// Experimental - the JobDb always maintains a queued-demand aggregate. When
-	// this flag is enabled the scheduler additionally reads that aggregate,
-	// compares it against the scan-derived queued demand, and publishes any diff.
-	// The scan-derived value remains authoritative.
-	ExperimentalAggregateDemand bool
+	// Experimental - controls the rollout of the JobDb queued-demand aggregate.
+	// The JobDb always maintains the aggregate; these flags control whether the
+	// scheduler uses it.
+	ExperimentalAggregateDemand AggregateDemandConfig
 	// If true, the scheduler tracks per-node pod capacity and refuses to schedule
 	// jobs onto nodes that have exhausted their pod limit.
 	RespectNodePodLimits bool
@@ -381,6 +393,7 @@ const (
 	InvalidAwayNodeTypeConditionOperatorErrorMessage    = "away node type condition has invalid operator; must be one of >, <, =="
 	PreemptionRateLimitWithMarketSchedulingErrorMessage = "preemption rate limit is not supported with market scheduling enabled on the same pool"
 	NodeIdLabelNotIndexedErrorMessage                   = "nodeIdLabel must be in indexedNodeLabels when the retry policy engine is enabled, so avoidSameNode retries can match nodes efficiently"
+	AggregateDemandUseWithoutCompareErrorMessage        = "experimentalAggregateDemand.use requires experimentalAggregateDemand.compare to be enabled, so the aggregate is validated against the scan before it drives scheduling"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.

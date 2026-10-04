@@ -71,6 +71,8 @@ type FairSchedulingAlgo struct {
 	tracer                trace.Tracer
 	// Whether to compute the aggregate queued demand and compare it against the scan.
 	computeAggregateDemand bool
+	// Whether to source queued demand from the aggregate instead of scanning jobs.
+	useAggregateDemand bool
 }
 
 func NewFairSchedulingAlgo(
@@ -108,7 +110,8 @@ func NewFairSchedulingAlgo(
 		shortJobPenalty:              shortJobPenalty,
 		stateValidator:               stateValidator,
 		tracer:                       otel.Tracer("armada.scheduler.fair_scheduling_algo"),
-		computeAggregateDemand:       config.ExperimentalAggregateDemand,
+		computeAggregateDemand:       config.ExperimentalAggregateDemand.Compare,
+		useAggregateDemand:           config.ExperimentalAggregateDemand.Use,
 	}, nil
 }
 
@@ -611,7 +614,15 @@ func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 	shortJobPenalty *ShortJobPenaltySnapshot,
 ) (*jobSchedulingInfo, error) {
 	start := time.Now()
-	info, err := l.calculateJobSchedulingInfo(ctx, activeExecutorsSet, queues, jobs, currentPool, awayAllocationPools, allPools, shortJobPenalty)
+
+	// When enabled, queued demand is sourced from the JobDb aggregate rather
+	// than by scanning queued jobs. Running jobs are still derived from the scan.
+	var aggregateQueuedDemand map[string]map[string]internaltypes.ResourceList
+	if l.useAggregateDemand {
+		aggregateQueuedDemand = queuedDemandFromAggregate(txn, queues, currentPool)
+	}
+
+	info, err := l.calculateJobSchedulingInfo(ctx, activeExecutorsSet, queues, jobs, currentPool, awayAllocationPools, allPools, shortJobPenalty, aggregateQueuedDemand)
 	if err != nil {
 		return nil, err
 	}
@@ -625,6 +636,7 @@ func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
 	queues map[string]*api.Queue, jobs []*jobdb.Job, currentPool string, awayAllocationPools []string, allPools []string,
 	shortJobPenalty *ShortJobPenaltySnapshot,
+	aggregateQueuedDemand map[string]map[string]internaltypes.ResourceList,
 ) (*jobSchedulingInfo, error) {
 	jobsByExecutorId := make(map[string][]*jobdb.Job)
 	jobsByPool := make(map[string][]*jobdb.Job)
@@ -656,15 +668,19 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		}
 
 		if slices.Contains(pools, currentPool) {
-			queueResources, ok := demandByQueueAndPriorityClass[job.Queue()]
-			if !ok {
-				queueResources = map[string]internaltypes.ResourceList{}
-				demandByQueueAndPriorityClass[job.Queue()] = queueResources
-			}
-			// Queued jobs should not be considered for paused queues, so demand := running
-			if !queue.Cordoned || !job.Queued() {
-				pcName := job.PriorityClassName()
-				queueResources[pcName] = queueResources[pcName].Add(job.AllResourceRequirements())
+			// When sourcing queued demand from the aggregate, queued jobs are
+			// not scanned at all.
+			if aggregateQueuedDemand == nil || !job.Queued() {
+				queueResources, ok := demandByQueueAndPriorityClass[job.Queue()]
+				if !ok {
+					queueResources = map[string]internaltypes.ResourceList{}
+					demandByQueueAndPriorityClass[job.Queue()] = queueResources
+				}
+				// Queued jobs should not be considered for paused queues, so demand := running
+				if !queue.Cordoned || !job.Queued() {
+					pcName := job.PriorityClassName()
+					queueResources[pcName] = queueResources[pcName].Add(job.AllResourceRequirements())
+				}
 			}
 		}
 
@@ -717,6 +733,19 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		}
 
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
+	}
+
+	// Merge the aggregate-derived queued demand, which was kept out of the scan
+	// above, into the demand computed for running jobs.
+	for queueName, byPriorityClass := range aggregateQueuedDemand {
+		queueResources, ok := demandByQueueAndPriorityClass[queueName]
+		if !ok {
+			queueResources = map[string]internaltypes.ResourceList{}
+			demandByQueueAndPriorityClass[queueName] = queueResources
+		}
+		for pcName, rl := range byPriorityClass {
+			queueResources[pcName] = queueResources[pcName].Add(rl)
+		}
 	}
 
 	shortJobPenaltyByQueue := shortJobPenalty.GetPenaltiesForPool(currentPool)

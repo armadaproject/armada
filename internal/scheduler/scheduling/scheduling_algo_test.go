@@ -1553,7 +1553,7 @@ func TestCalculateJobSchedulingInfo_AggregateMatchesScan(t *testing.T) {
 
 	algo := &FairSchedulingAlgo{}
 	_, err := algo.calculateJobSchedulingInfo(
-		ctx, activeExecutorsSet, queues, txn.GetAll(), currentPool, awayAllocationPools, allPools, nil,
+		ctx, activeExecutorsSet, queues, txn.GetAll(), currentPool, awayAllocationPools, allPools, nil, nil,
 	)
 	require.NoError(t, err)
 	scanned := scanQueuedDemand(txn.GetAll(), queues, currentPool)
@@ -1742,6 +1742,37 @@ func TestCalculateJobSchedulingInfo_AggregateDemandAgreementPublishesComparisonO
 	require.Equal(t, int64(1), cpu.Value())
 }
 
+// TestCalculateJobSchedulingInfo_UsesAggregateForQueuedDemand proves that with
+// useAggregateDemand enabled the queued portion of demand is sourced from the
+// JobDb aggregate, so a queued job that is not in the JobDb is not counted,
+// while running jobs are still derived from the scan.
+func TestCalculateJobSchedulingInfo_UsesAggregateForQueuedDemand(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-use-pool"
+	pc := testfixtures.PriorityClass0
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	queued := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
+	phantom := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
+	leased := testfixtures.Test1Cpu4GiJob("q1", pc).
+		WithNewRun("executor-1", "node-1", "node-1", pool, 0)
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued, leased})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{useAggregateDemand: true}
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{"executor-1": true}, queues,
+		[]*jobdb.Job{queued, phantom, leased}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	// The phantom queued job is visible to the scan but not the aggregate, and
+	// must not contribute; the queued and leased jobs each contribute one cpu.
+	cpu := info.demandByQueueAndPriorityClass["q1"][pc].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(2), cpu.Value())
+}
+
 // BenchmarkQueuedDemand is an end-to-end comparison, not a like-for-like one:
 // the scan case gathers the jobs and builds the full scheduling info, while the
 // aggregate case only performs the isolated queued-demand lookup. For the
@@ -1797,7 +1828,7 @@ func BenchmarkQueuedDemand(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			allJobs := append(txn.GetAllLeasedJobs(), getQueuedJobs(txn, allPools)...)
 			if _, err := algo.calculateJobSchedulingInfo(
-				ctx, activeExecutorsSet, queues, allJobs, currentPool, awayAllocationPools, allPools, nil,
+				ctx, activeExecutorsSet, queues, allJobs, currentPool, awayAllocationPools, allPools, nil, nil,
 			); err != nil {
 				b.Fatal(err)
 			}

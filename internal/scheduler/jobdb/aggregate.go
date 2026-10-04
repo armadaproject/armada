@@ -112,44 +112,26 @@ func (a *JobAggregate) remove(job *Job) {
 	}
 }
 
-// getQueuedDemand returns queued demand for currentPool by queue and priority
-// class. Unknown and cordoned queues are excluded.
-func (a *JobAggregate) getQueuedDemand(
-	currentPool string,
-	knownQueues map[string]bool,
-	cordonedQueues map[string]bool,
-) map[string]map[string]internaltypes.ResourceList {
+// getQueueDemand returns queued demand for the given pool and queue by priority
+// class. It does not know about cordoned queues; callers decide whether to
+// query a queue at all.
+func (a *JobAggregate) getQueueDemand(pool string, queue string) map[string]internaltypes.ResourceList {
 	if a == nil || a.queuedDemand == nil {
-		return map[string]map[string]internaltypes.ResourceList{}
+		return map[string]internaltypes.ResourceList{}
 	}
-	poolMap, ok := a.queuedDemand.Get(currentPool)
+	poolMap, ok := a.queuedDemand.Get(pool)
 	if !ok || poolMap == nil {
-		return map[string]map[string]internaltypes.ResourceList{}
+		return map[string]internaltypes.ResourceList{}
 	}
-	demand := make(map[string]map[string]internaltypes.ResourceList, poolMap.Len())
-	poolIt := poolMap.Iterator()
-	for !poolIt.Done() {
-		queue, queueMap, _ := poolIt.Next()
-		if queueMap == nil || cordonedQueues[queue] || !queueKnown(knownQueues, queue) {
-			continue
-		}
-		byPriorityClass, ok := demand[queue]
-		if !ok {
-			byPriorityClass = make(map[string]internaltypes.ResourceList, queueMap.Len())
-			demand[queue] = byPriorityClass
-		}
-		queueIt := queueMap.Iterator()
-		for !queueIt.Done() {
-			pc, rl, _ := queueIt.Next()
-			byPriorityClass[pc] = byPriorityClass[pc].Add(rl)
-		}
+	queueMap, ok := poolMap.Get(queue)
+	if !ok || queueMap == nil {
+		return map[string]internaltypes.ResourceList{}
+	}
+	demand := make(map[string]internaltypes.ResourceList, queueMap.Len())
+	queueIt := queueMap.Iterator()
+	for !queueIt.Done() {
+		pc, rl, _ := queueIt.Next()
+		demand[pc] = rl
 	}
 	return demand
-}
-
-func queueKnown(knownQueues map[string]bool, queue string) bool {
-	if knownQueues == nil {
-		return true
-	}
-	return knownQueues[queue]
 }

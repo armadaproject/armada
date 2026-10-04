@@ -38,7 +38,7 @@ var (
 			Name: metrics.MetricPrefix + "scheduler_job_aggregate_scheduling_info_duration_seconds",
 			Help: "Time spent per scheduling round building the full job scheduling info. Recorded for context only; it is not a like-for-like comparison with the aggregate lookup.",
 			Buckets: []float64{
-				0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0,
+				0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30,
 			},
 		},
 		[]string{"pool"},
@@ -48,7 +48,7 @@ var (
 			Name: metrics.MetricPrefix + "scheduler_job_aggregate_lookup_duration_seconds",
 			Help: "Time spent per scheduling round deriving queued demand from the JobDb aggregate.",
 			Buckets: []float64{
-				0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0,
+				0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30,
 			},
 		},
 		[]string{"pool"},

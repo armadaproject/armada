@@ -72,13 +72,18 @@ func queuedDemandFromAggregate(
 	queues map[string]*api.Queue,
 	currentPool string,
 ) map[string]map[string]internaltypes.ResourceList {
-	knownQueues := make(map[string]bool, len(queues))
-	cordonedQueues := make(map[string]bool, len(queues))
+	demand := make(map[string]map[string]internaltypes.ResourceList, len(queues))
 	for name, queue := range queues {
-		knownQueues[name] = true
-		cordonedQueues[name] = queue.Cordoned
+		if queue.Cordoned {
+			continue
+		}
+		byPriorityClass := txn.GetQueueDemand(currentPool, name)
+		if len(byPriorityClass) == 0 {
+			continue
+		}
+		demand[name] = byPriorityClass
 	}
-	return txn.GetQueuedDemand(currentPool, knownQueues, cordonedQueues)
+	return demand
 }
 
 // queuedDemandEqual reports whether the scan-derived and aggregate-derived

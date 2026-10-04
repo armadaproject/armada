@@ -46,6 +46,12 @@ func SchedulingConfigValidation(sl validator.StructLevel) {
 		sl.ReportError(c.IndexedNodeLabels, "IndexedNodeLabels", "", NodeIdLabelNotIndexedErrorMessage, "")
 	}
 
+	// Only allow the aggregate to drive scheduling once it has been validated
+	// against the scan-derived queued demand.
+	if c.ExperimentalAggregateDemand.Use && !c.ExperimentalAggregateDemand.Compare {
+		sl.ReportError(c.ExperimentalAggregateDemand.Use, "ExperimentalAggregateDemand.Use", "", AggregateDemandUseWithoutCompareErrorMessage, "")
+	}
+
 	for i, pool := range c.Pools {
 		// The preemption rate limit relies on rescheduling evicted jobs before new jobs, which the
 		// market-driven scheduler does not support. Reject the combination rather than silently no-op.

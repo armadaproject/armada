@@ -21,10 +21,10 @@ func BenchmarkQueuedDemandAggregate(b *testing.B) {
 	pool := "pool-1"
 	jobDb := NewTestJobDb()
 	jobs := make([]*Job, 0, numQueues*numQueuedPerQueue)
-	knownQueues := make(map[string]bool, numQueues)
+	queues := make([]string, 0, numQueues)
 	for i := 0; i < numQueues; i++ {
 		queue := fmt.Sprintf("queue-%d", i)
-		knownQueues[queue] = true
+		queues = append(queues, queue)
 		for j := 0; j < numQueuedPerQueue; j++ {
 			info := &internaltypes.JobSchedulingInfo{
 				PriorityClass: "foo",
@@ -70,7 +70,9 @@ func BenchmarkQueuedDemandAggregate(b *testing.B) {
 	b.Run("impl=aggregate", func(b *testing.B) {
 		b.ReportAllocs()
 		for n := 0; n < b.N; n++ {
-			_ = readTxn.GetQueuedDemand(pool, knownQueues, nil)
+			for _, queue := range queues {
+				_ = readTxn.GetQueueDemand(pool, queue)
+			}
 		}
 	})
 }
