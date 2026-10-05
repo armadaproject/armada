@@ -257,7 +257,10 @@ kubectl logs -n default armada-$JOB_ID-0
 `Hello Armada`
 
 <Callout type='warn'>
-  Run this immediately after the job succeeds. Finished pods are cleaned up within a minute or two and their output goes with them. If you see `pods "armada-[job-id]-0" not found`, the pod is already gone. Submit a new job and run `kubectl logs` straight after `watch` shows `JobSucceededEvent`.
+  Run this immediately after the job succeeds. Finished pods are cleaned up
+  within a minute or two and their output goes with them. If you see `pods
+  "armada-[job-id]-0" not found`, the pod is already gone. Submit a new job and
+  run `kubectl logs` straight after `watch` shows `JobSucceededEvent`.
 </Callout>
 
 ---
@@ -347,9 +350,10 @@ make kind-delete-cluster
 <Accordion title='Job fails with insufficient resources available'>
   The job asks for more CPU or memory than the cluster has free. The quickest
   fix is to lower the job’s `requests` and `limits` (keep them equal) and submit
-  again. Or give Docker more CPU or memory in Settings → Resources, then Apply &
-  restart. Reinstall only if the cluster doesn’t come back after Docker
-  restarts: reinstalling deletes your queues and job history.
+  again. To give Armada more room instead, raise Docker’s CPU or memory in
+  Settings → Resources. Docker restarts when you apply it, and Armada doesn’t
+  recover from a restart, so reinstall afterwards: this deletes your queues and
+  job history.
 </Accordion>
 
 <Accordion title='kubectl logs says the pod was NotFound'>
