@@ -1,163 +1,415 @@
 ---
 title: 'Getting Started'
-description: 'Follow this quickstart guide to get Armada up and running locally'
+description: 'Install Armada on your laptop, run your first job, and see it in the web UI.'
 ---
 
-## Quickstart
+import Link from 'next/link';
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Step, Steps } from 'fumadocs-ui/components/steps';
 
-This guide helps you set up and run Armada on your local machine for testing and development. We use [Kind](https://kind.sigs.k8s.io/) (Kubernetes in Docker) to simplify local setup.
+This guide installs Armada on your laptop and runs your first job. You'll use **Kind**, which runs a small Kubernetes cluster inside Docker; and the **Armada Operator**, which installs Armada into that cluster with one command.
 
-The [Armada Operator](https://github.com/armadaproject/armada-operator) provides the easiest way to get started, as it automates all the setup steps for you.
+By the end, you'll have Armada running, a job that has finished, and its output on your screen.
+
+**Time needed:** about 30 minutes, most of it waiting for the install.
+
+---
+
+## What you'll be working with
+
+- **Armada** — a batch job scheduler that runs on top of Kubernetes. You give it jobs, and it decides when and where each one runs, sharing the machines fairly between teams.
+- **Job** — a container that runs to completion.
+- **Queue** — where jobs wait. Each team usually has one.
+- **`armadactl`** — the command-line tool you use to talk to Armada.
+- **Lookout** — Armada's web interface for following jobs.
+
+---
+
+## Before you start
 
 ### Prerequisites
 
-Before you begin, make sure you have these tools installed on your local machine:
+Make sure you have these running on your machine:
 
+- **[Docker Desktop](https://docs.docker.com/get-docker/)** - or another Docker engine
 - **[kubectl](https://kubernetes.io/docs/tasks/tools/)** - Command-line tool for Kubernetes
 - **[Helm](https://helm.sh/docs/intro/install/)** - Package manager for Kubernetes
 - **[Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)** - For creating a local Kubernetes cluster
 - **[Make](https://www.gnu.org/software/make/)** - Build automation tool
 - **[Go (v1.21 or later)](https://go.dev/doc/install)** - Required for the quickstart automation script
 
-### Quick Setup with Armada Operator
+### Start Docker and give it enough memory
 
-The easiest way to get started is using the Armada Operator, which handles all the setup automatically.
+Armada runs inside Docker, so **Docker must be running the whole time you use Armada**. Armada's supporting services use about 6 GB of memory before you run anything.
 
-Clone the Armada Operator repository and run the quickstart command:
+In Docker Desktop, open **Settings → Resources** and set memory to **at least 8 GB**, then make sure Docker is running.
 
-```bash
-git clone https://github.com/armadaproject/armada-operator.git
-cd armada-operator
-make kind-all
-```
-
-This single command will:
-
-- Create a local Kind cluster
-- Install all required dependencies
-- Set up Armada with all components
-- Install the `armadactl` command-line tool
-
-Wait for the command to complete—this may take a few minutes as it sets up everything.
-
-Once the setup completes, verify that Armada is running:
+Check everything at once:
 
 ```bash
-kubectl get pods -n armada
+docker info > /dev/null && echo "Docker is running"
+kubectl version --client
+helm version
+kind version
+go version
 ```
 
-You should see Armada services running. If everything looks good, you're ready to submit jobs!
+<Callout type='info'>
+  **Ready when:** you see `Docker is running` and a version for each tool, with
+  Go at 1.21 or later.
+</Callout>
 
-## Submit Your First Job
+### Make sure no old install is in the way
 
-Let's run a simple job to verify everything works.
-
-### Create a Queue
-
-First, create a queue called `example` where your job will be submitted:
+The install creates a cluster called `armada`. If you've tried Armada before, an old one may still exist:
 
 ```bash
-armadactl create queue example
+kind get clusters
 ```
 
-> [!NOTE]
-> Queues help organize and prioritize your jobs in Armada.
+<Callout type='info'>
+  **Ready when:** it prints `No kind clusters found.`
+</Callout>
 
-### Submit a Job
-
-Submit the example job that comes with the quickstart:
-
-```bash
-armadactl submit dev/quickstart/example-job.yaml
-```
-
-This submits a simple job to the `example` queue we just created.
-
-### Watch Your Job
-
-Monitor your job's progress:
-
-```bash
-armadactl watch example job-set-1
-```
-
-This will show you real-time updates as your job runs. You should see the job progress from queued → running → completed.
-
-### Lookout UI
-
-You can also monitor jobs through Armada's web interface, called [Lookout UI](http://localhost:30000).
-
-Open [http://localhost:30000](http://localhost:30000) in your browser to see a visual dashboard of your queues, jobs, and their status.
-
-## Going Further
-
-### Submit a Python Job
-
-Try submitting a Python job. Create a file `python-job.yaml`:
-
-```yaml
-queue: example
-jobSetId: python-example
-jobs:
-  - namespace: default
-    podSpec:
-      restartPolicy: Never
-      containers:
-        - name: python
-          image: python:3.9
-          command:
-            [
-              'python',
-              '-c',
-              "print('Hello from Python!'); import time; time.sleep(10)",
-            ]
-          resources:
-            requests:
-              memory: 64Mi
-              cpu: 1
-            limits:
-              memory: 64Mi
-              cpu: 1
-```
-
-Submit and watch it:
-
-```bash
-armadactl submit python-job.yaml
-armadactl watch example python-example
-```
-
-### Useful Commands
-
-Here are some common commands you'll use:
-
-```bash
-# List all queues
-armadactl get queues
-
-# Cancel a job set
-armadactl cancel job-set <queue-name> <job-set-id>
-
-# Learn more about armadactl commands
-armadactl help
-```
-
-Once you're done testing, you can tear down the Kind cluster and clean up all resources with:
+If it lists `armada`, delete the old install first. From the `armada-operator` folder you installed from before:
 
 ```bash
 make kind-delete-cluster
 ```
 
-## Getting Help
+Or, from anywhere:
 
-If you are running into issues or have questions, we are here to help!
+```bash
+kind delete cluster --name armada
+```
 
-import { Cards, Card } from 'fumadocs-ui/components/card';
+---
 
-<Cards>
-  <Card
+## 1. Install Armada
+
+<Steps>
+
+<Step>
+
+**Download the installer**
+
+```bash
+mkdir -p ~/armada-guide
+cd ~/armada-guide
+git clone https://github.com/armadaproject/armada-operator.git
+cd armada-operator
+```
+
+</Step>
+
+<Step>
+
+**Run the install**
+
+```bash
+make kind-all
+```
+
+This one command:
+
+- Creates a Kind cluster called `armada`
+- Installs the services Armada depends on (PostgreSQL, Pulsar, and Redis)
+- Installs Armada
+- Installs `armadactl` into `~/bin`
+- Writes `~/.armadactl.yaml`, which points `armadactl` at your new install (`localhost:30002`)
+
+<Callout type='warn'>
+  This takes **7 to 20 minutes**. It’s finished when a line ends in `condition
+  met` and you get your prompt back. If you already have a `~/.armadactl.yaml`,
+  back it up first — the install replaces it.
+</Callout>
+
+</Step>
+
+</Steps>
+
+---
+
+## 2. Check Armada is running
+
+```bash
+kubectl get pods -n armada
+```
+
+**Success:** you see these pods, most of them `Running`:
+
+```text title="Output"
+armada-event-ingester-... 1/1 Running
+armada-executor-... 1/1 Running
+armada-lookout-... 1/1 Running
+armada-lookout-ingester-... 1/1 Running
+armada-lookout-migration-... 0/1 Completed
+armada-scheduler-... 1/1 Running
+armada-scheduler-ingester-... 1/1 Running
+armada-scheduler-migration-... 0/1 Completed
+armada-server-... 1/1 Running
+```
+
+Now check that `armadactl` can reach Armada:
+
+```bash
+armadactl get queues
+```
+
+**Success:** it prints no line containing `error`:
+
+```text title="Output"
+apiVersion: armadaproject.io/v1beta1
+kind: Queue
+[]
+```
+
+<Callout type='warn'>
+  **Wait two minutes before Step 3.** After its pods start, Armada takes a
+  little time to learn how much CPU and memory the cluster has. A job submitted
+  before then fails with `exceeds the total limit`.
+</Callout>
+
+---
+
+## 3. Run your first job
+
+<Steps>
+
+<Step>
+
+**Create a queue**
+
+```bash
+armadactl create queue example
+```
+
+**Response:**
+`Created queue example`
+
+<Callout type='info'>
+  Wait about 15 seconds before submitting. Armada checks for new queues every 10
+  seconds — submitting to a brand-new queue straight away fails with `could not
+  find queue`.
+</Callout>
+
+</Step>
+
+<Step>
+
+**Submit a job**
+
+This command submits the example job and automatically captures its ID into a variable called `JOB_ID` so you can reference it in later commands.
+
+```bash
+JOB_ID=$(armadactl submit dev/quickstart/example-job.yaml | awk '{print $5}')
+echo "Job ID: $JOB_ID"
+```
+
+**Response:**
+`Job ID: <JOB_ID>`
+
+<Callout type='info'>
+  `JOB_ID` only lasts in this terminal window. If you open a new one, set it again: `JOB_ID=<JOB-ID>` (with your own ID). This job starts a small Linux container that prints `Hello Armada` and exits.
+</Callout>
+
+</Step>
+
+<Step>
+
+**Watch the job**
+
+```bash
+armadactl watch example job-set-1
+```
+
+**Response:**
+
+```text title="Output"
+Watching job set job-set-1
+Month day time | Queued: 0, Leased: 0, ... | JobSubmittedEvent, job id: <job-id>
+Month day time | Queued: 1, Leased: 0, ... | JobQueuedEvent, job id: <job-id>
+Month day time | Queued: 0, Leased: 1, ... | JobLeasedEvent, job id: <job-id>
+Month day time | Queued: 0, Leased: 0, Pending: 1, ... | JobPendingEvent, job id: <job-id> pod: 0
+Month day time | Queued: 0, Leased: 0, ..., Succeeded: 1, ... | JobSucceededEvent, job id: <job-id> pod: 0
+```
+
+The job moves through: **Queued** → **Leased** → **Pending** → **Running** → **Succeeded**. A short job can finish before Armada reports it as Running, so you may not see that line.
+
+<Callout type='info'>
+  `watch` keeps running after the job finishes. Press **Ctrl-C** to stop it.
+</Callout>
+
+</Step>
+
+</Steps>
+
+---
+
+## 4. See the job's output
+
+```bash
+kubectl logs -n default armada-$JOB_ID-0
+```
+
+**Response:**
+`Hello Armada`
+
+<Callout type='warn'>
+  Run this immediately after the job succeeds. Finished pods are cleaned up within a minute or two and their output goes with them. If you see `pods "armada-[job-id]-0" not found`, the pod is already gone. Submit a new job and run `kubectl logs` straight after `watch` shows `JobSucceededEvent`.
+</Callout>
+
+---
+
+## 5. Open Lookout
+
+Open [http://localhost:30000](http://localhost:30000) in your browser.
+
+**Success:** your job appears in the list, in queue `example`. Click it to see its details, the YAML you submitted, and its run history.
+
+<Callout type='info'>
+  On a laptop install, Lookout’s **Logs** tab shows `TypeError: Failed to
+  fetch`. That’s expected — it needs a log service the laptop install doesn’t
+  include. Use `kubectl logs` from Step 4 instead.
+</Callout>
+
+---
+
+## Keeping your install working
+
+- **Keep Docker running.** If Docker quits or restarts, the Kind cluster comes back but Armada doesn't recover. Reinstall it — see [Troubleshooting](#troubleshooting).
+- **Your setup is reset by a reinstall.** Queues and job history are lost, so recreate any queues you need.
+
+---
+
+## Clean up
+
+When you're done, delete the cluster and everything in it:
+
+```bash
+cd ~/armada-guide/armada-operator
+make kind-delete-cluster
+```
+
+**Response:**
+`Deleted nodes: [...]`
+
+---
+
+## Troubleshooting
+
+<Accordions>
+
+<Accordion title="Docker isn't running — failed to connect to the docker API">
+  Start Docker Desktop and wait until it’s running. If Armada was already
+  installed, reinstall it.
+</Accordion>
+
+<Accordion title='node(s) already exist for a cluster with the name "armada"'>
+  A previous install is still there. Run `make kind-delete-cluster`, then `make
+  kind-all` again.
+</Accordion>
+
+<Accordion title='command not found: armadactl'>
+  `~/bin` isn’t on your PATH. Run `export PATH="$HOME/bin:$PATH"` and add that
+  line to your shell profile.
+</Accordion>
+
+<Accordion title='The connection to the server localhost:8080 was refused from kubectl'>
+  There’s no Kubernetes cluster. Run `kind get clusters`. If it doesn’t list
+  `armada`, run `make kind-all`.
+</Accordion>
+
+<Accordion title='connection refused from armadactl'>
+  Armada isn’t running. Check Docker is running, then run `kind get clusters`.
+  If it doesn’t list `armada`, run `make kind-all`.
+</Accordion>
+
+<Accordion title='relation "queue" does not exist'>
+  Armada is still starting. Wait 30 seconds and try again.
+</Accordion>
+
+<Accordion title='could not find queue "example"'>
+  The queue was created moments ago. Wait 15 seconds and submit again.
+</Accordion>
+
+<Accordion title='watch says the job set does not exist'>
+  The job hasn’t reached the event stream yet. Wait a few seconds and run
+  `watch` again.
+</Accordion>
+
+<Accordion title='Job fails with exceeds the total limit'>
+  Armada started moments ago and doesn’t yet know the cluster’s resources. Wait
+  two minutes and submit again.
+</Accordion>
+
+<Accordion title='Job fails with insufficient resources available'>
+  The job needs more than the cluster has. Give Docker more memory in Settings →
+  Resources, then reinstall.
+</Accordion>
+
+<Accordion title='kubectl logs says the pod was NotFound'>
+  The finished pod has been cleaned up. Run a new job and read its output
+  sooner.
+</Accordion>
+
+<Accordion title='Lookout Logs tab shows TypeError: Failed to fetch'>
+  The laptop install has no log service. Use `kubectl logs -n default armada-<job-id>-0` instead.
+</Accordion>
+
+<Accordion title='zsh: no such file or directory: job-id'>
+  A placeholder was pasted with its angle brackets. Replace `<job-id>`, including `<` and `>`, with your actual job ID.
+</Accordion>
+
+<Accordion title='kubectl logs says pods "armada--0" not found'>
+  `JOB_ID` is empty — you’re in a new terminal or the submit failed. Set it again: `JOB_ID=<your-job-id>`.
+</Accordion>
+
+<Accordion title='Commands fail after Docker or your computer restarted'>
+  Armada doesn’t recover from a Docker restart. From the `armada-operator`
+  folder, run `make kind-delete-cluster`, then `make kind-all`, then recreate
+  your queues.
+</Accordion>
+
+</Accordions>
+
+---
+
+{/* ── GETTING HELP ── */}
+
+<div className='relative flex flex-col items-center text-center my-8 py-8 px-8 border border-fd-border rounded-xl overflow-hidden not-prose max-w-3xl mx-auto'>
+
+<div
+  className='pointer-events-none absolute inset-0 -z-10'
+  style={{
+    background:
+      'radial-gradient(ellipse at 50% -20%, rgba(0, 169, 225, 0.3) 0%, transparent 65%)',
+  }}
+/>
+
+<div className='text-fd-foreground mb-2 text-2xl font-semibold'>
+  Still have questions?
+</div>
+
+<div className='text-fd-muted-foreground mb-6 max-w-lg text-sm'>
+  Ask in the #armada channel on CNCF Slack or browse the community page.
+</div>
+
+<div className='flex flex-wrap justify-center gap-3'>
+  <a
+    href='https://cloud-native.slack.com/archives/C03T9CBCEMC'
+    target='_blank'
+    className='bg-fd-primary rounded-lg px-3.5 py-2 text-sm font-medium text-white no-underline transition-all hover:opacity-90 hover:shadow-lg hover:shadow-black/20 dark:hover:shadow-white/20'
+  >
+    Join #armada on Slack
+  </a>
+  <Link
     href='/contribute/community'
-    title='Community'
-    description='Find out how you can get help and get involved with the Armada community.'
-  />
-</Cards>
+    className='text-fd-muted-foreground border-fd-border hover:border-fd-foreground rounded-lg border px-3.5 py-2 text-sm font-medium no-underline transition-all hover:shadow-lg hover:shadow-black/20 dark:hover:shadow-white/20'
+  >
+    Community page
+  </Link>
+</div>
+
+</div>
