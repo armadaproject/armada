@@ -1,0 +1,12 @@
+# Overlay on _local/executor/config-cluster-2.yaml (pass both to the executor, in that order).
+# Lists replace rather than merge, so they repeat the base entries.
+kubernetes:
+  toleratedTaints:
+    - node-tests
+    - kwok.x-k8s.io/node
+  trackedNodeLabels:
+    - armadaproject.io/node-pool
+    - kwok.x-k8s.io/node
+    - armadaproject.io/regatta-target
+application:
+  clusterId: "cpu-cluster"

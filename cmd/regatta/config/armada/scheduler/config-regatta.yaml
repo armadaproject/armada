@@ -1,0 +1,11 @@
+# Overlay on _local/scheduler/config.yaml (pass both to the scheduler, in that order).
+# Lists replace rather than merge, so indexedNodeLabels repeats the base entry.
+metrics:
+  refreshInterval: 5s  # how often queue_size/leased_pod_count etc. are recomputed (default 30s)
+scheduling:
+  executorUpdateFrequency: 5s  # submit check's node snapshot refresh (default 60s): fake nodes count sooner
+  indexedNodeLabels:
+    - "kubernetes.io/hostname"
+    - "armadaproject.io/fake-executor"
+    - "kwok.x-k8s.io/node"
+    - "armadaproject.io/regatta-target"
