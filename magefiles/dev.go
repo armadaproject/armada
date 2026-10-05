@@ -36,6 +36,8 @@ const (
 //   - "auth-fake-executor"  - auth server/scheduler/lookout/binoculars plus the fake executor (no Kubernetes)
 //   - "hot-cold"            - runs the hot-cold scheduler setup
 //   - "two-cluster"         - no-auth with two real executors, one per Kubernetes cluster
+//   - "regatta"             - two-cluster plus KWOK: executors tolerate the kwok.x-k8s.io/node
+//     taint so jobs schedule onto KWOK-simulated fake nodes (see cmd/regatta)
 //   - anything else         - forwarded as a docker-compose --profile flag for extra services
 //
 // The optional -dap flag selects the "-dap" procfile variant, which starts each component
@@ -53,6 +55,7 @@ const (
 //	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
 //	mage dev:up hot-cold                  # hot-cold scheduler setup
 //	mage dev:up two-cluster               # no-auth with two executors, one per Kind cluster
+//	mage dev:up regatta                   # two-cluster + executors tolerate KWOK fake-node taint
 func (Dev) Up(profiles string, dap *bool) error {
 	var (
 		profile         = "no-auth"
@@ -65,9 +68,9 @@ func (Dev) Up(profiles string, dap *bool) error {
 			continue
 		}
 		switch token {
-		case "auth", "fake-executor", "hot-cold", "auth-fake-executor", "two-cluster":
+		case "auth", "fake-executor", "hot-cold", "auth-fake-executor", "two-cluster", "regatta":
 			if profile != "no-auth" {
-				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold/auth-fake-executor/two-cluster may be used\n", token, profile)
+				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold/auth-fake-executor/two-cluster/regatta may be used\n", token, profile)
 			} else {
 				profile = token
 			}
@@ -82,7 +85,12 @@ func (Dev) Up(profiles string, dap *bool) error {
 	if isDAP {
 		debugSuffix = "-dap"
 	}
-	procfile := "_local/procfiles/" + profile + debugSuffix + ".Procfile"
+	procfileDir := "_local/procfiles/"
+	procfileName := profile
+	if profile == "regatta" {
+		procfileDir = "cmd/regatta/config/procfiles/"
+	}
+	procfile := procfileDir + procfileName + debugSuffix + ".Procfile"
 	if _, err := os.Stat(procfile); err != nil {
 		return fmt.Errorf("unknown profile %q: %s not found", profile+debugSuffix, procfile)
 	}
@@ -192,7 +200,7 @@ func (Dev) FullDown() error {
 func setPrometheusConfig(profile string) error {
 	var relPath string
 	switch profile {
-	case "two-cluster":
+	case "two-cluster", "regatta":
 		relPath = "_local/prometheus/config-two-cluster.yaml"
 	default:
 		return nil

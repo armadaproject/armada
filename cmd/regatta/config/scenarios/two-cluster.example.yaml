@@ -1,0 +1,78 @@
+armadactl: ~/.armadactl.yaml                 # default: ~/.armadactl.yaml
+authContext: ""                               # default: currentContext of the armadactl file
+
+metrics:
+  prometheus: http://localhost:9090           # default http://localhost:9090
+  postRunDelay: 90s                           # default 90s
+  reportInterval: 120s                        # default 120s; only continuous runs use it
+  resultsPath: ../results/                    # default: the current directory
+
+executionTargets:
+  - name: gpu-cluster
+    type: cluster
+    nodeGroups:
+      - gb200
+    cluster:
+      kubeconfig: ../../../../.kube/external/multicluster/cluster-1
+      name: armada-cluster-1
+      kind: true                              # default false
+      internalApiServerAddress: https://armada-cluster-1-control-plane:6443   # default for kind: https://<name>-control-plane:6443
+      evaluateReadiness: true                 # default true
+      readinessRetries: 5                     # default 5
+      readinessDelay: 5s                      # default 5s, doubled on each retry
+      continueOnReadinessFailure: false       # default false
+      readinessSelectsTarget: true            # default: the value of kind
+      readyTimeout: 5m                        # default 5m
+      nodeConcurrency: 50                     # default 50
+      kubernetes:
+        qps: 100                              # default 100
+        burst: 200                            # default 200
+
+  - name: cpu-cluster
+    type: cluster
+    nodeGroups:
+      - cpu
+    cluster:
+      kubeconfig: ../../../../.kube/external/multicluster/cluster-2
+      name: armada-cluster-2
+      kind: true                              # default false
+      internalApiServerAddress: https://armada-cluster-2-control-plane:6443   # default for kind: https://<name>-control-plane:6443
+      evaluateReadiness: true                 # default true
+      readinessRetries: 5                     # default 5
+      readinessDelay: 5s                      # default 5s, doubled on each retry
+      continueOnReadinessFailure: false       # default false
+      readinessSelectsTarget: true            # default: the value of kind
+      readyTimeout: 5m                        # default 5m
+      nodeConcurrency: 50                     # default 50
+      kubernetes:
+        qps: 100                              # default 100
+        burst: 200                            # default 200
+
+nodeGroups:
+  gb200:
+    - nodeProfile: ../node-profiles/eks/p6e-gb200.36xlarge.yaml
+      count: 300
+  cpu:
+    - nodeProfile: ../node-profiles/generic/cpu-only.yaml
+      count: 200
+
+load:
+  queues:
+    - prefix: regatta-
+      count: 10                      # default 1; ten queues, regatta-01 to regatta-10, sharing totalJobs
+      totalJobs: 1000
+      minJobsPerQueue: 1             # default 1
+      distribution:
+        type: uniform                # default uniform; a distribution needs count above 1
+      priorityFactor: 1              # default 1; at least 1, used only if the queue has to be created
+      targets:                       # default: every target
+        - gpu-cluster
+        - cpu-cluster
+      arrival:
+        shape: uniform               # default uniform
+        duration: 0                  # default 0: everything at once
+      jobs:
+        - jobSpec: ../job-specs/kwok-sleep.yaml
+          share: 0.1                 # shares within a queue sum to 1
+        - jobSpec: ../job-specs/gpu-job.yaml
+          share: 0.9
