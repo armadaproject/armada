@@ -2,7 +2,6 @@ package configuration
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/go-playground/validator/v10"
 
@@ -38,13 +37,6 @@ func (c *Configuration) Validate() error {
 
 func SchedulingConfigValidation(sl validator.StructLevel) {
 	c := sl.Current().Interface().(SchedulingConfig)
-
-	// avoidSameNode retries express node avoidance through nodeIdLabel, and an
-	// unindexed label forces a per-node scan for every job that carries the
-	// anti-affinity. Reject the config instead of running slow.
-	if c.RetryPolicy.Enabled && !slices.Contains(c.IndexedNodeLabels, c.NodeIdLabel) {
-		sl.ReportError(c.IndexedNodeLabels, "IndexedNodeLabels", "", NodeIdLabelNotIndexedErrorMessage, "")
-	}
 
 	// Only allow the aggregate to drive scheduling once it has been validated
 	// against the scan-derived queued demand.

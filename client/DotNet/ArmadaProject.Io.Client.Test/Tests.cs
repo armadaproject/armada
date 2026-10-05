@@ -58,6 +58,52 @@ namespace ArmadaProject.Io.Client.Test
             }
         }
 
+        [Test]
+        public async Task TestSimpleJobSubmitFlowWithGetJobSetEvents()
+        {
+            var queue = "test";
+            var jobSetId = Guid.NewGuid().ToString();
+            var channel = CreateChannel(new Uri("http://localhost:8080"), ChannelCredentials.Insecure);
+
+            try
+            {
+                //submit
+                var submitClient = new Submit.SubmitClient(channel);
+                var submitRequest = CreateSubmitRequest(queue, jobSetId);
+                var submitResponse = await submitClient.SubmitJobsAsync(submitRequest);
+
+                //watch events via the non-deprecated GetJobSetEvents RPC (replaces Watch)
+                var eventClient = new ApiEvent.EventClient(channel);
+                var jobSetRequest = new JobSetRequest
+                {
+                    Id = jobSetId,
+                    Queue = queue,
+                    Watch = true
+                };
+                var eventsResponse = eventClient.GetJobSetEvents(jobSetRequest);
+                var submittedEventReceived = false;
+                using (var cts = new CancellationTokenSource())
+                {
+                    cts.CancelAfter(TimeSpan.FromSeconds(30));
+
+                    while (await eventsResponse.ResponseStream.MoveNext(cts.Token))
+                    {
+                        if (eventsResponse.ResponseStream.Current.Message.EventsCase == EventMessage.EventsOneofCase.Submitted)
+                        {
+                            submittedEventReceived = true;
+                            break;
+                        }
+                    }
+                }
+
+                Assert.That(submittedEventReceived, Is.Not.False);
+            }
+            finally
+            {
+                await channel.ShutdownAsync();
+            }
+        }
+
         private static GrpcChannel CreateChannel(Uri address, ChannelCredentials credentials)
         {
             var options = new GrpcChannelOptions

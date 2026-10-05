@@ -100,6 +100,112 @@ func TestGetJobsSingle(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGetJobsIncludesCancelUserOnCancelled(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		opts := *basicJobOpts
+		opts.JobId = jobId
+		job := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, baseTime, &opts).
+			Cancelled(baseTime.Add(time.Minute), cancelUser).
+			Build().
+			Job()
+
+		result, err := repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{{
+				Field:        "jobId",
+				Match:        "exact",
+				Value:        jobId,
+				IsAnnotation: false,
+			}},
+			false,
+			&model.Order{Field: "jobId", Direction: "ASC"},
+			0,
+			1,
+		)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+		require.NotNil(t, result.Jobs[0].CancelUser)
+		assert.Equal(t, cancelUser, *result.Jobs[0].CancelUser)
+		assert.Equal(t, job.CancelUser, result.Jobs[0].CancelUser)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestGetJobsIncludesReprioritizeUser(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		opts := *basicJobOpts
+		opts.JobId = jobId
+		job := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, baseTime, &opts).
+			ReprioritizedBy(42, owner, baseTime.Add(time.Minute)).
+			Build().
+			Job()
+
+		result, err := repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{{
+				Field:        "jobId",
+				Match:        "exact",
+				Value:        jobId,
+				IsAnnotation: false,
+			}},
+			false,
+			&model.Order{Field: "jobId", Direction: "ASC"},
+			0,
+			1,
+		)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+		require.NotNil(t, result.Jobs[0].ReprioritizeUser)
+		assert.Equal(t, owner, *result.Jobs[0].ReprioritizeUser)
+		assert.Equal(t, job.ReprioritizeUser, result.Jobs[0].ReprioritizeUser)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestGetJobsIncludesPreemptUser(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		opts := *basicJobOpts
+		opts.JobId = jobId
+		preemptUser := "preempt-user"
+		job := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, baseTime, &opts).
+			Build().
+			Job()
+
+		_, err := repo.db.Exec(armadacontext.TODO(), "UPDATE job SET preempt_user = $1 WHERE job_id = $2", preemptUser, jobId)
+		require.NoError(t, err)
+
+		result, err := repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{{
+				Field:        "jobId",
+				Match:        model.MatchExact,
+				Value:        jobId,
+				IsAnnotation: false,
+			}},
+			false,
+			&model.Order{Field: "jobId", Direction: model.DirectionAsc},
+			0,
+			1,
+		)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+		require.NotNil(t, result.Jobs[0].PreemptUser)
+		assert.Equal(t, preemptUser, *result.Jobs[0].PreemptUser)
+		assert.Equal(t, owner, result.Jobs[0].Owner)
+
+		expected := preemptUser
+		job.PreemptUser = &expected
+		assert.Equal(t, job.PreemptUser, result.Jobs[0].PreemptUser)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestGetJobsMultipleRuns(t *testing.T) {
 	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		firstRunId := uuid.NewString()

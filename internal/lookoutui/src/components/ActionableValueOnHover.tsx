@@ -65,6 +65,7 @@ export const ActionableValueOnHover = ({
           <StyledIconButton
             size="small"
             hidden={!hovering}
+            aria-label="Filter by this value"
             onClick={(e) => {
               if (stopPropagationOnActionClick) {
                 e.stopPropagation()

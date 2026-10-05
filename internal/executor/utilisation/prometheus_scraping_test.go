@@ -157,7 +157,7 @@ func makeTestResponse() *http.Response {
 func makeResponse(header http.Header, body string) *http.Response {
 	response := http.Response{
 		Header: header,
-		Body:   io.NopCloser(strings.NewReader((body))),
+		Body:   io.NopCloser(strings.NewReader(body)),
 	}
 	return &response
 }
