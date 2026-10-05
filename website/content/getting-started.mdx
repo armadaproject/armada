@@ -345,8 +345,11 @@ make kind-delete-cluster
 </Accordion>
 
 <Accordion title='Job fails with insufficient resources available'>
-  The job needs more than the cluster has. Give Docker more memory in Settings →
-  Resources, then reinstall.
+  The job asks for more CPU or memory than the cluster has free. The quickest
+  fix is to lower the job’s `requests` and `limits` (keep them equal) and submit
+  again. Or give Docker more CPU or memory in Settings → Resources, then Apply &
+  restart. Reinstall only if the cluster doesn’t come back after Docker
+  restarts: reinstalling deletes your queues and job history.
 </Accordion>
 
 <Accordion title='kubectl logs says the pod was NotFound'>
