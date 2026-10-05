@@ -1,0 +1,246 @@
+---
+title: 'Managing queues'
+description: 'A queue is where jobs wait, and the unit Armada uses to share resources fairly between teams. This page shows you how to create a queue, give your team access, change it safely, and pause or delete it.'
+---
+
+## Owning a queue is not managing it
+
+A queue's **owners** are the users and groups who can use it fully. Owners can submit, cancel, preempt, reprioritize and watch jobs in the queue. When you create a queue without `--owners`, you become its owner.
+
+Owning a queue doesn't let you change it. Changing the queue itself, including who owns it, needs a global permission:
+
+| To                                                             | You need                                            |
+| -------------------------------------------------------------- | --------------------------------------------------- |
+| Submit, cancel, preempt, reprioritize or watch jobs in a queue | That permission on the queue. Owners have all five. |
+| Create or change a queue, including its owners and permissions | The global `create_queue` permission                |
+| Delete a queue                                                 | The global `delete_queue` permission                |
+| Pause (cordon) a queue                                         | The global `cordon_queue` permission                |
+
+On most team installations, only the platform team has these global permissions. So even on "your" queue, changing owners, permissions or settings is a request to them. If your organization wants teams to manage their own queues, the request is: grant `create_queue` to team leads. See Client authentication.
+
+On a laptop install from [Getting started](/getting-started), you can create, change and delete queues, but not pause them. Errors about job permissions (submit, cancel, reprioritize, watch) don't appear on a laptop install, because everyone there has them as global permissions.
+
+## Before you start
+
+Check that `armadactl` can reach Armada:
+
+```bash
+armadactl get queues
+```
+
+**Ready when:** the command prints no line containing `error`.
+{/* If it doesn't, see [Submitting jobs](submitting-jobs). */}
+
+Run the commands on this page from your `~/armada-guide` folder:
+
+```bash
+mkdir -p ~/armada-guide
+cd ~/armada-guide
+```
+
+## Create a queue
+
+If you followed Submitting jobs, you already have a queue called `my-team`. Keep it: the other guides use it. Create a second queue called `practice` for the steps on this page, so you can change and delete it safely:
+
+```bash
+armadactl create queue practice --priority-factor 1 --labels team=data
+```
+
+| Flag                | Meaning                                                                                                                                                                           |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--priority-factor` | The queue's weight when Armada shares resources. A lower number gets a larger share. It's relative to every other queue, so agree the value with your platform team. Default `1`. |
+| `--owners`          | Users who own the queue. If you leave it out, you become the owner.                                                                                                               |
+| `--group-owners`    | Groups that own the queue.                                                                                                                                                        |
+| `--labels`          | `key=value` labels. Useful later for acting on every queue a team has; see Monitoring and fleet.                                                                                  |
+
+**Success:** the command finishes without an error.
+
+> **Wait about 15 seconds before using a new queue.** Armada refreshes its list of queues every 10 seconds.
+
+List every queue to confirm the new one appeared:
+
+```bash
+armadactl get queues
+```
+
+**Success:** `practice` is in the list.
+
+Check what was created:
+
+```bash
+armadactl get queue practice
+```
+
+This prints the queue as a YAML file, including its owners and permissions. Use it whenever you want to see what's actually set.
+
+## Give your team access
+
+Making everyone an owner gives everyone every permission. To give some people only some permissions, create the queue from a file instead of flags.
+
+1. Create `queue.yaml`. This example uses a new queue called `data-team`:
+
+   ```bash
+   cat > queue.yaml <<'EOF'
+   apiVersion: armadaproject.io/v1beta1
+   kind: Queue
+   name: data-team
+   priorityFactor: 1
+   labels:
+     team: data
+   permissions:
+     # Team leads: every permission (the same as owning the queue)
+     - subjects:
+         - kind: Group
+           name: data-team-leads
+       verbs: [submit, cancel, preempt, reprioritize, watch]
+     # Everyone else on the team: run and follow their own work
+     - subjects:
+         - kind: Group
+           name: data-team-all
+       verbs: [submit, watch, cancel]
+   EOF
+   ```
+
+   `subjects` can be a `Group` or a `User`. Group names come from your login, so ask your platform team which groups you're in. User names must match exactly what your identity provider sends, which is often an ID rather than a name.
+
+2. Create the queue:
+
+   ```bash
+   armadactl create -f queue.yaml
+   ```
+
+   **Success:** it prints **nothing** and returns to the prompt.
+
+3. Wait 15 seconds, then check:
+
+   ```bash
+   armadactl get queue data-team
+   ```
+
+   **Success:** the output lists both permission entries.
+
+   **`create -f` only creates new queues.** It can't update an existing one. `armadactl get queue data-team` prints the queue in the same format as `queue.yaml`, permissions included, so you can always check what is actually set. Keep `queue.yaml` in version control as the record of who has access.
+
+## Change a queue
+
+**`update queue` replaces the whole queue.** It builds a new queue from the flags you pass. Anything you leave out is reset: owners, group owners, labels, cordon state and retry policies go back to empty, the priority factor goes back to `1`, and all per-queue permissions are deleted, because the command has no way to pass them. For example, `armadactl update queue practice --priority-factor 2` changes the factor **and** removes the queue's owners, labels and permissions.
+
+How to change a queue safely depends on whether it has per-queue permissions.
+
+### A queue without per-queue permissions
+
+1. See every current value:
+
+   ```bash
+   armadactl get queue practice
+   ```
+
+2. Run `update queue` with **every** field, including the ones you're not changing. Copy the current values from step 1:
+
+   ```bash
+   armadactl update queue practice \
+     --priority-factor 2 \
+     --owners <current-owner> \
+     --labels team=data
+   ```
+
+   Separate several values with commas, such as `--owners alice,bob`. Leave a flag out only if that field is empty now. Add `--retry-policies` if the queue has any, and `--cordon` if it's paused.
+
+3. Check the result with `armadactl get queue practice`. Every value should match step 1, except the one you changed.
+
+### A queue with per-queue permissions
+
+`armadactl` can't keep them, so use the Python client instead. It reads the whole queue, changes one thing, and writes it all back:
+
+```python
+from armada_client.permissions import Permissions, Subject
+
+queue = client.get_queue("data-team")
+queue.permissions.append(
+    Permissions(
+        subjects=[Subject(kind="Group", name="data-scientists")],
+        verbs=["submit", "watch"],
+    ).to_grpc()
+)
+client.update_queue(queue)
+```
+
+`client` is a logged-in `ArmadaClient`. See Client authentication to create one. You need `create_queue`, as with any change.
+
+## Pause a queue (cordon)
+
+Cordoning a queue stops its queued jobs from being scheduled. Jobs already running keep running. It needs the global `cordon_queue` permission, so it's usually something your platform team does.
+
+On a laptop install, `cordon queues` is refused, because nobody there has `cordon_queue`. Read this section, but you can't try it locally.
+
+1. See what would happen:
+
+   ```bash
+   armadactl cordon queues practice --dry-run
+   ```
+
+   **Success:** it prints `Cordoning the following queues: (DRY RUN)` and the queue name.
+
+2. Cordon it:
+   ```bash
+   armadactl cordon queues practice
+   ```
+
+To resume scheduling:
+
+```bash
+armadactl uncordon queues practice
+```
+
+If your jobs stop being scheduled and `armadactl get job-report <job-id>` says `queue cordoned`, ask your platform team.
+
+## Delete a queue
+
+> **Warning: Armada lets you delete a queue that still has jobs.** Its running jobs keep running, but you can no longer watch or cancel them. Always cancel a queue's jobs before deleting it.
+
+1. **See which queues would be affected.** This covers every job that hasn't finished, in every priority class:
+
+   ```bash
+   armadactl cancel queues practice --job-states queued,leased,pending,running --dry-run
+   ```
+
+   The dry run prints the same message as a real cancel, but cancels nothing. It lists queues, not individual jobs.
+
+2. **Cancel them.** You need the global `cancel_any_jobs` permission; the queue's own `cancel` permission is not enough. Without it, cancel each job set with `armadactl cancel job-set`, or ask your platform team.
+
+   ```bash
+   armadactl cancel queues practice --job-states queued,leased,pending,running
+   ```
+
+3. **Check nothing is left.** In Lookout, filter by the queue: every job should be finished or cancelled.
+4. **Delete the queue:**
+
+   ```bash
+   armadactl delete queue practice
+   ```
+
+   **Success:** `armadactl get queues` no longer lists it.
+
+Never delete `my-team` while following these guides: the next pages use it.
+
+**If you already deleted a queue that had running jobs:** create a queue with the same name, cancel its jobs as above, then delete it again.
+
+## Operator setup
+
+- **Who can manage queues** is set in the server's `auth.permissionGroupMapping`, with `create_queue`, `delete_queue` and `cordon_queue`. To let team leads manage their own queues, map `create_queue` to their group. See Map global permissions.
+- **Priority factors** are relative. Decide a scheme (for example `1` for standard teams) and apply it to every queue, or teams will get unexpected shares.
+
+{/* TODO: the Armada Operator also defines a Queue custom resource (core.armadaproject.io). Confirm with engineering whether managing queues as Kubernetes resources is supported, and document it here if so. */}
+
+## Troubleshooting
+
+| What you see                                                                                                                    | Cause                                                                                                                         | Fix                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `<user> lacks permission submit required for action submit for queue <queue>` (or `cancel`, `preempt`, `reprioritize`, `watch`) | You aren't an owner of the queue, aren't in a group with that permission on it, and don't have the matching global permission | Ask your platform team to add you or your group to the queue's permissions, as in [Give your team access](#give-your-team-access) |
+| `PermissionDenied` when creating or changing a queue                                                                            | You don't have `create_queue`. Owning the queue doesn't help.                                                                 | Ask your platform team to make the change                                                                                         |
+| Owners, labels or permissions disappeared                                                                                       | `update queue` reset every field you didn't pass                                                                              | Recreate them: pass every field with `update queue`, or use the Python client for permissions                                     |
+| A group was given `submit`, but its members are still refused                                                                   | Their login token doesn't include the group yet, or group claims aren't set up                                                | Members log out and in again. If that doesn't help, see Client authentication troubleshooting.                                    |
+| `could not find queue` right after creating it                                                                                  | Armada refreshes its queue list every 10 seconds                                                                              | Wait 15 seconds                                                                                                                   |
+| `queue <name> already exists`                                                                                                   | A queue with that name exists, perhaps from an earlier guide                                                                  | Use it as it is, or pick another name                                                                                             |
+| Jobs from a deleted queue can't be cancelled                                                                                    | The queue was deleted while they ran                                                                                          | Create a queue with the same name, cancel the jobs, then delete it again                                                          |
+| Jobs stop being scheduled, and the job report says `queue cordoned`                                                             | The queue is paused                                                                                                           | Ask your platform team to uncordon it                                                                                             |
