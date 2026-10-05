@@ -46,6 +46,8 @@ If you followed Submitting jobs, you already have a queue called `my-team`. Keep
 armadactl create queue practice --priority-factor 1 --labels team=data
 ```
 
+> **If a queue with that name already exists, `create queue` replaces it** with the settings you pass, with no warning. Check with `armadactl get queues` first.
+
 | Flag                | Meaning                                                                                                                                                                           |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--priority-factor` | The queue's weight when Armada shares resources. A lower number gets a larger share. It's relative to every other queue, so agree the value with your platform team. Default `1`. |
@@ -119,15 +121,15 @@ Making everyone an owner gives everyone every permission. To give some people on
 
    **Success:** the output lists both permission entries.
 
-   **`create -f` only creates new queues.** It can't update an existing one. `armadactl get queue data-team` prints the queue in the same format as `queue.yaml`, permissions included, so you can always check what is actually set. Keep `queue.yaml` in version control as the record of who has access.
+   **`create -f` replaces a queue that already exists.** If a queue named `data-team` already exists, the file overwrites all its settings and permissions, with no warning. Run `armadactl get queue data-team` first to check. The same command prints the queue in the same format as `queue.yaml`, permissions included, so you can always check what is actually set. Keep `queue.yaml` in version control as the record of who has access.
 
 ## Change a queue
 
-**`update queue` replaces the whole queue.** It builds a new queue from the flags you pass. Anything you leave out is reset: owners, group owners, labels, cordon state and retry policies go back to empty, the priority factor goes back to `1`, and all per-queue permissions are deleted, because the command has no way to pass them. For example, `armadactl update queue practice --priority-factor 2` changes the factor **and** removes the queue's owners, labels and permissions.
+**`update queue` replaces the whole queue.** It builds a new queue from the flags you pass. Anything you leave out is reset: owners, group owners, labels, cordon state and retry policies go back to empty, the priority factor goes back to `1`, and all per-queue permissions and resource limits are deleted, because the command has no way to pass them. For example, `armadactl update queue practice --priority-factor 2` changes the factor **and** removes the queue's owners, labels and permissions.
 
-How to change a queue safely depends on whether it has per-queue permissions.
+How to change a queue safely depends on whether it has per-queue permissions or resource limits. Check with `armadactl get queue <name>`: if the output has a `permissions` or `resourceLimitsByPriorityClassName` section, use the Python client.
 
-### A queue without per-queue permissions
+### A queue without per-queue permissions or resource limits
 
 1. See every current value:
 
@@ -148,7 +150,7 @@ How to change a queue safely depends on whether it has per-queue permissions.
 
 3. Check the result with `armadactl get queue practice`. Every value should match step 1, except the one you changed.
 
-### A queue with per-queue permissions
+### A queue with per-queue permissions or resource limits
 
 `armadactl` can't keep them, so use the Python client instead. It reads the whole queue, changes one thing, and writes it all back:
 
@@ -241,6 +243,5 @@ Never delete `my-team` while following these guides: the next pages use it.
 | Owners, labels or permissions disappeared                                                                                       | `update queue` reset every field you didn't pass                                                                              | Recreate them: pass every field with `update queue`, or use the Python client for permissions                                     |
 | A group was given `submit`, but its members are still refused                                                                   | Their login token doesn't include the group yet, or group claims aren't set up                                                | Members log out and in again. If that doesn't help, see Client authentication troubleshooting.                                    |
 | `could not find queue` right after creating it                                                                                  | Armada refreshes its queue list every 10 seconds                                                                              | Wait 15 seconds                                                                                                                   |
-| `queue <name> already exists`                                                                                                   | A queue with that name exists, perhaps from an earlier guide                                                                  | Use it as it is, or pick another name                                                                                             |
-| Jobs from a deleted queue can't be cancelled                                                                                    | The queue was deleted while they ran                                                                                          | Create a queue with the same name, cancel the jobs, then delete it again                                                          |
+| A queue's settings changed after `create queue` or `create -f` | A queue with that name already existed, and creating it again replaced it | Restore the settings with `update queue` or the Python client. Check with `armadactl get queues` before creating. || Jobs from a deleted queue can't be cancelled                                                                                    | The queue was deleted while they ran                                                                                          | Create a queue with the same name, cancel the jobs, then delete it again                                                          |
 | Jobs stop being scheduled, and the job report says `queue cordoned`                                                             | The queue is paused                                                                                                           | Ask your platform team to uncordon it                                                                                             |
