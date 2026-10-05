@@ -20,7 +20,7 @@ const drainPollInterval = 5 * time.Second
 // actually land before the query time. See config.MetricsConfig.Delay.
 const DefaultSettleDelay = 90 * time.Second
 
-// WaitForQueueDrain polls Prometheus until queue's armada_queue_size (validated state) and
+// WaitForQueueDrain polls Prometheus until the queues' combined armada_queue_size (validated state) and
 // armada_queue_leased_pod_count both read zero, i.e. nothing left waiting and nothing left
 // leased - the closest available proxy for "every submitted job has finished" without regatta
 // itself polling individual job state. Gives up after DrainPollTimeout and returns regardless (a
@@ -37,10 +37,10 @@ const DefaultSettleDelay = 90 * time.Second
 // has been observed populated (i.e. actually > 0) at least once in this poll loop - checking only
 // queue_size isn't enough, since jobs can move from validated straight to leased between two 5s
 // polls, in which case queue_size may never be caught above zero even on a real, successful run.
-func WaitForQueueDrain(ctx context.Context, promURL, queue string) time.Time {
+func WaitForQueueDrain(ctx context.Context, promURL string, queues []string) time.Time {
 	deadline := time.Now().Add(DrainPollTimeout)
-	sizeExpr := queueSizeQuery(queue)
-	leasedExpr := leasedPodCountQuery(queue)
+	sizeExpr := queueSizeQuery(queues)
+	leasedExpr := leasedPodCountQuery(queues)
 	seenPopulated := false
 
 	for {
@@ -55,12 +55,12 @@ func WaitForQueueDrain(ctx context.Context, promURL, queue string) time.Time {
 		drained := seenPopulated && sizeErr == nil && leasedErr == nil &&
 			isZeroOrAbsent(size) && isZeroOrAbsent(leased)
 		if drained {
-			log.Infof("queue %q drained (queue_size and leased_pod_count both 0)", queue)
+			log.Infof("%d queue(s) drained (queue_size and leased_pod_count both 0)", len(queues))
 			return now
 		}
 
 		if now.After(deadline) {
-			log.Warnf("timed out after %s waiting for queue %q to drain, proceeding anyway", DrainPollTimeout, queue)
+			log.Warnf("timed out after %s waiting for %d queue(s) to drain, proceeding anyway", DrainPollTimeout, len(queues))
 			return now
 		}
 

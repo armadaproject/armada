@@ -22,7 +22,7 @@ func writtenReport(t *testing.T, r *Report) map[string]any {
 
 func TestReport_ReadinessFailuresAreWrittenWhenPresent(t *testing.T) {
 	decoded := writtenReport(t, &Report{
-		Queue:             "regatta",
+		QueueCount:        3,
 		ReadinessFailures: []ReadinessFailure{{Target: "dev", Error: "canary job was not running"}},
 	})
 	require.Equal(t,
@@ -32,6 +32,6 @@ func TestReport_ReadinessFailuresAreWrittenWhenPresent(t *testing.T) {
 }
 
 func TestReport_ReadinessFailuresAreOmittedWhenEmpty(t *testing.T) {
-	decoded := writtenReport(t, &Report{Queue: "regatta"})
+	decoded := writtenReport(t, &Report{QueueCount: 3})
 	require.NotContains(t, decoded, "readinessFailures")
 }

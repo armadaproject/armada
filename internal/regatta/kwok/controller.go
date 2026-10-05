@@ -10,7 +10,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 	"k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
@@ -53,6 +55,24 @@ func controllerKubeconfigPath(targetName string) string {
 // from a local -c stages.yaml config file at container-create time.
 func ApplyStageCRD(ctx context.Context, kubeconfig string) error {
 	return kubectlApply(ctx, kubeconfig, stageCRDYAML)
+}
+
+// stageCRDName is the name of the CRD in stage-crd.yaml.
+const stageCRDName = "stages.kwok.x-k8s.io"
+
+// WaitForStageCRD blocks until the API server serves the Stage CRD. Applying a CRD returns as soon as it
+// is stored, before the API group it defines is served, and both the Stage objects and the kwok-controller
+// (started with --enable-crds=Stage) need that group. Without this wait the controller exits at startup
+// on some runs and not others, depending on how quickly the API server catches up.
+func WaitForStageCRD(ctx context.Context, kubeconfig string) error {
+	args := []string{"wait", "--for=condition=established", "crd/" + stageCRDName, "--timeout=60s"}
+	if kubeconfig != "" {
+		args = append(args, "--kubeconfig", kubeconfig)
+	}
+	if out, err := exec.CommandContext(ctx, "kubectl", args...).CombinedOutput(); err != nil {
+		return fmt.Errorf("waiting for the Stage CRD to be established: %w: %s", err, out)
+	}
+	return nil
 }
 
 // ApplyStages applies the Stage resources (node-heartbeat plus the Pod-kind stage set - see
@@ -136,7 +156,13 @@ func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress
 		return fmt.Errorf("writing internal kubeconfig: %w", err)
 	}
 
-	args := []string{"run", "--rm", "-d", "--name", name}
+	// A controller that started and then died (stopped containers are kept, see below) is in the way of
+	// the name; remove it so a fresh one can take its place.
+	_ = exec.CommandContext(ctx, "docker", "rm", "-f", name).Run()
+
+	// No --rm: a controller that exits at startup must leave its logs behind for waitForControllerUp to
+	// report. TeardownController removes the container either way (docker rm -f).
+	args := []string{"run", "-d", "--name", name}
 	if kind {
 		args = append(args, "--network", "kind")
 	}
@@ -156,7 +182,60 @@ func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress
 	if err != nil {
 		return fmt.Errorf("starting kwok-controller: %w: %s", err, runOut)
 	}
-	return nil
+	return waitForControllerUp(ctx, name)
+}
+
+const (
+	// controllerStableFor is how long a new controller container must stay running before it counts as
+	// started: `docker run -d` reports success even when the process dies a moment later.
+	controllerStableFor = 3 * time.Second
+	controllerPoll      = 500 * time.Millisecond
+)
+
+// waitForControllerUp checks that the container is still running after controllerStableFor, and if it
+// stopped returns an error carrying its exit code and the end of its logs, so a controller that dies at
+// startup fails the run there instead of leaving the fake nodes NotReady until a timeout.
+func waitForControllerUp(ctx context.Context, name string) error {
+	deadline := time.Now().Add(controllerStableFor)
+	for {
+		out, err := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.State.Running}} {{.State.ExitCode}}", name).Output()
+		if err != nil {
+			return fmt.Errorf("inspecting kwok-controller %s: %w", name, err)
+		}
+		running, exitCode, err := parseContainerState(string(out))
+		if err != nil {
+			return err
+		}
+		if !running {
+			logs, _ := exec.CommandContext(ctx, "docker", "logs", "--tail", "20", name).CombinedOutput()
+			return fmt.Errorf("kwok-controller %s exited at startup (exit code %d): %s", name, exitCode, strings.TrimSpace(string(logs)))
+		}
+		if !time.Now().Before(deadline) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(controllerPoll):
+		}
+	}
+}
+
+// parseContainerState reads the output of `docker inspect -f "{{.State.Running}} {{.State.ExitCode}}"`.
+func parseContainerState(out string) (running bool, exitCode int, err error) {
+	fields := strings.Fields(out)
+	if len(fields) != 2 {
+		return false, 0, fmt.Errorf("unexpected docker inspect output %q", strings.TrimSpace(out))
+	}
+	running, err = strconv.ParseBool(fields[0])
+	if err != nil {
+		return false, 0, fmt.Errorf("unexpected docker inspect output %q: %w", strings.TrimSpace(out), err)
+	}
+	exitCode, err = strconv.Atoi(fields[1])
+	if err != nil {
+		return false, 0, fmt.Errorf("unexpected docker inspect output %q: %w", strings.TrimSpace(out), err)
+	}
+	return running, exitCode, nil
 }
 
 // stageDoc is the minimal shape of a Stage object needed to identify which Pod-kind lifecycle

@@ -1,6 +1,10 @@
 package metrics
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+	"strings"
+)
 
 // windowStr formats the lookback window used by every rate()/increase()/max_over_time() query
 // below, mirroring the CI script's WINDOW calc: the run's own wall-clock duration, floored at
@@ -12,8 +16,8 @@ func windowStr(windowSeconds float64) string {
 	return fmt.Sprintf("%ds", int64(windowSeconds))
 }
 
-// histogramQuantile builds histogram_quantile(q, sum by (le) (rate(metric{filter}[window]))),
-// exactly matching collect-perf-metrics.sh's quantile() helper. filter may be empty.
+// histogramQuantile builds histogram_quantile(q, sum by (le) (rate(metric{filter}[window]))). filter may
+// be empty.
 func histogramQuantile(metric string, q float64, filter, window string) string {
 	if filter == "" {
 		return fmt.Sprintf("histogram_quantile(%g, sum by (le) (rate(%s[%s])))", q, metric, window)
@@ -21,17 +25,31 @@ func histogramQuantile(metric string, q float64, filter, window string) string {
 	return fmt.Sprintf("histogram_quantile(%g, sum by (le) (rate(%s{%s}[%s])))", q, metric, filter, window)
 }
 
-func queueFilter(queue string) string {
-	return fmt.Sprintf(`queueName=%q`, queue)
+// queueMatcher returns the label matcher that selects the given queues on label: an exact match for one
+// queue, otherwise a regex of the names. Prometheus anchors regexes, so each name must match whole. The
+// names are regexp-escaped, so a queue called "team.a" does not also match "teamXa".
+func queueMatcher(label string, queues []string) string {
+	if len(queues) == 1 {
+		return fmt.Sprintf(`%s=%q`, label, queues[0])
+	}
+	escaped := make([]string, len(queues))
+	for i, q := range queues {
+		escaped[i] = regexp.QuoteMeta(q)
+	}
+	return fmt.Sprintf(`%s=~%q`, label, strings.Join(escaped, "|"))
+}
+
+func queueFilter(queues []string) string {
+	return queueMatcher("queueName", queues)
 }
 
 // Tier 1: end-to-end job latency.
-func queuedLatencyQuery(q float64, queue, window string) string {
-	return histogramQuantile("armada_job_queued_seconds_bucket", q, queueFilter(queue), window)
+func queuedLatencyQuery(q float64, queues []string, window string) string {
+	return histogramQuantile("armada_job_queued_seconds_bucket", q, queueFilter(queues), window)
 }
 
-func runLatencyQuery(q float64, queue, window string) string {
-	return histogramQuantile("armada_job_run_time_seconds_bucket", q, queueFilter(queue), window)
+func runLatencyQuery(q float64, queues []string, window string) string {
+	return histogramQuantile("armada_job_run_time_seconds_bucket", q, queueFilter(queues), window)
 }
 
 // Tier 2: scheduler.
@@ -43,19 +61,19 @@ func submitCheckQuery(q float64, window string) string {
 	return histogramQuantile("armada_scheduler_submit_check_times_bucket", q, "", window)
 }
 
-func scheduledJobsQuery(queue, window string) string {
-	return fmt.Sprintf(`sum(increase(armada_scheduler_scheduled_jobs{queue=%q}[%s]))`, queue, window)
+func scheduledJobsQuery(queues []string, window string) string {
+	return fmt.Sprintf(`sum(increase(armada_scheduler_scheduled_jobs{%s}[%s]))`, queueMatcher("queue", queues), window)
 }
 
 // Tier 3: queue depth. Summed across label dimensions (e.g. pool) before max_over_time, same
 // reasoning as queueSizeQuery/leasedPodCountQuery below - otherwise this reports one arbitrary
 // series's peak rather than the queue's true combined peak.
-func peakQueueSizeQuery(queue, window string) string {
-	return fmt.Sprintf(`max_over_time(sum(armada_queue_size{queue=%q,state="validated"})[%s:])`, queue, window)
+func peakQueueSizeQuery(queues []string, window string) string {
+	return fmt.Sprintf(`max_over_time(sum(armada_queue_size{%s,state="validated"})[%s:])`, queueMatcher("queue", queues), window)
 }
 
-func peakLeasedPodCountQuery(queue, window string) string {
-	return fmt.Sprintf(`max_over_time(sum(armada_queue_leased_pod_count{queue=%q})[%s:])`, queue, window)
+func peakLeasedPodCountQuery(queues []string, window string) string {
+	return fmt.Sprintf(`max_over_time(sum(armada_queue_leased_pod_count{%s})[%s:])`, queueMatcher("queue", queues), window)
 }
 
 // queueSizeQuery and leasedPodCountQuery are unwindowed instant queries (the current value, not a
@@ -64,12 +82,12 @@ func peakLeasedPodCountQuery(queue, window string) string {
 // pool) - query()'s caller only ever looks at a single float, so without the sum it would only
 // ever see one arbitrary series out of several and could keep reading a stale non-zero value long
 // after the queue's real aggregate lease/queue count had actually reached zero.
-func queueSizeQuery(queue string) string {
-	return fmt.Sprintf(`sum(armada_queue_size{queue=%q,state="validated"})`, queue)
+func queueSizeQuery(queues []string) string {
+	return fmt.Sprintf(`sum(armada_queue_size{%s,state="validated"})`, queueMatcher("queue", queues))
 }
 
-func leasedPodCountQuery(queue string) string {
-	return fmt.Sprintf(`sum(armada_queue_leased_pod_count{queue=%q})`, queue)
+func leasedPodCountQuery(queues []string) string {
+	return fmt.Sprintf(`sum(armada_queue_leased_pod_count{%s})`, queueMatcher("queue", queues))
 }
 
 // Tier 4: API surface.

@@ -3,6 +3,7 @@ package kwok
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/regatta/submit"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
@@ -18,7 +20,6 @@ import (
 )
 
 const (
-	canaryQueue = "regatta"
 	// canaryJobSetPrefix starts the job set id every readiness check uses. Canary jobs get a job set of
 	// their own - never the load's - so their events can't be confused with the load's.
 	canaryJobSetPrefix = "regatta-readiness"
@@ -51,44 +52,53 @@ type ReadinessConfig struct {
 // reach Running, then cancels it and tries again with the delay doubled, since there's no direct
 // way to ask the scheduler "do you know about this node yet". A timed-out attempt's error carries
 // the scheduler's own explanation of why the canary is still queued, when it has one.
-func WaitUntilSchedulable(ctx context.Context, apiConnectionDetails *client.ApiConnectionDetails, cfg ReadinessConfig, targetName string) error {
-	jobSetId := fmt.Sprintf("%s-%s-%d", canaryJobSetPrefix, targetName, time.Now().Unix())
+func WaitUntilSchedulable(ctx context.Context, apiConnectionDetails *client.ApiConnectionDetails, cfg ReadinessConfig, targetName, queue string) error {
+	jobSetId := fmt.Sprintf("%s-%s-%s-%d", canaryJobSetPrefix, targetName, queue, time.Now().Unix())
 	delay := cfg.InitialDelay
-	var lastErr error
+	checkStart := time.Now()
+	log.Infof("target %q: readiness check: canary in queue %q, up to %d attempts, first wait %s (selects target label: %t)",
+		targetName, queue, cfg.Retries, delay, cfg.SelectTarget)
+	var last attemptFailure
 	for attempt := 1; attempt <= cfg.Retries; attempt++ {
 		attemptStart := time.Now()
-		jobId, err := submitCanaryJob(apiConnectionDetails, jobSetId, targetName, cfg.SelectTarget)
+		jobId, err := submitCanaryJob(apiConnectionDetails, queue, jobSetId, targetName, cfg.SelectTarget)
 		if err != nil {
-			lastErr = err
+			last = attemptFailure{brief: "canary not submitted: " + err.Error()}
+			last.detail = last.brief
 		} else {
+			log.Infof("target %q: readiness attempt %d/%d: canary %s submitted, waiting up to %s", targetName, attempt, cfg.Retries, jobId, delay)
 			var outcome canaryOutcome
 			err = client.WithEventClient(apiConnectionDetails, func(eventClient api.EventClient) error {
 				var watchErr error
-				outcome, watchErr = awaitCanaryRunning(ctx, eventClient, jobSetId, jobId, delay)
+				outcome, watchErr = awaitCanaryRunning(ctx, eventClient, queue, jobSetId, jobId, delay)
 				return watchErr
 			})
-			explanation := ""
+			var view schedulerView
 			if err == nil && !outcome.running && outcome.failure == "" {
 				// Fetched before the cancel below, while the scheduler still remembers the job.
-				explanation = schedulerExplanation(apiConnectionDetails, jobId)
+				view = fetchSchedulerView(apiConnectionDetails, jobId)
 			}
-			cancelCanaryJob(apiConnectionDetails, jobSetId, jobId)
+			cancelCanaryJob(apiConnectionDetails, queue, jobSetId, jobId)
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
 			switch {
 			case err != nil:
-				lastErr = err
+				last = attemptFailure{brief: fmt.Sprintf("canary job %s: %s", jobId, err)}
+				last.detail = last.brief
 			case outcome.running:
+				log.Infof("target %q: readiness check passed: canary %s running %s after submit (attempt %d/%d, %s since the check started)",
+					targetName, jobId, time.Since(attemptStart).Round(time.Millisecond), attempt, cfg.Retries, time.Since(checkStart).Round(time.Millisecond))
 				return nil
 			case outcome.failure != "":
-				lastErr = fmt.Errorf("canary job %s %s (attempt %d/%d)", jobId, outcome.failure, attempt, cfg.Retries)
+				last = attemptFailure{brief: fmt.Sprintf("canary job %s %s", jobId, outcome.failure)}
+				last.detail = last.brief
 			default:
-				lastErr = fmt.Errorf("canary job %s was not running within %s, last event %s (attempt %d/%d)%s",
-					jobId, delay, lastEventOrNone(outcome.last), attempt, cfg.Retries, explanation)
+				last = timedOutFailure(jobId, delay, outcome.last, view)
 			}
 		}
 
+		log.Warnf("target %q: readiness attempt %d/%d failed: %s", targetName, attempt, cfg.Retries, last.brief)
 		// An attempt can end in well under its delay: the scheduler's submit check fails a canary
 		// that fits no node it knows of within about a second, and that view of the nodes only
 		// refreshes every scheduling.executorUpdateFrequency (60s by default). Retrying at once
@@ -100,7 +110,34 @@ func WaitUntilSchedulable(ctx context.Context, apiConnectionDetails *client.ApiC
 		}
 		delay *= 2
 	}
-	return fmt.Errorf("fake nodes never became schedulable after %d attempts: %w", cfg.Retries, lastErr)
+	return fmt.Errorf("fake nodes never became schedulable after %d attempts: %s", cfg.Retries, last.detail)
+}
+
+// attemptFailure is why one canary attempt did not get the canary running: brief is the short
+// text for the per-attempt log line, detail the longer text for the error returned once every
+// attempt has failed.
+type attemptFailure struct {
+	brief, detail string
+}
+
+// timedOutFailure describes an attempt whose canary was still not running when its wait ended. The
+// log line only says how many nodes the scheduler had (falling back to the last event when it had
+// no report); the final error adds that event and why the scheduler excluded nodes.
+func timedOutFailure(jobId string, wait time.Duration, lastEvent string, view schedulerView) attemptFailure {
+	f := attemptFailure{brief: "canary job " + jobId}
+	if view.nodes != "" {
+		f.brief += ", Number of nodes in cluster: " + view.nodes
+	} else {
+		f.brief += ", last event " + lastEventOrNone(lastEvent)
+	}
+	f.detail = fmt.Sprintf("canary job %s not running within %s, last event %s", jobId, wait, lastEventOrNone(lastEvent))
+	if view.nodes != "" {
+		f.detail += "; Number of nodes in cluster: " + view.nodes
+	}
+	if len(view.excluded) > 0 {
+		f.detail += "; excluded nodes: " + strings.Join(view.excluded, "; ")
+	}
+	return f
 }
 
 // waitRemaining blocks until budget has elapsed since start, or ctx ends (returning its error).
@@ -134,12 +171,12 @@ type canaryOutcome struct {
 // awaitCanaryRunning reads jobSetId's event stream until jobId reaches Running, ends in a
 // terminal failure, or timeout elapses. Reaching the timeout (or ctx being cancelled) is not an
 // error: it returns the outcome so far with running unset.
-func awaitCanaryRunning(ctx context.Context, eventClient api.EventClient, jobSetId, jobId string, timeout time.Duration) (canaryOutcome, error) {
+func awaitCanaryRunning(ctx context.Context, eventClient api.EventClient, queue, jobSetId, jobId string, timeout time.Duration) (canaryOutcome, error) {
 	var outcome canaryOutcome
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	stream, err := eventClient.GetJobSetEvents(ctx, &api.JobSetRequest{Queue: canaryQueue, Id: jobSetId, Watch: true})
+	stream, err := eventClient.GetJobSetEvents(ctx, &api.JobSetRequest{Queue: queue, Id: jobSetId, Watch: true})
 	if err != nil {
 		return outcome, fmt.Errorf("watching events for job set %s: %w", jobSetId, err)
 	}
@@ -180,11 +217,22 @@ func lastEventOrNone(last string) string {
 	return last
 }
 
-// schedulerExplanation returns the scheduler's own report for jobId, flattened to one line and
-// prefixed for appending to an error, or "" if it has none. Best effort: the scheduler keeps only
-// its most recent round, so a job it hasn't looked at yet reports "none", and any failure to
-// fetch it is swallowed since this only enriches an error that is already being returned.
-func schedulerExplanation(apiConnectionDetails *client.ApiConnectionDetails, jobId string) string {
+// schedulerView is what the scheduler's report for a job says about the nodes it considered.
+type schedulerView struct {
+	nodes    string   // "Number of nodes in cluster", "" if the report had none
+	excluded []string // "<count>: <reason>" per exclusion reason
+}
+
+var (
+	nodesInClusterRe = regexp.MustCompile(`Number of nodes in cluster:\s*(\d+)`)
+	excludedNodeRe   = regexp.MustCompile(`(?m)^\s*(\d+):\s+(\S.*?)\s*$`)
+)
+
+// fetchSchedulerView returns the scheduler's report for jobId, parsed, or the zero value if it has
+// none. Best effort: the scheduler keeps only its most recent round, so a job it hasn't looked at
+// yet reports "none", and any failure to fetch it is swallowed since this only enriches an error
+// that is already being returned.
+func fetchSchedulerView(apiConnectionDetails *client.ApiConnectionDetails, jobId string) schedulerView {
 	var report string
 	_ = client.WithSchedulerReportingClient(apiConnectionDetails, func(reportingClient schedulerobjects.SchedulerReportingClient) error {
 		ctx, cancel := context.WithTimeout(context.Background(), schedulerReportTimeout)
@@ -196,21 +244,29 @@ func schedulerExplanation(apiConnectionDetails *client.ApiConnectionDetails, job
 		report = resp.Report
 		return nil
 	})
-	flat := strings.Join(strings.Fields(report), " ")
-	if flat == "" {
-		return ""
-	}
-	return "; scheduler report: " + flat
+	return parseSchedulerReport(report)
 }
 
-func submitCanaryJob(apiConnectionDetails *client.ApiConnectionDetails, jobSetId, targetName string, selectTarget bool) (string, error) {
+// parseSchedulerReport pulls the node count and the per-reason exclusion counts out of a job report
+// (the PodSchedulingContext text in internal/scheduler/scheduling/context/pod.go). Anything it does
+// not recognise is left out, so a changed format degrades to a shorter message, not an error.
+func parseSchedulerReport(report string) schedulerView {
+	var view schedulerView
+	if m := nodesInClusterRe.FindStringSubmatch(report); m != nil {
+		view.nodes = m[1]
+	}
+	if i := strings.Index(report, "Excluded nodes:"); i >= 0 {
+		for _, m := range excludedNodeRe.FindAllStringSubmatch(report[i:], -1) {
+			view.excluded = append(view.excluded, m[1]+": "+m[2])
+		}
+	}
+	return view
+}
+
+func submitCanaryJob(apiConnectionDetails *client.ApiConnectionDetails, queue, jobSetId, targetName string, selectTarget bool) (string, error) {
 	var jobId string
 	err := client.WithSubmitClient(apiConnectionDetails, func(submitClient api.SubmitClient) error {
-		if err := client.CreateQueue(submitClient, &api.Queue{Name: canaryQueue, PriorityFactor: 1}); err != nil && status.Code(err) != codes.AlreadyExists {
-			return fmt.Errorf("creating canary queue: %w", err)
-		}
-
-		requests := client.CreateChunkedSubmitRequests(canaryQueue, jobSetId, []*api.JobSubmitRequestItem{canaryJobSpec(targetName, selectTarget)})
+		requests := client.CreateChunkedSubmitRequests(queue, jobSetId, []*api.JobSubmitRequestItem{canaryJobSpec(targetName, selectTarget)})
 		for _, request := range requests {
 			var response *api.JobSubmitResponse
 			var err error
@@ -236,12 +292,12 @@ func submitCanaryJob(apiConnectionDetails *client.ApiConnectionDetails, jobSetId
 	return jobId, err
 }
 
-func cancelCanaryJob(apiConnectionDetails *client.ApiConnectionDetails, jobSetId, jobId string) {
+func cancelCanaryJob(apiConnectionDetails *client.ApiConnectionDetails, queue, jobSetId, jobId string) {
 	_ = client.WithSubmitClient(apiConnectionDetails, func(submitClient api.SubmitClient) error {
 		_, err := submitClient.CancelJobs(context.Background(), &api.JobCancelRequest{
 			JobId:    jobId,
 			JobSetId: jobSetId,
-			Queue:    canaryQueue,
+			Queue:    queue,
 		})
 		return err
 	})

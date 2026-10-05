@@ -1,9 +1,6 @@
-// Package metrics collects a post-run performance report from Prometheus, porting the query set
-// and windowing model already used in CI against a live Armada deployment
-// (armada-cd-dev/applications/hpcx-dev-wl-01/performance-suite/scripts/collect-perf-metrics.sh) so
-// a local `regatta run` produces the same kind of report. This is a single end-of-run snapshot,
-// not a continuous poller - regatta is a load generator, not a job-completion tracker (see
-// internal/regatta/submit/run.go), and that principle extends to metrics collection too.
+// Package metrics collects a post-run performance report from Prometheus. It queries once per report
+// window, not continuously: regatta is a load generator, not a job-completion tracker (see
+// internal/regatta/submit/run.go), and that extends to metrics collection too.
 package metrics
 
 import (
@@ -15,8 +12,12 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
+
+// maxGetQueryLength is the longest expression sent as a GET query string; longer ones are POSTed.
+const maxGetQueryLength = 2048
 
 type promResponse struct {
 	Data struct {
@@ -36,32 +37,42 @@ func query(ctx context.Context, baseURL, expr string, at time.Time) (*float64, e
 		return nil, fmt.Errorf("parsing prometheus url %q: %w", baseURL, err)
 	}
 	u.Path = u.Path + "/api/v1/query"
-	q := u.Query()
-	q.Set("query", expr)
-	q.Set("time", strconv.FormatInt(at.Unix(), 10))
-	u.RawQuery = q.Encode()
+	params := url.Values{}
+	params.Set("query", expr)
+	params.Set("time", strconv.FormatInt(at.Unix(), 10))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	// A regex naming hundreds of queues would blow past the URL length limits of proxies and servers, so
+	// long queries go as a form POST, which Prometheus's query endpoint accepts in the same shape.
+	var req *http.Request
+	if len(expr) > maxGetQueryLength {
+		req, err = http.NewRequestWithContext(ctx, http.MethodPost, u.String(), strings.NewReader(params.Encode()))
+		if err == nil {
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		}
+	} else {
+		u.RawQuery = params.Encode()
+		req, err = http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	}
 	if err != nil {
-		return nil, fmt.Errorf("building request for %q: %w", expr, err)
+		return nil, fmt.Errorf("building request for %q: %w", truncateExpr(expr), err)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("querying %q: %w", expr, err)
+		return nil, fmt.Errorf("querying %q: %w", truncateExpr(expr), err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("reading response for %q: %w", expr, err)
+		return nil, fmt.Errorf("reading response for %q: %w", truncateExpr(expr), err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("querying %q: prometheus returned %s: %s", expr, resp.Status, body)
+		return nil, fmt.Errorf("querying %q: prometheus returned %s: %s", truncateExpr(expr), resp.Status, body)
 	}
 
 	var parsed promResponse
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		return nil, fmt.Errorf("decoding response for %q: %w", expr, err)
+		return nil, fmt.Errorf("decoding response for %q: %w", truncateExpr(expr), err)
 	}
 	if len(parsed.Data.Result) == 0 {
 		return nil, nil
@@ -69,7 +80,7 @@ func query(ctx context.Context, baseURL, expr string, at time.Time) (*float64, e
 
 	raw, ok := parsed.Data.Result[0].Value[1].(string)
 	if !ok {
-		return nil, fmt.Errorf("querying %q: unexpected value type %T", expr, parsed.Data.Result[0].Value[1])
+		return nil, fmt.Errorf("querying %q: unexpected value type %T", truncateExpr(expr), parsed.Data.Result[0].Value[1])
 	}
 	val, err := strconv.ParseFloat(raw, 64)
 	if err != nil || math.IsNaN(val) || math.IsInf(val, 0) {

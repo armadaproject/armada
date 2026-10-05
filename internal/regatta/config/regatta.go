@@ -63,6 +63,14 @@ type MetricsConfig struct {
 
 	// PostRunDelayDuration is PostRunDelay parsed by LoadScenario. Not part of the file format.
 	PostRunDelayDuration time.Duration `json:"-"`
+
+	// ReportInterval is how often a continuous run writes a report: each one covers the time since the
+	// previous one. Duration string (e.g. "120s"); empty defaults to DefaultReportInterval. Bounded runs
+	// write a single report at the end and ignore it.
+	ReportInterval string `json:"reportInterval,omitempty"`
+
+	// ReportIntervalDuration is ReportInterval parsed by LoadScenario. Not part of the file format.
+	ReportIntervalDuration time.Duration `json:"-"`
 }
 
 // PrometheusURL reports the Prometheus base URL to query, applying Prometheus's default-address
@@ -244,56 +252,15 @@ func (c *ClusterTarget) EffectiveReadinessDelay() time.Duration {
 	return DefaultReadinessDelay
 }
 
-// Load describes the submission batch: which job-spec files to submit, how many of each, and
-// how submission is paced. Queue/JobSetId/Mode live here (submission-batch concerns, matching
-// Armada's own JobSubmitRequest shape) - not on the job-spec files, which stay plain PodSpecs.
-type Load struct {
-	Queue     string `json:"queue"`
-	JobSetId  string `json:"jobSetId,omitempty"`
-	Namespace string `json:"namespace,omitempty"`
-
-	// Mode: "" or "one-shot" (default) or "ramp-up".
-	Mode string `json:"mode,omitempty"`
-
-	// Jobs lists job-spec files and how many of each to submit, mirroring how NodeGroups
-	// reference node-profile files by path + count.
-	Jobs []JobRef `json:"jobs"`
-
-	RampUp *RampUpConfig `json:"rampUp,omitempty"`
-}
-
-const (
-	LoadModeOneShot = "one-shot"
-	LoadModeRampUp  = "ramp-up"
-)
-
-// JobRef points at a plain-PodSpec job-spec file and says how many jobs of that shape to submit.
-type JobRef struct {
-	JobSpec string `json:"jobSpec"`
-	Count   int    `json:"count"`
-
-	// ResolvedSpec is the loaded PodSpec, set by Load. Not part of the file format.
-	ResolvedSpec *v1.PodSpec `json:"-"`
-}
-
-// RampUpConfig spreads the total Jobs[].Count across RampDuration in batches every
-// StepInterval.
-type RampUpConfig struct {
-	RampDuration string `json:"rampDuration"`
-	StepInterval string `json:"stepInterval,omitempty"`
-
-	RampDurationParsed time.Duration `json:"-"`
-	StepIntervalParsed time.Duration `json:"-"`
-}
-
-const defaultStepInterval = 5 * time.Second
-
 // defaultReadyTimeout has headroom above what even a large (300+ node) target needs on an idle
 // machine, since several targets' worth of concurrent node creates/kwok-controller reconciliation
 // compete for the same host CPU when multiple execution targets are set up at once (see
 // orchestrate.Setup) - observed flakiness right around a 60s value at 10 concurrent targets was
 // host contention, not a stuck controller.
 const defaultReadyTimeout = 5 * time.Minute
+
+// DefaultReportInterval is how often a continuous run writes a report when metrics.reportInterval is unset.
+const DefaultReportInterval = 120 * time.Second
 
 // DefaultNodeConcurrency caps how many fake-node create/delete calls are in flight at once -
 // plenty to turn hundreds of nodes from a multi-second sequential slog into a sub-second burst,
@@ -310,7 +277,7 @@ func (c *ClusterTarget) EffectiveNodeConcurrency() int {
 }
 
 // LoadScenario reads a Scenario from path and resolves every path field it contains (Armadactl,
-// each target's Kubeconfig, each NodeGroup member's NodeProfile, each Load.Jobs[].JobSpec)
+// each target's Kubeconfig, each NodeGroup member's NodeProfile, each queue's job-spec files)
 // relative to the scenario file's own directory, so a scenario file's relative paths behave the
 // same regardless of the caller's working directory. It also validates the file and assigns
 // auto-generated names to any ExecutionTarget left unnamed.
@@ -332,6 +299,19 @@ func LoadScenario(path string) (*Scenario, error) {
 		scenario.Metrics.PostRunDelayDuration = delay
 	} else {
 		scenario.Metrics.PostRunDelayDuration = metrics.DefaultSettleDelay
+	}
+
+	if scenario.Metrics.ReportInterval != "" {
+		interval, err := time.ParseDuration(scenario.Metrics.ReportInterval)
+		if err != nil {
+			return nil, fmt.Errorf("parsing metrics.reportInterval %q: %w", scenario.Metrics.ReportInterval, err)
+		}
+		if interval <= 0 {
+			return nil, fmt.Errorf("metrics.reportInterval must be positive, got %q", scenario.Metrics.ReportInterval)
+		}
+		scenario.Metrics.ReportIntervalDuration = interval
+	} else {
+		scenario.Metrics.ReportIntervalDuration = DefaultReportInterval
 	}
 
 	for name, group := range scenario.NodeGroups {
@@ -391,41 +371,8 @@ func LoadScenario(path string) (*Scenario, error) {
 		names[target.Name] = true
 	}
 
-	if len(scenario.Load.Jobs) == 0 {
-		return nil, fmt.Errorf("load.jobs must contain at least one entry")
-	}
-	for i := range scenario.Load.Jobs {
-		job := &scenario.Load.Jobs[i]
-		job.JobSpec = resolveRelative(dir, job.JobSpec)
-		spec, err := loadPodSpec(job.JobSpec)
-		if err != nil {
-			return nil, fmt.Errorf("load.jobs[%d]: %w", i, err)
-		}
-		job.ResolvedSpec = spec
-	}
-
-	switch scenario.Load.Mode {
-	case "", LoadModeOneShot:
-	case LoadModeRampUp:
-		if scenario.Load.RampUp == nil {
-			return nil, fmt.Errorf("load.rampUp is required when load.mode is %q", LoadModeRampUp)
-		}
-		rampDuration, err := time.ParseDuration(scenario.Load.RampUp.RampDuration)
-		if err != nil {
-			return nil, fmt.Errorf("parsing load.rampUp.rampDuration %q: %w", scenario.Load.RampUp.RampDuration, err)
-		}
-		scenario.Load.RampUp.RampDurationParsed = rampDuration
-
-		stepInterval := defaultStepInterval
-		if scenario.Load.RampUp.StepInterval != "" {
-			stepInterval, err = time.ParseDuration(scenario.Load.RampUp.StepInterval)
-			if err != nil {
-				return nil, fmt.Errorf("parsing load.rampUp.stepInterval %q: %w", scenario.Load.RampUp.StepInterval, err)
-			}
-		}
-		scenario.Load.RampUp.StepIntervalParsed = stepInterval
-	default:
-		return nil, fmt.Errorf("load.mode must be %q or %q, got %q", LoadModeOneShot, LoadModeRampUp, scenario.Load.Mode)
+	if err := scenario.Load.normalize(dir, names); err != nil {
+		return nil, err
 	}
 
 	return scenario, nil

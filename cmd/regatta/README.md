@@ -29,14 +29,14 @@ Validates the scenario file, installs 300 virtual gpu nodes on cluster 1, 200 vi
 While regatta is running, you can view queue metrics on [prometheus](http://localhost:9090/) and use this PromQL (`sum by (cluster) (armada_queue_leased_pod_count{phase="Running"})`).
 
 ```
-go run ./cmd/regatta run cmd/regatta/config/two-cluster.example.yaml
+go run ./cmd/regatta run cmd/regatta/config/scenarios/two-cluster.example.yaml
 ```
 
 ## Scenarios
 
 A scenario is a yaml file that specifies which clusters to target, which nodegroups to install on them, which jobs to submit, and where to scrape metrics from and write them to.
 
-Take a look at this example in the repo (cmd/regatta/config/two-cluster.example.yaml).
+Take a look at this example in the repo (cmd/regatta/config/scenarios/two-cluster.example.yaml).
 
 ## Cleanup
 
@@ -46,7 +46,7 @@ In reverse:
 
 Removes nodes, deletes the kwok controllers.
 ```
-go run ./cmd/regatta teardown cmd/regatta/config/two-cluster.example.yaml
+go run ./cmd/regatta teardown cmd/regatta/config/scenarios/two-cluster.example.yaml
 ```
 
 Shuts down armada processes and prometheus.

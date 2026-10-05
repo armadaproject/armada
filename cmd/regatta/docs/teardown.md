@@ -7,7 +7,7 @@
 Tears down every cluster target the scenario file declares:
 
 ```bash
-go run ./cmd/regatta teardown cmd/regatta/config/two-cluster.example.yaml
+go run ./cmd/regatta teardown cmd/regatta/config/scenarios/two-cluster.example.yaml
 ```
 
 ## By target, without a scenario file

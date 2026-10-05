@@ -58,6 +58,26 @@ func buildRestConfig(kubeconfigPath string, kubernetesConfig regattaconfig.Kuber
 	return restConfig, nil
 }
 
+// DescribeKubeconfig returns the current-context name and API server address a kubeconfig path
+// resolves to (default loading rules when empty), for logging which cluster a target will touch.
+func DescribeKubeconfig(kubeconfigPath string) (contextName, server string, err error) {
+	path, err := ResolveKubeconfig(kubeconfigPath)
+	if err != nil {
+		return "", "", err
+	}
+	cfg, err := clientcmd.LoadFromFile(path)
+	if err != nil {
+		return "", "", fmt.Errorf("loading kubeconfig %s: %w", path, err)
+	}
+	contextName = cfg.CurrentContext
+	if ctxEntry, ok := cfg.Contexts[contextName]; ok {
+		if cluster, ok := cfg.Clusters[ctxEntry.Cluster]; ok {
+			server = cluster.Server
+		}
+	}
+	return contextName, server, nil
+}
+
 // ResolveKubeconfig returns kubeconfigPath if set, otherwise the default kubeconfig path
 // resolved via the standard KUBECONFIG/$HOME/.kube/config loading rules.
 func ResolveKubeconfig(kubeconfigPath string) (string, error) {

@@ -27,7 +27,7 @@ regatta run never tears its own cluster targets down automatically - it just sub
 exits, so job state/metrics can still be collected afterwards. Run this once you're done to clean
 up, passing the same scenario file you ran, e.g.:
 
-  go run ./cmd/regatta teardown cmd/regatta/config/two-cluster.example.yaml
+  go run ./cmd/regatta teardown cmd/regatta/config/scenarios/two-cluster.example.yaml
 
 This tears down every cluster target the scenario file declares. To tear down a single target by
 hand instead of via a scenario file, omit the scenario file and use --kubeconfig/--name to

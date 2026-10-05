@@ -24,8 +24,15 @@ metrics:
 
 - `metrics.prometheus` is the base URL to query (default `http://localhost:9090`, matching `mage dev:up ...,prometheus`'s own address).
 - `metrics.postRunDelay` is the fixed post-drain wait described above.
+- `metrics.reportInterval` (default `120s`) is how often a continuous run writes a report; see below. Bounded runs ignore it.
 - `metrics.resultsPath` is the directory to write the generated report file into (default `.`, resolved relative to the scenario file's own directory). Every checked-in example sets `prometheus`/`postRunDelay` explicitly and leaves `resultsPath` at its default.
 
 The `--metrics-results-path` CLI flag overrides `metrics.resultsPath` when explicitly passed. A failure to reach Prometheus is logged but never fails the run itself, since the run already succeeded by the time metrics collection starts.
 
 `mage dev:up regatta,prometheus` points Prometheus at a scrape config covering every executor in that topology (`_local/prometheus/config-two-cluster.yaml`), not just one, so the executor/Pulsar tier of the report reflects all clusters.
+
+## Continuous runs
+
+A continuous run (`totalJobs: -1`, see `scenario-files.md`) never drains, so there is no single end to report at. Instead it writes a report every `metrics.reportInterval` and a final one when you stop it with Ctrl+C. Files are named `regatta-result-<timestamp>-00001.json`, `-00002.json`, ..., and the last `-<n>-final.json`, so they sort in the order they were written.
+
+Each report covers only the time since the previous one (the first starts when submission does), so consecutive reports have no gap and no overlap and show how the system behaves now, not an average over the whole run. A report ends `metrics.postRunDelay` before it is written, so the metrics have reached Prometheus; the final report ends when submission stopped, after waiting that delay. Pressing Ctrl+C a second time exits at once, without writing the final report.

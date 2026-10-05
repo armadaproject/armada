@@ -6,23 +6,22 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
-// Report is a single post-run snapshot of Armada's own Prometheus metrics, queried once at the
-// end of a regatta run. Schema/tiers/percentiles are ported directly from
-// collect-perf-metrics.sh's Markdown tables (see that script for the live-deployment CI
-// equivalent) - this is a faithful port, not a considered redesign. A future pass should compare
-// this shape against how other large-batch schedulers (Slurm, Kubernetes scheduler benchmarks,
-// Volcano, Kueue) report results before treating it as final.
+// Report is a snapshot of Armada's own Prometheus metrics over one window of a regatta run.
 //
 // Every metric field is a *float64: nil means Prometheus had no value for that query (metric not
 // scraped, no samples in range, or a non-finite result) rather than a hard failure - collecting a
 // report never fails a run that already succeeded.
 type Report struct {
-	Queue         string    `json:"queue"`
+	// QueueCount is how many queues the run declared. The names are in the embedded scenario.
+	QueueCount    int       `json:"queueCount"`
 	Start         time.Time `json:"start"`
 	End           time.Time `json:"end"`
 	WindowSeconds float64   `json:"windowSeconds"`
@@ -96,36 +95,40 @@ type namedQuery struct {
 	dest **float64
 }
 
-// Collect runs the full fixed query set against promURL at end, using [start, end] as the
-// lookback window (floored at 60s), and returns a populated Report. A per-query failure is
-// logged and leaves that field nil; Collect itself only errors if it never reached Prometheus at
-// all (e.g. every single query failed to even connect).
-func Collect(ctx context.Context, promURL, queue string, start, end time.Time) (*Report, error) {
+// collectConcurrency is how many Prometheus queries Collect runs at once.
+const collectConcurrency = 8
+
+// Collect runs the full fixed query set against promURL at end, using [start, end] as the lookback
+// window (floored at 60s), and returns a populated Report. The per-queue measures are taken over the
+// declared queues together (one filter naming all of them, never unfiltered, so other tenants on a
+// shared instance are left out). A per-query failure is logged and leaves that field nil; Collect itself
+// only errors if it never reached Prometheus at all (e.g. every single query failed to even connect).
+func Collect(ctx context.Context, promURL string, queues []string, start, end time.Time) (*Report, error) {
 	windowSeconds := end.Sub(start).Seconds()
 	window := windowStr(windowSeconds)
 
 	report := &Report{
-		Queue:         queue,
+		QueueCount:    len(queues),
 		Start:         start,
 		End:           end,
 		WindowSeconds: windowSeconds,
 	}
 
 	queries := []namedQuery{
-		{queuedLatencyQuery(0.50, queue, window), &report.EndToEndLatency.QueuedP50},
-		{queuedLatencyQuery(0.95, queue, window), &report.EndToEndLatency.QueuedP95},
-		{queuedLatencyQuery(0.99, queue, window), &report.EndToEndLatency.QueuedP99},
-		{runLatencyQuery(0.50, queue, window), &report.EndToEndLatency.RunP50},
-		{runLatencyQuery(0.95, queue, window), &report.EndToEndLatency.RunP95},
-		{runLatencyQuery(0.99, queue, window), &report.EndToEndLatency.RunP99},
+		{queuedLatencyQuery(0.50, queues, window), &report.EndToEndLatency.QueuedP50},
+		{queuedLatencyQuery(0.95, queues, window), &report.EndToEndLatency.QueuedP95},
+		{queuedLatencyQuery(0.99, queues, window), &report.EndToEndLatency.QueuedP99},
+		{runLatencyQuery(0.50, queues, window), &report.EndToEndLatency.RunP50},
+		{runLatencyQuery(0.95, queues, window), &report.EndToEndLatency.RunP95},
+		{runLatencyQuery(0.99, queues, window), &report.EndToEndLatency.RunP99},
 
 		{scheduleCycleQuery(0.95, window), &report.Scheduler.ScheduleCycleP95},
 		{scheduleCycleQuery(0.99, window), &report.Scheduler.ScheduleCycleP99},
 		{submitCheckQuery(0.95, window), &report.Scheduler.SubmitCheckP95},
-		{scheduledJobsQuery(queue, window), &report.Scheduler.ScheduledTotal},
+		{scheduledJobsQuery(queues, window), &report.Scheduler.ScheduledTotal},
 
-		{peakQueueSizeQuery(queue, window), &report.QueueDepth.PeakQueueSize},
-		{peakLeasedPodCountQuery(queue, window), &report.QueueDepth.PeakLeased},
+		{peakQueueSizeQuery(queues, window), &report.QueueDepth.PeakQueueSize},
+		{peakLeasedPodCountQuery(queues, window), &report.QueueDepth.PeakLeased},
 
 		{submitThroughputQuery(window), &report.APISurface.SubmitThroughput},
 		{submitLatencyQuery(0.95, window), &report.APISurface.SubmitP95},
@@ -138,20 +141,38 @@ func Collect(ctx context.Context, promURL, queue string, start, end time.Time) (
 		{pulsarPublishErrorsQuery(window), &report.ExecutorAndPulsar.PulsarErrors},
 	}
 
-	failures := 0
+	// Each query writes only its own field, so they can run side by side without locking.
+	var failures atomic.Int32
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(collectConcurrency)
 	for _, nq := range queries {
-		val, err := query(ctx, promURL, nq.expr, end)
-		if err != nil {
-			failures++
-			log.Warnf("prometheus query %q failed: %s", nq.expr, err)
-			continue
-		}
-		*nq.dest = val
+		nq := nq
+		group.Go(func() error {
+			val, err := query(groupCtx, promURL, nq.expr, end)
+			if err != nil {
+				failures.Add(1)
+				log.Warnf("prometheus query %q failed: %s", truncateExpr(nq.expr), err)
+				return nil
+			}
+			*nq.dest = val
+			return nil
+		})
 	}
-	if failures == len(queries) {
+	_ = group.Wait()
+
+	if int(failures.Load()) == len(queries) {
 		return nil, fmt.Errorf("every prometheus query failed against %q - is Prometheus reachable?", promURL)
 	}
 	return report, nil
+}
+
+// truncateExpr shortens a long expression (a regex over hundreds of queue names) for a log line.
+func truncateExpr(expr string) string {
+	const limit = 200
+	if len(expr) <= limit {
+		return expr
+	}
+	return expr[:limit] + fmt.Sprintf("... (%d bytes)", len(expr))
 }
 
 // WriteJSON writes the report to path as indented JSON, creating/truncating the file.

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -24,6 +23,13 @@ import (
 func init() {
 	runCmd.Flags().String("metrics-results-path", "", "directory to write the post-run Prometheus metrics report into (overrides the scenario file's metrics.resultsPath)")
 	rootCmd.AddCommand(runCmd)
+}
+
+// warnAboutReadinessFailures repeats each tolerated readiness failure at the end of a run, where it is seen.
+func warnAboutReadinessFailures(failures []metrics.ReadinessFailure) {
+	for _, failure := range failures {
+		log.Warnf("target %q never passed its readiness check and the run continued anyway (cluster.continueOnReadinessFailure), so these results may include scheduler warm-up or faults: %s", failure.Target, failure.Error)
+	}
 }
 
 // loadArmadaConnection loads the scenario's armadactl config and returns the connection details
@@ -51,10 +57,10 @@ var runCmd = &cobra.Command{
 	Short: "Assemble a benchmarking environment (KWOK fake nodes) and run a submission against Armada",
 	Long: `Assemble a benchmarking environment and run a submission against Armada.
 
-A scenario file mostly points to other files - an .armadactl.yaml, kubeconfigs, node-profile
-YAML files, job-spec files - rather than embedding everything inline. Its authContext field picks
+A scenario file mostly points to other files, including a .armadactl.yaml, kubeconfigs, node-profile
+YAML files, job-spec files, rather than embedding everything inline. Its authContext field picks
 which context of that .armadactl.yaml to use (the --context flag overrides it). executionTargets contains
-any number of "cluster" targets. See cmd/regatta/config/two-cluster.example.yaml.`,
+any number of "cluster" targets. See cmd/regatta/config/scenarios/two-cluster.example.yaml.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		scenario, err := regattaconfig.LoadScenario(args[0])
@@ -67,6 +73,23 @@ any number of "cluster" targets. See cmd/regatta/config/two-cluster.example.yaml
 		if err != nil {
 			log.Errorf("%s", err)
 			os.Exit(1)
+		}
+
+		// Planned before anything is created, so a bad arrival fails the run at once.
+		spec, err := submit.FromLoadConfig(scenario.Load)
+		if err != nil {
+			log.Errorf("planning submission: %s", err)
+			os.Exit(1)
+		}
+		queues := scenario.Load.Names()
+
+		runStart := time.Now()
+		if scenario.Load.Continuous() {
+			log.Infof("scenario %s: %d target(s), %d queue(s), %d bounded jobs plus continuous submission, metrics from %s",
+				args[0], len(scenario.ExecutionTargets), len(queues), scenario.Load.TotalJobs(), scenario.PrometheusURL())
+		} else {
+			log.Infof("scenario %s: %d target(s), %d queue(s), %d jobs, metrics from %s",
+				args[0], len(scenario.ExecutionTargets), len(queues), scenario.Load.TotalJobs(), scenario.PrometheusURL())
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -82,19 +105,22 @@ any number of "cluster" targets. See cmd/regatta/config/two-cluster.example.yaml
 		}()
 		defer cancel()
 
-		_, readinessFailures, err := orchestrate.Setup(ctx, scenario, apiConnectionDetails)
-		if err != nil {
-			log.Errorf("setup failed: %s", err)
+		toEnsure := make([]submit.QueueToEnsure, len(scenario.Load.Queues))
+		for i, q := range scenario.Load.Queues {
+			toEnsure[i] = submit.QueueToEnsure{Name: q.Name, PriorityFactor: q.PriorityFactor}
+		}
+		if err := submit.EnsureQueues(ctx, apiConnectionDetails, toEnsure); err != nil {
+			log.Errorf("ensuring queues: %s", err)
 			os.Exit(1)
 		}
 
-		spec := submit.FromLoadConfig(scenario.Load)
-		start := time.Now()
-		runTimestamp := start.Format("20060102-150405")
-		if err := submit.Run(ctx, apiConnectionDetails, spec); err != nil {
-			log.Errorf("run failed: %s", err)
+		setupStart := time.Now()
+		_, readinessFailures, err := orchestrate.Setup(ctx, scenario, apiConnectionDetails)
+		if err != nil {
+			log.Errorf("setup failed after %s: %s", time.Since(setupStart).Round(time.Millisecond), err)
 			os.Exit(1)
 		}
+		log.Infof("setup of %d target(s) finished in %s", len(scenario.ExecutionTargets), time.Since(setupStart).Round(time.Millisecond))
 
 		resultsPath, err := cmd.Flags().GetString("metrics-results-path")
 		if err != nil {
@@ -104,30 +130,44 @@ any number of "cluster" targets. See cmd/regatta/config/two-cluster.example.yaml
 		if resultsPath == "" {
 			resultsPath = scenario.MetricsResultsDir()
 		}
-		log.Infof("waiting for queue %q to drain before collecting metrics...", spec.Queue)
-		end := metrics.WaitForQueueDrain(ctx, scenario.PrometheusURL(), spec.Queue)
+		reports := reportInputs{scenario: scenario, queues: queues, readinessFailures: readinessFailures, resultsPath: resultsPath}
+
+		start := time.Now()
+		runTimestamp := start.Format("20060102-150405")
+
+		if spec.Continuous() {
+			err := runContinuously(ctx, reports, func(ctx context.Context) error {
+				return submit.Run(ctx, apiConnectionDetails, spec)
+			}, runTimestamp, start)
+			if err != nil {
+				log.Errorf("run failed: %s", err)
+				os.Exit(1)
+			}
+			warnAboutReadinessFailures(readinessFailures)
+			log.Infof("run took %s in total (setup %s, submitted for %s)",
+				time.Since(runStart).Round(time.Second), start.Sub(setupStart).Round(time.Second), time.Since(start).Round(time.Second))
+			log.Info("run complete - nothing was torn down: tear down cluster targets with `regatta teardown`")
+			return
+		}
+
+		if err := submit.Run(ctx, apiConnectionDetails, spec); err != nil {
+			log.Errorf("run failed: %s", err)
+			os.Exit(1)
+		}
+		log.Infof("submission finished in %s", time.Since(start).Round(time.Millisecond))
+
+		log.Infof("waiting for %d queue(s) to drain before collecting metrics...", len(queues))
+		end := metrics.WaitForQueueDrain(ctx, scenario.PrometheusURL(), queues)
+		log.Infof("%d queue(s) drained %s after submission started", len(queues), end.Sub(start).Round(time.Second))
 
 		log.Infof("waiting %s for Prometheus to catch up before collecting metrics...", scenario.Metrics.PostRunDelayDuration)
 		time.Sleep(scenario.Metrics.PostRunDelayDuration)
 
-		report, err := metrics.Collect(ctx, scenario.PrometheusURL(), spec.Queue, start, end)
-		if err != nil {
-			log.Errorf("collecting metrics report: %s", err)
-		} else {
-			report.Scenario = scenario
-			report.ReadinessFailures = readinessFailures
-			outputFilename := fmt.Sprintf("regatta-result-%s.json", runTimestamp)
-			outputPath := filepath.Join(resultsPath, outputFilename)
-			if err := report.WriteJSON(outputPath); err != nil {
-				log.Errorf("writing metrics report: %s", err)
-			} else {
-				log.Infof("metrics report written to %s", outputPath)
-			}
-		}
+		reports.write(reportFileName(runTimestamp, 0, false), start, end)
 
-		for _, failure := range readinessFailures {
-			log.Warnf("target %q never passed its readiness check and the run continued anyway (cluster.continueOnReadinessFailure), so these results may include scheduler warm-up or faults: %s", failure.Target, failure.Error)
-		}
+		log.Infof("run took %s in total (setup %s, metrics window %s)",
+			time.Since(runStart).Round(time.Second), start.Sub(setupStart).Round(time.Second), end.Sub(start).Round(time.Second))
+		warnAboutReadinessFailures(readinessFailures)
 		log.Info("run complete - nothing was torn down: tear down cluster targets with `regatta teardown`")
 	},
 }

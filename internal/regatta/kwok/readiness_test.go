@@ -124,7 +124,7 @@ func TestAwaitCanaryRunning(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			outcome, err := awaitCanaryRunning(context.Background(), &fakeEventClient{events: tc.events}, "jobset", "job", tc.timeout)
+			outcome, err := awaitCanaryRunning(context.Background(), &fakeEventClient{events: tc.events}, "queue", "jobset", "job", tc.timeout)
 			require.NoError(t, err)
 			require.Equal(t, tc.wantRunning, outcome.running)
 			require.Equal(t, tc.wantFailure, outcome.failure)
@@ -136,14 +136,14 @@ func TestAwaitCanaryRunning(t *testing.T) {
 func TestAwaitCanaryRunning_ParentContextCancelledIsNotAnError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	outcome, err := awaitCanaryRunning(ctx, &fakeEventClient{events: []*api.EventMessage{queued("job")}}, "jobset", "job", time.Minute)
+	outcome, err := awaitCanaryRunning(ctx, &fakeEventClient{events: []*api.EventMessage{queued("job")}}, "queue", "jobset", "job", time.Minute)
 	// The cancelled context may end the wait before or after the queued event is read.
 	require.NoError(t, err)
 	require.False(t, outcome.running)
 }
 
 func TestAwaitCanaryRunning_StreamErrorBeforeTimeoutIsReturned(t *testing.T) {
-	_, err := awaitCanaryRunning(context.Background(), &fakeEventClient{events: []*api.EventMessage{queued("job")}, endWithEOF: true}, "jobset", "job", time.Second)
+	_, err := awaitCanaryRunning(context.Background(), &fakeEventClient{events: []*api.EventMessage{queued("job")}, endWithEOF: true}, "queue", "jobset", "job", time.Second)
 	require.Error(t, err)
 	require.True(t, errors.Is(err, io.EOF))
 }
@@ -176,4 +176,44 @@ func TestWaitRemaining(t *testing.T) {
 		require.ErrorIs(t, waitRemaining(ctx, begin, time.Minute), context.Canceled)
 		require.Less(t, time.Since(begin), time.Second)
 	})
+}
+
+const sampleJobReport = `default:
+	Most recent scheduling round that affected job 01m3ypyf3j8h63b7z1x69t6nmg:
+		Time:                       2026-10-02 11:25:22.46128 -0500 CDT m=+906.826707460
+		Job ID:                     01m3ypyf3j8h63b7z1x69t6nmg
+		UnschedulableReason:        none
+		Node:                       cpu-cluster-kwok-node-cpu-only-143
+		Number of nodes in cluster: 494
+		Excluded nodes:
+		 295: node does not match pod NodeSelector: required label armadaproject.io/regatta-target = cpu-cluster, but node has gpu-cluster
+		 2: node does not match pod NodeSelector: label kwok.x-k8s.io/node not set
+`
+
+func TestParseSchedulerReport(t *testing.T) {
+	view := parseSchedulerReport(sampleJobReport)
+	require.Equal(t, "494", view.nodes)
+	require.Equal(t, []string{
+		"295: node does not match pod NodeSelector: required label armadaproject.io/regatta-target = cpu-cluster, but node has gpu-cluster",
+		"2: node does not match pod NodeSelector: label kwok.x-k8s.io/node not set",
+	}, view.excluded)
+
+	require.Equal(t, schedulerView{}, parseSchedulerReport(""), "no report")
+	none := parseSchedulerReport("default:\n\tMost recent scheduling round that affected job x: none\n")
+	require.Equal(t, schedulerView{}, none, "a job the scheduler has not seen reports none")
+	require.Empty(t, parseSchedulerReport("Number of nodes in cluster: 3\nExcluded nodes: none\n").excluded)
+}
+
+func TestTimedOutFailure(t *testing.T) {
+	view := parseSchedulerReport(sampleJobReport)
+	f := timedOutFailure("01m3", 5*time.Second, "JobLeasedEvent", view)
+
+	require.Equal(t, "canary job 01m3, Number of nodes in cluster: 494", f.brief, "the per-attempt line stays short")
+	require.Contains(t, f.detail, "not running within 5s, last event JobLeasedEvent")
+	require.Contains(t, f.detail, "Number of nodes in cluster: 494")
+	require.Contains(t, f.detail, "295: node does not match pod NodeSelector", "the final error keeps the exclusion reasons")
+
+	noReport := timedOutFailure("01m3", 5*time.Second, "JobQueuedEvent", schedulerView{})
+	require.Equal(t, "canary job 01m3, last event JobQueuedEvent", noReport.brief, "falls back to the last event without a report")
+	require.Equal(t, "canary job 01m3 not running within 5s, last event JobQueuedEvent", noReport.detail)
 }

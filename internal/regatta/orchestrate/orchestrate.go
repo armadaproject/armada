@@ -50,7 +50,7 @@ func Setup(ctx context.Context, scenario *config.Scenario, apiConnectionDetails 
 				return fmt.Errorf("target %q: resolving node groups: %w", target.Name, err)
 			}
 
-			teardown, err := setupCluster(groupCtx, target, nodeGroup, apiConnectionDetails)
+			teardown, err := setupCluster(groupCtx, target, nodeGroup, scenario.Load, apiConnectionDetails)
 			if failure, tolerated := toleratedReadinessFailure(target, err); tolerated {
 				log.Warnf("target %q: readiness check failed, continuing anyway because cluster.continueOnReadinessFailure is set: %s", target.Name, failure.Error)
 				failures[i] = failure
@@ -107,7 +107,7 @@ func Teardown(ctx context.Context, scenario *config.Scenario) {
 	}
 }
 
-func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup []config.ResolvedNodeGroupMember, apiConnectionDetails *client.ApiConnectionDetails) (func(context.Context), error) {
+func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup []config.ResolvedNodeGroupMember, load config.Load, apiConnectionDetails *client.ApiConnectionDetails) (func(context.Context), error) {
 	kubeClient, err := kwok.NewClientset(target.Cluster.Kubeconfig, target.Cluster.Kubernetes)
 	if err != nil {
 		return nil, fmt.Errorf("building kubernetes client: %w", err)
@@ -137,6 +137,18 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 		return nil, fmt.Errorf("resolving stages: %w", err)
 	}
 
+	// The readiness canary runs in the first queue whose jobs may land on this target, so it also
+	// proves that queue can be seen and scheduled; a target no queue uses has nothing to check.
+	readinessQueue := ""
+	if queues := load.QueuesForTarget(target.Name); len(queues) > 0 {
+		readinessQueue = queues[0].Name
+	}
+	evaluateReadiness := target.Cluster.ShouldEvaluateReadiness()
+	if evaluateReadiness && readinessQueue == "" {
+		log.Infof("target %q: no queue submits to this target, so there is nothing to check readiness with", target.Name)
+		evaluateReadiness = false
+	}
+
 	cfg := kwok.Config{
 		Name:                     target.Name,
 		Kind:                     target.Cluster.Kind,
@@ -149,7 +161,8 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 			InitialDelay: target.Cluster.EffectiveReadinessDelay(),
 			SelectTarget: target.Cluster.ShouldReadinessSelectTarget(),
 		},
-		EvaluateReadiness: target.Cluster.ShouldEvaluateReadiness(),
+		ReadinessQueue:    readinessQueue,
+		EvaluateReadiness: evaluateReadiness,
 		NodeConcurrency:   target.Cluster.EffectiveNodeConcurrency(),
 		ReadyTimeout:      target.Cluster.ReadyTimeoutDuration,
 		StagesYAML:        stagesYAML,
@@ -162,6 +175,11 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 		}
 	}
 
+	if contextName, server, err := kwok.DescribeKubeconfig(target.Cluster.Kubeconfig); err != nil {
+		log.Warnf("target %q: could not describe kubeconfig %s: %s", target.Name, target.Cluster.Kubeconfig, err)
+	} else {
+		log.Infof("target %q: cluster context %q, API server %s (kind: %t)", target.Name, contextName, server, target.Cluster.Kind)
+	}
 	log.Infof("target %q: setting up KWOK fake nodes", target.Name)
 	if err := kwok.Setup(ctx, kubeClient, cfg); err != nil {
 		var readinessErr *kwok.ReadinessError
