@@ -77,6 +77,38 @@
       "cwd": "${workspaceFolder}"
     },
     {
+      "name": "Attach Executor (cluster 1)",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2349,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-executor-1",
+      "args": [
+        "--config",
+        "${workspaceFolder}/_local/executor/config-cluster-1.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Attach Executor (cluster 2)",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2356,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-executor-2",
+      "args": [
+        "--config",
+        "${workspaceFolder}/_local/executor/config-cluster-2.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
       "name": "Attach Lookout",
       "type": "go",
       "request": "launch",
@@ -398,6 +430,24 @@
       "preLaunchTask": "Set up and start (hot-cold)",
       "stopAll": true,
       "presentation": { "order": 7 }
+    },
+    {
+      "name": "Armada (two-cluster)",
+      "configurations": [
+        "Attach Server",
+        "Attach Scheduler",
+        "Attach Scheduler Ingester",
+        "Attach Event Ingester",
+        "Attach Executor (cluster 1)",
+        "Attach Executor (cluster 2)",
+        "Attach Lookout",
+        "Attach Lookout Ingester",
+        "Attach Binoculars",
+        "LookoutUI"
+      ],
+      "preLaunchTask": "Set up and start (two-cluster)",
+      "stopAll": true,
+      "presentation": { "order": 8 }
     }
   ]
 }
