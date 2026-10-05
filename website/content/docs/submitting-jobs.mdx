@@ -103,23 +103,21 @@ armadactl submit job.yaml --dry-run
 ## 4. Submit the job
 
 ```bash
-armadactl submit job.yaml
-```
-
-**Success:** one line per job:
-
-```text title="Output"
-Submitted job with id <job-id> to job set demo-1
-```
-
-You'll need the job ID to read the job's output or cancel it. To save typing it, submit with this instead, which keeps the ID in `JOB_ID` for the rest of this terminal session:
-
-```bash
 JOB_ID=$(armadactl submit job.yaml | awk '{print $5}')
 echo "Job ID: $JOB_ID"
 ```
 
-If you lose the ID, it's in every `watch` line for the job, and in Lookout.
+This submits the job and keeps its ID in `JOB_ID` for the rest of this terminal session. You'll need the ID to read the job's output and to cancel it.
+
+**Success:** it prints the job's ID:
+
+> Without the variable, `armadactl submit job.yaml` prints `Submitted job with id <job-id> to job set demo-1`. Use one command or the other, not both: each one submits a new job.
+
+```text title="Output"
+Job ID: <job-id>
+```
+
+If you open a new terminal, set it again with `JOB_ID=<job-id>`, using your own ID. If you lose the ID, it's in every `watch` line for the job, and in Lookout.
 
 ## 5. Watch it run
 
@@ -169,14 +167,14 @@ kubectl logs -n default armada-$JOB_ID-0
 
 ## 7. Reorder or cancel jobs
 
-Move a queued job earlier or later within your queue. Lower numbers run first:
+Change the priority of one job, or of every job in a job set. Lower numbers run first:
 
 ```bash
 armadactl reprioritize job my-team demo-1 <job-id> 5
 armadactl reprioritize job-set my-team demo-1 5
 ```
 
-This only affects jobs that are still Queued.
+This changes the priority of every unfinished job, including running jobs. It does not interrupt a running job, but the new priority affects its order if it needs to run again.
 
 The job you submitted earlier has already finished, so cancelling it does nothing. Submit a new copy first:
 
@@ -290,23 +288,23 @@ These settings control the rules and defaults above. They're in the Armada serve
 
 ## Troubleshooting
 
-| What you see                                                                                       | Cause                                                                            | Fix                                                                                      |
-| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `PermissionDenied ... could not find queue "<name>"`                                               | The queue is brand new, or doesn't exist                                         | Wait 15 seconds and try again. Check the name with `armadactl get queues`.               |
-| `user ... cannot perform action submit on queue ...`                                               | You don't have submit rights on the queue                                        | Ask your platform team to give you (or your group) the `submit` permission on the queue. |
-| `Error: Warning: You have provided no jobs to submit.`                                             | The file has no jobs under `jobs:`                                               | Add at least one job.                                                                    |
-| `Failed to parse file ... found character that cannot start any token`                             | The YAML is broken, usually by a tab                                             | Replace tabs with spaces.                                                                |
-| `namespace is a required field`                                                                    | The job has no `namespace`                                                       | Add `namespace: default` (or your team's namespace).                                     |
-| `Job must contain at least one PodSpec`                                                            | The job has no `podSpec`                                                         | Add one.                                                                                 |
-| `container <name> has no resources specified`                                                      | A container has no `resources`                                                   | Add `requests` and matching `limits`.                                                    |
-| `container <name> defines different resources for requests and limits`                             | A container has `requests` but no `limits`                                       | Add `limits` equal to `requests`.                                                        |
-| defines cpu with limits great than 1.00\*requests or defines cpu with limits smaller than requests | A limit doesn't equal its request                                                | Make each limit equal to its request.                                                    |
-| `preferredDuringSchedulingIgnoredDuringExecution` node affinity is not supported by Armada         | `preferred...` node affinity                                                     | Use `requiredDuringSchedulingIgnoredDuringExecution`.                                    |
-| `priority class X is not supported`                                                                | That class isn't allowed on this installation                                    | Use `armada-default` or `armada-preemptible`, or ask your platform team.                 |
-| client id of length N is greater than max allowed length of 100                                    | `clientId` is too long                                                           | Use 100 characters or fewer.                                                             |
-| `watch` says the job set does not exist                                                            | The job hasn't reached the event stream yet                                      | Wait a few seconds and run `watch` again.                                                |
-| `watch` keeps running after the job ends                                                           | `watch` doesn't always stop by itself                                            | Press Ctrl-C.                                                                            |
-| The job fails at once with `exceeds the total limit` or `insufficient resources available`         | The job asks for more than the cluster has, or the install has only just started | Check the reason with `armadactl get job-report <job-id>`.                               |
-| The job stays Queued                                                                               | A scheduling question                                                            | Check why with `armadactl get job-report <job-id>`.                                      |
-| The job ran twice                                                                                  | Two submits without a `clientId` create two jobs                                 | Set `clientId` to a stable, unique value.                                                |
-| zsh: no such file or directory: `job-id` (or bash: `job-id`: No such file or directory)            | A placeholder was pasted with its angle brackets                                 | Replace `<job-id>`, including `<` and `>`, with the real value.                          |
+| What you see                                                                                       | Cause                                                                            | Fix                                                                                                                                                                                                           |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PermissionDenied ... could not find queue "<name>"`                                               | The queue is brand new, or doesn't exist                                         | Wait 15 seconds and try again. Check the name with `armadactl get queues`.                                                                                                                                    |
+| `user ... cannot perform action submit on queue ...`                                               | You don't have submit rights on the queue                                        | Ask your platform team to give you (or your group) the `submit` permission on the queue.                                                                                                                      |
+| `Error: Warning: You have provided no jobs to submit.`                                             | The file has no jobs under `jobs:`                                               | Add at least one job.                                                                                                                                                                                         |
+| `Failed to parse file ... found character that cannot start any token`                             | The YAML is broken, usually by a tab                                             | Replace tabs with spaces.                                                                                                                                                                                     |
+| `namespace is a required field`                                                                    | The job has no `namespace`                                                       | Add `namespace: default` (or your team's namespace).                                                                                                                                                          |
+| `Job must contain at least one PodSpec`                                                            | The job has no `podSpec`                                                         | Add one.                                                                                                                                                                                                      |
+| `container <name> has no resources specified`                                                      | A container has no `resources`                                                   | Add `requests` and matching `limits`.                                                                                                                                                                         |
+| `container <name> defines different resources for requests and limits`                             | A container has `requests` but no `limits`                                       | Add `limits` equal to `requests`.                                                                                                                                                                             |
+| defines cpu with limits great than 1.00\*requests or defines cpu with limits smaller than requests | A limit doesn't equal its request                                                | Make each limit equal to its request.                                                                                                                                                                         |
+| `preferredDuringSchedulingIgnoredDuringExecution` node affinity is not supported by Armada         | `preferred...` node affinity                                                     | Use `requiredDuringSchedulingIgnoredDuringExecution`.                                                                                                                                                         |
+| `priority class X is not supported`                                                                | That class isn't allowed on this installation                                    | Use `armada-default` or `armada-preemptible`, or ask your platform team.                                                                                                                                      |
+| client id of length N is greater than max allowed length of 100                                    | `clientId` is too long                                                           | Use 100 characters or fewer.                                                                                                                                                                                  |
+| `watch` says the job set does not exist                                                            | The job hasn't reached the event stream yet                                      | Wait a few seconds and run `watch` again.                                                                                                                                                                     |
+| `watch` keeps running after the job ends                                                           | `watch` doesn't always stop by itself                                            | Press Ctrl-C.                                                                                                                                                                                                 |
+| The job fails at once with `exceeds the total limit` or `insufficient resources available`         | The job asks for more than the cluster has, or the install has only just started | Read the full reason on the `Job failed:` line in `watch`, or in the job's **Result** tab in Lookout. On a new install, wait two minutes and submit again; otherwise lower the job's `requests` and `limits`. |
+| The job stays Queued                                                                               | A scheduling question                                                            | Check why with `armadactl get job-report <job-id>`.                                                                                                                                                           |
+| The job ran twice                                                                                  | Two submits without a `clientId` create two jobs                                 | Set `clientId` to a stable, unique value.                                                                                                                                                                     |
+| zsh: no such file or directory: `job-id` (or bash: `job-id`: No such file or directory)            | A placeholder was pasted with its angle brackets                                 | Replace `<job-id>`, including `<` and `>`, with the real value.                                                                                                                                               |
