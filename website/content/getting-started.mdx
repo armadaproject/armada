@@ -343,8 +343,11 @@ make kind-delete-cluster
 </Accordion>
 
 <Accordion title='Job fails with exceeds the total limit'>
-  Armada started moments ago and doesn’t yet know the cluster’s resources. Wait
-  two minutes and submit again.
+  The job asks for more than its queue is allowed for its priority class. Right
+  after an install, Armada doesn’t yet know the cluster’s resources, so every
+  job gets this: wait two minutes and submit again. If it still fails, the job
+  asks for more CPU or memory than the queue’s limit: lower the job’s `requests`
+  and `limits` (keep them equal), or ask your platform team about the limit.
 </Accordion>
 
 <Accordion title='Job fails with insufficient resources available'>
