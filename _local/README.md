@@ -8,11 +8,11 @@ Everything the local dev stack uses. `mage dev:up <profiles>` wires these pieces
 | `compose/stack.yaml`      | Dependency containers: redis, postgres, pulsar, plus keycloak (`auth` profile) and prometheus (`prometheus` profile)                                      |
 | `compose/full.yaml`       | Fully containerized Armada stack, used by `mage dev:full` and CI                                                                                          |
 | `compose/postgres-init.sql` | Creates the scheduler and lookout databases when the postgres container first initialises                                                               |
-| `procfiles/`              | Goreman procfiles: `no-auth`, `auth`, `fake-executor`, `auth-fake-executor`, each with a `-dap` (Delve debug) variant                                                           |
+| `procfiles/`              | Goreman procfiles: `no-auth`, `auth`, `fake-executor`, `auth-fake-executor`, `two-cluster`, each with a `-dap` (Delve debug) variant                                                           |
 | `scripts/`                | `init.sh` (migrations + priority classes) and helpers for port conflicts, dlv readiness, and pre-building components                                      |
 | `kind/`                   | Kind cluster config for running a real executor locally                                                                                                  |
 | `keycloak/`               | Keycloak realm import for the `auth` profile                                                                                                             |
 | `airflow/`                | Separate docker compose ecosystem for the Airflow operator e2e tests                                                                                     |
-| `prometheus.yml`          | Scrape config for the `prometheus` compose profile                                                                                                       |
+| `prometheus/`             | Scrape configs for the `prometheus` compose profile: `config.yaml`, and `config-two-cluster.yaml` for the two-executor profiles                                                                                                     |
 | `.armadactl.yaml`         | Example armadactl config with contexts for all supported auth flows                                                                                      |
 | `readiness-job.yaml`      | Smoke-test job CI submits to verify Armada is accepting jobs                                                                                              |
