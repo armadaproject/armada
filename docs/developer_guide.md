@@ -32,7 +32,7 @@ Want to quickly get Armada running and test it? Install the [prerequisites](#pre
 mage dev:full && mage testsuite
 ```
 
-To get the UI running, run:
+To get the UI running, run the following before `mage dev:full`, which mounts the build output into the Lookout container:
 
 ```bash
 mage ui
@@ -193,7 +193,7 @@ go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit 
 
 ### Running the UI
 
-In the goreman flow (`dev:up`), the `lookoutui` process runs the Vite dev server with hot reload on http://localhost:3000. In the containerized flow (`mage dev:full`), the UI is built with `mage ui` and served by lookout on http://localhost:8089.
+In the goreman flow (`dev:up`), the `lookoutui` process runs the Vite dev server with hot reload on http://localhost:3000. In the containerized flow (`mage dev:full`), the UI is built with `mage ui` (run it first) and served by lookout on http://localhost:8089, from `internal/lookoutui/build` mounted into the container.
 
 For more information, [see the UI Developer Guide](./developer/developing-locally.md).
 
