@@ -176,6 +176,9 @@ func kindTeardownClustersFromDir(configDir string) error {
 	if err != nil {
 		return err
 	}
+	if len(entries) == 0 {
+		return errors.Errorf("no *.yaml kind-cluster configs found in %s", configDir)
+	}
 	for _, configPath := range entries {
 		clusterName, err := kindConfigClusterName(configPath)
 		if err != nil {
