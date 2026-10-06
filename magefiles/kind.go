@@ -77,18 +77,20 @@ func kindInitCluster(name, kindConfigPath, kubeconfigPath string) error {
 			return err
 		}
 	}
+	// Export the cluster's own kubeconfig first and pass it explicitly below: the caller's KUBECONFIG
+	// (e.g. the single-cluster file) may not have this cluster's kind-<name> context.
+	if err := kindWriteExternalKubeConfig(name, kubeconfigPath); err != nil {
+		return err
+	}
 	// The executor creates real pods with priorityClassName: armada-default/armada-preemptible
 	// even though nothing else runs on this cluster - the API server still validates that
 	// against real PriorityClass objects, so they must exist even on an otherwise-empty cluster.
-	if err := kubectlRun("apply", "-f", "_local/kind/priorityclasses.yaml", "--context", "kind-"+name); err != nil {
+	if err := kubectlRun("apply", "-f", "_local/kind/priorityclasses.yaml", "--kubeconfig", kubeconfigPath); err != nil {
 		return err
 	}
 	// The anonymous-user namespace and its RBAC, needed when running without auth. Its
 	// ingress-nginx service account subject is harmless on clusters without ingress-nginx.
-	if err := kubectlRun("apply", "-f", "_local/kind/namespace.yaml", "--context", "kind-"+name); err != nil {
-		return err
-	}
-	return kindWriteExternalKubeConfig(name, kubeconfigPath)
+	return kubectlRun("apply", "-f", "_local/kind/namespace.yaml", "--kubeconfig", kubeconfigPath)
 }
 
 // kindWriteExternalKubeConfig writes the named cluster's external kubeconfig to kubeconfigPath.
