@@ -6,4 +6,5 @@ executor-1: export KUBECONFIG=.kube/external/multicluster/cluster-1 && ${GO_BIN:
 executor-2: export KUBECONFIG=.kube/external/multicluster/cluster-2 && ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-executor-2 ./cmd/executor/main.go && dlv dap --listen=:2356
 lookout: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-lookout ./cmd/lookout/main.go && dlv dap --listen=:2350
 lookoutingester: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-lookoutingester ./cmd/lookoutingester/main.go && dlv dap --listen=:2351
-binoculars: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-binoculars ./cmd/binoculars/main.go && dlv dap --listen=:2352
+binoculars-1: export KUBECONFIG=.kube/external/multicluster/cluster-1 && ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-binoculars-1 ./cmd/binoculars/main.go && dlv dap --listen=:2352
+binoculars-2: export KUBECONFIG=.kube/external/multicluster/cluster-2 && ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-binoculars-2 ./cmd/binoculars/main.go && dlv dap --listen=:2357
