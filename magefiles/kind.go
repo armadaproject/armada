@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	semver "github.com/Masterminds/semver/v3"
@@ -70,7 +71,7 @@ func kindInitCluster(name, kindConfigPath, kubeconfigPath string) error {
 	if err != nil {
 		return err
 	}
-	if strings.Contains(out, name) {
+	if slices.Contains(strings.Fields(out), name) {
 		return nil
 	}
 	if err := kindRun("create", "cluster", "--name", name, "--config", kindConfigPath); err != nil {
