@@ -70,6 +70,8 @@ armadactl cancel job-set my-team web-demo-1
 
 For jobs that only need to be reached by other pods in the cluster, such as gang members or a driver and its executors, use a headless service. It gives the job a DNS name that other jobs can use, but no address outside the cluster.
 
+Headless names only work inside one cluster. If your installation has more than one cluster, Armada may put the two jobs in different clusters, and the name won't resolve. Ask your platform team how to keep jobs on the same cluster.
+
 The name follows a fixed pattern:
 
 ```text
@@ -277,7 +279,7 @@ armadactl cancel job-set my-team notebook-1
 
 A common shape is one driver job that executors connect to. Combine a gang with a headless service:
 
-1. Make the driver and all executors members of one gang, so they start together.
+1. Make the driver and all executors members of one gang, so they start together. If your installation has more than one cluster, also set `armadaproject.io/gangNodeUniformityLabel` to a node label with one value per cluster, so every member lands in the same cluster. Without it, a gang can be split across clusters, and the executors can't reach the driver's headless service. Ask your platform team which label to use.
 2. Give the driver a headless service on its coordination port (for example 7077).
 3. Tell the executors the driver's address. The driver's job ID isn't known until it's submitted, so either:
    - **Submit the driver first**, build `armada-<driver-job-id>-0-service-0.<namespace>.svc.cluster.local` from the ID it returns, and pass it to the executors as an environment variable or argument. Use the same gang annotations in both submissions, with `gangCardinality` equal to the total.
