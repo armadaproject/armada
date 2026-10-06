@@ -1,0 +1,331 @@
+---
+title: 'Interactive jobs and services'
+description: 'Make a running job reachable over the network: from other jobs, from outside the cluster, or from a browser.'
+---
+
+{/* cspell:ignore mvsh gbkhrs certingress tlsenabled certname */}
+
+{/* Laptop values checked against armada-operator dev/quickstart/armada-crs.yaml and armada config/executor/config.yaml, config/server/config.yaml (master 9107116). The ingressAddresses field name is from pkg/api/event.pb.go. Service and ingress naming, TLS secret names and port rules: internal/server/submit/conversion/conversions.go and internal/server/submit/validation/submit_request.go. Executor annotation merge and cert suffix: internal/executor/job/submit.go (executor defaults win, via MergeMaps). Addresses are reported for NodePort services and ingresses only: internal/executor/reporter/event.go. allowCustomServiceNames defaults to false: internal/server/configuration/types.go. Headless example, ingress names, TLS secret names and get_job_details ingress_addresses also run on a laptop install on 2026-10-06. */}
+
+Armada jobs can expose network ports: a Jupyter notebook you open in a browser, a Spark driver its executors connect to, or gang members talking to each other. You add `services` or `ingress` to the job, and Armada creates the Kubernetes Service or Ingress next to your pod and removes it when the job ends.
+
+## Before you start
+
+You need a working `armadactl` and the `my-team` queue. Run the commands on this page from your `~/armada-guide` folder.
+
+**One rule underpins everything here:** a port can only be exposed if a container lists it under `ports:`. Ports that no container lists are dropped silently.
+
+**On a laptop install,** these endpoints work from other jobs inside the cluster, but not from your browser: NodePort addresses are on Docker's private network, and the laptop install has no ingress controller. On your team's Armada, ask your platform team how ingress addresses are reached.
+
+## Pattern 1. Reach a job by node address (NodePort)
+
+```bash
+cat > service-job.yaml <<'EOF'
+queue: my-team
+jobSetId: web-demo-1
+jobs:
+  - namespace: default
+    priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: web
+          image: nginx:latest
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          resources:
+            requests: { cpu: 200m, memory: 256Mi }
+            limits: { cpu: 200m, memory: 256Mi }
+    services:
+      - type: NodePort
+        ports:
+          - 80
+EOF
+armadactl submit service-job.yaml
+```
+
+Wait until the job is running (about 45 seconds), then print its address:
+
+```bash
+armadactl watch my-team web-demo-1 --raw | grep ingressAddresses
+```
+
+**Success:** a line containing something like:
+
+```text title="Output"
+"ingressAddresses":{"80":"172.18.0.2:32563"}
+```
+
+That's a map from your container's port to `<node-ip>:<node-port>`. Press Ctrl-C to stop `watch`.
+
+The address works from wherever the node's IP can be reached. On a team installation, that's often only inside the cluster's network or over a VPN.
+
+Armada sends the address in a `JobIngressInfoEvent` once the pod has been running briefly and all its services exist. The same address appears in Lookout: open the job, choose **Result**, then the run. From your own code, the Python client's `get_job_details([job_id])` includes each run's `ingress_addresses`.
+
+Clean up:
+
+```bash
+armadactl cancel job-set my-team web-demo-1
+```
+
+## Pattern 2. Reach a job from other jobs (headless service)
+
+For jobs that only need to be reached by other pods in the cluster, such as gang members or a driver and its executors, use a headless service. It gives the job a DNS name that other jobs can use, but no address outside the cluster.
+
+The name follows a fixed pattern:
+
+```text
+armada-<job-id>-0-service-0.<namespace>.svc.cluster.local
+```
+
+The number after `service-` counts the job's services in order, starting at `0`: a job with two services gets `-service-0` and `-service-1`. Services with a custom name (see [Pattern 4](#pattern-4-driver-and-executors)) aren't counted. Services Armada creates for an ingress are numbered too, after the ones you declare.
+
+This example runs a web server with a headless service, then a second job that fetches its page by that name.
+
+1. **Create and submit the server.** This keeps its job ID in `SERVER_ID`:
+
+   ```bash
+   cat > headless-server.yaml <<'EOF'
+   queue: my-team
+   jobSetId: headless-demo
+   jobs:
+     - namespace: default
+       podSpec:
+         terminationGracePeriodSeconds: 0
+         restartPolicy: Never
+         containers:
+           - name: web
+             image: nginx:latest
+             ports:
+               - containerPort: 80
+                 protocol: TCP
+             resources:
+               requests: { cpu: 200m, memory: 256Mi }
+               limits: { cpu: 200m, memory: 256Mi }
+       services:
+         - type: Headless
+           ports:
+             - 80
+   EOF
+   SERVER_ID=$(armadactl submit headless-server.yaml | awk '{print $5}')
+   echo "Server: $SERVER_ID"
+   ```
+
+2. **Wait until the server is running,** in Lookout or with `armadactl watch my-team headless-demo`. Press Ctrl-C once you see `JobRunningEvent`.
+
+3. **Create and submit the client.** The `EOF` here has no quotes, so the shell fills in `$SERVER_ID`:
+
+   ```bash
+   cat > headless-client.yaml <<EOF
+   queue: my-team
+   jobSetId: headless-demo
+   jobs:
+     - namespace: default
+       podSpec:
+         terminationGracePeriodSeconds: 0
+         restartPolicy: Never
+         containers:
+           - name: client
+             image: alpine:3.21
+             command: ['sh', '-c', 'wget -qO- http://armada-${SERVER_ID}-0-service-0.default.svc.cluster.local | head -n 4']
+             resources:
+               requests: { cpu: 100m, memory: 64Mi }
+               limits: { cpu: 100m, memory: 64Mi }
+   EOF
+   CLIENT_ID=$(armadactl submit headless-client.yaml | awk '{print $5}')
+   ```
+
+4. **Read the client's output** once it has finished (about 30 seconds):
+
+   ```bash
+   kubectl logs -n default armada-$CLIENT_ID-0
+   ```
+
+   **Success:** the first lines of nginx's welcome page, starting with `<!DOCTYPE html>`.
+
+5. **Clean up:**
+
+   ```bash
+   armadactl cancel job-set my-team headless-demo
+   ```
+
+A job can also work out its own address, because Armada gives every container its job ID in the `ARMADA_JOB_ID` environment variable. A command inside the job, such as this one, prints it:
+
+```bash
+echo "I am reachable at armada-${ARMADA_JOB_ID}-0-service-0.default.svc.cluster.local"
+```
+
+## Pattern 3. Open a job in a browser (ingress)
+
+For things like Jupyter or dashboards, add an `ingress`. Armada creates a Kubernetes Ingress and a service behind it:
+
+```bash
+cat > notebook.yaml <<'EOF'
+queue: my-team
+jobSetId: notebook-1
+jobs:
+  - namespace: default
+    priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 30
+      restartPolicy: Never
+      containers:
+        - name: notebook
+          image: jupyter/minimal-notebook:latest
+          env:
+            - name: NOTEBOOK_TOKEN
+              value: 'pick-a-long-random-string' # anyone with the URL and token gets a shell
+          args: ['sh', '-c', 'start-notebook.sh --NotebookApp.token=$NOTEBOOK_TOKEN']
+          ports:
+            - containerPort: 8888
+              protocol: TCP
+          resources:
+            requests: { cpu: '1', memory: 1Gi }
+            limits: { cpu: '1', memory: 1Gi }
+    ingress:
+      - ports:
+          - 8888
+        annotations:
+          kubernetes.io/ingress.class: 'nginx'
+        tlsEnabled: false # set true (with certName) on clusters that serve TLS
+EOF
+armadactl submit notebook.yaml
+```
+
+The image is large, so the job can take a few minutes to start. The address follows this pattern:
+
+```text
+<container-name>-<port>-armada-<job-id>-0.<namespace>.<cluster-suffix>
+```
+
+For this job: `notebook-8888-armada-<job-id>-0.default.<cluster-suffix>`. The suffix is set by your platform team (on a laptop install it's `svc`), but you don't need to know it in advance: Lookout and the event show the full address. The ingress sends every path (`/`) to your port. Once the job is running, the address appears in Lookout under **Result** as **Ingress address**, with a copy button, and in the event stream:
+
+```bash
+armadactl watch my-team notebook-1 --raw | grep ingressAddresses
+```
+
+Treat the address as public: keep the notebook token set, and use `tlsEnabled: true` with a `certName` where your cluster supports TLS. Your cluster's ingress controller may also support login through `annotations`; ask your platform team.
+
+### Ingress settings
+
+Each `ingress` entry can set:
+
+| Setting        | What it does                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `ports`        | The container ports to route to. Required. Each must be listed on a container, and can appear in only one ingress entry. |
+| `annotations`  | Settings for your ingress controller, copied onto the Kubernetes Ingress. See [Annotations](#annotations).               |
+| `tlsEnabled`   | `true` serves the address over HTTPS. See [Serving over HTTPS](#serving-over-https-tlsenabled-and-certname).             |
+| `certName`     | Which certificate to use for HTTPS.                                                                                      |
+| `useClusterIP` | Give the service behind the ingress a cluster IP, instead of making it headless.                                         |
+
+#### Annotations
+
+Annotations are how you configure the ingress controller for your job, for example timeouts, login or rewrite rules. Armada copies them onto the Kubernetes Ingress unchanged, and doesn't check them, so use the annotation names your cluster's ingress controller documents.
+
+For example, with the NGINX ingress controller, a notebook that keeps connections open for a long time might use:
+
+```yaml
+ingress:
+  - ports:
+      - 8888
+    annotations:
+      kubernetes.io/ingress.class: 'nginx'
+      nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+```
+
+**Your platform team's defaults win.** They can set annotations that are added to every ingress. If one of yours has the same name as one of theirs, theirs is used. Ask them which annotations they set, especially the ingress class.
+
+#### Serving over HTTPS (`tlsEnabled` and `certName`)
+
+To serve the address over HTTPS, set `tlsEnabled: true` and name the certificate with `certName`:
+
+```yaml
+ingress:
+  - ports:
+      - 8888
+    tlsEnabled: true
+    certName: 'my-cert-'
+```
+
+The certificate lives in a Kubernetes TLS secret in the job's namespace. Armada builds the secret's name from your `certName` with `ingress-tls-certificate` added straight on the end, with nothing in between. (Your platform team can change that suffix.)
+
+| `certName` | Secret Armada looks for                                                          |
+| ---------- | -------------------------------------------------------------------------------- |
+| Not set    | `<namespace>-ingress-tls-certificate`, such as `default-ingress-tls-certificate` |
+| `my-cert-` | `my-cert-ingress-tls-certificate`                                                |
+| `my-cert`  | `my-certingress-tls-certificate`                                                 |
+
+End your `certName` with `-` unless your platform team says otherwise.
+
+The certificate must be valid for the job's address. Because every address ends in `.<namespace>.<cluster-suffix>`, this usually means a wildcard certificate for `*.<namespace>.<cluster-suffix>`. Armada doesn't create the secret or check it exists: your platform team normally provides it, so ask them which `certName` to use.
+
+#### Finding the Ingress object
+
+With `kubectl` access, the Ingress is named `armada-<job-id>-0-ingress-0` (a job's second ingress is `-ingress-1`, and so on):
+
+```bash
+kubectl get ingress -n default armada-<job-id>-0-ingress-0
+```
+
+### Stopping a notebook
+
+A notebook is still a batch job: it stops after the time limit (72 hours by default). Stop it yourself when you're done:
+
+```bash
+armadactl cancel job-set my-team notebook-1
+```
+
+## Pattern 4. Driver and executors
+
+A common shape is one driver job that executors connect to. Combine a gang with a headless service:
+
+1. Make the driver and all executors members of one gang, so they start together.
+2. Give the driver a headless service on its coordination port (for example 7077).
+3. Tell the executors the driver's address. The driver's job ID isn't known until it's submitted, so either:
+   - **Submit the driver first**, build `armada-<driver-job-id>-0-service-0.<namespace>.svc.cluster.local` from the ID it returns, and pass it to the executors as an environment variable or argument. Use the same gang annotations in both submissions, with `gangCardinality` equal to the total.
+   - **Name the service yourself** with `services: [{type: Headless, name: my-driver, ports: [7077]}]`, if your installation allows custom names. If it doesn't, Armada silently uses the generated name instead. The laptop install doesn't allow them.
+
+If any member can be the meeting point, skip the driver: each member works out its own address from `ARMADA_JOB_ID` and registers it with your framework.
+
+## Reference
+
+**`services` entries:**
+
+| Field   | Meaning                                                                                      |
+| ------- | -------------------------------------------------------------------------------------------- |
+| `type`  | `NodePort` for access by node address, or `Headless` for access from other pods by DNS name. |
+| `ports` | Ports to expose. Each must be listed on a container.                                         |
+| `name`  | Optional custom name, used only if your installation allows it.                              |
+
+**`ingress` entries:** see [Ingress settings](#ingress-settings).
+
+**Port rules:** a container port can be exposed only once across all containers, a port can appear in only one ingress entry, and ports with `hostPort` set can't be exposed. Services and ingress entries whose ports no container lists are dropped without an error. An ingress uses an existing service of the job if one already covers its ports; otherwise Armada creates a service for it.
+
+## Operator setup
+
+These settings decide how services and ingresses behave on your installation. On an Operator install, they go in the `spec.applicationConfig` of the named resource; on a Helm install, in the chart's `applicationConfig`.
+
+| Setting                                         | In                      | Default                   | What it controls                                                                                                      |
+| ----------------------------------------------- | ----------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `submission.allowCustomServiceNames`            | Server (`ArmadaServer`) | `false`                   | Whether a service's `name` is used. When `false`, Armada silently uses the generated name.                            |
+| `kubernetes.podDefaults.ingress.hostnameSuffix` | Executor, per cluster   | `svc`                     | The `<cluster-suffix>` in ingress addresses. Your DNS must resolve `*.<suffix>` to that cluster's ingress controller. |
+| `kubernetes.podDefaults.ingress.certNameSuffix` | Executor, per cluster   | `ingress-tls-certificate` | Added to a job's `certName` to form the name of the TLS secret the ingress uses.                                      |
+| `kubernetes.podDefaults.ingress.annotations`    | Executor, per cluster   | None                      | Annotations added to every ingress, such as the ingress class. They override a job's annotation of the same name.     |
+
+## Troubleshooting
+
+| What you see                                                                            | Cause                                                                         | Fix                                                                                                                                                                              |
+| --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `container port <port> is exposed multiple times` when submitting                       | Two containers list the same `containerPort`                                  | Give each container its own ports.                                                                                                                                               |
+| `port <port> has two ingress configurations` when submitting                            | The same port appears in more than one `ingress` entry                        | List each port in only one ingress entry.                                                                                                                                        |
+| `ingress contains zero ports` when submitting                                           | An `ingress` entry has no `ports`                                             | Add at least one port, listed on a container.                                                                                                                                    |
+| No `ingressAddresses` ever appears                                                      | The pod isn't running yet, or the port isn't listed on any container          | Wait until the job is running. Check every exposed port is a `containerPort`. Headless services never produce an address.                                                        |
+| The job fails at once with `insufficient resources available`                           | The job asks for more than the cluster has                                    | Lower its `requests` and `limits`. On a laptop, 1Gi of memory fits; 2Gi may not.                                                                                                 |
+| The address doesn't open from your computer                                             | NodePort and ingress addresses usually only work inside the cluster's network | On a laptop, reach it from another job. On a team installation, ask your platform team how ingress addresses are reached.                                                        |
+| The ingress address doesn't resolve                                                     | DNS doesn't point `*.<cluster-suffix>` at the cluster's ingress controller    | First check the Ingress exists (see [Finding the Ingress object](#finding-the-ingress-object)). If it does, ask your platform team: the suffix or wildcard DNS needs setting up. |
+| `watch ... --raw \| grep ingressAddresses` doesn't return to the prompt                 | `watch` keeps running                                                         | Press Ctrl-C after the line appears.                                                                                                                                             |
+| You set `name: my-service` but got the generated name                                   | Custom service names aren't allowed on your installation                      | Use the generated name.                                                                                                                                                          |
+| The endpoint disappeared                                                                | The job ended, and its services went with it                                  | Check the job's state with `watch` or Lookout.                                                                                                                                   |
+| `zsh: no such file or directory: job-id` (or `bash: job-id: No such file or directory`) | A placeholder was pasted with its angle brackets                              | Replace `<job-id>`, including `<` and `>`, with the real value.                                                                                                                  |
