@@ -32,7 +32,7 @@ case "$MODE" in
     ENTRIES+=("2354:lookouthc" "2355:lookouthcingester")
     ;;
   two-cluster)
-    ENTRIES+=("2356:executor-2")
+    ENTRIES+=("2356:executor-2" "2357:binoculars-2")
     ;;
 esac
 
