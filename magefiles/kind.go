@@ -65,17 +65,17 @@ func kindCheck() error {
 	return constraintCheck(version, KIND_VERSION_CONSTRAINT, "kind")
 }
 
-// kindInitCluster creates one kind cluster (idempotent) and writes its external kubeconfig.
+// kindInitCluster creates one kind cluster if missing, then always applies its
+// resources and writes its external kubeconfig
 func kindInitCluster(name, kindConfigPath, kubeconfigPath string) error {
 	out, err := kindOutput("get", "clusters")
 	if err != nil {
 		return err
 	}
-	if slices.Contains(strings.Fields(out), name) {
-		return nil
-	}
-	if err := kindRun("create", "cluster", "--name", name, "--config", kindConfigPath); err != nil {
-		return err
+	if !slices.Contains(strings.Fields(out), name) {
+		if err := kindRun("create", "cluster", "--name", name, "--config", kindConfigPath); err != nil {
+			return err
+		}
 	}
 	// The executor creates real pods with priorityClassName: armada-default/armada-preemptible
 	// even though nothing else runs on this cluster - the API server still validates that
