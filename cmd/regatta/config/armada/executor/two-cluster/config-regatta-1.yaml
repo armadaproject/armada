@@ -1,4 +1,4 @@
-# Overlay on _local/executor/config-cluster-1.yaml (pass both to the executor, in that order).
+# Overlay on _local/executor/config.yaml and _local/executor/two-cluster/config-cluster-1.yaml (pass all three to the executor, in that order).
 # Lists replace rather than merge, so they repeat the base entries.
 kubernetes:
   toleratedTaints:
