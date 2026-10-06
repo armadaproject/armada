@@ -6,6 +6,7 @@ export const DEFAULT_LOOKOUT_UI_CONFIG: LookoutUiConfig = {
   armadaApiBaseUrl: "",
   userAnnotationPrefix: "",
   binocularsBaseUrlPattern: "",
+  binocularsStaticBaseUrls: {},
   jobSetsAutoRefreshMs: undefined,
   jobsAutoRefreshMs: undefined,
   customTitle: "",
