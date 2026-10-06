@@ -7,7 +7,7 @@ description: 'Run a group of jobs that must all start together, keep them on mat
 
 {/* Gang rules and error texts checked against armadaproject/armada master (9107116): internal/server/submit/validation/submit_request.go, internal/scheduler/gang_validator.go, internal/scheduler/scheduling/gang_scheduler.go, internal/scheduler/scheduling/constraints/constraints.go, internal/scheduler/scheduler.go. */}
 
-A **gang** is a group of jobs that Armada schedules all together, on the same cluster, or not at all. Use a gang when part of the group is useless on its own: multi-node training (torchrun, MPI), Spark drivers and executors, or any leader-and-workers setup.
+A **gang** is a group of jobs that Armada schedules all together or not at all. This does not guarantee that every member runs on the same Kubernetes cluster. Use a gang when part of the group is useless on its own: multi-node training (torchrun, MPI), Spark drivers and executors, or any leader-and-workers setup.
 
 ## Before you start
 
