@@ -36,8 +36,7 @@ Find Lookout:
 Lookout has two views, chosen at the top: **Jobs** lists individual jobs, and **Job Sets** lists job sets. In the Jobs view you can:
 
 - **Filter** by queue, state, job ID, submit time or annotation. To filter by job set, filter by queue first.
-- **Group** results, for example by job set and then by state, to see a whole team's work at once.
-- **Choose the columns** with Configure columns. Besides the defaults, you can add namespace, priority, priority class, owner, resource requests, node, cluster, pool, exit code, runtime and failure category.
+- **Group** results, for example by queue, then job set, then state, to see a whole team's work at once. Lookout only offers grouping by job set after you've grouped by queue.- **Choose the columns** with Configure columns. Besides the defaults, you can add namespace, priority, priority class, owner, resource requests, node, cluster, pool, exit code, runtime and failure category.
 - **Select jobs** and cancel, reprioritize or preempt them together.
 
 ### Look inside a job
@@ -109,7 +108,7 @@ Three reports explain what the scheduler is doing:
 
 `scheduling-report` also accepts `--queue` and `--job-id`, but both are deprecated: use `queue-report` and `job-report` instead.
 
-Add `-v`, `-vv` or `-vvv` for more detail.
+For `queue-report` and `scheduling-report`, add `-v`, `-vv` or `-vvv` for more detail. `job-report` does not accept these flags.
 
 In Lookout, a queued job's **Scheduling** tab shows the same reports.
 
@@ -186,7 +185,7 @@ The flags:
 | `--inverse`            | Act on every queue that doesn't match                                          |
 | `--dry-run`            | Show which queues would be affected, without changing anything                 |
 
-`preempt queues` takes the same flags except `--job-states`, because preemption only affects running jobs. It only stops jobs in preemptible priority classes.
+`preempt queues` takes the same flags except `--job-states`. It targets allocated jobs in the `leased`, `pending` and `running` states. It only stops jobs in preemptible priority classes.
 {/* See [Priority and preemption](/docs/priority-and-preemption). */}
 
 On a laptop install, `cancel queues` works, but `preempt queues` is refused: everyone has `cancel_any_jobs`, but not `preempt_any_jobs`.
@@ -197,10 +196,9 @@ On a laptop install, `cancel queues` works, but `preempt queues` is refused: eve
 In Lookout, filter by your queue and group by job set, to find the job set with the most jobs. Cancel it with `armadactl cancel job-set`. If the whole queue must stop, use `cancel queues` as above, dry run first.
 
 **The nightly run needs to go first.**
-`armadactl reprioritize job-set my-team <job-set> 0` moves its waiting jobs to the front of your queue. It only reorders your own queue. It doesn't take anything from other teams.
-
+`armadactl reprioritize job-set my-team <job-set> 0` gives its waiting jobs the lowest numeric priority. Lower values run first within the same priority class; jobs in higher priority classes still come first. It only reorders your own queue. It doesn't take anything from other teams.
 **What is my team running right now?**
-In Lookout, filter by your queue, and group by job set and then state.
+In Lookout, group by queue, then job set, then state.
 
 **The nightly jobs start late every day.**
 That's a scheduling question. Run `armadactl get queue-report my-team` while they're waiting. If the queue is always short of resources, its priority factor may need changing: ask your platform team.
