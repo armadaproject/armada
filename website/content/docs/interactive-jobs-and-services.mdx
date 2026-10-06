@@ -3,10 +3,6 @@ title: 'Interactive jobs and services'
 description: 'Make a running job reachable over the network: from other jobs, from outside the cluster, or from a browser.'
 ---
 
-{/* cspell:ignore mvsh gbkhrs certingress tlsenabled certname */}
-
-{/* Laptop values checked against armada-operator dev/quickstart/armada-crs.yaml and armada config/executor/config.yaml, config/server/config.yaml (master 9107116). The ingressAddresses field name is from pkg/api/event.pb.go. Service and ingress naming, TLS secret names and port rules: internal/server/submit/conversion/conversions.go and internal/server/submit/validation/submit_request.go. Executor annotation merge and cert suffix: internal/executor/job/submit.go (executor defaults win, via MergeMaps). Addresses are reported for NodePort services and ingresses only: internal/executor/reporter/event.go. allowCustomServiceNames defaults to false: internal/server/configuration/types.go. Headless example, ingress names, TLS secret names and get_job_details ingress_addresses also run on a laptop install on 2026-10-06. */}
-
 Armada jobs can expose network ports: a Jupyter notebook you open in a browser, a Spark driver its executors connect to, or gang members talking to each other. You add `services` or `ingress` to the job, and Armada creates the Kubernetes Service or Ingress next to your pod and removes it when the job ends.
 
 ## Before you start
