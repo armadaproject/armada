@@ -32,12 +32,12 @@ const (
 // nodes/executors started for the run are left running - tear them down explicitly with `regatta
 // teardown` once you're done collecting metrics.
 func Run(ctx context.Context, apiConnectionDetails *client.ApiConnectionDetails, spec *Spec) error {
-	return run(ctx, spec, func(queue, jobSetId, namespace string, jobs []JobItem) ([]string, error) {
-		return submitItems(apiConnectionDetails, queue, jobSetId, namespace, jobs)
+	return run(ctx, spec, func(ctx context.Context, queue, jobSetId, namespace string, jobs []JobItem) ([]string, error) {
+		return submitItems(ctx, apiConnectionDetails, queue, jobSetId, namespace, jobs)
 	})
 }
 
-type batchSubmitter func(queue, jobSetId, namespace string, jobs []JobItem) ([]string, error)
+type batchSubmitter func(ctx context.Context, queue, jobSetId, namespace string, jobs []JobItem) ([]string, error)
 
 func run(ctx context.Context, spec *Spec, submit batchSubmitter) error {
 	if spec.Continuous() {
@@ -85,8 +85,8 @@ func runQueue(ctx context.Context, q QueueSpec, start time.Time, limiter chan st
 			case <-time.After(wait):
 			}
 		}
-		batch := take(remaining, step.Count)
-		remaining = remaining[len(batch):]
+		var batch []JobItem
+		batch, remaining = take(remaining, step.Count)
 
 		if err := submitBatch(ctx, q, batch, limiter, submitted, submit); err != nil {
 			return err
@@ -135,7 +135,7 @@ func submitBatch(ctx context.Context, q QueueSpec, batch []JobItem, limiter chan
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	jobIds, err := submit(q.Queue, q.JobSetId, q.Namespace, batch)
+	jobIds, err := submit(ctx, q.Queue, q.JobSetId, q.Namespace, batch)
 	<-limiter
 	if err != nil {
 		return fmt.Errorf("queue %q: submitting jobs: %w", q.Queue, err)
@@ -164,7 +164,7 @@ func logProgress(done <-chan struct{}, submitted *atomic.Int64, total int, conti
 
 // submitItems submits count copies of each JobItem's PodSpec, in list order, returning every
 // submitted job ID. The queue must already exist (see EnsureQueues).
-func submitItems(apiConnectionDetails *client.ApiConnectionDetails, queue, jobSetId, namespace string, jobs []JobItem) ([]string, error) {
+func submitItems(ctx context.Context, apiConnectionDetails *client.ApiConnectionDetails, queue, jobSetId, namespace string, jobs []JobItem) ([]string, error) {
 	if namespace == "" {
 		namespace = "default"
 	}
@@ -181,30 +181,47 @@ func submitItems(apiConnectionDetails *client.ApiConnectionDetails, queue, jobSe
 
 	var jobIds []string
 	err := client.WithSubmitClient(apiConnectionDetails, func(submitClient api.SubmitClient) error {
-		requests := client.CreateChunkedSubmitRequests(queue, jobSetId, items)
-		for _, request := range requests {
-			var response *api.JobSubmitResponse
-			var err error
-			for i := 0; i < QueueVisibilityRetries; i++ {
-				response, err = client.SubmitJobs(submitClient, request)
-				if err == nil || status.Code(err) != codes.PermissionDenied {
-					break
-				}
-				time.Sleep(QueueVisibilityDelay)
-			}
-			if err != nil {
-				return fmt.Errorf("submitting jobs: %w", err)
-			}
-			for _, item := range response.JobResponseItems {
-				if item.Error != "" {
-					return fmt.Errorf("job rejected: %s", item.Error)
-				}
-				jobIds = append(jobIds, item.JobId)
-			}
-		}
-		return nil
+		var err error
+		jobIds, err = sendChunks(ctx, client.CreateChunkedSubmitRequests(queue, jobSetId, items), func(request *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+			return client.SubmitJobs(submitClient, request)
+		})
+		return err
 	})
 	return jobIds, err
+}
+
+// sendChunks sends each request in turn and returns the ids of the jobs created. client.SubmitJobs makes its own
+// context, so cancellation is checked between requests: a stopped run does not go on submitting the rest of a large step.
+func sendChunks(ctx context.Context, requests []*api.JobSubmitRequest, send func(*api.JobSubmitRequest) (*api.JobSubmitResponse, error)) ([]string, error) {
+	var jobIds []string
+	for _, request := range requests {
+		var response *api.JobSubmitResponse
+		var err error
+		for i := 0; i < QueueVisibilityRetries; i++ {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return jobIds, ctxErr
+			}
+			response, err = send(request)
+			if err == nil || status.Code(err) != codes.PermissionDenied {
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return jobIds, ctx.Err()
+			case <-time.After(QueueVisibilityDelay):
+			}
+		}
+		if err != nil {
+			return jobIds, fmt.Errorf("submitting jobs: %w", err)
+		}
+		for _, item := range response.JobResponseItems {
+			if item.Error != "" {
+				return jobIds, fmt.Errorf("job rejected: %s", item.Error)
+			}
+			jobIds = append(jobIds, item.JobId)
+		}
+	}
+	return jobIds, nil
 }
 
 // flattenJobItems expands each JobItem's Count into that many single-count JobItems, so take can
@@ -219,20 +236,20 @@ func flattenJobItems(jobs []JobItem) []JobItem {
 	return flat
 }
 
-// take returns up to n items from the front of flat, coalesced back into JobItems with Count>1
-// where the same Spec repeats consecutively (keeps chunking/logging readable without changing
-// submission order).
-func take(flat []JobItem, n int) []JobItem {
+// take returns up to n jobs from the front of flat, coalesced back into JobItems with Count>1 where the
+// same Spec repeats consecutively (keeps chunking/logging readable without changing submission order), and
+// the jobs that are left. The batch is shorter than the number of jobs taken, so callers must advance by the
+// rest, not by len(batch).
+func take(flat []JobItem, n int) (batch, rest []JobItem) {
 	if n > len(flat) {
 		n = len(flat)
 	}
-	var out []JobItem
 	for _, item := range flat[:n] {
-		if len(out) > 0 && out[len(out)-1].Spec == item.Spec {
-			out[len(out)-1].Count++
+		if len(batch) > 0 && batch[len(batch)-1].Spec == item.Spec {
+			batch[len(batch)-1].Count++
 			continue
 		}
-		out = append(out, JobItem{Spec: item.Spec, Count: 1})
+		batch = append(batch, JobItem{Spec: item.Spec, Count: 1})
 	}
-	return out
+	return batch, flat[n:]
 }

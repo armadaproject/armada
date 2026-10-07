@@ -91,7 +91,7 @@ func FromLoadConfig(l config.Load) (*Spec, error) {
 		if q.Continuous != nil {
 			rates := make([]JobRate, len(q.Continuous.Rates))
 			for i, r := range q.Continuous.Rates {
-				rates[i] = JobRate{Spec: r.ResolvedSpec, PerStep: r.PerStep}
+				rates[i] = JobRate{Spec: restrictToTargets(r.ResolvedSpec, q.Targets), PerStep: r.PerStep}
 			}
 			spec.Queues = append(spec.Queues, QueueSpec{
 				Queue:          q.Name,
@@ -104,7 +104,7 @@ func FromLoadConfig(l config.Load) (*Spec, error) {
 		}
 		jobs := make([]JobItem, 0, len(q.Jobs))
 		for _, ref := range q.Jobs {
-			jobs = append(jobs, JobItem{Spec: ref.ResolvedSpec, Count: ref.Count})
+			jobs = append(jobs, JobItem{Spec: restrictToTargets(ref.ResolvedSpec, q.Targets), Count: ref.Count})
 		}
 		qs := QueueSpec{
 			Queue:          q.Name,
@@ -121,4 +121,39 @@ func FromLoadConfig(l config.Load) (*Spec, error) {
 		spec.Queues = append(spec.Queues, qs)
 	}
 	return spec, nil
+}
+
+// restrictToTargets returns a copy of spec that can only be scheduled onto the fake nodes of the named execution
+// targets: the required node affinity armadaproject.io/regatta-target In targets is added to every node selector
+// term the spec already has (terms are alternatives, so each one must carry it), or becomes the only term. With
+// no targets the spec is returned unchanged. The spec passed in is never modified.
+func restrictToTargets(spec *v1.PodSpec, targets []string) *v1.PodSpec {
+	if len(targets) == 0 || spec == nil {
+		return spec
+	}
+	restricted := spec.DeepCopy()
+	requirement := v1.NodeSelectorRequirement{
+		Key:      config.TargetLabel,
+		Operator: v1.NodeSelectorOpIn,
+		Values:   append([]string(nil), targets...),
+	}
+	if restricted.Affinity == nil {
+		restricted.Affinity = &v1.Affinity{}
+	}
+	if restricted.Affinity.NodeAffinity == nil {
+		restricted.Affinity.NodeAffinity = &v1.NodeAffinity{}
+	}
+	nodeAffinity := restricted.Affinity.NodeAffinity
+	if nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+		nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = &v1.NodeSelector{}
+	}
+	required := nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+	if len(required.NodeSelectorTerms) == 0 {
+		required.NodeSelectorTerms = []v1.NodeSelectorTerm{{MatchExpressions: []v1.NodeSelectorRequirement{requirement}}}
+		return restricted
+	}
+	for i := range required.NodeSelectorTerms {
+		required.NodeSelectorTerms[i].MatchExpressions = append(required.NodeSelectorTerms[i].MatchExpressions, requirement)
+	}
+	return restricted
 }
