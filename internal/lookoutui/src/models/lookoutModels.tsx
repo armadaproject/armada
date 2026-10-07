@@ -147,6 +147,8 @@ export type Job = {
   lastTransitionTime: string
   cancelReason?: string
   cancelUser?: string
+  preemptUser?: string
+  reprioritizeUser?: string
   node?: string
   cluster?: string
   pool?: string

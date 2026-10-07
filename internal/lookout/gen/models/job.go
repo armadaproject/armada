@@ -96,6 +96,9 @@ type Job struct {
 	// pool
 	Pool *string `json:"pool,omitempty"`
 
+	// preempt user
+	PreemptUser *string `json:"preemptUser,omitempty"`
+
 	// priority
 	// Required: true
 	Priority int64 `json:"priority"`
@@ -107,6 +110,9 @@ type Job struct {
 	// Required: true
 	// Min Length: 1
 	Queue string `json:"queue"`
+
+	// reprioritize user
+	ReprioritizeUser *string `json:"reprioritizeUser,omitempty"`
 
 	// runs
 	// Required: true

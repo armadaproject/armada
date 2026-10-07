@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"context"
+	"math"
+	"math/big"
 	"strconv"
 	"sync"
 
@@ -238,6 +240,12 @@ func (srv *ExecutorApi) dropDisallowedResources(pod *v1.PodSpec) {
 	}
 	srv.dropDisallowedResourcesFromContainers(pod.InitContainers)
 	srv.dropDisallowedResourcesFromContainers(pod.Containers)
+	// Pod-level resources (KEP-2837) must be filtered by the same allow-list, else
+	// a disallowed resource could bypass it via the pod-level block.
+	if pod.Resources != nil {
+		removeDisallowedKeys(pod.Resources.Limits, srv.allowedResources)
+		removeDisallowedKeys(pod.Resources.Requests, srv.allowedResources)
+	}
 }
 
 func (srv *ExecutorApi) dropDisallowedResourcesFromContainers(containers []v1.Container) {
@@ -327,6 +335,9 @@ func addTolerations(job *armadaevents.SubmitJob, tolerations []*v1.Toleration) {
 // exactly the static amount and stays consistent with the scheduler's
 // reservation. Each init container receives the full static amount, because
 // init containers run alone and each must fit the reserved total on its own.
+// With pod-level memory, the block receives the full static amount and each
+// container's share is proportional to its request within that budget. This
+// keeps concurrent sidecars and init containers within the enlarged pod budget.
 // Requests and limits move together. Containers without a memory value stay
 // unchanged.
 func applyResourceMutations(job *armadaevents.SubmitJob, mutations *schedulerobjects.RetryResourceMutations) error {
@@ -356,23 +367,44 @@ func applyResourceMutations(job *armadaevents.SubmitJob, mutations *schedulerobj
 			totalRequests += request.Value()
 		}
 	}
-	bump := func(resources v1.ResourceList, staticShare int64) {
+	pooledMemory := false
+	if podSpec.Resources != nil {
+		if request, ok := podSpec.Resources.Requests[v1.ResourceMemory]; ok {
+			pooledMemory = true
+			totalRequests = request.Value()
+		}
+	}
+	staticShare := func(resources v1.ResourceList) int64 {
+		if request, ok := resources[v1.ResourceMemory]; ok && totalRequests > 0 {
+			// Multiplying byte quantities can overflow int64 even for ordinary GiB-sized requests.
+			share := new(big.Int).Mul(big.NewInt(static), big.NewInt(request.Value()))
+			return share.Quo(share, big.NewInt(totalRequests)).Int64()
+		}
+		return 0
+	}
+	bump := func(resources v1.ResourceList, staticShare int64, round func(float64) float64) {
 		if current, ok := resources[v1.ResourceMemory]; ok {
-			grown := int64(float64(current.Value())*factor) + staticShare
+			grown := int64(round(float64(current.Value())*factor)) + staticShare
 			resources[v1.ResourceMemory] = *resource.NewQuantity(grown, current.Format)
 		}
 	}
 	for i := range podSpec.Containers {
-		staticShare := int64(0)
-		if request, ok := podSpec.Containers[i].Resources.Requests[v1.ResourceMemory]; ok && totalRequests > 0 {
-			staticShare = static * request.Value() / totalRequests
-		}
-		bump(podSpec.Containers[i].Resources.Requests, staticShare)
-		bump(podSpec.Containers[i].Resources.Limits, staticShare)
+		share := staticShare(podSpec.Containers[i].Resources.Requests)
+		bump(podSpec.Containers[i].Resources.Requests, share, math.Floor)
+		bump(podSpec.Containers[i].Resources.Limits, share, math.Floor)
 	}
 	for i := range podSpec.InitContainers {
-		bump(podSpec.InitContainers[i].Resources.Requests, static)
-		bump(podSpec.InitContainers[i].Resources.Limits, static)
+		share := static
+		if pooledMemory {
+			share = staticShare(podSpec.InitContainers[i].Resources.Requests)
+		}
+		bump(podSpec.InitContainers[i].Resources.Requests, share, math.Floor)
+		bump(podSpec.InitContainers[i].Resources.Limits, share, math.Floor)
+	}
+	// Round up, like the scheduler's reservation, so the budget covers the rounded-down container requests.
+	if podSpec.Resources != nil {
+		bump(podSpec.Resources.Requests, static, math.Ceil)
+		bump(podSpec.Resources.Limits, static, math.Ceil)
 	}
 	return nil
 }

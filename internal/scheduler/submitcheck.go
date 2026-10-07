@@ -173,6 +173,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 			IndexedNodeLabels:  srv.schedulingConfig.IndexedNodeLabels,
 			IndexedTaints:      srv.schedulingConfig.IndexedTaints,
 			WellKnownNodeTypes: srv.schedulingConfig.WellKnownNodeTypes,
+			EnableUrgencyBeforeFairsharePreemptionOrdering: srv.schedulingConfig.EnableUrgencyBeforeFairSharePreemptionOrdering,
 		}
 
 		nodeDb, err := scheduling.ConstructNodeDb(nodeDbConfig, srv.resourceListFactory, srv.schedulingConfig.PriorityClasses, pool, nil, nil, poolNodes)

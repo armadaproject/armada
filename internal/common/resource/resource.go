@@ -264,6 +264,12 @@ func TotalPodResourceRequest(podSpec *v1.PodSpec) ComputeResources {
 			totalResources.Max(containerResource)
 		}
 	}
+
+	// Kubernetes requires the pod-level request to be at least the sum of the container requests.
+	// Max keeps the accounting correct for a pod that breaks that rule.
+	if podSpec.Resources != nil {
+		totalResources.Max(FromResourceList(podSpec.Resources.Requests))
+	}
 	return totalResources
 }
 
