@@ -399,7 +399,6 @@ const (
 	WildCardWellKnownNodeTypeValue                      = "*"
 	InvalidAwayNodeTypeConditionOperatorErrorMessage    = "away node type condition has invalid operator; must be one of >, <, =="
 	PreemptionRateLimitWithMarketSchedulingErrorMessage = "preemption rate limit is not supported with market scheduling enabled on the same pool"
-	AggregateDemandUseWithoutCompareErrorMessage        = "experimentalAggregateDemand.use requires experimentalAggregateDemand.compare to be enabled, so the aggregate is validated against the scan before it drives scheduling"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.

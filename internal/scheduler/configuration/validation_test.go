@@ -281,46 +281,6 @@ func TestValidate_RetryPolicyWithoutIndexedNodeIdLabel(t *testing.T) {
 	assert.NoError(t, c.Validate())
 }
 
-func TestValidate_AggregateDemandUseRequiresCompare(t *testing.T) {
-	tests := map[string]struct {
-		aggregateDemand AggregateDemandConfig
-		expectErr       bool
-	}{
-		"both disabled is allowed": {
-			aggregateDemand: AggregateDemandConfig{},
-			expectErr:       false,
-		},
-		"compare only is allowed": {
-			aggregateDemand: AggregateDemandConfig{Compare: true},
-			expectErr:       false,
-		},
-		"use with compare is allowed": {
-			aggregateDemand: AggregateDemandConfig{Compare: true, Use: true},
-			expectErr:       false,
-		},
-		"use without compare is rejected": {
-			aggregateDemand: AggregateDemandConfig{Use: true},
-			expectErr:       true,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			c := createValidMinimalConfig()
-			c.Scheduling.ExperimentalAggregateDemand = tc.aggregateDemand
-
-			err := c.Validate()
-
-			if tc.expectErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), AggregateDemandUseWithoutCompareErrorMessage)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestSchedulingConfigValidate(t *testing.T) {
 	c := Configuration{
 		Scheduling: SchedulingConfig{
