@@ -968,11 +968,32 @@ func (txn *Txn) GetAllLeasedJobs() []*Job {
 	return txn.leasedJobs.Items()
 }
 
-// GetQueueDemand returns queued demand for the given pool and queue by priority
+// GetQueuedDemand returns queued demand for the given pool and queue by priority
 // class, derived from the aggregate. It is the caller's responsibility to
 // decide whether to query cordoned or unknown queues.
-func (txn *Txn) GetQueueDemand(pool string, queue string) map[string]internaltypes.ResourceList {
-	return txn.aggregate.getQueueDemand(pool, queue)
+func (txn *Txn) GetQueuedDemand(pool string, queue string) map[string]internaltypes.ResourceList {
+	return txn.aggregate.getQueuedDemand(pool, queue)
+}
+
+// GetLeasedDemand returns running demand for the given pool and queue by
+// priority class, derived from the aggregate.
+func (txn *Txn) GetLeasedDemand(pool string, queue string) map[string]internaltypes.ResourceList {
+	return txn.aggregate.getLeasedDemand(pool, queue)
+}
+
+// CalculateSchedulingInfo derives the per-pool scheduling information for the
+// given pool from the aggregate instead of scanning every job.
+func (txn *Txn) CalculateSchedulingInfo(
+	activeExecutorsSet map[string]bool,
+	currentPool string,
+	awayAllocationPools []string,
+	allPools []string,
+	knownQueues map[string]bool,
+	cordonedQueues map[string]bool,
+	includeQueued bool,
+	includeRunning bool,
+) *SchedulingInfo {
+	return txn.aggregate.CalculateSchedulingInfo(activeExecutorsSet, currentPool, awayAllocationPools, allPools, knownQueues, cordonedQueues, includeQueued, includeRunning)
 }
 
 // GetAll returns all jobs in the database.

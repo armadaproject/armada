@@ -154,16 +154,17 @@ type HistogramConfig struct {
 	Count  int
 }
 
-// AggregateDemandConfig controls the rollout of the JobDb queued-demand
-// aggregate. The JobDb always maintains the aggregate; these flags control
-// whether the scheduler uses it.
+// AggregateDemandConfig controls the rollout of a JobDb aggregate. The JobDb
+// always maintains the aggregate; these flags control whether the scheduler uses
+// it.
 type AggregateDemandConfig struct {
-	// Compare computes queued demand both from the aggregate and by scanning
-	// jobs, and publishes any difference. The scan-derived value remains
-	// authoritative.
+	// Compare computes the scheduling info both from the aggregate and by
+	// scanning jobs, and publishes any difference. The scan-derived value
+	// remains authoritative while the aggregate is being validated.
 	Compare bool
-	// Use sources queued demand from the aggregate instead of scanning jobs.
-	// Running jobs are still derived from the scan.
+	// Use sources the scheduling info from the aggregate instead of scanning
+	// jobs. When set (and Compare is off), the corresponding jobs are not
+	// fetched at all.
 	Use bool
 }
 
@@ -222,10 +223,14 @@ type SchedulingConfig struct {
 	MaxNewJobSchedulingDurationPerQueue time.Duration `validate:"omitempty,ltfield=MaxSchedulingDuration"`
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
-	// Experimental - controls the rollout of the JobDb queued-demand aggregate.
+	// Experimental - controls the rollout of the JobDb queued-jobs aggregate.
 	// The JobDb always maintains the aggregate; these flags control whether the
 	// scheduler uses it.
-	ExperimentalAggregateDemand AggregateDemandConfig
+	ExperimentalQueuedAggregate AggregateDemandConfig
+	// Experimental - controls the rollout of the JobDb running-jobs aggregate.
+	// The JobDb always maintains the aggregate; these flags control whether the
+	// scheduler uses it.
+	ExperimentalRunningAggregate AggregateDemandConfig
 	// If true, the scheduler tracks per-node pod capacity and refuses to schedule
 	// jobs onto nodes that have exhausted their pod limit.
 	RespectNodePodLimits bool
