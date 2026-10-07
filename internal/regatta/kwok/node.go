@@ -24,7 +24,7 @@ const (
 	// target's fake nodes - Armada's scheduler has no cluster-affinity concept, so without this a
 	// canary can land on any target's nodes that satisfy the generic fake-node taint/selector. Real, user-authored
 	// load.jobs[] specs never carry this label and remain free to schedule on any target's nodes.
-	TargetLabel = "armadaproject.io/regatta-target"
+	TargetLabel = regattaconfig.TargetLabel
 )
 
 // BuildFakeNode constructs a single fake v1.Node shaped by profile, with name/hostname

@@ -318,3 +318,56 @@ func TestLoadScenario_ReportInterval(t *testing.T) {
 	_, err = LoadScenario(scenario("  reportInterval: 0s"))
 	require.ErrorContains(t, err, "must be positive")
 }
+
+func TestLoadScenario_TargetsAndClusters(t *testing.T) {
+	dir := t.TempDir()
+	writeJobSpec(t, dir, "sleep.yaml")
+	scenario := func(targets, queueTargets string) string {
+		path := filepath.Join(dir, "scenario.yaml")
+		body := "executionTargets:\n" + targets + "load:\n  queues:\n    - prefix: q-\n      totalJobs: 1\n" + queueTargets +
+			"      jobs:\n        - jobSpec: sleep.yaml\n          share: 1\n"
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+		return path
+	}
+	target := func(name, clusterFields string) string {
+		return "  - name: " + name + "\n    type: cluster\n    cluster:\n" + clusterFields
+	}
+	const kindA = "      kubeconfig: kube-a\n      kind: true\n"
+	const kindB = "      kubeconfig: kube-b\n      kind: true\n"
+
+	t.Run("a cluster name defaults to the target's name", func(t *testing.T) {
+		s, err := LoadScenario(scenario(target("gpu-cluster", kindA), ""))
+		require.NoError(t, err)
+		require.Equal(t, "gpu-cluster", s.ExecutionTargets[0].Cluster.Name)
+	})
+	t.Run("an explicit cluster name is kept", func(t *testing.T) {
+		s, err := LoadScenario(scenario(target("gpu", kindA+"      name: armada-cluster-1\n"), ""))
+		require.NoError(t, err)
+		require.Equal(t, "armada-cluster-1", s.ExecutionTargets[0].Cluster.Name)
+	})
+	t.Run("two targets cannot share a kubeconfig", func(t *testing.T) {
+		_, err := LoadScenario(scenario(target("a", kindA)+target("b", kindA+"      name: other\n"), ""))
+		require.ErrorContains(t, err, `uses the same cluster as target "a"`)
+		require.ErrorContains(t, err, "kubeconfig")
+	})
+	t.Run("two targets cannot share a cluster name", func(t *testing.T) {
+		_, err := LoadScenario(scenario(target("a", kindA+"      name: shared\n")+target("b", kindB+"      name: shared\n"), ""))
+		require.ErrorContains(t, err, `uses the same cluster as target "a"`)
+		require.ErrorContains(t, err, "cluster name shared")
+	})
+	t.Run("targets on different clusters are accepted", func(t *testing.T) {
+		_, err := LoadScenario(scenario(target("a", kindA)+target("b", kindB), "      targets:\n        - a\n"))
+		require.NoError(t, err)
+	})
+	t.Run("a queue's targets need executors that report the target label", func(t *testing.T) {
+		external := "      kubeconfig: kube-ext\n"
+		_, err := LoadScenario(scenario(target("ext", external), "      targets:\n        - ext\n"))
+		require.ErrorContains(t, err, "readinessSelectsTarget")
+
+		_, err = LoadScenario(scenario(target("ext", external+"      readinessSelectsTarget: true\n"), "      targets:\n        - ext\n"))
+		require.NoError(t, err)
+
+		_, err = LoadScenario(scenario(target("ext", external), ""))
+		require.NoError(t, err, "a queue with no targets needs nothing")
+	})
+}
