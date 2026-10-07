@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/constants"
@@ -1823,5 +1824,94 @@ func podSpecFromNodeSelector(requirement v1.NodeSelectorRequirement) *v1.PodSpec
 				PreferredDuringSchedulingIgnoredDuringExecution: nil,
 			},
 		},
+	}
+}
+
+func TestValidateRetryPolicies(t *testing.T) {
+	withPolicies := func(value string, extra map[string]string) *api.JobSubmitRequestItem {
+		annotations := map[string]string{constants.RetryPoliciesAnnotation: value}
+		for k, v := range extra {
+			annotations[k] = v
+		}
+		return &api.JobSubmitRequestItem{Annotations: annotations}
+	}
+	tests := map[string]struct {
+		job     *api.JobSubmitRequestItem
+		wantErr string
+	}{
+		"a job without the annotation is valid": {
+			job: &api.JobSubmitRequestItem{},
+		},
+		"an empty entry is rejected": {
+			job:     withPolicies("team-default,,gpu-transient", nil),
+			wantErr: "annotation armadaproject.io/retryPolicies has an empty entry",
+		},
+		"an empty annotation is rejected": {
+			job:     withPolicies("", nil),
+			wantErr: "annotation armadaproject.io/retryPolicies has an empty entry",
+		},
+		"a duplicate policy is rejected": {
+			job:     withPolicies("team-default,team-default", nil),
+			wantErr: `annotation armadaproject.io/retryPolicies lists retry policy "team-default" more than once`,
+		},
+		"a fail-fast job is rejected": {
+			job:     withPolicies("team-default", map[string]string{constants.FailFastAnnotation: "true"}),
+			wantErr: "a fail-fast job does not use retry policies, so it cannot set annotation armadaproject.io/retryPolicies",
+		},
+		"a gang id with cardinality one is not a gang, so it is valid": {
+			job: withPolicies("team-default", map[string]string{
+				constants.GangIdAnnotation:          "gang-1",
+				constants.GangCardinalityAnnotation: "1",
+			}),
+		},
+		"a gang job is rejected": {
+			job: withPolicies("team-default", map[string]string{
+				constants.GangIdAnnotation:          "gang-1",
+				constants.GangCardinalityAnnotation: "2",
+			}),
+			wantErr: "a gang job does not use retry policies, so it cannot set annotation armadaproject.io/retryPolicies",
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := ValidateRetryPolicies(&api.JobSubmitRequest{JobRequestItems: []*api.JobSubmitRequestItem{tc.job}})
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.EqualError(t, err, tc.wantErr)
+		})
+	}
+}
+
+func TestValidateRetryPoliciesExist(t *testing.T) {
+	tests := map[string]struct {
+		annotations map[string]string
+		policies    sets.Set[string]
+		wantErr     string
+	}{
+		"a job without the annotation is valid": {
+			policies: sets.New("team-default"),
+		},
+		"policies that exist are valid": {
+			annotations: map[string]string{constants.RetryPoliciesAnnotation: "gpu-transient,team-default"},
+			policies:    sets.New("team-default", "gpu-transient"),
+		},
+		"a policy that does not exist is rejected": {
+			annotations: map[string]string{constants.RetryPoliciesAnnotation: "team-default,other-policy"},
+			policies:    sets.New("team-default"),
+			wantErr:     `retry policy "other-policy" does not exist`,
+		},
+		"a job without the annotation is valid before the policies load": {},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := ValidateRetryPoliciesExist(&api.JobSubmitRequestItem{Annotations: tc.annotations}, tc.policies)
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.EqualError(t, err, tc.wantErr)
+		})
 	}
 }

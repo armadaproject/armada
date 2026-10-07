@@ -1,5 +1,7 @@
 package constants
 
+import "strings"
+
 const (
 	// GangIdAnnotation maps to a unique id of the gang the job is part of; jobs with equal value make up a gang.
 	// All jobs in a gang are guaranteed to be scheduled onto the same cluster at the same time.
@@ -41,6 +43,10 @@ const (
 	// ExternalJobUriAnnotation is the legacy annotation key for setting an external job URI.
 	// Prefer the ExternalJobUri proto field on JobSubmitRequestItem / SubmitJob instead.
 	ExternalJobUriAnnotation = "armadaproject.io/externalJobUri"
+
+	// RetryPoliciesAnnotation lists the retry policies of a job in order, separated by commas. For the job, the list
+	// replaces the retry policies of its queue. Each policy must exist, but it does not need to be attached to the queue.
+	RetryPoliciesAnnotation = "armadaproject.io/retryPolicies"
 )
 
 var schedulingAnnotations = map[string]bool{
@@ -49,6 +55,7 @@ var schedulingAnnotations = map[string]bool{
 	GangNodeUniformityLabelAnnotation: true,
 	FailFastAnnotation:                true,
 	JobPriceBand:                      true,
+	RetryPoliciesAnnotation:           true,
 }
 
 func IsSchedulingAnnotation(annotation string) bool {
@@ -58,4 +65,19 @@ func IsSchedulingAnnotation(annotation string) bool {
 
 func SchedulingAnnotationCount() int {
 	return len(schedulingAnnotations)
+}
+
+// RetryPolicyNames returns the policy names in the retry policies annotation, in order and without spaces around them.
+// It returns nil when the annotation is not set.
+func RetryPolicyNames(annotations map[string]string) []string {
+	value, ok := annotations[RetryPoliciesAnnotation]
+	if !ok {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	names := make([]string, len(parts))
+	for i, part := range parts {
+		names[i] = strings.TrimSpace(part)
+	}
+	return names
 }
