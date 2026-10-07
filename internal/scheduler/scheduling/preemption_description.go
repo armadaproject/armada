@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	unknownPreemptionCause                 = "Preempted by scheduler due to the job failing to reschedule - possibly node resource changed causing this job to be unschedulable.\n Unschedulable reason: %s\nNode Summary:\n%s"
+	unknownPreemptionCause                 = "Preempted by scheduler due to the job failing to reschedule - possibly node resource changed causing this job to be unschedulable.\nUnschedulable reason: %s\nNode Summary:\n%s"
 	unknownGangPreemptionCause             = "Preempted by scheduler due to the job failing to reschedule - possibly another job in the gang was preempted or the node resource changed causing this job to be unschedulable"
 	gangSiblingFairSharePreemptionTemplate = "Preempted by scheduler using fair share preemption because the fellow gang member %s was preempted by %s"
 	fairSharePreemptionTemplate            = "Preempted by scheduler using fair share preemption - preempting job %s"
