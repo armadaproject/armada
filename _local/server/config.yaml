@@ -1,6 +1,7 @@
 httpPort: 8081
 grpcPort: 50051
 metricsPort: 9009
+queueCacheRefreshPeriod: 3s
 observability:
   enabled: true
   exporter:

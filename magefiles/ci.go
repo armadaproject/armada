@@ -18,7 +18,9 @@ func createQueue() error {
 }
 
 // createRetryPolicyAndQueue creates the retry policy and the queue that uses
-// it. The retry/ testcases submit to this queue. The executor config sets the
+// it. The retry/ testcases submit to this queue, except job_retry_policy. That
+// testcase submits to e2e-test-queue, because it must use a queue with no
+// policy to prove the annotation of the job. The executor config sets the
 // action Delete on the categories that this policy retries. The executor thus
 // removes the failed pod, and the retry reuses the name of the pod.
 func createRetryPolicyAndQueue() error {
@@ -43,9 +45,10 @@ func createRetryPolicyAndQueue() error {
 		return err
 	}
 
-	// The scheduler's queue and policy caches poll on queueRefreshPeriod
-	// (3s in the local config) and do not observe creations. Wait one
-	// period, so the first testcase always finds the policy in the cache.
+	// The queue and policy caches of the server and the scheduler poll on
+	// their refresh periods (3s in the local config) and do not observe
+	// creations. Wait one period, so the first testcase always finds the
+	// policy in the caches.
 	time.Sleep(4 * time.Second)
 	return nil
 }

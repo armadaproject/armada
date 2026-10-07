@@ -1064,9 +1064,14 @@ func (s *Scheduler) evaluateRetryPolicy(
 	runError *armadaevents.Error,
 	queueRetryPolicies map[string]string,
 ) (result retry.Result, policyName string, decided bool) {
-	// A queue's attached policy wins. Otherwise fall back to the fleet-wide
-	// default policy, if one is configured.
-	policyName = queueRetryPolicies[job.Queue()]
+	// The policies of the job annotation replace the policies of the queue. The
+	// server checks the annotation at submit, so the scheduler trusts it. Without
+	// a policy from the job or the queue, the fleet-wide default applies.
+	if names := constants.RetryPolicyNames(job.Annotations()); len(names) > 0 {
+		policyName = names[0]
+	} else {
+		policyName = queueRetryPolicies[job.Queue()]
+	}
 	if policyName == "" {
 		policyName = s.retryPolicyConfig.DefaultPolicyName
 	}
@@ -1086,14 +1091,14 @@ func (s *Scheduler) evaluateRetryPolicy(
 
 	// Fail-fast jobs opt out of policy retries entirely, on both the failure
 	// path and the lease-expiry path (which has no call-site guard). They fail
-	// terminally on their first failure regardless of the queue's policy.
+	// terminally on their first failure regardless of the selected policy.
 	if job.Annotations()[constants.FailFastAnnotation] == "true" {
 		return retry.Result{}, "", false
 	}
 
 	policy, ok := s.retryPolicyCache.Get(policyName)
 	if !ok {
-		ctx.Warnf("retry policy %q referenced by queue %q not found in cache; falling back to legacy behaviour", policyName, job.Queue())
+		ctx.Warnf("retry policy %q of job %s on queue %q not found in cache; falling back to legacy behaviour", policyName, job.Id(), job.Queue())
 		return retry.Result{}, "", false
 	}
 	if runError == nil {
