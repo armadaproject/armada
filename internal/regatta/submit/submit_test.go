@@ -69,11 +69,15 @@ func TestTakeAndFlatten(t *testing.T) {
 	flat := flattenJobItems(jobs)
 	require.Len(t, flat, 5)
 
-	first := take(flat, 4)
+	first, left := take(flat, 4)
 	require.Equal(t, []JobItem{{Spec: a, Count: 3}, {Spec: b, Count: 1}}, first, "spans the boundary, in list order")
-	rest := take(flat[len(first)+2:], 10)
-	require.Len(t, rest, 1, "asking for more than is left returns what is left")
-	require.Nil(t, take(nil, 3))
+	require.Len(t, left, 1, "four of the five jobs are taken, although the batch has only two items")
+	rest, left := take(left, 10)
+	require.Equal(t, []JobItem{{Spec: b, Count: 1}}, rest, "asking for more than is left returns what is left")
+	require.Empty(t, left)
+	none, left := take(nil, 3)
+	require.Nil(t, none)
+	require.Empty(t, left)
 }
 
 // fakeQueueClient implements just the calls EnsureQueues makes.
@@ -203,7 +207,7 @@ type recordedBatch struct {
 	specs map[*v1.PodSpec]int
 }
 
-func (r *recordingSubmitter) submit(queue, _, _ string, jobs []JobItem) ([]string, error) {
+func (r *recordingSubmitter) submit(_ context.Context, queue, _, _ string, jobs []JobItem) ([]string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.fail != nil {
@@ -319,4 +323,93 @@ func TestRun_StopNormallyWithContinuousQueuesBoundedCancellationOtherwise(t *tes
 		defer cancel()
 		require.ErrorIs(t, run(ctx, spec, (&recordingSubmitter{}).submit), context.DeadlineExceeded)
 	})
+}
+
+func TestRunQueue_AdvancesByTheJobsTakenNotTheBatchLength(t *testing.T) {
+	a, b := &v1.PodSpec{}, &v1.PodSpec{}
+	rec := &recordingSubmitter{}
+	spec := &Spec{Queues: []QueueSpec{{
+		Queue: "q", JobSetId: "js",
+		Jobs:  []JobItem{{Spec: a, Count: 6}, {Spec: b, Count: 4}},
+		Steps: []load.Step{{Count: 3}, {Count: 3}, {Count: 3}, {Count: 1}},
+	}}}
+
+	require.NoError(t, run(context.Background(), spec, rec.submit))
+
+	var perStep []map[*v1.PodSpec]int
+	for _, batch := range rec.batches {
+		perStep = append(perStep, batch.specs)
+	}
+	require.Equal(t, []map[*v1.PodSpec]int{{a: 3}, {a: 3}, {b: 3}, {b: 1}}, perStep,
+		"each step takes the next jobs in list order, so no shape is repeated and none is skipped")
+	jobs, bySpec := rec.total()
+	require.Equal(t, 10, jobs)
+	require.Equal(t, map[*v1.PodSpec]int{a: 6, b: 4}, bySpec)
+}
+
+func TestSendChunks_StopsBetweenRequestsOnceCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	requests := []*api.JobSubmitRequest{{Queue: "q"}, {Queue: "q"}, {Queue: "q"}}
+	sent := 0
+	send := func(*api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+		sent++
+		cancel() // the run is stopped while the first request is in flight
+		return &api.JobSubmitResponse{JobResponseItems: []*api.JobSubmitResponseItem{{JobId: "id"}}}, nil
+	}
+
+	ids, err := sendChunks(ctx, requests, send)
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, 1, sent, "the remaining requests are not sent")
+	require.Equal(t, []string{"id"}, ids, "what was created before the stop is still reported")
+}
+
+func TestSendChunks_ReportsRejectedJobs(t *testing.T) {
+	send := func(*api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+		return &api.JobSubmitResponse{JobResponseItems: []*api.JobSubmitResponseItem{{Error: "no such queue"}}}, nil
+	}
+	_, err := sendChunks(context.Background(), []*api.JobSubmitRequest{{Queue: "q"}}, send)
+	require.ErrorContains(t, err, "no such queue")
+}
+
+func TestFromLoadConfig_RestrictsJobsToTheQueuesTargets(t *testing.T) {
+	withAffinity := &v1.PodSpec{Affinity: &v1.Affinity{NodeAffinity: &v1.NodeAffinity{
+		RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{NodeSelectorTerms: []v1.NodeSelectorTerm{
+			{MatchExpressions: []v1.NodeSelectorRequirement{{Key: "zone", Operator: v1.NodeSelectorOpIn, Values: []string{"a"}}}},
+			{MatchExpressions: []v1.NodeSelectorRequirement{{Key: "zone", Operator: v1.NodeSelectorOpIn, Values: []string{"b"}}}},
+		}},
+	}}}
+	plain := &v1.PodSpec{}
+	original := withAffinity.DeepCopy()
+	l := config.Load{Queues: []config.QueueLoad{
+		{Name: "pinned", Targets: []string{"gpu-cluster", "cpu-cluster"}, Jobs: []config.JobRef{{Count: 1, ResolvedSpec: withAffinity}, {Count: 1, ResolvedSpec: plain}}},
+		{Name: "anywhere", Jobs: []config.JobRef{{Count: 1, ResolvedSpec: plain}}},
+		{Name: "steady", Targets: []string{"gpu-cluster"}, Continuous: &config.ContinuousLoad{
+			Step: time.Minute, Rates: []config.JobRate{{PerStep: 1, ResolvedSpec: plain}},
+		}},
+	}}
+
+	spec, err := FromLoadConfig(l)
+	require.NoError(t, err)
+
+	targetRequirement := func(targets ...string) v1.NodeSelectorRequirement {
+		return v1.NodeSelectorRequirement{Key: config.TargetLabel, Operator: v1.NodeSelectorOpIn, Values: targets}
+	}
+	pinned := spec.Queues[0].Jobs
+	terms := pinned[0].Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
+	require.Len(t, terms, 2, "the spec's own alternatives are kept")
+	for _, term := range terms {
+		require.Contains(t, term.MatchExpressions, targetRequirement("gpu-cluster", "cpu-cluster"), "and each one is also limited to the targets")
+	}
+	require.Len(t, terms[0].MatchExpressions, 2, "alongside the spec's own expression")
+	soleTerm := pinned[1].Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
+	require.Equal(t, []v1.NodeSelectorTerm{{MatchExpressions: []v1.NodeSelectorRequirement{targetRequirement("gpu-cluster", "cpu-cluster")}}}, soleTerm)
+
+	require.Same(t, plain, spec.Queues[1].Jobs[0].Spec, "a queue with no targets keeps the spec as it is")
+	require.Nil(t, plain.Affinity, "the spec passed in is never modified")
+	require.Equal(t, original, withAffinity)
+
+	steady := spec.Queues[2].Continuous.Rates[0].Spec
+	require.Equal(t, []v1.NodeSelectorTerm{{MatchExpressions: []v1.NodeSelectorRequirement{targetRequirement("gpu-cluster")}}},
+		steady.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms, "continuous queues are restricted too")
 }
