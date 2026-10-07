@@ -21,6 +21,10 @@ import (
 
 const TargetTypeCluster = "cluster"
 
+// TargetLabel is the node label that names the execution target a fake node belongs to. It is what a queue's
+// targets are matched against and what the readiness canary can select on.
+const TargetLabel = "armadaproject.io/regatta-target"
+
 // Scenario is the top-level manifest passed to `regatta run`.
 type Scenario struct {
 	// Armadactl is a path to an .armadactl.yaml file. Empty uses the same default resolution as
@@ -324,6 +328,7 @@ func LoadScenario(path string) (*Scenario, error) {
 	}
 
 	names := map[string]bool{}
+	clusters := map[string]string{} // kubeconfig path or cluster name -> the target that uses it
 	for i := range scenario.ExecutionTargets {
 		target := &scenario.ExecutionTargets[i]
 
@@ -369,10 +374,36 @@ func LoadScenario(path string) (*Scenario, error) {
 			return nil, fmt.Errorf("executionTargets[%d]: duplicate name %q", i, target.Name)
 		}
 		names[target.Name] = true
+
+		if target.Cluster.Name == "" {
+			target.Cluster.Name = target.Name
+		}
+		// Fake nodes are named after their profile and labelled with their target, so two targets sharing a
+		// cluster would collide on node names and overwrite each other's labels.
+		for _, identity := range []string{"kubeconfig " + filepath.Clean(target.Cluster.Kubeconfig), "cluster name " + target.Cluster.Name} {
+			if other, shared := clusters[identity]; shared {
+				return nil, fmt.Errorf("executionTargets[%d] (%q) uses the same cluster as target %q (same %s); give each target its own cluster", i, target.Name, other, identity)
+			}
+			clusters[identity] = target.Name
+		}
 	}
 
 	if err := scenario.Load.normalize(dir, names); err != nil {
 		return nil, err
+	}
+
+	// A queue's targets are enforced by a node affinity on the target label, which the scheduler can only match
+	// if the target's executors report that label (the same condition as cluster.readinessSelectsTarget).
+	targetsByName := map[string]*ExecutionTarget{}
+	for i := range scenario.ExecutionTargets {
+		targetsByName[scenario.ExecutionTargets[i].Name] = &scenario.ExecutionTargets[i]
+	}
+	for _, queue := range scenario.Load.Queues {
+		for _, name := range queue.Targets {
+			if !targetsByName[name].Cluster.ShouldReadinessSelectTarget() {
+				return nil, fmt.Errorf("queue %q: targets lists %q, but that target's executors are not set up to report the %s node label (cluster.readinessSelectsTarget is false); set it to true once they track the label, or drop the queue's targets", queue.Name, name, TargetLabel)
+			}
+		}
 	}
 
 	return scenario, nil

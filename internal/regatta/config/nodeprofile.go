@@ -80,5 +80,15 @@ func ResolveTargetNodeGroups(target ExecutionTarget, all map[string]NodeGroup) (
 		}
 		resolved = append(resolved, members...)
 	}
+
+	// Fake nodes are named after their profile and an index that restarts for each member, so two members with
+	// the same profile name would reuse names and end up with fewer nodes than requested.
+	seen := map[string]bool{}
+	for _, member := range resolved {
+		if seen[member.Profile.Name] {
+			return nil, fmt.Errorf("target %q: the node profile %q is used by more than one node group member; fake nodes are named after the profile, so use one member (with the total count) per profile", target.Name, member.Profile.Name)
+		}
+		seen[member.Profile.Name] = true
+	}
 	return resolved, nil
 }
