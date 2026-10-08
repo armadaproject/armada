@@ -17,6 +17,14 @@ import (
 // time prevents the ingester from failing batch UPDATEs at runtime.
 const maxCategoryNameLen = 63
 
+// reservedCategoryNames are the categories that Armada sets itself on the
+// errors it creates. A retry policy rule for one of them must match only those
+// errors, so an operator category cannot use the name.
+var reservedCategoryNames = map[string]bool{
+	errormatch.CategoryInternal:   true,
+	errormatch.CategoryPreemption: true,
+}
+
 type category struct {
 	name   string
 	action PodFailureAction
@@ -73,10 +81,14 @@ type Classifier struct {
 
 // NewClassifier validates config and compiles regex patterns.
 // Returns an error if any regex is invalid, a condition is unknown,
-// or an exit code matcher has an invalid operator.
+// an exit code matcher has an invalid operator, or a category uses a name
+// that Armada reserves.
 func NewClassifier(config ErrorCategoriesConfig) (*Classifier, error) {
 	if len(config.DefaultCategory) > maxCategoryNameLen {
 		return nil, fmt.Errorf("defaultCategory %q exceeds maximum length %d", config.DefaultCategory, maxCategoryNameLen)
+	}
+	if reservedCategoryNames[config.DefaultCategory] {
+		return nil, fmt.Errorf("defaultCategory %q is reserved for categories that Armada sets", config.DefaultCategory)
 	}
 	if len(config.DefaultSubcategory) > maxCategoryNameLen {
 		return nil, fmt.Errorf("defaultSubcategory %q exceeds maximum length %d", config.DefaultSubcategory, maxCategoryNameLen)
@@ -89,6 +101,9 @@ func NewClassifier(config ErrorCategoriesConfig) (*Classifier, error) {
 		}
 		if len(cfg.Name) > maxCategoryNameLen {
 			return nil, fmt.Errorf("category name %q exceeds maximum length %d", cfg.Name, maxCategoryNameLen)
+		}
+		if reservedCategoryNames[cfg.Name] {
+			return nil, fmt.Errorf("category name %q is reserved for categories that Armada sets", cfg.Name)
 		}
 		if seen[cfg.Name] {
 			return nil, fmt.Errorf("duplicate category name %q", cfg.Name)
