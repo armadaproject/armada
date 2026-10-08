@@ -1218,7 +1218,7 @@ type Queue struct {
 	LabelsDeprecated []string          `protobuf:"bytes,9,rep,name=labels_deprecated,json=labelsDeprecated,proto3" json:"labelsDeprecated,omitempty"` // Deprecated: Do not use.
 	Labels           map[string]string `protobuf:"bytes,10,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// retry_policies are the names of the retry policies attached to this queue,
-	// in precedence order. The scheduler evaluates the first policy in the list.
+	// in priority order. The first policy has the highest priority.
 	RetryPolicies []string `protobuf:"bytes,11,rep,name=retry_policies,json=retryPolicies,proto3" json:"retryPolicies,omitempty"`
 }
 
