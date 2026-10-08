@@ -74,7 +74,9 @@ func setupTargets(
 				teardowns = append(teardowns, teardown)
 				mu.Unlock()
 			}
-			if failure, tolerated := toleratedReadinessFailure(target, err); tolerated {
+			// A run that was interrupted (or whose sibling failed) is not a readiness failure to continue past,
+			// whatever the target's opt-in: it has to fail setup so that the failure cleanup runs.
+			if failure, tolerated := toleratedReadinessFailure(target, err); tolerated && groupCtx.Err() == nil {
 				log.Warnf("target %q: readiness check failed, continuing anyway because cluster.continueOnReadinessFailure is set: %s", target.Name, failure.Error)
 				failures[i] = failure
 			} else if err != nil {
@@ -113,19 +115,29 @@ func toleratedReadinessFailure(target config.ExecutionTarget, err error) (*metri
 }
 
 // Teardown tears down every cluster target in scenario.ExecutionTargets, best-effort - a failure
-// on one target is logged but doesn't stop the rest from being torn down.
-func Teardown(ctx context.Context, scenario *config.Scenario) {
-	for _, target := range scenario.ExecutionTargets {
+// on one target doesn't stop the rest from being torn down. It returns the failures of all targets together, so
+// a caller can tell that something was left behind.
+func Teardown(ctx context.Context, scenario *config.Scenario) error {
+	return teardownTargets(ctx, scenario.ExecutionTargets, func(ctx context.Context, target config.ExecutionTarget) error {
 		kubeClient, err := kwok.NewClientset(target.Cluster.Kubeconfig, target.Cluster.Kubernetes)
 		if err != nil {
-			log.Errorf("target %q: could not build kubernetes client: %s", target.Name, err)
-			continue
+			return fmt.Errorf("could not build kubernetes client: %w", err)
 		}
 		log.Infof("target %q: tearing down KWOK fake nodes", target.Name)
-		if err := kwok.Teardown(ctx, kubeClient, target.Name, target.Cluster.EffectiveNodeConcurrency()); err != nil {
-			log.Errorf("target %q: KWOK teardown failed: %s", target.Name, err)
+		return kwok.Teardown(ctx, kubeClient, target.Name, target.Cluster.EffectiveNodeConcurrency())
+	})
+}
+
+// teardownTargets runs teardown for every target, whatever happens to the others, and joins the errors.
+func teardownTargets(ctx context.Context, targets []config.ExecutionTarget, teardown func(ctx context.Context, target config.ExecutionTarget) error) error {
+	var errs []error
+	for _, target := range targets {
+		if err := teardown(ctx, target); err != nil {
+			log.Errorf("target %q: teardown failed: %s", target.Name, err)
+			errs = append(errs, fmt.Errorf("target %q: %w", target.Name, err))
 		}
 	}
+	return errors.Join(errs...)
 }
 
 func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup []config.ResolvedNodeGroupMember, load config.Load, apiConnectionDetails *client.ApiConnectionDetails) (func(context.Context), error) {

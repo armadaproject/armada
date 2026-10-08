@@ -43,7 +43,7 @@ type Report struct {
 	// never confirmed it could place jobs on, so its numbers may include that warm-up or worse.
 	ReadinessFailures []ReadinessFailure `json:"readinessFailures,omitempty"`
 
-	EndToEndLatency   LatencyTier        `json:"endToEndLatency"`
+	JobAge            JobAgeTier         `json:"jobAge"`
 	Scheduler         SchedulerTier      `json:"scheduler"`
 	QueueDepth        QueueDepthTier     `json:"queueDepth"`
 	APISurface        APISurfaceTier     `json:"apiSurface"`
@@ -58,13 +58,17 @@ type ReadinessFailure struct {
 	Error string `json:"error"`
 }
 
-type LatencyTier struct {
-	QueuedP50 *float64 `json:"queuedP50,omitempty"`
-	QueuedP95 *float64 `json:"queuedP95,omitempty"`
-	QueuedP99 *float64 `json:"queuedP99,omitempty"`
-	RunP50    *float64 `json:"runP50,omitempty"`
-	RunP95    *float64 `json:"runP95,omitempty"`
-	RunP99    *float64 `json:"runP99,omitempty"`
+// JobAgeTier is how old the declared queues' jobs were at the worst moment of the window: the highest of the
+// per-scrape quantile of the time the jobs queued at that moment had waited (queued*), and of the time the jobs
+// running at that moment had been running (running*). Armada exports these as snapshots of the jobs present at
+// each scrape, so they are not the wait or run time of jobs that finished.
+type JobAgeTier struct {
+	QueuedP50  *float64 `json:"queuedP50,omitempty"`
+	QueuedP95  *float64 `json:"queuedP95,omitempty"`
+	QueuedP99  *float64 `json:"queuedP99,omitempty"`
+	RunningP50 *float64 `json:"runningP50,omitempty"`
+	RunningP95 *float64 `json:"runningP95,omitempty"`
+	RunningP99 *float64 `json:"runningP99,omitempty"`
 }
 
 type SchedulerTier struct {
@@ -124,12 +128,12 @@ func Collect(ctx context.Context, promURL string, queues []string, start, end ti
 	}
 
 	queries := []namedQuery{
-		{queuedLatencyQuery(0.50, queues, window), &report.EndToEndLatency.QueuedP50},
-		{queuedLatencyQuery(0.95, queues, window), &report.EndToEndLatency.QueuedP95},
-		{queuedLatencyQuery(0.99, queues, window), &report.EndToEndLatency.QueuedP99},
-		{runLatencyQuery(0.50, queues, window), &report.EndToEndLatency.RunP50},
-		{runLatencyQuery(0.95, queues, window), &report.EndToEndLatency.RunP95},
-		{runLatencyQuery(0.99, queues, window), &report.EndToEndLatency.RunP99},
+		{queuedAgeQuery(0.50, queues, window), &report.JobAge.QueuedP50},
+		{queuedAgeQuery(0.95, queues, window), &report.JobAge.QueuedP95},
+		{queuedAgeQuery(0.99, queues, window), &report.JobAge.QueuedP99},
+		{runningAgeQuery(0.50, queues, window), &report.JobAge.RunningP50},
+		{runningAgeQuery(0.95, queues, window), &report.JobAge.RunningP95},
+		{runningAgeQuery(0.99, queues, window), &report.JobAge.RunningP99},
 
 		{scheduleCycleQuery(0.95, window), &report.Scheduler.ScheduleCycleP95},
 		{scheduleCycleQuery(0.99, window), &report.Scheduler.ScheduleCycleP99},

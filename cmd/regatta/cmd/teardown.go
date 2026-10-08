@@ -40,12 +40,16 @@ even if there's nothing to tear down.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 1 {
-			scenario, err := regattaconfig.LoadScenario(args[0])
+			// Only the targets are needed, so the job-spec files the scenario names may be gone.
+			scenario, err := regattaconfig.LoadScenarioTargets(args[0])
 			if err != nil {
 				log.Errorf("loading scenario file: %s", err)
 				os.Exit(1)
 			}
-			orchestrate.Teardown(context.Background(), scenario)
+			if err := orchestrate.Teardown(context.Background(), scenario); err != nil {
+				log.Errorf("teardown did not finish: %s", err)
+				os.Exit(1)
+			}
 			log.Info("teardown complete")
 			return
 		}

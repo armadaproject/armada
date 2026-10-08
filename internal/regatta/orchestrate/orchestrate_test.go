@@ -156,3 +156,40 @@ func TestSetupTargets_ToleratedReadinessFailureKeepsTheTeardownAndTheRun(t *test
 	teardown(context.Background())
 	require.ElementsMatch(t, []string{"ok", "flaky"}, rec.calls, "both targets, the one with the failed check included, come down with the run")
 }
+
+func TestSetupTargets_AnInterruptedReadinessWaitIsNotToleratedEvenWithTheOptIn(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	rec := &teardownRecorder{}
+	targets := targetsNamed("t")
+	targets[0].Cluster.ContinueOnReadinessFailure = true
+	setup := func(ctx context.Context, target config.ExecutionTarget) (func(context.Context), error) {
+		cancel() // Ctrl+C during the readiness wait
+		return rec.teardownFor(target.Name), &kwok.ReadinessError{Err: ctx.Err()}
+	}
+
+	teardown, failures, err := setupTargets(ctx, targets, setup)
+
+	require.ErrorIs(t, err, context.Canceled, "setup fails instead of carrying on with a half-started target")
+	require.Nil(t, teardown)
+	require.Nil(t, failures)
+	require.Equal(t, []string{"t"}, rec.calls, "so the failure cleanup runs")
+}
+
+func TestTeardownTargets_ReportsEveryFailureAndStillTriesEveryTarget(t *testing.T) {
+	var attempted []string
+	teardown := func(_ context.Context, target config.ExecutionTarget) error {
+		attempted = append(attempted, target.Name)
+		if target.Name == "a" || target.Name == "c" {
+			return errors.New("docker rm failed")
+		}
+		return nil
+	}
+
+	err := teardownTargets(context.Background(), targetsNamed("a", "b", "c"), teardown)
+
+	require.Equal(t, []string{"a", "b", "c"}, attempted, "a failure does not stop the rest")
+	require.ErrorContains(t, err, `target "a"`)
+	require.ErrorContains(t, err, `target "c"`)
+	require.NotContains(t, err.Error(), `target "b"`)
+	require.NoError(t, teardownTargets(context.Background(), targetsNamed("a"), func(context.Context, config.ExecutionTarget) error { return nil }))
+}

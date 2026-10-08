@@ -108,6 +108,9 @@ func Setup(ctx context.Context, kubeClient kubernetes.Interface, cfg Config) err
 
 	if cfg.EvaluateReadiness {
 		if err := WaitUntilSchedulable(ctx, cfg.ApiConnectionDetails, cfg.Readiness, cfg.Name, cfg.ReadinessQueue); err != nil {
+			if ctx.Err() != nil {
+				return err // the run was interrupted: that is not a readiness failure a target may opt to continue past
+			}
 			return &ReadinessError{Err: err}
 		}
 	} else {
