@@ -271,8 +271,64 @@ func TestEngine_Evaluate(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			engine := NewEngine(tc.globalMax)
-			result := engine.Evaluate(tc.policy, tc.runError, tc.counts)
+			result, decidingPolicy := engine.Evaluate([]*Policy{tc.policy}, tc.runError, tc.counts)
 			assert.Equal(t, tc.expected, result)
+			assert.Same(t, tc.policy, decidingPolicy)
+		})
+	}
+}
+
+func TestEngine_Evaluate_PolicyList(t *testing.T) {
+	high := &Policy{
+		Name:          "high",
+		RetryLimit:    1,
+		DefaultAction: ActionFail,
+		Rules:         []Rule{{Action: ActionRetry, OnCategory: "gpu"}},
+	}
+	low := &Policy{
+		Name:          "low",
+		RetryLimit:    3,
+		DefaultAction: ActionRetry,
+		Rules: []Rule{
+			{Action: ActionFail, OnCategory: "gpu"},
+			{Action: ActionRetry, OnCategory: "oom"},
+		},
+	}
+	categorized := func(category string) *armadaevents.Error {
+		err := makeAppError(1, "crash")
+		err.FailureCategory = category
+		return err
+	}
+	tests := map[string]struct {
+		category       string
+		failures       uint32
+		expected       Result
+		wantDecidingBy *Policy
+	}{
+		"the first matching rule decides, also when a lower policy has a rule for the category": {
+			category:       "gpu",
+			failures:       1,
+			expected:       Result{ShouldRetry: true, Reason: "matched rule: Retry", Decision: DecisionRetry},
+			wantDecidingBy: high,
+		},
+		"a rule of a lower policy decides with the retry limit of its own policy": {
+			category:       "oom",
+			failures:       3,
+			expected:       Result{ShouldRetry: true, Reason: "matched rule: Retry", Decision: DecisionRetry},
+			wantDecidingBy: low,
+		},
+		"without a matching rule the default action of the first policy decides": {
+			category:       "uncategorized",
+			failures:       1,
+			expected:       Result{ShouldRetry: false, Reason: "no rule matched, using default action", Decision: DecisionFailDefault},
+			wantDecidingBy: high,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result, decidingPolicy := NewEngine(10).Evaluate([]*Policy{high, low}, categorized(tc.category), Counts{Failures: tc.failures})
+			assert.Equal(t, tc.expected, result)
+			assert.Same(t, tc.wantDecidingBy, decidingPolicy)
 		})
 	}
 }

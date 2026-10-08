@@ -165,7 +165,7 @@ func runFailurePath(t *testing.T, sched *Scheduler, job *jobdb.Job, runErr *arma
 	txn := sched.jobDb.WriteTxn()
 	require.NoError(t, txn.Upsert([]*jobdb.Job{job}))
 	jobErrors := map[string]*armadaevents.Error{job.LatestRun().Id(): runErr}
-	queueRetryPolicies := map[string]string{"testQueue": "test-policy"}
+	queueRetryPolicies := map[string][]string{"testQueue": {"test-policy"}}
 	events, err := sched.generateUpdateMessagesFromJob(armadacontext.Background(), job, jobErrors, queueRetryPolicies, txn)
 	require.NoError(t, err)
 	require.NotNil(t, events)
@@ -220,36 +220,59 @@ func categorizedError(category string) *armadaevents.Error {
 }
 
 func TestRetryPolicy_FFOn_PolicyResolution(t *testing.T) {
-	retryPolicy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_RETRY)
-	cache := fakePolicyCache{"job-policy": retryPolicy, "queue-policy": retryPolicy, "default-policy": retryPolicy}
+	named := func(name string, defaultAction api.RetryAction, rules ...*api.RetryRule) *retry.Policy {
+		policy, err := retry.ConvertPolicy(&api.RetryPolicy{Name: name, RetryLimit: 3, DefaultAction: defaultAction, Rules: rules})
+		require.NoError(t, err)
+		return policy
+	}
+	cache := fakePolicyCache{
+		"job-policy":     named("job-policy", api.RetryAction_RETRY_ACTION_RETRY),
+		"queue-policy":   named("queue-policy", api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{Action: api.RetryAction_RETRY_ACTION_RETRY, OnCategory: "app-error"}),
+		"default-policy": named("default-policy", api.RetryAction_RETRY_ACTION_RETRY),
+		"gpu-policy":     named("gpu-policy", api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{Action: api.RetryAction_RETRY_ACTION_RETRY, OnCategory: "gpu"}),
+	}
 	tests := map[string]struct {
 		annotations        map[string]string
-		queueRetryPolicies map[string]string
+		queueRetryPolicies map[string][]string
 		defaultPolicyName  string
 		wantPolicyName     string
 		wantDecided        bool
 	}{
-		"the first policy of the job annotation replaces the policy of the queue": {
-			annotations:        map[string]string{constants.RetryPoliciesAnnotation: "job-policy,queue-policy"},
-			queueRetryPolicies: map[string]string{"testQueue": "queue-policy"},
+		"the policies of the job annotation replace the policies of the queue": {
+			annotations:        map[string]string{constants.RetryPoliciesAnnotation: "job-policy"},
+			queueRetryPolicies: map[string][]string{"testQueue": {"queue-policy"}},
 			defaultPolicyName:  "default-policy",
 			wantPolicyName:     "job-policy",
 			wantDecided:        true,
 		},
-		"without the job annotation the policy of the queue applies": {
-			queueRetryPolicies: map[string]string{"testQueue": "queue-policy"},
+		"without the job annotation the policies of the queue apply": {
+			queueRetryPolicies: map[string][]string{"testQueue": {"queue-policy"}},
 			defaultPolicyName:  "default-policy",
 			wantPolicyName:     "queue-policy",
 			wantDecided:        true,
 		},
+		"a lower policy decides when a higher policy has no matching rule": {
+			queueRetryPolicies: map[string][]string{"testQueue": {"gpu-policy", "queue-policy"}},
+			wantPolicyName:     "queue-policy",
+			wantDecided:        true,
+		},
+		"a policy missing from the cache is skipped": {
+			queueRetryPolicies: map[string][]string{"testQueue": {"missing-policy", "queue-policy"}},
+			wantPolicyName:     "queue-policy",
+			wantDecided:        true,
+		},
+		"when no policy is in the cache the legacy path decides": {
+			queueRetryPolicies: map[string][]string{"testQueue": {"missing-policy"}},
+			wantDecided:        false,
+		},
 		"without a job or queue policy the default policy applies": {
-			queueRetryPolicies: map[string]string{},
+			queueRetryPolicies: map[string][]string{},
 			defaultPolicyName:  "default-policy",
 			wantPolicyName:     "default-policy",
 			wantDecided:        true,
 		},
 		"without a job, queue, or default policy the legacy path decides": {
-			queueRetryPolicies: map[string]string{},
+			queueRetryPolicies: map[string][]string{},
 			wantDecided:        false,
 		},
 	}
@@ -263,6 +286,37 @@ func TestRetryPolicy_FFOn_PolicyResolution(t *testing.T) {
 				armadacontext.Background(), job, categorizedError("app-error"), tc.queueRetryPolicies)
 			assert.Equal(t, tc.wantDecided, decided)
 			assert.Equal(t, tc.wantPolicyName, policyName)
+		})
+	}
+}
+
+func TestBuildQueueRetryPolicyMap(t *testing.T) {
+	queues := []*api.Queue{
+		{Name: "listed", RetryPolicies: []string{"gpu-policy", "queue-policy"}},
+		{Name: "unlisted"},
+	}
+	tests := map[string]struct {
+		enabled     bool
+		cacheErrors bool
+		want        map[string][]string
+	}{
+		"each queue keeps its full list in order": {
+			enabled: true,
+			want:    map[string][]string{"listed": {"gpu-policy", "queue-policy"}},
+		},
+		"the feature flag off gives no policies": {
+			enabled: false,
+		},
+		"a queue cache error gives no policies": {
+			enabled:     true,
+			cacheErrors: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			sched := makeRetryTestScheduler(t, tc.enabled, fakePolicyCache{})
+			sched.queueCache = &testQueueCache{queues: queues, shouldError: tc.cacheErrors}
+			assert.Equal(t, tc.want, sched.buildQueueRetryPolicyMap(armadacontext.Background()))
 		})
 	}
 }
@@ -293,7 +347,7 @@ func TestRetryPolicy_FFOn_NilRunErrorIsUndecided(t *testing.T) {
 	// A nil runError is the ingester-race branch: the engine has nothing to match
 	// on and must defer rather than fabricate a retry from a resolvable policy.
 	_, _, decided := sched.evaluateRetryPolicy(
-		armadacontext.Background(), job, nil, map[string]string{"testQueue": "test-policy"})
+		armadacontext.Background(), job, nil, map[string][]string{"testQueue": {"test-policy"}})
 	assert.False(t, decided, "a nil runError must leave the decision to the legacy path even with a resolvable policy")
 }
 
@@ -312,7 +366,7 @@ func TestRetryPolicy_FFOn_LeaseReturnDefersToLegacy(t *testing.T) {
 		},
 	}
 	result, _, decided := sched.evaluateRetryPolicy(
-		armadacontext.Background(), job, leaseReturned, map[string]string{"testQueue": "test-policy"})
+		armadacontext.Background(), job, leaseReturned, map[string][]string{"testQueue": {"test-policy"}})
 	assert.False(t, decided, "lease returns must not be decided by the engine, even under a Fail-default policy")
 	assert.False(t, result.ShouldRetry, "undecided verdict must not signal retry")
 	assert.Empty(t, result.Reason, "undecided verdict must not carry a reason")

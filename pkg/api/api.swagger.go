@@ -2364,7 +2364,7 @@ func SwaggerJsonTemplate() string {
 		"          }\n" +
 		"        },\n" +
 		"        \"retryPolicies\": {\n" +
-		"          \"description\": \"retry_policies are the names of the retry policies attached to this queue,\\nin precedence order. The scheduler evaluates the first policy in the list.\",\n" +
+		"          \"description\": \"retry_policies are the names of the retry policies attached to this queue,\\nin priority order. The first policy has the highest priority.\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
