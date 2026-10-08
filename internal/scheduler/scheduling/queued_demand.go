@@ -24,11 +24,25 @@ func (l *FairSchedulingAlgo) compareAggregateQueuedDemand(
 	queues map[string]*api.Queue,
 	currentPool string,
 ) {
-	scanned := scanQueuedDemand(jobs, queues, currentPool)
-
 	start := time.Now()
 	aggregate := queuedDemandFromAggregate(txn, queues, currentPool)
 	observeJobAggregateLookupDuration(currentPool, time.Since(start).Seconds())
+	l.compareScannedWithAggregate(ctx, jobs, queues, aggregate, currentPool)
+}
+
+// compareScannedWithAggregate scans queued demand from jobs, compares it
+// against a precomputed aggregate-derived demand, and publishes any
+// difference. The scan-derived value remains authoritative. Callers that
+// already performed the aggregate lookup (e.g. the Use path) pass it in to
+// avoid a second lookup per pool per round.
+func (l *FairSchedulingAlgo) compareScannedWithAggregate(
+	ctx *armadacontext.Context,
+	jobs []*jobdb.Job,
+	queues map[string]*api.Queue,
+	aggregate map[string]map[string]internaltypes.ResourceList,
+	currentPool string,
+) {
+	scanned := scanQueuedDemand(jobs, queues, currentPool)
 
 	jobAggregateComparisons.WithLabelValues(currentPool).Inc()
 	if !queuedDemandEqual(scanned, aggregate) {

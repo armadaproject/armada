@@ -599,9 +599,17 @@ type jobSchedulingInfo struct {
 
 // newCalculateJobSchedulingInfo returns the per-round scheduling information for the pool.
 //
-// The scan-derived queued demand is authoritative. If aggregate demand
-// computation is enabled, the aggregate queued demand is additionally computed,
-// compared against the scan-derived value, and any diff published.
+// Flag matrix (ExperimentalAggregateDemand):
+//   - Use=false, Compare=false: legacy full scan; the aggregate is never read.
+//   - Use=false, Compare=true:  legacy scan is authoritative; the aggregate is
+//     additionally read once and compared against the scan for monitoring.
+//   - Use=true,  Compare=false: queued demand is sourced from the aggregate;
+//     the legacy queued scan is skipped (running jobs are still scanned).
+//   - Use=true,  Compare=true:  queued demand is sourced from the aggregate
+//     and the same lookup is compared against a legacy scan for monitoring.
+//
+// The aggregate lookup (when performed) is timed via
+// observeJobAggregateLookupDuration, so Use-only mode is monitored too.
 func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
@@ -615,11 +623,23 @@ func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 ) (*jobSchedulingInfo, error) {
 	start := time.Now()
 
+	// Single aggregate lookup shared by the Use and Compare paths, so
+	// Use=true+Compare=true does not pay for two lookups per pool per round.
+	// queuedDemandFromAggregate always returns a non-nil map, which is what
+	// lets calculateJobSchedulingInfo distinguish "use aggregate" (non-nil,
+	// possibly empty) from "legacy scan" (nil).
+	var aggregateDemand map[string]map[string]internaltypes.ResourceList
+	if l.useAggregateDemand || l.computeAggregateDemand {
+		lookupStart := time.Now()
+		aggregateDemand = queuedDemandFromAggregate(txn, queues, currentPool)
+		observeJobAggregateLookupDuration(currentPool, time.Since(lookupStart).Seconds())
+	}
+
 	// When enabled, queued demand is sourced from the JobDb aggregate rather
 	// than by scanning queued jobs. Running jobs are still derived from the scan.
 	var aggregateQueuedDemand map[string]map[string]internaltypes.ResourceList
 	if l.useAggregateDemand {
-		aggregateQueuedDemand = queuedDemandFromAggregate(txn, queues, currentPool)
+		aggregateQueuedDemand = aggregateDemand
 	}
 
 	info, err := l.calculateJobSchedulingInfo(ctx, activeExecutorsSet, queues, jobs, currentPool, awayAllocationPools, allPools, shortJobPenalty, aggregateQueuedDemand)
@@ -628,7 +648,7 @@ func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 	}
 	if l.computeAggregateDemand {
 		observeJobAggregateSchedulingInfoDuration(currentPool, time.Since(start).Seconds())
-		l.compareAggregateQueuedDemand(ctx, jobs, txn, queues, currentPool)
+		l.compareScannedWithAggregate(ctx, jobs, queues, aggregateDemand, currentPool)
 	}
 	return info, nil
 }
@@ -680,6 +700,18 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 				if !queue.Cordoned || !job.Queued() {
 					pcName := job.PriorityClassName()
 					queueResources[pcName] = queueResources[pcName].Add(job.AllResourceRequirements())
+				}
+			} else {
+				// Aggregate mode: queued resources come from the aggregate
+				// lookup (merged below), but preserve the legacy queue
+				// presence. The legacy scan creates an (empty) bucket for a
+				// cordoned queue holding only queued jobs, while the
+				// aggregate lookup skips cordoned queues entirely. Without
+				// this, flipping Use would drop such queues from the demand
+				// map and change the active-queue set (WeightSum/fair share)
+				// even when all resource values agree.
+				if _, ok := demandByQueueAndPriorityClass[job.Queue()]; !ok {
+					demandByQueueAndPriorityClass[job.Queue()] = map[string]internaltypes.ResourceList{}
 				}
 			}
 		}

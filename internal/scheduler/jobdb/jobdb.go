@@ -74,7 +74,17 @@ type JobDb struct {
 	leasedJobs         *immutable.Set[*Job]
 	unvalidatedJobs    *immutable.Set[*Job]
 	// Incrementally maintained aggregate of queued demand.
+	// Maintained only when aggregateEnabled is true. The scheduler enables it
+	// when ExperimentalAggregateDemand.Compare or .Use is set. Both flags are
+	// static command-line flags requiring a restart to change, so a JobDb
+	// created with the aggregate disabled never needs to start maintaining it
+	// later; a restart rebuilds the JobDb from scratch with it enabled.
 	aggregate *JobAggregate
+	// aggregateEnabled gates all aggregate maintenance (Upsert/BatchDelete
+	// deltas) and reads. When false the aggregate stays empty and
+	// GetQueueDemand always returns empty, so the both-flags-off path pays no
+	// per-job aggregate cost.
+	aggregateEnabled bool
 	// Configured priority classes.
 	priorityClasses map[string]types.PriorityClass
 	// Priority class assigned to jobs with a priorityClassName not in jobDb.priorityClasses.
@@ -147,6 +157,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 		leasedJobs:             &leasedJobs,
 		unvalidatedJobs:        &unvalidatedJobs,
 		aggregate:              NewJobAggregate(),
+		aggregateEnabled:       true,
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
@@ -165,6 +176,15 @@ func (jobDb *JobDb) SetRespectNodePodLimits(enabled bool) {
 	jobDb.respectNodePodLimits = enabled
 }
 
+// SetAggregateEnabled toggles incremental maintenance of the queued-demand
+// aggregate. Must be called before any Upsert/BatchDelete if disabled: jobs
+// inserted while disabled contribute nothing to the aggregate. The scheduler
+// calls this once at startup from the static ExperimentalAggregateDemand
+// flags (Compare || Use); no restart-free path re-enables it.
+func (jobDb *JobDb) SetAggregateEnabled(enabled bool) {
+	jobDb.aggregateEnabled = enabled
+}
+
 func (jobDb *JobDb) SetJobRunIDProvider(jobRunIDProvider IDProvider) {
 	jobDb.jobRunIDProvider = jobRunIDProvider
 }
@@ -180,6 +200,7 @@ func (jobDb *JobDb) Clone() *JobDb {
 		leasedJobs:             jobDb.leasedJobs,
 		unvalidatedJobs:        jobDb.unvalidatedJobs,
 		aggregate:              jobDb.aggregate.Clone(),
+		aggregateEnabled:       jobDb.aggregateEnabled,
 		priorityClasses:        jobDb.priorityClasses,
 		defaultPriorityClass:   jobDb.defaultPriorityClass,
 		schedulingKeyGenerator: jobDb.schedulingKeyGenerator,
@@ -355,6 +376,7 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 		leasedJobs:         jobDb.leasedJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
 		aggregate:          jobDb.aggregate,
+		aggregateEnabled:   jobDb.aggregateEnabled,
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
@@ -378,6 +400,7 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		leasedJobs:         jobDb.leasedJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
 		aggregate:          jobDb.aggregate.Clone(),
+		aggregateEnabled:   jobDb.aggregateEnabled,
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
@@ -401,6 +424,7 @@ func (jobDb *JobDb) DryRunTxn() *Txn {
 		leasedJobs:         jobDb.leasedJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
 		aggregate:          jobDb.aggregate.Clone(),
+		aggregateEnabled:   jobDb.aggregateEnabled,
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
@@ -448,6 +472,9 @@ type Txn struct {
 	unvalidatedJobs *immutable.Set[*Job]
 	// Incrementally maintained aggregate of queued demand.
 	aggregate *JobAggregate
+	// Mirrors JobDb.aggregateEnabled at transaction creation. When false,
+	// applyAggregateDelta is a no-op and GetQueueDemand returns empty.
+	aggregateEnabled bool
 	// The current snapshot of bid prices - allowing look up of bidding prices on job creation
 	bidPriceSnapshot *pricing.BidPriceSnapshot
 	// The jobDb from which this transaction was created.
@@ -829,7 +856,12 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 
 // applyAggregateDelta applies the queued-demand aggregate changes for a set of
 // removed and added jobs. It is the single mutation point for the aggregate.
+// No-op when the aggregate is disabled (both Compare and Use flags off), so
+// that path pays no per-job aggregate cost.
 func (txn *Txn) applyAggregateDelta(removed, added []*Job) {
+	if !txn.aggregateEnabled {
+		return
+	}
 	for _, job := range removed {
 		txn.aggregate.remove(job)
 	}
@@ -971,7 +1003,11 @@ func (txn *Txn) GetAllLeasedJobs() []*Job {
 // GetQueueDemand returns queued demand for the given pool and queue by priority
 // class, derived from the aggregate. It is the caller's responsibility to
 // decide whether to query cordoned or unknown queues.
+// Returns empty when the aggregate is disabled (both Compare and Use off).
 func (txn *Txn) GetQueueDemand(pool string, queue string) map[string]internaltypes.ResourceList {
+	if !txn.aggregateEnabled {
+		return map[string]internaltypes.ResourceList{}
+	}
 	return txn.aggregate.getQueueDemand(pool, queue)
 }
 

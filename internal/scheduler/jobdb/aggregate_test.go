@@ -96,6 +96,28 @@ func TestJobAggregate_JobAggregate(t *testing.T) {
 	assert.Empty(t, readTxn.GetQueueDemand("pool-1", "does-not-exist"))
 }
 
+// TestJobAggregate_DisabledSkipsMaintenance proves the both-flags-off path:
+// with the aggregate disabled, Upsert/BatchDelete apply no per-job deltas and
+// GetQueueDemand stays empty, so the scheduler pays no aggregate cost.
+func TestJobAggregate_DisabledSkipsMaintenance(t *testing.T) {
+	jobDb := NewTestJobDb()
+	jobDb.SetAggregateEnabled(false)
+
+	jobA := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1"}, 1)
+
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{jobA}))
+	txn.Commit()
+
+	assert.Empty(t, jobDb.ReadTxn().GetQueueDemand("pool-1", "queue-1"))
+
+	txn = jobDb.WriteTxn()
+	require.NoError(t, txn.BatchDelete([]string{jobA.Id()}))
+	txn.Commit()
+
+	assert.Empty(t, jobDb.ReadTxn().GetQueueDemand("pool-1", "queue-1"))
+}
+
 func TestJobAggregate_QueuedToLeasedTransition(t *testing.T) {
 	jobDb := NewTestJobDb()
 
