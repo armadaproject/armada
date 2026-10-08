@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -19,22 +20,44 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
+// failureCleanupTimeout bounds the cleanup that follows a failed or interrupted Setup. The cleanup runs on a fresh
+// context, because the run's own is typically the reason for the failure (Ctrl+C cancels it) and a cancelled
+// context would make every docker and Kubernetes call in the cleanup fail at once.
+const failureCleanupTimeout = 2 * time.Minute
+
 // Setup stands up every target in scenario.ExecutionTargets concurrently, since each target is
 // an independent cluster/process with no cross-target dependency - running them sequentially
 // meant one target's slow readiness check (WaitUntilSchedulable can retry for minutes)
 // starved every later target of even starting. Returns a teardown func that reverses every
-// target that successfully started, even if another target's Setup failed (best-effort-all, not
-// strict-LIFO-on-success-only) - any failure still tears down everything that did come up.
+// target that started, even if another target's Setup failed (best-effort-all, not
+// strict-LIFO-on-success-only) - any failure still tears down everything that did come up,
+// including the target that failed itself, since by then it may have a controller and nodes.
 //
 // A target whose readiness check fails does not fail Setup if it sets
 // cluster.continueOnReadinessFailure: it is logged and returned in the second result instead, in
 // scenario target order, for the caller to put in the metrics report.
 func Setup(ctx context.Context, scenario *config.Scenario, apiConnectionDetails *client.ApiConnectionDetails) (func(context.Context), []metrics.ReadinessFailure, error) {
+	return setupTargets(ctx, scenario.ExecutionTargets, func(ctx context.Context, target config.ExecutionTarget) (func(context.Context), error) {
+		nodeGroup, err := config.ResolveTargetNodeGroups(target, scenario.NodeGroups)
+		if err != nil {
+			return nil, fmt.Errorf("resolving node groups: %w", err)
+		}
+		return setupCluster(ctx, target, nodeGroup, scenario.Load, apiConnectionDetails)
+	})
+}
+
+// setupTargets runs setup for every target concurrently. setup returns the teardown for whatever it created,
+// which it must do on failure too (nil when nothing was created); every non-nil teardown is kept.
+func setupTargets(
+	ctx context.Context,
+	targets []config.ExecutionTarget,
+	setup func(ctx context.Context, target config.ExecutionTarget) (func(context.Context), error),
+) (func(context.Context), []metrics.ReadinessFailure, error) {
 	var (
 		mu        sync.Mutex
 		teardowns []func(context.Context)
 	)
-	failures := make([]*metrics.ReadinessFailure, len(scenario.ExecutionTargets))
+	failures := make([]*metrics.ReadinessFailure, len(targets))
 	teardownAll := func(ctx context.Context) {
 		for i := len(teardowns) - 1; i >= 0; i-- {
 			teardowns[i](ctx)
@@ -42,31 +65,29 @@ func Setup(ctx context.Context, scenario *config.Scenario, apiConnectionDetails 
 	}
 
 	group, groupCtx := errgroup.WithContext(ctx)
-	for i, target := range scenario.ExecutionTargets {
+	for i, target := range targets {
 		i, target := i, target
 		group.Go(func() error {
-			nodeGroup, err := config.ResolveTargetNodeGroups(target, scenario.NodeGroups)
-			if err != nil {
-				return fmt.Errorf("target %q: resolving node groups: %w", target.Name, err)
+			teardown, err := setup(groupCtx, target)
+			if teardown != nil {
+				mu.Lock()
+				teardowns = append(teardowns, teardown)
+				mu.Unlock()
 			}
-
-			teardown, err := setupCluster(groupCtx, target, nodeGroup, scenario.Load, apiConnectionDetails)
 			if failure, tolerated := toleratedReadinessFailure(target, err); tolerated {
 				log.Warnf("target %q: readiness check failed, continuing anyway because cluster.continueOnReadinessFailure is set: %s", target.Name, failure.Error)
 				failures[i] = failure
 			} else if err != nil {
 				return fmt.Errorf("target %q: %w", target.Name, err)
 			}
-
-			mu.Lock()
-			teardowns = append(teardowns, teardown)
-			mu.Unlock()
 			return nil
 		})
 	}
 
 	if err := group.Wait(); err != nil {
-		teardownAll(ctx)
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), failureCleanupTimeout)
+		defer cancel()
+		teardownAll(cleanupCtx)
 		return nil, nil, err
 	}
 
@@ -182,13 +203,10 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 	}
 	log.Infof("target %q: setting up KWOK fake nodes", target.Name)
 	if err := kwok.Setup(ctx, kubeClient, cfg); err != nil {
-		var readinessErr *kwok.ReadinessError
-		if errors.As(err, &readinessErr) {
-			// Everything was created and only the readiness check gave up, so the fake nodes
-			// exist: hand back their teardown alongside the error for a caller that carries on.
-			return teardown, fmt.Errorf("KWOK setup failed: %w", err)
-		}
-		return nil, fmt.Errorf("KWOK setup failed: %w", err)
+		// Whatever step failed, the controller and some of the nodes may already exist, so the teardown is
+		// handed back with the error (it is safe to run for a step that never happened). A caller that carries
+		// on after a readiness failure keeps using it too.
+		return teardown, fmt.Errorf("KWOK setup failed: %w", err)
 	}
 
 	return teardown, nil

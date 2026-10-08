@@ -36,12 +36,20 @@ const DefaultSettleDelay = 90 * time.Second
 // drain, a zero/absent reading only counts once armada_queue_size OR armada_queue_leased_pod_count
 // has been observed populated (i.e. actually > 0) at least once in this poll loop - checking only
 // queue_size isn't enough, since jobs can move from validated straight to leased between two 5s
-// polls, in which case queue_size may never be caught above zero even on a real, successful run.
-func WaitForQueueDrain(ctx context.Context, promURL string, queues []string) time.Time {
+// polls, in which case queue_size may never be caught above zero even on a real, successful run. Activity
+// recorded since `since` (the start of the run) counts as well, for the case where every job finished before
+// this wait began.
+func WaitForQueueDrain(ctx context.Context, promURL string, queues []string, since time.Time) time.Time {
 	deadline := time.Now().Add(DrainPollTimeout)
 	sizeExpr := queueSizeQuery(queues)
 	leasedExpr := leasedPodCountQuery(queues)
-	seenPopulated := false
+	// The jobs of a bounded run can all finish before this wait begins (a long schedule, fast jobs): the
+	// queues then read zero from the first poll and are never seen populated, so the activity since the run
+	// started counts too. Otherwise the loop would run to its timeout.
+	seenPopulated := activitySince(ctx, promURL, queues, since)
+	if seenPopulated {
+		log.Infof("queue activity was recorded since the run started; waiting for the queues to read zero")
+	}
 
 	for {
 		now := time.Now()
@@ -70,6 +78,22 @@ func WaitForQueueDrain(ctx context.Context, promURL string, queues []string) tim
 		case <-time.After(drainPollInterval):
 		}
 	}
+}
+
+// activitySince reports whether any of the queues had jobs waiting or leased at any sample since the given time.
+func activitySince(ctx context.Context, promURL string, queues []string, since time.Time) bool {
+	seconds := time.Since(since).Seconds()
+	if seconds < 1 {
+		seconds = 1
+	}
+	window := windowStr(seconds)
+	now := time.Now()
+	for _, expr := range []string{peakQueueSizeQuery(queues, window), peakLeasedPodCountQuery(queues, window)} {
+		if peak, err := query(ctx, promURL, expr, now); err == nil && peak != nil && *peak > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // isZeroOrAbsent treats a missing series (nil - no jobs ever recorded for this queue/state) the
