@@ -98,13 +98,37 @@ func ApplyFakeNodes(ctx context.Context, client kubernetes.Interface, profile *r
 		group.Go(func() error {
 			node := BuildFakeNode(profile, i, targetName)
 			_, err := client.CoreV1().Nodes().Create(groupCtx, node, metav1.CreateOptions{})
-			if err != nil && !apierrors.IsAlreadyExists(err) {
+			if apierrors.IsAlreadyExists(err) {
+				return checkNodeBelongsToTarget(groupCtx, client, node.Name, targetName)
+			}
+			if err != nil {
 				return fmt.Errorf("creating fake node %s: %w", node.Name, err)
 			}
 			return nil
 		})
 	}
 	return group.Wait()
+}
+
+// checkNodeBelongsToTarget accepts a node that already exists (a rerun against the same cluster) only when this
+// target created it. Node names come from the profile and an index, so a node that exists under another target's
+// label means two targets share a cluster; silently reusing it would leave the second target with fewer nodes than
+// it asked for, labelled for the first.
+func checkNodeBelongsToTarget(ctx context.Context, client kubernetes.Interface, nodeName, targetName string) error {
+	existing, err := client.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil // deleted since the create; the next run creates it
+	}
+	if err != nil {
+		return fmt.Errorf("checking existing fake node %s: %w", nodeName, err)
+	}
+	if owner := existing.Labels[TargetLabel]; owner != targetName {
+		if owner == "" {
+			return fmt.Errorf("a node named %s already exists and was not created by regatta; target %q cannot create its fake node", nodeName, targetName)
+		}
+		return fmt.Errorf("fake node %s already exists and belongs to target %q, not %q; two targets must not share a cluster", nodeName, owner, targetName)
+	}
+	return nil
 }
 
 // DeleteFakeNodes removes targetName's fake v1.Node objects from the cluster, up to

@@ -22,8 +22,8 @@ func TestQueueMatcher(t *testing.T) {
 
 func TestQueryBuildersUseTheRightLabelPerMetric(t *testing.T) {
 	queues := []string{"a", "b"}
-	require.Contains(t, queuedAgeQuery(0.95, queues, "60s"), `queueName=~"a|b"`, "armada_job_* metrics use queueName")
-	require.Contains(t, runningAgeQuery(0.5, queues, "60s"), `queueName=~"a|b"`)
+	require.Contains(t, queuedAgeQuery(0.95, queues, "60s", 60), `queueName=~"a|b"`, "armada_job_* metrics use queueName")
+	require.Contains(t, runningAgeQuery(0.5, queues, "60s", 60), `queueName=~"a|b"`)
 	require.Contains(t, scheduledJobsQuery(queues, "60s"), `queue=~"a|b"`, "scheduler and queue metrics use queue")
 	require.Contains(t, peakQueueSizeQuery(queues, "60s"), `queue=~"a|b",state="validated"`)
 	require.Contains(t, peakLeasedPodCountQuery(queues, "60s"), `queue=~"a|b"`)
@@ -259,10 +259,19 @@ func TestCounterQueriesCountGrowthExactlyAndJobLatencyStillUsesRate(t *testing.T
 		require.NotContains(t, expr, "increase(", name)
 		require.Contains(t, expr, "offset 160s", name+": measured against the value at the window's start")
 	}
-	for name, expr := range map[string]string{"queued": queuedAgeQuery(0.95, queues, "160s"), "running": runningAgeQuery(0.95, queues, "160s")} {
+	for name, expr := range map[string]string{"queued": queuedAgeQuery(0.95, queues, "160s", 160), "running": runningAgeQuery(0.95, queues, "160s", 160)} {
 		require.Contains(t, expr, "max_over_time(histogram_quantile(0.95", name+": the worst snapshot quantile over the window")
 		require.NotContains(t, expr, "rate(", name+": the buckets are snapshots, not counters")
 	}
 	require.True(t, strings.HasSuffix(submitThroughputQuery("160s", 160), "/ 160"), "calls per second over the window")
 	require.True(t, strings.HasSuffix(submitErrorsQuery("60s"), "or vector(0)"), "no errors reads as 0, not as a missing value")
+}
+
+func TestSnapshotStep_IsAsFineAsTheScrapeIntervalExceptOnVeryLongWindows(t *testing.T) {
+	require.Equal(t, "5s", snapshotStep(60), "a short window is looked at every 5s, the local scrape interval")
+	require.Equal(t, "5s", snapshotStep(160))
+	require.Equal(t, "5s", snapshotStep(3600), "up to an hour is still 720 points or fewer")
+	require.Equal(t, "10s", snapshotStep(7200), "beyond that the step grows to keep a query bounded")
+	require.Equal(t, "120s", snapshotStep(86400))
+	require.Contains(t, queuedAgeQuery(0.95, []string{"q"}, "160s", 160), "[160s:5s]")
 }
