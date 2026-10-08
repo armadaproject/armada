@@ -50,7 +50,10 @@ const (
 // specific container when set, otherwise any container can match.
 //
 // OnPodError is pod-level: it matches a regex against the failure message the
-// executor captured for the issue. Use it for failures where no container has
+// executor captured for the issue. For a failed pod, the message is the pod
+// status message, or else one line for each failed container with its exit
+// code and termination message. So a rule can also match text that the
+// program wrote. Use it for failures where no container has
 // a useful terminationMessage, including kubelet/runtime errors (image pull,
 // missing volume, missing config) and Armada-detected conditions (stuck
 // terminating, active deadline exceeded, externally deleted). ContainerName

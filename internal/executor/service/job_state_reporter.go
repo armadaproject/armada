@@ -112,7 +112,14 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 	var classifyResult categorizer.ClassifyResult
 	var debugMessage string
 	if pod.Status.Phase == v1.PodFailed {
-		classifyResult = stateReporter.classifier.ClassifyContainerError(pod)
+		podEvents, err := stateReporter.clusterContext.GetPodEvents(pod)
+		if err != nil {
+			// The pod's own state is still worth classifying and describing without them.
+			log.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
+		}
+		// Classify with the same inputs as the delete action check of the issue handler, so that both give the same
+		// category for the pod, whatever the action of the category.
+		classifyResult = stateReporter.classifier.ClassifyPodError(pod, util.ExtractPodFailedReason(pod), podEvents)
 
 		hasIssue := stateReporter.podIssueHandler.HasIssue(util.ExtractJobRunId(pod))
 		if hasIssue {
@@ -130,11 +137,6 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 		}
 
 		if stateReporter.shouldCaptureFailureDebug(pod) {
-			podEvents, err := stateReporter.clusterContext.GetPodEvents(pod)
-			if err != nil {
-				// The pod's own state and its node's are still worth describing without them.
-				log.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
-			}
 			debugMessage = stateReporter.debugRenderer.Render(pod, podEvents, reporter.TriggerPodFailed)
 		}
 	}
