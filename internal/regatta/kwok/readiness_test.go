@@ -217,3 +217,20 @@ func TestTimedOutFailure(t *testing.T) {
 	require.Equal(t, "canary job 01m3, last event JobQueuedEvent", noReport.brief, "falls back to the last event without a report")
 	require.Equal(t, "canary job 01m3 not running within 5s, last event JobQueuedEvent", noReport.detail)
 }
+
+func TestWithTimeout_AnUnreachableServerCannotBlockTheCallForever(t *testing.T) {
+	start := time.Now()
+	err := withTimeout(50*time.Millisecond, func(ctx context.Context) error {
+		<-ctx.Done() // a call that waits for a server that never answers
+		return ctx.Err()
+	})
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Less(t, time.Since(start), 5*time.Second)
+}
+
+func TestWithTimeout_ReturnsTheCallsOwnResult(t *testing.T) {
+	sentinel := errors.New("denied")
+	require.Equal(t, sentinel, withTimeout(time.Minute, func(context.Context) error { return sentinel }))
+	require.NoError(t, withTimeout(time.Minute, func(context.Context) error { return nil }))
+}
