@@ -128,12 +128,12 @@ func Collect(ctx context.Context, promURL string, queues []string, start, end ti
 	}
 
 	queries := []namedQuery{
-		{queuedAgeQuery(0.50, queues, window), &report.JobAge.QueuedP50},
-		{queuedAgeQuery(0.95, queues, window), &report.JobAge.QueuedP95},
-		{queuedAgeQuery(0.99, queues, window), &report.JobAge.QueuedP99},
-		{runningAgeQuery(0.50, queues, window), &report.JobAge.RunningP50},
-		{runningAgeQuery(0.95, queues, window), &report.JobAge.RunningP95},
-		{runningAgeQuery(0.99, queues, window), &report.JobAge.RunningP99},
+		{queuedAgeQuery(0.50, queues, window, lookbackSeconds), &report.JobAge.QueuedP50},
+		{queuedAgeQuery(0.95, queues, window, lookbackSeconds), &report.JobAge.QueuedP95},
+		{queuedAgeQuery(0.99, queues, window, lookbackSeconds), &report.JobAge.QueuedP99},
+		{runningAgeQuery(0.50, queues, window, lookbackSeconds), &report.JobAge.RunningP50},
+		{runningAgeQuery(0.95, queues, window, lookbackSeconds), &report.JobAge.RunningP95},
+		{runningAgeQuery(0.99, queues, window, lookbackSeconds), &report.JobAge.RunningP99},
 
 		{scheduleCycleQuery(0.95, window), &report.Scheduler.ScheduleCycleP95},
 		{scheduleCycleQuery(0.99, window), &report.Scheduler.ScheduleCycleP99},

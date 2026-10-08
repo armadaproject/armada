@@ -9,6 +9,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
+
+	regattaconfig "github.com/armadaproject/armada/internal/regatta/config"
 )
 
 func fakeNode(name, target string, ready bool) *v1.Node {
@@ -52,5 +54,30 @@ func TestWaitUntilReady(t *testing.T) {
 		err := WaitUntilReady(ctx, client, "mine", time.Minute)
 		require.ErrorIs(t, err, context.Canceled)
 		require.Less(t, time.Since(start), 5*time.Second)
+	})
+}
+
+func TestApplyFakeNodes_ARerunIsFineButAnotherTargetsNodesAreNotAdopted(t *testing.T) {
+	profile := &regattaconfig.NodeProfile{Name: "gpu"}
+	ctx := context.Background()
+
+	t.Run("a rerun by the same target finds its own nodes", func(t *testing.T) {
+		client := fake.NewSimpleClientset()
+		require.NoError(t, ApplyFakeNodes(ctx, client, profile, 3, "mine", 4))
+		require.NoError(t, ApplyFakeNodes(ctx, client, profile, 3, "mine", 4))
+		nodes, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+		require.NoError(t, err)
+		require.Len(t, nodes.Items, 3)
+	})
+	t.Run("a node another target created is an error, not silently reused", func(t *testing.T) {
+		client := fake.NewSimpleClientset()
+		require.NoError(t, ApplyFakeNodes(ctx, client, profile, 2, "theirs", 4))
+		err := ApplyFakeNodes(ctx, client, profile, 2, "mine", 4)
+		require.ErrorContains(t, err, `belongs to target "theirs", not "mine"`)
+	})
+	t.Run("a node regatta did not create is an error too", func(t *testing.T) {
+		client := fake.NewSimpleClientset(&v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "kwok-node-gpu-0"}})
+		err := ApplyFakeNodes(ctx, client, profile, 1, "mine", 4)
+		require.ErrorContains(t, err, "was not created by regatta")
 	})
 }

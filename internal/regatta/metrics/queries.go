@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 )
@@ -25,20 +26,36 @@ func counterDelta(selector, window string) string {
 	return fmt.Sprintf("clamp_min(%[1]s - ((%[1]s offset %[2]s) or (%[1]s * 0)), 0)", selector, window)
 }
 
-// snapshotStep is the resolution at which peakQuantile looks at a snapshot histogram within the window.
-const snapshotStep = "10s"
+const (
+	// minSnapshotStepSeconds is the finest resolution at which peakQuantile looks at a snapshot histogram: the
+	// scheduler rebuilds the snapshots, and the local Prometheus scrapes them, every 5s, so a coarser step could
+	// step over a peak that lived between two evaluation points.
+	minSnapshotStepSeconds = 5
+	// maxSnapshotSteps bounds the work of one query on a very long window; beyond it the step grows.
+	maxSnapshotSteps = 720
+)
+
+// snapshotStep is the resolution at which peakQuantile evaluates a snapshot histogram over a window of
+// windowSeconds: every 5s, or coarser only when that would take more than 720 evaluations (windows over an hour).
+func snapshotStep(windowSeconds float64) string {
+	step := int64(minSnapshotStepSeconds)
+	if perStep := int64(math.Ceil(windowSeconds / maxSnapshotSteps)); perStep > step {
+		step = perStep
+	}
+	return fmt.Sprintf("%ds", step)
+}
 
 // peakQuantile is the highest, over the window, of the q-quantile of a snapshot histogram. armada_job_queued_seconds
 // and armada_job_run_time_seconds are not counters of finished jobs: the scheduler rebuilds them at every scrape
 // from the jobs that are queued, or running, at that moment, so their buckets fall as jobs leave and rate() would
 // read each fall as a counter reset. What they do say is how long the jobs present at a scrape have waited, or have
 // been running, so the worst such quantile over the window is reported.
-func peakQuantile(metric string, q float64, filter, window string) string {
+func peakQuantile(metric string, q float64, filter, window string, windowSeconds float64) string {
 	selector := metric
 	if filter != "" {
 		selector = fmt.Sprintf("%s{%s}", metric, filter)
 	}
-	return fmt.Sprintf("max_over_time(histogram_quantile(%g, sum by (le) (%s))[%s:%s])", q, selector, window, snapshotStep)
+	return fmt.Sprintf("max_over_time(histogram_quantile(%g, sum by (le) (%s))[%s:%s])", q, selector, window, snapshotStep(windowSeconds))
 }
 
 // histogramQuantile builds the q-quantile of the observations a histogram that is always exported recorded over
@@ -71,12 +88,12 @@ func queueFilter(queues []string) string {
 
 // Tier 1: job age. How long the jobs queued at a moment had waited, and the jobs running at a moment had been
 // running, at the worst moment of the window (see peakQuantile). These are not completed-job latencies.
-func queuedAgeQuery(q float64, queues []string, window string) string {
-	return peakQuantile("armada_job_queued_seconds_bucket", q, queueFilter(queues), window)
+func queuedAgeQuery(q float64, queues []string, window string, windowSeconds float64) string {
+	return peakQuantile("armada_job_queued_seconds_bucket", q, queueFilter(queues), window, windowSeconds)
 }
 
-func runningAgeQuery(q float64, queues []string, window string) string {
-	return peakQuantile("armada_job_run_time_seconds_bucket", q, queueFilter(queues), window)
+func runningAgeQuery(q float64, queues []string, window string, windowSeconds float64) string {
+	return peakQuantile("armada_job_run_time_seconds_bucket", q, queueFilter(queues), window, windowSeconds)
 }
 
 // Tier 2: scheduler.
