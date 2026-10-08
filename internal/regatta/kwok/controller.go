@@ -41,13 +41,57 @@ func controllerName(targetName string) string {
 	return "armada-regatta-kwok-controller-" + targetName
 }
 
-// controllerKubeconfigPath is where the internal kubeconfig bind-mounted into the
-// kwok-controller container is written, namespaced per target. Fixed (rather than a random temp
-// file) so TeardownController can find and remove it - it must outlive RunController's own
-// return, since deleting it too early can race the container's own open() of the bind-mounted
-// file on VM-backed docker runtimes (observed with OrbStack) and crash the container silently.
-func controllerKubeconfigPath(targetName string) string {
-	return filepath.Join(os.TempDir(), "regatta-kwok-kubeconfig-"+targetName)
+// controllerKubeconfigDir is the directory holding the internal kubeconfig bind-mounted into the
+// kwok-controller container, namespaced per target. It sits in the user's own cache directory, not the shared
+// temp directory: the file holds live cluster credentials, and a predictable path in a shared directory lets
+// another local user pre-create it. The location is fixed (rather than random) so TeardownController can find
+// and remove it, and it must outlive RunController's own return, since deleting the file too early can race the
+// container's own open() of the bind-mounted file on VM-backed docker runtimes (observed with OrbStack) and
+// crash the container silently.
+func controllerKubeconfigDir(targetName string) (string, error) {
+	if targetName == "" || targetName != filepath.Base(targetName) || targetName == "." || targetName == ".." {
+		return "", fmt.Errorf("target name %q cannot be used in a file path", targetName)
+	}
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return "", fmt.Errorf("finding the user cache directory: %w", err)
+	}
+	return filepath.Join(cache, "regatta", "kwok-"+targetName), nil
+}
+
+// writeControllerKubeconfig writes the kubeconfig into the target's private directory (mode 0700, a real
+// directory rather than a symlink) as a new file with mode 0600, replacing any earlier one, and returns its path.
+func writeControllerKubeconfig(targetName string, content []byte) (string, error) {
+	dir, err := controllerKubeconfigDir(targetName)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("creating %s: %w", dir, err)
+	}
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("%s is not a directory (a symlink?); remove it and retry", dir)
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		return "", fmt.Errorf("restricting %s: %w", dir, err)
+	}
+	path := filepath.Join(dir, "kubeconfig")
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return "", fmt.Errorf("removing the previous kubeconfig: %w", err)
+	}
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return "", fmt.Errorf("creating %s: %w", path, err)
+	}
+	if _, err := file.Write(content); err != nil {
+		_ = file.Close()
+		return "", fmt.Errorf("writing %s: %w", path, err)
+	}
+	return path, file.Close()
 }
 
 // ApplyStageCRD installs the Stage CRD (stages.kwok.x-k8s.io) into the cluster. Out-of-cluster
@@ -132,7 +176,6 @@ func kubectlApply(ctx context.Context, kubeconfig string, content []byte) error 
 // network needs no special network attachment.
 func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress, targetName string, kind bool) error {
 	name := controllerName(targetName)
-	internalKubeconfigPath := controllerKubeconfigPath(targetName)
 
 	out, err := exec.CommandContext(ctx, "docker", "ps",
 		"--filter", "name=^/"+name+"$",
@@ -152,7 +195,8 @@ func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress
 	if err != nil {
 		return fmt.Errorf("building internal kubeconfig: %w", err)
 	}
-	if err := os.WriteFile(internalKubeconfigPath, internalKubeconfig, 0o600); err != nil {
+	internalKubeconfigPath, err := writeControllerKubeconfig(targetName, internalKubeconfig)
+	if err != nil {
 		return fmt.Errorf("writing internal kubeconfig: %w", err)
 	}
 
@@ -338,6 +382,18 @@ func buildInternalKubeconfig(ctx context.Context, kubeconfigPath, internalAPISer
 	if err != nil {
 		return nil, fmt.Errorf("loading %s: %w", kubeconfigPath, err)
 	}
+	// Keep only the current context, so no other context's credentials end up in the file, and embed any
+	// certificate-authority, client-certificate and client-key files: the container sees only the kubeconfig
+	// itself, not the host paths those entries refer to.
+	if err := clientcmdapi.MinifyConfig(rawConfig); err != nil {
+		return nil, fmt.Errorf("%s: %w", kubeconfigPath, err)
+	}
+	if err := clientcmd.ResolveLocalPaths(rawConfig); err != nil {
+		return nil, fmt.Errorf("%s: resolving file paths: %w", kubeconfigPath, err)
+	}
+	if err := clientcmdapi.FlattenConfig(rawConfig); err != nil {
+		return nil, fmt.Errorf("%s: embedding certificate files: %w", kubeconfigPath, err)
+	}
 	context_, ok := rawConfig.Contexts[rawConfig.CurrentContext]
 	if !ok {
 		return nil, fmt.Errorf("%s: current-context %q not found", kubeconfigPath, rawConfig.CurrentContext)
@@ -380,12 +436,23 @@ func resolveExecCredential(ctx context.Context, authInfo *clientcmdapi.AuthInfo)
 	if cred.Status == nil {
 		return fmt.Errorf("%s: ExecCredential response had no status", execCfg.Command)
 	}
-	if cred.Status.ClientCertificateData == "" || cred.Status.ClientKeyData == "" {
-		return fmt.Errorf("%s: ExecCredential response had no client certificate/key", execCfg.Command)
+	hasToken := cred.Status.Token != ""
+	hasCertificate := cred.Status.ClientCertificateData != "" && cred.Status.ClientKeyData != ""
+	if !hasToken && !hasCertificate {
+		return fmt.Errorf("%s: ExecCredential response had neither a token nor a client certificate/key", execCfg.Command)
 	}
 
-	authInfo.ClientCertificateData = []byte(cred.Status.ClientCertificateData)
-	authInfo.ClientKeyData = []byte(cred.Status.ClientKeyData)
+	if hasToken {
+		authInfo.Token = cred.Status.Token
+	}
+	if hasCertificate {
+		authInfo.ClientCertificateData = []byte(cred.Status.ClientCertificateData)
+		authInfo.ClientKeyData = []byte(cred.Status.ClientKeyData)
+	}
+	if hasToken && !cred.Status.ExpirationTimestamp.IsZero() {
+		log.Warnf("%s: the kwok-controller will authenticate with a token that expires at %s; once it does the controller can no longer update its fake nodes, so a longer run needs a longer-lived credential",
+			execCfg.Command, cred.Status.ExpirationTimestamp.Format(time.RFC3339))
+	}
 	authInfo.Exec = nil
 	return nil
 }
@@ -409,7 +476,11 @@ func TeardownController(ctx context.Context, targetName string) error {
 	if err != nil {
 		return fmt.Errorf("stopping kwok-controller: %w: %s", err, out)
 	}
-	if err := os.Remove(controllerKubeconfigPath(targetName)); err != nil && !os.IsNotExist(err) {
+	dir, err := controllerKubeconfigDir(targetName)
+	if err != nil {
+		return err
+	}
+	if err := os.RemoveAll(dir); err != nil {
 		return fmt.Errorf("removing internal kubeconfig: %w", err)
 	}
 	return nil

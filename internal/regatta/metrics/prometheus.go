@@ -31,7 +31,13 @@ type promResponse struct {
 // returned no result or a non-finite value (NaN/+Inf/-Inf) - Prometheus returns these for
 // legitimate reasons (e.g. no samples in range yet), and a missing/unavailable metric should
 // show up as an omitted field in the report, not fail the whole collection.
+// queryTimeout bounds one Prometheus request. Without it a server that accepts the connection and never answers
+// would block the caller (and so the drain wait and the report) indefinitely. A variable so tests can shorten it.
+var queryTimeout = 30 * time.Second
+
 func query(ctx context.Context, baseURL, expr string, at time.Time) (*float64, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("parsing prometheus url %q: %w", baseURL, err)

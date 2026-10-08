@@ -155,3 +155,112 @@ func TestCollect_ErrorsOnlyWhenEveryQueryFails(t *testing.T) {
 	require.NoError(t, err, "some queries failing just leaves those fields empty")
 	require.NotNil(t, report)
 }
+
+func TestQuery_GivesUpOnAPrometheusThatNeverAnswers(t *testing.T) {
+	previous := queryTimeout
+	queryTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { queryTimeout = previous })
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-release }))
+	t.Cleanup(func() { close(release); server.Close() })
+
+	start := time.Now()
+	_, err := query(context.Background(), server.URL, "up", time.Now())
+
+	require.Error(t, err)
+	require.Less(t, time.Since(start), 5*time.Second)
+}
+
+// drainPrometheus answers the instant drain queries with nothing left, and the windowed peaks with historyPeak.
+func drainPrometheus(historyPeak string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		value := "0"
+		if strings.HasPrefix(r.Form.Get("query"), "max_over_time") {
+			value = historyPeak
+		}
+		_, _ = fmt.Fprintf(w, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[1,%q]}]}}`, value)
+	}))
+}
+
+func TestWaitForQueueDrain_JobsThatFinishedBeforeTheWaitBeganCountAsDrained(t *testing.T) {
+	server := drainPrometheus("5") // the queues held jobs at some point since the run started
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	WaitForQueueDrain(ctx, server.URL, []string{"q"}, time.Now().Add(-10*time.Minute))
+
+	require.Less(t, time.Since(start), 2*time.Second, "it does not wait for activity that already happened")
+	require.NoError(t, ctx.Err())
+}
+
+func TestWaitForQueueDrain_NoActivityAtAllIsNotMistakenForADrain(t *testing.T) {
+	server := drainPrometheus("0") // nothing was ever seen, so the zero readings may just be a scrape gap
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 700*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	WaitForQueueDrain(ctx, server.URL, []string{"q"}, time.Now().Add(-10*time.Minute))
+
+	require.GreaterOrEqual(t, time.Since(start), 600*time.Millisecond, "it keeps waiting until the context ends")
+}
+
+func TestCollect_StatesTheLookbackItQueriedWith(t *testing.T) {
+	end := time.Now()
+	for name, tc := range map[string]struct {
+		window       time.Duration
+		wantWindow   float64
+		wantLookback float64
+		wantInQuery  string
+	}{
+		"a window under a minute is queried with a minute's lookback": {30 * time.Second, 30, 60, "[60s"},
+		"a longer window is queried as it is":                         {5 * time.Minute, 300, 300, "[300s"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake := &fakePrometheus{}
+			server := httptest.NewServer(fake)
+			defer server.Close()
+			start := end.Add(-tc.window)
+
+			report, err := Collect(context.Background(), server.URL, []string{"q"}, start, end)
+
+			require.NoError(t, err)
+			require.True(t, report.Start.Equal(start), "the requested period is kept, so consecutive reports stay contiguous")
+			require.True(t, report.End.Equal(end))
+			require.Equal(t, tc.wantWindow, report.WindowSeconds)
+			require.Equal(t, tc.wantLookback, report.LookbackSeconds)
+			fake.mu.Lock()
+			defer fake.mu.Unlock()
+			queried := false
+			for _, request := range fake.requests {
+				if strings.Contains(request.query, tc.wantInQuery) {
+					queried = true
+				}
+			}
+			require.True(t, queried, "the queries use the lookback the report states")
+		})
+	}
+}
+
+func TestCounterQueriesCountGrowthExactlyAndJobLatencyStillUsesRate(t *testing.T) {
+	queues := []string{"a", "b"}
+	for name, expr := range map[string]string{
+		"scheduled jobs":    scheduledJobsQuery(queues, "160s"),
+		"submit throughput": submitThroughputQuery("160s", 160),
+		"submit latency":    submitLatencyQuery(0.95, "160s"),
+		"submit errors":     submitErrorsQuery("160s"),
+		"schedule cycle":    scheduleCycleQuery(0.95, "160s"),
+		"pulsar errors":     pulsarPublishErrorsQuery("160s"),
+	} {
+		require.NotContains(t, expr, "rate(", name+": a rate() misses a burst that falls between two samples")
+		require.NotContains(t, expr, "increase(", name)
+		require.Contains(t, expr, "offset 160s", name+": measured against the value at the window's start")
+	}
+	require.Contains(t, queuedLatencyQuery(0.95, queues, "160s"), "rate(", "series that vanish before the report need rate()")
+	require.Contains(t, runLatencyQuery(0.95, queues, "160s"), "rate(")
+	require.True(t, strings.HasSuffix(submitThroughputQuery("160s", 160), "/ 160"), "calls per second over the window")
+	require.True(t, strings.HasSuffix(submitErrorsQuery("60s"), "or vector(0)"), "no errors reads as 0, not as a missing value")
+}
