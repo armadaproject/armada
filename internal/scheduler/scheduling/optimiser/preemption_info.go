@@ -12,6 +12,7 @@ type preemptibleJobDetails struct {
 	// Used for in queue ordering
 	cost                float64
 	costToPreempt       float64
+	crossPool           bool
 	priorityPreemption  bool
 	scheduledAtPriority int32
 	ageMillis           int64
@@ -60,6 +61,11 @@ func (gpo globalPreemptionOrder) Len() int {
 func (gpo globalPreemptionOrder) Less(i, j int) bool {
 	if gpo[i].queue == gpo[j].queue {
 		return gpo[i].queuePreemptedOrdinal < gpo[j].queuePreemptedOrdinal
+	}
+
+	// Cross pool jobs should be preempted ahead of jobs in the current pool
+	if gpo[i].crossPool != gpo[j].crossPool {
+		return gpo[i].crossPool
 	}
 
 	// Priority preemption is currently known to be unfair

@@ -159,6 +159,11 @@ func (n *PreemptingNodeScheduler) getPreemptibleJobDetailsByQueue(
 			continue
 		}
 		queue := job.Queue()
+		crossPool := false
+		if !context.IsHomeJob(job, schedContext.Sctx.Pool) {
+			queue = context.CalculateAwayQueueName(job.Queue())
+			crossPool = true
+		}
 		var scheduledAtPriority int32
 		age := int64(0)
 		if job.Queued() {
@@ -192,6 +197,7 @@ func (n *PreemptingNodeScheduler) getPreemptibleJobDetailsByQueue(
 		cost := schedContext.Sctx.FairnessCostProvider.UnweightedCostFromAllocation(jobResource)
 		runInfo := &preemptibleJobDetails{
 			cost:                cost,
+			crossPool:           crossPool,
 			resources:           jobResource,
 			jobId:               jobId,
 			queue:               queue,
@@ -222,7 +228,9 @@ func (n *PreemptingNodeScheduler) populateQueueImpactFields(schedContext *Schedu
 		for _, item := range items {
 			updatedQueueCost = roundFloatHighPrecision(updatedQueueCost - item.cost)
 			item.weightedCostAfterPreemption = updatedQueueCost / qctx.Weight
-			if item.scheduledAtPriority < jobToSchedule.Job.PriorityClass().Priority {
+			if item.crossPool {
+				item.costToPreempt = 0
+			} else if item.scheduledAtPriority < jobToSchedule.Job.PriorityClass().Priority {
 				item.costToPreempt = 0
 				item.priorityPreemption = true
 			} else if updatedQueueCost > qctx.Fairshare {
