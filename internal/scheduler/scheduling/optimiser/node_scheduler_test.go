@@ -411,9 +411,11 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 			jobsOnNode:    []*jobdb.Job{createTestCpuJob("C", 1), createTestCpuJob("C", 1), createTestCpuJob("C", 1)},
 			crossPoolJobsOnNode: []*jobdb.Job{
 				createTestCpuJob("A", 1), createTestCpuJob("A", 1), createTestCpuJob("A", 1),
-				createTestCpuJob("B", 1), createTestCpuJob("B", 1), createTestCpuJob("B", 1),
+				createTestCpuJob("B", 1), createTestCpuJob("B", 1), createTestCpuJobWithPriorityClass("B", 1, testfixtures.PriorityClass6Preemptible),
 			},
-			orderedPreemptedJobIndexes: []int{8, 5, 7, 4, 6, 3, 2}, // Will alternate through cross-pool jobs before impacting home jobs
+			// Will alternate through cross-pool jobs before impacting home jobs.
+			// Will evict cross-pool jobs of higher priority class before home jobs
+			orderedPreemptedJobIndexes: []int{8, 5, 7, 4, 6, 3, 2},
 			expectedResult: &nodeSchedulingResult{
 				scheduled:          true,
 				schedulingCost:     0.1,

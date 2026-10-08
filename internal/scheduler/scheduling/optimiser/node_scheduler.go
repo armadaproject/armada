@@ -166,7 +166,13 @@ func (n *PreemptingNodeScheduler) getPreemptibleJobDetailsByQueue(
 		}
 		var scheduledAtPriority int32
 		age := int64(0)
-		if job.Queued() {
+		if crossPool {
+			if job.LatestRun() == nil {
+				return nil, fmt.Errorf("no job run found for cross pool job %s", jobId)
+			}
+			age = start.Sub(*job.LatestRun().LeaseTime()).Milliseconds()
+			scheduledAtPriority = internaltypes.CrossPoolPriority
+		} else if job.Queued() {
 			qctx, ok := schedContext.Sctx.QueueSchedulingContexts[queue]
 			if !ok {
 				return nil, fmt.Errorf("could not find queue context for queue %s", queue)
