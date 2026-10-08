@@ -1,8 +1,10 @@
 package orchestrate
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -56,4 +58,101 @@ func TestToleratedReadinessFailure(t *testing.T) {
 		require.False(t, tolerated)
 		require.Nil(t, failure)
 	})
+}
+
+// teardownRecorder is a fake setup step: each target gets a teardown that records the context it was run with.
+type teardownRecorder struct {
+	mu     sync.Mutex
+	calls  []string
+	ctxErr map[string]error
+}
+
+func (r *teardownRecorder) teardownFor(name string) func(context.Context) {
+	return func(ctx context.Context) {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		r.calls = append(r.calls, name)
+		if r.ctxErr == nil {
+			r.ctxErr = map[string]error{}
+		}
+		r.ctxErr[name] = ctx.Err()
+	}
+}
+
+func targetsNamed(names ...string) []config.ExecutionTarget {
+	var targets []config.ExecutionTarget
+	for _, name := range names {
+		targets = append(targets, config.ExecutionTarget{Name: name, Cluster: &config.ClusterTarget{}})
+	}
+	return targets
+}
+
+func TestSetupTargets_AFailedTargetIsTornDownTooAndSoAreItsSiblings(t *testing.T) {
+	rec := &teardownRecorder{}
+	setup := func(_ context.Context, target config.ExecutionTarget) (func(context.Context), error) {
+		if target.Name == "bad" {
+			// the controller and nodes were created before this step failed
+			return rec.teardownFor(target.Name), errors.New("waiting for fake nodes: timed out")
+		}
+		return rec.teardownFor(target.Name), nil
+	}
+
+	teardown, failures, err := setupTargets(context.Background(), targetsNamed("good", "bad"), setup)
+
+	require.ErrorContains(t, err, `target "bad"`)
+	require.Nil(t, teardown)
+	require.Nil(t, failures)
+	require.ElementsMatch(t, []string{"good", "bad"}, rec.calls, "the failed target's resources are not leaked")
+}
+
+func TestSetupTargets_NothingToTearDownWhenASetupStepCreatedNothing(t *testing.T) {
+	rec := &teardownRecorder{}
+	setup := func(_ context.Context, target config.ExecutionTarget) (func(context.Context), error) {
+		if target.Name == "bad" {
+			return nil, errors.New("resolving node groups")
+		}
+		return rec.teardownFor(target.Name), nil
+	}
+
+	_, _, err := setupTargets(context.Background(), targetsNamed("good", "bad"), setup)
+
+	require.Error(t, err)
+	require.Equal(t, []string{"good"}, rec.calls)
+}
+
+func TestSetupTargets_FailureCleanupRunsOnALiveContextEvenWhenTheRunWasCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	rec := &teardownRecorder{}
+	setup := func(ctx context.Context, target config.ExecutionTarget) (func(context.Context), error) {
+		cancel() // Ctrl+C while the target is being set up
+		return rec.teardownFor(target.Name), ctx.Err()
+	}
+
+	_, _, err := setupTargets(ctx, targetsNamed("t"), setup)
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, []string{"t"}, rec.calls)
+	require.NoError(t, rec.ctxErr["t"], "the cleanup does not inherit the cancelled run context")
+}
+
+func TestSetupTargets_ToleratedReadinessFailureKeepsTheTeardownAndTheRun(t *testing.T) {
+	rec := &teardownRecorder{}
+	readinessErr := &kwok.ReadinessError{Err: errors.New("canary never ran")}
+	targets := targetsNamed("ok", "flaky")
+	targets[1].Cluster.ContinueOnReadinessFailure = true
+	setup := func(_ context.Context, target config.ExecutionTarget) (func(context.Context), error) {
+		if target.Name == "flaky" {
+			return rec.teardownFor(target.Name), fmt.Errorf("KWOK setup failed: %w", readinessErr)
+		}
+		return rec.teardownFor(target.Name), nil
+	}
+
+	teardown, failures, err := setupTargets(context.Background(), targets, setup)
+
+	require.NoError(t, err)
+	require.Len(t, failures, 1)
+	require.Equal(t, "flaky", failures[0].Target)
+	require.Empty(t, rec.calls, "a successful setup tears nothing down yet")
+	teardown(context.Background())
+	require.ElementsMatch(t, []string{"ok", "flaky"}, rec.calls, "both targets, the one with the failed check included, come down with the run")
 }

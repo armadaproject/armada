@@ -88,6 +88,9 @@ func (Dev) Up(profiles string, dap *bool) error {
 	procfileDir := "_local/procfiles/"
 	procfileName := profile
 	if profile == "regatta" {
+		if isDAP {
+			return fmt.Errorf("the regatta profile has no -dap variant (its executors need the regatta config overlays, which the debugger launch configurations do not pass); run \"mage dev:up regatta\" without -dap")
+		}
 		procfileDir = "cmd/regatta/config/procfiles/"
 	}
 	procfile := procfileDir + procfileName + debugSuffix + ".Procfile"

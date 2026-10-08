@@ -77,6 +77,7 @@ func TestLoadArmadaConnection(t *testing.T) {
 			details, err := loadArmadaConnection(
 				&regattaconfig.Scenario{Armadactl: path, AuthContext: tc.authContext},
 				tc.contextFlagSet,
+				"",
 			)
 			if tc.wantErr != "" {
 				require.ErrorContains(t, err, tc.wantErr)
@@ -86,6 +87,24 @@ func TestLoadArmadaConnection(t *testing.T) {
 			require.Equal(t, tc.wantUrl, details.ArmadaUrl)
 		})
 	}
+}
+
+func TestLoadArmadaConnection_ConfigFlagBeatsTheScenariosArmadactl(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	root := &cobra.Command{}
+	client.AddArmadaApiConnectionCommandlineArgs(root)
+
+	dir := t.TempDir()
+	scenarioConfig := filepath.Join(dir, "scenario-armadactl.yaml")
+	require.NoError(t, os.WriteFile(scenarioConfig, []byte(testArmadactlConfig), 0o600))
+	flagConfig := filepath.Join(dir, "flag-armadactl.yaml")
+	require.NoError(t, os.WriteFile(flagConfig, []byte("currentContext: other\ncontexts:\n  other:\n    armadaUrl: \"chosen.example.com:443\"\n"), 0o600))
+
+	details, err := loadArmadaConnection(&regattaconfig.Scenario{Armadactl: scenarioConfig}, false, flagConfig)
+
+	require.NoError(t, err)
+	require.Equal(t, "chosen.example.com:443", details.ArmadaUrl, "the file named on the command line is the one used")
 }
 
 func TestReportFileName(t *testing.T) {

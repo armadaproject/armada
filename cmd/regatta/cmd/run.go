@@ -35,8 +35,12 @@ func warnAboutReadinessFailures(failures []metrics.ReadinessFailure) {
 // loadArmadaConnection loads the scenario's armadactl config and returns the connection details
 // for the context to run against: the --context flag if contextFlagSet, else the scenario's
 // authContext if set, else the config file's own currentContext.
-func loadArmadaConnection(scenario *regattaconfig.Scenario, contextFlagSet bool) (*client.ApiConnectionDetails, error) {
-	if err := client.LoadCommandlineArgsFromConfigFile(scenario.Armadactl); err != nil {
+func loadArmadaConnection(scenario *regattaconfig.Scenario, contextFlagSet bool, configFlag string) (*client.ApiConnectionDetails, error) {
+	armadactl := scenario.Armadactl
+	if configFlag != "" {
+		armadactl = configFlag // an explicit --config beats the scenario's armadactl field
+	}
+	if err := client.LoadCommandlineArgsFromConfigFile(armadactl); err != nil {
 		return nil, fmt.Errorf("loading armadactl config: %w", err)
 	}
 	if scenario.AuthContext != "" && !contextFlagSet {
@@ -69,7 +73,12 @@ any number of "cluster" targets. See cmd/regatta/config/scenarios/two-cluster.ex
 			os.Exit(1)
 		}
 
-		apiConnectionDetails, err := loadArmadaConnection(scenario, cmd.Flags().Changed("context"))
+		configFlag, err := cmd.Flags().GetString("config")
+		if err != nil {
+			log.Errorf("reading --config: %s", err)
+			os.Exit(1)
+		}
+		apiConnectionDetails, err := loadArmadaConnection(scenario, cmd.Flags().Changed("context"), configFlag)
 		if err != nil {
 			log.Errorf("%s", err)
 			os.Exit(1)
@@ -157,7 +166,7 @@ any number of "cluster" targets. See cmd/regatta/config/scenarios/two-cluster.ex
 		log.Infof("submission finished in %s", time.Since(start).Round(time.Millisecond))
 
 		log.Infof("waiting for %d queue(s) to drain before collecting metrics...", len(queues))
-		end := metrics.WaitForQueueDrain(ctx, scenario.PrometheusURL(), queues)
+		end := metrics.WaitForQueueDrain(ctx, scenario.PrometheusURL(), queues, start)
 		log.Infof("%d queue(s) drained %s after submission started", len(queues), end.Sub(start).Round(time.Second))
 
 		log.Infof("waiting %s for Prometheus to catch up before collecting metrics...", scenario.Metrics.PostRunDelayDuration)

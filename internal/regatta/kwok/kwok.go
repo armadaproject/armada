@@ -6,6 +6,7 @@ package kwok
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -97,7 +98,7 @@ func Setup(ctx context.Context, kubeClient kubernetes.Interface, cfg Config) err
 		return err
 	}
 	if err := timedPhase(cfg.Name, "fake nodes Ready", func() error {
-		if err := WaitUntilReady(ctx, kubeClient, cfg.ReadyTimeout); err != nil {
+		if err := WaitUntilReady(ctx, kubeClient, cfg.Name, cfg.ReadyTimeout); err != nil {
 			return fmt.Errorf("waiting for fake nodes: %w", err)
 		}
 		return nil
@@ -130,11 +131,14 @@ func timedPhase(target, what string, fn func() error) error {
 // Teardown stops the kwok-controller and deletes the fake nodes. Safe to call even if Setup
 // never ran or only partially completed.
 func Teardown(ctx context.Context, kubeClient kubernetes.Interface, targetName string, nodeConcurrency int) error {
+	// Both steps are attempted even if the first fails: a controller that cannot be stopped is no reason to leave
+	// the fake nodes behind.
+	var errs []error
 	if err := TeardownController(ctx, targetName); err != nil {
-		return fmt.Errorf("stopping kwok-controller: %w", err)
+		errs = append(errs, fmt.Errorf("stopping kwok-controller: %w", err))
 	}
 	if err := DeleteFakeNodes(ctx, kubeClient, targetName, nodeConcurrency); err != nil {
-		return fmt.Errorf("deleting fake nodes: %w", err)
+		errs = append(errs, fmt.Errorf("deleting fake nodes: %w", err))
 	}
-	return nil
+	return errors.Join(errs...)
 }

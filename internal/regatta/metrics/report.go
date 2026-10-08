@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -25,6 +26,10 @@ type Report struct {
 	Start         time.Time `json:"start"`
 	End           time.Time `json:"end"`
 	WindowSeconds float64   `json:"windowSeconds"`
+	// LookbackSeconds is the lookback the report's rate and quantile queries used: WindowSeconds, stretched to at
+	// least a minute. When it is longer than WindowSeconds, the report also reflects samples from before Start,
+	// which belong to the report before it in a continuous run.
+	LookbackSeconds float64 `json:"lookbackSeconds"`
 
 	// Scenario is the fully-resolved scenario config the run used (absolute paths, defaults
 	// applied) - not the raw file the user wrote, matching what actually ran. Left as `any` (set
@@ -99,19 +104,23 @@ type namedQuery struct {
 const collectConcurrency = 8
 
 // Collect runs the full fixed query set against promURL at end, using [start, end] as the lookback
-// window (floored at 60s), and returns a populated Report. The per-queue measures are taken over the
+// window, and returns a populated Report. A window shorter than a minute is queried with a one-minute
+// lookback (see minWindowSeconds); the report keeps the requested Start, End and WindowSeconds and states the
+// lookback it used in LookbackSeconds, so a reader can see when it reaches back before Start. The per-queue measures are taken over the
 // declared queues together (one filter naming all of them, never unfiltered, so other tenants on a
 // shared instance are left out). A per-query failure is logged and leaves that field nil; Collect itself
 // only errors if it never reached Prometheus at all (e.g. every single query failed to even connect).
 func Collect(ctx context.Context, promURL string, queues []string, start, end time.Time) (*Report, error) {
 	windowSeconds := end.Sub(start).Seconds()
-	window := windowStr(windowSeconds)
+	lookbackSeconds := math.Max(windowSeconds, minWindowSeconds)
+	window := windowStr(lookbackSeconds)
 
 	report := &Report{
-		QueueCount:    len(queues),
-		Start:         start,
-		End:           end,
-		WindowSeconds: windowSeconds,
+		QueueCount:      len(queues),
+		Start:           start,
+		End:             end,
+		WindowSeconds:   windowSeconds,
+		LookbackSeconds: lookbackSeconds,
 	}
 
 	queries := []namedQuery{
@@ -130,7 +139,7 @@ func Collect(ctx context.Context, promURL string, queues []string, start, end ti
 		{peakQueueSizeQuery(queues, window), &report.QueueDepth.PeakQueueSize},
 		{peakLeasedPodCountQuery(queues, window), &report.QueueDepth.PeakLeased},
 
-		{submitThroughputQuery(window), &report.APISurface.SubmitThroughput},
+		{submitThroughputQuery(window, lookbackSeconds), &report.APISurface.SubmitThroughput},
 		{submitLatencyQuery(0.95, window), &report.APISurface.SubmitP95},
 		{submitErrorsQuery(window), &report.APISurface.SubmitErrors},
 		{lookoutLatencyQuery(0.95, window), &report.APISurface.LookoutP95},

@@ -6,23 +6,44 @@ import (
 	"strings"
 )
 
-// windowStr formats the lookback window used by every rate()/increase()/max_over_time() query
-// below, mirroring the CI script's WINDOW calc: the run's own wall-clock duration, floored at
-// 60s so a very short run still gets a meaningful rate() sample.
+// minWindowSeconds is the shortest lookback window a report queries: a rate() needs a few scrape intervals of
+// samples, so a very short window would be meaningless.
+const minWindowSeconds = 60
+
+// windowStr formats the lookback window used by every rate()/increase()/max_over_time() query below.
 func windowStr(windowSeconds float64) string {
-	if windowSeconds < 60 {
-		windowSeconds = 60
-	}
 	return fmt.Sprintf("%ds", int64(windowSeconds))
 }
 
-// histogramQuantile builds histogram_quantile(q, sum by (le) (rate(metric{filter}[window]))). filter may
-// be empty.
-func histogramQuantile(metric string, q float64, filter, window string) string {
-	if filter == "" {
-		return fmt.Sprintf("histogram_quantile(%g, sum by (le) (rate(%s[%s])))", q, metric, window)
+// counterDelta is how much each series of a counter grew over the window ending at the evaluation time: its value
+// now minus its last value at or before the window's start. rate() and increase() count only the growth between
+// samples inside the window, so a burst that falls between the last sample before the window and the first one
+// inside it (a one-shot load of a few seconds against a 5s scrape interval) reads as 0, and the rest is
+// extrapolated; this counts it exactly. A series that did not exist at the window's start counts from 0, and a
+// series that went backwards (a reset) counts as 0.
+func counterDelta(selector, window string) string {
+	return fmt.Sprintf("clamp_min(%[1]s - ((%[1]s offset %[2]s) or (%[1]s * 0)), 0)", selector, window)
+}
+
+// rateQuantile builds the q-quantile of a histogram from rate() over the window. It is for histograms whose series
+// come and go (the per-job latency histograms exist only while the queues have jobs, so they are gone by the time
+// a report is taken, and counterDelta, which needs the series at the window's end, would find nothing).
+func rateQuantile(metric string, q float64, filter, window string) string {
+	selector := metric
+	if filter != "" {
+		selector = fmt.Sprintf("%s{%s}", metric, filter)
 	}
-	return fmt.Sprintf("histogram_quantile(%g, sum by (le) (rate(%s{%s}[%s])))", q, metric, filter, window)
+	return fmt.Sprintf("histogram_quantile(%g, sum by (le) (rate(%s[%s])))", q, selector, window)
+}
+
+// histogramQuantile builds the q-quantile of the observations a histogram that is always exported recorded over
+// the window (its buckets' growth, see counterDelta). filter may be empty.
+func histogramQuantile(metric string, q float64, filter, window string) string {
+	selector := metric
+	if filter != "" {
+		selector = fmt.Sprintf("%s{%s}", metric, filter)
+	}
+	return fmt.Sprintf("histogram_quantile(%g, sum by (le) (%s))", q, counterDelta(selector, window))
 }
 
 // queueMatcher returns the label matcher that selects the given queues on label: an exact match for one
@@ -45,11 +66,11 @@ func queueFilter(queues []string) string {
 
 // Tier 1: end-to-end job latency.
 func queuedLatencyQuery(q float64, queues []string, window string) string {
-	return histogramQuantile("armada_job_queued_seconds_bucket", q, queueFilter(queues), window)
+	return rateQuantile("armada_job_queued_seconds_bucket", q, queueFilter(queues), window)
 }
 
 func runLatencyQuery(q float64, queues []string, window string) string {
-	return histogramQuantile("armada_job_run_time_seconds_bucket", q, queueFilter(queues), window)
+	return rateQuantile("armada_job_run_time_seconds_bucket", q, queueFilter(queues), window)
 }
 
 // Tier 2: scheduler.
@@ -62,7 +83,7 @@ func submitCheckQuery(q float64, window string) string {
 }
 
 func scheduledJobsQuery(queues []string, window string) string {
-	return fmt.Sprintf(`sum(increase(armada_scheduler_scheduled_jobs{%s}[%s]))`, queueMatcher("queue", queues), window)
+	return fmt.Sprintf(`sum(%s)`, counterDelta(fmt.Sprintf("armada_scheduler_scheduled_jobs{%s}", queueMatcher("queue", queues)), window))
 }
 
 // Tier 3: queue depth. Summed across label dimensions (e.g. pool) before max_over_time, same
@@ -91,8 +112,10 @@ func leasedPodCountQuery(queues []string) string {
 }
 
 // Tier 4: API surface.
-func submitThroughputQuery(window string) string {
-	return fmt.Sprintf(`sum(rate(grpc_server_handled_total{grpc_service="api.Submit",grpc_method="SubmitJobs",grpc_code="OK"}[%s]))`, window)
+
+// submitThroughputQuery is the SubmitJobs calls per second, averaged over the window of windowSeconds.
+func submitThroughputQuery(window string, windowSeconds float64) string {
+	return fmt.Sprintf(`sum(%s) / %g`, counterDelta(`grpc_server_handled_total{grpc_service="api.Submit",grpc_method="SubmitJobs",grpc_code="OK"}`, window), windowSeconds)
 }
 
 func submitLatencyQuery(q float64, window string) string {
@@ -100,7 +123,8 @@ func submitLatencyQuery(q float64, window string) string {
 }
 
 func submitErrorsQuery(window string) string {
-	return fmt.Sprintf(`sum(increase(grpc_server_handled_total{grpc_service="api.Submit",grpc_code!="OK"}[%s]))`, window)
+	// No failing call is a result of 0, not a missing value.
+	return fmt.Sprintf(`sum(%s) or vector(0)`, counterDelta(`grpc_server_handled_total{grpc_service="api.Submit",grpc_code!="OK"}`, window))
 }
 
 func lookoutLatencyQuery(q float64, window string) string {
@@ -121,5 +145,5 @@ func pulsarPublishLatencyQuery(q float64, window string) string {
 }
 
 func pulsarPublishErrorsQuery(window string) string {
-	return fmt.Sprintf("sum(increase(pulsar_client_producer_errors[%s]))", window)
+	return fmt.Sprintf("sum(%s) or vector(0)", counterDelta("pulsar_client_producer_errors", window))
 }

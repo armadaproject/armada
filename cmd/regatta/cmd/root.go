@@ -33,10 +33,10 @@ func Execute() {
 	}
 }
 
-var cfgFile string
-
+// initConfig loads the armadactl config named by --config (the flag is bound inside the client package), or the
+// default one.
 func initConfig() {
-	if err := client.LoadCommandlineArgsFromConfigFile(cfgFile); err != nil {
+	if err := client.LoadCommandlineArgs(); err != nil {
 		log.Error(err.Error())
 		os.Exit(1)
 	}
