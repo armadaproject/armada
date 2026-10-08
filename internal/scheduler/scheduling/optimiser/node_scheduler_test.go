@@ -192,11 +192,13 @@ func TestSchedule_JobChecks(t *testing.T) {
 
 			assert.Equal(t, tc.expectSuccess, result.scheduled)
 			if tc.expectSuccess {
-				assert.Equal(t, float64(0.08), result.schedulingCost)
+				expectedSchedulingCost := float64(0.08)
 				queue := tc.existingJob.Queue()
 				if !context.IsHomeJob(tc.existingJob, testfixtures.TestPool) {
 					queue = context.CalculateAwayQueueName(tc.existingJob.Queue())
+					expectedSchedulingCost = float64(0.00)
 				}
+				assert.Equal(t, expectedSchedulingCost, result.schedulingCost)
 				assert.Equal(t, map[string]float64{queue: -0.08}, result.queueCostChanges)
 				assert.Equal(t, []string{tc.existingJob.Id()}, result.jobIdsToPreempt)
 				assert.Equal(t, float64(1), result.maximumQueueImpact)
