@@ -416,7 +416,11 @@ func loadScenario(path string, withLoad bool) (*Scenario, error) {
 	for _, queue := range scenario.Load.Queues {
 		for _, name := range queue.Targets {
 			if !targetsByName[name].Cluster.ShouldReadinessSelectTarget() {
-				return nil, fmt.Errorf("queue %q: targets lists %q, but that target's executors are not set up to report the %s node label (cluster.readinessSelectsTarget is false); set it to true once they track the label, or drop the queue's targets", queue.Name, name, TargetLabel)
+				return nil, fmt.Errorf(
+					"queue %q: targets lists %q, but that target's executors are not set up to report the %s node label "+
+						"(cluster.readinessSelectsTarget is false); set it to true once they track the label, or drop the queue's targets",
+					queue.Name, name, TargetLabel,
+				)
 			}
 		}
 	}
