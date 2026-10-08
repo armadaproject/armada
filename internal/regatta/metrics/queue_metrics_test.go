@@ -22,8 +22,8 @@ func TestQueueMatcher(t *testing.T) {
 
 func TestQueryBuildersUseTheRightLabelPerMetric(t *testing.T) {
 	queues := []string{"a", "b"}
-	require.Contains(t, queuedLatencyQuery(0.95, queues, "60s"), `queueName=~"a|b"`, "armada_job_* metrics use queueName")
-	require.Contains(t, runLatencyQuery(0.5, queues, "60s"), `queueName=~"a|b"`)
+	require.Contains(t, queuedAgeQuery(0.95, queues, "60s"), `queueName=~"a|b"`, "armada_job_* metrics use queueName")
+	require.Contains(t, runningAgeQuery(0.5, queues, "60s"), `queueName=~"a|b"`)
 	require.Contains(t, scheduledJobsQuery(queues, "60s"), `queue=~"a|b"`, "scheduler and queue metrics use queue")
 	require.Contains(t, peakQueueSizeQuery(queues, "60s"), `queue=~"a|b",state="validated"`)
 	require.Contains(t, peakLeasedPodCountQuery(queues, "60s"), `queue=~"a|b"`)
@@ -116,7 +116,7 @@ func TestCollect_FiltersEveryPerQueueQueryToTheDeclaredQueues(t *testing.T) {
 	report, err := Collect(context.Background(), server.URL, []string{"team-a", "team-b"}, now.Add(-5*time.Minute), now)
 	require.NoError(t, err)
 	require.Equal(t, 2, report.QueueCount)
-	require.Equal(t, 42.0, *report.EndToEndLatency.QueuedP95)
+	require.Equal(t, 42.0, *report.JobAge.QueuedP95)
 	require.Equal(t, 42.0, *report.QueueDepth.PeakLeased)
 	require.Equal(t, 42.0, *report.APISurface.SubmitThroughput)
 	require.Len(t, fake.requests, 20, "the query count does not depend on the number of queues")
@@ -259,8 +259,10 @@ func TestCounterQueriesCountGrowthExactlyAndJobLatencyStillUsesRate(t *testing.T
 		require.NotContains(t, expr, "increase(", name)
 		require.Contains(t, expr, "offset 160s", name+": measured against the value at the window's start")
 	}
-	require.Contains(t, queuedLatencyQuery(0.95, queues, "160s"), "rate(", "series that vanish before the report need rate()")
-	require.Contains(t, runLatencyQuery(0.95, queues, "160s"), "rate(")
+	for name, expr := range map[string]string{"queued": queuedAgeQuery(0.95, queues, "160s"), "running": runningAgeQuery(0.95, queues, "160s")} {
+		require.Contains(t, expr, "max_over_time(histogram_quantile(0.95", name+": the worst snapshot quantile over the window")
+		require.NotContains(t, expr, "rate(", name+": the buckets are snapshots, not counters")
+	}
 	require.True(t, strings.HasSuffix(submitThroughputQuery("160s", 160), "/ 160"), "calls per second over the window")
 	require.True(t, strings.HasSuffix(submitErrorsQuery("60s"), "or vector(0)"), "no errors reads as 0, not as a missing value")
 }

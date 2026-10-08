@@ -286,6 +286,17 @@ func (c *ClusterTarget) EffectiveNodeConcurrency() int {
 // same regardless of the caller's working directory. It also validates the file and assigns
 // auto-generated names to any ExecutionTarget left unnamed.
 func LoadScenario(path string) (*Scenario, error) {
+	return loadScenario(path, true)
+}
+
+// LoadScenarioTargets reads a scenario like LoadScenario but stops after the execution targets: the load section
+// is not expanded, so the job-spec files it names are not opened. It is for commands that only need the targets,
+// such as teardown, which must work after the job templates have been moved or deleted.
+func LoadScenarioTargets(path string) (*Scenario, error) {
+	return loadScenario(path, false)
+}
+
+func loadScenario(path string, withLoad bool) (*Scenario, error) {
 	scenario := &Scenario{}
 	if err := util.BindJsonOrYaml(path, scenario); err != nil {
 		return nil, err
@@ -386,6 +397,10 @@ func LoadScenario(path string) (*Scenario, error) {
 			}
 			clusters[identity] = target.Name
 		}
+	}
+
+	if !withLoad {
+		return scenario, nil
 	}
 
 	if err := scenario.Load.normalize(dir, names); err != nil {

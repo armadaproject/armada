@@ -371,3 +371,20 @@ func TestLoadScenario_TargetsAndClusters(t *testing.T) {
 		require.NoError(t, err, "a queue with no targets needs nothing")
 	})
 }
+
+func TestLoadScenarioTargets_DoesNotNeedTheJobSpecFiles(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "scenario.yaml")
+	body := "executionTargets:\n  - name: gpu\n    type: cluster\n    cluster:\n      kubeconfig: kube-a\n" +
+		"load:\n  queues:\n    - prefix: q-\n      totalJobs: 1\n      jobs:\n        - jobSpec: moved-away.yaml\n          share: 1\n"
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+
+	_, err := LoadScenario(path)
+	require.ErrorContains(t, err, "moved-away.yaml", "loading the whole scenario needs the job specs")
+
+	scenario, err := LoadScenarioTargets(path)
+	require.NoError(t, err, "teardown still works after the job templates are gone")
+	require.Equal(t, "gpu", scenario.ExecutionTargets[0].Name)
+	require.Equal(t, filepath.Join(dir, "kube-a"), scenario.ExecutionTargets[0].Cluster.Kubeconfig, "paths are resolved as usual")
+	require.Equal(t, "gpu", scenario.ExecutionTargets[0].Cluster.Name)
+}

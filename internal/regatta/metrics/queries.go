@@ -25,15 +25,20 @@ func counterDelta(selector, window string) string {
 	return fmt.Sprintf("clamp_min(%[1]s - ((%[1]s offset %[2]s) or (%[1]s * 0)), 0)", selector, window)
 }
 
-// rateQuantile builds the q-quantile of a histogram from rate() over the window. It is for histograms whose series
-// come and go (the per-job latency histograms exist only while the queues have jobs, so they are gone by the time
-// a report is taken, and counterDelta, which needs the series at the window's end, would find nothing).
-func rateQuantile(metric string, q float64, filter, window string) string {
+// snapshotStep is the resolution at which peakQuantile looks at a snapshot histogram within the window.
+const snapshotStep = "10s"
+
+// peakQuantile is the highest, over the window, of the q-quantile of a snapshot histogram. armada_job_queued_seconds
+// and armada_job_run_time_seconds are not counters of finished jobs: the scheduler rebuilds them at every scrape
+// from the jobs that are queued, or running, at that moment, so their buckets fall as jobs leave and rate() would
+// read each fall as a counter reset. What they do say is how long the jobs present at a scrape have waited, or have
+// been running, so the worst such quantile over the window is reported.
+func peakQuantile(metric string, q float64, filter, window string) string {
 	selector := metric
 	if filter != "" {
 		selector = fmt.Sprintf("%s{%s}", metric, filter)
 	}
-	return fmt.Sprintf("histogram_quantile(%g, sum by (le) (rate(%s[%s])))", q, selector, window)
+	return fmt.Sprintf("max_over_time(histogram_quantile(%g, sum by (le) (%s))[%s:%s])", q, selector, window, snapshotStep)
 }
 
 // histogramQuantile builds the q-quantile of the observations a histogram that is always exported recorded over
@@ -64,13 +69,14 @@ func queueFilter(queues []string) string {
 	return queueMatcher("queueName", queues)
 }
 
-// Tier 1: end-to-end job latency.
-func queuedLatencyQuery(q float64, queues []string, window string) string {
-	return rateQuantile("armada_job_queued_seconds_bucket", q, queueFilter(queues), window)
+// Tier 1: job age. How long the jobs queued at a moment had waited, and the jobs running at a moment had been
+// running, at the worst moment of the window (see peakQuantile). These are not completed-job latencies.
+func queuedAgeQuery(q float64, queues []string, window string) string {
+	return peakQuantile("armada_job_queued_seconds_bucket", q, queueFilter(queues), window)
 }
 
-func runLatencyQuery(q float64, queues []string, window string) string {
-	return rateQuantile("armada_job_run_time_seconds_bucket", q, queueFilter(queues), window)
+func runningAgeQuery(q float64, queues []string, window string) string {
+	return peakQuantile("armada_job_run_time_seconds_bucket", q, queueFilter(queues), window)
 }
 
 // Tier 2: scheduler.

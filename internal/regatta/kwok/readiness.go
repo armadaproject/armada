@@ -292,15 +292,30 @@ func submitCanaryJob(apiConnectionDetails *client.ApiConnectionDetails, queue, j
 	return jobId, err
 }
 
+// cancelCanaryTimeout bounds the request that cancels a canary. The submit client waits for the connection to be
+// ready, so without a deadline a call made while Armada is unreachable blocks until it comes back, and the
+// readiness check, and so Ctrl+C handling, would hang on it.
+const cancelCanaryTimeout = 10 * time.Second
+
 func cancelCanaryJob(apiConnectionDetails *client.ApiConnectionDetails, queue, jobSetId, jobId string) {
 	_ = client.WithSubmitClient(apiConnectionDetails, func(submitClient api.SubmitClient) error {
-		_, err := submitClient.CancelJobs(context.Background(), &api.JobCancelRequest{
-			JobId:    jobId,
-			JobSetId: jobSetId,
-			Queue:    queue,
+		return withTimeout(cancelCanaryTimeout, func(ctx context.Context) error {
+			_, err := submitClient.CancelJobs(ctx, &api.JobCancelRequest{
+				JobId:    jobId,
+				JobSetId: jobSetId,
+				Queue:    queue,
+			})
+			return err
 		})
-		return err
 	})
+}
+
+// withTimeout runs call on a fresh context that ends after timeout. The context is not derived from the run's: a
+// canary is cancelled even when the run is being interrupted.
+func withTimeout(timeout time.Duration, call func(ctx context.Context) error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return call(ctx)
 }
 
 func canaryJobSpec(targetName string, selectTarget bool) *api.JobSubmitRequestItem {
