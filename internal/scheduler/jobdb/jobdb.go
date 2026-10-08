@@ -473,7 +473,7 @@ type Txn struct {
 	// Incrementally maintained aggregate of queued demand.
 	aggregate *JobAggregate
 	// Mirrors JobDb.aggregateEnabled at transaction creation. When false,
-	// applyAggregateDelta is a no-op and GetQueueDemand returns empty.
+	// aggregate add/remove calls are skipped and GetQueueDemand returns empty.
 	aggregateEnabled bool
 	// The current snapshot of bid prices - allowing look up of bidding prices on job creation
 	bidPriceSnapshot *pricing.BidPriceSnapshot
@@ -619,13 +619,10 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 
 	// First, delete any jobs to be upserted from the sets of queued and unvalidated jobs
 	// We will replace these jobs later if they are still queued
-	removedJobs := make([]*Job, 0, len(jobs))
 	if hasJobs {
 		for _, job := range jobs {
 			existingJob, ok := txn.jobsById.Get(job.id)
 			if ok {
-				removedJobs = append(removedJobs, existingJob)
-
 				existingQueue, ok := txn.jobsByQueue[existingJob.queue]
 				if ok {
 					txn.jobsByQueue[existingJob.queue] = existingQueue.Delete(existingJob)
@@ -652,17 +649,17 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 					newUnvalidatedJobs := txn.unvalidatedJobs.Delete(existingJob)
 					txn.unvalidatedJobs = &newUnvalidatedJobs
 				}
+
+				if txn.aggregateEnabled {
+					txn.aggregate.remove(existingJob)
+				}
 			}
 		}
 	}
 
-	// Apply the queued-demand aggregate delta in a single place so the aggregate
-	// can only change together with the job indexes above/below.
-	txn.applyAggregateDelta(removedJobs, jobs)
-
 	// Now need to insert jobs, runs and queuedJobs. This can be done in parallel.
 	wg := sync.WaitGroup{}
-	wg.Add(6)
+	wg.Add(7)
 
 	// jobs
 	go func() {
@@ -849,25 +846,21 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 		}
 	}()
 
+	// Queued-demand aggregate.
+	go func() {
+		defer wg.Done()
+		// Skipped entirely when the aggregate is disabled (both Compare and
+		// Use flags off), so that path pays no per-job aggregate cost.
+		if txn.aggregateEnabled {
+			for _, job := range jobs {
+				txn.aggregate.add(job)
+			}
+		}
+	}()
+
 	wg.Wait()
 
 	return nil
-}
-
-// applyAggregateDelta applies the queued-demand aggregate changes for a set of
-// removed and added jobs. It is the single mutation point for the aggregate.
-// No-op when the aggregate is disabled (both Compare and Use flags off), so
-// that path pays no per-job aggregate cost.
-func (txn *Txn) applyAggregateDelta(removed, added []*Job) {
-	if !txn.aggregateEnabled {
-		return
-	}
-	for _, job := range removed {
-		txn.aggregate.remove(job)
-	}
-	for _, job := range added {
-		txn.aggregate.add(job)
-	}
 }
 
 // dedupeJobsLastWins returns jobs with duplicate IDs collapsed to the last
@@ -1037,20 +1030,6 @@ func (txn *Txn) BatchDelete(jobIds []string) error {
 	if err := txn.checkWritableTransaction(); err != nil {
 		return err
 	}
-	// Collect the jobs to remove up front so the aggregate delta can be applied
-	// once, mirroring Upsert.
-	removed := make([]*Job, 0, len(jobIds))
-	seen := make(map[string]bool, len(jobIds))
-	for _, id := range jobIds {
-		if seen[id] {
-			continue
-		}
-		seen[id] = true
-		if job, present := txn.jobsById.Get(id); present {
-			removed = append(removed, job)
-		}
-	}
-	txn.applyAggregateDelta(removed, nil)
 	for _, id := range jobIds {
 		txn.delete(id)
 	}
@@ -1062,6 +1041,9 @@ func (txn *Txn) BatchDelete(jobIds []string) error {
 func (txn *Txn) delete(jobId string) {
 	job, present := txn.jobsById.Get(jobId)
 	if present {
+		if txn.aggregateEnabled {
+			txn.aggregate.remove(job)
+		}
 		txn.jobsById = txn.jobsById.Delete(jobId)
 		for _, run := range job.runsById {
 			txn.jobsByRunId = txn.jobsByRunId.Delete(run.id)
