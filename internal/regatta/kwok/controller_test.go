@@ -3,6 +3,7 @@ package kwok
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -175,4 +176,21 @@ func TestWriteControllerKubeconfig(t *testing.T) {
 			require.Error(t, err, name)
 		}
 	})
+}
+
+func TestTeardownController_RunningItAgainWhenNothingIsLeftIsNotAnError(t *testing.T) {
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Skip("docker is not available")
+	}
+	if err := exec.Command("docker", "info").Run(); err != nil {
+		t.Skip("the docker daemon is not reachable")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
+
+	// No container of this name exists: `docker rm -f` reports "No such container" and still exits 0, so a second
+	// teardown, or one for a target that never started, finishes cleanly.
+	require.NoError(t, TeardownController(context.Background(), "teardown-test-never-started"))
+	require.NoError(t, TeardownController(context.Background(), "teardown-test-never-started"))
 }
