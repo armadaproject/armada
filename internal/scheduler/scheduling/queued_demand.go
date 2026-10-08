@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"golang.org/x/exp/slices"
 
@@ -14,27 +13,11 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-// compareAggregateQueuedDemand computes queued demand by scanning jobs and from
-// the JobDb aggregate, compares them, and publishes any difference. The
-// scan-derived value remains authoritative.
-func (l *FairSchedulingAlgo) compareAggregateQueuedDemand(
-	ctx *armadacontext.Context,
-	jobs []*jobdb.Job,
-	txn *jobdb.Txn,
-	queues map[string]*api.Queue,
-	currentPool string,
-) {
-	start := time.Now()
-	aggregate := queuedDemandFromAggregate(txn, queues, currentPool)
-	observeJobAggregateLookupDuration(currentPool, time.Since(start).Seconds())
-	l.compareScannedWithAggregate(ctx, jobs, queues, aggregate, currentPool)
-}
-
 // compareScannedWithAggregate scans queued demand from jobs, compares it
 // against a precomputed aggregate-derived demand, and publishes any
-// difference. The scan-derived value remains authoritative. Callers that
-// already performed the aggregate lookup (e.g. the Use path) pass it in to
-// avoid a second lookup per pool per round.
+// difference. The scan-derived value remains authoritative. The caller passes
+// in the aggregate lookup shared with the Use path, so Compare=true+Use=true
+// pays for a single lookup per pool per round.
 func (l *FairSchedulingAlgo) compareScannedWithAggregate(
 	ctx *armadacontext.Context,
 	jobs []*jobdb.Job,
