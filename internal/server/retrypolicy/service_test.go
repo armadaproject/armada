@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
-	grpcstatus "google.golang.org/grpc/status"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
@@ -20,15 +19,9 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	servermocks "github.com/armadaproject/armada/internal/server/mocks"
 	"github.com/armadaproject/armada/internal/server/permissions"
+	"github.com/armadaproject/armada/internal/server/servertest"
 	"github.com/armadaproject/armada/pkg/api"
 )
-
-func requireGrpcCode(t *testing.T, err error, code codes.Code) {
-	t.Helper()
-	st, ok := grpcstatus.FromError(err)
-	require.True(t, ok, "expected gRPC status error")
-	assert.Equal(t, code, st.Code())
-}
 
 type testMocks struct {
 	authorizer *servermocks.MockActionAuthorizer
@@ -119,7 +112,7 @@ func TestRetryPolicyService_AuthorizationFailures(t *testing.T) {
 				ctx := armadacontext.Background()
 				m.expectAuthorizeAction(ctx, rpc.permission, outcome.authErr)
 
-				requireGrpcCode(t, rpc.call(s, ctx), outcome.wantCode)
+				servertest.RequireGrpcCode(t, rpc.call(s, ctx), outcome.wantCode)
 			})
 		}
 	}
@@ -209,7 +202,7 @@ func TestRetryPolicyService_RepositoryErrorMapping(t *testing.T) {
 			}
 			tc.setupRepo(m)
 
-			requireGrpcCode(t, tc.call(s, ctx), tc.wantCode)
+			servertest.RequireGrpcCode(t, tc.call(s, ctx), tc.wantCode)
 		})
 	}
 }
@@ -257,7 +250,7 @@ func TestRetryPolicyService_RejectsBadRequests(t *testing.T) {
 				m.expectAuthorizeAction(ctx, tc.permission, nil)
 			}
 
-			requireGrpcCode(t, tc.call(s, ctx), codes.InvalidArgument)
+			servertest.RequireGrpcCode(t, tc.call(s, ctx), codes.InvalidArgument)
 		})
 	}
 }
