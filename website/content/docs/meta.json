@@ -2,6 +2,7 @@
   "title": "Docs",
   "pages": [
     "core-concepts",
+    "submitting-jobs",
     "developer-guide",
     "architecture",
     "cli",
