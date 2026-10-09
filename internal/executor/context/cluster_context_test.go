@@ -145,22 +145,55 @@ func TestKubernetesClusterContext_GetServices(t *testing.T) {
 	assert.Equal(t, service.Name, result[0].Name)
 }
 
-func TestKubernetesClusterContext_GetServices_MissingPodLabels(t *testing.T) {
-	clusterContext, client := setupTest()
+func TestKubernetesClusterContext_GetServices_ReturnsOnlyServicesOfTheSameRun(t *testing.T) {
+	clusterContext, _ := setupTest()
 
 	pod := createBatchPod()
+	newRunPod := createBatchPodForNewRun(pod)
 	service := createService()
 	service.ObjectMeta.Labels = util2.MergeMaps(service.ObjectMeta.Labels, pod.ObjectMeta.Labels)
-	delete(pod.ObjectMeta.Labels, domain.PodNumber)
+	newRunService := createService()
+	newRunService.ObjectMeta.Labels = util2.MergeMaps(newRunService.ObjectMeta.Labels, newRunPod.ObjectMeta.Labels)
 
-	_, err := clusterContext.SubmitService(service)
-	assert.NoError(t, err)
-	waitForServiceContextSync(t, clusterContext, service)
-	client.Fake.ClearActions()
+	for _, s := range []*v1.Service{service, newRunService} {
+		_, err := clusterContext.SubmitService(s)
+		require.NoError(t, err)
+		waitForServiceContextSync(t, clusterContext, s)
+	}
 
 	result, err := clusterContext.GetServices(pod)
-	assert.Error(t, err)
-	assert.Equal(t, len(result), 0)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, service.Name, result[0].Name)
+
+	result, err = clusterContext.GetServices(newRunPod)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, newRunService.Name, result[0].Name)
+}
+
+func TestKubernetesClusterContext_GetServices_MissingPodLabels(t *testing.T) {
+	tests := map[string]string{
+		"a pod without a pod number label": domain.PodNumber,
+		"a pod without a run ID label":     domain.JobRunId,
+	}
+	for name, missingLabel := range tests {
+		t.Run(name, func(t *testing.T) {
+			clusterContext, _ := setupTest()
+			pod := createBatchPod()
+			service := createService()
+			service.ObjectMeta.Labels = util2.MergeMaps(service.ObjectMeta.Labels, pod.ObjectMeta.Labels)
+			delete(pod.ObjectMeta.Labels, missingLabel)
+			_, err := clusterContext.SubmitService(service)
+			require.NoError(t, err)
+			waitForServiceContextSync(t, clusterContext, service)
+
+			result, err := clusterContext.GetServices(pod)
+
+			assert.Error(t, err)
+			assert.Empty(t, result)
+		})
+	}
 }
 
 func TestKubernetesClusterContext_GetServices_NonExistent(t *testing.T) {
@@ -235,6 +268,33 @@ func TestKubernetesClusterContext_GetIngresses(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, len(result), 1)
 	assert.Equal(t, ingress.Name, result[0].Name)
+}
+
+func TestKubernetesClusterContext_GetIngresses_ReturnsOnlyIngressesOfTheSameRun(t *testing.T) {
+	clusterContext, _ := setupTest()
+
+	pod := createBatchPod()
+	newRunPod := createBatchPodForNewRun(pod)
+	ingress := createIngress()
+	ingress.ObjectMeta.Labels = util2.MergeMaps(ingress.ObjectMeta.Labels, pod.ObjectMeta.Labels)
+	newRunIngress := createIngress()
+	newRunIngress.ObjectMeta.Labels = util2.MergeMaps(newRunIngress.ObjectMeta.Labels, newRunPod.ObjectMeta.Labels)
+
+	for _, i := range []*networking.Ingress{ingress, newRunIngress} {
+		_, err := clusterContext.SubmitIngress(i)
+		require.NoError(t, err)
+		waitForIngressContextSync(t, clusterContext, i)
+	}
+
+	result, err := clusterContext.GetIngresses(pod)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, ingress.Name, result[0].Name)
+
+	result, err = clusterContext.GetIngresses(newRunPod)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, newRunIngress.Name, result[0].Name)
 }
 
 func TestKubernetesClusterContext_GetIngresses_MissingPodLabels(t *testing.T) {
@@ -377,6 +437,26 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_CallDeleteOnClient_WhenPod
 	deleteAction, ok := client.Fake.Actions()[1].(clientTesting.DeleteAction)
 	assert.True(t, ok)
 	assert.Equal(t, deleteAction.GetName(), pod.Name)
+}
+
+func TestKubernetesClusterContext_ProcessPodsToDelete_DeletesPodsOfTwoRunsOfOneJob(t *testing.T) {
+	clusterContext, client := setupTest()
+
+	pod := createBatchPod()
+	newRunPod := createBatchPodForNewRun(pod)
+	submitPodsWithWait(t, clusterContext, pod, newRunPod)
+
+	client.Fake.ClearActions()
+	clusterContext.DeletePods([]*v1.Pod{pod, newRunPod})
+	clusterContext.ProcessPodsToDelete()
+
+	var deletedPodNames []string
+	for _, action := range client.Fake.Actions() {
+		if deleteAction, ok := action.(clientTesting.DeleteAction); ok {
+			deletedPodNames = append(deletedPodNames, deleteAction.GetName())
+		}
+	}
+	assert.ElementsMatch(t, []string{pod.Name, newRunPod.Name}, deletedPodNames)
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_CallPatchOnClient_WhenPodsMarkedForDeletion(t *testing.T) {
@@ -928,10 +1008,18 @@ func createBatchPod() *v1.Pod {
 	pod := createPod()
 	pod.ObjectMeta.Labels = map[string]string{
 		domain.JobId:     "jobid" + util2.NewULID(),
+		domain.JobRunId:  util2.NewULID(),
 		domain.Queue:     "test",
 		domain.PodNumber: "0",
 	}
 	return pod
+}
+
+func createBatchPodForNewRun(pod *v1.Pod) *v1.Pod {
+	newRunPod := createBatchPod()
+	newRunPod.Name = pod.Name + "-next-run"
+	newRunPod.Labels[domain.JobId] = pod.Labels[domain.JobId]
+	return newRunPod
 }
 
 func createPod() *v1.Pod {
