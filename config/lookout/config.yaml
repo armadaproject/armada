@@ -23,6 +23,7 @@ prunerConfig:
   expireAfter: 1008h # 42 days / 6 weeks
   deduplicationExpireAfter: 168h # 7 days
   zombieRepairThreshold: 15m # grace period before repairing jobs whose latest run is terminal but state is non-terminal
+  leaseReturnedZombieRepairThreshold: 3h # longer grace period before repairing (to failed) jobs whose latest run is lease-returned/lease-expired but state is non-terminal
   timeout: 1h
   batchSize: 1000
   pushgatewayUrl: ""
