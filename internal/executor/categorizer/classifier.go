@@ -221,32 +221,13 @@ func buildRule(cfg CategoryRule) (rule, error) {
 	}, nil
 }
 
-// ClassifyContainerError returns the category and subcategory for a pod from
-// its own state only: terminated containers, exit codes, and Kubernetes
-// conditions. onPodError and onPodEvents rules never match. For a failed pod,
-// use ClassifyPodError with the failure reason and the events, so that every
-// rule type can match.
-// Returns empty result if the receiver is nil or the pod is nil.
-// Returns (defaultCategory, defaultSubcategory) if no rules match.
-func (c *Classifier) ClassifyContainerError(pod *v1.Pod) ClassifyResult {
-	return c.classify(pod, "", nil)
-}
-
-// ClassifyPodError returns the category and subcategory for a pod-level failure
-// captured by the executor (image pull, missing volume, stuck terminating,
-// active deadline exceeded, etc.). It also matches podErrorMessage against
-// onPodError rules and podEvents against onPodEvents rules. All other rule
-// types evaluate against pod state as before, and first-match-wins across
-// config order is unchanged. Pass nil podEvents on paths where the events are
-// unavailable. onPodEvents rules then never match.
-// Returns empty result if the receiver is nil or the pod is nil.
-// Returns (defaultCategory, defaultSubcategory) if no rules match.
-func (c *Classifier) ClassifyPodError(pod *v1.Pod, podErrorMessage string, podEvents []*v1.Event) ClassifyResult {
-	return c.classify(pod, podErrorMessage, podEvents)
-}
-
-// Rules are evaluated in config order; the first matching rule wins.
-func (c *Classifier) classify(pod *v1.Pod, podErrorMessage string, podEvents []*v1.Event) ClassifyResult {
+// Classify returns the category, the subcategory, the hint and the action for a failure of the pod. message is the
+// failure message that the executor reports for the run, and onPodError rules match it. events are the Kubernetes
+// events of the pod, and onPodEvents rules match them. The other rules match the state of the pod and its containers.
+// The first rule in config order that matches wins.
+// Returns a result with only the action Retain if the receiver is nil or the pod is nil.
+// Returns (defaultCategory, defaultSubcategory) if no rule matches.
+func (c *Classifier) Classify(pod *v1.Pod, message string, events []*v1.Event) ClassifyResult {
 	if c == nil || pod == nil {
 		return ClassifyResult{Action: PodFailureActionRetain}
 	}
@@ -256,7 +237,7 @@ func (c *Classifier) classify(pod *v1.Pod, podErrorMessage string, podEvents []*
 	for _, cat := range c.categories {
 		for _, r := range cat.rules {
 			start := time.Now()
-			matched := ruleMatches(r, containers, podReason, podErrorMessage, podEvents)
+			matched := ruleMatches(r, containers, podReason, message, events)
 			metrics.RecordRuleEvaluationDuration(cat.name, r.subcategory, time.Since(start))
 			if matched {
 				return ClassifyResult{Category: cat.name, Subcategory: r.subcategory, Hint: r.hint, Action: cat.action}
@@ -270,7 +251,7 @@ func (c *Classifier) classify(pod *v1.Pod, podErrorMessage string, podEvents []*
 // rule's containerName scope (when set). onPodError and onPodEvents ignore it
 // because pod-level failures have no container attribution. Exactly one
 // matcher is set per rule (validated at NewClassifier).
-func ruleMatches(r rule, containers []containerInfo, podReason, podErrorMessage string, podEvents []*v1.Event) bool {
+func ruleMatches(r rule, containers []containerInfo, podReason, message string, events []*v1.Event) bool {
 	filtered := containers
 	if r.containerName != "" {
 		filtered = filterByName(containers, r.containerName)
@@ -285,10 +266,10 @@ func ruleMatches(r rule, containers []containerInfo, podReason, podErrorMessage 
 		return matchesTerminationMessage(r.onTerminationMessage, filtered)
 	}
 	if r.onPodError != nil {
-		return podErrorMessage != "" && errormatch.MatchPattern(r.onPodError, podErrorMessage)
+		return message != "" && errormatch.MatchPattern(r.onPodError, message)
 	}
 	if r.onPodEvents != nil {
-		return matchesPodEvents(r.onPodEvents, podEvents)
+		return matchesPodEvents(r.onPodEvents, events)
 	}
 	return false
 }
