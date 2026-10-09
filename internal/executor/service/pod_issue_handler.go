@@ -231,7 +231,7 @@ func (p *PodIssueHandler) DetectAndRegisterDeleteActionIssue(pod *v1.Pod) (bool,
 	// container, for example kubelet admission rejections. Such pods have no
 	// exit codes and no termination messages.
 	failedReason := util.ExtractPodFailedReason(pod)
-	classification := p.classifier.ClassifyPodError(pod, failedReason, podEvents)
+	classification := p.classifier.Classify(pod, failedReason, podEvents)
 	if classification.Action != categorizer.PodFailureActionDelete {
 		return false, nil
 	}
@@ -566,7 +566,7 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 			failureCategory, failureSubcategory = errormatch.CategoryInternal, sub
 			message = podIssue.Message
 		} else {
-			result := p.classifier.ClassifyPodError(podIssue.OriginalPodState, podIssue.Message, nil)
+			result := p.classifier.Classify(podIssue.OriginalPodState, podIssue.Message, nil)
 			failureCategory, failureSubcategory = result.Category, result.Subcategory
 			message = result.AppendHint(podIssue.Message)
 		}
@@ -737,7 +737,7 @@ func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 		// When we have our own internal state - we don't need to wait for the pod deletion to complete
 		// We can just mark is to delete in our state and return the lease
 		jobRunAttempted := issue.RunIssue.PodIssue.Type != UnableToSchedule
-		result := p.classifier.ClassifyPodError(issue.RunIssue.PodIssue.OriginalPodState, issue.RunIssue.PodIssue.Message, nil)
+		result := p.classifier.Classify(issue.RunIssue.PodIssue.OriginalPodState, issue.RunIssue.PodIssue.Message, nil)
 
 		returnLeaseEvent, err := reporter.CreateReturnLeaseEvent(
 			issue.RunIssue.PodIssue.OriginalPodState,
