@@ -1433,6 +1433,10 @@ func SwaggerJsonTemplate() string {
 		"        \"retryable\": {\n" +
 		"          \"description\": \"retryable indicates the scheduler emitted this failure for an\\nintermediate (non-terminal) run that will be retried. When true,\\na subsequent leased/succeeded/failed event for the same job is\\nexpected. Default false preserves the prior behavior where every\\nemitted JobFailedEvent was terminal.\",\n" +
 		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
+		"          \"description\": \"The run that failed. Empty when the job failed before it had a run, for example when the scheduler rejects it.\\nAlso empty in events from a scheduler that does not set this field.\",\n" +
+		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -1476,6 +1480,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -1493,6 +1500,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -1528,6 +1538,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"runAttempted\": {\n" +
 		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -1551,6 +1564,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -1588,6 +1604,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -1892,6 +1911,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -2158,6 +2180,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -2206,6 +2231,9 @@ func SwaggerJsonTemplate() string {
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"totalCumulativeUsage\": {\n" +

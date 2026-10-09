@@ -3403,6 +3403,7 @@ func TestCycleConsistency(t *testing.T) {
 							Event: &armadaevents.EventSequence_Event_JobSucceeded{
 								JobSucceeded: &armadaevents.JobSucceeded{
 									JobId: queuedJobA.JobID,
+									RunId: testfixtures.UUIDFromInt(1).String(),
 								},
 							},
 						},
@@ -3467,6 +3468,7 @@ func TestCycleConsistency(t *testing.T) {
 							Event: &armadaevents.EventSequence_Event_JobErrors{
 								JobErrors: &armadaevents.JobErrors{
 									JobId: queuedJobA.JobID,
+									RunId: testfixtures.UUIDFromInt(1).String(),
 									Errors: []*armadaevents.Error{
 										{
 											Terminal: true,
@@ -3605,6 +3607,7 @@ func TestCycleConsistency(t *testing.T) {
 							Event: &armadaevents.EventSequence_Event_JobErrors{
 								JobErrors: &armadaevents.JobErrors{
 									JobId: queuedJobA.JobID,
+									RunId: testfixtures.UUIDFromInt(1).String(),
 									Errors: []*armadaevents.Error{
 										{
 											Terminal:           true,

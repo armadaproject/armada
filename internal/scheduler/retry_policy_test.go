@@ -305,6 +305,11 @@ func TestRetryPolicy_FFOn_RetryDecision(t *testing.T) {
 	if retryErr := nonTerminalError(events.Events); assert.NotNil(t, retryErr) {
 		assert.Equal(t, "test-policy", retryErr.RetryPolicyName, "the retry event must record the deciding policy")
 	}
+	for _, e := range events.Events {
+		if je := e.GetJobErrors(); je != nil {
+			assert.Equal(t, job.LatestRun().Id(), je.RunId, "the retry event must name the failed run")
+		}
+	}
 }
 
 func TestRetryPolicy_FFOn_PolicyLimitCapsRetries(t *testing.T) {
@@ -531,6 +536,7 @@ func TestRetryPolicy_FFOn_LeaseExpiryRetriesWhenPolicyMatches(t *testing.T) {
 	assert.False(t, je.Errors[0].Terminal, "the JobErrors must be non-terminal so the api stream sees retryable=true")
 	assert.NotNil(t, je.Errors[0].GetLeaseExpired(), "the error reason must be LeaseExpired")
 	assert.Equal(t, "test-policy", je.Errors[0].RetryPolicyName, "the retry event must record the deciding policy")
+	assert.Equal(t, job.LatestRun().Id(), je.RunId, "the retry event must name the expired run")
 
 	require.NotNil(t, rq, "a JobRequeued event must be emitted")
 	assert.Equal(t, int32(2), rq.UpdateSequenceNumber, "JobRequeued must carry the bumped queued version")
@@ -801,6 +807,7 @@ func TestRetryPolicy_FFOff_FailedRunIdentity(t *testing.T) {
 			Event: &armadaevents.EventSequence_Event_JobErrors{
 				JobErrors: &armadaevents.JobErrors{
 					JobId:  job.Id(),
+					RunId:  job.LatestRun().Id(),
 					Errors: []*armadaevents.Error{runError},
 				},
 			},
