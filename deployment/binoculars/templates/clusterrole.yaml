@@ -22,3 +22,10 @@ rules:
   - watch
   - patch
 
+# Binoculars finds the pod of a run by its labels before it reads the logs as the user.
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - list
