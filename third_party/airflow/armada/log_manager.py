@@ -8,12 +8,25 @@ import pendulum
 import tenacity
 from airflow.utils.log.logging_mixin import LoggingMixin
 from kubernetes import client, config
+from kubernetes.client.exceptions import ApiException
 from pendulum import DateTime
 from pendulum.parsing.exceptions import ParserError
 from urllib3.exceptions import HTTPError
 
 from .auth import TokenRetriever
 from .links import UrlFromLogsExtractor
+
+
+def _is_transient(error: BaseException) -> bool:
+    """
+    A network error, a 429 or a 5xx response of the Kubernetes API can succeed on a
+    later attempt.
+    """
+    if isinstance(error, HTTPError):
+        return True
+    return isinstance(error, ApiException) and (
+        error.status == 429 or (error.status or 0) >= 500
+    )
 
 
 class KubernetesPodLogManager(LoggingMixin):
@@ -41,6 +54,47 @@ class KubernetesPodLogManager(LoggingMixin):
         )
 
         return k8s_client
+
+    @tenacity.retry(
+        wait=tenacity.wait_exponential(max=3),
+        retry=tenacity.retry_if_exception(_is_transient),
+        stop=tenacity.stop_after_attempt(5),
+        reraise=True,
+    )
+    def pod_name_for_run(
+        self, *, k8s_context: str, namespace: str, job_id: str, run_id: str
+    ) -> Optional[str]:
+        """
+        Finds the pod of a run by its labels. The name of the pod depends on the
+        executor configuration, so the operator never computes it.
+        """
+        try:
+            pods = (
+                self._k8s_client(k8s_context)
+                .list_namespaced_pod(
+                    namespace=namespace,
+                    label_selector=f"armada_job_id={job_id},armada_job_run_id={run_id}",
+                )
+                .items
+            )
+        except ApiException as e:
+            if e.status == 403:
+                self.log.warning(
+                    "Unable to fetch logs - the Kubernetes credential needs "
+                    f"permission to list pods in namespace {namespace}."
+                )
+                return None
+            raise
+        if not pods:
+            # A new run has no pod yet, and a finished run can lose its pod.
+            self.log.debug(f"Unable to fetch logs - no pod exists for run {run_id}.")
+            return None
+        if len(pods) > 1:
+            self.log.warning(
+                f"Unable to fetch logs - found {len(pods)} pods for run {run_id}."
+            )
+            return None
+        return pods[0].metadata.name
 
     @tenacity.retry(
         wait=tenacity.wait_exponential(max=3),
