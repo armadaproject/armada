@@ -1,0 +1,246 @@
+header:
+  schema-version: 2.2.0
+  last-updated: '2026-08-24'
+  last-reviewed: '2026-08-24'
+  url: https://github.com/armadaproject/armada/raw/master/SECURITY-INSIGHTS.yml
+
+project:
+  name: armada
+  homepage: https://armadaproject.io
+  administrators:
+    - name: Chris Martin
+      affiliation: G-Research
+      social: https://github.com/d80tb7
+      primary: true
+    - name: Dave Gantenbein
+      affiliation: G-Research
+      social: https://github.com/dave-gantenbein
+      primary: false
+    - name: Dejan Zele Pejchev
+      affiliation: G-Research
+      social: https://github.com/dejanzele
+      primary: false
+    - name: Eleanor Pratt
+      affiliation: G-Research
+      social: https://github.com/eleanorpratt
+      primary: false
+    - name: James Murkin
+      affiliation: G-Research
+      social: https://github.com/JamesMurkin
+      primary: false
+    - name: Martynas Asipauskas
+      affiliation: G-Research
+      social: https://github.com/masipauskas
+      primary: false
+    - name: Maurice Yap
+      affiliation: G-Research
+      social: https://github.com/mauriceyap
+      primary: false
+    - name: Mustafa Ilyas
+      affiliation: G-Research
+      social: https://github.com/MustafaI
+      primary: false
+    - name: Noah Held
+      affiliation: G-Research
+      social: https://github.com/zuqq
+      primary: false
+    - name: Rich Scott
+      affiliation: G-Research
+      social: https://github.com/richscott
+      primary: false
+    - name: Robert Smith
+      affiliation: G-Research
+      social: https://github.com/robertdavidsmith
+      primary: false
+    - name: Sam Clark
+      affiliation: G-Research
+      social: https://github.com/samclark
+      primary: false
+    - name: Geoffrey Wilson
+      affiliation: G-Research
+      social: https://github.com/suprjinx
+      primary: false
+    - name: Nikola Jokic
+      affiliation: G-Research
+      social: https://github.com/nikola-jokic
+      primary: false
+  documentation:
+    code-of-conduct: https://github.com/armadaproject/armada/blob/master/CODE_OF_CONDUCT.md
+  repositories:
+    - name: armada
+      url: https://github.com/armadaproject/armada
+      comment: |
+        Core repository: a multi-cluster batch queuing system for high-throughput
+        workloads on Kubernetes.
+    - name: armada-operator
+      url: https://github.com/armadaproject/armada-operator
+      comment: |
+        Kubernetes operator for installing and managing Armada deployments.
+    - name: armada-spark
+      url: https://github.com/armadaproject/armada-spark
+      comment: |
+        Integration for running Apache Spark workloads on Armada.
+  vulnerability-reporting:
+    reports-accepted: true
+    bug-bounty-available: false
+    contact:
+      name: Security contact
+      email: security@gr-oss.io
+      primary: true
+    policy: https://github.com/armadaproject/armada/blob/master/SECURITY.md
+    comment: |
+      Private vulnerability reporting is enabled on GitHub. Report vulnerabilities
+      via the repository's Security tab, or email security@gr-oss.io mentioning
+      Armada in the subject.
+
+repository:
+  url: https://github.com/armadaproject/armada
+  status: active
+  accepts-change-request: true
+  accepts-automated-change-request: true
+  core-team:
+    - name: Chris Martin
+      affiliation: G-Research
+      social: https://github.com/d80tb7
+      primary: true
+    - name: Dave Gantenbein
+      affiliation: G-Research
+      social: https://github.com/dave-gantenbein
+      primary: false
+    - name: Dejan Zele Pejchev
+      affiliation: G-Research
+      social: https://github.com/dejanzele
+      primary: false
+    - name: Eleanor Pratt
+      affiliation: G-Research
+      social: https://github.com/eleanorpratt
+      primary: false
+    - name: James Murkin
+      affiliation: G-Research
+      social: https://github.com/JamesMurkin
+      primary: false
+    - name: Martynas Asipauskas
+      affiliation: G-Research
+      social: https://github.com/masipauskas
+      primary: false
+    - name: Maurice Yap
+      affiliation: G-Research
+      social: https://github.com/mauriceyap
+      primary: false
+    - name: Mustafa Ilyas
+      affiliation: G-Research
+      social: https://github.com/MustafaI
+      primary: false
+    - name: Noah Held
+      affiliation: G-Research
+      social: https://github.com/zuqq
+      primary: false
+    - name: Rich Scott
+      affiliation: G-Research
+      social: https://github.com/richscott
+      primary: false
+    - name: Robert Smith
+      affiliation: G-Research
+      social: https://github.com/robertdavidsmith
+      primary: false
+    - name: Sam Clark
+      affiliation: G-Research
+      social: https://github.com/samclark
+      primary: false
+    - name: Geoffrey Wilson
+      affiliation: G-Research
+      social: https://github.com/suprjinx
+      primary: false
+    - name: Nikola Jokic
+      affiliation: G-Research
+      social: https://github.com/nikola-jokic
+      primary: false
+  documentation:
+    contributing-guide: https://github.com/armadaproject/armada/blob/master/CONTRIBUTING.md
+    security-policy: https://github.com/armadaproject/armada/blob/master/SECURITY.md
+  license:
+    url: https://github.com/armadaproject/armada/blob/master/LICENSE
+    expression: Apache-2.0
+  release:
+    changelog: https://github.com/armadaproject/armada/releases
+    automated-pipeline: true
+    distribution-points:
+      - uri: https://github.com/armadaproject/armada/releases
+        comment: GitHub Releases
+      - uri: pkg:docker/gresearch/armada-server
+        comment: Armada server Docker image
+      - uri: pkg:docker/gresearch/armada-executor
+        comment: Armada executor Docker image
+      - uri: pkg:docker/gresearch/armada-scheduler
+        comment: Armada scheduler Docker image
+      - uri: pkg:docker/gresearch/armada-scheduler-ingester
+        comment: Armada scheduler ingester Docker image
+      - uri: pkg:docker/gresearch/armada-event-ingester
+        comment: Armada event ingester Docker image
+      - uri: pkg:docker/gresearch/armada-lookout
+        comment: Armada Lookout UI Docker image
+      - uri: pkg:docker/gresearch/armada-lookout-ingester
+        comment: Armada Lookout ingester Docker image
+      - uri: pkg:docker/gresearch/armada-lookout-bundle
+        comment: Armada Lookout bundle Docker image
+      - uri: pkg:docker/gresearch/armada-binoculars
+        comment: Armada Binoculars Docker image
+      - uri: pkg:docker/gresearch/armadactl
+        comment: armadactl CLI Docker image
+      - uri: pkg:docker/gresearch/armada-bundle
+        comment: Armada bundle Docker image
+      - uri: pkg:docker/gresearch/armada-full-bundle
+        comment: Armada full bundle Docker image
+      - uri: pkg:docker/gresearch/armada-fakeexecutor
+        comment: Armada fake executor (testing) Docker image
+      - uri: pkg:docker/gresearch/armada-loadtester
+        comment: Armada load tester Docker image
+      - uri: pkg:docker/gresearch/armada-testsuite
+        comment: Armada test suite Docker image
+      - uri: pkg:pypi/armada-client
+        comment: Armada Python client (PyPI)
+      - uri: pkg:pypi/armada-airflow
+        comment: Armada Airflow operator (PyPI)
+      - uri: pkg:cargo/armada-client
+        comment: Armada Rust client (crates.io)
+      - uri: pkg:maven/io.armadaproject/java-client
+        comment: Armada Java client (Maven Central)
+      - uri: pkg:maven/io.armadaproject/armada-scala-client_2.13
+        comment: Armada Scala client (Maven Central)
+  security:
+    assessments:
+      self:
+        comment: |
+          Armada is a CNCF Sandbox project. CodeQL static analysis (SAST) runs in
+          CI via GitHub Actions, and Dependabot is enabled for dependency update
+          monitoring. Private vulnerability reporting is enabled on GitHub, with a
+          published security policy (SECURITY.md) and a dedicated security contact
+          (security@gr-oss.io). Releases are produced by an automated GoReleaser
+          pipeline that publishes GitHub Releases and Docker images, with
+          additional automated client releases to PyPI, Maven Central, and
+          crates.io. No formal third-party security assessment is known to have
+          been published for this repository. However, A CNCF TAG-Security 
+          self-assessment is in preparation as part of Armada's pursuit of Incubation."
+    tools:
+      - name: CodeQL
+        type: SAST
+        rulesets:
+          - built-in
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+        results: {}
+        comment: |
+          CodeQL analysis runs via GitHub Actions (.github/workflows/codeql-analysis.yml).
+      - name: Dependabot
+        type: SCA
+        rulesets:
+          - built-in
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+        results: {}
+        comment: |
+          Dependabot is configured via .github/dependabot.yml.
