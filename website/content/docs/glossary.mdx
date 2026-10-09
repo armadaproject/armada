@@ -3,8 +3,7 @@ title: 'Glossary'
 description: 'Definitions of the terms used across the Armada documentation.'
 ---
 
-Short definitions of the terms used in these docs.
-{/* For how the main ideas fit together, see [Core concepts](/docs/core-concepts). */}
+Short definitions of the terms used in these docs. For how the main ideas fit together, see [Core concepts](/docs/core-concepts).
 
 ## A
 
@@ -57,7 +56,7 @@ A named connection in `~/.armadactl.yaml`: an Armada address plus how to log in.
 The central part of Armada: the server, scheduler, Lookout and their databases. It can run anywhere the executors can reach.
 
 **Cordon**
-Pause a queue, or a whole worker cluster (an executor): jobs already running carry on, but no new ones start until it's **uncordoned**.
+Pause new scheduling for a queue, or a whole worker cluster (an executor), until it's **uncordoned**. Jobs already running carry on; jobs already leased or pending may still start.
 
 ## D
 
@@ -94,8 +93,7 @@ A short label the executor gives a failed run, such as `oom` or `user_error`, so
 {/* See [Failure categories](/docs/failure-categories). */}
 
 **Fair share**
-The portion of the cluster each active queue is entitled to, weighted by its priority factor.
-{/* See [Core concepts](/docs/core-concepts#fair-share). */}
+The portion of the cluster each active queue is entitled to, weighted by its priority factor. See [Core concepts](/docs/core-concepts#fair-share).
 
 **Fair-share preemption**
 Armada stopping preemptible jobs from a queue that's using more than its fair share, so other queues get theirs.
@@ -148,8 +146,7 @@ The addresses Armada reports for a job's NodePort services and ingresses, sent i
 ## J
 
 **Job**
-One piece of work: a single Kubernetes pod plus Armada details (queue, job set, priority).
-{/* See [Core concepts](/docs/core-concepts#jobs). */}
+One piece of work: a single Kubernetes pod plus Armada details (queue, job set, priority). See [Core concepts](/docs/core-concepts).
 
 **Job file**
 A YAML file describing one or more jobs to submit.
@@ -183,7 +180,7 @@ The state where the scheduler has chosen a cluster and node for a job, but its p
 The executor handing a job back to the scheduler because its pod couldn't start. Armada can then try it again (a **startup retry**).
 
 **Limits and requests**
-The CPU and memory a container asks for (**requests**) and may use at most (**limits**). Armada requires them to be equal.
+The CPU and memory a container asks for (**requests**) and may use at most (**limits**). Armada requires them to be equal by default; the platform team can allow larger limits through `MaxOversubscriptionByResourceRequest`.
 
 **Lookout**
 Armada's web UI for finding and following jobs. On a laptop install it's at `http://localhost:30000`.
@@ -213,7 +210,7 @@ A service that makes a job reachable at a node's address and a port number.
 ## O
 
 **Owner (queue)**
-A user or group with all five rights on a queue's jobs: submit, cancel, preempt, reprioritize and watch. Whoever creates a queue becomes an owner.
+A user or group with all five rights on a queue's jobs: submit, cancel, preempt, reprioritize and watch. Whoever creates a queue becomes an owner by default, unless they supply a non-empty `UserOwners` list.
 
 ## P
 
@@ -284,8 +281,7 @@ Change the `priority` number of waiting jobs, to move them earlier or later in t
 How many more times a retry policy may rerun a job: the lower of the policy's `retryLimit` and the installation's `globalMaxRetries`, counting all the job's earlier failed runs.
 
 **Retry policy**
-A named set of rules, created by the platform team, deciding which failures Armada retries automatically and how it changes the job first (for example, more memory). A job gets its policy from its queue, or from an installation-wide default. Policies decide by **failure category**. Off by default.
-{/* See [Retry policies](/docs/retry-policies). */}
+A named set of rules, created by the platform team, deciding which failures Armada retries automatically and how it changes the job first (for example, more memory). A job gets its policy from its queue, or from an installation-wide default. Policies decide by **failure category**. Off by default. See [Retry policies](/docs/retry-policies).
 
 **`retryable`**
 A field on a failed event. `true` means Armada will run the job again, so the job isn't finished yet; only a failed event with `retryable: false` is final.
