@@ -35,12 +35,13 @@ uiConfig:
   binocularsBaseUrlPattern: "http://armada-binoculars:8080"
   commandSpecs:
     - name: Logs
-      template: "kubectl --context {{ runs[runs.length - 1].cluster }} -n {{ namespace }} logs armada-{{ jobId }}-0"
+      template: "kubectl --context {{ runs[runs.length - 1].cluster }} -n {{ namespace }} logs -l armada_job_id={{ jobId }},armada_job_run_id={{ runs[runs.length - 1].runId }} --tail=-1"
+      descriptionMd: Show the logs of the default container of the latest run. Add `-c <container>` for another container.
     - name: Exec
-      template: "kubectl --context {{ runs[runs.length - 1].cluster }} -n {{ namespace }} exec -it armada-{{ jobId }}-0 -- /bin/sh"
-      descriptionMd: Execute a command on the job's container.
+      template: "kubectl --context {{ runs[runs.length - 1].cluster }} -n {{ namespace }} exec -it $(kubectl --context {{ runs[runs.length - 1].cluster }} -n {{ namespace }} get pod -l armada_job_id={{ jobId }},armada_job_run_id={{ runs[runs.length - 1].runId }} -o name) -- /bin/sh"
+      descriptionMd: Execute a command on the job's container. The command needs a POSIX shell or PowerShell.
       alertMessageMd: |
-        This will only work if the container is still running.
+        The command works only while the container runs. Before the pod starts and after the executor deletes it, the command finds no pod.
       alertLevel: info
   pinnedTimeZoneIdentifiers:
     - America/New_York
