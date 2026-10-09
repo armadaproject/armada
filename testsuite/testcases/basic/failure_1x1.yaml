@@ -26,3 +26,4 @@ timeout: "100s"
 expectedEvents:
   - submitted:
   - failed:
+      podName: "armada-{JobId}-0"
