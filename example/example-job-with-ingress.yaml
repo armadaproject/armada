@@ -27,5 +27,3 @@ jobs:
         tlsEnabled: false
         certName: ""
         useClusterIP: true
-        annotations:
-          kubernetes.io/ingress.class: "nginx"
