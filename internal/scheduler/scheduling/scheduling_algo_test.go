@@ -1584,7 +1584,7 @@ func TestCalculateJobSchedulingInfo_AggregateMatchesScan(t *testing.T) {
 
 	algo := &FairSchedulingAlgo{}
 	_, err := algo.calculateJobSchedulingInfo(
-		ctx, activeExecutorsSet, queues, txn.GetAll(), currentPool, awayAllocationPools, allPools, nil,
+		ctx, activeExecutorsSet, queues, txn.GetAll(), currentPool, awayAllocationPools, allPools, nil, nil,
 	)
 	require.NoError(t, err)
 	scanned := scanQueuedDemand(txn.GetAll(), queues, currentPool)
@@ -1771,4 +1771,168 @@ func TestCalculateJobSchedulingInfo_AggregateDemandAgreementPublishesComparisonO
 
 	cpu := info.demandByQueueAndPriorityClass["q1"][pc].GetByNameZeroIfMissing("cpu")
 	require.Equal(t, int64(1), cpu.Value())
+}
+func TestCalculateJobSchedulingInfo_UsesAggregateForQueuedDemand(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-use-pool"
+	pc := testfixtures.PriorityClass0
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	queued := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
+	phantom := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
+	leased := testfixtures.Test1Cpu4GiJob("q1", pc).
+		WithNewRun("executor-1", "node-1", "node-1", pool, 0)
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued, leased})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{useAggregateDemand: true}
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{"executor-1": true}, queues,
+		[]*jobdb.Job{queued, phantom, leased}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	// The phantom queued job is visible to the scan but not the aggregate, and
+	// must not contribute; the queued and leased jobs each contribute one cpu.
+	cpu := info.demandByQueueAndPriorityClass["q1"][pc].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(2), cpu.Value())
+}
+
+// TestCalculateJobSchedulingInfo_UsePreservesCordonedQueuePresence proves that
+// Use mode keeps the legacy queue presence for a cordoned queue holding only
+// queued jobs: the legacy scan creates an empty bucket, and the aggregate mode
+// must too, otherwise flipping Use would silently change the active-queue set
+// (WeightSum/fair share) while the comparison reports agreement.
+func TestCalculateJobSchedulingInfo_UsePreservesCordonedQueuePresence(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-cordoned-presence-pool"
+	pc := testfixtures.PriorityClass0
+	queues := map[string]*api.Queue{"q1": {Name: "q1", Cordoned: true}}
+
+	queued := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
+	txn := jobDb.ReadTxn()
+
+	legacy := &FairSchedulingAlgo{}
+	legacyInfo, err := legacy.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+	legacyDemand, legacyPresent := legacyInfo.demandByQueueAndPriorityClass["q1"]
+	require.True(t, legacyPresent, "legacy scan should create a bucket for the cordoned queue")
+
+	aggregate := &FairSchedulingAlgo{useAggregateDemand: true}
+	aggregateInfo, err := aggregate.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+	aggregateDemand, aggregatePresent := aggregateInfo.demandByQueueAndPriorityClass["q1"]
+	require.True(t, aggregatePresent, "aggregate mode should preserve the cordoned queue bucket")
+	require.Equal(t, legacyDemand, aggregateDemand)
+}
+
+// TestCalculateJobSchedulingInfo_UseAndCompareUsesAggregateAndRecords proves
+// the both-flags-on matrix cell: queued demand is sourced from the aggregate
+// (a phantom job visible only to the scan is ignored) and the comparison
+// against the scan is still recorded.
+func TestCalculateJobSchedulingInfo_UseAndCompareUsesAggregateAndRecords(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-use-compare-pool"
+	pc := testfixtures.PriorityClass0
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	queued := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
+	phantom := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{useAggregateDemand: true, computeAggregateDemand: true}
+
+	beforeComparisons := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
+	beforeMismatches := testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool))
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued, phantom}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	// Aggregate wins: only the JobDb job counts (1 cpu), the phantom is ignored.
+	cpu := info.demandByQueueAndPriorityClass["q1"][pc].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(1), cpu.Value())
+
+	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
+	require.Equal(t, beforeMismatches+1, testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool)))
+}
+// BenchmarkQueuedDemand is an end-to-end comparison, not a like-for-like one:
+// the scan case gathers the jobs and builds the full scheduling info, while the
+// aggregate case only performs the isolated queued-demand lookup. For the
+// isolated scan-vs-aggregate comparison, see BenchmarkQueuedDemandAggregate in
+// internal/scheduler/jobdb.
+func BenchmarkQueuedDemand(b *testing.B) {
+	const (
+		numQueues         = 8
+		numQueuedPerQueue = 2000
+		numLeasedPerQueue = 500
+	)
+
+	poolNames := []string{"pool-1", "pool-2", "pool-3", "pool-4"}
+	queueNames := make([]string, numQueues)
+	for i := range queueNames {
+		queueNames[i] = fmt.Sprintf("queue-%d", i)
+	}
+
+	jobs := make([]*jobdb.Job, 0, numQueues*(numQueuedPerQueue+numLeasedPerQueue))
+	for _, queueName := range queueNames {
+		for i := 0; i < numQueuedPerQueue; i++ {
+			jobs = append(jobs, testfixtures.Test1Cpu4GiJob(queueName, testfixtures.PriorityClass0).
+				WithQueued(true).WithPools(poolNames))
+		}
+		for i := 0; i < numLeasedPerQueue; i++ {
+			pool := poolNames[i%len(poolNames)]
+			executor := fmt.Sprintf("executor-%d", i%len(poolNames))
+			jobs = append(jobs, testfixtures.Test1Cpu4GiJob(queueName, testfixtures.PriorityClass0).
+				WithNewRun(executor, fmt.Sprintf("node-%d", i), fmt.Sprintf("node-%d", i), pool, 0))
+		}
+	}
+
+	jobDb := testfixtures.NewJobDbWithJobs(jobs)
+	txn := jobDb.ReadTxn()
+
+	queues := make(map[string]*api.Queue, numQueues)
+	for _, queueName := range queueNames {
+		queues[queueName] = &api.Queue{Name: queueName}
+	}
+	activeExecutorsSet := map[string]bool{}
+	for i := 0; i < len(poolNames); i++ {
+		activeExecutorsSet[fmt.Sprintf("executor-%d", i)] = true
+	}
+
+	currentPool := poolNames[0]
+	awayAllocationPools := poolNames[1:]
+	allPools := poolNames
+	algo := &FairSchedulingAlgo{}
+	ctx := armadacontext.Background()
+
+	b.Run("impl=full_scheduling_info", func(b *testing.B) {
+		b.ReportAllocs()
+		for n := 0; n < b.N; n++ {
+			allJobs := append(txn.GetAllLeasedJobs(), getQueuedJobs(txn, allPools)...)
+			if _, err := algo.calculateJobSchedulingInfo(
+				ctx, activeExecutorsSet, queues, allJobs, currentPool, awayAllocationPools, allPools, nil, nil,
+			); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("impl=aggregate_queued_demand", func(b *testing.B) {
+		b.ReportAllocs()
+		for n := 0; n < b.N; n++ {
+			queuedDemandFromAggregate(txn, queues, currentPool)
+		}
+	})
 }
