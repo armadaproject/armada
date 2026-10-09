@@ -1,137 +1,186 @@
 ---
-title: 'Core Concepts'
+title: 'Core concepts'
+description: 'The ideas behind Armada: jobs, queues, job sets, fair share, priority, preemption and gangs.'
 ---
 
-This page explains the fundamental concepts you need to understand to effectively use Armada: jobs, queues, job sets, priorities, and scheduling algorithms.
+This page explains the fundamental concepts you need to effectively use Armada.
+{/* Each section ends with a link to the guide where you put it into practice. For quick definitions of any term, see the [Glossary](/docs/glossary). */}
+
+## What Armada does
+
+Armada is a **batch job scheduler** for Kubernetes. You give it **jobs**, programs that run and then finish, and it decides **when** and **where** each one runs.
+
+It's built for situations where Kubernetes on its own struggles:
+
+- **Many jobs:** millions of queued jobs, because Armada keeps its queue in its own databases instead of in Kubernetes.
+- **Many clusters:** one place to submit work that can run on any of several Kubernetes clusters.
+- **Many teams:** each team gets a fair share of the machines over time, so one busy team can't crowd everyone else out.
+
+Armada doesn't replace Kubernetes. It sits on top, decides which jobs should run where, and then hands each one to the right cluster to run as a normal pod.
 
 ## Jobs
 
-An Armada **job** represents a computational task to be executed and consists of:
+A **job** is one piece of work. It's made of:
 
-- A Kubernetes pod specification (podspec) representing the workload
-- Zero or more auxiliary Kubernetes objects (e.g., services, ingresses)
-- Armada-specific metadata (queue, job set, priority, etc.)
+- A Kubernetes **pod spec**: the containers to run, and the CPU and memory they need. Exactly one pod per job.
+- Optionally, network objects that live and die with the job: **services** and **ingresses**.
+  {/* (see [Interactive jobs and services](/docs/interactive-jobs-and-services)). */}
+- Armada details: which **queue** it goes into, which **job set** it belongs to, and its **priority**.
 
-All objects that make up a job are created together at job startup and deleted when the job terminates. Jobs are submitted to Armada via the gRPC API, client libraries, or the `armadactl` command-line utility.
+Every job gets a unique **job ID** when you submit it. You use the ID to look the job up, read its output or cancel it.
 
-### Job Lifecycle
+### A job's life
 
-Jobs progress through the following states:
+Every job moves through these states:
 
-1. **Queued**: Job is submitted and stored in a queue, waiting to be scheduled
-2. **Leased**: Scheduler has determined which cluster and node the job should run on
-3. **Pending**: Kubernetes resources are being created; pod is being bound to a node
-4. **Running**: Containers are executing
-5. **Succeeded/Failed**: Job has completed (all containers stopped)
+| State         | What's happening                                                     |
+| ------------- | -------------------------------------------------------------------- |
+| **Queued**    | Submitted and waiting for the scheduler.                             |
+| **Leased**    | The scheduler has chosen a cluster and node for it.                  |
+| **Pending**   | Its pod is being created and started on that node.                   |
+| **Running**   | Its containers are running.                                          |
+| **Succeeded** | It finished, and every container exited without an error.            |
+| **Failed**    | It finished with an error, or was stopped by preemption or rejected. |
+| **Cancelled** | Someone cancelled it.                                                |
+
+Succeeded, Failed and Cancelled are **final**. Lookout also shows two kinds of failure as states of their own: **Preempted** (Armada stopped the job for other work) and **Rejected** (the job was turned down before it ran); `armadactl watch` shows both as failed events. The API can also report **Submitted** and **Unknown**.
+{/* (see the [API reference](/docs/api#step-3-check-the-jobs-state)). */}
+
+Before a job is final, Armada may run it more than once. Each attempt is a **run**:
+
+- For recoverable startup failures (for example, a pod can't be placed on its node), Armada can put the job back in the queue, up to the configured attempt limit. These are **startup retries**. Jobs with the annotation `armadaproject.io/failFast: "true"` don't get them, and neither do gang jobs, which always fail fast.
+- If your platform team has set up retry policies, Armada can also rerun a job that started and then failed, for failures where a second run is likely to work. Without one, a failed job stays failed, and you submit it again if the work still needs doing.
+
+{/* See [When jobs fail or don't start](/docs/when-jobs-fail). */}
+
+Every state change is published as an **event**, which you can follow with `armadactl watch` or in Lookout.
+
+{/* Try it: [Submitting jobs](/docs/submitting-jobs). */}
 
 ## Queues
 
-A **queue** is a logical container for jobs and is the basis for fair resource allocation in Armada. Each job must belong to exactly one queue.
+A **queue** is where jobs wait, and the unit Armada uses to share resources fairly. Every job belongs to exactly one queue. Most organisations give each team its own queue.
 
-Key characteristics of queues:
+A queue has:
 
-- **Fair share basis**: Resources are divided fairly between queues over time
-- **Priority factor**: Each queue has a configurable priority factor that influences its fair share
-- **Active queues**: Only queues with queued or running jobs are considered in fairness calculations
-- **Dynamic fair share**: A queue's fair share may change as other queues become active or inactive
+- A **priority factor**: its weight when Armada shares resources. **Lower** means a **larger** share. It only matters relative to other queues.
+- **Permissions**: who may submit, cancel, preempt, reprioritize and watch jobs in it.
+- **Owners** may do all five. If no user owners are specified when creating a queue, the creator becomes an owner.
+- Optional **labels**, so you can act on many queues at once.
+- Optional **retry policies**, which decide which failures Armada retries automatically for the queue's jobs.
 
-Queues help organize jobs by user, team, project, or any other logical grouping that makes sense for your organization.
+A queue can be **cordoned** (paused): no new jobs are leased until it's uncordoned. Jobs already leased or running carry on.
 
-## Job Sets
+{/* Try it: [Managing queues](/docs/managing-queues). */}
 
-A **job set** is a per-queue logical grouping of jobs that can be managed as a unit. Jobs within the same job set share a `jobSetId` and can be:
+## Job sets
 
-- Monitored together
-- Cancelled as a unit
-- Tracked via event streams
+A **job set** is a label you choose to group related jobs within a queue, such as every job from one nightly run or one experiment. You set it with `jobSetId` in your job file.
 
-Job sets are particularly useful for workflows consisting of multiple related jobs. For example, when training a machine learning model across multiple datasets, each training job could belong to the same job set.
+Job sets make it easy to:
 
-**Note**: Job sets don't affect scheduling order—they're purely for organizational and management purposes.
+- **Watch** all the jobs together (`armadactl watch <queue> <job-set>`).
+- **Cancel** or **reprioritize** them together.
 
-## Priorities
+Job sets are only for grouping. They don't affect when jobs run.
 
-Armada uses a multi-level priority system to control job scheduling order:
+## Fair share
 
-### Job Priority
+When there aren't enough machines for every waiting job, Armada decides which queue's jobs go next by **fair share**: each queue is entitled to a share of the cluster, weighted by its priority factor.
 
-Each job has a numeric priority value (lower values = higher priority). Within a queue, jobs are ordered by:
+- Only **active** queues count, meaning queues with jobs waiting or running. If a team has nothing to run, its share goes to the others.
+- So a queue's share changes as other queues become busy or quiet.
+- A queue using **less** than its share gets its jobs scheduled first. A queue using **more** may have its jobs **preempted** (stopped) to give others their share, if those jobs are preemptible. This is on by default.
 
-1. Priority class priority
-2. Job priority
-3. Time submitted
+### How fair share is calculated
 
-### Priority Classes
+Armada uses **dominant resource fairness**, based on what each queue is using **now**:
 
-Armada **priority classes** (PCs) are similar to Kubernetes priority classes but serve additional purposes:
+1. For each resource (by default CPU, memory, GPUs and ephemeral storage), Armada works out what fraction of the **pool** the queue's running jobs request. A pool is a group of nodes the scheduler shares out together; a small installation often has just one.
+2. The queue's **cost** is the largest of those fractions: its _dominant_ resource. A queue using 30% of the pool's CPU and 10% of its memory costs 0.3.
+3. Each queue's cost is divided by its **weight**, which is `1 ÷ priority factor`, and Armada balances that `cost ÷ weight` across active queues. A queue with priority factor 2 is entitled to half as much as one with priority factor 1.
 
-- **Priority**: An integer encoding urgency (higher priority jobs can preempt lower priority jobs)
-- **Fair share preemptibility**: Controls whether jobs can be preempted to maintain fairness
+If your platform team sets a pool's `shortJobPenaltyCutoff`, very short jobs are charged as if they ran for at least that long, so submitting many tiny jobs doesn't take more than its share. It's off by default.
 
-Priority classes enable both:
+The scheduler balances three goals: **fairness** (queues below their share go first), **throughput** (keeping the machines busy) and **timeliness** (urgent jobs before less urgent ones).
 
-- **Urgency-based preemption**: More urgent jobs can preempt less urgent ones
-- **Fair-share preemption**: Jobs can be preempted to balance resource allocation between queues
+## Priority
 
-## Fair-Use Scheduling
+Two different things are called "priority" in Armada:
 
-Armada implements **dominant resource fairness** to ensure fair resource allocation across queues over time.
+|                             | Priority class                                                                  | Job `priority`                                                      |
+| --------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| What it is                  | A named class, set with `priorityClassName` in the pod spec                     | A number on the job                                                 |
+| Decides                     | How urgent the job is across the whole cluster, and whether it can be preempted | Only the order of jobs **within your own queue**. Lower runs first. |
+| Can cause preemption        | Yes                                                                             | Never                                                               |
+| Can change after submitting | No                                                                              | Yes, with `armadactl reprioritize`                                  |
 
-### How It Works
+Within a queue, jobs are ordered by their priority class's urgency, then by job `priority`, then by when they were submitted. Jobs that are already running always come before waiting ones.
 
-1. **Resource cost calculation**: Each job's cost is computed based on its resource requests (CPU, memory, GPU, etc.)
-2. **Queue cost tracking**: The total cost of all running jobs from each queue is tracked
-3. **Fair share balancing**: The scheduler balances the ratio `c_i/w_i` for each active queue, where:
-   - `c_i` = cost (resource usage) of queue `i`
-   - `w_i` = weight (1/priority factor) of queue `i`
+### Priority classes
 
-### Priority Calculation
+A **priority class** has two properties:
 
-Queue priority is calculated using an exponential moving average (inspired by HTCondor):
+- **Priority (urgency):** jobs in a higher class are scheduled first, and can push out **preemptible** running jobs from lower classes.
+- **Preemptible or not:** whether Armada may stop the job once it's running.
 
-```
-priority = priority × (1 - β) + resourceUsage × β
-β = 0.5^(timeChange / priorityHalftime)
-```
+By default, Armada offers `armada-default` (not preemptible, and used when you don't choose) and `armada-preemptible`. Both have the same urgency, so urgency preemption doesn't happen until a platform team adds a more urgent class.
 
-This ensures that:
-
-- Queue priority gradually approaches current resource usage
-- Recent usage has more influence than historical usage
-- The `priorityHalftime` configuration controls how quickly priority adjusts
-
-### Scheduling Algorithm
-
-Armada schedules jobs to balance fairness, throughput, and timeliness:
-
-1. **Fairness**: Prioritize queues that are below their fair share
-2. **Throughput**: Maximize resource utilization
-3. **Timeliness**: Schedule urgent jobs before less urgent ones
-
-The scheduler uses two approaches:
-
-- **Deterministic slicing**: Allocate resources proportionally based on inverse priority
-- **Probabilistic scheduling**: Randomly select queues for remaining resources based on their fair share
-
-## Gang Scheduling
-
-**Gang scheduling** ensures that a set of related jobs either all start together or none start at all. This is critical for distributed computing frameworks like MPI where all processes must start simultaneously.
-
-Gang scheduling is controlled via job annotations:
-
-- `armadaproject.io/gangId`: Unique identifier for the gang
-- `armadaproject.io/gangCardinality`: Total number of jobs in the gang
-- `armadaproject.io/gangNodeUniformityLabel`: Optional constraint to schedule all gang jobs on nodes with the same label value
+Armada's priority classes look like Kubernetes priority classes, but they're Armada's own. Armada makes every decision about urgency and preemption itself, before pods reach Kubernetes.
 
 ## Preemption
 
-Armada supports two forms of preemption:
+**Preemption** means Armada stops a running job to make room for other work. It happens in three ways:
 
-1. **Urgency-based preemption**: Higher priority jobs can preempt lower priority jobs
-2. **Fair-share preemption**: Jobs from queues exceeding their fair share can be preempted to improve fairness
+- **Urgency preemption:** a job in a higher priority class needs resources that preemptible lower-priority jobs are using.
+- **Fair-share preemption:** a queue is using more than its fair share while other queues are waiting. On by default.
+- **Manual preemption:** a person runs `armadactl preempt job`.
 
-Preemption helps ensure:
+Only **preemptible** jobs are ever preempted: running jobs in a non-preemptible class such as `armada-default` are left alone, whatever the reason.
 
-- Urgent jobs run in a timely fashion
-- Fair resource distribution over time
-- High cluster utilization
+A preempted job gets a short time to shut down (its termination grace period), then ends as failed with the reason (shown as **Preempted** in Lookout). It isn't restarted, even by a retry policy. Jobs that can be preempted should save their progress and be safe to submit again.
+
+{/* Try it: [Priority and preemption](/docs/priority-and-preemption). */}
+
+## Gangs
+
+A **gang** is a group of jobs that must all start together, or not at all. Distributed programs such as MPI, multi-node training and Spark need every worker running at once: half the workers is no use.
+
+You make a gang with annotations on each job:
+
+- `armadaproject.io/gangId`: the same name on every member
+- `armadaproject.io/gangCardinality`: how many members there are
+- `armadaproject.io/gangNodeUniformityLabel` (optional): keep every member on nodes that share the same value of a label, such as the same zone. The platform team must enable the label: the executor has to report it (`kubernetes.trackedNodeLabels`) and the scheduler has to index it (`indexedNodeLabels`). Otherwise the gang never starts.
+
+Armada waits until it can start every member at once. If one member is preempted, the whole gang is stopped. Gangs always fail fast: Armada doesn't retry them, either when a pod can't start or through retry policies. Without a uniformity label, a gang's members can be placed in different worker clusters.
+
+{/* Try it: [Gang jobs](/docs/gang-jobs). */}
+
+## Failures and retries
+
+When a run fails, Armada can label it with a **failure category**, a short name such as `oom` (out of memory) or `user_error` (your program exited with an error), and sometimes a **hint** with a known fix. Your platform team defines the categories. They show in Lookout, and they're what retry policies use to decide whether to run a job again: for example, retry `oom` with more memory, but never retry `user_error`.
+
+{/* Both are off by default. See [Failure categories](/docs/failure-categories) and [Retry policies](/docs/retry-policies). */}
+
+## How the pieces fit together
+
+An Armada installation has:
+
+- A **control plane**: the **server** (accepts jobs), the **scheduler** (decides what runs where), and **Lookout** (the web UI).
+- One **executor** per Kubernetes **worker cluster**: it asks the scheduler for jobs, creates their pods, and reports back.
+
+Jobs flow like this:
+
+1. You submit a job to the server, which checks it and records it.
+2. The scheduler adds it to its queue (**Queued**).
+3. When there's room and it's the job's turn, the scheduler picks a node (**Leased**).
+4. The executor for that cluster creates the pod (**Pending**), and Kubernetes starts it (**Running**).
+5. When the job finishes, the executor reports the result (**Succeeded**, **Failed** or **Cancelled**).
+
+{/* For the details, including how Armada stays consistent at scale, see [Architecture](/docs/architecture). */}
+
+## Next steps
+
+- [Getting started](/getting-started): run Armada on your laptop.
+  {/* - [Submitting jobs](/docs/submitting-jobs): your first job, step by step. */}
+  {/* - [Glossary](/docs/glossary): every Armada term in one place. */}
