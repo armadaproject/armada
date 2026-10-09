@@ -1,0 +1,10 @@
+server: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-server ./cmd/server/main.go && dlv dap --listen=:2345
+scheduler: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-scheduler ./cmd/scheduler/main.go && dlv dap --listen=:2346
+scheduleringester: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-scheduleringester ./cmd/scheduleringester/main.go && dlv dap --listen=:2347
+eventingester: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-eventingester ./cmd/eventingester/main.go && dlv dap --listen=:2348
+executor-1: export KUBECONFIG=.kube/external/multicluster/cluster-1 && ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-executor-1 ./cmd/executor/main.go && dlv dap --listen=:2349
+executor-2: export KUBECONFIG=.kube/external/multicluster/cluster-2 && ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-executor-2 ./cmd/executor/main.go && dlv dap --listen=:2356
+lookout: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-lookout ./cmd/lookout/main.go && dlv dap --listen=:2350
+lookoutingester: ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-lookoutingester ./cmd/lookoutingester/main.go && dlv dap --listen=:2351
+binoculars-1: export KUBECONFIG=.kube/external/multicluster/cluster-1 && ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-binoculars-1 ./cmd/binoculars/main.go && dlv dap --listen=:2352
+binoculars-2: export KUBECONFIG=.kube/external/multicluster/cluster-2 && ${GO_BIN:-go} build -gcflags="all=-N -l" -o ./dist/armada-binoculars-2 ./cmd/binoculars/main.go && dlv dap --listen=:2357
