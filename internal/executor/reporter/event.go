@@ -99,8 +99,9 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult ca
 			Created: now,
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
-					RunId: runId,
-					JobId: jobId,
+					RunId:        runId,
+					JobId:        jobId,
+					TerminatedAt: util.PodTerminationTimeProto(pod),
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
@@ -251,6 +252,7 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.Kuberne
 								ContainerErrors:  containerStatuses,
 								KubernetesReason: cause,
 								DebugMessage:     debugMessage,
+								TerminatedAt:     util.PodTerminationTimeProto(pod),
 							},
 						},
 					},
@@ -279,6 +281,7 @@ func CreateJobRunTerminatedDebugEvent(pod *v1.Pod, debugMessage string) (*armada
 				JobId:        jobId,
 				RunId:        runId,
 				DebugMessage: debugMessage,
+				TerminatedAt: util.PodTerminationTimeProto(pod),
 			},
 		},
 	})

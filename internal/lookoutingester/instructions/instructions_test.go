@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/golang/protobuf/proto"
@@ -795,6 +796,7 @@ func TestHandleJobRunTerminatedDebugInfo_PersistsOnlyDebug(t *testing.T) {
 		JobId:        testfixtures.JobId,
 		RunId:        testfixtures.RunId,
 		DebugMessage: testfixtures.DebugMsg,
+		TerminatedAt: protoutil.ToTimestamp(time.Date(2026, time.September, 28, 19, 7, 33, 0, time.UTC)),
 	}
 
 	update := &model.InstructionSet{}
