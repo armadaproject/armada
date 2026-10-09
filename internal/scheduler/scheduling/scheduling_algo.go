@@ -594,7 +594,8 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 ) (*jobSchedulingInfo, error) {
 	jobsByExecutorId := make(map[string][]*jobdb.Job)
 	jobsByPool := make(map[string][]*jobdb.Job)
-	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
+	queuedDemandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
+	runningDemandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	awayAllocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	inUsePriorityClasses := make(map[string]bool)
@@ -622,13 +623,22 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		}
 
 		if slices.Contains(pools, currentPool) {
-			queueResources, ok := demandByQueueAndPriorityClass[job.Queue()]
-			if !ok {
-				queueResources = map[string]internaltypes.ResourceList{}
-				demandByQueueAndPriorityClass[job.Queue()] = queueResources
-			}
-			// Queued jobs should not be considered for paused queues, so demand := running
-			if !queue.Cordoned || !job.Queued() {
+			if job.Queued() {
+				queueResources, ok := queuedDemandByQueueAndPriorityClass[job.Queue()]
+				if !ok {
+					queueResources = map[string]internaltypes.ResourceList{}
+					queuedDemandByQueueAndPriorityClass[job.Queue()] = queueResources
+				}
+				if !queue.Cordoned {
+					pcName := job.PriorityClassName()
+					queueResources[pcName] = queueResources[pcName].Add(job.AllResourceRequirements())
+				}
+			} else {
+				queueResources, ok := runningDemandByQueueAndPriorityClass[job.Queue()]
+				if !ok {
+					queueResources = map[string]internaltypes.ResourceList{}
+					runningDemandByQueueAndPriorityClass[job.Queue()] = queueResources
+				}
 				pcName := job.PriorityClassName()
 				queueResources[pcName] = queueResources[pcName].Add(job.AllResourceRequirements())
 			}
@@ -683,6 +693,28 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		}
 
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
+	}
+
+	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList, len(queuedDemandByQueueAndPriorityClass)+len(runningDemandByQueueAndPriorityClass))
+	for queueName, byPriorityClass := range runningDemandByQueueAndPriorityClass {
+		queueResources, ok := demandByQueueAndPriorityClass[queueName]
+		if !ok {
+			queueResources = map[string]internaltypes.ResourceList{}
+			demandByQueueAndPriorityClass[queueName] = queueResources
+		}
+		for pcName, rl := range byPriorityClass {
+			queueResources[pcName] = queueResources[pcName].Add(rl)
+		}
+	}
+	for queueName, byPriorityClass := range queuedDemandByQueueAndPriorityClass {
+		queueResources, ok := demandByQueueAndPriorityClass[queueName]
+		if !ok {
+			queueResources = map[string]internaltypes.ResourceList{}
+			demandByQueueAndPriorityClass[queueName] = queueResources
+		}
+		for pcName, rl := range byPriorityClass {
+			queueResources[pcName] = queueResources[pcName].Add(rl)
+		}
 	}
 
 	shortJobPenaltyByQueue := shortJobPenalty.GetPenaltiesForPool(currentPool)
