@@ -105,6 +105,7 @@ func StartUp(ctx *armadacontext.Context, config configuration.ExecutorConfigurat
 		2*time.Minute,
 		kubernetesClientProvider,
 		config.Kubernetes.PodKillTimeout,
+		config.Kubernetes.RunScopedPodNames,
 	)
 
 	wg := &sync.WaitGroup{}
@@ -202,10 +203,6 @@ func setupExecutorApiComponents(
 		ctx.Fatalf("Config error in failed pod checks: %s", err)
 	}
 
-	if config.Kubernetes.RunScopedPodNames {
-		ctx.Fatalf("kubernetes.runScopedPodNames needs executor support for two runs of one job on a cluster, which this executor does not have")
-	}
-
 	var classifier *categorizer.Classifier
 	if config.Application.ErrorCategories.Enabled {
 		classifier, err = categorizer.NewClassifier(config.Application.ErrorCategories)
@@ -221,6 +218,7 @@ func setupExecutorApiComponents(
 		config.Kubernetes.PodDefaults,
 		config.Application.SubmitConcurrencyLimit,
 		config.Kubernetes.FatalPodSubmissionErrors,
+		config.Kubernetes.RunScopedPodNames,
 	)
 
 	debugConfig := config.Application.DebugEvents
