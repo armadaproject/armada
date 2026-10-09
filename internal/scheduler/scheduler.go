@@ -1054,28 +1054,27 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 
 // evaluateRetryPolicy returns the engine's verdict, the name of the policy that
 // produced it, and a `decided` flag. `decided=false` means the engine did not
-// run (no policy assigned, policy missing from cache, or no run-error yet) and
-// the caller must fall through to legacy behaviour. `decided=true` is
+// run (no policy assigned, no policy found in the cache, or no run-error yet)
+// and the caller must fall through to legacy behaviour. `decided=true` is
 // authoritative: the engine's verdict wins, and policyName identifies the
 // policy it applied.
 func (s *Scheduler) evaluateRetryPolicy(
 	ctx *armadacontext.Context,
 	job *jobdb.Job,
 	runError *armadaevents.Error,
-	queueRetryPolicies map[string]string,
+	queueRetryPolicies map[string][]string,
 ) (result retry.Result, policyName string, decided bool) {
 	// The policies of the job annotation replace the policies of the queue. The
 	// server checks the annotation at submit, so the scheduler trusts it. Without
 	// a policy from the job or the queue, the fleet-wide default applies.
-	if names := constants.RetryPolicyNames(job.Annotations()); len(names) > 0 {
-		policyName = names[0]
-	} else {
-		policyName = queueRetryPolicies[job.Queue()]
+	names := constants.RetryPolicyNames(job.Annotations())
+	if len(names) == 0 {
+		names = queueRetryPolicies[job.Queue()]
 	}
-	if policyName == "" {
-		policyName = s.retryPolicyConfig.DefaultPolicyName
+	if len(names) == 0 && s.retryPolicyConfig.DefaultPolicyName != "" {
+		names = []string{s.retryPolicyConfig.DefaultPolicyName}
 	}
-	if policyName == "" {
+	if len(names) == 0 {
 		return retry.Result{}, "", false
 	}
 
@@ -1084,8 +1083,8 @@ func (s *Scheduler) evaluateRetryPolicy(
 	// log the skip once a policy is known to apply, so operators can see how
 	// often policies would have retried gangs.
 	if job.IsInGang() {
-		retryPolicyGangSkippedCounter.WithLabelValues(policyName).Inc()
-		ctx.Debugf("retry policy %q skipped for gang job %s on queue %s: gang-aware retry is not yet supported", policyName, job.Id(), job.Queue())
+		retryPolicyGangSkippedCounter.WithLabelValues(names[0]).Inc()
+		ctx.Debugf("retry policy %q skipped for gang job %s on queue %s: gang-aware retry is not yet supported", names[0], job.Id(), job.Queue())
 		return retry.Result{}, "", false
 	}
 
@@ -1096,9 +1095,18 @@ func (s *Scheduler) evaluateRetryPolicy(
 		return retry.Result{}, "", false
 	}
 
-	policy, ok := s.retryPolicyCache.Get(policyName)
-	if !ok {
-		ctx.Warnf("retry policy %q of job %s on queue %q not found in cache; falling back to legacy behaviour", policyName, job.Id(), job.Queue())
+	// A policy that is missing from the cache was deleted, failed validation, or is not loaded yet.
+	// The other policies of the list still apply in their order.
+	policies := make([]*retry.Policy, 0, len(names))
+	for _, name := range names {
+		policy, ok := s.retryPolicyCache.Get(name)
+		if !ok {
+			ctx.Warnf("retry policy %q of job %s on queue %q not found in cache; skipping it", name, job.Id(), job.Queue())
+			continue
+		}
+		policies = append(policies, policy)
+	}
+	if len(policies) == 0 {
 		return retry.Result{}, "", false
 	}
 	if runError == nil {
@@ -1117,7 +1125,8 @@ func (s *Scheduler) evaluateRetryPolicy(
 		return retry.Result{}, "", false
 	}
 
-	result = s.retryEngine.Evaluate(policy, runError, retry.Counts{Failures: job.FailureCount()})
+	result, decidingPolicy := s.retryEngine.Evaluate(policies, runError, retry.Counts{Failures: job.FailureCount()})
+	policyName = decidingPolicy.Name
 	ctx.Debugf("retry decision for job %s queue=%s policy=%s: ShouldRetry=%v Reason=%q",
 		job.Id(), job.Queue(), policyName, result.ShouldRetry, result.Reason)
 	return result, policyName, true
@@ -1165,11 +1174,12 @@ func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobd
 	return events, nil
 }
 
-// buildQueueRetryPolicyMap returns a map of queue-name -> retry-policy-name.
+// buildQueueRetryPolicyMap returns a map of queue-name -> retry-policy-names,
+// in the priority order of the queue.
 // It returns nil when the feature flag is off or the queue cache is
 // unavailable. Callers treat a missing entry as "no policy", and a nil map
 // behaves the same.
-func (s *Scheduler) buildQueueRetryPolicyMap(ctx *armadacontext.Context) map[string]string {
+func (s *Scheduler) buildQueueRetryPolicyMap(ctx *armadacontext.Context) map[string][]string {
 	if !s.retryPolicyConfig.Enabled {
 		return nil
 	}
@@ -1178,24 +1188,18 @@ func (s *Scheduler) buildQueueRetryPolicyMap(ctx *armadacontext.Context) map[str
 		ctx.Warnf("retry policy lookup: queue cache unavailable, falling back to legacy behaviour: %v", err)
 		return nil
 	}
-	m := make(map[string]string, len(queues))
+	m := make(map[string][]string, len(queues))
 	for _, q := range queues {
-		if len(q.RetryPolicies) == 0 {
-			continue
+		if len(q.RetryPolicies) > 0 {
+			m[q.Name] = q.RetryPolicies
 		}
-		// A queue may list several policies in precedence order. Only the first
-		// is evaluated. Debug level because this map is rebuilt every cycle.
-		if len(q.RetryPolicies) > 1 {
-			ctx.Debugf("queue %q lists %d retry policies; evaluating only the first (%q)", q.Name, len(q.RetryPolicies), q.RetryPolicies[0])
-		}
-		m[q.Name] = q.RetryPolicies[0]
 	}
 	return m
 }
 
 // generateUpdateMessages generates an EventSequence representing the state changes for a single job.
 // If there are no state changes it returns nil.
-func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrors map[string]*armadaevents.Error, queueRetryPolicies map[string]string, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrors map[string]*armadaevents.Error, queueRetryPolicies map[string][]string, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state? If so then don't send any more messages

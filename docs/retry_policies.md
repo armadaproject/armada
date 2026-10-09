@@ -17,7 +17,7 @@
 
 ## Overview
 
-Retry policies let operators define, per queue, which job failures Armada should retry and which it should fail permanently. A retry policy is a named resource, managed through `armadactl` like a queue, and attached to one or more queues by name. A job can also select its own policies with an annotation. When a job run fails, the scheduler selects a policy, evaluates the policy rules against the failure, and either requeues the job for another attempt or fails it terminally. The scheduler selects the first policy of the job annotation, then the first policy of the queue, and then `defaultPolicyName`.
+Retry policies let operators define, per queue, which job failures Armada should retry and which it should fail permanently. A retry policy is a named resource, managed through `armadactl` like a queue, and attached to one or more queues by name. A job can also select its own policies with an annotation. When a job run fails, the scheduler selects a list of policies, evaluates the policy rules against the failure, and either requeues the job for another attempt or fails it terminally. The scheduler uses the policies of the job annotation. Without them, it uses the policies of the queue, and then `defaultPolicyName`.
 
 The retry engine is off by default. It only runs when `scheduling.retryPolicy.enabled` is set to `true` in the scheduler configuration. With the flag off, or for a job with no policy from the job, the queue, or `defaultPolicyName`, Armada behaves exactly as before: jobs are only re-leased on lease returns, up to the legacy attempt limit.
 
@@ -29,7 +29,7 @@ One failure travels this path:
 2. The executor's error categorizer inspects the failure and assigns a category and subcategory, for example `oom` or `internal` / `node-failure`.
 3. When the category is configured with `action: Delete`, the executor deletes the failed pod and confirms it is gone. This frees the pod name for the next attempt (see [Pod naming and collision avoidance](#pod-naming-and-collision-avoidance)).
 4. The executor reports the failed run, with its category, to the scheduler.
-5. The scheduler selects the retry policy of the job (see [Overview](#overview)) and evaluates the rules against the category. The first matching rule decides.
+5. The scheduler selects the retry policies of the job (see [Overview](#overview)) and evaluates the rules against the category. The first matching rule decides (see [Matching semantics](#matching-semantics)).
 6. On a `Retry` verdict within budget, the scheduler requeues the same job: same job id, a new run, and any mutations from the rule applied. On a `Fail` verdict, or an exhausted budget, the job fails terminally with the category attached.
 
 The event stream mirrors this. A retried failure appears as a `JobFailedEvent` with `retryable: true`, followed by the new run's events. A terminal failure appears as a normal failed event. A lease expiry (a lost executor) skips steps 1 to 4: the scheduler detects the expiry itself and goes straight to the policy evaluation.
@@ -87,6 +87,9 @@ rules:
 
 * Rules match on the failure category the executor's categorizer assigned to the error. The scheduler evaluates rules top to bottom. The first matching rule wins, and later rules are not consulted.
 * If no rule matches, `defaultAction` decides.
+* A queue or a job can list several policies, in priority order. The first policy in the list has the highest priority. The scheduler evaluates the rules of the first policy, then the rules of the second policy, and so on. The first matching rule decides, with the `retryLimit` of its own policy.
+* If no rule of any policy in the list matches, the `defaultAction` and the `retryLimit` of the first policy decide. A list of one policy thus behaves like that policy alone.
+* A policy in the list that the scheduler does not have, because it was deleted, failed validation, or is not loaded yet, is skipped. The other policies apply in their order.
 
 Order rules from most specific to most general. A common pattern is to put `Fail` rules for known-fatal categories first, followed by `Retry` rules for transient ones, with `defaultAction: Fail` as the safety net.
 
@@ -154,14 +157,14 @@ This has an operational consequence: **every failure category that a retry rule 
 
 ## Per-job policies
 
-A job can select its own retry policies with the `armadaproject.io/retryPolicies` annotation. The value is a comma-separated list of policy names, in precedence order:
+A job can select its own retry policies with the `armadaproject.io/retryPolicies` annotation. The value is a comma-separated list of policy names, in priority order:
 
 ```yaml
 annotations:
   armadaproject.io/retryPolicies: "gpu-transient,team-default"
 ```
 
-For that job, the list replaces the policies of the queue. The list has the same meaning as the `retry_policies` list of a queue, so the scheduler evaluates only the first policy.
+For that job, the list replaces the policies of the queue. The list has the same meaning as the `retry_policies` list of a queue (see [Matching semantics](#matching-semantics)).
 
 The server validates the annotation at submit and rejects the job in these cases:
 
@@ -169,9 +172,9 @@ The server validates the annotation at submit and rejects the job in these cases
 * The list has an empty entry or the same name more than once.
 * The job is a gang job or a fail-fast job. These jobs do not use retry policies.
 
-A job can name any policy that exists. The policy does not need to be attached to the queue of the job. The server checks the names against a cache of policy names that refreshes every `queueCacheRefreshPeriod`, so a new policy is available to jobs after one refresh. The server checks the annotation only at submit. If an operator deletes a policy later, a job that names it falls back to the legacy behaviour. Until the server loads the policy names successfully for the first time, it rejects a job that names a policy with `Unavailable`, so the client can retry.
+A job can name any policy that exists. The policy does not need to be attached to the queue of the job. The server checks the names against a cache of policy names that refreshes every `queueCacheRefreshPeriod`, so a new policy is available to jobs after one refresh. The server checks the annotation only at submit. If an operator deletes a policy later, a job that names it uses its other policies. A job whose policies are all deleted uses the legacy behaviour. Until the server loads the policy names successfully for the first time, it rejects a job that names a policy with `Unavailable`, so the client can retry.
 
-The server accepts the annotation also when the retry engine is off, and when the scheduler skips the policy because the policy fails validation. In both cases the annotation has no effect.
+The server accepts the annotation also when the retry engine is off. Then the annotation has no effect. The server also accepts a policy that the scheduler skips because the policy fails validation. Then the other policies of the list apply, and without another policy the legacy behaviour applies.
 
 The scheduler and the scheduler ingester use the annotation only in a version that knows it. Deploy both before the server, or before jobs use the annotation. Otherwise the job uses the policy of its queue, and nothing reports it.
 
@@ -207,7 +210,7 @@ armadactl create queue my-queue --retry-policies ml-training-retries
 armadactl update queue my-queue --retry-policies ml-training-retries
 ```
 
-A queue can list several policies in `retry_policies`, in precedence order. This version evaluates only the first policy in the list. Later entries are stored but not consulted yet.
+A queue can list several policies in `retry_policies`, in priority order. [Matching semantics](#matching-semantics) describes how the scheduler evaluates the list.
 
 Delete a policy:
 
@@ -230,6 +233,6 @@ Managing policies requires the `create_retry_policy`, `update_retry_policy`, and
 **Metrics to alert on:**
 
 * Policy cache refresh failures and cache staleness. The scheduler periodically refreshes policies from the API. The cache has no expiry: on a refresh failure it fails open and keeps serving the last good policies indefinitely, so retries continue through a short API outage. Refresh failures surface as scheduler log warnings, not as a metric yet, so alert on those log lines. A policy edited during a prolonged outage does not take effect until the API recovers.
-* Invalid-policy skips. A policy that fails validation (for example an unknown `action`, or a rule with no `onCategory`) is skipped at cache refresh, and the queues and jobs that reference it fall back to legacy behaviour.
+* Invalid-policy skips. A policy that fails validation (for example an unknown `action`, or a rule with no `onCategory`) is skipped at cache refresh. The other policies in the list of a queue or a job still apply. If no policy is left, the legacy behaviour applies.
 * Gang skips (`armada_scheduler_retry_policy_gang_skipped_total`). A steadily growing count means users are attaching retry policies to queues that run gangs and expecting retries that never happen.
 * Retry decision counters. The `armada_scheduler_retry_policy_decisions_total` counter is labelled by queue, pool, policy and decision. Track retry and fail rates per policy to spot policies that retry far more (or less) than intended, and per queue to attribute a retry spike to a tenant. Like the other queue-level state metrics, the counter resets on the `jobStateMetricsResetInterval`.
