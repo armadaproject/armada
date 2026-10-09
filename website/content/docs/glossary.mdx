@@ -281,7 +281,7 @@ Change the `priority` number of waiting jobs, to move them earlier or later in t
 How many more times a retry policy may rerun a job: the lower of the policy's `retryLimit` and the installation's `globalMaxRetries`, counting all the job's earlier failed runs.
 
 **Retry policy**
-A named set of rules, created by the platform team, deciding which failures Armada retries automatically and how it changes the job first (for example, more memory). A job gets its policy from its queue, or from an installation-wide default. Policies decide by **failure category**. Off by default. See [Retry policies](/docs/retry-policies).
+A named set of rules, created by the platform team, deciding which failures Armada retries automatically and how it changes the job first (for example, more memory). A job gets its policy from its queue, or from an installation-wide default. Policies decide by **failure category**. Off by default. See [Retry policies](/docs/retry_policies).
 
 **`retryable`**
 A field on a failed event. `true` means Armada will run the job again, so the job isn't finished yet; only a failed event with `retryable: false` is final.
