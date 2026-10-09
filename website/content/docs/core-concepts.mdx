@@ -48,7 +48,8 @@ Succeeded, Failed and Cancelled are **final**. Lookout also shows two kinds of f
 
 Before a job is final, Armada may run it more than once. Each attempt is a **run**:
 
-- For recoverable startup failures (for example, a pod can't be placed on its node), Armada can put the job back in the queue, up to the configured attempt limit. These are **startup retries**. Jobs with the annotation `armadaproject.io/failFast: "true"` don't get them, and neither do gang jobs, which always fail fast.- If your platform team has set up retry policies, Armada can also rerun a job that started and then failed, for failures where a second run is likely to work. Without one, a failed job stays failed, and you submit it again if the work still needs doing.
+- For recoverable startup failures (for example, a pod can't be placed on its node), Armada can put the job back in the queue, up to the configured attempt limit. These are **startup retries**. Jobs with the annotation `armadaproject.io/failFast: "true"` don't get them, and neither do gang jobs, which always fail fast.
+- If your platform team has set up retry policies, Armada can also rerun a job that started and then failed, for failures where a second run is likely to work. Without one, a failed job stays failed, and you submit it again if the work still needs doing.
 
 {/* See [When jobs fail or don't start](/docs/when-jobs-fail). */}
 
