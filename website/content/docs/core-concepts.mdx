@@ -48,8 +48,7 @@ Succeeded, Failed and Cancelled are **final**. Lookout also shows two kinds of f
 
 Before a job is final, Armada may run it more than once. Each attempt is a **run**:
 
-- If a pod can't start (for example, it can't be placed on its node), Armada puts the job back in the queue by itself. These are **startup retries**. Jobs with the annotation `armadaproject.io/failFast: "true"` don't get them, and neither do gang jobs, which always fail fast.
-- If your platform team has set up retry policies, Armada can also rerun a job that started and then failed, for failures where a second run is likely to work. Without one, a failed job stays failed, and you submit it again if the work still needs doing.
+- For recoverable startup failures (for example, a pod can't be placed on its node), Armada can put the job back in the queue, up to the configured attempt limit. These are **startup retries**. Jobs with the annotation `armadaproject.io/failFast: "true"` don't get them, and neither do gang jobs, which always fail fast.- If your platform team has set up retry policies, Armada can also rerun a job that started and then failed, for failures where a second run is likely to work. Without one, a failed job stays failed, and you submit it again if the work still needs doing.
 
 {/* See [When jobs fail or don't start](/docs/when-jobs-fail). */}
 
@@ -64,11 +63,12 @@ A **queue** is where jobs wait, and the unit Armada uses to share resources fair
 A queue has:
 
 - A **priority factor**: its weight when Armada shares resources. **Lower** means a **larger** share. It only matters relative to other queues.
-- **Permissions**: who may submit, cancel, preempt, reprioritize and watch jobs in it. **Owners** may do all five, and whoever creates a queue becomes an owner.
+- **Permissions**: who may submit, cancel, preempt, reprioritize and watch jobs in it.
+- **Owners** may do all five. If no user owners are specified when creating a queue, the creator becomes an owner.
 - Optional **labels**, so you can act on many queues at once.
 - Optional **retry policies**, which decide which failures Armada retries automatically for the queue's jobs.
 
-A queue can be **cordoned** (paused): jobs already running carry on, but no new ones start until it's uncordoned.
+A queue can be **cordoned** (paused): no new jobs are leased until it's uncordoned. Jobs already leased or running carry on.
 
 {/* Try it: [Managing queues](/docs/managing-queues). */}
 
