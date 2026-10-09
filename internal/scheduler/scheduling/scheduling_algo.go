@@ -69,9 +69,11 @@ type FairSchedulingAlgo struct {
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
 	shortJobPenalty       *ShortJobPenalty
 	tracer                trace.Tracer
-	// Whether to compute the aggregate queued demand and compare it against the scan.
+	// Whether to compare the aggregate demand against the scan.
 	// The scan remains authoritative; the aggregate is only read for monitoring.
-	computeAggregateDemand bool
+	compareAggregateDemand bool
+	// Whether queued demand is sourced from the aggregate.
+	useAggregateDemand bool
 }
 
 func NewFairSchedulingAlgo(
@@ -109,7 +111,8 @@ func NewFairSchedulingAlgo(
 		shortJobPenalty:              shortJobPenalty,
 		stateValidator:               stateValidator,
 		tracer:                       otel.Tracer("armada.scheduler.fair_scheduling_algo"),
-		computeAggregateDemand:       config.ExperimentalAggregateDemand.Compare,
+		compareAggregateDemand:       config.ExperimentalAggregateDemand.Compare,
+		useAggregateDemand:           config.ExperimentalAggregateDemand.Use,
 	}, nil
 }
 
@@ -449,11 +452,13 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	//   - This may include nodes from other pools, especially if the nodes pool has changed
 	// - Jobs queued against home/away pools relevant to the pool being computed
 	//   - This is to calculate demand on both home and away pools
+	// Only fetch queued jobs when the scan needs them.
 	leasedJobs := txn.GetAllLeasedJobs()
-	queuedJobs := getQueuedJobs(txn, allPools)
-	allJobs := make([]*jobdb.Job, 0, len(leasedJobs)+len(queuedJobs))
+	allJobs := make([]*jobdb.Job, 0, len(leasedJobs))
 	allJobs = append(allJobs, leasedJobs...)
-	allJobs = append(allJobs, queuedJobs...)
+	if l.queuedScanRequired() {
+		allJobs = append(allJobs, getQueuedJobs(txn, allPools)...)
+	}
 
 	jobSchedulingInfo, err := l.newCalculateJobSchedulingInfo(ctx,
 		txn,
@@ -594,6 +599,18 @@ type jobSchedulingInfo struct {
 	runningDemandByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 }
 
+// computeAggregateDemand reports whether the aggregate demand must be computed,
+// i.e. it is either compared against the scan or used as the source.
+func (l *FairSchedulingAlgo) computeAggregateDemand() bool {
+	return l.compareAggregateDemand || l.useAggregateDemand
+}
+
+// queuedScanRequired reports whether queued jobs must be fetched and scanned.
+func (l *FairSchedulingAlgo) queuedScanRequired() bool {
+	return !l.useAggregateDemand || l.compareAggregateDemand
+}
+
+// newCalculateJobSchedulingInfo returns the per-round scheduling info.
 func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
@@ -607,16 +624,30 @@ func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 ) (*jobSchedulingInfo, error) {
 	start := time.Now()
 
+	// One lookup shared by Use and Compare.
+	var aggregateDemand map[string]map[string]internaltypes.ResourceList
+	if l.computeAggregateDemand() {
+		lookupStart := time.Now()
+		aggregateDemand = queuedDemandFromAggregate(txn, queues, currentPool)
+		observeJobAggregateLookupDuration(currentPool, time.Since(lookupStart).Seconds())
+	}
+
 	info, err := l.calculateJobSchedulingInfo(ctx, activeExecutorsSet, queues, jobs, currentPool, awayAllocationPools, allPools, shortJobPenalty)
 	if err != nil {
 		return nil, err
 	}
-	if l.computeAggregateDemand {
-		lookupStart := time.Now()
-		aggregateDemand := queuedDemandFromAggregate(txn, queues, currentPool)
-		observeJobAggregateLookupDuration(currentPool, time.Since(lookupStart).Seconds())
+	if l.compareAggregateDemand {
 		observeJobAggregateSchedulingInfoDuration(currentPool, time.Since(start).Seconds())
 		l.compareScannedWithAggregate(ctx, aggregateDemand, currentPool, info.queuedDemandByQueueAndPriorityClass)
+	}
+	if l.useAggregateDemand {
+		// Queued demand and its in-use priority classes come from the aggregate.
+		info.queuedDemandByQueueAndPriorityClass = aggregateDemand
+		for _, byPriorityClass := range aggregateDemand {
+			for pc := range byPriorityClass {
+				info.inUsePriorityClasses[pc] = true
+			}
+		}
 	}
 	return info, nil
 }
