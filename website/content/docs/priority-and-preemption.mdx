@@ -26,7 +26,7 @@ These classes are available by default:
 
 Your installation may allow others; using a naming that isn't allowed fails with `priority class <name> is not supported`. Don't use `armada-resilient`: the server accepts it, but the scheduler doesn't define it and logs `unknown priority class found armada-resilient` for each job.
 
-**Which to use:** choose `armada-preemptible` for work that can be interrupted and resubmitted. It often starts sooner, because it can use spare capacity. Choose `armada-default` for work that must not be interrupted.
+**Which to use:** choose `armada-preemptible` for work that can be interrupted and resubmitted. Both default classes can use spare capacity; choosing a preemptible class does not itself make a job start sooner. Choose `armada-default` for work that must not be interrupted.
 
 ## Try it: preempt a job yourself
 
@@ -149,8 +149,7 @@ Jobs also have a numeric `priority` field. They're different:
 
 ## Armada classes aren't Kubernetes priority classes
 
-Armada makes all preemption decisions itself, before pods reach the cluster. It picks the exact node for each job, and stamps the same Kubernetes priority class (`armada-default`) on every pod it creates, so Kubernetes treats all Armada pods equally. When your job is preempted, Armada decided it, and the reason says why.
-
+Armada makes all preemption decisions itself, before pods reach the cluster. It picks the exact node for each job. By default, the scheduler's `priorityClassNameOverride` sets the Kubernetes priority class to `armada-default` on every pod, so Kubernetes treats all Armada pods equally. Your installation can set a different class, use an empty value to remove the class, or omit the setting to preserve each job's submitted class. When your job is preempted, Armada decided it, and the reason says why.
 Kubernetes can still act on its own in two cases: it can evict pods when a node runs short of memory or disk (the job fails with reason `Evicted`), and non-Armada pods with a higher Kubernetes priority can displace Armada pods. Neither is an Armada preemption.
 
 ## Troubleshooting
