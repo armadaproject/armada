@@ -1,0 +1,57 @@
+syntax = 'proto3';
+
+package hamiapi;
+
+option go_package = "github.com/armadaproject/armada/pkg/hamiapi";
+
+// InventoryStatus is the result of validating a node's HAMi device inventory.
+enum InventoryStatus {
+  // The node reported no HAMi inventory: HAMi reporting is disabled or the node
+  // has no HAMi registration. The node is an ordinary node.
+  INVENTORY_STATUS_UNSPECIFIED = 0;
+  // The inventory is valid and at least one device can be used for placement.
+  INVENTORY_STATUS_USABLE = 1;
+  // The inventory is valid but no device can be used for placement, e.g.
+  // because every device is unhealthy or runs an unsupported mode.
+  INVENTORY_STATUS_UNAVAILABLE = 2;
+  // The node is registered with HAMi but its inventory could not be parsed or
+  // failed validation.
+  INVENTORY_STATUS_INVALID = 3;
+}
+
+// DeviceInfo describes one physical GPU registered with HAMi.
+message DeviceInfo {
+  // Physical GPU UUID.
+  string id = 1;
+  // Number of HAMi slots on the device (HAMi deviceSplitCount).
+  int32 slot_count = 2;
+  // Registered device memory, in MiB.
+  int64 memory_mib = 3;
+  // Registered device compute capacity, in percent.
+  int32 core_percent = 4;
+  // Hardware model reported by HAMi.
+  string type = 5;
+  // HAMi device mode, e.g. hami-core, mig or mps.
+  string mode = 6;
+  bool healthy = 7;
+  // True if the device can be used for placement: healthy and supported.
+  bool usable = 8;
+}
+
+// NodeInventory is the HAMi device inventory reported for a node.
+message NodeInventory {
+  InventoryStatus status = 1;
+  repeated DeviceInfo devices = 2;
+  // Bounded, human-readable reason for a non-usable status.
+  string reason = 3;
+}
+
+// DeviceAllocation is the amount of one physical GPU reserved for a job run.
+message DeviceAllocation {
+  // Physical GPU UUID.
+  string id = 1;
+  // Memory reserved on the device, in MiB.
+  int64 memory_mib = 2;
+  // Compute reserved on the device, in percent.
+  int32 core_percent = 3;
+}

@@ -1,0 +1,43 @@
+# A quarter of a HAMi GPU: Armada chooses the device, pins the pod to it and
+# hands it to hami-scheduler, which binds it there.
+#
+# The hami testcases assume a pool with hami.enabled and a node registered with
+# HAMi holding a single NVIDIA A10 (24576 MiB, 100% cores) in hami-core mode.
+# They are not part of the CI suites; run them with
+#   go run cmd/testsuite/main.go test --tests 'testsuite/testcases/hami/*'
+numBatches: 1
+batchSize: 1
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: workload
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          command:
+            - sh
+          args:
+            - -c
+            - sleep 5
+          resources:
+            limits:
+              memory: 32Mi
+              cpu: 50m
+              nvidia.com/gpu: 1
+              nvidia.com/gpumem: 6144
+              nvidia.com/gpucores: 25
+            requests:
+              memory: 32Mi
+              cpu: 50m
+              nvidia.com/gpu: 1
+              nvidia.com/gpumem: 6144
+              nvidia.com/gpucores: 25
+---
+timeout: "180s"
+expectedEvents:
+  - submitted:
+  - succeeded:

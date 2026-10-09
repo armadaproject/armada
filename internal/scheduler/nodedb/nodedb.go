@@ -18,10 +18,12 @@ import (
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/hami"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+	"github.com/armadaproject/armada/pkg/hamiapi"
 )
 
 const disallowedResourceRequested = "job requests disallowed resource and therefore cannot be scheduled"
@@ -52,6 +54,15 @@ func (nodeDb *NodeDb) addNodeToStats(node *internaltypes.Node) {
 	nodeDb.numNodesByNodeType[nodeType.GetId()]++
 	nodeDb.totalAllocatableResources = nodeDb.totalAllocatableResources.Add(node.GetAllocatableResources())
 	nodeDb.nodeTypes[node.GetNodeTypeId()] = nodeType
+	if node.IsHamiPool() {
+		for _, device := range node.HamiInventory().GetDevices() {
+			if device.Usable {
+				nodeDb.hamiDeviceCount++
+				nodeDb.hamiDeviceMemoryMiB += device.MemoryMib
+				nodeDb.hamiDeviceCorePercent += int64(device.CorePercent)
+			}
+		}
+	}
 }
 
 func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs []*jobdb.Job, entry *internaltypes.Node) error {
@@ -67,6 +78,7 @@ func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs [
 		if err := nodeDb.bindJobToNodeInPlace(entry, job, priority); err != nil {
 			return err
 		}
+		entry.SetHamiDeviceAllocations(job.Id(), job.ActiveHamiDeviceAllocations())
 	}
 	if err := nodeDb.UpsertWithTxn(txn, entry); err != nil {
 		return err
@@ -155,6 +167,10 @@ type NodeDb struct {
 	numNodesByNodeType map[uint64]int
 	// Total amount of allocatable resources, e.g., "cpu", "memory", "gpu", across all nodes in the db.
 	totalAllocatableResources internaltypes.ResourceList
+	// Number, total memory and total compute of the usable HAMi GPUs of nodes in a HAMi pool.
+	hamiDeviceCount       int64
+	hamiDeviceMemoryMiB   int64
+	hamiDeviceCorePercent int64
 	// Set of node types. Populated automatically as nodes are inserted.
 	// Node types are not cleaned up if all nodes of that type are removed from the NodeDb.
 	nodeTypes map[uint64]*internaltypes.NodeType
@@ -364,6 +380,15 @@ func (nodeDb *NodeDb) TotalKubernetesResources() internaltypes.ResourceList {
 	return nodeDb.totalAllocatableResources
 }
 
+// TotalHamiDeviceResources returns the total memory and compute of the usable
+// HAMi GPUs in this NodeDb, as Device resources.
+func (nodeDb *NodeDb) TotalHamiDeviceResources() internaltypes.ResourceList {
+	return nodeDb.resourceListFactory.FromNodeProto(map[string]*resource.Quantity{
+		hami.GPUMemoryResource: resource.NewQuantity(nodeDb.hamiDeviceMemoryMiB, resource.DecimalSI),
+		hami.GPUCoreResource:   resource.NewQuantity(nodeDb.hamiDeviceCorePercent, resource.DecimalSI),
+	}).OfType(internaltypes.Device)
+}
+
 func (nodeDb *NodeDb) Txn(write bool) *memdb.Txn {
 	return nodeDb.db.Txn(write)
 }
@@ -449,10 +474,11 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *context.GangSche
 			return false, nil, nil
 		}
 
-		// If we found a node for this job, bind the job to that node
+		// If we found a node for this job, bind the job and the HAMi GPUs chosen for it to that node
 		if node, err := nodeDb.BindJobToNode(node, jctx.Job, jctx.PodSchedulingContext.ScheduledAtPriority); err != nil {
 			return false, nil, err
 		} else {
+			node.SetHamiDeviceAllocations(jctx.JobId, jctx.PodSchedulingContext.HamiDeviceAllocations)
 			if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
 				return false, nil, err
 			}
@@ -982,8 +1008,18 @@ func (nodeDb *NodeDb) selectNodeForPodWithItAtPriority(
 			return nil, err
 		}
 
+		var hamiAllocations []*hamiapi.DeviceAllocation
+		if matches {
+			if onlyCheckDynamicRequirements && node.IsUnschedulable() && node.IsOverAllocated() {
+				hamiAllocations = node.HamiDeviceAllocations(jctx.JobId)
+			} else {
+				hamiAllocations, matches, reason = hamiPlacement(node, jctx, priority, urgency)
+			}
+		}
+
 		if matches {
 			selectedNode = node
+			jctx.PodSchedulingContext.HamiDeviceAllocations = hamiAllocations
 			break
 		} else {
 			s := nodeDb.stringFromPodRequirementsNotMetReason(reason)
@@ -1009,6 +1045,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 		availableResource        internaltypes.ResourceList
 		evictedJobs              []*EvictedJobSchedulingContext
 		staticRequirementsNotMet bool
+		hamiRequirementsNotMet   bool
 	}
 
 	pctx := jctx.PodSchedulingContext
@@ -1016,6 +1053,13 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 	// Some jobs can only be scheduled using a mix of urgency and fairshare preemption,
 	// however we may only use this mix if urgency preemption is enabled
 	allowUrgencyPreemption := nodeDb.urgencyBeforeFairsharePreemption && !nodeDb.disableUrgencyScheduling
+	// The view of node resources the job is fitted against: with urgency
+	// preemption, what would be free at its priority; otherwise, what is free
+	// once every evicted job is held back.
+	viewPriority, urgency := internaltypes.EvictedPriority, false
+	if allowUrgencyPreemption {
+		viewPriority, urgency = pctx.ScheduledAtPriority, true
+	}
 
 	var selectedNode *internaltypes.Node
 	var schedulingType *context.SchedulingType
@@ -1051,9 +1095,9 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 			if err != nil {
 				return nil, nil, nil, errors.WithStack(err)
 			}
-			availableResource := nodeFromDb.AllocatableAtPriority(internaltypes.EvictedPriority)
-			if allowUrgencyPreemption {
-				availableResource = nodeFromDb.AllocatableAtPriorityNoEviction(jctx.PodSchedulingContext.ScheduledAtPriority)
+			availableResource := nodeFromDb.AllocatableAtPriority(viewPriority)
+			if urgency {
+				availableResource = nodeFromDb.AllocatableAtPriorityNoEviction(viewPriority)
 			}
 			node = &consideredNode{
 				node:                     nodeFromDb,
@@ -1098,6 +1142,24 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 		}
 
 		nodeCopy := node.node.DeepCopyNilKeys()
+		for _, job := range node.evictedJobs {
+			// Remove preempted job from node
+			if err = nodeCopy.RemoveJob(job.JobSchedulingContext.Job); err != nil {
+				return nil, nil, nil, err
+			}
+		}
+
+		// With the preempted jobs removed, the job must also fit onto specific
+		// HAMi GPUs. If it does not, preempting more jobs on this node may free them.
+		hamiAllocations, hamiRequirementsMet, reason := hamiPlacement(nodeCopy, jctx, viewPriority, urgency)
+		if !hamiRequirementsMet {
+			if !node.hamiRequirementsNotMet {
+				node.hamiRequirementsNotMet = true
+				pctx.NumExcludedNodesByReason[nodeDb.stringFromPodRequirementsNotMetReason(reason)] += 1
+			}
+			continue
+		}
+
 		fairShareResourcePreempted := node.node.AllocatableAtPriority(internaltypes.EvictedPriority)
 		for _, job := range node.evictedJobs {
 			jobId := job.JobSchedulingContext.JobId
@@ -1106,10 +1168,6 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 				priority = job.JobSchedulingContext.Job.PriorityClass().Priority
 			}
 
-			// Remove preempted job from node
-			if err = nodeCopy.RemoveJob(job.JobSchedulingContext.Job); err != nil {
-				return nil, nil, nil, err
-			}
 			// Remove preempted job from list of evicted jobs
 			if err := txn.Delete(EvictedJobsTable, job); err != nil {
 				return nil, nil, nil, errors.WithStack(err)
@@ -1128,6 +1186,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *c
 		selectedNode = nodeCopy
 		pctx.NodeId = selectedNode.GetId()
 		pctx.PreemptedAtPriority = maxPriority
+		pctx.HamiDeviceAllocations = hamiAllocations
 
 		fairShareOnly, _ := DynamicJobRequirementsMet(fairShareResourcePreempted, jctx)
 

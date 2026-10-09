@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/hami"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/pricing"
@@ -210,7 +211,8 @@ func (jobDb *JobDb) NewJob(
 		priorityClass = jobDb.defaultPriorityClass
 	}
 
-	rr := jobDb.getResourceRequirements(schedulingInfo)
+	hamiRequest, hamiRequestErr := hamiRequestFromSchedulingInfo(schedulingInfo)
+	rr := jobDb.getResourceRequirements(schedulingInfo, hamiRequest, hamiRequestErr)
 
 	_, ok = bidstore.PriceBand_name[priceBand]
 	pb := bidstore.PriceBand_PRICE_BAND_UNSPECIFIED
@@ -246,6 +248,8 @@ func (jobDb *JobDb) NewJob(
 		jobSchedulingInfo:              schedulingInfo,
 		allResourceRequirements:        rr,
 		kubernetesResourceRequirements: rr.OfType(internaltypes.Kubernetes),
+		hamiRequest:                    hamiRequest,
+		hamiRequestErr:                 hamiRequestErr,
 		priorityClass:                  priorityClass,
 		cancelRequested:                cancelRequested,
 		cancelByJobSetRequested:        cancelByJobSetRequested,
@@ -263,8 +267,21 @@ func (jobDb *JobDb) NewJob(
 	return job, nil
 }
 
-func (jobDb *JobDb) getResourceRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) internaltypes.ResourceList {
+func (jobDb *JobDb) getResourceRequirements(
+	schedulingInfo *internaltypes.JobSchedulingInfo,
+	hamiRequest hami.Request,
+	hamiRequestErr error,
+) internaltypes.ResourceList {
 	requirements := safeGetRequirements(schedulingInfo)
+	// HAMi device resources are requested per GPU; replace them with the
+	// request's fair-share charge across all its GPUs.
+	delete(requirements, hami.GPUMemoryResource)
+	delete(requirements, hami.GPUCoreResource)
+	if hamiRequestErr == nil && hamiRequest.IsDeviceRequest() {
+		memoryMiB, corePercent := hami.Charge(hamiRequest, nil, 0)
+		requirements[hami.GPUMemoryResource] = *resource.NewQuantity(memoryMiB, resource.DecimalSI)
+		requirements[hami.GPUCoreResource] = *resource.NewQuantity(corePercent, resource.DecimalSI)
+	}
 	if jobDb.respectNodePodLimits {
 		// Each Armada job is exactly one pod; consume one pod slot from the node's allocatable.
 		requirements[armadaresource.PodsResourceName] = *resource.NewQuantity(1, resource.DecimalSI)

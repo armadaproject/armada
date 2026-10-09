@@ -5,12 +5,15 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/fake/context"
+	"github.com/armadaproject/armada/internal/hami"
 )
 
 const (
@@ -93,4 +96,29 @@ func newArbitraryError(message string) error {
 
 func newArmadaErrCreateResource() error {
 	return &armadaerrors.ErrCreateResource{}
+}
+
+func TestSubmitPod_HandsPinnedPodsToHamiScheduler(t *testing.T) {
+	tests := map[string]struct {
+		hamiScheduler string
+		annotations   map[string]string
+		expected      string
+	}{
+		"pinned pod":                    {hamiScheduler: "hami-scheduler", annotations: map[string]string{hami.UseGPUUUIDAnnotation: "gpu-a"}, expected: "hami-scheduler"},
+		"unpinned pod":                  {hamiScheduler: "hami-scheduler"},
+		"pinned pod with HAMi disabled": {annotations: map[string]string{hami.UseGPUUUIDAnnotation: "gpu-a"}},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			clusterContext := context.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", []*context.NodeSpec{})
+			submitter := NewSubmitter(clusterContext, &configuration.PodDefaults{}, 1, []string{})
+			if tc.hamiScheduler != "" {
+				submitter = submitter.WithHamiScheduler(tc.hamiScheduler)
+			}
+			pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod", Namespace: "default", Annotations: tc.annotations}}
+			submitted, err := submitter.submitPod(&SubmitJob{Pod: pod})
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, submitted.Spec.SchedulerName)
+		})
+	}
 }

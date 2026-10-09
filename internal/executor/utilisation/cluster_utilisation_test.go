@@ -11,12 +11,76 @@ import (
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
+	executorconfiguration "github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	fakecontext "github.com/armadaproject/armada/internal/executor/fake/context"
+	"github.com/armadaproject/armada/internal/executor/node"
+	"github.com/armadaproject/armada/internal/hami"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/executorapi"
+	"github.com/armadaproject/armada/pkg/hamiapi"
 )
 
 const nodeIdLabel = "node-id"
+
+func TestGetAvailableClusterCapacity_HamiInventory(t *testing.T) {
+	const usableDevice = `[{"id":"gpu-1","count":2,"devmem":16384,"devcore":100,"mode":"hami-core","health":true}]`
+	tests := map[string]struct {
+		enabled        bool
+		annotation     string
+		expectedStatus hamiapi.InventoryStatus
+		expectReported bool
+	}{
+		"disabled ignores inventory": {
+			annotation: usableDevice,
+		},
+		"usable inventory": {
+			enabled:        true,
+			annotation:     usableDevice,
+			expectReported: true,
+			expectedStatus: hamiapi.InventoryStatus_INVENTORY_STATUS_USABLE,
+		},
+		"malformed inventory is reported as invalid": {
+			enabled:        true,
+			annotation:     "not-json",
+			expectReported: true,
+			expectedStatus: hamiapi.InventoryStatus_INVENTORY_STATUS_INVALID,
+		},
+		"unregistered node reports no inventory": {
+			enabled: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			clusterContext := fakecontext.NewFakeClusterContext(
+				executorconfiguration.ApplicationConfiguration{ClusterId: "cluster", Pool: "pool"},
+				nodeIdLabel,
+				[]*fakecontext.NodeSpec{{Name: "worker", Count: 1, Allocatable: map[v1.ResourceName]resource.Quantity{v1.ResourceCPU: resource.MustParse("8")}}},
+			)
+			nodes, err := clusterContext.GetNodes()
+			require.NoError(t, err)
+			if tc.annotation != "" {
+				nodes[0].Annotations = map[string]string{hami.NodeNvidiaRegisterAnnotation: tc.annotation}
+			}
+			nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, "node-type", "node-pool", "", nil)
+			service := NewClusterUtilisationService(clusterContext, nil, nodeInfoService, nil, nodeIdLabel, nil, 0, tc.enabled)
+
+			report, err := service.GetAvailableClusterCapacity()
+			require.NoError(t, err)
+			require.Len(t, report.Nodes, 1)
+			inventory := report.Nodes[0].HamiInventory
+			if !tc.expectReported {
+				assert.Nil(t, inventory)
+				return
+			}
+			require.NotNil(t, inventory)
+			assert.Equal(t, tc.expectedStatus, inventory.Status)
+			// Device capacity is never added to the node's schedulable resources.
+			_, hasMemory := report.Nodes[0].TotalResources[hami.GPUMemoryResource]
+			assert.False(t, hasMemory)
+		})
+	}
+}
 
 func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludePodsNotOnGivenNodes(t *testing.T) {
 	presentNodeName := "Node1"

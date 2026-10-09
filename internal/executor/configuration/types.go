@@ -223,4 +223,22 @@ type ExecutorConfiguration struct {
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration
+	Hami       HamiConfiguration
+}
+
+// HamiConfiguration configures the executor's integration with HAMi's NVIDIA
+// hami-core backend. The HAMi deployment must use memoryFactor=1 (gpumem in MiB).
+type HamiConfiguration struct {
+	// If true, the executor reports the HAMi device inventory of each node and
+	// hands pods pinned to HAMi GPUs to SchedulerName.
+	Enabled bool
+	// Name of HAMi's scheduler. Defaults to hami-scheduler.
+	SchedulerName string
+}
+
+func (c HamiConfiguration) SchedulerNameOrDefault() string {
+	if c.SchedulerName == "" {
+		return "hami-scheduler"
+	}
+	return c.SchedulerName
 }

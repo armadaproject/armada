@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	util2 "github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/internal/hami"
 )
 
 type Submitter interface {
@@ -28,6 +29,8 @@ type SubmitService struct {
 	podDefaults              *configuration.PodDefaults
 	submissionThreadCount    int
 	fatalPodSubmissionErrors []string
+	// If set, pods pinned to HAMi GPUs are scheduled by this scheduler.
+	hamiSchedulerName string
 }
 
 func NewSubmitter(
@@ -42,6 +45,13 @@ func NewSubmitter(
 		submissionThreadCount:    submissionThreadCount,
 		fatalPodSubmissionErrors: fatalPodSubmissionErrors,
 	}
+}
+
+// WithHamiScheduler makes the submitter hand pods pinned to HAMi GPUs to the
+// named scheduler, which enforces the reservation on the node.
+func (submitService *SubmitService) WithHamiScheduler(schedulerName string) *SubmitService {
+	submitService.hamiSchedulerName = schedulerName
+	return submitService
 }
 
 type FailedSubmissionDetails struct {
@@ -114,6 +124,9 @@ func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, error) {
 	pod := job.Pod
 	// Ensure the K8SService and K8SIngress fields are populated
 	submitService.applyExecutorSpecificIngressDetails(job)
+	if _, pinned := pod.Annotations[hami.UseGPUUUIDAnnotation]; pinned && submitService.hamiSchedulerName != "" {
+		pod.Spec.SchedulerName = submitService.hamiSchedulerName
+	}
 
 	if len(job.Ingresses) > 0 || len(job.Services) > 0 {
 		pod.Annotations = util.MergeMaps(pod.Annotations, map[string]string{

@@ -9,10 +9,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/hami"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/label"
 	koTaint "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/taint"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/hamiapi"
 )
 
 const (
@@ -92,6 +94,22 @@ type Node struct {
 	// Sorted ascending as HasUrgencyPreemptibleResources relies on the ordering to find the highest/lowest priority
 	// This must stay sorted
 	knownPriorities []int32
+
+	// HAMi device inventory reported for this node, or nil if the node is not
+	// registered with HAMi. Read-only and shared between copies of the node.
+	hamiInventory *hamiapi.NodeInventory
+	// True if the node belongs to a pool that places GPU jobs onto HAMi devices.
+	// This is a property of the NodeDb the node is in, but it is kept on the node
+	// because static job matching, which the submit check also runs, sees only
+	// the node.
+	hamiPool bool
+	// HAMi GPUs reserved by jobs bound to this node, by job id. A job's priority
+	// and eviction status are those recorded in priorityByJobId and evictedJobRunIds.
+	// The allocation slices are immutable.
+	hamiAllocationsByJobId map[string][]*hamiapi.DeviceAllocation
+	// Amount of each HAMi GPU reserved by jobs of other pools, which are always
+	// occupied. Read-only and shared between copies of the node.
+	hamiReservedUsage hami.Usage
 }
 
 func FromSchedulerObjectsNode(node *schedulerobjects.Node,
@@ -101,8 +119,10 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 	allowedPriorities []int32,
 	resourceListFactory *ResourceListFactory,
 ) *Node {
-	totalResources := resourceListFactory.FromNodeProto(node.TotalResources.Resources)
-	allocatableResources := resourceListFactory.FromNodeProto(node.AvailableArmadaResource().ToProtoMap())
+	// Only Kubernetes resources are node resources: device resources such as HAMi
+	// GPU memory are placed per device and never fitted against the node.
+	totalResources := resourceListFactory.FromNodeProto(node.TotalResources.Resources).OfType(Kubernetes)
+	allocatableResources := resourceListFactory.FromNodeProto(node.AvailableArmadaResource().ToProtoMap()).OfType(Kubernetes)
 
 	taints := make([]v1.Taint, 0, len(node.Taints))
 	for _, t := range node.Taints {
@@ -111,7 +131,7 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		}
 	}
 
-	return CreateNodeAndType(
+	result := CreateNodeAndType(
 		node.Id,
 		nodeIndex,
 		node.Executor,
@@ -127,6 +147,8 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		allocatableResources,
 		allowedPriorities,
 	)
+	result.hamiInventory = node.HamiInventory
+	return result
 }
 
 func CreateNodeAndType(
@@ -354,6 +376,111 @@ func (node *Node) AllocatableByPriorityNoEviction() map[int32]ResourceList {
 	return maps.Clone(node.allocatableByPriorityNoEviction)
 }
 
+// HamiInventory returns the node's HAMi device inventory, or nil if the node is
+// not registered with HAMi. The result is shared and must not be modified.
+func (node *Node) HamiInventory() *hamiapi.NodeInventory {
+	return node.hamiInventory
+}
+
+// WithHamiInventory returns a copy of node with the given HAMi inventory. The
+// inventory must not be modified afterwards.
+func (node *Node) WithHamiInventory(inventory *hamiapi.NodeInventory) *Node {
+	result := node.DeepCopyNilKeys()
+	result.hamiInventory = inventory
+	return result
+}
+
+// IsHamiPool reports whether the node belongs to a pool that places GPU jobs
+// onto HAMi devices.
+func (node *Node) IsHamiPool() bool {
+	return node.hamiPool
+}
+
+// WithHamiPool returns a copy of node marked as belonging to a pool that
+// places GPU jobs onto HAMi devices.
+func (node *Node) WithHamiPool() *Node {
+	result := node.DeepCopyNilKeys()
+	result.hamiPool = true
+	return result
+}
+
+// HamiDeviceAllocations returns the HAMi GPUs reserved by a job bound to this
+// node. The result is shared and must not be modified.
+func (node *Node) HamiDeviceAllocations(jobId string) []*hamiapi.DeviceAllocation {
+	return node.hamiAllocationsByJobId[jobId]
+}
+
+// SetHamiDeviceAllocations records the HAMi GPUs reserved by a job bound to
+// this node. Like AddJob, it mutates the node in place, so must only be called
+// on a copy owned by the caller. The allocations must not be modified afterwards.
+func (node *Node) SetHamiDeviceAllocations(jobId string, allocations []*hamiapi.DeviceAllocation) {
+	if len(allocations) == 0 {
+		delete(node.hamiAllocationsByJobId, jobId)
+		return
+	}
+	if node.hamiAllocationsByJobId == nil {
+		node.hamiAllocationsByJobId = map[string][]*hamiapi.DeviceAllocation{}
+	}
+	node.hamiAllocationsByJobId[jobId] = allocations
+}
+
+// WithReservedHamiUsage returns a copy of node on which the given amount of each
+// GPU is permanently occupied by jobs of other pools. The usage must not be
+// modified afterwards.
+func (node *Node) WithReservedHamiUsage(usage hami.Usage) *Node {
+	if len(usage) == 0 {
+		return node
+	}
+	result := node.DeepCopyNilKeys()
+	result.hamiReservedUsage = usage
+	return result
+}
+
+// HamiDeviceUsage returns the amount reserved on each HAMi GPU from the point
+// of view of a job scheduled at priority, mirroring AllocatableAtPriority: jobs
+// bound at a lower priority, and evicted jobs above EvictedPriority, are not
+// counted. With urgency, evicted jobs are counted at the priority they were
+// bound at, mirroring AllocatableAtPriorityNoEviction. The reservation of
+// excludeJobId is never counted.
+func (node *Node) HamiDeviceUsage(priority int32, urgency bool, excludeJobId string) hami.Usage {
+	usage := maps.Clone(node.hamiReservedUsage)
+	if usage == nil {
+		usage = hami.Usage{}
+	}
+	for jobId, allocations := range node.hamiAllocationsByJobId {
+		if jobId == excludeJobId {
+			continue
+		}
+		jobPriority := node.priorityByJobId[jobId]
+		if !urgency && node.evictedJobRunIds[jobId] {
+			jobPriority = EvictedPriority
+		}
+		if jobPriority >= priority {
+			usage.Add(allocations)
+		}
+	}
+	return usage
+}
+
+// HamiOversubscribedPriorities returns the priorities at which the GPUs reserved
+// on this node exceed their capacity, e.g. after a higher-priority job was
+// placed onto GPUs held by lower-priority jobs.
+func (node *Node) HamiOversubscribedPriorities() []int32 {
+	if len(node.hamiAllocationsByJobId) == 0 || node.hamiInventory == nil {
+		return nil
+	}
+	var result []int32
+	for _, priority := range node.knownPriorities {
+		if priority == EvictedPriority {
+			continue
+		}
+		if node.HamiDeviceUsage(priority, false, "").Oversubscribed(node.hamiInventory.Devices) {
+			result = append(result, priority)
+		}
+	}
+	return result
+}
+
 func (node *Node) WithNodeType(nodeType *NodeType) *Node {
 	result := node.DeepCopyNilKeys()
 	result.nodeType = nodeType
@@ -485,6 +612,10 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		evictedJobRunIds:                maps.Clone(node.evictedJobRunIds),
 		priorityByJobId:                 maps.Clone(node.priorityByJobId),
 		knownPriorities:                 node.knownPriorities,
+		hamiInventory:                   node.hamiInventory,
+		hamiPool:                        node.hamiPool,
+		hamiAllocationsByJobId:          maps.Clone(node.hamiAllocationsByJobId),
+		hamiReservedUsage:               node.hamiReservedUsage,
 	}
 }
 
@@ -506,6 +637,11 @@ func (node *Node) SummaryString() string {
 	result += fmt.Sprintf("AllocatableResources: %s\n", node.allocatableResources.String())
 	result += fmt.Sprintf("Labels: %v\n", node.labels)
 	result += fmt.Sprintf("Taints: %v\n", node.taints)
+	if node.hamiInventory != nil {
+		result += fmt.Sprintf("HamiInventory: %v\n", node.hamiInventory)
+		result += fmt.Sprintf("HamiPool: %t\n", node.hamiPool)
+		result += fmt.Sprintf("HamiAllocationsByJobId: %v\n", node.hamiAllocationsByJobId)
+	}
 	return result
 }
 
@@ -541,9 +677,15 @@ func (node *Node) AddJob(job SchedulableJob, priority int32) error {
 				jobId, node.GetId(), evictedAtPriority, priority,
 			)
 		}
+		// Rebinding keeps the amount recorded when the job was first bound; the
+		// job's current view of its requests may have changed since then. It
+		// also keeps the job's HAMi GPUs.
+		requests = node.allocatedByJobId[jobId]
+		hamiAllocations := node.hamiAllocationsByJobId[jobId]
 		if err := node.RemoveJob(job); err != nil {
 			return err
 		}
+		node.SetHamiDeviceAllocations(jobId, hamiAllocations)
 	}
 
 	if _, ok := node.allocatedByJobId[jobId]; ok {
@@ -561,10 +703,12 @@ func (node *Node) AddJob(job SchedulableJob, priority int32) error {
 // at the priority it was bound at to the EvictedPriority bucket within
 // allocatableByPriority. Ownership (allocatedByJobId) is
 // intentionally left in place, and the stored priority is preserved so a later
-// RemoveJob can still release correctly.
+// RemoveJob can still release correctly. The amount moved is the amount recorded
+// when the job was bound.
 func (node *Node) EvictJob(job SchedulableJob) error {
 	jobId := job.Id()
-	if _, ok := node.allocatedByJobId[jobId]; !ok {
+	jobRequests, ok := node.allocatedByJobId[jobId]
+	if !ok {
 		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.GetId())
 	}
 
@@ -574,7 +718,6 @@ func (node *Node) EvictJob(job SchedulableJob) error {
 	node.evictedJobRunIds[jobId] = true
 
 	allocatableByPriority := node.allocatableByPriority
-	jobRequests := job.KubernetesResourceRequirements()
 	markAllocatable(allocatableByPriority, node.priorityByJobId[jobId], jobRequests)
 	markAllocated(allocatableByPriority, EvictedPriority, jobRequests)
 
@@ -584,18 +727,20 @@ func (node *Node) EvictJob(job SchedulableJob) error {
 // RemoveJob unbinds job from the node, releasing its ownership and returning its
 // resources to allocatableByPriority. If the job was evicted, its resources are
 // released from the EvictedPriority bucket; otherwise from the bucket at the priority
-// it was bound at. Removing a job that is not bound is a no-op.
+// it was bound at. The amount released is the amount recorded when the job was bound,
+// not the job's current requests. Removing a job that is not bound is a no-op.
 func (node *Node) RemoveJob(job SchedulableJob) error {
 	jobId := job.Id()
-	requests := job.KubernetesResourceRequirements()
 
 	isEvicted := node.IsJobEvicted(jobId)
 	delete(node.evictedJobRunIds, jobId)
 
-	if _, ok := node.allocatedByJobId[jobId]; !ok {
+	requests, ok := node.allocatedByJobId[jobId]
+	if !ok {
 		return nil
 	}
 	delete(node.allocatedByJobId, jobId)
+	delete(node.hamiAllocationsByJobId, jobId)
 
 	if isEvicted {
 		markAllocatable(node.allocatableByPriority, EvictedPriority, requests)
