@@ -10,6 +10,7 @@ on:
       - '.github/workflows/rust-client.yml'
       - 'magefiles/proto.go'
       - 'magefiles/main.go'
+      - 'magefiles/rust.go'
 
   pull_request:
     branches-ignore:
@@ -20,6 +21,7 @@ on:
       - '.github/workflows/rust-client.yml'
       - 'magefiles/proto.go'
       - 'magefiles/main.go'
+      - 'magefiles/rust.go'
 
 jobs:
   rust-client:
@@ -63,21 +65,16 @@ jobs:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Bootstrap proto dependencies
-        run: go run github.com/magefile/mage@v1.17.2 -v BootstrapProto
-
       - name: Check formatting
         if: matrix.toolchain == 'stable'
         run: cargo fmt --manifest-path client/rust/Cargo.toml -- --check
 
-      - name: Build
-        run: cargo build --manifest-path client/rust/Cargo.toml
+      - name: Build and generate pre-built proto code
+        run: go run github.com/magefile/mage@v1.17.2 -v BuildRust
 
       - name: Verify generated code is up to date
         if: matrix.toolchain == 'stable'
-        run: |
-          ARMADA_GENERATE=1 cargo build --manifest-path client/rust/Cargo.toml
-          git diff --exit-code client/rust/src/gen/
+        run: git diff --exit-code client/rust/src/gen/
 
       - name: Test
         run: cargo test --manifest-path client/rust/Cargo.toml
