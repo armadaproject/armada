@@ -154,6 +154,20 @@ type HistogramConfig struct {
 	Count  int
 }
 
+// AggregateDemandConfig controls the rollout of a JobDb aggregate. The JobDb
+// always maintains the aggregate; these flags control whether the scheduler uses
+// it.
+type AggregateDemandConfig struct {
+	// Compare computes the scheduling info both from the aggregate and by
+	// scanning jobs, and publishes any difference. The scan-derived value
+	// remains authoritative while the aggregate is being validated.
+	Compare bool
+	// Use sources the scheduling info from the aggregate instead of scanning
+	// jobs. When set (and Compare is off), the corresponding jobs are not
+	// fetched at all.
+	Use bool
+}
+
 // SchedulingConfig contains config controlling the Armada scheduler.
 //
 // The Armada scheduler is in charge of assigning pods to cluster and nodes.
@@ -209,6 +223,14 @@ type SchedulingConfig struct {
 	MaxNewJobSchedulingDurationPerQueue time.Duration `validate:"omitempty,ltfield=MaxSchedulingDuration"`
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
+	// Experimental - controls the rollout of the JobDb queued-jobs aggregate.
+	// The JobDb always maintains the aggregate; these flags control whether the
+	// scheduler uses it.
+	ExperimentalQueuedAggregate AggregateDemandConfig
+	// Experimental - controls the rollout of the JobDb running-jobs aggregate.
+	// The JobDb always maintains the aggregate; these flags control whether the
+	// scheduler uses it.
+	ExperimentalRunningAggregate AggregateDemandConfig
 	// If true, the scheduler tracks per-node pod capacity and refuses to schedule
 	// jobs onto nodes that have exhausted their pod limit.
 	RespectNodePodLimits bool
