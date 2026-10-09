@@ -49,3 +49,8 @@ categorisation
 retryable
 organisations
 KUBECONFIG
+uncordoned
+triggerer
+ingester
+preemptible
+reprioritizes
