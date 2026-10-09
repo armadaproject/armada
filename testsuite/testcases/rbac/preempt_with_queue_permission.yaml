@@ -1,0 +1,48 @@
+# RBAC: a principal without the global preempt_any_jobs permission can preempt jobs
+# in a queue it has the preempt permission.
+queue: rbac-queue-submit-and-preempt
+authContext: rbac-queue-only
+numBatches: 1
+batchSize: 1
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      priorityClassName: armada-preemptible
+      containers:
+        - name: cancel-by-id
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          args:
+            - "sleep"
+            - "100s"
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+triggerEvent: running
+preempt:
+  request:
+    reason: "Test job preemption for validation"
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - preempted:
+queueConfig:
+  setup:
+    queueSpec:
+      userOwners: ["nobody"]
+      permissions:
+        - subjects:
+            - kind: Group
+              name: queue-only
+          verbs:
+            - submit
+            - preempt
+            - watch
