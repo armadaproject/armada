@@ -221,9 +221,11 @@ func buildRule(cfg CategoryRule) (rule, error) {
 	}, nil
 }
 
-// ClassifyContainerError returns the category and subcategory for a pod whose
-// failure is described by its own state: terminated containers, exit codes,
-// and Kubernetes conditions. Use it for terminated pods (PodFailed phase).
+// ClassifyContainerError returns the category and subcategory for a pod from
+// its own state only: terminated containers, exit codes, and Kubernetes
+// conditions. onPodError and onPodEvents rules never match. For a failed pod,
+// use ClassifyPodError with the failure reason and the events, so that every
+// rule type can match.
 // Returns empty result if the receiver is nil or the pod is nil.
 // Returns (defaultCategory, defaultSubcategory) if no rules match.
 func (c *Classifier) ClassifyContainerError(pod *v1.Pod) ClassifyResult {
