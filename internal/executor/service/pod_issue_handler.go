@@ -73,7 +73,7 @@ type runIssue struct {
 
 type IssueHandler interface {
 	HasIssue(runId string) bool
-	DetectAndRegisterIssuesForFailedPod(pod *v1.Pod) (bool, error)
+	DetectAndRegisterIssuesForFailedPod(failed FailedPod) (bool, error)
 }
 
 type PodIssueHandler struct {
@@ -169,17 +169,13 @@ func (p *PodIssueHandler) HasIssue(runId string) bool {
 	return exists
 }
 
-func (p *PodIssueHandler) DetectAndRegisterFailedPodIssue(pod *v1.Pod) (bool, error) {
+func (p *PodIssueHandler) DetectAndRegisterFailedPodIssue(failed FailedPod) (bool, error) {
+	pod, podEvents := failed.Pod, failed.Events
 	if !util.IsManagedPod(pod) || pod.Status.Phase != v1.PodFailed {
 		return false, nil
 	}
 	jobId := util.ExtractJobId(pod)
 	runId := util.ExtractJobRunId(pod)
-
-	podEvents, err := p.clusterContext.GetPodEvents(pod)
-	if err != nil {
-		return false, fmt.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
-	}
 
 	isRetryable, message := p.failedPodChecker.IsRetryable(pod, podEvents)
 	if !isRetryable {
@@ -205,36 +201,23 @@ func (p *PodIssueHandler) DetectAndRegisterFailedPodIssue(pod *v1.Pod) (bool, er
 // precedence order: the failed pod checks keep first claim on every pod while
 // they are being deprecated in favour of categories, then the category delete
 // action is considered.
-func (p *PodIssueHandler) DetectAndRegisterIssuesForFailedPod(pod *v1.Pod) (bool, error) {
-	issueAdded, err := p.DetectAndRegisterFailedPodIssue(pod)
+func (p *PodIssueHandler) DetectAndRegisterIssuesForFailedPod(failed FailedPod) (bool, error) {
+	issueAdded, err := p.DetectAndRegisterFailedPodIssue(failed)
 	if issueAdded || err != nil {
 		return issueAdded, err
 	}
-	return p.DetectAndRegisterDeleteActionIssue(pod)
+	return p.DetectAndRegisterDeleteActionIssue(failed)
 }
 
 // DetectAndRegisterDeleteActionIssue registers an issue for a failed pod whose
-// matched category has action Delete.
-func (p *PodIssueHandler) DetectAndRegisterDeleteActionIssue(pod *v1.Pod) (bool, error) {
+// category has action Delete. The state reporter categorized the pod, so the
+// delete decision and the report use the same category.
+func (p *PodIssueHandler) DetectAndRegisterDeleteActionIssue(failed FailedPod) (bool, error) {
+	pod := failed.Pod
 	if !util.IsManagedPod(pod) || pod.Status.Phase != v1.PodFailed {
 		return false, nil
 	}
-	podEvents, err := p.clusterContext.GetPodEvents(pod)
-	if err != nil {
-		// The events feed the debug message and the onPodEvents rules. Both
-		// are best effort. The delete-first ordering is not. If the fetch
-		// fails, classify and register without the events. The caller must
-		// not report the failure while the pod still holds its name.
-		log.Warnf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
-		podEvents = nil
-	}
-	// Classify with the extracted failure reason and the pod events. This
-	// lets onPodError and onPodEvents rules match pods that never started a
-	// container, for example kubelet admission rejections. Such pods have no
-	// exit codes and no termination messages.
-	failedReason := util.ExtractPodFailedReason(pod)
-	classification := p.classifier.Classify(pod, failedReason, podEvents)
-	if classification.Action != categorizer.PodFailureActionDelete {
+	if failed.Classification.Action != categorizer.PodFailureActionDelete {
 		return false, nil
 	}
 	return p.registerIssue(&runIssue{
@@ -242,12 +225,12 @@ func (p *PodIssueHandler) DetectAndRegisterDeleteActionIssue(pod *v1.Pod) (bool,
 		RunId: util.ExtractJobRunId(pod),
 		PodIssue: &podIssue{
 			OriginalPodState: pod.DeepCopy(),
-			Message:          failedReason,
-			DebugMessage:     p.debugRenderer.Render(pod, podEvents, reporter.TriggerPodFailed),
+			Message:          util.ExtractPodFailedReason(pod),
+			DebugMessage:     p.debugRenderer.Render(pod, failed.Events, reporter.TriggerPodFailed),
 			Retryable:        false,
 			Type:             DeleteActionFailure,
 			Cause:            util.ExtractPodFailureCause(pod),
-			Classification:   classification,
+			Classification:   failed.Classification,
 			DetectionTime:    p.clock.Now(),
 		},
 		Reported: false,
@@ -601,8 +584,8 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 // newPodIssue returns the issue with its category, set when the executor detects the issue. Every pod issue comes from
 // here, so no issue reaches a handler without a category. Armada gives the failures that it detects itself the
 // built-in category internal. The classifier categorizes the other failures from the pod, the message of the issue and
-// the events that the detection read. The Delete-action detection categorizes the pod before it creates an issue,
-// because the action decides whether an issue exists.
+// the events that the detection read. A Delete-action issue takes the category of the failed pod from the state
+// reporter, because the action decides whether the issue exists.
 func (p *PodIssueHandler) newPodIssue(issue podIssue, events []*v1.Event) *podIssue {
 	if sub := internalSubcategoryForPodIssueType(issue.Type); sub != "" {
 		issue.Classification = categorizer.ClassifyResult{
