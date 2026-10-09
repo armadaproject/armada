@@ -588,6 +588,26 @@ func TestNewClassifier_ValidationErrors(t *testing.T) {
 			}},
 			errContains: "duplicate category name",
 		},
+		"category name internal is reserved": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: errormatch.CategoryInternal, Rules: []CategoryRule{
+					{OnConditions: []string{errormatch.ConditionOOMKilled}},
+				}},
+			}},
+			errContains: `category name "internal" is reserved`,
+		},
+		"category name preemption is reserved": {
+			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
+				{Name: errormatch.CategoryPreemption, Rules: []CategoryRule{
+					{OnConditions: []string{errormatch.ConditionEvicted}},
+				}},
+			}},
+			errContains: `category name "preemption" is reserved`,
+		},
+		"defaultCategory internal is reserved": {
+			config:      ErrorCategoriesConfig{DefaultCategory: errormatch.CategoryInternal},
+			errContains: `defaultCategory "internal" is reserved`,
+		},
 		"category name too long": {
 			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: strings.Repeat("a", maxCategoryNameLen+1), Rules: []CategoryRule{
