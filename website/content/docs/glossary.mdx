@@ -1,0 +1,347 @@
+---
+title: 'Glossary'
+description: 'Definitions of the terms used across the Armada documentation.'
+---
+
+Short definitions of the terms used in these docs.
+{/* For how the main ideas fit together, see [Core concepts](/docs/core-concepts). */}
+
+## A
+
+**Active queue**
+A queue with jobs waiting or running. Only active queues count when Armada shares resources.
+
+**Airflow**
+A workflow tool. The `armada-airflow` package lets Airflow tasks run as Armada jobs.
+{/* See [Airflow](/docs/airflow). */}
+
+**Annotation**
+A key-value note attached to a job. Armada reads a few of its own, such as `armadaproject.io/gangId`. Others are passed on to the pod.
+
+**`anonymous`**
+The user name Armada gives requests that aren't logged in. Everyone on a laptop install is `anonymous`.
+
+**armadactl**
+Armada's command-line tool. See the [CLI reference](/docs/cli).
+
+**`ArmadaServer`, `Scheduler`, `Executor` (resources)**
+Kubernetes resources the Armada Operator uses to describe each Armada component. Their `spec.applicationConfig` holds the component's settings.
+{/* See [Install and configure](/docs/install-and-configure). */}
+
+**Armada Operator**
+A program that installs and manages Armada inside a Kubernetes cluster. Getting started uses it.
+
+## B
+
+**Binoculars**
+The Armada service that Lookout's **Logs** tab reads job logs through. The laptop install doesn't include it.
+
+**Bulk action**
+An action on many jobs at once: a whole job set, or every matching job in one or more queues (`cancel queues`, `preempt queues`).
+
+## C
+
+**Cancel**
+Stop a job, or every job in a job set or queue, on purpose. The job ends as **Cancelled**.
+
+**`clientId`**
+An optional key on a job that prevents duplicates. Submitting again with the same `clientId` to the same queue returns the original job.
+
+**Cluster**
+A Kubernetes cluster: a group of machines (nodes) managed together. Armada can run jobs on several.
+
+**Context**
+A named connection in `~/.armadactl.yaml`: an Armada address plus how to log in. You switch between contexts with `armadactl config use-context`.
+
+**Control plane**
+The central part of Armada: the server, scheduler, Lookout and their databases. It can run anywhere the executors can reach.
+
+**Cordon**
+Pause a queue, or a whole worker cluster (an executor): jobs already running carry on, but no new ones start until it's **uncordoned**.
+
+## D
+
+**DAG**
+In Airflow, a workflow: a set of tasks and the order they run in.
+
+**Deferrable**
+An Airflow mode where a waiting task hands over to Airflow's triggerer, freeing its worker slot.
+
+**Dominant resource fairness**
+How Armada measures fair share: each queue's use is judged by the resource (CPU, memory, GPU and so on) it uses most of, relative to the pool.
+
+**Dry run**
+A trial run that checks a command or file without changing anything (`--dry-run`).
+
+## E
+
+**Event**
+A record of a change in a job's state, such as `JobQueuedEvent` or `JobSucceededEvent`. `armadactl watch` shows them as they happen.
+
+**Event API**
+The part of the server that streams a job set's events (gRPC service `Event`). `armadactl watch` uses it.
+
+**Executor**
+The Armada component that runs in each worker cluster. It asks the scheduler for jobs, creates their pods, and reports their results.
+
+## F
+
+**Fail-fast**
+A job setting (the annotation `armadaproject.io/failFast: "true"`) that turns off every kind of retry: the job fails at once if its pod can't start, and retry policies don't apply to it. Gang jobs always fail fast.
+
+**Failure category**
+A short label the executor gives a failed run, such as `oom` or `user_error`, so you can tell at a glance why it failed. The platform team defines them; Armada sets `internal` and `preemption` itself.
+{/* See [Failure categories](/docs/failure-categories). */}
+
+**Fair share**
+The portion of the cluster each active queue is entitled to, weighted by its priority factor.
+{/* See [Core concepts](/docs/core-concepts#fair-share). */}
+
+**Fair-share preemption**
+Armada stopping preemptible jobs from a queue that's using more than its fair share, so other queues get theirs.
+
+**Fake executor**
+A simulated executor for developing Armada without Kubernetes: jobs move through their states, but no containers run. See [Developer guide](/docs/developer-guide).
+
+## G
+
+**Gang**
+A group of jobs that must all start together or not at all.
+{/* See [Gang jobs](/docs/gang-jobs). */}
+
+**Gang cardinality**
+The number of jobs in a gang (`armadaproject.io/gangCardinality`).
+
+**Gang ID**
+The name shared by every member of a gang (`armadaproject.io/gangId`). Use a new one for every gang.
+
+**Global permission**
+A right that applies to every queue, granted by the platform team to groups, such as `submit_any_jobs` or `create_queue`.
+{/* See [Authentication](/docs/authentication#operator-setup). */}
+
+**Goreman**
+The tool the developer setup uses to start every Armada component together from a Procfile. See [Developer guide](/docs/developer-guide).
+
+**Group**
+A set of users from your login provider. Permissions can be given to groups as well as to individual users.
+
+## H
+
+**Headless service**
+A service that gives a job a fixed DNS name other pods can reach it by, without a separate IP address.
+{/* See [Interactive jobs and services](/docs/interactive-jobs-and-services). */}
+
+**Hint**
+A short message, with a known fix, that the platform team attaches to a failure category. It appears after the failure message in Lookout and `armadactl watch`.
+
+## I
+
+**Ingester**
+An Armada component that keeps one database up to date from Armada's event log: the scheduler ingester, Lookout ingester and event ingester.
+
+**Ingress**
+A Kubernetes object that makes a job reachable through a web address, for example to open a notebook in a browser.
+
+**`ingressAddresses`**
+The addresses Armada reports for a job's NodePort services and ingresses, sent in a `JobIngressInfoEvent`.
+
+## J
+
+**Job**
+One piece of work: a single Kubernetes pod plus Armada details (queue, job set, priority).
+{/* See [Core concepts](/docs/core-concepts#jobs). */}
+
+**Job file**
+A YAML file describing one or more jobs to submit.
+
+**Job ID**
+The unique ID Armada gives each job when it's submitted.
+
+**Job report**
+The scheduler's explanation of its latest decision about a job: `armadactl get job-report <job-id>`.
+
+**Job set**
+A label you choose (`jobSetId`) to group related jobs in a queue, so you can watch or cancel them together.
+
+## K
+
+**Kind**
+"Kubernetes in Docker": a tool that runs a small Kubernetes cluster inside Docker. The laptop install uses it.
+
+**kubectl**
+Kubernetes' command-line tool. On a laptop install, you use it to read a job's output (`kubectl logs`).
+
+## L
+
+**Label (queue)**
+A `key=value` tag on a queue, used to select many queues at once.
+
+**Lease, Leased**
+The state where the scheduler has chosen a cluster and node for a job, but its pod hasn't started yet.
+
+**Lease returned**
+The executor handing a job back to the scheduler because its pod couldn't start. Armada can then try it again (a **startup retry**).
+
+**Limits and requests**
+The CPU and memory a container asks for (**requests**) and may use at most (**limits**). Armada requires them to be equal.
+
+**Lookout**
+Armada's web UI for finding and following jobs. On a laptop install it's at `http://localhost:30000`.
+
+## M
+
+**Mage**
+The build tool used to develop Armada (`mage kind`, `mage dev:up`). See [Developer guide](/docs/developer-guide).
+
+## N
+
+**Namespace**
+A Kubernetes area that a pod runs in. Every job must name one; `default` always exists.
+
+**Node**
+One machine in a Kubernetes cluster.
+
+**Node selector**
+A pod setting that limits which nodes it can run on. Armada adds one to pin each pod to the node it chose.
+
+**Node uniformity label**
+A node label that every member of a gang must share the same value of, such as the same zone (`armadaproject.io/gangNodeUniformityLabel`). The platform team must enable it: the executor has to report it (`kubernetes.trackedNodeLabels`) and the scheduler has to index it (`indexedNodeLabels`). Otherwise the gang stays queued with `uniformity label <label> is not indexed`.
+
+**NodePort service**
+A service that makes a job reachable at a node's address and a port number.
+
+## O
+
+**Owner (queue)**
+A user or group with all five rights on a queue's jobs: submit, cancel, preempt, reprioritize and watch. Whoever creates a queue becomes an owner.
+
+## P
+
+**Pending**
+The state where a job's pod is being created and started.
+
+**Permission (verb)**
+One of the five queue rights: `submit`, `cancel`, `preempt`, `reprioritize` and `watch`.
+
+**Platform team**
+Whoever runs your Armada installation. They create queues, grant permissions and change settings.
+
+**Pod**
+The Kubernetes unit that runs one or more containers together. Each Armada job is exactly one pod.
+
+**Pod spec**
+The description of a pod: its containers, images, commands, resources and so on. Written under `podSpec` in a job file. (`podSpecs` also works, as a list with one entry; Armada marks `podSpec` as deprecated in favour of it, but every example in these docs uses `podSpec`.)
+
+**Pool**
+A group of nodes the scheduler treats together. A laptop install has one pool, called `default`.
+
+**Preempted**
+How Lookout shows a job that Armada stopped to make room for other work. In `armadactl watch` it's a failed event with a `Preempted by ...` reason.
+
+**Preemptible**
+Allowed to be stopped by Armada once running. Jobs in the `armada-preemptible` class are preemptible.
+
+**Preemption**
+Armada stopping a running job to make room for other work: for urgency, for fair share, or by hand.
+{/* See [Priority and preemption](/docs/priority-and-preemption). */}
+
+**Priority (job)**
+A number on a job that orders it within its own queue. Lower runs first. It never causes preemption.
+
+**Priority class**
+A named class (`priorityClassName`) that sets a job's urgency across the cluster and whether it can be preempted.
+
+**Priority factor**
+A queue's weight in fair sharing. Lower means a larger share.
+
+**Profile (developer setup)**
+Which version of the developer setup `mage dev:up` starts: `no-auth`, `auth`, `fake-executor` and others. See [Developer guide](/docs/developer-guide).
+
+**Pulsar**
+The message system Armada uses as its event log, the record that every component builds its view from.
+
+## Q
+
+**Queue**
+Where jobs wait, and the unit Armada shares resources between.
+{/* See [Managing queues](/docs/managing-queues). */}
+
+**Queue report**
+The scheduler's summary of its latest decisions for a queue: `armadactl get queue-report <queue>`.
+
+**Queued**
+The state where a job is waiting for the scheduler.
+
+## R
+
+**Rejected**
+How Lookout shows a job that was turned down before it ran. In `armadactl watch` it's a failed event.
+
+**Reprioritize**
+Change the `priority` number of waiting jobs, to move them earlier or later in their queue.
+
+**Retry budget**
+How many more times a retry policy may rerun a job: the lower of the policy's `retryLimit` and the installation's `globalMaxRetries`, counting all the job's earlier failed runs.
+
+**Retry policy**
+A named set of rules, created by the platform team, deciding which failures Armada retries automatically and how it changes the job first (for example, more memory). A job gets its policy from its queue, or from an installation-wide default. Policies decide by **failure category**. Off by default.
+{/* See [Retry policies](/docs/retry-policies). */}
+
+**`retryable`**
+A field on a failed event. `true` means Armada will run the job again, so the job isn't finished yet; only a failed event with `retryable: false` is final.
+
+**Run**
+One attempt to run a job. Most jobs have one run; a retried job has several, each with its own result and failure category.
+
+**Running**
+The state where a job's containers are running.
+
+## S
+
+**Scheduler**
+The Armada component that decides which jobs run, where, and which jobs to preempt.
+
+**Scheduling report**
+The scheduler's full report on its latest scheduling round: `armadactl get scheduling-report`. For one job or queue, use the job report or queue report instead.
+
+**Server**
+The Armada component that accepts jobs and queue changes from users, checks them, and records them.
+
+**Service**
+A Kubernetes object that gives a job a stable network address. Armada supports NodePort and headless services.
+
+**Startup retry**
+Armada putting a job back in the queue by itself because its pod couldn't start. Needs no retry policy; `scheduling.maxRetries` limits how many a job gets.
+
+**Subcategory**
+Extra detail within a failure category, such as `eviction` within `node`.
+
+**Submit**
+Send a job file to Armada (`armadactl submit`).
+
+**Submit API**
+The part of the server that accepts, cancels, reprioritizes and preempts jobs (gRPC service `Submit`).
+
+**Succeeded, Failed, Cancelled**
+The final states of a job: it finished without error, finished with an error (including preemption or rejection), or was cancelled. Lookout shows preempted and rejected jobs as **Preempted** and **Rejected**.
+
+## T
+
+**Termination grace period**
+How long a pod gets to shut down after being told to stop, before it's killed (`terminationGracePeriodSeconds`).
+
+**TLS**
+Encryption for network connections. `armadactl` uses it unless the address contains `localhost` or the context sets `forceNoTls: true`.
+
+## U
+
+**Urgency preemption**
+Armada stopping preemptible jobs in a lower priority class to make room for a job in a higher one.
+
+## W
+
+**Watch**
+Follow a job set's events as they happen (`armadactl watch <queue> <job-set>`).
+
+**Worker cluster**
+A Kubernetes cluster where Armada runs jobs. Each has its own executor.
