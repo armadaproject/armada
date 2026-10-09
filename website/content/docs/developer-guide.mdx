@@ -56,7 +56,7 @@ cd armada
 **Create a local Kind cluster**
 
 ```bash
-mage kind
+mage kind:singleCluster
 export KUBECONFIG=.kube/external/config
 ```
 
@@ -274,7 +274,7 @@ go tool pprof http://localhost:6060/debug/pprof/profile
 
 **Port 6443 already in use**
 
-Modify `_local/kind/cluster.yaml` to use a different port:
+Modify `_local/kind/cluster/cluster.yaml` to use a different port:
 
 ```yaml
 - containerPort: 6443

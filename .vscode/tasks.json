@@ -11,7 +11,7 @@
     {
       "label": "Start dependencies",
       "type": "shell",
-      "command": "mage kind && mage dev:up no-auth -dap",
+      "command": "mage kind:singleCluster && mage dev:up no-auth -dap",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -41,7 +41,7 @@
     {
       "label": "Start dependencies with Prometheus",
       "type": "shell",
-      "command": "mage kind && mage dev:up prometheus -dap",
+      "command": "mage kind:singleCluster && mage dev:up prometheus -dap",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -56,7 +56,7 @@
     {
       "label": "Start dependencies with Auth",
       "type": "shell",
-      "command": "mage kind && mage dev:up auth -dap",
+      "command": "mage kind:singleCluster && mage dev:up auth -dap",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -86,7 +86,7 @@
     {
       "label": "Start dependencies with Auth and Prometheus",
       "type": "shell",
-      "command": "mage kind && mage dev:up auth,prometheus -dap",
+      "command": "mage kind:singleCluster && mage dev:up auth,prometheus -dap",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
@@ -97,6 +97,16 @@
           "endsPattern": "Keycloak ready"
         }
       }
+    },
+    {
+      "label": "Start two Kind clusters",
+      "type": "shell",
+      "command": "mage kind:multiCluster _local/kind/two-cluster"
+    },
+    {
+      "label": "Tear down two Kind clusters",
+      "type": "shell",
+      "command": "mage kindTeardown:multiCluster _local/kind/two-cluster"
     },
     {
       "label": "Prepare LookoutUI",
@@ -211,7 +221,7 @@
     {
       "label": "Start dependencies (hot-cold)",
       "type": "shell",
-      "command": "mage kind && mage dev:up hot-cold -dap",
+      "command": "mage kind:singleCluster && mage dev:up hot-cold -dap",
       "isBackground": true,
       "problemMatcher": {
         "owner": "armada-deps",
