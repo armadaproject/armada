@@ -611,10 +611,10 @@ func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 		return nil, err
 	}
 	if l.computeAggregateDemand {
+		observeJobAggregateSchedulingInfoDuration(currentPool, time.Since(start).Seconds())
 		lookupStart := time.Now()
 		aggregateDemand := queuedDemandFromAggregate(txn, queues, currentPool)
 		observeJobAggregateLookupDuration(currentPool, time.Since(lookupStart).Seconds())
-		observeJobAggregateSchedulingInfoDuration(currentPool, time.Since(start).Seconds())
 		l.compareScannedWithAggregate(ctx, jobs, queues, aggregateDemand, currentPool)
 	}
 	return info, nil
