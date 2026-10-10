@@ -106,7 +106,7 @@ func TestNodeTypeIdFromTaintsAndLabels_NoCollisions(t *testing.T) {
 	taintValues := []string{"", "true", "a100", "team-a"}
 	taintEffects := []v1.TaintEffect{v1.TaintEffectNoSchedule, v1.TaintEffectPreferNoSchedule, v1.TaintEffectNoExecute}
 	labelKeys := []string{"kubernetes.io/arch", "topology.kubernetes.io/zone", "armadaproject.io/pool"}
-	labelValues := []string{"amd64", "arm64", "eu-west-1a", "cpu"}
+	labelValues := []string{"", "amd64", "arm64", "eu-west-1a", "cpu"}
 
 	var allTaints []v1.Taint
 	for _, key := range taintKeys {
