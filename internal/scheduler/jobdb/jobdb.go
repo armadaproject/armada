@@ -73,6 +73,18 @@ type JobDb struct {
 	jobsByPoolAndQueue map[string]map[string]immutable.SortedSet[*Job]
 	leasedJobs         *immutable.Set[*Job]
 	unvalidatedJobs    *immutable.Set[*Job]
+	// Incrementally maintained aggregate of queued demand.
+	// Maintained only when aggregateEnabled is true. The scheduler enables it
+	// when ExperimentalAggregateDemand.Compare or .Use is set. Both flags are
+	// static command-line flags requiring a restart to change, so a JobDb
+	// created with the aggregate disabled never needs to start maintaining it
+	// later; a restart rebuilds the JobDb from scratch with it enabled.
+	aggregate *JobAggregate
+	// aggregateEnabled gates all aggregate maintenance (Upsert/BatchDelete
+	// deltas) and reads. When false the aggregate stays empty and
+	// GetQueueDemand always returns empty, so the both-flags-off path pays no
+	// per-job aggregate cost.
+	aggregateEnabled bool
 	// Configured priority classes.
 	priorityClasses map[string]types.PriorityClass
 	// Priority class assigned to jobs with a priorityClassName not in jobDb.priorityClasses.
@@ -144,6 +156,8 @@ func NewJobDbWithSchedulingKeyGenerator(
 		jobsByPoolAndQueue:     map[string]map[string]immutable.SortedSet[*Job]{},
 		leasedJobs:             &leasedJobs,
 		unvalidatedJobs:        &unvalidatedJobs,
+		aggregate:              NewJobAggregate(),
+		aggregateEnabled:       false,
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
@@ -162,6 +176,16 @@ func (jobDb *JobDb) SetRespectNodePodLimits(enabled bool) {
 	jobDb.respectNodePodLimits = enabled
 }
 
+// SetAggregateEnabled toggles incremental maintenance of the queued-demand
+// aggregate. Must be called before any Upsert/BatchDelete if enabled: jobs
+// inserted while disabled contribute nothing to the aggregate. Production
+// entry points (scheduler, simulator) call this once at startup from the
+// static ExperimentalAggregateDemand flags (Compare || Use); no restart-free
+// path re-enables it.
+func (jobDb *JobDb) SetAggregateEnabled(enabled bool) {
+	jobDb.aggregateEnabled = enabled
+}
+
 func (jobDb *JobDb) SetJobRunIDProvider(jobRunIDProvider IDProvider) {
 	jobDb.jobRunIDProvider = jobRunIDProvider
 }
@@ -176,6 +200,8 @@ func (jobDb *JobDb) Clone() *JobDb {
 		jobsByPoolAndQueue:     deepClone(jobDb.jobsByPoolAndQueue),
 		leasedJobs:             jobDb.leasedJobs,
 		unvalidatedJobs:        jobDb.unvalidatedJobs,
+		aggregate:              jobDb.aggregate.Clone(),
+		aggregateEnabled:       jobDb.aggregateEnabled,
 		priorityClasses:        jobDb.priorityClasses,
 		defaultPriorityClass:   jobDb.defaultPriorityClass,
 		schedulingKeyGenerator: jobDb.schedulingKeyGenerator,
@@ -350,6 +376,8 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 		jobsByPoolAndQueue: jobDb.jobsByPoolAndQueue,
 		leasedJobs:         jobDb.leasedJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		aggregate:          jobDb.aggregate,
+		aggregateEnabled:   jobDb.aggregateEnabled,
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
@@ -372,6 +400,8 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
 		leasedJobs:         jobDb.leasedJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		aggregate:          jobDb.aggregate.Clone(),
+		aggregateEnabled:   jobDb.aggregateEnabled,
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
@@ -394,6 +424,8 @@ func (jobDb *JobDb) DryRunTxn() *Txn {
 		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
 		leasedJobs:         jobDb.leasedJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		aggregate:          jobDb.aggregate.Clone(),
+		aggregateEnabled:   jobDb.aggregateEnabled,
 		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
@@ -439,6 +471,11 @@ type Txn struct {
 	leasedJobs *immutable.Set[*Job]
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
+	// Incrementally maintained aggregate of queued demand.
+	aggregate *JobAggregate
+	// Mirrors JobDb.aggregateEnabled at transaction creation. When false,
+	// aggregate add/remove calls are skipped and GetQueueDemand returns empty.
+	aggregateEnabled bool
 	// The current snapshot of bid prices - allowing look up of bidding prices on job creation
 	bidPriceSnapshot *pricing.BidPriceSnapshot
 	// The jobDb from which this transaction was created.
@@ -465,6 +502,7 @@ func (txn *Txn) Commit() {
 	txn.jobDb.jobsByPoolAndQueue = txn.jobsByPoolAndQueue
 	txn.jobDb.leasedJobs = txn.leasedJobs
 	txn.jobDb.unvalidatedJobs = txn.unvalidatedJobs
+	txn.jobDb.aggregate = txn.aggregate
 	txn.jobDb.bidPriceSnapshot = txn.bidPriceSnapshot
 
 	txn.active = false
@@ -576,6 +614,10 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 
 	hasJobs := txn.jobsById.Len() > 0
 
+	// jobsById is last-write-wins for duplicate IDs. Dedupe up front so every
+	// index below, as well as the aggregate, sees the same jobs.
+	jobs = dedupeJobsLastWins(jobs)
+
 	// First, delete any jobs to be upserted from the sets of queued and unvalidated jobs
 	// We will replace these jobs later if they are still queued
 	if hasJobs {
@@ -608,13 +650,17 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 					newUnvalidatedJobs := txn.unvalidatedJobs.Delete(existingJob)
 					txn.unvalidatedJobs = &newUnvalidatedJobs
 				}
+
+				if txn.aggregateEnabled {
+					txn.aggregate.remove(existingJob)
+				}
 			}
 		}
 	}
 
 	// Now need to insert jobs, runs and queuedJobs. This can be done in parallel.
 	wg := sync.WaitGroup{}
-	wg.Add(6)
+	wg.Add(7)
 
 	// jobs
 	go func() {
@@ -801,8 +847,37 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 		}
 	}()
 
+	// Queued-demand aggregate.
+	go func() {
+		defer wg.Done()
+		// Skipped entirely when the aggregate is disabled (both Compare and
+		// Use flags off), so that path pays no per-job aggregate cost.
+		if txn.aggregateEnabled {
+			for _, job := range jobs {
+				txn.aggregate.add(job)
+			}
+		}
+	}()
+
 	wg.Wait()
+
 	return nil
+}
+
+// dedupeJobsLastWins returns jobs with duplicate IDs collapsed to the last
+// occurrence, matching the last-write-wins behaviour of jobsById.
+func dedupeJobsLastWins(jobs []*Job) []*Job {
+	result := make([]*Job, 0, len(jobs))
+	seen := make(map[string]bool, len(jobs))
+	for i := len(jobs) - 1; i >= 0; i-- {
+		job := jobs[i]
+		if seen[job.id] {
+			continue
+		}
+		seen[job.id] = true
+		result = append(result, job)
+	}
+	return result
 }
 
 // NewJob creates a new scheduler job.
@@ -823,7 +898,8 @@ func (txn *Txn) NewJob(
 	pools []string,
 	priceBand int32,
 ) (*Job, error) {
-	return txn.jobDb.NewJob(jobId,
+	return txn.jobDb.NewJob(
+		jobId,
 		jobSet,
 		queue,
 		priority,
@@ -918,6 +994,17 @@ func (txn *Txn) GetAllLeasedJobs() []*Job {
 	return txn.leasedJobs.Items()
 }
 
+// GetQueueDemand returns queued demand for the given pool and queue by priority
+// class, derived from the aggregate. It is the caller's responsibility to
+// decide whether to query cordoned or unknown queues.
+// Returns empty when the aggregate is disabled (both Compare and Use off).
+func (txn *Txn) GetQueueDemand(pool string, queue string) map[string]internaltypes.ResourceList {
+	if !txn.aggregateEnabled {
+		return map[string]internaltypes.ResourceList{}
+	}
+	return txn.aggregate.getQueueDemand(pool, queue)
+}
+
 // GetAll returns all jobs in the database.
 func (txn *Txn) GetAll() []*Job {
 	allJobs := make([]*Job, 0, txn.jobsById.Len())
@@ -955,6 +1042,9 @@ func (txn *Txn) BatchDelete(jobIds []string) error {
 func (txn *Txn) delete(jobId string) {
 	job, present := txn.jobsById.Get(jobId)
 	if present {
+		if txn.aggregateEnabled {
+			txn.aggregate.remove(job)
+		}
 		txn.jobsById = txn.jobsById.Delete(jobId)
 		for _, run := range job.runsById {
 			txn.jobsByRunId = txn.jobsByRunId.Delete(run.id)

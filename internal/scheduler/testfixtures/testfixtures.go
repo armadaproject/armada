@@ -156,6 +156,7 @@ func NewJobDb(resourceListFactory *internaltypes.ResourceListFactory) *jobdb.Job
 		stringinterner.New(1024),
 		resourceListFactory,
 	)
+	jobDb.SetAggregateEnabled(true)
 	// Mock out the clock and job run ID provider to ensure consistent IDs and timestamps are generated.
 	jobDb.SetClock(NewMockPassiveClock())
 	jobDb.SetJobRunIDProvider(NewMockIDProvider())
