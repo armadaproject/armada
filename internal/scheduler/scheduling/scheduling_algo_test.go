@@ -1539,6 +1539,7 @@ func (t *testRunReconciler) ReconcileJobRuns(txn *jobdb.Txn, _ []*schedulerobjec
 	}
 	return result
 }
+
 // TestCalculateJobSchedulingInfo_AggregateMatchesScan validates that the JobDb
 // queued-demand aggregate derives exactly the same queued demand as the job scan.
 // This is the correctness check behind the aggregate comparison.
