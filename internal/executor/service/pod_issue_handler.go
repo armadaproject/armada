@@ -71,6 +71,15 @@ type runIssue struct {
 	Reported            bool
 }
 
+// FailedPod is a failed pod with its events and its category. The state reporter reads the events and categorizes the
+// pod, and the report and the Delete action use this category. A failed pod check that claims the pod creates its own
+// issue, and that issue gets its category from the message of the check.
+type FailedPod struct {
+	Pod            *v1.Pod
+	Events         []*v1.Event
+	Classification categorizer.ClassifyResult
+}
+
 type IssueHandler interface {
 	HasIssue(runId string) bool
 	DetectAndRegisterIssuesForFailedPod(failed FailedPod) (bool, error)
