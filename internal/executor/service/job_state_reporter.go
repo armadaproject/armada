@@ -101,14 +101,6 @@ func (stateReporter *JobStateReporter) shouldCaptureFailureDebug(pod *v1.Pod) bo
 	return util.LongestAppContainerRunDuration(pod) >= stateReporter.minAppContainerRuntimeForFailureDebug
 }
 
-// FailedPod is a failed pod with its events and its category. The state reporter reads the events and categorizes the
-// pod once. The issue handler decides from the same values, so the report and the delete action use one category.
-type FailedPod struct {
-	Pod            *v1.Pod
-	Events         []*v1.Event
-	Classification categorizer.ClassifyResult
-}
-
 // newFailedPod reads the events of a failed pod and categorizes the pod with the failure message that the executor
 // reports. The events are best effort: when the read fails, it categorizes the pod without them, and the detections
 // still run, so a delete action still deletes the pod before the report.
