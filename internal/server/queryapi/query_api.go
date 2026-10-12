@@ -299,6 +299,7 @@ func parseJobDetails(row database.JobRun) (*api.JobRunDetails, error) {
 		State:            runState,
 		Cluster:          row.Cluster,
 		Node:             NilStringToString(row.Node),
+		PodName:          NilStringToString(row.PodName),
 		LeasedTs:         DbTimeToTimestamp(row.Leased),
 		PendingTs:        DbTimeToTimestamp(row.Pending),
 		StartedTs:        DbTimeToTimestamp(row.Started),

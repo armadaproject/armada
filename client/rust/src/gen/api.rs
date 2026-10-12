@@ -2308,6 +2308,9 @@ pub struct JobRunDetails {
         i32,
         ::prost::alloc::string::String,
     >,
+    /// pod_name is the name of the pod of the run, as the executor reports it. It is empty until the executor reports the pod.
+    #[prost(string, tag = "12")]
+    pub pod_name: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct JobDetails {
