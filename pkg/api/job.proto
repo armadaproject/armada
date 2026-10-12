@@ -30,6 +30,8 @@ message JobRunDetails {
   google.protobuf.Timestamp started_ts = 9;
   google.protobuf.Timestamp finished_ts = 10;
   map<int32, string> ingress_addresses = 11;
+  // pod_name is the name of the pod of the run, as the executor reports it. It is empty until the executor tries to create the pod.
+  string pod_name = 12;
 }
 
 

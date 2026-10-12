@@ -73,6 +73,7 @@ var expectedLeasedRun = model.CreateJobRunInstruction{
 
 var expectedPendingRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunId,
+	PodName:     pointer.String(testfixtures.PodName),
 	Pending:     &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunPendingOrdinal),
 }
@@ -231,6 +232,66 @@ var standaloneIngressInfoEvent = &armadaevents.EventSequence_Event{
 var expectedStandaloneIngressRun = model.UpdateJobRunInstruction{
 	RunId:            testfixtures.RunId,
 	IngressAddresses: standaloneIngressAddresses,
+}
+
+func TestConvert_PodNameOfRun(t *testing.T) {
+	podResource := func(name string) []*armadaevents.KubernetesResourceInfo {
+		return []*armadaevents.KubernetesResourceInfo{{
+			ObjectMeta: &armadaevents.ObjectMeta{Name: name},
+			Info:       &armadaevents.KubernetesResourceInfo_PodInfo{PodInfo: &armadaevents.PodInfo{}},
+		}}
+	}
+	tests := map[string]struct {
+		event       *armadaevents.EventSequence_Event
+		wantPodName *string
+	}{
+		"the running event stores the pod name": {
+			event: &armadaevents.EventSequence_Event{Event: &armadaevents.EventSequence_Event_JobRunRunning{
+				JobRunRunning: &armadaevents.JobRunRunning{JobId: testfixtures.JobId, RunId: testfixtures.RunId, ResourceInfos: podResource("pod-running")},
+			}},
+			wantPodName: pointer.String("pod-running"),
+		},
+		"the succeeded event stores the pod name": {
+			event: &armadaevents.EventSequence_Event{Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
+				JobRunSucceeded: &armadaevents.JobRunSucceeded{JobId: testfixtures.JobId, RunId: testfixtures.RunId, ResourceInfos: podResource("pod-succeeded")},
+			}},
+			wantPodName: pointer.String("pod-succeeded"),
+		},
+		"the pod error stores the pod name": {
+			event: &armadaevents.EventSequence_Event{Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{JobId: testfixtures.JobId, RunId: testfixtures.RunId, Errors: []*armadaevents.Error{{
+					Terminal: true,
+					Reason: &armadaevents.Error_PodError{PodError: &armadaevents.PodError{
+						ObjectMeta: &armadaevents.ObjectMeta{Name: "pod-failed"},
+					}},
+				}}},
+			}},
+			wantPodName: pointer.String("pod-failed"),
+		},
+		"a resource that is not a pod stores no pod name": {
+			event: &armadaevents.EventSequence_Event{Event: &armadaevents.EventSequence_Event_JobRunAssigned{
+				JobRunAssigned: &armadaevents.JobRunAssigned{JobId: testfixtures.JobId, RunId: testfixtures.RunId, ResourceInfos: []*armadaevents.KubernetesResourceInfo{{
+					ObjectMeta: &armadaevents.ObjectMeta{Name: "an-ingress"},
+					Info:       &armadaevents.KubernetesResourceInfo_IngressInfo{IngressInfo: &armadaevents.IngressInfo{}},
+				}}},
+			}},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tc.event.Created = testfixtures.BaseTimeProto
+			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
+			events := &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(tc.event)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			}
+
+			instructions := converter.Convert(armadacontext.TODO(), events)
+
+			require.Len(t, instructions.JobRunsToUpdate, 1)
+			assert.Equal(t, tc.wantPodName, instructions.JobRunsToUpdate[0].PodName)
+		})
+	}
 }
 
 func TestConvert(t *testing.T) {

@@ -370,6 +370,7 @@ func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaev
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       event.RunId,
 		Node:        node,
+		PodName:     getPodName(event.ResourceInfos),
 		Started:     &ts,
 		JobRunState: pointer.Int32(lookout.JobRunRunningOrdinal),
 	}
@@ -426,6 +427,7 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 	update.JobsToUpdate = append(update.JobsToUpdate, &job)
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       event.RunId,
+		PodName:     getPodName(event.ResourceInfos),
 		Pending:     &ts,
 		JobRunState: pointer.Int32(lookout.JobRunPendingOrdinal),
 	}
@@ -470,6 +472,7 @@ func (c *InstructionConverter) handleJobRunTerminatedDebugInfo(event *armadaeven
 func (c *InstructionConverter) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       event.RunId,
+		PodName:     getPodName(event.ResourceInfos),
 		Finished:    &ts,
 		JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal),
 		ExitCode:    pointer.Int32(0),
@@ -490,6 +493,7 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 		switch reason := e.Reason.(type) {
 		case *armadaevents.Error_PodError:
 			jobRunUpdate.Node = extractNodeName(reason.PodError)
+			jobRunUpdate.PodName = podName(reason.PodError.GetObjectMeta().GetName())
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
 			jobRunUpdate.Error = tryCompressError(event.JobId, reason.PodError.GetMessage(), c.compressor)
 			jobRunUpdate.Debug = tryCompressError(event.JobId, reason.PodError.DebugMessage, c.compressor)
@@ -612,6 +616,27 @@ func getNode(resources []*armadaevents.KubernetesResourceInfo) *string {
 		}
 	}
 	return pointer.String("UNKNOWN")
+}
+
+// getPodName returns the name of the pod in the resources of a run event. The executor reports only the current phase
+// of a pod, so a fast pod skips earlier events. The ingester therefore reads the name from every event that has it.
+func getPodName(resources []*armadaevents.KubernetesResourceInfo) *string {
+	for _, r := range resources {
+		if r.GetPodInfo() == nil {
+			continue
+		}
+		if name := podName(r.GetObjectMeta().GetName()); name != nil {
+			return name
+		}
+	}
+	return nil
+}
+
+func podName(name string) *string {
+	if name == "" {
+		return nil
+	}
+	return pointer.String(name)
 }
 
 func extractNodeName(x HasNodeName) *string {

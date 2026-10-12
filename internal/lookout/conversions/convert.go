@@ -56,6 +56,7 @@ func ToSwaggerRun(run *model.Run) *models.Run {
 		Finished:           PostgreSQLTimeToSwaggerTime(run.Finished),
 		JobRunState:        string(lookout.JobRunStateMap[run.JobRunState]),
 		Node:               run.Node,
+		PodName:            run.PodName,
 		Leased:             PostgreSQLTimeToSwaggerTime(run.Leased),
 		Pending:            PostgreSQLTimeToSwaggerTime(run.Pending),
 		Pool:               run.Pool,
