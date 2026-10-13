@@ -65,7 +65,8 @@
 //
 // [NewClassifier] validates all config upfront: unknown condition strings,
 // invalid exit code operators, empty value lists, and invalid regexes all
-// return errors at construction time.
+// return errors at construction time. The category names "internal" and
+// "preemption" are reserved, because Armada sets these categories itself.
 //
 // # Usage
 //
