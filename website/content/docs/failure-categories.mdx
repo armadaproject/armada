@@ -1,0 +1,352 @@
+---
+title: 'Failure categories'
+description: 'See at a glance why a job failed, whether the fix is yours or the platform, and how operators set up the categories.'
+---
+
+When a job fails, the first question is usually: is the problem in my job, or in the platform? A **failure category** answers it at a glance. Armada gives each failed run a short label, such as `oom` (ran out of memory) or `user_error` (your program exited with an error), and can add a **hint** with a known fix.
+
+Your platform team (the operators) decides the categories. Categories are also what [retry policies](/docs/retry-policies) use to decide whether to run a job again.
+
+## How categories work
+
+### One category per failed run
+
+Each attempt to run a job is a **run**. Most jobs have one run, but a job that Armada retries has several, and each can fail for a different reason. So the category belongs to the **run**, not the job.
+
+### Who decides the category
+
+When a run fails, the **executor** (the Armada component that runs pods on a cluster) looks at what Kubernetes knows about the pod:
+
+- each container's exit code, including init containers
+- the Kubernetes reason, such as `OOMKilled` when a container used more memory than its limit
+- the container's termination message (what it wrote to `/dev/termination-log`)
+- the pod's error message, for example an image pull error
+- the pod's Kubernetes events
+
+Your operator writes rules that turn these into categories. For example:
+
+| The failure                                                      | A category an operator might give it             |
+| ---------------------------------------------------------------- | ------------------------------------------------ |
+| The container used more memory than its limit                    | `oom`                                            |
+| Kubernetes evicted the pod because the node was low on resources | `node`, subcategory `eviction`                   |
+| Your program exited with code 1                                  | `user_error`                                     |
+| No rule matches                                                  | `uncategorized` (if the operator sets a default) |
+
+A **subcategory** adds detail inside a category. The names on this page are examples: ask your operator for your installation's list.
+
+### Categories Armada sets itself
+
+Armada sets two categories of its own.
+
+**`internal`** means Armada found a problem with the platform, not your job. The subcategory says what happened:
+
+| Subcategory           | What happened                                                                                                                                                                                                                                                                                                                                      |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lease-expired`       | Armada lost contact with the cluster running the job, so it stopped the run.                                                                                                                                                                                                                                                                       |
+| `pod-missing`         | The pod of a running job is no longer on the cluster.                                                                                                                                                                                                                                                                                              |
+| `externally-deleted`  | Something other than Armada deleted the pod.                                                                                                                                                                                                                                                                                                       |
+| `stuck-terminating`   | The pod didn't stop in time: something else asked Kubernetes to delete it and it didn't stop, or the executor couldn't delete a failed pod before reporting the failure. Usually a node problem.                                                                                                                                                   |
+| `active-deadline`     | The pod ran past its `activeDeadlineSeconds` and Kubernetes didn't stop it. Reported after the deadline, plus the termination grace period, plus `kubernetes.stuckTerminatingPodExpiry` (30 seconds by default). A normal stop at the deadline instead has the reason `DeadlineExceeded`, and gets whatever category the operator's rules give it. |
+| `job-creation-failed` | The executor couldn't create the pod from the job.                                                                                                                                                                                                                                                                                                 |
+| `job-rejected`        | A check rejected the job before it ran.                                                                                                                                                                                                                                                                                                            |
+| `max-runs-exceeded`   | The job used all its startup retries, or was tried once on every node that can run it. Retries from a retry policy count too.                                                                                                                                                                                                                      |
+| `issue-handler-error` | The pod changed state while the executor was handling a problem.                                                                                                                                                                                                                                                                                   |
+
+An `internal` failure has no hint. Submit the job again, and tell your operator if it keeps happening.
+
+**`preemption`** means Armada stopped the run to give its resources to other work. The subcategory is the kind of preemption, for example `fairshare`. Lookout shows the job as **Preempted**, and Armada doesn't retry it.
+{/* See [Priority and preemption](/docs/priority-and-preemption). */}
+
+### What a category changes
+
+On its own, nothing: it's a label. Two settings attached to it have effects:
+
+- a **hint**, added to the failure message you see
+- an **action** for the failed pod: keep it so you can read its logs (`Retain`, the default), or delete it (`Delete`)
+
+## See why your job failed
+
+### In Lookout
+
+- Open the job and select the **Result** tab. It lists the job's runs, newest first, each with its failure message, **Failure Category** and **Failure Subcategory**.
+- In the jobs table, add the **Failure Category** and **Failure Subcategory** columns from **Configure columns**. They show the last run's category, so you can scan many jobs at once.
+
+### In `armadactl watch`
+
+`watch` prints the failure message, including any hint, after `Job failed:`. It doesn't print the category itself.
+
+### In your own tools
+
+The failed event (`JobFailedEvent`) has the category and subcategory: `failureCategory` and `failureSubcategory` in JSON, `failure_category` and `failure_subcategory` in the Python client. An empty subcategory is an empty string.
+
+### Read the hint
+
+A hint appears after the failure message, separated by blank lines. For example, a job that ran out of memory, from a tested setup:
+
+```text title="Output"
+Container main failed with exit code 137 because OOMKilled:
+
+
+The job ran out of memory. Increase the memory request, or use a retry policy that adds memory.
+```
+
+### What to do for each category
+
+| Category                                                                | Usually whose fix | What to do                                                                                                                                |
+| ----------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `user_error`, or another category your operator made for program errors | Yours             | Read the logs and exit code. Fix the job and submit it again.                                                                             |
+| `oom`                                                                   | Yours             | Raise the memory request, or use less memory. A [retry policy that adds memory](/docs/retry_policies) can do this automatically.          |
+| `node`, or another node-problem category                                | The platform      | Submit again, or use a [retry policy that moves the job to another node](/docs/retry_policies). Tell your operator if it happens often.   |
+| `internal`                                                              | The platform      | Check the subcategory in [Categories Armada sets itself](#categories-armada-sets-itself). Submit again; tell your operator if it repeats. |
+| `preemption`                                                            | Nobody            | Armada gave the resources to other work. Submit again, or use a class that isn't preempted.                                               |
+| `uncategorized`                                                         | Unknown           | Read the failure message. Ask your operator to add a rule for it.                                                                         |
+
+## Set up failure categories
+
+This section is for operators. Failure categories are **off by default**. They're executor settings, under `application.errorCategories` (the settings say _error_ where this page says _failure_).
+
+### Before you start
+
+You need an installation you can change, and `kubectl` access to it. Everything on this page needs Armada 0.22.3 or later (`action: Delete` arrived in 0.22.3; categories are older). Lookout and the Lookout ingester must also be a version that stores categories, with their database migrations run; otherwise categories work but don't appear in Lookout.
+
+**Ready when:** `kubectl get executor -n armada` lists your executor (on a laptop install, `armada-executor`).
+
+### Step 1. Choose your categories
+
+Start small, with a default for everything else:
+
+```yaml
+application:
+  errorCategories:
+    enabled: true
+    defaultCategory: uncategorized
+    categories:
+      - name: oom
+        rules:
+          - onConditions: ['OOMKilled']
+            hint: 'The job ran out of memory. Increase the memory request, or use a retry policy that adds memory.'
+      - name: node
+        rules:
+          - onConditions: ['Evicted']
+            subcategory: eviction
+      - name: user_error
+        rules:
+          - onExitCodes:
+              operator: In
+              values: [1, 2, 126, 127]
+```
+
+### Step 2. Apply them to the executor
+
+With the Armada Operator, add the settings to the `Executor` resource's `spec.applicationConfig` (with Helm, under `applicationConfig.application.errorCategories`). For example, saved as JSON in `categories.json`:
+
+```bash
+kubectl patch executor <executor-name> -n armada --type merge --patch-file categories.json
+kubectl rollout status deploy/<executor-name> -n armada
+```
+
+Apply the **same** settings to every executor: a failure gets the categories of the executor that ran it.
+
+**Success:** the rollout finishes, and the executor log has no `Config error in error categories` line. If the settings aren't valid, the new executor pod stops at startup (see [Check the settings](#check-the-settings)). With a rolling update, the old executor pod keeps running meanwhile, so jobs aren't interrupted.
+
+### Step 3. Check a failure gets its category
+
+Submit a job that exits with code 1, then look at its **Result** tab in Lookout.
+
+**Success:** the run shows **Failure Category** `user_error`.
+
+### Step 4. Improve the rules over time
+
+1. Add the **Failure Category** column in Lookout, and watch the metrics (see [Monitor categories](#monitor-categories)).
+2. Look at failures in `uncategorized`, and add rules for the common ones.
+3. Add hints to rules for failures with a known fix.
+
+To turn categories off again, remove the `errorCategories` block (with the Operator: `kubectl patch executor <executor-name> -n armada --type json -p '[{"op":"remove","path":"/spec/applicationConfig/application/errorCategories"}]'`).
+
+## Settings reference
+
+| Setting                              | Meaning                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`                            | Turns failure categories on.                                                                                                                                                                                                                                                                                                                            |
+| `defaultCategory`                    | Category for a failure no rule matches. Empty: no category.                                                                                                                                                                                                                                                                                             |
+| `defaultSubcategory`                 | Subcategory for a failure no rule matches. Empty: no subcategory.                                                                                                                                                                                                                                                                                       |
+| `categories[].name`                  | The category's name. Retry policies match it exactly, including case. Don't use `internal` or `preemption`, which Armada uses. In Armada 0.22.12 nothing stops you. **From the next release**, the executor won't start, with `category name "internal" is reserved for categories that Armada sets` (or `defaultCategory "internal" is reserved ...`). |
+| `categories[].action`                | What to do with a failed pod: `Retain` (default) or `Delete`. See [Keep or delete the failed pod](#keep-or-delete-the-failed-pod).                                                                                                                                                                                                                      |
+| `categories[].rules[].subcategory`   | Optional. The subcategory this rule gives.                                                                                                                                                                                                                                                                                                              |
+| `categories[].rules[].hint`          | Optional. Text added to the failure message when this rule matches.                                                                                                                                                                                                                                                                                     |
+| `categories[].rules[].containerName` | Optional. Applies a container rule to one container only.                                                                                                                                                                                                                                                                                               |
+
+Names and subcategories can be at most 63 characters.
+
+### Matchers
+
+Each rule uses exactly one matcher:
+
+| Matcher                | Matches                                                                                                                                                                                                                                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `onConditions`         | One of exactly three Kubernetes reasons: `OOMKilled` (a container reason), `Evicted` or `DeadlineExceeded` (pod reasons).                                                                                                                                                                 |
+| `onExitCodes`          | A container's exit code, with `operator: In` or `NotIn` and a list of `values`. Exit code 0 never matches.                                                                                                                                                                                |
+| `onTerminationMessage` | A regular expression (`pattern`) on a container's termination message.                                                                                                                                                                                                                    |
+| `onPodError`           | A regular expression (`pattern`) on the pod's error message. See [The pod's error message](#the-pods-error-message).                                                                                                                                                                      |
+| `onPodEvents`          | A Kubernetes event of the pod: `regexp` for the message, `type` (`Normal` or `Warning`), and an optional exact `reason`. Use it for kubelet admission and device plugin errors. (It uses `regexp`, not `pattern`, because it has the same fields as a `kubernetes.failedPodChecks` rule.) |
+
+The container matchers only look at containers that exited with a non-zero code, including init containers. `containerName` limits them to one container; it applies to `onConditions: ["OOMKilled"]`, `onExitCodes` and `onTerminationMessage`, and has no effect on the pod reasons or the pod matchers.
+
+### The pod's error message
+
+`onPodError` matches the message the executor records for the pod, which takes one of these shapes:
+
+- A pod that failed with a status message (an eviction, say): that message.
+- A pod that failed without one: one line per failed container, `Container <name> failed with exit code <code> because <reason>: <message>`.
+- A pod that never started: the message of the `kubernetes.pendingPodChecks` rule that failed it, including the matched event. For example, for an image that doesn't exist:
+
+  ```text title="Output"
+  Unable to start pod - encountered an unrecoverable problem.
+  Matched check: "check-0"
+  Failed to pull image "alpine:does-not-exist-9": rpc error: code = NotFound desc = failed to pull and unpack image ...
+  ```
+
+### When the pod matchers see a failure
+
+- **A pod that failed:** both `onPodError` and `onPodEvents` can match, **but in Armada 0.22.12 only in a category with `action: Delete`**. In a `Retain` category, a failed pod is categorized from its containers only, so these rules don't match and the failure gets the default category (for example `uncategorized`). From the next release, they match in every category ([#5250](https://github.com/armadaproject/armada/pull/5250)). And if a `kubernetes.failedPodChecks` rule matches first, the executor returns the job to the queue as a startup retry, and `onPodEvents` never sees it.
+- **A pod that never started** (for example, an image pull error): a `kubernetes.pendingPodChecks` rule with `action: Fail` fails the pod after its grace period, and `onPodError` matches that rule's message; `onPodEvents` doesn't match. A rule with `action: Retry` makes a startup retry instead, which no retry policy sees.
+
+The grace period counts from the pod's last status change, and the executor checks every 10 seconds. With the default image-pull rule, the failure arrives about 90 to 100 seconds after the pod went Pending.
+
+### Rule order
+
+The executor checks rules in the order they're written, across all categories. The first match gives the category, subcategory and pod action, so put specific rules before general ones.
+
+### Check the settings
+
+When `enabled` is `true`, the executor checks the settings at startup. If something is wrong, it stops with a line like:
+
+```text title="Output"
+FATAL application.go:209 Config error in error categories: category "oom" rule 0: unknown condition "OutOfMemory", valid values: OOMKilled, Evicted, DeadlineExceeded
+```
+
+It checks for:
+
+- an unknown condition in `onConditions`
+- a wrong `operator`, or an empty list of exit codes
+- a regular expression that isn't valid
+- a rule with no matcher, or more than one
+- an `onPodEvents` `type` other than `Normal` or `Warning`
+- two categories with the same name, a category with no rules, or an empty name
+- a name, subcategory or default longer than 63 characters
+- an `action` other than `Retain` or `Delete`
+- **from the next release:** a category or `defaultCategory` named `internal` or `preemption` (`category name "internal" is reserved for categories that Armada sets`)
+
+### Keep or delete the failed pod
+
+- **`Retain`** (default) keeps the failed pod, so people can read its logs, until normal clean-up: after `kubernetes.failedPodExpiry` (10 minutes by default), or earlier if the cluster holds more than `kubernetes.maxTerminatedPods` finished pods (1000). No clean-up deletes a pod younger than `kubernetes.minimumPodAge` (3 minutes).
+- **`Delete`** deletes the pod, **and its logs**, and reports the failure once the pod is gone, a few seconds later than with `Retain`. If the pod isn't gone after `kubernetes.stuckTerminatingPodExpiry` (30 seconds), the failure is reported as `internal`, `stuck-terminating`.
+
+The action only applies to pods that failed. A pod that never started is always deleted after its failure is reported.
+
+[Retry policies](/docs/retry_policies) need `Delete` on every category they retry; that page explains why. Keep `Retain` on categories you don't retry, such as `user_error`, so people can read their logs.
+
+### Write useful hints
+
+People read the hint first, so make it a short instruction ("Increase the memory request"). Don't repeat the failure message. Only add hints for failures with a known fix.
+
+### Monitor categories
+
+| Metric                                                         | Labels                                               | Use                                                                                                             |
+| -------------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `armada_executor_job_failure_category_total`                   | `failure_category`, `failure_subcategory`            | Failures by category on each executor, including runs returned to the queue. Resets when the executor restarts. |
+| `armada_scheduler_job_error_classification_by_queue`           | `queue`, `pool`, `category`, `subcategory`           | Failures by category for each queue.                                                                            |
+| `armada_scheduler_job_error_classification_by_node`            | `node`, `pool`, `cluster`, `category`, `subcategory` | Failures by category for each node: use it to find bad nodes.                                                   |
+| `armada_executor_job_failure_rule_evaluation_duration_seconds` | `failure_category`, `failure_subcategory`            | Time spent checking rules: use it to find slow regular expressions.                                             |
+
+Watch the share of `uncategorized` failures. A high share means your rules miss common failures.
+
+## Examples
+
+These keep the default `action: Retain`, except the GPU example. Set `action: Delete` on any category a retry policy retries.
+
+### Separate program errors from platform errors
+
+The configuration in [Step 1](#step-1-choose-your-categories) gives:
+
+| The failure                                   | Category                       |
+| --------------------------------------------- | ------------------------------ |
+| The container used more memory than its limit | `oom`, with a hint             |
+| Kubernetes evicted the pod                    | `node`, subcategory `eviction` |
+| The program exited with code 1                | `user_error`                   |
+| The program exited with code 3                | `uncategorized`                |
+
+### Only look at the main container
+
+A job has a main container and a sidecar that uploads results. A sidecar error isn't a program error, so this rule looks only at `main`:
+
+```yaml
+- name: user_error
+  rules:
+    - containerName: main
+      onExitCodes:
+        operator: NotIn
+        values: [137, 143]
+```
+
+`NotIn` matches every exit code except those listed: here, everything except being stopped by a signal (137 is `SIGKILL`, 143 is `SIGTERM`). Running out of memory also gives 137, so keep a separate `oom` rule.
+
+### An image built for the wrong CPU
+
+Someone builds an image on an Arm laptop and runs it on x86 nodes. The image pull fails with a known message:
+
+```yaml
+- name: image
+  rules:
+    - onPodError:
+        pattern: 'no match for platform in manifest'
+      subcategory: platform_mismatch
+      hint: "Build the image for the cluster's CPU architecture, for example linux/amd64."
+```
+
+The pod never starts, so the failure arrives when the default image-pull check fails it, about 90 seconds after the pod went Pending.
+
+### A GPU the node can't give
+
+The kubelet sometimes can't give a GPU to a pod, and writes an event:
+
+```yaml
+- name: gpu
+  action: Delete
+  rules:
+    - onPodEvents:
+        type: Warning
+        reason: UnexpectedAdmissionError
+        regexp: 'nvidia.com/gpu'
+      subcategory: unavailable
+      hint: 'The node could not give a GPU to the job. Submit the job again.'
+```
+
+The pod fails before its container starts, so this rule needs `action: Delete` in Armada 0.22.12 (see [When the pod matchers see a failure](#when-the-pod-matchers-see-a-failure)). From the next release it also works with `Retain`.
+
+### Messages your program writes
+
+A program can write a short message to `/dev/termination-log` before exiting, and a rule can match it:
+
+```yaml
+- name: data
+  rules:
+    - onTerminationMessage:
+        pattern: '(?i)input file not found'
+      subcategory: missing-input
+      hint: 'Check that the input path of the job exists.'
+```
+
+Tested: a container that ran `echo Input file not found > /dev/termination-log; exit 4` got category `data`, subcategory `missing-input`, and the hint.
+
+## Troubleshooting
+
+| What you see                                                                      | Cause                                                                                                                                                                  | Fix                                                                                                     |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| A failed job has no category                                                      | Categories are off on the executor that ran it, or no rule matched and there's no `defaultCategory`                                                                    | Ask your operator. If categories are on but Lookout shows nothing, Lookout is older than the executors. |
+| Category `uncategorized`                                                          | No rule matched                                                                                                                                                        | Ask your operator to add a rule.                                                                        |
+| The failed run's logs are gone                                                    | The category has `action: Delete`, the pod passed `kubernetes.failedPodExpiry` (10 minutes), or the cluster had more than `kubernetes.maxTerminatedPods` finished pods | Write important logs to your own storage.                                                               |
+| `Found no logs for job; try 'kubectl --context Cluster1 ...` in `armadactl watch` | `watch` uses the executor's name as the kubectl context                                                                                                                | On a laptop install, use `--context kind-armada` instead.                                               |
+| An `onPodEvents` rule doesn't match a pod that never started                      | `onPodEvents` only sees pods that failed                                                                                                                               | Use `onPodError` on the `pendingPodChecks` message instead.                                             |
+| `Config error in error categories: ...` and the executor won't start              | A setting isn't valid; the message names the category and rule                                                                                                         | Fix the rule (see [Check the settings](#check-the-settings)) and apply again.                           |
+| The same failure gets different categories                                        | The executors have different settings                                                                                                                                  | Use the same settings on every executor.                                                                |
