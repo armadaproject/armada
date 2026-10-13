@@ -5,7 +5,7 @@ description: 'See at a glance why a job failed, whether the fix is yours or the 
 
 When a job fails, the first question is usually: is the problem in my job, or in the platform? A **failure category** answers it at a glance. Armada gives each failed run a short label, such as `oom` (ran out of memory) or `user_error` (your program exited with an error), and can add a **hint** with a known fix.
 
-Your platform team (the operators) decides the categories. Categories are also what [retry policies](/docs/retry-policies) use to decide whether to run a job again.
+Your platform team (the operators) decides the categories. Categories are also what [retry policies](/docs/retry_policies) use to decide whether to run a job again.
 
 ## How categories work
 
@@ -49,7 +49,7 @@ Armada sets two categories of its own.
 | `active-deadline`     | The pod ran past its `activeDeadlineSeconds` and Kubernetes didn't stop it. Reported after the deadline, plus the termination grace period, plus `kubernetes.stuckTerminatingPodExpiry` (30 seconds by default). A normal stop at the deadline instead has the reason `DeadlineExceeded`, and gets whatever category the operator's rules give it. |
 | `job-creation-failed` | The executor couldn't create the pod from the job.                                                                                                                                                                                                                                                                                                 |
 | `job-rejected`        | A check rejected the job before it ran.                                                                                                                                                                                                                                                                                                            |
-| `max-runs-exceeded`   | The job used all its startup retries, or was tried once on every node that can run it. Retries from a retry policy count too.                                                                                                                                                                                                                      |
+| `max-runs-exceeded`   | The job used all its startup retries (`scheduling.maxRetries`; runs started by a retry policy count toward that limit), or was tried once on every node that can run it. A job that runs out of [retry policy](/docs/retry_policies) retries doesn't get this label: it keeps its last run's category, and its message starts `Retry policy:`.     |
 | `issue-handler-error` | The pod changed state while the executor was handling a problem.                                                                                                                                                                                                                                                                                   |
 
 An `internal` failure has no hint. Submit the job again, and tell your operator if it keeps happening.
@@ -138,10 +138,35 @@ application:
 
 ### Step 2. Apply them to the executor
 
-With the Armada Operator, add the settings to the `Executor` resource's `spec.applicationConfig` (with Helm, under `applicationConfig.application.errorCategories`). For example, saved as JSON in `categories.json`:
+With the Armada Operator, add the settings to the `Executor` resource under `spec.applicationConfig` (with Helm, under `applicationConfig`). Save Step 1's settings with that wrapper in `categories-patch.yaml`:
+
+```yaml title="categories-patch.yaml"
+spec:
+  applicationConfig:
+    application:
+      errorCategories:
+        enabled: true
+        defaultCategory: uncategorized
+        categories:
+          - name: oom
+            rules:
+              - onConditions: ['OOMKilled']
+                hint: 'The job ran out of memory. Increase the memory request, or use a retry policy that adds memory.'
+          - name: node
+            rules:
+              - onConditions: ['Evicted']
+                subcategory: eviction
+          - name: user_error
+            rules:
+              - onExitCodes:
+                  operator: In
+                  values: [1, 2, 126, 127]
+```
+
+Then patch the executor and wait for it to restart:
 
 ```bash
-kubectl patch executor <executor-name> -n armada --type merge --patch-file categories.json
+kubectl patch executor <executor-name> -n armada --type merge --patch-file categories-patch.yaml
 kubectl rollout status deploy/<executor-name> -n armada
 ```
 
