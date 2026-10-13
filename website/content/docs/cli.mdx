@@ -1,162 +1,196 @@
 ---
-title: 'CLI Reference'
+title: 'CLI reference'
+description: 'Install armadactl, configure it, and look up every command.'
 ---
 
-## Installing armadactl
+`armadactl` is the command-line tool for Armada. Use it to submit and watch jobs, manage queues, and ask the scheduler what it's doing.
 
-`armadactl` is the official command-line tool for interacting with Armada. It's the recommended way to interact with Armada for most users, providing a simple and intuitive interface for all common operations.
+## Install armadactl
 
-### Installation Methods
+**On a laptop install,** [Getting started](/getting-started) installs `armadactl` into `~/bin` for you.
 
-**Using the Installation Script**
+Otherwise, use one of these:
 
-The easiest way to install `armadactl` is using the provided installation script:
+**The install script.** From a clone of the [Armada repository](https://github.com/armadaproject/armada):
 
 ```bash
-# From the Armada repository root
 scripts/get-armadactl.sh
 ```
 
-**Download from Releases**
+It downloads the latest release for your system and copies it into `~/bin`. It says `armadactl is now available on your PATH`, but that change only lasts while the script runs: if `armadactl` isn't found afterwards, add `~/bin` to your PATH (below).
 
-Alternatively, you can download the latest `armadactl` binaries directly from the [Armada releases page](https://github.com/armadaproject/armada/releases). Download the appropriate binary for your platform:
-
-```bash
-# Example for macOS (Intel)
-curl -L -o /tmp/armadactl "https://github.com/armadaproject/armada/releases/download/v0.3.101/armadactl_0.3.101_darwin_all.tar.gz" && \
-  tar -xzvf /tmp/armadactl && \
-  mv armadactl /usr/local/bin/armadactl && \
-  rm /tmp/armadactl && \
-  chmod +x /usr/local/bin/armadactl
-
-# Example for Linux (AMD64)
-curl -L -o /tmp/armadactl "https://github.com/armadaproject/armada/releases/download/v0.3.101/armadactl_0.3.101_linux_amd64.tar.gz" && \
-  tar -xzvf /tmp/armadactl && \
-  mv armadactl /usr/local/bin/armadactl && \
-  rm /tmp/armadactl && \
-  chmod +x /usr/local/bin/armadactl
-```
-
-**Install via kubectl plugin (krew)**
-
-If you use `kubectl` and have [krew](https://krew.sigs.k8s.io/) installed, you can install `armadactl` as a kubectl plugin:
+**A release download.** Download the archive for your system from the [Armada releases page](https://github.com/armadaproject/armada/releases/latest) (`armadactl_<version>_darwin_all.tar.gz` for any Mac, `armadactl_<version>_linux_amd64.tar.gz` or `armadactl_<version>_linux_arm64.tar.gz` for Linux, `armadactl_<version>_windows_amd64.zip` for Windows), then, on a Mac or Linux:
 
 ```bash
-kubectl krew install armadactl
+tar -xzf armadactl_*.tar.gz armadactl
+mkdir -p ~/bin && mv armadactl ~/bin/
 ```
 
-Then use it as:
+**Check it works:**
 
 ```bash
-kubectl armadactl [subcommand]
+armadactl version
 ```
 
-## Configuration
+If you see `command not found`, add `~/bin` to your PATH: `export PATH="$HOME/bin:$PATH"`.
 
-`armadactl` uses a configuration file to manage connections to Armada instances. By default, it looks for a configuration file at `$HOME/.armadactl.yaml`.
+## Configure armadactl
 
-### Configuration File Structure
+`armadactl` reads `~/.armadactl.yaml`. Each Armada installation is a named **context**:
 
 ```yaml
-currentContext: main # Default context to be used
+currentContext: laptop
 contexts:
-  main:
-    armadaUrl: <Your Armada API endpoint>
-    execAuth:
-      cmd: <Your auth command>
-      args:
-        - <Arg>
-  test:
-    armadaUrl: <Your Armada API endpoint>
-    execAuth:
-      cmd: <Your auth command>
-      args:
-        - <Arg>
+  laptop:
+    armadaUrl: localhost:30002
+  prod:
+    armadaUrl: armada.example.com:443
+    openIdAuth:
+      providerUrl: 'https://login.example.com/realms/armada'
+      clientId: 'armada'
+      localPort: 8085
+      scopes: ['openid', 'profile', 'email']
 ```
 
-You can also specify a custom config file using the `--config` flag:
+{/* See [Authentication](/docs/authentication) for every login option. */}
+
+An older config format, with `armadaUrl` at the top level and no `contexts`, still works but prints `No context defined. This method of providing connection details will soon be deprecated`. Move the settings into a context to stop the warning. (The link in that warning points to a page that no longer exists.)
+
+Options that work with every command:
+
+| Option                  | Meaning                                      |
+| ----------------------- | -------------------------------------------- |
+| `-c, --context <name>`  | Use this context for one command             |
+| `--config <path>`       | Use a different config file                  |
+| `--armadaUrl <address>` | Connect to this address, ignoring the config |
+
+## Common tasks
 
 ```bash
-armadactl --config /path/to/config.yaml submit job.yaml
-```
-
-## CLI Commands
-
-`armadactl` provides the following commands:
-
-- **`submit`** - Submit jobs to Armada queues
-- **`cancel`** - Cancel running or queued jobs
-- **`get`** - Get information about jobs, queues, or job sets
-- **`watch`** - Watch job events in real-time
-- **`create`** - Create queues and other resources
-- **`delete`** - Delete jobs, queues, or other resources
-- **`update`** - Update jobs or queues
-- **`reprioritize`** - Change job priorities
-- **`preempt`** - Preempt running jobs
-- **`cordon`** - Mark executors as unavailable
-- **`uncordon`** - Mark executors as available
-- **`config`** - Manage armadactl configuration contexts
-- **`version`** - Display version information
-- **`docs`** - Generate documentation
-
-## Example Usage Patterns
-
-### Submitting a Job
-
-```bash
-# Submit a single job from a YAML file
+# Submit jobs from a file, checking it first
+armadactl submit job.yaml --dry-run
 armadactl submit job.yaml
 
-# Submit multiple jobs
-armadactl submit job1.yaml job2.yaml job3.yaml
+# Follow a job set (press Ctrl-C to stop)
+armadactl watch my-team demo-1
+
+# Cancel one job, or a whole job set
+armadactl cancel job my-team demo-1 <job-id>
+armadactl cancel job-set my-team demo-1
+
+# Change the order of waiting jobs (lower runs first)
+armadactl reprioritize job my-team demo-1 <job-id> 5
+armadactl reprioritize job-set my-team demo-1 5
+
+# Queues
+armadactl create queue my-team --priority-factor 1
+armadactl get queues
+armadactl get queue my-team
+armadactl delete queue my-team
+
+# Why isn't my job running?
+armadactl get job-report <job-id>
+armadactl get queue-report my-team
 ```
 
-### Monitoring Jobs
+## Command reference
 
-```bash
-# Get job status
-armadactl get job <job-id>
+Every command has detailed help: `armadactl <command> --help`.
 
-# Watch job events in real-time
-armadactl watch <job-set-id>
+### Jobs
 
-# List all jobs in a queue
-armadactl get queue <queue-name>
-```
+| Command                                                                                                               | What it does                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `submit <file> [--dry-run]`                                                                                           | Submit the jobs in a file. `--dry-run` only checks the file, and prints nothing if it's fine.                                  |
+| `watch <queue> <job-set> [--raw] [--exit-if-inactive]`                                                                | Stream a job set's events. `--raw` shows every event in full. Press Ctrl-C to stop.                                            |
+| `cancel job <queue> <job-set> <job-id>`                                                                               | Cancel one job.                                                                                                                |
+| `cancel job-set <queue> <job-set>`                                                                                    | Cancel every job in a job set.                                                                                                 |
+| `cancel queues <queues...> --job-states <states> [--priority-classes ...] [--selector ...] [--pools ...] [--dry-run]` | Cancel jobs across whole queues. Needs the global `cancel_any_jobs` right. Leaving out `--priority-classes` means every class. |
+| `reprioritize job <queue> <job-set> <job-id> <priority>`                                                              | Change one waiting job's order in its queue.                                                                                   |
+| `reprioritize job-set <queue> <job-set> <priority>`                                                                   | Change the order of every waiting job in a job set.                                                                            |
+| `preempt job <queue> <job-set> <job-id> <reason>`                                                                     | Stop one running job. Only works on preemptible jobs.                                                                          |
+| `preempt queues <queues...> [--priority-classes ...] [--selector ...] [--pools ...] [--dry-run]`                      | Stop running jobs across whole queues. Needs the global `preempt_any_jobs` right.                                              |
 
-### Managing Queues
+### Queues
 
-```bash
-# Create a new queue
-armadactl create queue my-queue
+| Command                                                                                                               | What it does                                                       |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `create queue <name> [--priority-factor N] [--owners ...] [--group-owners ...] [--labels k=v] [--retry-policies ...]` | Create a queue. **Replaces an existing queue with the same name.** |
+| `create -f <file>`                                                                                                    | Create a queue (or retry policy) from a file.                      |
+| `get queue <name>`                                                                                                    | Show one queue's settings.                                         |
+| `get queues [<names...>] [--match-labels k=v] [--only-cordoned]`                                                      | List queues.                                                       |
+| `update queue <name> [flags]`                                                                                         | Replace a queue's settings. **Every flag you leave out is reset.** |
+| `delete queue <name>`                                                                                                 | Delete a queue. Cancel its jobs first.                             |
+| `cordon queues <names...> [--match-labels ...] [--dry-run]`                                                           | Stop new jobs starting from these queues. Needs `cordon_queue`.    |
+| `uncordon queues <names...> [--match-labels ...] [--dry-run]`                                                         | Undo `cordon queues`. Needs `cordon_queue`.                        |
 
-# Get queue information
-armadactl get queue my-queue
+### Reports
 
-# Delete a queue
-armadactl delete queue my-queue
-```
+| Command                      | What it does                                                             |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| `get job-report <job-id>`    | Why the scheduler did or didn't schedule this job.                       |
+| `get queue-report <queue>`   | What the scheduler last did for this queue.                              |
+| `get scheduling-report [-v]` | The scheduler's report on its latest round. Repeat `-v` for more detail. |
 
-### Cancelling Jobs
+`get scheduling-report` also accepts `--job-id` and `--queue`, but both are deprecated: they print ``This flag is deprecated and will be removed in a future release. Please use `job-report` instead.`` (or `` `queue-report` ``). Use `get job-report` and `get queue-report` instead.
 
-```bash
-# Cancel a specific job
-armadactl cancel <job-id>
+A report for a job that's already running may say `Most recent scheduling round that affected job <job-id>: none`: reports only cover recent rounds.
 
-# Cancel all jobs in a job set
-armadactl cancel <job-set-id>
-```
+{/* See [When jobs fail or don't start](/docs/when-jobs-fail) for how to read them. */}
 
-## Getting Help
+### Retry policies
 
-For detailed help on any command:
+| Command                                         | What it does           |
+| ----------------------------------------------- | ---------------------- |
+| `create retry-policy -f <file>`                 | Create a retry policy. |
+| `update retry-policy -f <file>`                 | Update a retry policy. |
+| `get retry-policy <name>`, `get retry-policies` | Show retry policies.   |
+| `delete retry-policy <name>`                    | Delete a retry policy. |
 
-```bash
-armadactl [command] --help
-```
+Managing policies needs `create_retry_policy`, `update_retry_policy` or `delete_retry_policy`; anyone can read them. See [Retry policies](/docs/retry_policies).
 
-For general help:
+### Configuration and other commands
 
-```bash
-armadactl --help
-```
+| Command                     | What it does                                                                                                                             |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `config get-contexts`       | List the contexts in your config.                                                                                                        |
+| `config current-context`    | Show the active context.                                                                                                                 |
+| `config use-context <name>` | Switch the active context.                                                                                                               |
+| `version`                   | Show `armadactl`'s version.                                                                                                              |
+| `completion <shell>`        | Print a shell completion script.                                                                                                         |
+| `docs`                      | Print detailed `armadactl` documentation, formatted for the terminal. (Piped to a file or `head`, the formatting shows as escape codes.) |
+
+### Worker clusters and nodes
+
+These act on whole worker clusters (executors) or nodes, and are usually platform-team actions. The cancel and preempt commands only affect jobs already placed on that executor or node, and have no `--dry-run`.
+{/* See [Watching and managing jobs](/docs/monitoring-and-fleet). */}
+
+| Command                                                                             | What it does                                                             | Needs                      |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------- |
+| `cancel executor <executor> [--queues ...] [--priority-classes ...] [--pools ...]`  | Cancel jobs running on a worker cluster. Leaving out a filter means all. | `cancel_any_jobs`          |
+| `preempt executor <executor> [--queues ...] [--priority-classes ...] [--pools ...]` | Preempt jobs running on a worker cluster.                                | `preempt_any_jobs`         |
+| `cancel node <node> --executor <executor> [--queues ...] [--priority-classes ...]`  | Cancel jobs running on one node.                                         | `cancel_any_jobs`          |
+| `preempt node <node> --executor <executor> [--queues ...] [--priority-classes ...]` | Preempt jobs running on one node.                                        | `preempt_any_jobs`         |
+| `cordon executor <executor> <reason>`                                               | Stop new jobs being placed on a worker cluster.                          | `update_executor_settings` |
+| `uncordon executor <executor>`                                                      | Undo `cordon executor`.                                                  | `update_executor_settings` |
+| `delete executor <executor>`                                                        | Remove a worker cluster's settings (such as its cordon).                 | `update_executor_settings` |
+
+On a laptop install, the executor is `Cluster1` and the worker node is `armada-worker`. The laptop grants `cancel_any_jobs` but not `preempt_any_jobs` or `update_executor_settings`.
+
+## Troubleshooting
+
+| What you see                                                                              | Cause                                                                                                               | Fix                                                                                                |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `command not found: armadactl`                                                            | `armadactl` isn't on your PATH                                                                                      | `export PATH="$HOME/bin:$PATH"`                                                                    |
+| `zsh: killed armadactl`, or it prints nothing and exits with code 137, after reinstalling | macOS stopped the new file because the install overwrote the old one in place                                       | `cp ~/bin/armadactl ~/bin/armadactl.new && mv ~/bin/armadactl.new ~/bin/armadactl`                 |
+| `Request could not be authenticated with any of the supported schemes.`                   | The installation needs a login, and your context has none                                                           | Add a login to the context.                                                                        |
+| `get queues` prints `[]`                                                                  | You may not be logged in: an `Unauthenticated` line appears above the list, and the command still exits with code 0 | Check for an error line above the list.                                                            |
+| `[GetJobSetEvents] Jobset <job-set> for queue <queue> does not exist` from `watch`        | You started `watch` straight after submitting                                                                       | Wait a few seconds and run it again.                                                               |
+| A `--dry-run` worked, but the real command was denied                                     | `--dry-run` doesn't check your rights                                                                               | Ask for the right named in the error.                                                              |
+| `connection refused`                                                                      | Wrong address, or Armada isn't running                                                                              | Check `armadaUrl` in `~/.armadactl.yaml`.                                                          |
+| `accepts N arg(s), received M`                                                            | Missing or extra arguments                                                                                          | Run the command with `--help`. Most job commands need the queue and the job set as well as the ID. |
+| A command prints its help instead of running                                              | A subcommand is missing, for example `cancel <id>` instead of `cancel job ...`                                      | Use the full form from the reference above.                                                        |
+| `lacks permission <right> required for action <right>`                                    | You don't have a global right the command needs (see the **Needs** column above.)                                   | Ask your platform team.                                                                            |
+| `This flag is deprecated and will be removed in a future release.`                        | You used `scheduling-report --job-id` or `--queue`                                                                  | Use `get job-report` or `get queue-report`.                                                        |
+| `unknown flag`                                                                            | The flag doesn't exist in your version                                                                              | Run the command with `--help`.                                                                     |
+| `zsh: no such file or directory: job-id` (or `bash: job-id: No such file or directory`)   | A placeholder was pasted with its angle brackets                                                                    | Replace `<job-id>`, including `<` and `>`, with the real value.                                    |
