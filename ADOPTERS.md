@@ -7,7 +7,7 @@ Want to add your organization to this list? [Create a pull request](https://gith
 | Organization                             | Success Story                                                                                                                                             |
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [G-Research](https://www.gresearch.com/) | G-Research is a leading quantitative research company that uses Armada in production to process millions of jobs daily across tens of thousands of nodes. |
-
+| [Spectro Cloud](https://www.spectrocloud.com/) | Spectro Cloud is a Kubernetes management platform that uses Armada to run customer workloads across its managed environments. |
 <!-- To add your organization: add a new row to the table above using the format:
 | [Organization Name](https://your-website.com) | Brief description of how you are using Armada. |
 -->
