@@ -93,7 +93,7 @@ Two limits apply, whichever is lower:
 
 Both count **all** of the job's earlier failed runs, not just ones of the same category. A job evicted twice has used two retries; if it then runs out of memory under a policy with `retryLimit: 2`, it fails.
 
-Only runs that started count. Startup retries and preemptions don't.
+Failed runs count unless their lease was returned or they were preempted. Startup retries that return the lease don't count. A `lease-expired` failure counts even if the pod never started.
 
 When the budget runs out, the job fails with the reason, for example:
 
