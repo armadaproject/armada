@@ -17,7 +17,7 @@ func TestClassify(t *testing.T) {
 	tests := map[string]struct {
 		config              ErrorCategoriesConfig
 		pod                 *v1.Pod
-		podErrorMessage     string
+		message             string
 		podEvents           []*v1.Event
 		expectedCategory    string
 		expectedSubcategory string
@@ -68,7 +68,7 @@ func TestClassify(t *testing.T) {
 				}},
 			}},
 			pod:              podWithTerminatedContainer(1, "Error", ""),
-			podErrorMessage:  "some pod error",
+			message:          "some pod error",
 			expectedCategory: "",
 		},
 		"action propagates from the matched category": {
@@ -358,32 +358,20 @@ func TestClassify(t *testing.T) {
 					}},
 				},
 			}},
-			podErrorMessage:     `Failed to pull image "amd64/busybox:latest": no match for platform in manifest: not found`,
+			message:             `Failed to pull image "amd64/busybox:latest": no match for platform in manifest: not found`,
 			expectedCategory:    "infrastructure",
 			expectedSubcategory: "platform_mismatch",
 		},
-		"empty podErrorMessage does not match onPodError": {
-			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
-				{Name: "infrastructure", Rules: []CategoryRule{
-					{OnPodError: &errormatch.RegexMatcher{Pattern: "anything"}, Subcategory: "x"},
-				}},
-			}},
-			pod:              &v1.Pod{Status: v1.PodStatus{Phase: v1.PodPending}},
-			podErrorMessage:  "",
-			expectedCategory: "",
-		},
-		// Pins the public contract that ClassifyContainerError never matches onPodError rules,
-		// even with a pattern (".*") that would otherwise match empty input. The guard is enforced
-		// at two layers (ruleMatches and errormatch.MatchPattern); this test fails only if both go,
-		// which is the right level to assert the contract regardless of internal layering.
-		"ClassifyContainerError must not match onPodError even when regex matches empty": {
+		// The guard against an empty message is in two layers (ruleMatches and errormatch.MatchPattern). A pattern that
+		// matches the empty string makes this case fail only if both layers lose the guard.
+		"an empty failure message does not match onPodError, even with a pattern that matches the empty string": {
 			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "infrastructure", Rules: []CategoryRule{
 					{OnPodError: &errormatch.RegexMatcher{Pattern: ".*"}, Subcategory: "should_not_fire"},
 				}},
 			}},
 			pod:              &v1.Pod{Status: v1.PodStatus{Phase: v1.PodPending}},
-			podErrorMessage:  "",
+			message:          "",
 			expectedCategory: "",
 		},
 		"onPodError ignores ContainerName scope (pod-level error has no container attribution)": {
@@ -400,11 +388,11 @@ func TestClassify(t *testing.T) {
 					}},
 				},
 			}},
-			podErrorMessage:     `Failed to pull image "amd64/busybox:latest": no match for platform in manifest: not found`,
+			message:             `Failed to pull image "amd64/busybox:latest": no match for platform in manifest: not found`,
 			expectedCategory:    "infrastructure",
 			expectedSubcategory: "platform_mismatch",
 		},
-		"onTerminationMessage does not match pod-level podErrorMessage": {
+		"onTerminationMessage does not match pod-level message": {
 			config: ErrorCategoriesConfig{Categories: []CategoryConfig{
 				{Name: "infrastructure", Rules: []CategoryRule{
 					{OnTerminationMessage: &errormatch.RegexMatcher{Pattern: "no match for platform in manifest"}, Subcategory: "should_not_fire"},
@@ -418,7 +406,7 @@ func TestClassify(t *testing.T) {
 					}},
 				},
 			}},
-			podErrorMessage:  `Failed to pull image "amd64/busybox:latest": no match for platform in manifest: not found`,
+			message:          `Failed to pull image "amd64/busybox:latest": no match for platform in manifest: not found`,
 			expectedCategory: "",
 		},
 	}
@@ -427,12 +415,7 @@ func TestClassify(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			classifier, err := NewClassifier(tc.config)
 			require.NoError(t, err)
-			var result ClassifyResult
-			if tc.podErrorMessage == "" && tc.podEvents == nil {
-				result = classifier.ClassifyContainerError(tc.pod)
-			} else {
-				result = classifier.ClassifyPodError(tc.pod, tc.podErrorMessage, tc.podEvents)
-			}
+			result := classifier.Classify(tc.pod, tc.message, tc.podEvents)
 			assert.Equal(t, tc.expectedCategory, result.Category)
 			assert.Equal(t, tc.expectedSubcategory, result.Subcategory)
 			expectedAction := tc.expectedAction
@@ -641,7 +624,7 @@ func TestClassify_RecordsRuleEvaluationDuration(t *testing.T) {
 
 	before := ruleHistogramCounts(t)
 	pod := podWithTerminatedContainer(42, "Error", "")
-	result := classifier.ClassifyContainerError(pod)
+	result := classifier.Classify(pod, "", nil)
 	require.Equal(t, "user_error", result.Category)
 	require.Equal(t, "bad_exit", result.Subcategory)
 	after := ruleHistogramCounts(t)

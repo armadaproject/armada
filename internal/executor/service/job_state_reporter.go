@@ -119,7 +119,7 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 		}
 		// Classify with the same inputs as the delete action check of the issue handler, so that both give the same
 		// category for the pod, whatever the action of the category.
-		classifyResult = stateReporter.classifier.ClassifyPodError(pod, util.ExtractPodFailedReason(pod), podEvents)
+		classifyResult = stateReporter.classifier.Classify(pod, util.ExtractPodFailedReason(pod), podEvents)
 
 		hasIssue := stateReporter.podIssueHandler.HasIssue(util.ExtractJobRunId(pod))
 		if hasIssue {
