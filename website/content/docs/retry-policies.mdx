@@ -1,0 +1,521 @@
+---
+title: 'Retry policies'
+description: 'Let Armada run a failed job again, for the failures where a second run is likely to work, and change the job before it does.'
+---
+
+Some failures don't repeat: a node ran low on resources, or a job needed a bit more memory. A second run often works. Others do repeat: a bug fails every time, and retrying just wastes capacity your team needs.
+
+A **retry policy** tells Armada which failures to retry and which end the job, and can change the job before the next run (more memory, or a different node). Policies decide using each failure's failure category, such as `oom` or `node`.
+
+> **Coming soon:** choosing policies for a single job with the `armadaproject.io/retryPolicies` annotation, and using every policy in a list rather than only the first, are in review ([#5246](https://github.com/armadaproject/armada/pull/5246), [#5248](https://github.com/armadaproject/armada/pull/5248)). They aren't in Armada 0.22.12, and this page doesn't describe them yet. When they ship, upgrade the scheduler and scheduler ingester before the server: an older scheduler ingester drops the job annotation. Until then, a job gets its policy from its queue or the installation default.
+
+## How retry policies work
+
+### Retry policies must be turned on
+
+Policies only work if your operator turned them on (they're off by default). Without them, Armada doesn't retry a job that started and then failed. Ask your operator whether they're on, and which policies exist.
+
+### Runs and retries
+
+Each attempt to run a job is a **run**. When Armada retries a job:
+
+- the job keeps its job ID; you don't submit anything
+- it goes back to the queue and waits for capacity like any queued job, possibly on another node or cluster; it waits as long as it needs to, and never fails from waiting
+- Lookout's **Result** tab lists every run, each with its failure message and category
+
+Armada also has **startup retries**: when a job can't start (an image pull takes too long, say), Armada puts it back in the queue on its own, with no policy needed.
+
+### How a retry happens
+
+1. A run's pod fails on a cluster.
+2. The executor gives the failure a category, such as `oom`.
+3. If that category has `action: Delete`, the executor deletes the failed pod, freeing its name for the next run.
+4. The executor reports the failed run, with its category, to the scheduler.
+5. The scheduler finds the job's policy and checks its rules against the category. The first matching rule decides.
+6. **Retry**, with retries left: the same job goes back to the queue for a new run, with any changes the rule makes. **Fail**, or no retries left: the job fails for good, with its category.
+
+If Armada loses contact with the cluster instead, steps 1 to 4 don't happen: the scheduler notices the lost run itself and goes straight to step 5.
+
+### What a policy contains
+
+A policy is a named list of rules, created by an operator. Each rule names a failure category (and optionally a subcategory) and an action:
+
+- `Retry`: run the job again
+- `Fail`: end the job as failed
+
+A policy also has:
+
+- `retryLimit`: the most retries. `retryLimit: 2` allows the first run plus two retries: three runs at most.
+- `defaultAction`: what to do when no rule matches.
+
+```yaml
+apiVersion: armadaproject.io/v1beta1
+kind: RetryPolicy
+name: example-policy
+retryLimit: 2
+defaultAction: Fail
+rules:
+  - action: Retry
+    onCategory: node
+  - action: Fail
+    onCategory: user_error
+```
+
+This retries node problems up to twice, never retries program errors, and fails anything else.
+
+### Where a job gets its policy
+
+1. **Its queue.** An operator can attach policies to a queue; every job in it uses them.
+2. **The installation default.** An operator can set one policy for every job whose queue has none.
+
+If neither applies, Armada doesn't retry failed runs; only startup retries happen.
+
+A queue can list several policies, but **today only the first one is used**. In testing, a queue with `no-retries,oom-more-memory` didn't retry an out-of-memory failure: `no-retries` has no rules, so its `defaultAction` (`Fail`) decided, and `oom-more-memory` was never consulted.
+
+### What Armada never retries
+
+- **Gang jobs** with two or more members, even when a rule matches (the scheduler logs this at debug level and counts it in a metric). A gang of one member is treated as a plain job and is retried. Gang retries are tracked in [armadaproject/armada#4683](https://github.com/armadaproject/armada/issues/4683).
+- **Fail-fast jobs** (annotation `armadaproject.io/failFast: "true"`): no retries of any kind.
+- **Preempted jobs.** A rule for `preemption` has no effect, and preemption doesn't use up retries. Retrying preempted jobs is planned for a later version.
+
+### When Armada loses contact with a run
+
+If the cluster running a job stops responding, Armada stops the run with category `internal`, subcategory `lease-expired`. A policy can retry this like any failure (a `Retry` rule for `internal`, or `defaultAction: Retry`). The retry counts toward the limit, and the job isn't changed first (more memory only follows a run whose pod failed).
+
+The old run may still be on the lost cluster for a while, so **two runs can overlap briefly**. Only retry `lease-expired` for jobs that can tolerate that.
+
+### The retry budget
+
+Two limits apply, whichever is lower:
+
+- the deciding policy's `retryLimit`
+- the installation-wide `globalMaxRetries`, set by your operator
+
+Both count **all** of the job's earlier failed runs, not just ones of the same category. A job evicted twice has used two retries; if it then runs out of memory under a policy with `retryLimit: 2`, it fails.
+
+Only runs that started count. Startup retries and preemptions don't.
+
+When the budget runs out, the job fails with the reason, for example:
+
+```text title="Output"
+Job failed: Retry policy: policy retry limit exceeded (2/2)
+```
+
+or `Retry policy: global max retries exceeded (1/1)` for the installation-wide limit.
+
+## For job submitters
+
+### See which policy your queue uses
+
+Anyone can read policies:
+
+```bash
+armadactl get queue <queue>
+armadactl get retry-policies
+armadactl get retry-policy <name>
+```
+
+**Success:** `get queue` lists the queue's policies under `retryPolicies`, in order. Only the first is used today.
+
+### Watch a retry happen
+
+You need a queue with a policy that retries `oom` and adds memory, like [`oom-more-memory`](#give-a-job-more-memory-when-it-runs-out), and categories set up as in (with `action: Delete` on `oom`).
+
+Save this as `oom-retry-test.yaml`, with your queue in place of `<queue>`. The job needs about 200 Mi but asks for 64 Mi:
+
+```yaml
+queue: <queue>
+jobSetId: oom-retry-test
+jobs:
+  - namespace: default
+    priority: 0
+    podSpec:
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 0
+      containers:
+        - name: main
+          image: python:3.12-slim
+          command: ['python', '-c', 'x = bytearray(200 * 1024 * 1024)']
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { cpu: 100m, memory: 64Mi }
+```
+
+```bash
+armadactl submit oom-retry-test.yaml
+armadactl watch <queue> oom-retry-test
+```
+
+**Success:** after about 90 seconds, `watch` shows three failed runs. Each retry adds 50% (64, 96, then 144 Mi), so all three run out of memory:
+
+```text title="Output"
+... | Queued:   1, ... Failed:   0 ... | JobFailedEvent, job id: <job-id> pod: 0
+Job failed: Container main failed with exit code 137 because OOMKilled:
+...
+... | Queued:   1, ... Failed:   0 ... | JobFailedEvent, job id: <job-id> pod: 0
+Job failed: Container main failed with exit code 137 because OOMKilled:
+...
+... | Queued:   0, ... Failed:   1 ... | JobFailedEvent, job id: <job-id> pod: 0
+Job failed: Retry policy: policy retry limit exceeded (2/2)
+```
+
+After a retryable failure, the counter shows `Queued: 1` and `Failed: 0`: the job is waiting for its next run, not finished.
+
+To see a retry succeed, use 128 Mi instead. The job runs out of memory at 128 and 192 Mi, and succeeds at 288 Mi.
+
+Lookout's **Details** and **YAML** tabs keep showing the memory you submitted. The increase is applied to each new pod (`kubectl get pod ... -o jsonpath='{.spec.containers[0].resources}'` showed `288Mi` on the third run).
+
+### Don't treat every failed event as final
+
+When Armada will retry, the failed event has `retryable: true`. Only a failed event with `retryable: false` is the end of the job. Make sure scripts and dashboards check this.
+
+In Python, with events from `client.unmarshal_event_response`:
+
+```python
+from armada_client.typings import EventType
+
+if event.type == EventType.failed and not event.message.retryable:
+    # The job failed, and Armada won't run it again.
+    ...
+```
+
+In Go, with an `EventStreamMessage`:
+
+```go
+if failed := event.GetMessage().GetFailed(); failed != nil && !failed.GetRetryable() {
+    // The job failed, and Armada won't run it again.
+}
+```
+
+Tested: the three failed events of the example above had `retryable` `True`, `True`, then `False`.
+
+### Make your job safe to run again
+
+A retry runs your job again from the start:
+
+- **Outputs:** a second run mustn't corrupt the first run's outputs. Write somewhere new for each run, or overwrite completely.
+- **Overlap:** after a lost cluster, two runs can briefly run at once (see [When Armada loses contact with a run](#when-armada-loses-contact-with-a-run)).
+- **Checkpoints:** long jobs that checkpoint only repeat a little work.
+- **Logs:** a retried run's pod is usually deleted, with its logs. Write important logs to your own storage.
+- **Memory:** an increase stays on the job for every later run.
+
+### Stop retries
+
+| You want                                                                                                                                  | Use                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| No retries of any kind, including startup retries (for example, when an outside workflow tool resubmits failed jobs with its own retries) | `armadaproject.io/failFast: "true"` on the job                                      |
+| No retries after the job starts, but keep startup retries                                                                                 | A queue whose first policy never retries, such as [`no-retries`](#turn-off-retries) |
+
+## Set up retry policies
+
+This section is for operators.
+
+### Before you start
+
+- **Armada 0.22.3 or later.**
+- **Failure categories on every executor**, with `action: Delete` on every category a `Retry` rule matches (see [Step 1](#step-1-set-up-failure-categories)).
+- **The permissions** to manage policies: `create_retry_policy`, `update_retry_policy`, `delete_retry_policy`. A laptop install doesn't grant them; without them, creating a policy fails with `anonymous lacks permission create_retry_policy required for action create_retry_policy`.
+
+**Ready when:** `armadactl get retry-policies` works (it prints `retryPolicies: []` if there are none).
+
+### Step 1. Set up failure categories
+
+For retries, set `action: Delete` on each category you'll retry:
+
+```yaml
+application:
+  errorCategories:
+    enabled: true
+    defaultCategory: uncategorized
+    categories:
+      - name: oom
+        action: Delete
+        rules:
+          - onConditions: ['OOMKilled']
+            hint: 'The job ran out of memory. Increase the memory request, or use a retry policy that adds memory.'
+      - name: node
+        action: Delete
+        rules:
+          - onConditions: ['Evicted']
+            subcategory: eviction
+      - name: user_error
+        rules:
+          - onExitCodes:
+              operator: In
+              values: [1, 2, 126, 127]
+```
+
+**Why `Delete` matters:** every run of a job uses the same pod name. If the failed pod is still there (`Retain`), the next run can't be created with that name and fails with a misleading error. In testing, a policy retrying `user_error` (left on `Retain`) failed on the second run with:
+
+```text title="Output"
+Job failed: Job was attempted 2 times, and has been tried once on all nodes it can run on - this job will no longer be retried
+```
+
+On clusters with more nodes, it ends with `Maximum number of attempts (<n>) reached` instead.
+
+What happens underneath: the next run can't create its pod (`AlreadyExists`), so it's treated as a pod that couldn't start, not a failure. The retry policy never decides it; the startup-retry limit does, and the final message doesn't mention the real cause. The kept pod is deleted at that point anyway, so `Retain` doesn't even save its logs.
+
+> **Only retry:**
+>
+> - categories of failed pods that have `action: Delete`
+> - `internal`, `lease-expired`
+>
+> Don't retry other `internal` subcategories (such as `stuck-terminating`, `active-deadline`, `externally-deleted`), or failures from `pendingPodChecks`: they're reported before the pod is deleted, so the retry collides with the old pod.
+
+`kubernetes.pendingPodChecks` and `kubernetes.failedPodChecks` run before the categories. A failure one of them retries becomes a startup retry, and no policy sees it. To let a policy decide instead, move the rule from `failedPodChecks.events` into an `onPodEvents` rule in a category with `action: Delete`, and remove the old check (the fields are the same). Other `failedPodChecks` rules have no equivalent.
+
+### Step 2. Turn on retry policies
+
+Policies are scheduler settings under `scheduling.retryPolicy`, and need a scheduler restart. With the Armada Operator:
+
+```bash
+kubectl patch scheduler <scheduler-name> -n armada --type merge -p '
+{"spec":{"applicationConfig":{"scheduling":{"retryPolicy":{"enabled":true,"globalMaxRetries":5}}}}}'
+kubectl rollout status deploy/<scheduler-name> -n armada
+```
+
+With Helm, use `scheduler.applicationConfig.scheduling.retryPolicy`.
+
+| Setting                         | Meaning                                                                                                                                                                                                                            |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `retryPolicy.enabled`           | Turns policies on. Off: no policies apply, but categories still show.                                                                                                                                                              |
+| `retryPolicy.globalMaxRetries`  | The most policy retries any job gets, whatever its policy says. Default `5`. `0` stops all policy retries, while still categorizing failures; the scheduler logs a warning at startup when it's `0`. There's no unlimited setting. |
+| `retryPolicy.defaultPolicyName` | Optional. The policy for jobs whose queue has none. The scheduler doesn't check the name at startup: a wrong name has no effect.                                                                                                   |
+
+**Success:** the rollout finishes.
+
+### Step 3. Create policies
+
+A policy is a YAML file (JSON works too):
+
+```yaml
+apiVersion: armadaproject.io/v1beta1
+kind: RetryPolicy
+name: team-default
+retryLimit: 3
+defaultAction: Fail
+rules:
+  - action: Retry
+    onCategory: node
+    mutate:
+      affinity:
+        avoidSameNode: true
+  - action: Retry
+    onCategory: oom
+    mutate:
+      resources:
+        memory:
+          factor: 1.5
+  - action: Retry
+    onCategory: internal
+    onSubcategory: lease-expired
+  - action: Fail
+    onCategory: user_error
+```
+
+```bash
+armadactl create retry-policy -f team-default.yaml
+```
+
+**Success:** `Created retry policy team-default`, and `armadactl get retry-policy team-default` shows it.
+
+| Field                   | Meaning                                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`                  | Lowercase letters, digits and hyphens, up to 63 characters, starting and ending with a letter or digit.                                    |
+| `retryLimit`            | The most retries. `0` never retries.                                                                                                       |
+| `defaultAction`         | Required. `Retry` or `Fail`, when no rule matches. Without it, creating the policy fails with `must set a default action (Fail or Retry)`. |
+| `rules[].action`        | `Retry` or `Fail`.                                                                                                                         |
+| `rules[].onCategory`    | Required. Exact, case-sensitive match.                                                                                                     |
+| `rules[].onSubcategory` | Optional. Narrows the rule to one subcategory.                                                                                             |
+| `rules[].mutate`        | Optional. Changes made before the next run. Ignored on `Fail` rules.                                                                       |
+
+A rule can match `internal` (for example `internal` / `lease-expired`), even though executor categories shouldn't use that name (from the next release, they can't). Rules are checked top to bottom, and the first match decides, so put specific rules (with a subcategory) before general ones. A common pattern: `Fail` rules for categories that will never succeed on a second run, then `Retry` rules for passing problems, with `defaultAction: Fail` as the safety net. A policy with no rules lets `defaultAction` decide everything.
+
+Rules can only match categories. Matching exit codes, Kubernetes conditions or termination messages directly is planned for a later version; for now, define a category for them on the executor and match that.
+
+> **Use `defaultAction: Fail`.** `Retry` would also retry every `internal` subcategory and every failure without a category, including those whose old pod still holds the name.
+
+### Step 4. Attach policies to a queue
+
+Attaching needs `create_queue`. For a new queue:
+
+```bash
+armadactl create queue <queue> --retry-policies team-default
+```
+
+**Success:** `armadactl get queue <queue>` lists `team-default` under `retryPolicies`. Changes apply after about 10 seconds.
+
+For an existing queue, `armadactl update queue` **replaces every setting**: anything you leave out is reset (owners emptied, priority factor 1, cordon lifted, per-verb permissions gone). Read the queue first, then pass every setting again:
+
+```bash
+armadactl get queue <queue>
+armadactl update queue <queue> \
+  --priority-factor <factor> \
+  --owners <users> \
+  --group-owners <groups> \
+  --labels <labels> \
+  --retry-policies team-default
+```
+
+Add `--cordon` if the queue is paused. For queues with per-verb permissions, which the flags can't express, update through the API client.
+
+### Step 5. Give startup retries room
+
+`scheduling.maxRetries` (default 3) limits a job to `maxRetries + 1` runs **for startup retries**. Policy retries aren't stopped by it (in testing, a policy allowing 5 retries ran all 6 runs under the default), but they do count as runs. So a job that has used its policy retries has no startup retries left: if it then can't start, it fails with `Maximum number of attempts (<n>) reached`.
+
+Set `scheduling.maxRetries` to `globalMaxRetries` plus the startup retries a job should keep. For example, `globalMaxRetries: 5` with `maxRetries: 8` keeps three.
+
+### Step 6. Roll out
+
+1. Upgrade every executor to 0.22.3 or later, and set up categories with `action: Delete` on retried categories. Do this before turning policies on anywhere.
+2. Set `scheduling.maxRetries` (Step 5).
+3. Create policies with `defaultAction: Fail`.
+4. Give the policy permissions to the right people.
+5. Tell teams with event-driven tools that a failed event with `retryable: true` isn't final.
+6. Turn policies on, and attach them to a few queues first.
+7. Watch the metric and log lines below.
+
+## Change the job before a retry
+
+**`mutate.resources.memory`** raises the memory request and limit:
+
+- `factor` multiplies the memory (must be more than `1.0`), or `static` adds an amount such as `"512Mi"`. Not both.
+- The increase repeats on each retry. If the job then fits on no node, it fails.
+- A job keeps the first kind of increase it got: after a `factor` increase, a later `static` rule adds nothing (and the other way round), though the retry still happens.
+- A job without a memory request gets no increase.
+- Increases only follow a run whose pod failed; a run Armada lost contact with goes back unchanged.
+
+With `factor: 1.5` and five retries, the last run has about 7.6 times the first memory, so keep limits low.
+
+**`mutate.affinity.avoidSameNode: true`** keeps the next run off every node the job has used. If no other node could ever run it, the job fails. This check ignores how busy nodes are and fair share: it's the same check Armada runs at submit, so a job only fails here if it could never be scheduled. Use it for failures caused by the node, and leave it off when the node isn't the cause (a plain program error, say). If you changed `scheduling.nodeIdLabel`, the executor must track that label in `kubernetes.trackedNodeLabels`.
+
+## Manage policies
+
+```bash
+armadactl create retry-policy -f <file>
+armadactl update retry-policy -f <file>
+armadactl get retry-policy <name>
+armadactl get retry-policies
+armadactl delete retry-policy <name>
+```
+
+- Changes apply to failures within about 10 seconds.
+- Deleting a policy removes it from every queue that uses it, and always succeeds. To keep a queue covered, attach the new policy, wait 10 seconds, then delete the old one.
+- To stop retries quickly, update the policy to `retryLimit: 0` (no restart needed).
+
+### Stop retries during an incident
+
+1. **Fastest:** update the policy to `retryLimit: 0`, or to `Fail` rules. Applies within about 10 seconds.
+2. Set `globalMaxRetries: 0` and restart the scheduler. Categories still show.
+3. Set `retryPolicy.enabled: false` and restart the scheduler. This is safe mid-flight: jobs already retried keep running, new failures use the behavior without policies, and no job state is lost.
+
+## Monitor retries
+
+| Signal                                                                                                         | Use                                                                                                                                                                                                                                                                                |
+| -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `armada_scheduler_retry_policy_decisions_total` (labels `queue`, `pool`, `policy`, `decision`)                 | What policies decided. Only the leader scheduler exports it.                                                                                                                                                                                                                       |
+| `armada_scheduler_retry_policy_gang_skipped_total` (label `policy`)                                            | Gang-job failures a `Retry` rule matched but Armada didn't retry. Rising: teams expect gang retries.                                                                                                                                                                               |
+| Log `error fetching retry policies`                                                                            | The scheduler can't read policies. Its policy cache never expires: it keeps using the last policies it read, so retries carry on through an outage, but a policy edited during the outage doesn't take effect until it ends. There's no metric for this, so alert on the log line. |
+| Log `skipping invalid retry policy`                                                                            | A policy isn't valid (for example an unknown `action`, or a rule with no `onCategory`) and isn't used: queues that name it behave as if they had no policy.                                                                                                                        |
+| Log `retry policy "<name>" referenced by queue "<queue>" not found in cache; falling back to legacy behaviour` | A queue names a policy the scheduler doesn't have, so its jobs behave as if it had no policy.                                                                                                                                                                                      |
+| Log `retry policy lookup: queue cache unavailable`                                                             | The scheduler can't read queues; queue policies don't apply until it can.                                                                                                                                                                                                          |
+| Log `retry node anti-affinity cannot work`                                                                     | An executor reports nodes without the node ID label, so `avoidSameNode` does nothing there.                                                                                                                                                                                        |
+
+| `decision`            | Meaning                                                     |
+| --------------------- | ----------------------------------------------------------- |
+| `retry`               | Retried.                                                    |
+| `fail_rule`           | A `Fail` rule matched.                                      |
+| `fail_default`        | No rule matched; `defaultAction` was `Fail`.                |
+| `fail_policy_limit`   | The job used its `retryLimit`.                              |
+| `fail_global_limit`   | The job used `globalMaxRetries` (checked before the rules). |
+| `retry_unschedulable` | Retried, but the changed job fits no node, so it failed.    |
+
+The decisions counter resets every `metrics.jobStateMetricsResetInterval` (12 hours), when the scheduler restarts, and when it loses leadership; use `rate()` or `increase()`. Alert on a sudden rise in `retry` for one policy or queue, any rise in `fail_policy_limit` or `fail_global_limit`, and any `retry_unschedulable`.
+
+## Example policies
+
+These assume the categories from [Step 1](#step-1-set-up-failure-categories).
+
+### Give a job more memory when it runs out
+
+```yaml
+apiVersion: armadaproject.io/v1beta1
+kind: RetryPolicy
+name: oom-more-memory
+retryLimit: 2
+defaultAction: Fail
+rules:
+  - action: Retry
+    onCategory: oom
+    mutate:
+      resources:
+        memory:
+          factor: 1.5
+```
+
+A 4 Gi job that keeps running out of memory runs at 4, 6, then 9 Gi, and then fails.
+
+### Run again on a different node
+
+```yaml
+apiVersion: armadaproject.io/v1beta1
+kind: RetryPolicy
+name: node-problems
+retryLimit: 3
+defaultAction: Fail
+rules:
+  - action: Retry
+    onCategory: node
+    onSubcategory: eviction
+    mutate:
+      affinity:
+        avoidSameNode: true
+  - action: Retry
+    onCategory: internal
+    onSubcategory: lease-expired
+```
+
+The second rule also retries runs on a lost cluster: only use it for jobs that tolerate brief overlap.
+
+### A default for a team's queue
+
+Attach [`team-default`](#step-3-create-policies) to the queue. Tested results:
+
+| Failure                   | Category                    | Result                                                       |
+| ------------------------- | --------------------------- | ------------------------------------------------------------ |
+| Out of memory             | `oom`                       | Retried with 50% more memory                                 |
+| Program exits with code 1 | `user_error`                | Fails: `Retry policy: matched rule: Fail`                    |
+| Program exits with code 3 | `uncategorized`             | Fails: `Retry policy: no rule matched, using default action` |
+| Kubernetes evicts the pod | `node`                      | Retried on another node (not tested)                         |
+| Armada loses the cluster  | `internal`, `lease-expired` | Retried (not tested)                                         |
+
+### Turn off retries
+
+```yaml
+apiVersion: armadaproject.io/v1beta1
+kind: RetryPolicy
+name: no-retries
+retryLimit: 0
+defaultAction: Fail
+```
+
+Put it first on a queue whose jobs must never run twice. Startup retries still happen.
+
+## Troubleshooting
+
+| What you see                                                                                                                                  | Cause                                                                                                                                          | Fix                                                                                     |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| A failed job wasn't retried                                                                                                                   | Policies are off; the category has no `Retry` rule in the queue's **first** policy; the job is out of retries; or it's a gang or fail-fast job | Check each, in that order.                                                              |
+| `Job failed: Retry policy: policy retry limit exceeded (<n>/<n>)`                                                                             | The job used its policy's `retryLimit`                                                                                                         | Expected. Raise the limit, or fix the cause.                                            |
+| `Job failed: Retry policy: global max retries exceeded (<n>/<n>)`                                                                             | The job used `globalMaxRetries`                                                                                                                | Ask your operator.                                                                      |
+| `Job failed: Retry policy: global max retries is 0, retries disabled`                                                                         | An operator set `globalMaxRetries: 0`, usually to stop retries during an incident                                                              | Expected while it's `0`. Ask your operator.                                             |
+| `Job failed: Retry policy: matched rule: Fail`                                                                                                | A `Fail` rule matched, such as `user_error`                                                                                                    | Fix the job. The program's own error is in the earlier run in Lookout's **Result** tab. |
+| `Job failed: Retry policy: no rule matched, using default action`                                                                             | No rule matched and `defaultAction` is `Fail`                                                                                                  | Expected. Ask for a rule if the failure should be retried.                              |
+| `Job was attempted <n> times, and has been tried once on all nodes it can run on` or `Maximum number of attempts (<n>) reached` after a retry | The retried category has `action: Retain`, so the old pod still holds the name; or startup retries are used up                                 | Set `action: Delete` on the category, or raise `scheduling.maxRetries` (Step 5).        |
+| A script marked a job failed, but it ran again and succeeded                                                                                  | The script stopped at a failed event with `retryable: true`                                                                                    | Wait for `retryable: false`, or success.                                                |
+| A queue's second policy is ignored                                                                                                            | Only the first policy in a queue's list is used today                                                                                          | Put the policy you need first, or combine the rules into one policy.                    |
+| `retry policy "<name>" must set a default action (Fail or Retry)`                                                                             | The policy file has no `defaultAction`                                                                                                         | Add `defaultAction: Fail` (or `Retry`).                                                 |
+| `one or more referenced retry policies do not exist` from `create queue` or `update queue`                                                    | A name in `--retry-policies` isn't a policy                                                                                                    | Check the names with `armadactl get retry-policies`.                                    |
+| `anonymous lacks permission create_retry_policy ...`                                                                                          | You don't have the policy permissions (a laptop install doesn't grant them)                                                                    | Ask your operator, or grant `create_retry_policy` in `auth.permissionGroupMapping`.     |
+| A retry didn't get more memory                                                                                                                | The run was lost (`lease-expired`), not a failed pod; or the job has no memory request                                                         | Expected.                                                                               |
+| Lookout shows the original memory after a retry                                                                                               | Lookout shows the submitted job                                                                                                                | Check the pod: `kubectl get pod <pod> -o jsonpath='{.spec.containers[0].resources}'`.   |
