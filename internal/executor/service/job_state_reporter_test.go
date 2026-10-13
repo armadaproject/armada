@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -226,6 +227,52 @@ func TestJobStateReporter_FailedPod_DebugMessage(t *testing.T) {
 	}
 }
 
+func TestJobStateReporter_PodFailed_ClassifiesWithPodMatchersInRetainCategory(t *testing.T) {
+	const rejection = "Pod was rejected: Allocate failed due to requested number of devices unavailable for nvidia.com/gpu"
+	tests := map[string]struct {
+		rule      categorizer.CategoryRule
+		eventsErr error
+	}{
+		"an onPodError rule matches the failure message of the pod": {
+			rule: categorizer.CategoryRule{OnPodError: &errormatch.RegexMatcher{Pattern: "Pod was rejected"}},
+		},
+		"an onPodError rule matches when the events cannot be read": {
+			rule:      categorizer.CategoryRule{OnPodError: &errormatch.RegexMatcher{Pattern: "Pod was rejected"}},
+			eventsErr: errors.New("events are unavailable"),
+		},
+		"an onPodEvents rule matches an event of the pod": {
+			rule: categorizer.CategoryRule{OnPodEvents: &errormatch.PodEventMatcher{
+				Regexp: "nvidia.com/gpu", Reason: "UnexpectedAdmissionError", Type: "Warning",
+			}},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+				Enabled:         true,
+				DefaultCategory: "uncategorized",
+				Categories: []categorizer.CategoryConfig{
+					{Name: "admission", Action: categorizer.PodFailureActionRetain, Rules: []categorizer.CategoryRule{tc.rule}},
+				},
+			})
+			require.NoError(t, err)
+			_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTestWithClassifier(t, classifier, &stubIssueHandler{})
+
+			pod := makeTestPod(v1.PodStatus{Phase: v1.PodFailed, Reason: "UnexpectedAdmissionError", Message: rejection})
+			addPod(t, fakeClusterContext, pod)
+			addPodEvents(fakeClusterContext, pod, []*v1.Event{{Message: rejection, Reason: "UnexpectedAdmissionError", Type: "Warning"}})
+			fakeClusterContext.GetPodEventsErr = tc.eventsErr
+
+			fakeClusterContext.SimulatePodAddEvent(pod)
+			require.Eventually(t, func() bool {
+				return len(eventReporter.GetReceivedEvents()) == 1
+			}, time.Second, 10*time.Millisecond, "the add handler goroutine must report the failed pod")
+
+			assert.Equal(t, "admission", extractRunError(t, eventReporter.GetReceivedEvents()[0]).FailureCategory)
+		})
+	}
+}
+
 // The reporter under test is configured with a one minute threshold.
 func failedAfterRunningFor(ran time.Duration) v1.PodStatus {
 	startedAt := time.Now().Add(-ran)
@@ -249,13 +296,18 @@ func failedAfterRunningFor(ran time.Duration) v1.PodStatus {
 
 func extractPodError(t *testing.T, message reporter.EventMessage) *armadaevents.PodError {
 	t.Helper()
+	podError, ok := extractRunError(t, message).Reason.(*armadaevents.Error_PodError)
+	require.True(t, ok, "expected PodError reason")
+	return podError.PodError
+}
+
+func extractRunError(t *testing.T, message reporter.EventMessage) *armadaevents.Error {
+	t.Helper()
 	require.Len(t, message.Event.Events, 1)
 	jobRunErrors, ok := message.Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	require.True(t, ok, "expected JobRunErrors event")
 	require.Len(t, jobRunErrors.JobRunErrors.Errors, 1)
-	podError, ok := jobRunErrors.JobRunErrors.Errors[0].Reason.(*armadaevents.Error_PodError)
-	require.True(t, ok, "expected PodError reason")
-	return podError.PodError
+	return jobRunErrors.JobRunErrors.Errors[0]
 }
 
 func setUpJobStateReporterTest(t *testing.T) (*JobStateReporter, *stubIssueHandler, *mocks.FakeEventReporter, *fakecontext.SyncFakeClusterContext) {
