@@ -117,6 +117,12 @@ func TestSchedule_JobChecks(t *testing.T) {
 				testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority),
 			expectSuccess: true,
 		},
+		"preempts cross-pool job": {
+			existingJob: existingJob.DeepCopy().WithQueued(false).WithNewRun(
+				node.GetExecutor(), node.GetId(), node.GetName(), "away",
+				testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority),
+			expectSuccess: true,
+		},
 		"will not preempt non-preemptible jobs": {
 			existingJob:                    existingJob.DeepCopy().WithQueued(true).WithPriorityClass(testfixtures.TestPriorityClasses[testfixtures.PriorityClass2NonPreemptible]),
 			existingJobScheduledAtPriority: testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority,
@@ -153,6 +159,7 @@ func TestSchedule_JobChecks(t *testing.T) {
 			jctx := context.JobSchedulingContextFromJob(jobToSchedule)
 			nodeDb, err := NewNodeDb(testfixtures.TestSchedulingConfig())
 			require.NoError(t, err)
+			nodeDb.SetPool(testfixtures.TestPool)
 			nodeDbTxn := nodeDb.Txn(true)
 			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, []*jobdb.Job{tc.existingJob}, node.DeepCopyNilKeys())
 			require.NoError(t, err)
@@ -185,8 +192,14 @@ func TestSchedule_JobChecks(t *testing.T) {
 
 			assert.Equal(t, tc.expectSuccess, result.scheduled)
 			if tc.expectSuccess {
-				assert.Equal(t, float64(0.08), result.schedulingCost)
-				assert.Equal(t, map[string]float64{"B": -0.08}, result.queueCostChanges)
+				expectedSchedulingCost := float64(0.08)
+				queue := tc.existingJob.Queue()
+				if !context.IsHomeJob(tc.existingJob, testfixtures.TestPool) {
+					queue = context.CalculateAwayQueueName(tc.existingJob.Queue())
+					expectedSchedulingCost = float64(0.00)
+				}
+				assert.Equal(t, expectedSchedulingCost, result.schedulingCost)
+				assert.Equal(t, map[string]float64{queue: -0.08}, result.queueCostChanges)
 				assert.Equal(t, []string{tc.existingJob.Id()}, result.jobIdsToPreempt)
 				assert.Equal(t, float64(1), result.maximumQueueImpact)
 			} else {
@@ -223,12 +236,20 @@ func setUpSctx(t *testing.T, queues []*api.Queue, existingJobs []*jobdb.Job, tot
 
 	for _, q := range queues {
 		existingAllocation := map[string]internaltypes.ResourceList{}
+		existingAwayAllocation := map[string]internaltypes.ResourceList{}
 		for _, job := range jobsByQueue[q.Name] {
 			if !job.Queued() {
-				if _, exists := existingAllocation[job.PriorityClassName()]; !exists {
-					existingAllocation[job.PriorityClassName()] = internaltypes.ResourceList{}
+				if job.LatestRun().Pool() != testfixtures.TestPool {
+					if _, exists := existingAwayAllocation[job.PriorityClassName()]; !exists {
+						existingAwayAllocation[job.PriorityClassName()] = internaltypes.ResourceList{}
+					}
+					existingAwayAllocation[job.PriorityClassName()] = existingAwayAllocation[job.PriorityClassName()].Add(job.AllResourceRequirements())
+				} else {
+					if _, exists := existingAllocation[job.PriorityClassName()]; !exists {
+						existingAllocation[job.PriorityClassName()] = internaltypes.ResourceList{}
+					}
+					existingAllocation[job.PriorityClassName()] = existingAllocation[job.PriorityClassName()].Add(job.AllResourceRequirements())
 				}
-				existingAllocation[job.PriorityClassName()] = existingAllocation[job.PriorityClassName()].Add(job.AllResourceRequirements())
 			}
 		}
 
@@ -242,6 +263,17 @@ func setUpSctx(t *testing.T, queues []*api.Queue, existingJobs []*jobdb.Job, tot
 			internaltypes.ResourceList{},
 			nil,
 		)
+		if len(existingAwayAllocation) > 0 {
+			// Add away queue if allocation exists
+			err = sctx.AddQueueSchedulingContext(
+				context.CalculateAwayQueueName(q.Name), weight, weight,
+				existingAwayAllocation,
+				internaltypes.ResourceList{},
+				internaltypes.ResourceList{},
+				internaltypes.ResourceList{},
+				nil,
+			)
+		}
 		require.NoError(t, err)
 	}
 	sctx.UpdateFairShares()
@@ -249,9 +281,13 @@ func setUpSctx(t *testing.T, queues []*api.Queue, existingJobs []*jobdb.Job, tot
 }
 
 func markedScheduledOnNode(jobs []*jobdb.Job, node *internaltypes.Node) []*jobdb.Job {
+	return markedScheduledOnNodeWithPool(jobs, node, testfixtures.TestPool)
+}
+
+func markedScheduledOnNodeWithPool(jobs []*jobdb.Job, node *internaltypes.Node, pool string) []*jobdb.Job {
 	result := make([]*jobdb.Job, 0, len(jobs))
 	for _, job := range jobs {
-		result = append(result, job.WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[job.PriorityClassName()].Priority))
+		result = append(result, job.WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), pool, testfixtures.TestPriorityClasses[job.PriorityClassName()].Priority))
 	}
 	return result
 }
@@ -263,12 +299,14 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 	smallJobToSchedule := createTestCpuJob("A", 3)
 	bigJobToSchedule := createTestCpuJob("A", 12)
 	tests := map[string]struct {
-		jobToSchedule              *jobdb.Job
-		queues                     []*api.Queue
-		node                       *internaltypes.Node
-		extraDemand                *armadaresource.ComputeResources
-		extraTotalResource         *armadaresource.ComputeResources
-		jobsOnNode                 []*jobdb.Job
+		jobToSchedule       *jobdb.Job
+		queues              []*api.Queue
+		node                *internaltypes.Node
+		extraDemand         *armadaresource.ComputeResources
+		extraTotalResource  *armadaresource.ComputeResources
+		jobsOnNode          []*jobdb.Job
+		crossPoolJobsOnNode []*jobdb.Job
+		// jobsOnNode and crossPoolJobsOnNode will be concatenated, these indexes refer to the combined array
 		orderedPreemptedJobIndexes []int
 		expectedResult             *nodeSchedulingResult
 	}{
@@ -353,7 +391,38 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 				queueCostChanges:   map[string]float64{"B": -0.2},
 			},
 		},
-
+		"preempting cross-pool - 0 cost": {
+			jobToSchedule:              jobToSchedule,
+			queues:                     []*api.Queue{queueA, queueB},
+			node:                       node,
+			crossPoolJobsOnNode:        []*jobdb.Job{createTestCpuJob("B", 4), createTestCpuJob("B", 4)},
+			orderedPreemptedJobIndexes: []int{1, 0}, // B2, B1 - Will preempt index 1 first, as it is the youngest
+			expectedResult: &nodeSchedulingResult{
+				scheduled:          true,
+				schedulingCost:     0.0,
+				maximumQueueImpact: 1,
+				queueCostChanges:   map[string]float64{"B-away": -0.8},
+			},
+		},
+		"preempting cross-pool before home pool": {
+			jobToSchedule: jobToSchedule,
+			queues:        []*api.Queue{queueA, queueB, queueC},
+			node:          node,
+			jobsOnNode:    []*jobdb.Job{createTestCpuJob("C", 1), createTestCpuJob("C", 1), createTestCpuJob("C", 1)},
+			crossPoolJobsOnNode: []*jobdb.Job{
+				createTestCpuJob("A", 1), createTestCpuJob("A", 1), createTestCpuJob("A", 1),
+				createTestCpuJob("B", 1), createTestCpuJob("B", 1), createTestCpuJobWithPriorityClass("B", 1, testfixtures.PriorityClass6Preemptible),
+			},
+			// Will alternate through cross-pool jobs before impacting home jobs.
+			// Will evict cross-pool jobs of higher priority class before home jobs
+			orderedPreemptedJobIndexes: []int{8, 5, 7, 4, 6, 3, 2},
+			expectedResult: &nodeSchedulingResult{
+				scheduled:          true,
+				schedulingCost:     0.1,
+				maximumQueueImpact: 1,
+				queueCostChanges:   map[string]float64{"A-away": -0.3, "B-away": -0.3, "C": -0.1},
+			},
+		},
 		"preempt jobs - expected order": {
 			jobToSchedule: jobToSchedule,
 			queues:        []*api.Queue{queueA, queueB, queueC},
@@ -376,22 +445,25 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 			node := tc.node.DeepCopyNilKeys()
 			jctx := context.JobSchedulingContextFromJob(tc.jobToSchedule)
 			jobsOnNode := markedScheduledOnNode(tc.jobsOnNode, node)
+			crossPoolJobsOnNode := markedScheduledOnNodeWithPool(tc.crossPoolJobsOnNode, node, "other-pool")
+			allJobsOnNode := armadaslices.Concatenate(jobsOnNode, crossPoolJobsOnNode)
 
 			extraCapacity := testfixtures.TestResourceListFactory.MakeAllZero()
 			if tc.extraTotalResource != nil {
 				extraCapacity = testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(*tc.extraTotalResource)
 			}
-			sctx := setUpSctx(t, tc.queues, jobsOnNode, node.GetAllocatableResources().Add(extraCapacity))
+			sctx := setUpSctx(t, tc.queues, allJobsOnNode, node.GetAllocatableResources().Add(extraCapacity))
 
 			nodeDb, err := NewNodeDb(testfixtures.TestSchedulingConfig())
 			require.NoError(t, err)
+			nodeDb.SetPool(testfixtures.TestPool)
 			nodeDbTxn := nodeDb.Txn(true)
-			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobsOnNode, node.DeepCopyNilKeys())
+			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, allJobsOnNode, node.DeepCopyNilKeys())
 			require.NoError(t, err)
 			nodeDbTxn.Commit()
 			node, err = nodeDb.GetNode(node.GetId())
 			require.NoError(t, err)
-			jobDb := testfixtures.NewJobDbWithJobs(jobsOnNode)
+			jobDb := testfixtures.NewJobDbWithJobs(allJobsOnNode)
 			nodeScheduler := NewPreemptingNodeScheduler(jobDb.ReadTxn(), nil)
 
 			result, err := nodeScheduler.Schedule(FromSchedulingContext(sctx), jctx, node)
@@ -402,7 +474,7 @@ func TestSchedule_PreemptsExpectedJobs(t *testing.T) {
 			}
 			expectedPreemptedJobIds := make([]string, 0, len(tc.orderedPreemptedJobIndexes))
 			for _, index := range tc.orderedPreemptedJobIndexes {
-				expectedPreemptedJobIds = append(expectedPreemptedJobIds, tc.jobsOnNode[index].Id())
+				expectedPreemptedJobIds = append(expectedPreemptedJobIds, allJobsOnNode[index].Id())
 			}
 			tc.expectedResult.jobIdsToPreempt = expectedPreemptedJobIds
 			assert.Equal(t, tc.expectedResult.scheduled, result.scheduled)
