@@ -82,7 +82,7 @@ func TestCreateEventForCurrentState_WhenPodFailed_WithClassifier(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	result, err := CreateEventForCurrentState(pod, "cluster1", classifier.ClassifyContainerError(pod), "")
+	result, err := CreateEventForCurrentState(pod, "cluster1", classifier.Classify(pod, "", nil), "")
 	assert.NoError(t, err)
 
 	assert.Len(t, result.Events, 1)
@@ -126,7 +126,7 @@ func TestCreateEventForCurrentState_WhenPodFailed_HintAppendedAfterReason(t *tes
 	})
 	require.NoError(t, err)
 
-	result, err := CreateEventForCurrentState(pod, "cluster1", classifier.ClassifyContainerError(pod), "")
+	result, err := CreateEventForCurrentState(pod, "cluster1", classifier.Classify(pod, "", nil), "")
 	require.NoError(t, err)
 	require.Len(t, result.Events, 1)
 	event, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
