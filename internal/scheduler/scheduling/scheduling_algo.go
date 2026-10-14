@@ -530,7 +530,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	schedulingContext, err := l.constructSchedulingContext(
 		currentPool.Name,
 		totalResources,
-		jobSchedulingInfo.demandByQueueAndPriorityClass,
+		jobSchedulingInfo.demandByQueueAndPriorityClass(),
 		jobSchedulingInfo.allocatedByQueueAndPriorityClass,
 		jobSchedulingInfo.awayAllocatedByQueueAndPriorityClass,
 		jobSchedulingInfo.shortJobPenaltyByQueue,
@@ -586,11 +586,12 @@ func getQueuedJobs(txn *jobdb.Txn, pools []string) []*jobdb.Job {
 type jobSchedulingInfo struct {
 	jobsByExecutorId                     map[string][]*jobdb.Job
 	jobsByPool                           map[string][]*jobdb.Job
-	demandByQueueAndPriorityClass        map[string]map[string]internaltypes.ResourceList
 	allocatedByQueueAndPriorityClass     map[string]map[string]internaltypes.ResourceList
 	awayAllocatedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 	shortJobPenaltyByQueue               map[string]internaltypes.ResourceList
 	inUsePriorityClasses                 map[string]bool
+	queuedDemandByQueueAndPriorityClass  map[string]map[string]internaltypes.ResourceList
+	runningDemandByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 }
 
 func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
@@ -615,7 +616,7 @@ func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 		aggregateDemand := queuedDemandFromAggregate(txn, queues, currentPool)
 		observeJobAggregateLookupDuration(currentPool, time.Since(lookupStart).Seconds())
 		observeJobAggregateSchedulingInfoDuration(currentPool, time.Since(start).Seconds())
-		l.compareScannedWithAggregate(ctx, jobs, queues, aggregateDemand, currentPool)
+		l.compareScannedWithAggregate(ctx, aggregateDemand, currentPool, info.queuedDemandByQueueAndPriorityClass)
 	}
 	return info, nil
 }
@@ -727,8 +728,23 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 	}
 
-	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList, len(queuedDemandByQueueAndPriorityClass)+len(runningDemandByQueueAndPriorityClass))
-	for queueName, byPriorityClass := range runningDemandByQueueAndPriorityClass {
+	shortJobPenaltyByQueue := shortJobPenalty.GetPenaltiesForPool(currentPool)
+	return &jobSchedulingInfo{
+		jobsByExecutorId:                     jobsByExecutorId,
+		jobsByPool:                           jobsByPool,
+		allocatedByQueueAndPriorityClass:     allocatedByQueueAndPriorityClass,
+		awayAllocatedByQueueAndPriorityClass: awayAllocatedByQueueAndPriorityClass,
+		shortJobPenaltyByQueue:               shortJobPenaltyByQueue,
+		inUsePriorityClasses:                 inUsePriorityClasses,
+
+		queuedDemandByQueueAndPriorityClass:  queuedDemandByQueueAndPriorityClass,
+		runningDemandByQueueAndPriorityClass: runningDemandByQueueAndPriorityClass,
+	}, nil
+}
+
+func (si *jobSchedulingInfo) demandByQueueAndPriorityClass() map[string]map[string]internaltypes.ResourceList {
+	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList, len(si.queuedDemandByQueueAndPriorityClass)+len(si.runningDemandByQueueAndPriorityClass))
+	for queueName, byPriorityClass := range si.runningDemandByQueueAndPriorityClass {
 		queueResources, ok := demandByQueueAndPriorityClass[queueName]
 		if !ok {
 			queueResources = map[string]internaltypes.ResourceList{}
@@ -738,7 +754,7 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 			queueResources[pcName] = queueResources[pcName].Add(rl)
 		}
 	}
-	for queueName, byPriorityClass := range queuedDemandByQueueAndPriorityClass {
+	for queueName, byPriorityClass := range si.queuedDemandByQueueAndPriorityClass {
 		queueResources, ok := demandByQueueAndPriorityClass[queueName]
 		if !ok {
 			queueResources = map[string]internaltypes.ResourceList{}
@@ -749,16 +765,7 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		}
 	}
 
-	shortJobPenaltyByQueue := shortJobPenalty.GetPenaltiesForPool(currentPool)
-	return &jobSchedulingInfo{
-		jobsByExecutorId:                     jobsByExecutorId,
-		jobsByPool:                           jobsByPool,
-		demandByQueueAndPriorityClass:        demandByQueueAndPriorityClass,
-		allocatedByQueueAndPriorityClass:     allocatedByQueueAndPriorityClass,
-		awayAllocatedByQueueAndPriorityClass: awayAllocatedByQueueAndPriorityClass,
-		shortJobPenaltyByQueue:               shortJobPenaltyByQueue,
-		inUsePriorityClasses:                 inUsePriorityClasses,
-	}, nil
+	return demandByQueueAndPriorityClass
 }
 
 func (l *FairSchedulingAlgo) buildInUsePriorityClasses(inUse map[string]bool) map[string]types.PriorityClass {

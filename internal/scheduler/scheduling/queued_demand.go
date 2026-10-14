@@ -5,8 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"golang.org/x/exp/slices"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -18,50 +16,15 @@ import (
 // difference. The scan-derived value remains authoritative.
 func (l *FairSchedulingAlgo) compareScannedWithAggregate(
 	ctx *armadacontext.Context,
-	jobs []*jobdb.Job,
-	queues map[string]*api.Queue,
 	aggregate map[string]map[string]internaltypes.ResourceList,
 	currentPool string,
+	queuedDemandByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList,
 ) {
-	scanned := scanQueuedDemand(jobs, queues, currentPool)
-
 	jobAggregateComparisons.WithLabelValues(currentPool).Inc()
-	if !queuedDemandEqual(scanned, aggregate) {
+	if !queuedDemandEqual(queuedDemandByQueueAndPriorityClass, aggregate) {
 		jobAggregateMismatches.WithLabelValues(currentPool).Inc()
-		ctx.Errorf("JobDb queued demand aggregate mismatch for pool %s: %s", currentPool, queuedDemandDiff(scanned, aggregate))
+		ctx.Errorf("JobDb queued demand aggregate mismatch for pool %s: %s", currentPool, queuedDemandDiff(queuedDemandByQueueAndPriorityClass, aggregate))
 	}
-}
-
-// scanQueuedDemand derives queued demand from queued jobs eligible for currentPool.
-// It mirrors the queued half of calculateJobSchedulingInfo: cordoned queues
-// contribute nothing, unknown queues are skipped.
-func scanQueuedDemand(
-	jobs []*jobdb.Job,
-	queues map[string]*api.Queue,
-	currentPool string,
-) map[string]map[string]internaltypes.ResourceList {
-	demand := map[string]map[string]internaltypes.ResourceList{}
-	for _, job := range jobs {
-		if job.InTerminalState() || !job.Queued() {
-			continue
-		}
-		queue, present := queues[job.Queue()]
-		if !present || queue.Cordoned {
-			continue
-		}
-		if !slices.Contains(job.Pools(), currentPool) {
-			continue
-		}
-		queueName := job.Queue()
-		pc := job.PriorityClassName()
-		byPriorityClass, ok := demand[queueName]
-		if !ok {
-			byPriorityClass = map[string]internaltypes.ResourceList{}
-			demand[queueName] = byPriorityClass
-		}
-		byPriorityClass[pc] = byPriorityClass[pc].Add(job.AllResourceRequirements())
-	}
-	return demand
 }
 
 func queuedDemandFromAggregate(
