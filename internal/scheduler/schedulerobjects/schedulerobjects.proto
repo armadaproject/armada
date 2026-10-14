@@ -5,6 +5,7 @@ option go_package = "github.com/armadaproject/armada/internal/scheduler/schedule
 import "google/protobuf/timestamp.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
+import "pkg/hamiapi/hami.proto";
 
 // Executor represents an executor running on a worker cluster
 message Executor {
@@ -53,6 +54,8 @@ message Node {
     repeated PoolQueueResource resource_usage_by_queue_and_pool = 20;
     // The name of the reservation for this node, will be empty if this node is not reserved
     string reservation = 21;
+    // HAMi device inventory. Unset if the node is not registered with HAMi.
+    hamiapi.NodeInventory hami_inventory = 22;
 }
 
 enum JobRunState {
@@ -130,6 +133,10 @@ message PodRequirements {
     // mutations. The scheduler applies it to the pod spec when it serves the
     // lease. It is set only on the per-run overlay.
     RetryResourceMutations resource_mutations = 9;
+    // hami_device_allocations are the physical GPUs reserved for the run and the
+    // amount reserved on each. The scheduler writes them into the pod when it
+    // serves the lease. They are set only on the per-run overlay.
+    repeated hamiapi.DeviceAllocation hami_device_allocations = 10;
 }
 
 message ExecutorSettings {

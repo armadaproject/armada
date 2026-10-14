@@ -8,6 +8,7 @@ import "pkg/api/submit.proto";
 import "google/protobuf/empty.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
+import "pkg/hamiapi/hami.proto";
 
 
 // Used by the scheduler when allocating jobs to executors.
@@ -35,6 +36,8 @@ message NodeInfo {
   string pool = 13;
   // Replaces resource_usage_by_queue
   repeated PoolQueueResource resource_usage_by_queue_and_pool = 14;
+  // HAMi device inventory. Unset if HAMi reporting is disabled or the node is not registered with HAMi.
+  hamiapi.NodeInventory hami_inventory = 15;
 }
 
 message ComputeResource {

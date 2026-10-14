@@ -153,6 +153,11 @@ func NewOversubscribedEvictor(
 					overSubscribedPriorities[p] = true
 				}
 			}
+			// A job placed onto HAMi GPUs held by lower-priority jobs oversubscribes
+			// those GPUs at the lower priorities, even if node resources suffice.
+			for _, p := range node.HamiOversubscribedPriorities() {
+				overSubscribedPriorities[p] = true
+			}
 			return len(overSubscribedPriorities) > 0, ""
 		},
 		jobFilter: func(ctx *armadacontext.Context, job *jobdb.Job) (bool, string) {

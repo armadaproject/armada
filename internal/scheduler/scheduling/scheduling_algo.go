@@ -22,6 +22,7 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/hami"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
@@ -293,6 +294,8 @@ type FairSchedulingAlgoContext struct {
 	nodeDb            *nodedb.NodeDb
 	schedulingContext *schedulercontext.SchedulingContext
 	Txn               *jobdb.Txn
+	// Repository from which jobs are scheduled; charges jobs for HAMi GPUs in HAMi pools.
+	jobRepo jobdb.JobRepository
 }
 
 type gangKey struct {
@@ -451,6 +454,16 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	allJobs = append(allJobs, leasedJobs...)
 	allJobs = append(allJobs, queuedJobs...)
 
+	// In a pool placing onto HAMi GPUs, charge jobs for their GPUs: running jobs
+	// for their reservation, and queued jobs for their request, with omitted
+	// memory estimated at the pool's mean GPU memory for this round.
+	jobRepo := jobdb.JobRepository(txn)
+	if currentPool.Hami.Enabled {
+		memoryEstimateMiB := hamiMeanDeviceMemoryMiB(executors, currentPool.Name)
+		allJobs = armadaslices.Map(allJobs, func(job *jobdb.Job) *jobdb.Job { return job.WithHamiCharge(memoryEstimateMiB) })
+		jobRepo = jobdb.NewHamiChargingRepository(txn, memoryEstimateMiB)
+	}
+
 	jobSchedulingInfo, err := l.calculateJobSchedulingInfo(ctx,
 		armadamaps.FromSlice(executors,
 			func(ex *schedulerobjects.Executor) string { return ex.Id },
@@ -519,7 +532,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		return nil, err
 	}
 
-	totalResources := nodeDb.TotalKubernetesResources()
+	totalResources := nodeDb.TotalKubernetesResources().Add(nodeDb.TotalHamiDeviceResources())
 	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(currentPool.Name))
 
 	schedulingContext, err := l.constructSchedulingContext(
@@ -541,6 +554,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		nodeDb:            nodeDb,
 		schedulingContext: schedulingContext,
 		Txn:               txn,
+		jobRepo:           jobRepo,
 	}, nil
 }
 
@@ -890,7 +904,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	fsctx *FairSchedulingAlgoContext,
 	pool configuration.PoolConfig,
 ) (*SchedulingResult, *schedulercontext.SchedulingContext, error) {
-	totalResources := fsctx.nodeDb.TotalKubernetesResources()
+	totalResources := fsctx.nodeDb.TotalKubernetesResources().Add(fsctx.nodeDb.TotalHamiDeviceResources())
 	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name))
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
 	shouldRunOptimiser := l.shouldRunOptimiser(pool)
@@ -923,7 +937,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		ctx,
 		fsctx.schedulingContext,
 		nodes,
-		fsctx.Txn,
+		fsctx.jobRepo,
 		constraints,
 		l.floatingResourceTypes,
 		l.schedulingConfig,
@@ -939,7 +953,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		constraints,
 		l.floatingResourceTypes,
 		l.schedulingConfig,
-		fsctx.Txn,
+		fsctx.jobRepo,
 		fsctx.nodeDb,
 		shouldRunOptimiser,
 		l.clock,
@@ -948,7 +962,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	ctx.Infof(
 		"Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f protectUncappedAdjustedFairShare %t",
 		pool.Name,
-		fsctx.nodeDb.TotalKubernetesResources().Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name)).String(),
+		totalResources.String(),
 		l.schedulingConfig.GetProtectedFractionOfFairShare(pool.Name),
 		l.schedulingConfig.GetProtectUncappedAdjustedFairShare(pool.Name),
 	)
@@ -978,10 +992,16 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		if !ok {
 			return nil, nil, errors.Errorf("job %s not mapped to a priority", jobId)
 		}
-		result.ScheduledJobs[i].Job = jobDbJob.
+		scheduledJob := jobDbJob.
 			WithQueuedVersion(jobDbJob.QueuedVersion()+1).
 			WithQueued(false).
 			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), pool.Name, priority)
+		if allocations := jctx.PodSchedulingContext.HamiDeviceAllocations; len(allocations) > 0 {
+			if scheduledJob, err = scheduledJob.WithHamiDeviceAllocations(allocations); err != nil {
+				return nil, nil, err
+			}
+		}
+		result.ScheduledJobs[i].Job = scheduledJob
 	}
 
 	for _, priority := range l.schedulingConfig.ExperimentalIndicativeShare.BasePriorities {
@@ -1033,6 +1053,7 @@ func populateNodeDb(poolConfig configuration.PoolConfig, nodeDb *nodedb.NodeDb, 
 		func(node *internaltypes.Node) string { return node.GetId() },
 	)
 	jobsByNodeId := make(map[string][]*jobdb.Job, len(nodes))
+	hamiReservedByNodeId := make(map[string]hami.Usage, len(nodes))
 	allocatedByNodeId := make(map[string]internaltypes.ResourceList, len(nodes))
 	allocatedToOtherPoolsByNodeId := make(map[string]internaltypes.ResourceList, len(nodes))
 	for _, job := range currentPoolJobs {
@@ -1068,6 +1089,12 @@ func populateNodeDb(poolConfig configuration.PoolConfig, nodeDb *nodedb.NodeDb, 
 
 		allocatedByNodeId[nodeId] = allocatedByNodeId[nodeId].Add(job.KubernetesResourceRequirements())
 		allocatedToOtherPoolsByNodeId[nodeId] = allocatedToOtherPoolsByNodeId[nodeId].Add(job.KubernetesResourceRequirements())
+		if allocations := job.ActiveHamiDeviceAllocations(); len(allocations) > 0 {
+			if hamiReservedByNodeId[nodeId] == nil {
+				hamiReservedByNodeId[nodeId] = hami.Usage{}
+			}
+			hamiReservedByNodeId[nodeId].Add(allocations)
+		}
 	}
 
 	for _, node := range nodes {
@@ -1091,6 +1118,13 @@ func populateNodeDb(poolConfig configuration.PoolConfig, nodeDb *nodedb.NodeDb, 
 		if exists {
 			// Mark resource used by jobs of other pools as unallocatable so we don't double schedule this resource
 			node = node.MarkResourceUnallocatable(allocatedToOtherPools)
+		}
+		// GPUs reserved by jobs of other pools stay occupied. Away scheduling is
+		// not allowed with HAMi pools, so this only happens while a node moves
+		// between pools.
+		node = node.WithReservedHamiUsage(hamiReservedByNodeId[node.GetId()])
+		if poolConfig.Hami.Enabled {
+			node = node.WithHamiPool()
 		}
 
 		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeId[node.GetId()], node); err != nil {
@@ -1170,4 +1204,28 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 		}
 	}
 	return activeExecutors
+}
+
+// hamiMeanDeviceMemoryMiB returns the mean memory of the usable HAMi GPUs on the
+// nodes of a pool, rounded down, or zero if there are none. It counts the same
+// nodes as NodeDb.TotalHamiDeviceResources.
+func hamiMeanDeviceMemoryMiB(executors []*schedulerobjects.Executor, pool string) int64 {
+	var count, totalMiB int64
+	for _, executor := range executors {
+		for _, node := range executor.Nodes {
+			if node.Pool != pool {
+				continue
+			}
+			for _, device := range node.HamiInventory.GetDevices() {
+				if device.Usable {
+					count++
+					totalMiB += device.MemoryMib
+				}
+			}
+		}
+	}
+	if count == 0 {
+		return 0
+	}
+	return totalMiB / count
 }

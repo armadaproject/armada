@@ -9,6 +9,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
@@ -184,7 +185,8 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 		addNodeSelectorToGctx(gctx, nodeUniformity, value)
 		txn := sch.nodeDb.Txn(true)
 		var preemptedJobs []*nodedb.JobPreemptionInfo
-		ok, unschedulableReason, preemptedJobs, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
+		var restoreCharges func() error
+		ok, unschedulableReason, preemptedJobs, restoreCharges, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
 		if err != nil {
 			txn.Abort()
 			return ok, unschedulableReason, err
@@ -214,6 +216,9 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *context.
 			}
 		}
 		txn.Abort()
+		if err := restoreCharges(); err != nil {
+			return false, "", err
+		}
 	}
 	if bestValue == "" {
 		ok = false
@@ -233,7 +238,7 @@ func (sch *GangScheduler) tryScheduleGang(ctx *armadacontext.Context, gctx *cont
 	var err error
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
-	ok, unschedulableReason, preemptedJobs, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
+	ok, unschedulableReason, preemptedJobs, _, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
 	if ok && err == nil {
 		txn.Commit()
 		// Only apply preemptions once the scheduling transaction has committed, so that aborted
@@ -243,22 +248,83 @@ func (sch *GangScheduler) tryScheduleGang(ctx *armadacontext.Context, gctx *cont
 	return ok, unschedulableReason, err
 }
 
-func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *memdb.Txn, gctx *context.GangSchedulingContext) (bool, string, []*nodedb.JobPreemptionInfo, error) {
-	var ok bool
-	var unschedulableReason string
-	var preemptedJobs []*nodedb.JobPreemptionInfo
-	var err error
-	if ok, preemptedJobs, err = sch.nodeDb.ScheduleManyWithTxn(txn, gctx); err == nil {
-		if !ok {
-			if gctx.Cardinality() > 1 {
-				unschedulableReason = schedulerconstraints.GangDoesNotFitUnschedulableReason
-			} else {
-				unschedulableReason = schedulerconstraints.JobDoesNotFitUnschedulableReason
+// tryScheduleGangWithTxn places the gang within txn. On success, jobs placed
+// onto HAMi GPUs are charged for the chosen GPUs rather than their estimate; the
+// returned function restores the estimates if txn is later aborted.
+func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *memdb.Txn, gctx *context.GangSchedulingContext) (bool, string, []*nodedb.JobPreemptionInfo, func() error, error) {
+	noRestore := func() error { return nil }
+	ok, preemptedJobs, err := sch.nodeDb.ScheduleManyWithTxn(txn, gctx)
+	if err != nil {
+		return false, "", nil, noRestore, err
+	}
+	if !ok {
+		unschedulableReason := schedulerconstraints.JobDoesNotFitUnschedulableReason
+		if gctx.Cardinality() > 1 {
+			unschedulableReason = schedulerconstraints.GangDoesNotFitUnschedulableReason
+		}
+		return false, unschedulableReason, preemptedJobs, noRestore, nil
+	}
+	restoreCharges, ok, unschedulableReason, err := sch.chargeHamiReservations(gctx)
+	if err != nil || !ok {
+		return false, unschedulableReason, nil, noRestore, err
+	}
+	return true, "", preemptedJobs, restoreCharges, nil
+}
+
+// chargeHamiReservations replaces the estimated HAMi GPU charge of each job just
+// placed with the charge for the GPUs chosen for it, and rechecks the job
+// constraints against the actual charge. If they are no longer met, the
+// estimates are restored and the gang is unschedulable. Otherwise, it returns a
+// function that restores the estimates.
+func (sch *GangScheduler) chargeHamiReservations(gctx *context.GangSchedulingContext) (func() error, bool, string, error) {
+	type charged struct {
+		jctx      *context.JobSchedulingContext
+		estimated *jobdb.Job
+	}
+	var changes []charged
+	restore := func() error {
+		for i := len(changes) - 1; i >= 0; i-- {
+			if err := sch.replaceChargedJob(changes[i].jctx, changes[i].estimated); err != nil {
+				return err
 			}
 		}
-		return ok, unschedulableReason, preemptedJobs, err
+		return nil
 	}
-	return ok, unschedulableReason, preemptedJobs, err
+	for _, jctx := range gctx.JobSchedulingContexts {
+		if jctx.IsEvicted || jctx.PodSchedulingContext == nil || len(jctx.PodSchedulingContext.HamiDeviceAllocations) == 0 {
+			continue
+		}
+		actual := jctx.Job.WithHamiChargeForAllocations(jctx.PodSchedulingContext.HamiDeviceAllocations)
+		if actual == jctx.Job {
+			continue
+		}
+		changes = append(changes, charged{jctx: jctx, estimated: jctx.Job})
+		if err := sch.replaceChargedJob(jctx, actual); err != nil {
+			return nil, false, "", err
+		}
+	}
+	if len(changes) == 0 || gctx.AllJobsEvicted {
+		return restore, true, "", nil
+	}
+	ok, unschedulableReason, err := sch.constraints.CheckJobConstraints(sch.schedulingContext, gctx)
+	if err != nil || !ok {
+		if restoreErr := restore(); restoreErr != nil {
+			return nil, false, "", restoreErr
+		}
+		return nil, false, unschedulableReason, err
+	}
+	return restore, true, "", nil
+}
+
+// replaceChargedJob swaps the job of a scheduled job context, moving its
+// charge in the scheduling context from the old job to the new one.
+func (sch *GangScheduler) replaceChargedJob(jctx *context.JobSchedulingContext, job *jobdb.Job) error {
+	if err := sch.schedulingContext.UnscheduleJob(jctx); err != nil {
+		return err
+	}
+	jctx.Job = job
+	_, err := sch.schedulingContext.AddJobSchedulingContext(jctx)
+	return err
 }
 
 // applyPreemptions applies the preemptions reported by the NodeDb to the scheduling context.
