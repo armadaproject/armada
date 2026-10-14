@@ -194,3 +194,45 @@ func TestTeardownController_RunningItAgainWhenNothingIsLeftIsNotAnError(t *testi
 	require.NoError(t, TeardownController(context.Background(), "teardown-test-never-started"))
 	require.NoError(t, TeardownController(context.Background(), "teardown-test-never-started"))
 }
+
+func TestRemapRegistry(t *testing.T) {
+	image := "registry.k8s.io/kwok/kwok:v0.7.0"
+	require.Equal(t, image, remapRegistry(image, nil), "no registries: unchanged")
+	require.Equal(t, image, remapRegistry(image, map[string]string{"docker.io": "mirror.example.com"}), "no match: unchanged")
+	require.Equal(t, "mirror.example.com/k8s/kwok/kwok:v0.7.0",
+		remapRegistry(image, map[string]string{"registry.k8s.io": "mirror.example.com/k8s"}), "the matching prefix is replaced")
+	require.Equal(t, "deep.example.com/kwok:v0.7.0",
+		remapRegistry(image, map[string]string{"registry.k8s.io": "mirror.example.com", "registry.k8s.io/kwok/kwok": "deep.example.com/kwok"}),
+		"the longest matching prefix wins, whatever the map order")
+	for i := 0; i < 20; i++ { // map iteration order is random, so repeat
+		require.Equal(t, "deep.example.com/kwok:v0.7.0",
+			remapRegistry(image, map[string]string{"registry.k8s.io": "a", "registry.k8s.io/kwok": "b", "registry.k8s.io/kwok/kwok": "deep.example.com/kwok"}))
+	}
+}
+
+func TestControllerImage(t *testing.T) {
+	writeConfig := func(content string) string {
+		path := filepath.Join(t.TempDir(), "build-config.json")
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+		return path
+	}
+
+	t.Run("the default image when there is no build config", func(t *testing.T) {
+		t.Setenv(buildConfigEnv, "")
+		require.Equal(t, ControllerImage, controllerImage())
+	})
+	t.Run("the registry from the mage build config is applied", func(t *testing.T) {
+		t.Setenv(buildConfigEnv, writeConfig(`{"dockerRegistries": {"registry.k8s.io": "mirror.example.com/k8s"}, "pythonBuilderBaseImage": "ignored"}`))
+		require.Equal(t, "mirror.example.com/k8s/kwok/kwok:v0.7.0", controllerImage())
+	})
+	t.Run("a config with no matching registry leaves the image alone", func(t *testing.T) {
+		t.Setenv(buildConfigEnv, writeConfig(`{"dockerRegistries": {"docker.io": "mirror.example.com"}}`))
+		require.Equal(t, ControllerImage, controllerImage())
+	})
+	t.Run("an unreadable or malformed config falls back to the default image", func(t *testing.T) {
+		t.Setenv(buildConfigEnv, filepath.Join(t.TempDir(), "missing.json"))
+		require.Equal(t, ControllerImage, controllerImage())
+		t.Setenv(buildConfigEnv, writeConfig(`{not json`))
+		require.Equal(t, ControllerImage, controllerImage())
+	})
+}

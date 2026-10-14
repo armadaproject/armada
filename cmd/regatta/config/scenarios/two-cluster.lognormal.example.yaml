@@ -1,5 +1,5 @@
-armadactl: ~/.armadactl.yaml                 # default: ~/.armadactl.yaml
-authContext: ""                               # default: currentContext of the armadactl file
+armadactl: ../../../../.armadactl.yaml                 # default: ~/.armadactl.yaml
+authContext: "no-auth"                                 # default: currentContext of the armadactl file
 
 metrics:
   prometheus: http://localhost:9090           # default http://localhost:9090
