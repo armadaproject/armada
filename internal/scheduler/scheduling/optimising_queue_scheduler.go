@@ -167,7 +167,7 @@ loop:
 		duration := time.Now().Sub(start)
 
 		if duration.Seconds() > 1 {
-			ctx.Infof("Slow schedule: queue %s, gang cardinality %d, sample job id %s, time %fs", gctx.Queue, gctx.Cardinality(), gctx.JobIds()[0], duration.Seconds())
+			ctx.Infof("Slow schedule: queue %s, gang cardinality %d, sample job id %s, time %fs", gctx.Queue, gctx.Cardinality(), gctx.FirstJobId(), duration.Seconds())
 		}
 		loopNumber++
 	}
@@ -200,7 +200,7 @@ func (q *OptimisingQueueScheduler) createCandidateGangIterator(
 	ctx *armadacontext.Context,
 	sctx *schedulercontext.SchedulingContext,
 ) (CandidateGangIterator, error) {
-	jobIteratorByQueue := make(map[string]JobContextIterator)
+	jobIteratorByQueue := make(map[string]JobContextIterator, len(sctx.QueueSchedulingContexts))
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		// We only want to run on queues that are failing to achieve their fairshare
 		// So skip any queue at or above its fairshare

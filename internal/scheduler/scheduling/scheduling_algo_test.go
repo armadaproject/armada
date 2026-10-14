@@ -220,6 +220,16 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 			expectedReconcileFailedJobsByPool:       map[string]int{"pool1": 1},
 			expectFailedReconcileJobsMarkedAsFailed: true,
 		},
+		"reconciliation result preserved when pool scheduling completes": {
+			pools: []poolSchedulingInfo{
+				{name: "pool1", runningJobFailingReconciliation: true},
+				{name: "pool2"},
+			},
+			enableReconciler:                        true,
+			expectedSuccessfulPools:                 []string{"pool1", "pool2"},
+			expectedReconcileFailedJobsByPool:       map[string]int{"pool1": 1},
+			expectFailedReconcileJobsMarkedAsFailed: true,
+		},
 	}
 
 	for name, tc := range tests {

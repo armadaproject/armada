@@ -6,7 +6,6 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/slices"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -298,6 +297,9 @@ func NewNodeTypeIterator(
 	if keyIndex < 0 {
 		return nil, errors.Errorf("keyIndex is negative: %d", keyIndex)
 	}
+	bounds := make([]int64, 2*len(indexedResourceRequests))
+	copy(bounds[:len(indexedResourceRequests)], indexedResourceRequests)
+	copy(bounds[len(indexedResourceRequests):], indexedResourceRequests)
 	it := &NodeTypeIterator{
 		txn:                       txn,
 		nodeTypeId:                nodeTypeId,
@@ -307,8 +309,8 @@ func NewNodeTypeIterator(
 		indexedResources:          indexedResources,
 		indexedResourceRequests:   indexedResourceRequests,
 		indexedResourceResolution: indexedResourceResolution,
-		lowerBound:                slices.Clone(indexedResourceRequests),
-		newLowerBound:             slices.Clone(indexedResourceRequests),
+		lowerBound:                bounds[:len(indexedResourceRequests)],
+		newLowerBound:             bounds[len(indexedResourceRequests):],
 		urgency:                   urgency,
 	}
 	memdbIt, err := it.newNodeTypeIterator()
