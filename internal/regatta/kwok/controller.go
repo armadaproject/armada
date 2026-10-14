@@ -24,6 +24,63 @@ import (
 
 const ControllerImage = "registry.k8s.io/kwok/kwok:v0.7.0"
 
+// buildConfigEnv names the JSON file the mage targets read their docker registry mirrors from, so one file serves
+// both: {"dockerRegistries": {"registry.k8s.io": "mirror.example.com/k8s"}}.
+const buildConfigEnv = "ARMADA_BUILD_CONFIG"
+
+// controllerImage is the image the kwok-controller container runs: ControllerImage, with its registry replaced
+// according to the dockerRegistries of the file named by ARMADA_BUILD_CONFIG (the same setting the mage targets use
+// for the images they pull). With no file, or no matching registry, it is ControllerImage itself. A file that cannot
+// be read is reported and ignored: the default image is still tried, and docker's own pull error then says what is
+// unreachable.
+func controllerImage() string {
+	registries, err := dockerRegistriesFromBuildConfig(os.Getenv(buildConfigEnv))
+	if err != nil {
+		log.Warnf("ignoring %s: %s", buildConfigEnv, err)
+		return ControllerImage
+	}
+	image := remapRegistry(ControllerImage, registries)
+	if image != ControllerImage {
+		log.Infof("kwok-controller image %s is pulled as %s (dockerRegistries in %s)", ControllerImage, image, os.Getenv(buildConfigEnv))
+	}
+	return image
+}
+
+// dockerRegistriesFromBuildConfig reads dockerRegistries from the JSON build config at path. An empty path is no
+// config and not an error.
+func dockerRegistriesFromBuildConfig(path string) (map[string]string, error) {
+	if path == "" {
+		return nil, nil
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+	var buildConfig struct {
+		DockerRegistries map[string]string `json:"dockerRegistries"`
+	}
+	if err := json.Unmarshal(content, &buildConfig); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", path, err)
+	}
+	return buildConfig.DockerRegistries, nil
+}
+
+// remapRegistry replaces the leading registry of image using registries, a map from a registry prefix to its
+// replacement, with the same prefix rule as the mage targets (strings.HasPrefix). When several prefixes match, the
+// longest wins, so the result does not depend on map order. An image no prefix matches is returned as it is.
+func remapRegistry(image string, registries map[string]string) string {
+	best := ""
+	for from := range registries {
+		if strings.HasPrefix(image, from) && len(from) > len(best) {
+			best = from
+		}
+	}
+	if best == "" {
+		return image
+	}
+	return registries[best] + strings.TrimPrefix(image, best)
+}
+
 // stageCRDYAML/stagesYAML are baked into the binary rather than read from disk, so `regatta run`
 // doesn't depend on being invoked from the repo root - every other file a scenario needs is
 // resolved relative to the scenario file itself, but these two are fixed fixtures shipped with
@@ -212,7 +269,7 @@ func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress
 	}
 	args = append(args,
 		"-v", internalKubeconfigPath+":/kubeconfig:ro",
-		ControllerImage,
+		controllerImage(),
 		"--kubeconfig=/kubeconfig",
 		"--manage-all-nodes=false",
 		"--manage-nodes-with-annotation-selector="+NodeAnnotation+"="+NodeAnnotationOK,
