@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -334,4 +335,26 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExtractServices_SelectsThePodOfTheRun(t *testing.T) {
+	lease := &executorapi.JobRunLease{
+		Job: &armadaevents.SubmitJob{
+			Objects: []*armadaevents.KubernetesObject{{
+				ObjectMeta: &armadaevents.ObjectMeta{Name: "armada-job-1-0-service-0"},
+				Object:     &armadaevents.KubernetesObject_Service{Service: &v1.ServiceSpec{}},
+			}},
+		},
+	}
+	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+		domain.JobId:     "job-1",
+		domain.JobRunId:  "run-1",
+		domain.Queue:     "queue",
+		domain.PodNumber: "0",
+	}}}
+
+	services := ExtractServices(lease, pod)
+
+	require.Len(t, services, 1)
+	assert.Equal(t, map[string]string{domain.JobId: "job-1", domain.JobRunId: "run-1", domain.Queue: "queue", domain.PodNumber: "0"}, services[0].Spec.Selector)
 }
