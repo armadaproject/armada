@@ -3,8 +3,6 @@ title: 'Developer guide'
 description: 'Build Armada from source, run it on your machine, change a component and test your change.'
 ---
 
-{/* Rewritten 2026-10-08 from an end-to-end run on macOS (Apple Silicon), Docker Desktop 29.4.0 with 16 GB, against armadaproject/armada master f8bd058b (2026-10-02). Tested: mage checkDeps, BootstrapTools, mage kind (with the image workaround), dev:up no-auth / auth / fake-executor, the manual auth steps, armadactl contexts (no-auth, auth-password, auth-client-creds, auth-basic), a job on the real and the fake executor, Lookout dev UI, goreman status and restart, the basic test suite (17/17), mage testsuite against dev:up (fails), pprof with and without auth, dev:full (see that section). Not tested: the auth-oidc browser login, hot-cold. Sources: magefiles/dev.go, kind.go, ci.go, main.go; _local/; internal/common/profiling/http.go; config/scheduler/config.yaml (executorTimeout). Kept per maintainer decision: Goreman content. Removed: VS Code/GoLand/Delve, the old Arm Pulsar tip (the repo now uses Pulsar 4.1.0, which runs natively on Arm). */}
-
 This guide is for people changing Armada itself. It builds every Armada component from source, runs them as programs on your machine, and connects them to a small Kubernetes cluster, so you can change code, restart one component and test the result in seconds.
 
 If you only want to **use** Armada, follow [Getting started](/getting-started) instead.
@@ -27,12 +25,13 @@ If you only want to **use** Armada, follow [Getting started](/getting-started) i
 | Tool                                                                                       | Version                                               | Needed for                                                                                          |
 | ------------------------------------------------------------------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | [Go](https://go.dev/doc/install)                                                           | 1.27.1 or later (the repository's `go.mod` sets this) | Everything. An older Go downloads 1.27.1 automatically the first time, if you have internet access. |
-| [Docker Desktop](https://docs.docker.com/get-docker/)                                      | Running, with enough memory (see below)               | Dependencies and the Kind cluster                                                                   |
+| [Docker](https://docs.docker.com/get-docker/)                                              | Running, with enough memory (see below)               | Dependencies and the Kind cluster                                                                   |
 | [kubectl](https://kubernetes.io/docs/tasks/tools/)                                         | Any recent                                            | Looking at the cluster                                                                              |
 | [Kind](https://kind.sigs.k8s.io/)                                                          | Any; the build tools install the right one            | The `armada-test` cluster                                                                           |
 | [Node.js](https://nodejs.org/) and [Yarn](https://yarnpkg.com/getting-started/install) 1.x | Any recent                                            | The Lookout web UI, which `mage dev:up` always starts                                               |
-| `gcc` (Xcode command line tools on a Mac)                                                  | Any                                                   | Some Go packages                                                                                    |
-| `protoc` (`brew install protobuf` on a Mac)                                                | Any recent                                            | Only for regenerating code from `.proto` files with `mage proto`                                    |
+| `gcc`                                                                                      | Any                                                   | Some Go packages                                                                                    |
+| [`protoc`](https://github.com/protocolbuffers/protobuf/releases)                           | 3.17.3 or later (`protoc --version`)                  | The check in Step 2 (`mage checkDeps`), and regenerating code from `.proto` files with `mage proto` |
+| Python 3                                                                                   | Any                                                   | The image download in Step 3                                                                        |
 
 Mage doesn't need installing: the commands below run a pinned version with `go run`.
 
@@ -40,7 +39,7 @@ Mage doesn't need installing: the commands below run a pinned version with `go r
 
 The dependencies and the three-node `armada-test` cluster need several GB. If you also keep a [laptop install](/getting-started) running, it needs about 6.5 GB more. This guide was tested with Docker Desktop set to **16 GB** (Settings → Resources → Memory) with a laptop install alongside.
 
-Changing Docker's memory restarts Docker, which breaks a running laptop install; reinstall it afterwards (see [Getting started](/getting-started)) {/* LINK: restore "#troubleshooting" when that page merges */}.
+Changing Docker's memory restarts Docker, which breaks a running laptop install; reinstall it afterwards (see [Getting started](/getting-started)). {/* LINK: restore "#troubleshooting" when that page merges */}
 
 **Ready when:**
 
@@ -239,13 +238,13 @@ This also starts Keycloak, with a test realm, and waits for it before starting A
 
 `_local/.armadactl.yaml` has a context for each login method. Pick one with `--context`:
 
-| Context             | Login                                                        | Notes                                            |
-| ------------------- | ------------------------------------------------------------ | ------------------------------------------------ |
-| `auth-password`     | Keycloak user `admin`, password `admin`                      | No browser needed. Tested.                       |
-| `auth-client-creds` | Keycloak client `armada-executor`                            | No browser needed. Tested.                       |
-| `auth-basic`        | Username `admin`, password `admin`, checked by Armada itself | Tested.                                          |
-| `auth-oidc`         | Browser login                                                | Opens your browser; log in as `admin` / `admin`. |
-| `auth-device`       | Device login                                                 | Prints a code to enter in the browser.           |
+| Context             | Login                                                        | Notes                                                                                                                   |
+| ------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `auth-password`     | Keycloak user `admin`, password `admin`                      | No browser needed. Tested.                                                                                              |
+| `auth-client-creds` | Keycloak client `armada-executor`                            | No browser needed. Tested.                                                                                              |
+| `auth-basic`        | Username `admin`, password `admin`, checked by Armada itself | Tested.                                                                                                                 |
+| `auth-oidc`         | Browser login                                                | Opens your browser; log in as `admin` / `admin`.                                                                        |
+| `auth-device`       | Device login                                                 | Doesn't work as shipped: the realm turns device login off for its `armada-server` client. Turn it on in Keycloak first. |
 
 ```bash
 ./bin/armadactl --config _local/.armadactl.yaml --context auth-password get queues
@@ -253,7 +252,7 @@ This also starts Keycloak, with a test realm, and waits for it before starting A
 
 **Success:** no `rpc error` line. The `admin` user is in the `admins` group, which can submit, cancel, reprioritize, preempt and watch any job, create and delete queues, and manage retry policies. It can't cordon queues or nodes (see `_local/server/config-auth.yaml`).
 
-The Keycloak admin console is at http://localhost:8180, with user `admin` and password `admin` (set in `_local/compose/stack.yaml`; not tested here). The realm has only the `admin` user; add others there to test permissions. One limitation: with the realm as shipped, tokens have no `sub` claim, so Armada sees every Keycloak user with an empty name. Permissions granted to **groups** work; permissions for individual users and queue owners don't.
+The Keycloak admin console is at http://localhost:8180, with user `admin` and password `admin` (set in `_local/compose/stack.yaml`). The realm has only the `admin` user; add others there to test permissions. One limitation: with the realm as shipped, tokens have no `sub` claim, so Armada sees every Keycloak user with an empty name. Permissions granted to **groups** work; permissions for individual users and queue owners don't.
 
 To run the steps by hand instead (for example to restart only Armada and keep Keycloak):
 
@@ -284,8 +283,6 @@ Ran 17 test(s) in 1m48s
 Success: 17
 Failure: 0
 ```
-
-Other folders in `testsuite/testcases/` (`preemption`, `retry`, `queue` and more) run the same way.
 
 `mage testsuite` runs every test folder, but only against the containerised stack from [`mage dev:full`](#run-the-whole-stack-in-containers). Against `mage dev:up`, it waits a minute and fails with `Error: timed out waiting for scheduler to start`.
 
