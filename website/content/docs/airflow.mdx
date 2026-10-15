@@ -22,7 +22,7 @@ cd ~/armada-guide/airflow
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install armada-airflow
+pip install "apache-airflow==3.2.2" "armada-airflow==1.1.3"
 ```
 
 Then pin five web libraries to the versions Airflow 3.2.2 was tested with:
@@ -31,7 +31,7 @@ Then pin five web libraries to the versions Airflow 3.2.2 was tested with:
 pip install "cadwyn==6.2.2" "fastapi==0.136.1" "starlette==1.1.0" "svcs==25.1.0" "uvicorn==0.47.0"
 ```
 
-Without this second command, every task fails inside Airflow with `AttributeError: 'State' object has no attribute 'svcs_registry'`. The pinned versions come from Airflow's published constraints file (`https://raw.githubusercontent.com/apache/airflow/constraints-3.2.2/constraints-3.12.txt`); if you use a different Airflow version, take the matching versions from its constraints file.
+Without this second command, every task fails inside Airflow with `AttributeError: 'State' object has no attribute 'svcs_registry'`. The pinned versions come from Airflow's published constraints file (`https://raw.githubusercontent.com/apache/airflow/constraints-3.2.2/constraints-3.12.txt`). To use a different Airflow version, change `3.2.2` in both commands, and take the matching versions from that version's constraints file.
 
 **Success:** `pip list` shows `apache-airflow` and `armada-airflow`.
 
@@ -145,7 +145,7 @@ armadactl watch my-team "<run_id>"
   ArmadaOperator job '<job-id>' in queue 'my-team' terminated with state 'Failed'. Termination reason: Container main failed with exit code 3 ...
   ```
 
-- **Retries:** an Airflow retry submits a **new** Armada job (with the default `reattach_policy`). The log shows `Found: job-id <job-id> in JobState.FAILED. Didn't reattach due to reattach policy.` and then a second `Submitted job` line. Armada doesn't retry jobs whose program fails, so Airflow's `retries` are the natural way to resubmit failed or preempted work. See When jobs fail or don't start. {/* LINK: restore "[When jobs fail or don't start](/docs/when-jobs-fail)" when that page merges */}
+- **Retries:** an Airflow retry submits a **new** Armada job (with the default `reattach_policy`). The log shows `Found: job-id <job-id> in JobState.FAILED. Didn't reattach due to reattach policy.` and then a second `Submitted job` line. Armada doesn't retry jobs whose program fails, so Airflow's `retries` are the natural way to resubmit failed or preempted work. 
 - **Deferrable mode:** off unless you turn it on. With `deferrable=True`, the task hands waiting over to Airflow's triggerer while the job is queued or running, freeing the worker slot. That's useful when jobs wait a long time in a busy queue. It needs Airflow's triggerer running (`airflow triggerer`) in a real deployment. `airflow dags test` runs the trigger itself, so you can try it without one: the log shows `Pausing task as DEFERRED` and `[DAG TEST] running trigger in line`, and the task finishes on the same job. You can also turn it on for all operators with Airflow's `operators.default_deferrable` setting.
 - **Stopping the task:** killing or timing out the Airflow task cancels its Armada job.
 
@@ -183,6 +183,8 @@ channel_args = GrpcChannelArgs(
 )
 ```
 
+This example works with `deferrable=False` (the default). With `deferrable=True`, Airflow saves `channel_args`, including `auth`, so the triggerer can use it. Your auth class must then be one Airflow can save: define it in a module the triggerer can import (not in the DAG file), give it a `__version__`, a `serialize()` method returning plain values, and a static `deserialize(data, version)`, and have it fetch tokens itself rather than hold a function. 
+
 See Authentication {/* LINK: restore "[Authentication](/docs/authentication#connecting-from-your-own-code-python-and-airflow)" */} for getting a token.
 
 ## Troubleshooting
@@ -190,7 +192,7 @@ See Authentication {/* LINK: restore "[Authentication](/docs/authentication#conn
 | What you see                                                                                            | Cause                                                                                       | Fix                                                                                                                                                                                       |
 | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `AttributeError: 'State' object has no attribute 'svcs_registry'`                                       | Airflow's web libraries are newer than it supports                                          | Run the pinned `pip install` in Step 1.                                                                                                                                                   |
-| The task fails at once with a submission error                                                          | The job breaks a submission rule (queue, resources, priority class)                         | The message matches what `armadactl submit` would say. See Submitting jobs. {/* LINK: restore "[Submitting jobs](/docs/submitting-jobs#troubleshooting)" when that page merges */}        |
+| The task fails at once with a submission error                                                          | The job breaks a submission rule (queue, resources, priority class)                         | The message matches what `armadactl submit` would say. {/* LINK: restore "[Submitting jobs](/docs/submitting-jobs#troubleshooting)" when that page merges */}                             |
 | `could not find queue`                                                                                  | The queue doesn't exist, or was just created                                                | Check with `armadactl get queues`. Wait 15 seconds after creating a queue.                                                                                                                |
 | The task waits a long time                                                                              | The job is queued in Armada                                                                 | Check it with `armadactl get job-report <job-id>`. See When jobs fail or don't start.                                                                                                     |
 | A worker restart created a duplicate job                                                                | Retries submit new jobs by default                                                          | Set `reattach_policy="running_or_succeeded"`.                                                                                                                                             |
@@ -200,3 +202,4 @@ See Authentication {/* LINK: restore "[Authentication](/docs/authentication#conn
 | The task failed at once with `ArmadaOperatorJobFailedFatalError`, and didn't retry                      | `reattach_policy="always"` and the job failed                                               | Use `running_or_succeeded` if you want failed jobs retried.                                                                                                                               |
 | `XCom not found ... key='job_request'`                                                                  | Normal: the operator checks for a saved request first                                       | Ignore it.                                                                                                                                                                                |
 | No `is in state:` lines in the log                                                                      | `lookout_url_template` isn't set                                                            | Set it (see Step 3). The task still works without it.                                                                                                                                     |
+| `TypeError: cannot serialize object of type <class '...'>` with `deferrable=True`                       | `channel_args` has an `auth` plugin, which Airflow can't save for the triggerer             | Use `deferrable=False` with `auth`.                                                                                                                                                       |
