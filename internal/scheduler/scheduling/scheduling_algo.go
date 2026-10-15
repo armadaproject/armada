@@ -446,19 +446,15 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	allPools = append(allPools, awayAllocationPools...)
 	allPools = armadaslices.Unique(allPools)
 
-	// We must include jobs in the following states:
-	// - Jobs active on the nodes of this pool
-	//   - These are used to populate the jobdb, calculate demand/fairshare
-	//   - This may include nodes from other pools, especially if the nodes pool has changed
-	// - Jobs queued against home/away pools relevant to the pool being computed
-	//   - This is to calculate demand on both home and away pools
-	// Only fetch queued jobs when the scan needs them.
 	leasedJobs := txn.GetAllLeasedJobs()
-	allJobs := make([]*jobdb.Job, 0, len(leasedJobs))
-	allJobs = append(allJobs, leasedJobs...)
+	var queuedJobs []*jobdb.Job
 	if l.queuedScanRequired() {
-		allJobs = append(allJobs, getQueuedJobs(txn, allPools)...)
+		queuedJobs = getQueuedJobs(txn, allPools)
 	}
+
+	allJobs := make([]*jobdb.Job, 0, len(leasedJobs)+len(queuedJobs))
+	allJobs = append(allJobs, leasedJobs...)
+	allJobs = append(allJobs, queuedJobs...)
 
 	jobSchedulingInfo, err := l.newCalculateJobSchedulingInfo(ctx,
 		txn,
