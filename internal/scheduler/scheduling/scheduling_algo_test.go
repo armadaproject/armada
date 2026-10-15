@@ -1627,7 +1627,7 @@ func TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords(t *testing.T) {
 
 	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
 	txn := jobDb.ReadTxn()
-	algo := &FairSchedulingAlgo{computeAggregateDemand: true}
+	algo := &FairSchedulingAlgo{compareAggregateDemand: true}
 
 	beforeComparisons := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
 	beforeMismatches := testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool))
@@ -1679,7 +1679,7 @@ func TestCalculateJobSchedulingInfo_AggregateDemandAgreementPublishesComparisonO
 	queued := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
 	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
 	txn := jobDb.ReadTxn()
-	algo := &FairSchedulingAlgo{computeAggregateDemand: true}
+	algo := &FairSchedulingAlgo{compareAggregateDemand: true}
 
 	beforeComparisons := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
 	beforeMismatches := testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool))
@@ -1695,4 +1695,38 @@ func TestCalculateJobSchedulingInfo_AggregateDemandAgreementPublishesComparisonO
 
 	cpu := info.demandByQueueAndPriorityClass()["q1"][pc].GetByNameZeroIfMissing("cpu")
 	require.Equal(t, int64(1), cpu.Value())
+}
+
+func TestCalculateJobSchedulingInfo_UsesAggregateForQueuedDemand(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-use-pool"
+	queuedPc := testfixtures.PriorityClass0
+	runningPc := testfixtures.PriorityClass1
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	queued := testfixtures.Test1Cpu4GiJob("q1", queuedPc).WithQueued(true).WithPools([]string{pool})
+	// Same pc as the running job, so the queued pc is only present via the aggregate.
+	unscanned := testfixtures.Test1Cpu4GiJob("q1", runningPc).WithQueued(true).WithPools([]string{pool})
+	leased := testfixtures.Test1Cpu4GiJob("q1", runningPc).
+		WithNewRun("executor-1", "node-1", "node-1", pool, 0)
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued, leased})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{useAggregateDemand: true}
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{"executor-1": true}, queues,
+		[]*jobdb.Job{unscanned, leased}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	// Queued demand comes from the aggregate, running demand from the scan.
+	demand := info.demandByQueueAndPriorityClass()["q1"]
+	queuedCpu := demand[queuedPc].GetByNameZeroIfMissing("cpu")
+	runningCpu := demand[runningPc].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(1), queuedCpu.Value())
+	require.Equal(t, int64(1), runningCpu.Value())
+	// The queued priority class is recorded even though no queued job was scanned.
+	require.True(t, info.inUsePriorityClasses[queuedPc])
+	require.True(t, info.inUsePriorityClasses[runningPc])
 }
