@@ -145,7 +145,7 @@ armadactl watch my-team "<run_id>"
   ArmadaOperator job '<job-id>' in queue 'my-team' terminated with state 'Failed'. Termination reason: Container main failed with exit code 3 ...
   ```
 
-- **Retries:** an Airflow retry submits a **new** Armada job (with the default `reattach_policy`). The log shows `Found: job-id <job-id> in JobState.FAILED. Didn't reattach due to reattach policy.` and then a second `Submitted job` line. Armada doesn't retry jobs whose program fails, so Airflow's `retries` are the natural way to resubmit failed or preempted work. 
+- **Retries:** an Airflow retry submits a **new** Armada job (with the default `reattach_policy`). The log shows `Found: job-id <job-id> in JobState.FAILED. Didn't reattach due to reattach policy.` and then a second `Submitted job` line. Armada doesn't retry jobs whose program fails, so Airflow's `retries` are the natural way to resubmit failed or preempted work.
 - **Deferrable mode:** off unless you turn it on. With `deferrable=True`, the task hands waiting over to Airflow's triggerer while the job is queued or running, freeing the worker slot. That's useful when jobs wait a long time in a busy queue. It needs Airflow's triggerer running (`airflow triggerer`) in a real deployment. `airflow dags test` runs the trigger itself, so you can try it without one: the log shows `Pausing task as DEFERRED` and `[DAG TEST] running trigger in line`, and the task finishes on the same job. You can also turn it on for all operators with Airflow's `operators.default_deferrable` setting.
 - **Stopping the task:** killing or timing out the Airflow task cancels its Armada job.
 
@@ -183,7 +183,7 @@ channel_args = GrpcChannelArgs(
 )
 ```
 
-This example works with `deferrable=False` (the default). With `deferrable=True`, Airflow saves `channel_args`, including `auth`, so the triggerer can use it. Your auth class must then be one Airflow can save: define it in a module the triggerer can import (not in the DAG file), give it a `__version__`, a `serialize()` method returning plain values, and a static `deserialize(data, version)`, and have it fetch tokens itself rather than hold a function. 
+This example works with `deferrable=False` (the default). With `deferrable=True`, Airflow saves `channel_args`, including `auth`, so the triggerer can use it. Your auth class must then be one Airflow can save: define it in a module the triggerer can import (not in the DAG file), give it a `__version__`, a `serialize()` method returning plain values, and a static `deserialize(data, version)`, and have it fetch tokens itself rather than hold a function.
 
 See Authentication {/* LINK: restore "[Authentication](/docs/authentication#connecting-from-your-own-code-python-and-airflow)" */} for getting a token.
 
