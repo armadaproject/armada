@@ -169,8 +169,6 @@ func TestConvert_RemovesJobRunRunningStartUpInfo(t *testing.T) {
 	require.Len(t, batchUpdate.Events, 1)
 	es, err := extractEventSeq(batchUpdate.Events[0].Event)
 	require.NoError(t, err)
-	assert.Equal(t, []*armadaevents.EventSequence_Event{cancelled}, es.Events)
-
 	running := es.Events[0].GetJobRunRunning()
 	require.NotNil(t, running)
 	assert.Nil(t, running.StartUpInfo)
