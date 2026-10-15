@@ -29,6 +29,18 @@ function getFakeJobs(): Job[] {
   return fakeJobsCache
 }
 
+export function getFakeJobsResponse(params: GetJobsParams): GetJobsResponse {
+  const filtered = getFakeJobs().filter(mergeFilters(params.filters))
+  const sorted = [...filtered].sort((a, b) =>
+    compareValues(
+      (a as Record<string, unknown>)[params.order.field as JobKey],
+      (b as Record<string, unknown>)[params.order.field as JobKey],
+      params.order.direction,
+    ),
+  )
+  return { jobs: sorted.slice(params.skip, params.skip + params.take) }
+}
+
 const getQueryFn =
   (
     params: GetJobsParams,
@@ -39,15 +51,7 @@ const getQueryFn =
   async ({ signal }) => {
     try {
       if (fakeDataEnabled) {
-        const filtered = getFakeJobs().filter(mergeFilters(params.filters))
-        const sorted = [...filtered].sort((a, b) =>
-          compareValues(
-            (a as Record<string, unknown>)[params.order.field as JobKey],
-            (b as Record<string, unknown>)[params.order.field as JobKey],
-            params.order.direction,
-          ),
-        )
-        return { jobs: sorted.slice(params.skip, params.skip + params.take) }
+        return getFakeJobsResponse(params)
       }
 
       let path = "/api/v1/jobs"
