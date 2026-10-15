@@ -145,4 +145,43 @@ public class Tests
         Assert.That(ex, Is.Not.Null);
         Assert.That(ex!.StatusCode, Is.EqualTo(StatusCode.NotFound));
     }
+
+    /// <summary>
+    /// Test event health check returns SERVING status.
+    /// Matches Python: test_health_event()
+    /// </summary>
+    [Test]
+    public void TestEventHealth()
+    {
+        var response = _eventClient.Health(new Empty());
+        Assert.That(response.Status, Is.EqualTo(HealthCheckResponse.Types.ServingStatus.Serving));
+    }
+
+    /// <summary>
+    /// Test reading the job set event stream returns the populated event and then completes.
+    /// Matches Python: test_get_job_events_stream()
+    /// </summary>
+    [Test]
+    public async Task TestGetJobSetEvents()
+    {
+        var jobSetId = "test-job-set";
+        var queueName = "example";
+
+        using var call = _eventClient.GetJobSetEvents(new JobSetRequest
+        {
+            Id = jobSetId,
+            Queue = queueName
+        });
+
+        Assert.That(await call.ResponseStream.MoveNext(), Is.True);
+        var streamMessage = call.ResponseStream.Current;
+        Assert.That(streamMessage.Id, Is.EqualTo(MockEventService.EventId));
+        Assert.That(streamMessage.Message.EventsCase, Is.EqualTo(EventMessage.EventsOneofCase.Submitted));
+        Assert.That(streamMessage.Message.Submitted.JobId, Is.EqualTo(MockEventService.JobId));
+        Assert.That(streamMessage.Message.Submitted.JobSetId, Is.EqualTo(jobSetId));
+        Assert.That(streamMessage.Message.Submitted.Queue, Is.EqualTo(queueName));
+
+        Assert.That(await call.ResponseStream.MoveNext(), Is.False);
+        Assert.That(call.GetStatus().StatusCode, Is.EqualTo(StatusCode.OK));
+    }
 }

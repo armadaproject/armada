@@ -187,9 +187,25 @@ public class MockSubmitService : SubmitServiceBase
 /// </summary>
 public class MockEventService : EventServiceBase
 {
+    public const string EventId = "event-1";
+    public const string JobId = "job-1";
+
+    // Writes a single submitted event for the requested job set; returning completes the stream.
     public override Task GetJobSetEvents(JobSetRequest request, IServerStreamWriter<EventStreamMessage> responseStream, ServerCallContext context)
     {
-        return responseStream.WriteAsync(new EventStreamMessage());
+        return responseStream.WriteAsync(new EventStreamMessage
+        {
+            Id = EventId,
+            Message = new EventMessage
+            {
+                Submitted = new JobSubmittedEvent
+                {
+                    JobId = JobId,
+                    JobSetId = request.Id,
+                    Queue = request.Queue
+                }
+            }
+        });
     }
 
     public override Task<HealthCheckResponse> Health(Empty request, ServerCallContext context)
