@@ -9,14 +9,14 @@ Client libraries let your own programs submit jobs, follow their events and mana
 
 ## Choose a client
 
-| Language   | Package                                      | Good for                                                                                             |
-| ---------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **Python** | `armada-client` on PyPI                      | Scripts, data and ML workflows. The most complete client.                                            |
-| **Go**     | `github.com/armadaproject/armada/pkg/client` | Go programs. `armadactl` itself is built on it.                                                      |
-| **Java**   | Build from source (needs only Docker)        | JVM applications                                                                                     |
-| **Scala**  | Build from source (needs only Docker)        | Scala applications and Spark                                                                         |
-| **.NET**   | `ArmadaProject.Io.Client` on NuGet           | C# applications (.NET 10)                                                                            |
-| **Rust**   | `armada-client` on crates.io                 | Rust programs: submitting, watching, cancelling, preempting, reprioritizing, queues and job lookups. |
+| Language   | Package                                           | Good for                                                                                             |
+| ---------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **Python** | `armada-client` on PyPI                           | Scripts, data and ML workflows. The most complete client.                                            |
+| **Go**     | `github.com/armadaproject/armada/pkg/client`      | Go programs. `armadactl` itself is built on it.                                                      |
+| **Java**   | Build from source (needs only Docker)             | JVM applications                                                                                     |
+| **Scala**  | Build from source (needs Go, `protoc` and Docker) | Scala applications and Spark                                                                         |
+| **.NET**   | `ArmadaProject.Io.Client` on NuGet                | C# applications (.NET 10)                                                                            |
+| **Rust**   | `armada-client` on crates.io                      | Rust programs: submitting, watching, cancelling, preempting, reprioritizing, queues and job lookups. |
 
 Every client talks to Armada's gRPC API. To call Armada over HTTP instead, see the [API reference](/docs/api).
 
@@ -80,11 +80,14 @@ pod_spec = core_v1.PodSpec(
     ],
 )
 
+# A new job set for each run, so the events below are this run's only.
+ job_set_id = f"python-demo-{int(time.time())}"
+
 job = client.create_job_request_item(
     namespace="default", priority=0, pod_spec=pod_spec
 )
 response = client.submit_jobs(
-    queue="my-team", job_set_id="python-demo", job_request_items=[job]
+    queue="my-team", job_set_id=job_set_id, job_request_items=[job]
 )
 for item in response.job_response_items:
     print("Submitted job", item.job_id)
@@ -92,7 +95,7 @@ for item in response.job_response_items:
 # A new job set takes a few seconds to appear in the event stream.
 time.sleep(5)
 
-for event in client.get_job_events_stream(queue="my-team", job_set_id="python-demo"):
+for event in client.get_job_events_stream(queue="my-team", job_set_id=job_set_id):
     kind = event.message.WhichOneof("events")
     print(kind)
     if kind in ("succeeded", "failed", "cancelled"):
@@ -170,13 +173,16 @@ func main() {
 	}
 	defer conn.Close()
 
+	// A new job set for each run, so the events below are this run's only.
+	jobSetId := fmt.Sprintf("go-demo-%d", time.Now().Unix())
+
 	res := v1.ResourceList{
 		v1.ResourceCPU:    resource.MustParse("200m"),
 		v1.ResourceMemory: resource.MustParse("128Mi"),
 	}
 	resp, err := client.SubmitJobs(api.NewSubmitClient(conn), &api.JobSubmitRequest{
 		Queue:    "my-team",
-		JobSetId: "go-demo",
+		JobSetId: jobSetId,
 		JobRequestItems: []*api.JobSubmitRequestItem{{
 			Namespace: "default",
 			PodSpec: &v1.PodSpec{
@@ -198,7 +204,7 @@ func main() {
 	time.Sleep(5 * time.Second) // a new job set takes a few seconds to appear
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	client.WatchJobSet(api.NewEventClient(conn), "my-team", "go-demo", true, true, false, false, ctx,
+	client.WatchJobSet(api.NewEventClient(conn), "my-team", jobSetId, true, true, false, false, ctx,
 		func(state *domain.WatchContext, e api.Event) bool {
 			fmt.Printf("%T\n", e)
 			switch e.(type) {
@@ -245,7 +251,7 @@ With Java and Maven installed, run `mvn clean package` in `client/java` instead.
 
 ### Scala
 
-Build it from the root of a clone of the Armada repository. First fetch the proto files it needs (this needs `protoc`), then build with Maven, here in Docker:
+Build it from the root of a clone of the Armada repository. First fetch the proto files it needs (this needs Go and `protoc` on your machine), then build with Maven, here in Docker:
 
 ```bash
 go run github.com/magefile/mage@v1.17.2 BootstrapProto
