@@ -1,4 +1,4 @@
-# Applied as real cluster resources via the Stage CRD (kwokApplyStages in magefiles/kwok.go). Must carry the complete Pod-kind stage set - supplying any Pod-kind Stage suppresses kwok-controller's Pod-kind defaults.
+# Applied as Stage resources (see ApplyStages). The set must be complete for Pods: supplying any Pod Stage suppresses kwok-controller's Pod defaults.
 apiVersion: kwok.x-k8s.io/v1alpha1
 kind: Stage
 metadata:

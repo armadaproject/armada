@@ -1,8 +1,5 @@
-// Package config defines the "scenario file" format: a manifest that points to the other files
-// a benchmarking run needs (an .armadactl.yaml, kubeconfigs, node-profile files, job-spec files)
-// and layers regatta-specific settings on top. It is deliberately not a load-test spec or a
-// Broadside-style test-runner config - those embed everything inline; a scenario file mostly
-// references other files.
+// Package config defines the scenario file: a manifest that points to the other files a run needs
+// (an .armadactl.yaml, kubeconfigs, node profiles, job specs) and adds regatta's own settings.
 package config
 
 import (
@@ -21,64 +18,35 @@ import (
 
 const TargetTypeCluster = "cluster"
 
-// TargetLabel is the node label that names the execution target a fake node belongs to. It is what a queue's
-// targets are matched against and what the readiness canary can select on.
+// TargetLabel is the node label naming the execution target a fake node belongs to. Queue targets match on it.
 const TargetLabel = "armadaproject.io/regatta-target"
 
 // Scenario is the top-level manifest passed to `regatta run`.
 type Scenario struct {
-	// Armadactl is a path to an .armadactl.yaml file. Empty uses the same default resolution as
-	// armadactl ($HOME/.armadactl.yaml).
-	Armadactl string `json:"armadactl,omitempty"`
-
-	// AuthContext names the context, within the .armadactl.yaml file above, that selects which
-	// Armada instance (and credentials) this scenario runs against - the same contexts
-	// `armadactl config get-contexts` lists. Empty uses that file's own currentContext. The
-	// --context flag on `regatta run`, when passed, takes precedence over this field.
-	AuthContext string `json:"authContext,omitempty"`
-
-	// Metrics configures the post-run Prometheus metrics report - see MetricsConfig.
-	Metrics MetricsConfig `json:"metrics,omitempty"`
+	Armadactl   string        `json:"armadactl,omitempty"`   // empty: $HOME/.armadactl.yaml
+	AuthContext string        `json:"authContext,omitempty"` // empty: the armadactl file's currentContext; --context wins
+	Metrics     MetricsConfig `json:"metrics,omitempty"`
 
 	ExecutionTargets []ExecutionTarget    `json:"executionTargets"`
 	NodeGroups       map[string]NodeGroup `json:"nodeGroups,omitempty"`
 	Load             Load                 `json:"load"`
 }
 
-// MetricsConfig configures the post-run Prometheus metrics report (see internal/regatta/metrics).
+// MetricsConfig configures the metrics report (see internal/regatta/metrics).
 type MetricsConfig struct {
-	// Prometheus is the base URL of a running Prometheus server to query for a post-run metrics
-	// report. Empty defaults to http://localhost:9090 (Prometheus's own default, and the address
-	// `mage dev:up ...,prometheus` exposes it at) - see Scenario.PrometheusURL.
-	Prometheus string `json:"prometheus,omitempty"`
+	Prometheus   string `json:"prometheus,omitempty"`   // empty: http://localhost:9090
+	PostRunDelay string `json:"postRunDelay,omitempty"` // wait after the drain for Prometheus to scrape; empty: metrics.DefaultSettleDelay
+	ResultsPath  string `json:"resultsPath,omitempty"`  // relative to the scenario file; --metrics-results-path wins; empty: "."
 
-	// PostRunDelay is how long `regatta run` waits after the run's queue drains (see
-	// metrics.WaitForQueueDrain) before collecting the metrics report, so Prometheus's own scrape
-	// interval has time to catch up to the drain moment. Duration string (e.g. "90s"); empty
-	// defaults to metrics.DefaultSettleDelay (90s).
-	PostRunDelay string `json:"postRunDelay,omitempty"`
-
-	// ResultsPath is the directory to write the post-run metrics report JSON into (the filename
-	// itself is generated, e.g. regatta-result-20060102-150405.json - see cmd/regatta/cmd/run.go).
-	// Resolved by LoadScenario relative to the scenario file's own directory, matching Armadactl/
-	// Kubeconfig/JobSpec/NodeProfile. The --metrics-results-path CLI flag overrides this when
-	// explicitly passed. Empty defaults to "." - see Scenario.MetricsResultsDir.
-	ResultsPath string `json:"resultsPath,omitempty"`
-
-	// PostRunDelayDuration is PostRunDelay parsed by LoadScenario. Not part of the file format.
-	PostRunDelayDuration time.Duration `json:"-"`
-
-	// ReportInterval is how often a continuous run writes a report: each one covers the time since the
-	// previous one. Duration string (e.g. "120s"); empty defaults to DefaultReportInterval. Bounded runs
-	// write a single report at the end and ignore it.
+	// ReportInterval is how often a continuous run writes a report; bounded runs ignore it. Empty: DefaultReportInterval.
 	ReportInterval string `json:"reportInterval,omitempty"`
 
-	// ReportIntervalDuration is ReportInterval parsed by LoadScenario. Not part of the file format.
+	// Parsed from PostRunDelay and ReportInterval by LoadScenario.
+	PostRunDelayDuration   time.Duration `json:"-"`
 	ReportIntervalDuration time.Duration `json:"-"`
 }
 
-// PrometheusURL reports the Prometheus base URL to query, applying Prometheus's default-address
-// fallback when the scenario leaves it unset.
+// PrometheusURL is the Prometheus base URL to query.
 func (s *Scenario) PrometheusURL() string {
 	if s.Metrics.Prometheus != "" {
 		return s.Metrics.Prometheus
@@ -86,8 +54,7 @@ func (s *Scenario) PrometheusURL() string {
 	return "http://localhost:9090"
 }
 
-// MetricsResultsDir reports the directory to write the post-run metrics report into, applying
-// the "." fallback when the scenario leaves it unset.
+// MetricsResultsDir is the directory the metrics report is written to.
 func (s *Scenario) MetricsResultsDir() string {
 	if s.Metrics.ResultsPath != "" {
 		return s.Metrics.ResultsPath
@@ -95,135 +62,64 @@ func (s *Scenario) MetricsResultsDir() string {
 	return "."
 }
 
-// ExecutionTarget configures one "cluster" target (Type is currently always "cluster").
+// ExecutionTarget configures one "cluster" target.
 type ExecutionTarget struct {
-	Type string `json:"type"`
-
-	// Name identifies this target for logging and per-target resource namespacing (kwok
-	// controller container name/kubeconfig path). Optional: Load assigns "<type>-<index>" (index
-	// counted per-type, file order) to any target left blank.
-	Name string `json:"name,omitempty"`
-
-	// NodeGroups names which top-level NodeGroups entries this target stands up. Omitted/nil
-	// means ALL top-level NodeGroups apply. Referencing an unknown name is a Load-time error.
-	NodeGroups []string `json:"nodeGroups,omitempty"`
-
-	Cluster *ClusterTarget `json:"cluster,omitempty"`
+	Type       string         `json:"type"`
+	Name       string         `json:"name,omitempty"`       // empty: "<type>-<index>"
+	NodeGroups []string       `json:"nodeGroups,omitempty"` // empty: every top-level node group
+	Cluster    *ClusterTarget `json:"cluster,omitempty"`
 }
 
-// ClusterTarget (Type: "cluster") configures a KWOK fake-node target: real v1.Node objects
-// created in a live cluster via KWOK, so Armada's real executor/scheduler path is exercised
-// end-to-end against simulated hardware.
+// ClusterTarget is a cluster that gets KWOK fake nodes: real v1.Node objects, so Armada's executor and scheduler are
+// exercised against simulated hardware.
 type ClusterTarget struct {
 	Kubeconfig string `json:"kubeconfig"`
+	Name       string `json:"name,omitempty"` // display label, and the kind cluster's name; empty: the target's name
 
-	// Name is a display label for the target's cluster, e.g. for logging. It is never used to
-	// derive a kubeconfig context name - the target's own Kubeconfig file's current-context is
-	// trusted directly. Defaults to the ExecutionTarget's own Name if left unset.
-	Name string `json:"name,omitempty"`
-
-	// Kind marks this target as a kind-provisioned cluster (created via `mage kind:multiCluster`).
-	// A kind cluster's API server isn't reachable at its host-facing Kubeconfig address from the
-	// kwok-controller's own docker container, so Kind additionally opts into two kind-only
-	// behaviors: InternalAPIServerAddress is auto-derived from Name (kind's own internal-DNS
-	// convention, https://<name>-control-plane:6443) when left unset, and the kwok-controller
-	// container joins the "kind" docker network to reach it. A real cluster (e.g. EKS) reached
-	// over a normal network needs neither: InternalAPIServerAddress falls back to the address
-	// already in Kubeconfig, and the controller container uses docker's default network. Defaults
-	// to false.
-	Kind bool `json:"kind,omitempty"`
-
-	// InternalAPIServerAddress is the cluster's API server address as reachable from the
-	// kwok-controller container. Left unset, it's auto-derived: from Name using kind's own
-	// internal-DNS convention when Kind is true, otherwise from Kubeconfig's own server address
-	// (see Kind's doc comment). Set this explicitly to override either default - e.g. a
-	// non-default-network remote cluster, or a kind cluster reached some other way.
+	// Kind marks a kind cluster. The kwok-controller container cannot reach its API server at the kubeconfig's
+	// address, so it joins the "kind" docker network and InternalAPIServerAddress defaults to
+	// https://<Name>-control-plane:6443. Other clusters default to the kubeconfig's own address.
+	Kind                     bool   `json:"kind,omitempty"`
 	InternalAPIServerAddress string `json:"internalApiServerAddress,omitempty"`
 
-	// ReadinessRetries is how many canary-job attempts the readiness check makes before giving up.
-	// Defaults to DefaultReadinessRetries when left unset (zero).
-	ReadinessRetries int `json:"readinessRetries,omitempty"`
-	// ReadinessDelay is a duration string (e.g. "5s"): how long the readiness check's first attempt waits for its
-	// canary job to start running. Each retry doubles it, so the defaults wait about 2.5 minutes in
-	// total. Parsed by Load into ReadinessDelayDuration. Defaults to DefaultReadinessDelay when left unset.
-	ReadinessDelay string `json:"readinessDelay,omitempty"`
+	ReadinessRetries  int    `json:"readinessRetries,omitempty"`  // empty: DefaultReadinessRetries
+	ReadinessDelay    string `json:"readinessDelay,omitempty"`    // first attempt's wait, doubled on each retry; empty: DefaultReadinessDelay
+	EvaluateReadiness *bool  `json:"evaluateReadiness,omitempty"` // empty: true
 
-	// ReadinessDelayDuration is ReadinessDelay parsed by Load. Not part of the file format.
-	ReadinessDelayDuration time.Duration `json:"-"`
-
-	// EvaluateReadiness controls whether a canary job is submitted to confirm the fake nodes are
-	// actually schedulable before load is submitted (see kwok.WaitUntilSchedulable). The scheduler
-	// takes a while to learn about freshly created nodes, so without the readiness check load starts before
-	// it can place anything and the first stretch of the run measures that warm-up. Left unset it
-	// defaults to true for every target; set it to false to skip the wait.
-	EvaluateReadiness *bool `json:"evaluateReadiness,omitempty"`
-
-	// ContinueOnReadinessFailure lets the run carry on when the readiness check gives up, instead
-	// of failing setup. For environments that are known to be faulty, where the test is still
-	// wanted: the failure is logged as a warning when it happens and again at the end of the run,
-	// and recorded under readinessFailures in the metrics report. The fake nodes are kept. Only a
-	// failed check is tolerated - not a failure to create the nodes - and it does nothing when
-	// EvaluateReadiness is false. Defaults to false.
+	// ContinueOnReadinessFailure carries on when the readiness check gives up. Only that failure is tolerated, not a
+	// failure to create the nodes. It is reported again at the end of the run and under readinessFailures in the report.
 	ContinueOnReadinessFailure bool `json:"continueOnReadinessFailure,omitempty"`
 
-	// ReadinessSelectsTarget makes the readiness canary also select on this target's
-	// armadaproject.io/regatta-target node label, so it can only land on this target's own fake
-	// nodes. That matters when several targets share one Armada, and it requires the executors to
-	// report that label (trackedNodeLabels). Left unset it defaults to Kind: the kind quickstart's
-	// executors are configured for it, while an external cluster's executors may not be, and there
-	// the canary selects on the KWOK annotation alone.
+	// ReadinessSelectsTarget pins the canary, and the load of queues with targets, to this target's own fake nodes by
+	// TargetLabel. The target's executors must report the label (trackedNodeLabels). Empty: the value of Kind.
 	ReadinessSelectsTarget *bool `json:"readinessSelectsTarget,omitempty"`
 
-	// Kubernetes configures this target's Kubernetes API client, notably its request rate limit -
-	// see KubernetesClientConfiguration. Left unset, every field defaults as documented there.
-	Kubernetes KubernetesClientConfiguration `json:"kubernetes,omitempty"`
+	Kubernetes      KubernetesClientConfiguration `json:"kubernetes,omitempty"`
+	NodeConcurrency int                           `json:"nodeConcurrency,omitempty"` // empty: DefaultNodeConcurrency
+	ReadyTimeout    string                        `json:"readyTimeout,omitempty"`    // empty: defaultReadyTimeout
 
-	// NodeConcurrency caps how many fake-node create/delete calls are in flight at once for this
-	// target. Defaults to 50 when left unset (zero).
-	NodeConcurrency int `json:"nodeConcurrency,omitempty"`
-
-	// ReadyTimeout is how long to wait for this target's fake nodes to report Ready before giving
-	// up. Duration string (e.g. "5m"); empty defaults to 5 minutes.
-	ReadyTimeout string `json:"readyTimeout,omitempty"`
-
-	// ReadyTimeoutDuration is ReadyTimeout parsed by LoadScenario. Not part of the file format.
-	ReadyTimeoutDuration time.Duration `json:"-"`
-
-	// StagesPath overrides the kwok Stage-set YAML applied to this target (see kwok.ApplyStages),
-	// resolved relative to the scenario file like every other path field. Left unset, kwok's
-	// embedded default stage set is used. This is a deliberate extension point for varying pod
-	// lifecycle timing/behavior per scenario (e.g. a slower-completing GPU-job stage) - not just a
-	// path convenience, since a custom set can also be used to model stuck/never-completing pods
-	// and observe how Armada reacts to them, so kwok only warns (never errors) if a custom set
-	// looks incomplete against the required Pod-kind transitions - see kwok.ApplyStages.
+	// StagesPath replaces kwok's default stage set (pod lifecycle timing and behaviour). A set missing the required
+	// pod transitions only warns, so a scenario can model stuck pods.
 	StagesPath string `json:"stagesPath,omitempty"`
+
+	// Parsed from ReadinessDelay and ReadyTimeout by LoadScenario.
+	ReadinessDelayDuration time.Duration `json:"-"`
+	ReadyTimeoutDuration   time.Duration `json:"-"`
 }
 
-// KubernetesClientConfiguration controls the rate limit regatta's own Kubernetes client applies
-// against this target's API server - notably when creating/deleting the fake Node objects
-// themselves (see kwok.ApplyFakeNodes/DeleteFakeNodes), which fan hundreds of requests out
-// concurrently and will bottleneck on client-go's conservative built-in defaults otherwise.
-// Mirrors the same QPS/Burst knobs internal/executor and internal/binoculars already expose for
-// their own Kubernetes clients.
+// KubernetesClientConfiguration is the rate limit of regatta's own Kubernetes client, which creates and deletes
+// hundreds of fake nodes at once.
 type KubernetesClientConfiguration struct {
-	// QPS is the max steady-state number of Kubernetes API requests per second. Defaults to 100
-	// when left unset (zero) - well above client-go's own default of 5, which meaningfully
-	// throttles a several-hundred-node target.
-	QPS float32 `json:"qps,omitempty"`
-	// Burst is the max number of requests allowed to burst above QPS momentarily. Defaults to
-	// 200 when left unset (zero) - client-go's own default is 10.
-	Burst int `json:"burst,omitempty"`
+	QPS   float32 `json:"qps,omitempty"`   // empty: 100
+	Burst int     `json:"burst,omitempty"` // empty: 200
 }
 
-// Readiness check defaults, used when a target leaves readinessRetries/readinessDelay unset. With the
-// check doubling its delay each retry they wait 5+10+20+40+80s = 155s in total.
+// Defaults for readinessRetries and readinessDelay: with the delay doubling, 5+10+20+40+80s = 155s in all.
 const (
 	DefaultReadinessRetries = 5
 	DefaultReadinessDelay   = 5 * time.Second
 )
 
-// ShouldEvaluateReadiness reports whether the canary-job readiness check should run for this
-// target: always, unless EvaluateReadiness is explicitly false.
 func (c *ClusterTarget) ShouldEvaluateReadiness() bool {
 	if c.EvaluateReadiness != nil {
 		return *c.EvaluateReadiness
@@ -231,8 +127,6 @@ func (c *ClusterTarget) ShouldEvaluateReadiness() bool {
 	return true
 }
 
-// ShouldReadinessSelectTarget reports whether the readiness canary should also select on this
-// target's regatta-target node label, applying ReadinessSelectsTarget's Kind default when unset.
 func (c *ClusterTarget) ShouldReadinessSelectTarget() bool {
 	if c.ReadinessSelectsTarget != nil {
 		return *c.ReadinessSelectsTarget
@@ -240,7 +134,6 @@ func (c *ClusterTarget) ShouldReadinessSelectTarget() bool {
 	return c.Kind
 }
 
-// EffectiveReadinessRetries returns ReadinessRetries, or DefaultReadinessRetries when unset.
 func (c *ClusterTarget) EffectiveReadinessRetries() int {
 	if c.ReadinessRetries > 0 {
 		return c.ReadinessRetries
@@ -248,7 +141,6 @@ func (c *ClusterTarget) EffectiveReadinessRetries() int {
 	return DefaultReadinessRetries
 }
 
-// EffectiveReadinessDelay returns the parsed ReadinessDelay, or DefaultReadinessDelay when unset.
 func (c *ClusterTarget) EffectiveReadinessDelay() time.Duration {
 	if c.ReadinessDelayDuration > 0 {
 		return c.ReadinessDelayDuration
@@ -256,23 +148,13 @@ func (c *ClusterTarget) EffectiveReadinessDelay() time.Duration {
 	return DefaultReadinessDelay
 }
 
-// defaultReadyTimeout has headroom above what even a large (300+ node) target needs on an idle
-// machine, since several targets' worth of concurrent node creates/kwok-controller reconciliation
-// compete for the same host CPU when multiple execution targets are set up at once (see
-// orchestrate.Setup) - observed flakiness right around a 60s value at 10 concurrent targets was
-// host contention, not a stuck controller.
+// defaultReadyTimeout leaves room for several targets creating nodes at once to compete for the same host CPU.
 const defaultReadyTimeout = 5 * time.Minute
 
-// DefaultReportInterval is how often a continuous run writes a report when metrics.reportInterval is unset.
 const DefaultReportInterval = 120 * time.Second
 
-// DefaultNodeConcurrency caps how many fake-node create/delete calls are in flight at once -
-// plenty to turn hundreds of nodes from a multi-second sequential slog into a sub-second burst,
-// without hammering the API server harder than KubernetesClientConfiguration's QPS/Burst allow.
-// Applies whenever NodeConcurrency is left unset (zero) - see ClusterTarget.EffectiveNodeConcurrency.
 const DefaultNodeConcurrency = 50
 
-// EffectiveNodeConcurrency reports NodeConcurrency, applying DefaultNodeConcurrency when unset.
 func (c *ClusterTarget) EffectiveNodeConcurrency() int {
 	if c.NodeConcurrency != 0 {
 		return c.NodeConcurrency
@@ -280,18 +162,13 @@ func (c *ClusterTarget) EffectiveNodeConcurrency() int {
 	return DefaultNodeConcurrency
 }
 
-// LoadScenario reads a Scenario from path and resolves every path field it contains (Armadactl,
-// each target's Kubeconfig, each NodeGroup member's NodeProfile, each queue's job-spec files)
-// relative to the scenario file's own directory, so a scenario file's relative paths behave the
-// same regardless of the caller's working directory. It also validates the file and assigns
-// auto-generated names to any ExecutionTarget left unnamed.
+// LoadScenario reads and validates a scenario. Every path in it is resolved relative to the scenario file.
 func LoadScenario(path string) (*Scenario, error) {
 	return loadScenario(path, true)
 }
 
-// LoadScenarioTargets reads a scenario like LoadScenario but stops after the execution targets: the load section
-// is not expanded, so the job-spec files it names are not opened. It is for commands that only need the targets,
-// such as teardown, which must work after the job templates have been moved or deleted.
+// LoadScenarioTargets is LoadScenario without the load section, so the job-spec files are not opened. Teardown uses
+// it: it has to work after the job templates are gone.
 func LoadScenarioTargets(path string) (*Scenario, error) {
 	return loadScenario(path, false)
 }

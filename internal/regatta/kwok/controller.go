@@ -24,15 +24,11 @@ import (
 
 const ControllerImage = "registry.k8s.io/kwok/kwok:v0.7.0"
 
-// buildConfigEnv names the JSON file the mage targets read their docker registry mirrors from, so one file serves
-// both: {"dockerRegistries": {"registry.k8s.io": "mirror.example.com/k8s"}}.
+// buildConfigEnv names the mage build config, whose dockerRegistries also apply to the controller image.
 const buildConfigEnv = "ARMADA_BUILD_CONFIG"
 
-// controllerImage is the image the kwok-controller container runs: ControllerImage, with its registry replaced
-// according to the dockerRegistries of the file named by ARMADA_BUILD_CONFIG (the same setting the mage targets use
-// for the images they pull). With no file, or no matching registry, it is ControllerImage itself. A file that cannot
-// be read is reported and ignored: the default image is still tried, and docker's own pull error then says what is
-// unreachable.
+// controllerImage is ControllerImage with its registry replaced by the build config's dockerRegistries. An
+// unreadable config is reported and ignored: the pull of the default image then says what is unreachable.
 func controllerImage() string {
 	registries, err := dockerRegistriesFromBuildConfig(os.Getenv(buildConfigEnv))
 	if err != nil {
@@ -46,8 +42,7 @@ func controllerImage() string {
 	return image
 }
 
-// dockerRegistriesFromBuildConfig reads dockerRegistries from the JSON build config at path. An empty path is no
-// config and not an error.
+// dockerRegistriesFromBuildConfig reads dockerRegistries from the build config; no path is no config.
 func dockerRegistriesFromBuildConfig(path string) (map[string]string, error) {
 	if path == "" {
 		return nil, nil
@@ -65,9 +60,7 @@ func dockerRegistriesFromBuildConfig(path string) (map[string]string, error) {
 	return buildConfig.DockerRegistries, nil
 }
 
-// remapRegistry replaces the leading registry of image using registries, a map from a registry prefix to its
-// replacement, with the same prefix rule as the mage targets (strings.HasPrefix). When several prefixes match, the
-// longest wins, so the result does not depend on map order. An image no prefix matches is returned as it is.
+// remapRegistry replaces the registry prefix of image as the mage targets do; the longest matching prefix wins.
 func remapRegistry(image string, registries map[string]string) string {
 	best := ""
 	for from := range registries {
@@ -81,10 +74,7 @@ func remapRegistry(image string, registries map[string]string) string {
 	return registries[best] + strings.TrimPrefix(image, best)
 }
 
-// stageCRDYAML/stagesYAML are baked into the binary rather than read from disk, so `regatta run`
-// doesn't depend on being invoked from the repo root - every other file a scenario needs is
-// resolved relative to the scenario file itself, but these two are fixed fixtures shipped with
-// the code, not user content.
+// Baked into the binary so regatta does not depend on the working directory.
 //
 //go:embed stage-crd.yaml
 var stageCRDYAML []byte
@@ -92,19 +82,14 @@ var stageCRDYAML []byte
 //go:embed stages.yaml
 var stagesYAML []byte
 
-// controllerName derives a per-target docker container name so N simultaneous cluster targets
-// don't collide on a single fixed container name.
+// controllerName is the per-target container name.
 func controllerName(targetName string) string {
 	return "armada-regatta-kwok-controller-" + targetName
 }
 
-// controllerKubeconfigDir is the directory holding the internal kubeconfig bind-mounted into the
-// kwok-controller container, namespaced per target. It sits in the user's own cache directory, not the shared
-// temp directory: the file holds live cluster credentials, and a predictable path in a shared directory lets
-// another local user pre-create it. The location is fixed (rather than random) so TeardownController can find
-// and remove it, and it must outlive RunController's own return, since deleting the file too early can race the
-// container's own open() of the bind-mounted file on VM-backed docker runtimes (observed with OrbStack) and
-// crash the container silently.
+// controllerKubeconfigDir holds the kubeconfig mounted into the controller. It is in the user's cache directory, not
+// the shared temp directory, because the file holds live credentials. The path is fixed so TeardownController can
+// remove it, and the file must outlive RunController: deleting it early crashes the container.
 func controllerKubeconfigDir(targetName string) (string, error) {
 	if targetName == "" || targetName != filepath.Base(targetName) || targetName == "." || targetName == ".." {
 		return "", fmt.Errorf("target name %q cannot be used in a file path", targetName)
@@ -116,8 +101,7 @@ func controllerKubeconfigDir(targetName string) (string, error) {
 	return filepath.Join(cache, "regatta", "kwok-"+targetName), nil
 }
 
-// writeControllerKubeconfig writes the kubeconfig into the target's private directory (mode 0700, a real
-// directory rather than a symlink) as a new file with mode 0600, replacing any earlier one, and returns its path.
+// writeControllerKubeconfig writes the kubeconfig as a new 0600 file in a 0700 directory (not a symlink), replacing any earlier one.
 func writeControllerKubeconfig(targetName string, content []byte) (string, error) {
 	dir, err := controllerKubeconfigDir(targetName)
 	if err != nil {
@@ -151,20 +135,15 @@ func writeControllerKubeconfig(targetName string, content []byte) (string, error
 	return path, file.Close()
 }
 
-// ApplyStageCRD installs the Stage CRD (stages.kwok.x-k8s.io) into the cluster. Out-of-cluster
-// mode needs this as a real CRD - unlike the all-in-one image, which reads Stage definitions
-// from a local -c stages.yaml config file at container-create time.
+// ApplyStageCRD installs the Stage CRD, which the out-of-cluster controller reads Stages from.
 func ApplyStageCRD(ctx context.Context, kubeconfig string) error {
 	return kubectlApply(ctx, kubeconfig, stageCRDYAML)
 }
 
-// stageCRDName is the name of the CRD in stage-crd.yaml.
 const stageCRDName = "stages.kwok.x-k8s.io"
 
-// WaitForStageCRD blocks until the API server serves the Stage CRD. Applying a CRD returns as soon as it
-// is stored, before the API group it defines is served, and both the Stage objects and the kwok-controller
-// (started with --enable-crds=Stage) need that group. Without this wait the controller exits at startup
-// on some runs and not others, depending on how quickly the API server catches up.
+// WaitForStageCRD blocks until the API server serves the Stage CRD: applying it returns before it is served, and the
+// controller exits at startup if it is not.
 func WaitForStageCRD(ctx context.Context, kubeconfig string) error {
 	args := []string{"wait", "--for=condition=established", "crd/" + stageCRDName, "--timeout=60s"}
 	if kubeconfig != "" {
@@ -176,20 +155,12 @@ func WaitForStageCRD(ctx context.Context, kubeconfig string) error {
 	return nil
 }
 
-// ApplyStages applies the Stage resources (node-heartbeat plus the Pod-kind stage set - see
-// stages.yaml's header comment on why the Pod-kind set must stay complete) as real objects in
-// the cluster. content is the target's own resolved Stage set - the embedded default when the
-// scenario left ClusterTarget.StagesPath unset, or a custom override otherwise (see
-// ResolveStagesYAML).
+// ApplyStages applies content, the target's Stage set (see ResolveStagesYAML), to the cluster.
 func ApplyStages(ctx context.Context, kubeconfig string, content []byte) error {
 	return kubectlApply(ctx, kubeconfig, content)
 }
 
-// ResolveStagesYAML returns stagesPath's contents if set, otherwise kwok's embedded default
-// Stage set. A non-empty stagesPath is a deliberate per-scenario override (see
-// ClusterTarget.StagesPath's doc comment) - custom content is logged as a warning, never
-// rejected, if it looks incomplete against the required Pod-kind transitions (a scenario
-// deliberately modeling stuck/never-completing pods is a legitimate use, not a mistake).
+// ResolveStagesYAML returns stagesPath's contents, or the embedded default. An incomplete custom set only logs a warning.
 func ResolveStagesYAML(stagesPath string) ([]byte, error) {
 	if stagesPath == "" {
 		return stagesYAML, nil
@@ -202,10 +173,7 @@ func ResolveStagesYAML(stagesPath string) ([]byte, error) {
 	return content, nil
 }
 
-// kubectlApply trusts the kubeconfig file's own current-context - regatta writes one kubeconfig
-// file per execution target, so current-context is never ambiguous between targets. content is
-// piped over stdin rather than a file path, since the caller's manifests are embedded fixtures,
-// not files on disk.
+// kubectlApply pipes content to kubectl against the kubeconfig's current context (there is one kubeconfig per target).
 func kubectlApply(ctx context.Context, kubeconfig string, content []byte) error {
 	args := []string{"apply", "-f", "-"}
 	if kubeconfig != "" {
@@ -220,17 +188,9 @@ func kubectlApply(ctx context.Context, kubeconfig string, content []byte) error 
 	return nil
 }
 
-// RunController starts the standalone kwok-controller container, restricted to nodes carrying
-// the kwok.x-k8s.io/node=fake annotation so real nodes are never touched. Idempotent: no-op if
-// already running. https://kwok.sigs.k8s.io/docs/user/kwok-out-cluster/
-//
-// The container needs a kubeconfig pointed at the API server's address as seen from its own
-// network - internalAPIServerAddress supplies that explicitly (orchestrate.Setup fills in a
-// default when the scenario leaves it unset: kind's own internal-DNS convention for a
-// kind-provisioned target, or Kubeconfig's own server address otherwise). kind additionally
-// joins the container to the "kind" docker network, needed to reach a kind cluster's
-// control-plane container by that internal address - a real cluster reached over a normal
-// network needs no special network attachment.
+// RunController starts the kwok-controller container for nodes carrying the fake-node annotation, and does nothing if
+// it is already running. internalAPIServerAddress is the API server's address as seen from the container; kind
+// clusters also join the "kind" docker network.
 func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress, targetName string, kind bool) error {
 	name := controllerName(targetName)
 
@@ -257,12 +217,10 @@ func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress
 		return fmt.Errorf("writing internal kubeconfig: %w", err)
 	}
 
-	// A controller that started and then died (stopped containers are kept, see below) is in the way of
-	// the name; remove it so a fresh one can take its place.
+	// Remove a stopped controller of the same name (stopped containers are kept, see below).
 	_ = exec.CommandContext(ctx, "docker", "rm", "-f", name).Run()
 
-	// No --rm: a controller that exits at startup must leave its logs behind for waitForControllerUp to
-	// report. TeardownController removes the container either way (docker rm -f).
+	// No --rm: a controller that exits at startup leaves its logs for waitForControllerUp.
 	args := []string{"run", "-d", "--name", name}
 	if kind {
 		args = append(args, "--network", "kind")
@@ -273,9 +231,7 @@ func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress
 		"--kubeconfig=/kubeconfig",
 		"--manage-all-nodes=false",
 		"--manage-nodes-with-annotation-selector="+NodeAnnotation+"="+NodeAnnotationOK,
-		// Without this, kwok-controller ignores applied Stage CRD objects entirely and falls
-		// back to its built-in pod stages - our custom pod-complete-armada stage has no
-		// built-in equivalent, so without --enable-crds=Stage it never fires.
+		// Without this the controller ignores Stage objects and our pod-complete-armada stage never fires.
 		"--enable-crds=Stage",
 	)
 	cmd := exec.CommandContext(ctx, "docker", args...)
@@ -287,15 +243,13 @@ func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress
 }
 
 const (
-	// controllerStableFor is how long a new controller container must stay running before it counts as
-	// started: `docker run -d` reports success even when the process dies a moment later.
+	// controllerStableFor is how long the container must stay up to count as started: `docker run -d` succeeds even if
+	// the process dies a moment later.
 	controllerStableFor = 3 * time.Second
 	controllerPoll      = 500 * time.Millisecond
 )
 
-// waitForControllerUp checks that the container is still running after controllerStableFor, and if it
-// stopped returns an error carrying its exit code and the end of its logs, so a controller that dies at
-// startup fails the run there instead of leaving the fake nodes NotReady until a timeout.
+// waitForControllerUp fails, with the exit code and log tail, if the container stopped within controllerStableFor.
 func waitForControllerUp(ctx context.Context, name string) error {
 	deadline := time.Now().Add(controllerStableFor)
 	for {
@@ -339,8 +293,7 @@ func parseContainerState(out string) (running bool, exitCode int, err error) {
 	return running, exitCode, nil
 }
 
-// stageDoc is the minimal shape of a Stage object needed to identify which Pod-kind lifecycle
-// transition (if any) it targets - not a full decode of the Stage CRD's schema.
+// stageDoc is the part of a Stage needed to tell which pod transition it handles.
 type stageDoc struct {
 	Kind string `yaml:"kind"`
 	Spec struct {
@@ -355,22 +308,16 @@ type stageDoc struct {
 	} `yaml:"spec"`
 }
 
-// requiredPodTransitions are substrings expected to appear in some Pod-kind Stage's selector
-// key(s), one per lifecycle transition a complete Pod-kind stage set needs to handle (see
-// stages.yaml's header comment). Matched loosely (substring, not a real JQ-selector
-// evaluation) - this is a best-effort warning, not a validator of kwok's actual selector
-// semantics.
+// requiredPodTransitions are substrings expected in the selector keys of some Pod Stage, one per lifecycle
+// transition. A loose match, since it only drives a warning.
 var requiredPodTransitions = map[string]string{
 	"podIP":             "pod becoming Ready",
 	"status.phase":      "pod completing",
 	"deletionTimestamp": "pod deletion",
 }
 
-// warnIfStagesIncomplete logs a warning (never an error) if content's Pod-kind Stage set
-// appears to leave one of the required lifecycle transitions unhandled. A custom stages.yaml is
-// a deliberate per-scenario override (see ClusterTarget.StagesPath) that may intentionally model
-// stuck/never-completing pods to observe how Armada reacts - so this only informs, it never
-// blocks ApplyStages from running.
+// warnIfStagesIncomplete warns, and never fails, when the Pod stages seem to leave a lifecycle transition unhandled: a
+// custom set may do so on purpose.
 func warnIfStagesIncomplete(stagesPath string, content []byte) {
 	seen := map[string]bool{}
 	decoder := yaml.NewDecoder(bytes.NewReader(content))
@@ -402,10 +349,7 @@ func warnIfStagesIncomplete(stagesPath string, content []byte) {
 	}
 }
 
-// KubeconfigServerAddress reports the current-context cluster's server address from the
-// kubeconfig at kubeconfigPath - the default internalAPIServerAddress for a non-kind target (see
-// orchestrate.setupCluster), since a real cluster reached over a normal network has no separate
-// network-internal address to derive.
+// KubeconfigServerAddress is the server address of the kubeconfig's current context.
 func KubeconfigServerAddress(kubeconfigPath string) (string, error) {
 	rawConfig, err := clientcmd.LoadFromFile(kubeconfigPath)
 	if err != nil {
@@ -422,26 +366,16 @@ func KubeconfigServerAddress(kubeconfigPath string) (string, error) {
 	return cluster.Server, nil
 }
 
-// buildInternalKubeconfig loads the kubeconfig at kubeconfigPath and returns a copy with the
-// current context's cluster server URL replaced by internalAPIServerAddress - the kwok-controller
-// container needs the API server's docker-network-internal address, not the host-facing one the
-// on-disk kubeconfig points at. TLSServerName (needed for e.g. a proxied cluster's SNI
-// routing) is left untouched, since it's a property of the proxy address, not the real backend.
-//
-// If the current user's AuthInfo uses an exec credential plugin, it's resolved here on the host - where the plugin binary and
-// any session state it needs actually exist - into a static client certificate/key, and the Exec
-// config is dropped. The kwok-controller container has neither the plugin binary nor that session
-// state, so it could never run the plugin itself; this trades that off against the resolved
-// cert's own lifetime, same as any short-lived credential; the fake nodes will need refreshing by
-// re-running the target's setup after the cert expires.
+// buildInternalKubeconfig returns the kubeconfig's current context with the server replaced by
+// internalAPIServerAddress, as the container sees it. TLSServerName is kept. An exec credential plugin is run here, on
+// the host, and replaced by what it returns, because the container has neither the plugin nor its session; the
+// credential can expire during a long run.
 func buildInternalKubeconfig(ctx context.Context, kubeconfigPath, internalAPIServerAddress string) ([]byte, error) {
 	rawConfig, err := clientcmd.LoadFromFile(kubeconfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("loading %s: %w", kubeconfigPath, err)
 	}
-	// Keep only the current context, so no other context's credentials end up in the file, and embed any
-	// certificate-authority, client-certificate and client-key files: the container sees only the kubeconfig
-	// itself, not the host paths those entries refer to.
+	// Keep the current context only, and embed certificate files: the container sees just this file.
 	if err := clientcmdapi.MinifyConfig(rawConfig); err != nil {
 		return nil, fmt.Errorf("%s: %w", kubeconfigPath, err)
 	}
@@ -474,10 +408,8 @@ func buildInternalKubeconfig(ctx context.Context, kubeconfigPath, internalAPISer
 	return clientcmd.Write(*rawConfig)
 }
 
-// resolveExecCredential runs authInfo.Exec's credential plugin (the "kubectl credential plugin"
-// contract: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins)
-// and replaces authInfo's Exec config with the static client-certificate/key it returns, so the
-// resulting kubeconfig no longer needs the plugin binary present to authenticate.
+// resolveExecCredential runs the exec credential plugin and replaces it with the static token or client certificate
+// it returns.
 func resolveExecCredential(ctx context.Context, authInfo *clientcmdapi.AuthInfo) error {
 	execCfg := authInfo.Exec
 	cmd := execCommandContext(ctx, execCfg)
@@ -514,8 +446,7 @@ func resolveExecCredential(ctx context.Context, authInfo *clientcmdapi.AuthInfo)
 	return nil
 }
 
-// execCommandContext builds the credential plugin's command per the exec plugin contract: its
-// Env entries are appended to (not replacing) the host's own environment.
+// execCommandContext builds the plugin command; its env entries are added to the host's environment.
 func execCommandContext(ctx context.Context, execCfg *clientcmdapi.ExecConfig) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, execCfg.Command, execCfg.Args...)
 	cmd.Env = os.Environ()
@@ -525,9 +456,8 @@ func execCommandContext(ctx context.Context, execCfg *clientcmdapi.ExecConfig) *
 	return cmd
 }
 
-// TeardownController stops the standalone kwok-controller container and removes its bind-mounted
-// kubeconfig. Fake nodes are real objects in the cluster's own etcd (not disposable with the
-// container) - see DeleteFakeNodes.
+// TeardownController removes the controller container and its kubeconfig. The fake nodes live in the cluster, see
+// DeleteFakeNodes.
 func TeardownController(ctx context.Context, targetName string) error {
 	out, err := exec.CommandContext(ctx, "docker", "rm", "-f", controllerName(targetName)).CombinedOutput()
 	if err != nil {

@@ -42,7 +42,6 @@ even if there's nothing to tear down.`,
 	RunE: teardownCmdRunE,
 }
 
-// teardownCmdRunE is the RunE of teardownCmd. It returns its errors, and Execute reports them.
 func teardownCmdRunE(cmd *cobra.Command, args []string) error {
 	if len(args) == 1 {
 		// Only the targets are needed, so the job-spec files the scenario names may be gone.

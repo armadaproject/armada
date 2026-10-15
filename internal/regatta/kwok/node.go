@@ -18,19 +18,13 @@ const (
 	NodeAnnotation   = "kwok.x-k8s.io/node"
 	NodeAnnotationOK = "fake"
 
-	// TargetLabel identifies which execution target created a fake node. The readiness check
-	// overlays this onto its canary job's node selector (when the target's readinessSelectsTarget
-	// is set) so a canary submitted for one target can't false-positive by landing on a different
-	// target's fake nodes - Armada's scheduler has no cluster-affinity concept, so without this a
-	// canary can land on any target's nodes that satisfy the generic fake-node taint/selector. Real, user-authored
-	// load.jobs[] specs never carry this label and remain free to schedule on any target's nodes.
+	// TargetLabel names the target that created a fake node. The canary (readinessSelectsTarget) and the load of queues
+	// with targets select on it; Armada's scheduler has no cluster affinity of its own.
 	TargetLabel = regattaconfig.TargetLabel
 )
 
-// BuildFakeNode constructs a single fake v1.Node shaped by profile, with name/hostname
-// parameterized by index so multiple profiles/counts can coexist on one cluster. The
-// KWOK fake-node taint/annotation is always added, on top of whatever the profile itself
-// specifies, since KWOK's controller and the readiness check both key off of it.
+// BuildFakeNode builds one fake node from profile, named by index. The KWOK taint and annotation are always added: the
+// controller and the readiness check both key off them.
 func BuildFakeNode(profile *regattaconfig.NodeProfile, index int, targetName string) *v1.Node {
 	name := fmt.Sprintf("kwok-node-%s-%d", profile.Name, index)
 
@@ -87,9 +81,8 @@ func BuildFakeNode(profile *regattaconfig.NodeProfile, index int, targetName str
 	}
 }
 
-// ApplyFakeNodes creates count fake nodes shaped by profile via the typed clientset, up to
-// concurrency at a time. Idempotent: an already-existing node (same name/index) is left
-// as-is.
+// ApplyFakeNodes creates count fake nodes from profile, up to concurrency at a time. A node that already exists is kept
+// if this target created it.
 func ApplyFakeNodes(ctx context.Context, client kubernetes.Interface, profile *regattaconfig.NodeProfile, count int, targetName string, concurrency int) error {
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.SetLimit(concurrency)
@@ -110,10 +103,9 @@ func ApplyFakeNodes(ctx context.Context, client kubernetes.Interface, profile *r
 	return group.Wait()
 }
 
-// checkNodeBelongsToTarget accepts a node that already exists (a rerun against the same cluster) only when this
-// target created it. Node names come from the profile and an index, so a node that exists under another target's
-// label means two targets share a cluster; silently reusing it would leave the second target with fewer nodes than
-// it asked for, labelled for the first.
+// checkNodeBelongsToTarget accepts an existing node only if this target created it. Names come from the profile and an
+// index, so another target's node under the same name means two targets share a cluster; reusing it would leave this
+// target short of nodes.
 func checkNodeBelongsToTarget(ctx context.Context, client kubernetes.Interface, nodeName, targetName string) error {
 	existing, err := client.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
@@ -131,9 +123,7 @@ func checkNodeBelongsToTarget(ctx context.Context, client kubernetes.Interface, 
 	return nil
 }
 
-// DeleteFakeNodes removes targetName's fake v1.Node objects from the cluster, up to
-// concurrency at a time, leaving real nodes and other targets' fake nodes (on a shared
-// cluster) untouched.
+// DeleteFakeNodes removes targetName's fake nodes, up to concurrency at a time. Real nodes and other targets' are left.
 func DeleteFakeNodes(ctx context.Context, client kubernetes.Interface, targetName string, concurrency int) error {
 	nodes, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{
 		LabelSelector: NodeAnnotation + "=" + NodeAnnotationOK + "," + TargetLabel + "=" + targetName,
@@ -156,14 +146,11 @@ func DeleteFakeNodes(ctx context.Context, client kubernetes.Interface, targetNam
 	return group.Wait()
 }
 
-// readyPollInterval is how often WaitUntilReady looks at the nodes. A variable so tests can shorten it.
+// readyPollInterval is how often WaitUntilReady looks at the nodes; a variable so tests can shorten it.
 var readyPollInterval = time.Second
 
-// WaitUntilReady polls targetName's fake nodes until all are Ready, ignoring other targets' nodes (and any other
-// fake nodes in a shared cluster), which may be in any state. It returns early if ctx is cancelled. kubectl wait
-// --for=condition=ready is unreliable across many objects that are already Ready before the
-// watch attaches (it only reliably catches a live transition, not pre-existing state), so this
-// polls instead.
+// WaitUntilReady polls targetName's fake nodes until all are Ready, ignoring other targets' nodes, and returns early if
+// ctx is cancelled. It polls because kubectl wait is unreliable for objects that are Ready before it attaches.
 func WaitUntilReady(ctx context.Context, client kubernetes.Interface, targetName string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	var lastErr error

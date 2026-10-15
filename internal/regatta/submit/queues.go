@@ -31,10 +31,9 @@ type QueueToEnsure struct {
 	PriorityFactor float64
 }
 
-// EnsureQueues creates each queue that does not exist yet and leaves every existing queue exactly as it
-// is: regatta runs against shared instances, where changing another team's priorityFactor would be a
-// side effect nobody asked for. A queue that exists with a different priorityFactor than the scenario
-// declares is logged as a warning, never updated.
+// EnsureQueues creates the queues that do not exist and leaves existing ones untouched: regatta runs against shared
+// instances, where changing another team's priorityFactor would be an unwanted side effect. A different priorityFactor is
+// only logged.
 func EnsureQueues(ctx context.Context, apiConnectionDetails *client.ApiConnectionDetails, queues []QueueToEnsure) error {
 	return client.WithSubmitClient(apiConnectionDetails, func(submitClient api.SubmitClient) error {
 		return ensureQueues(ctx, submitClient, queues)
@@ -99,8 +98,7 @@ func ensureQueue(ctx context.Context, submitClient api.SubmitClient, q QueueToEn
 	return ensureOutcome{}, nil
 }
 
-// summariseEnsure turns the per-queue outcomes into the log lines: one summary, then the first few
-// priorityFactor drifts and a count of the rest.
+// summariseEnsure turns the outcomes into log lines: a summary, the first few drifts, and a count of the rest.
 func summariseEnsure(outcomes []ensureOutcome) []string {
 	created, existed := 0, 0
 	var drifts []string

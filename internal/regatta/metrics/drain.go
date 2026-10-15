@@ -7,45 +7,29 @@ import (
 	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
-// DrainPollTimeout bounds WaitForQueueDrain's polling in case the drain signal never arrives (e.g.
-// Prometheus isn't scraping the relevant target) - a safety net, not the main configurable knob.
-// See config.MetricsConfig.Delay for the fixed post-drain wait before the report is collected.
+// DrainPollTimeout bounds WaitForQueueDrain in case the drain signal never arrives (e.g. Prometheus is not scraping).
 const DrainPollTimeout = 10 * time.Minute
 
 // drainPollInterval is how often WaitForQueueDrain re-queries Prometheus while waiting.
 const drainPollInterval = 5 * time.Second
 
-// DefaultSettleDelay is how long Collect's caller should wait after the queue drains before
-// querying Prometheus for the report, so the scrape interval(s) covering the drain moment itself
-// actually land before the query time. See config.MetricsConfig.Delay.
+// DefaultSettleDelay is how long to wait after the drain before querying, so the scrape covering the drain lands.
 const DefaultSettleDelay = 90 * time.Second
 
-// WaitForQueueDrain polls Prometheus until the queues' combined armada_queue_size (validated state) and
-// armada_queue_leased_pod_count both read zero, i.e. nothing left waiting and nothing left
-// leased - the closest available proxy for "every submitted job has finished" without regatta
-// itself polling individual job state. Gives up after DrainPollTimeout and returns regardless (a
-// stuck/absent signal should not block metrics collection or fail an otherwise-successful run).
-// The returned time.Time is when drain was actually observed (or the timeout moment, if it never
-// was) - callers use this as the report window's end, since it reflects when the real jobs
-// finished rather than when submission merely returned.
+// WaitForQueueDrain polls until the queues' combined armada_queue_size (validated) and armada_queue_leased_pod_count
+// both read zero: nothing waiting or leased, the nearest proxy for "all jobs finished" without polling job state. It
+// gives up after DrainPollTimeout. It returns when the drain was observed (or the timeout), which the caller uses as the
+// report window's end.
 //
-// isZeroOrAbsent treats "absent" as drained, which is correct once a queue has genuinely finished
-// and its series has expired - but right after a large submission returns, the scheduler may not
-// have run its next cycle yet and Prometheus may not have scraped it, so the series can look
-// "absent" before the real jobs are ever counted. To avoid mistaking that startup gap for a real
-// drain, a zero/absent reading only counts once armada_queue_size OR armada_queue_leased_pod_count
-// has been observed populated (i.e. actually > 0) at least once in this poll loop - checking only
-// queue_size isn't enough, since jobs can move from validated straight to leased between two 5s
-// polls, in which case queue_size may never be caught above zero even on a real, successful run. Activity
-// recorded since `since` (the start of the run) counts as well, for the case where every job finished before
-// this wait began.
+// A missing series counts as zero, but a zero reading only counts once either metric has been seen above zero, else the
+// gap before the scheduler's first cycle after a large submission would pass for a drain. Both are checked because jobs
+// can move from validated to leased between two 5s polls. Activity since `since` (the run's start) counts, for jobs that
+// all finished before this wait began.
 func WaitForQueueDrain(ctx context.Context, promURL string, queues []string, since time.Time) time.Time {
 	deadline := time.Now().Add(DrainPollTimeout)
 	sizeExpr := queueSizeQuery(queues)
 	leasedExpr := leasedPodCountQuery(queues)
-	// The jobs of a bounded run can all finish before this wait begins (a long schedule, fast jobs): the
-	// queues then read zero from the first poll and are never seen populated, so the activity since the run
-	// started counts too. Otherwise the loop would run to its timeout.
+	// Seeded from the history: if every job finished before the wait began, the polls alone never see activity.
 	seenPopulated := activitySince(ctx, promURL, queues, since)
 	if seenPopulated {
 		log.Infof("queue activity was recorded since the run started; waiting for the queues to read zero")
@@ -80,7 +64,7 @@ func WaitForQueueDrain(ctx context.Context, promURL string, queues []string, sin
 	}
 }
 
-// activitySince reports whether any of the queues had jobs waiting or leased at any sample since the given time.
+// activitySince reports whether any queue had jobs waiting or leased since the given time.
 func activitySince(ctx context.Context, promURL string, queues []string, since time.Time) bool {
 	seconds := time.Since(since).Seconds()
 	if seconds < 1 {
@@ -96,9 +80,7 @@ func activitySince(ctx context.Context, promURL string, queues []string, since t
 	return false
 }
 
-// isZeroOrAbsent treats a missing series (nil - no jobs ever recorded for this queue/state) the
-// same as an explicit zero, since armada_queue_size/leased_pod_count only exist as time series
-// once a queue has had at least one job.
+// isZeroOrAbsent treats a missing series as zero: the series exist only once a queue has had a job.
 func isZeroOrAbsent(v *float64) bool {
 	return v == nil || *v == 0
 }

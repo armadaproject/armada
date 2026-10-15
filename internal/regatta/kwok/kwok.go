@@ -1,7 +1,5 @@
-// Package kwok stands up and tears down KWOK-simulated fake Kubernetes nodes for a regatta run.
-// It is regatta's own responsibility, not a mage/dev-environment concern: applying the Stage
-// CRD, Stage objects, and fake nodes happens here as part of `regatta run`, against whatever
-// cluster the ambient kubeconfig points at.
+// Package kwok sets up and tears down KWOK fake nodes for a regatta run: the Stage CRD and Stages, the controller
+// container, and the nodes.
 package kwok
 
 import (
@@ -17,8 +15,7 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-// Config describes one KWOK setup: how many fake nodes of which shape(s) to create, and at what
-// concurrency/timeout.
+// Config describes one KWOK setup.
 type Config struct {
 	Name                     string
 	Kind                     bool
@@ -27,8 +24,7 @@ type Config struct {
 	NodeGroup                []config.ResolvedNodeGroupMember
 	ApiConnectionDetails     *client.ApiConnectionDetails
 	Readiness                ReadinessConfig
-	// ReadinessQueue is the queue the readiness canary is submitted to: a queue whose jobs may land on this
-	// target. With none, there is nothing to check.
+	// ReadinessQueue is the queue the canary is submitted to; with none there is nothing to check.
 	ReadinessQueue    string
 	EvaluateReadiness bool
 	NodeConcurrency   int
@@ -36,11 +32,8 @@ type Config struct {
 	StagesYAML        []byte
 }
 
-// ReadinessError is what Setup returns when everything was created but the readiness check never
-// saw the scheduler place a canary on the fake nodes. It is distinct from every other Setup error
-// because the nodes exist by then: a caller that chooses to carry on anyway (see
-// config.ClusterTarget.ContinueOnReadinessFailure) can, whereas any other failure leaves nothing
-// usable.
+// ReadinessError is what Setup returns when everything was created and only the readiness check failed. The nodes exist,
+// so a caller may continue (cluster.continueOnReadinessFailure); after any other error the target is unusable.
 type ReadinessError struct {
 	Err error
 }
@@ -51,8 +44,8 @@ func (e *ReadinessError) Error() string {
 
 func (e *ReadinessError) Unwrap() error { return e.Err }
 
-// Setup applies the Stage CRD, Stage objects, starts the kwok-controller, creates the fake
-// nodes, and waits for them to report Ready and become schedulable.
+// Setup applies the Stage CRD and Stages, starts the controller, creates the nodes, and waits for them to be Ready and
+// schedulable.
 func Setup(ctx context.Context, kubeClient kubernetes.Interface, cfg Config) error {
 	setupStart := time.Now()
 	kubeconfig, err := ResolveKubeconfig(cfg.KubeconfigPath)
@@ -120,8 +113,7 @@ func Setup(ctx context.Context, kubeClient kubernetes.Interface, cfg Config) err
 	return nil
 }
 
-// timedPhase runs fn and logs "<what> in <elapsed>" for the target when it succeeds; a failure
-// is returned unlogged for the caller to report.
+// timedPhase runs fn and logs how long it took; a failure is returned unlogged.
 func timedPhase(target, what string, fn func() error) error {
 	start := time.Now()
 	if err := fn(); err != nil {
@@ -131,11 +123,9 @@ func timedPhase(target, what string, fn func() error) error {
 	return nil
 }
 
-// Teardown stops the kwok-controller and deletes the fake nodes. Safe to call even if Setup
-// never ran or only partially completed.
+// Teardown stops the controller and deletes the fake nodes. Safe if Setup never ran or only partly completed.
 func Teardown(ctx context.Context, kubeClient kubernetes.Interface, targetName string, nodeConcurrency int) error {
-	// Both steps are attempted even if the first fails: a controller that cannot be stopped is no reason to leave
-	// the fake nodes behind.
+	// Both steps are attempted even if the first fails.
 	var errs []error
 	if err := TeardownController(ctx, targetName); err != nil {
 		errs = append(errs, fmt.Errorf("stopping kwok-controller: %w", err))

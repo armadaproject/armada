@@ -15,32 +15,23 @@ import (
 	log "github.com/armadaproject/armada/internal/common/logging"
 )
 
-// Report is a snapshot of Armada's own Prometheus metrics over one window of a regatta run.
-//
-// Every metric field is a *float64: nil means Prometheus had no value for that query (metric not
-// scraped, no samples in range, or a non-finite result) rather than a hard failure - collecting a
-// report never fails a run that already succeeded.
+// Report is a snapshot of Armada's Prometheus metrics over one window of a run. A nil metric means Prometheus had no
+// value for its query; collecting never fails a run that succeeded.
 type Report struct {
-	// QueueCount is how many queues the run declared. The names are in the embedded scenario.
+	// QueueCount is how many queues the run declared; the names are in Scenario.
 	QueueCount    int       `json:"queueCount"`
 	Start         time.Time `json:"start"`
 	End           time.Time `json:"end"`
 	WindowSeconds float64   `json:"windowSeconds"`
-	// LookbackSeconds is the lookback the report's rate and quantile queries used: WindowSeconds, stretched to at
-	// least a minute. When it is longer than WindowSeconds, the report also reflects samples from before Start,
-	// which belong to the report before it in a continuous run.
+	// LookbackSeconds is the lookback the rate and quantile queries used: WindowSeconds, but at least a minute. When it is
+	// longer, the report reflects samples from before Start.
 	LookbackSeconds float64 `json:"lookbackSeconds"`
 
-	// Scenario is the fully-resolved scenario config the run used (absolute paths, defaults
-	// applied) - not the raw file the user wrote, matching what actually ran. Left as `any` (set
-	// by the caller, typically a *regattaconfig.Scenario) rather than that concrete type to avoid
-	// an import cycle: regatta/config already imports regatta/metrics for DefaultSettleDelay.
+	// Scenario is the resolved scenario the run used. It is an `any` because config imports this package.
 	Scenario any `json:"scenario,omitempty"`
 
-	// ReadinessFailures lists every target whose readiness check gave up but whose run carried on
-	// regardless (cluster.continueOnReadinessFailure). Empty means every target passed its check,
-	// or had it switched off. A report with entries here comes from an environment the scheduler
-	// never confirmed it could place jobs on, so its numbers may include that warm-up or worse.
+	// ReadinessFailures lists the targets whose readiness check gave up and whose run continued anyway
+	// (cluster.continueOnReadinessFailure). Such a report's numbers may include the scheduler's warm-up.
 	ReadinessFailures []ReadinessFailure `json:"readinessFailures,omitempty"`
 
 	JobAge            JobAgeTier         `json:"jobAge"`
@@ -53,15 +44,13 @@ type Report struct {
 // ReadinessFailure records one target's failed readiness check that the run continued past.
 type ReadinessFailure struct {
 	Target string `json:"target"`
-	// Error is the readiness check's own message, including the last canary event seen and the
-	// scheduler's job report when it had one.
+	// Error is the readiness check's message, with the last canary event and the scheduler's job report if it had one.
 	Error string `json:"error"`
 }
 
-// JobAgeTier is how old the declared queues' jobs were at the worst moment of the window: the highest of the
-// per-scrape quantile of the time the jobs queued at that moment had waited (queued*), and of the time the jobs
-// running at that moment had been running (running*). Armada exports these as snapshots of the jobs present at
-// each scrape, so they are not the wait or run time of jobs that finished.
+// JobAgeTier is how old the queues' jobs were at the worst moment of the window: the highest per-scrape quantile of how
+// long the jobs then queued had waited (queued*), and the jobs then running had run (running*). Armada exports
+// snapshots of the jobs present at each scrape, so these are not the times of jobs that finished.
 type JobAgeTier struct {
 	QueuedP50  *float64 `json:"queuedP50,omitempty"`
 	QueuedP95  *float64 `json:"queuedP95,omitempty"`
@@ -97,8 +86,7 @@ type ExecutorPulsarTier struct {
 	PulsarErrors      *float64 `json:"pulsarErrors,omitempty"`
 }
 
-// namedQuery pairs a query expression with where its result should be written in the Report,
-// letting Collect run every query the same way instead of repeating error-handling per field.
+// namedQuery pairs a query with the Report field its result is written to.
 type namedQuery struct {
 	expr string
 	dest **float64
@@ -107,13 +95,10 @@ type namedQuery struct {
 // collectConcurrency is how many Prometheus queries Collect runs at once.
 const collectConcurrency = 8
 
-// Collect runs the full fixed query set against promURL at end, using [start, end] as the lookback
-// window, and returns a populated Report. A window shorter than a minute is queried with a one-minute
-// lookback (see minWindowSeconds); the report keeps the requested Start, End and WindowSeconds and states the
-// lookback it used in LookbackSeconds, so a reader can see when it reaches back before Start. The per-queue measures are taken over the
-// declared queues together (one filter naming all of them, never unfiltered, so other tenants on a
-// shared instance are left out). A per-query failure is logged and leaves that field nil; Collect itself
-// only errors if it never reached Prometheus at all (e.g. every single query failed to even connect).
+// Collect runs the fixed query set at end over the lookback [start, end], at least a minute (see minWindowSeconds), and
+// reports the lookback in LookbackSeconds. Per-queue measures cover all the declared queues together, never unfiltered,
+// so other tenants on a shared instance are left out. A failed query is logged and leaves its field nil; Collect errors
+// only if no query reached Prometheus.
 func Collect(ctx context.Context, promURL string, queues []string, start, end time.Time) (*Report, error) {
 	windowSeconds := end.Sub(start).Seconds()
 	lookbackSeconds := math.Max(windowSeconds, minWindowSeconds)
@@ -154,7 +139,7 @@ func Collect(ctx context.Context, promURL string, queues []string, start, end ti
 		{pulsarPublishErrorsQuery(window), &report.ExecutorAndPulsar.PulsarErrors},
 	}
 
-	// Each query writes only its own field, so they can run side by side without locking.
+	// Each query writes only its own field, so they can run side by side.
 	var failures atomic.Int32
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.SetLimit(collectConcurrency)

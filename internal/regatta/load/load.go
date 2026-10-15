@@ -1,9 +1,8 @@
-// Package load turns a scenario's distributions into exact job counts: how many jobs each queue of an entry
-// gets, and when a queue's jobs are submitted. It is pure (no I/O, no randomness), so results repeat and
-// counts always sum to the requested total.
+// Package load turns a scenario's distributions into exact job counts: how many jobs each queue gets, and when they
+// are submitted. It is pure (no I/O, no randomness), so results repeat and counts sum to the requested total.
 //
-// Both uses share one idea, a cumulative curve F over a range: queue k of Q takes the share
-// F(k/Q) - F((k-1)/Q) of a total, and step k of n submits round(N*F(k/n)) - round(N*F((k-1)/n)) jobs.
+// Both uses share a cumulative curve F over a range: queue k of Q takes F(k/Q) - F((k-1)/Q) of a total, and step k of n
+// submits round(N*F(k/n)) - round(N*F((k-1)/n)) jobs.
 package load
 
 import (
@@ -57,8 +56,7 @@ func (d Dist) EffectiveType() string {
 	return d.Type
 }
 
-// Curve is a cumulative distribution over a fraction of the range: Curve(0) is 0, Curve(1) is 1, and it
-// never decreases.
+// Curve is a cumulative distribution over a fraction of the range: 0 at 0, 1 at 1, never decreasing.
 type Curve func(x float64) float64
 
 // Curve builds the cumulative curve over [0, max]: the number of queues, or the duration in seconds.
@@ -115,8 +113,7 @@ func (d Dist) Curve(max float64) (Curve, error) {
 	}
 }
 
-// rescaled stretches a CDF so it runs from 0 to 1 over [0, max], discarding the mass outside. It fails
-// when nearly all the mass is outside.
+// rescaled stretches a CDF to run from 0 to 1 over [0, max], discarding the mass outside. It fails if almost none is inside.
 func rescaled(cdf func(float64) float64, max float64, name string) (Curve, error) {
 	lo, hi := cdf(0), cdf(max)
 	if hi-lo < 1e-9 {
@@ -131,9 +128,8 @@ func normalCDF(z float64) float64 { return 0.5 * (1 + math.Erf(z/math.Sqrt2)) }
 
 func clamp01(x float64) float64 { return math.Max(0, math.Min(1, x)) }
 
-// Apportion splits total into integers that sum to exactly total, in proportion to shares (largest
-// remainder, ties to the lower index). Every entry first gets minimum. It fails if total cannot cover the
-// minimums.
+// Apportion splits total into integers summing to exactly total, in proportion to shares (largest remainder, ties to
+// the lower index), after giving each entry minimum. It fails if total cannot cover the minimums.
 func Apportion(shares []float64, total, minimum int) ([]int, error) {
 	n := len(shares)
 	if n == 0 {
@@ -203,9 +199,8 @@ func QueueCounts(d Dist, queues, total, minPerQueue int) ([]int, error) {
 	return Apportion(shares, total, minPerQueue)
 }
 
-// Carry turns fractional per-step rates into whole jobs: Next adds the rates to what was carried over, emits
-// the whole part and keeps the rest, so a rate of 0.3 yields a job every third or fourth step and the
-// long-run total is exact. Not safe for concurrent use.
+// Carry turns fractional per-step rates into whole jobs: Next adds the rates to the carried remainder, emits the whole
+// part and keeps the rest, so a rate of 0.3 yields a job every third or fourth step. Not safe for concurrent use.
 type Carry struct {
 	rates []float64
 	carry []float64
@@ -219,7 +214,7 @@ func (c *Carry) Next() []int {
 	out := make([]int, len(c.rates))
 	for i, rate := range c.rates {
 		c.carry[i] += rate
-		// The small epsilon keeps 0.1 + 0.1 + ... from falling a hair under a whole number.
+		// The epsilon keeps 0.1 + 0.1 + ... from falling a hair under a whole number.
 		whole := math.Floor(c.carry[i] + 1e-9)
 		out[i] = int(whole)
 		c.carry[i] -= whole
