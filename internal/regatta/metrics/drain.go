@@ -72,7 +72,7 @@ func activitySince(ctx context.Context, promURL string, queues []string, since t
 	}
 	window := windowStr(seconds)
 	now := time.Now()
-	for _, expr := range []string{peakQueueSizeQuery(queues, window), peakLeasedPodCountQuery(queues, window)} {
+	for _, expr := range []string{peakQueueSizeQuery(queues, window, seconds), peakLeasedPodCountQuery(queues, window, seconds)} {
 		if peak, err := query(ctx, promURL, expr, now); err == nil && peak != nil && *peak > 0 {
 			return true
 		}

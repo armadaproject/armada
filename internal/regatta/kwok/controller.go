@@ -188,22 +188,12 @@ func kubectlApply(ctx context.Context, kubeconfig string, content []byte) error 
 	return nil
 }
 
-// RunController starts the kwok-controller container for nodes carrying the fake-node annotation, and does nothing if
-// it is already running. internalAPIServerAddress is the API server's address as seen from the container; kind
-// clusters also join the "kind" docker network.
+// RunController starts the kwok-controller container for nodes carrying the fake-node annotation. A container of the
+// same name is always replaced, never reused: it may be attached to another cluster (a scenario run earlier with the
+// same target name), or hold credentials that have expired. internalAPIServerAddress is the API server's address as
+// seen from the container; kind clusters also join the "kind" docker network.
 func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress, targetName string, kind bool) error {
 	name := controllerName(targetName)
-
-	out, err := exec.CommandContext(ctx, "docker", "ps",
-		"--filter", "name=^/"+name+"$",
-		"--format", "{{.Names}}",
-	).Output()
-	if err != nil {
-		return fmt.Errorf("checking for existing kwok-controller: %w", err)
-	}
-	if strings.TrimSpace(string(out)) == name {
-		return nil
-	}
 
 	if internalAPIServerAddress == "" {
 		return fmt.Errorf("target %q: cluster.internalApiServerAddress is required to start the kwok-controller container", targetName)
@@ -217,7 +207,7 @@ func RunController(ctx context.Context, kubeconfigPath, internalAPIServerAddress
 		return fmt.Errorf("writing internal kubeconfig: %w", err)
 	}
 
-	// Remove a stopped controller of the same name (stopped containers are kept, see below).
+	// Remove any controller of the same name, running or stopped (stopped containers are kept, see below).
 	_ = exec.CommandContext(ctx, "docker", "rm", "-f", name).Run()
 
 	// No --rm: a controller that exits at startup leaves its logs for waitForControllerUp.
@@ -349,8 +339,13 @@ func warnIfStagesIncomplete(stagesPath string, content []byte) {
 	}
 }
 
-// KubeconfigServerAddress is the server address of the kubeconfig's current context.
+// KubeconfigServerAddress is the server address of the kubeconfig's current context. An empty path means the default
+// kubeconfig, as for the Kubernetes client.
 func KubeconfigServerAddress(kubeconfigPath string) (string, error) {
+	kubeconfigPath, err := ResolveKubeconfig(kubeconfigPath)
+	if err != nil {
+		return "", err
+	}
 	rawConfig, err := clientcmd.LoadFromFile(kubeconfigPath)
 	if err != nil {
 		return "", fmt.Errorf("loading %s: %w", kubeconfigPath, err)

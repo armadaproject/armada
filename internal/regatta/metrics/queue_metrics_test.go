@@ -25,8 +25,8 @@ func TestQueryBuildersUseTheRightLabelPerMetric(t *testing.T) {
 	require.Contains(t, queuedAgeQuery(0.95, queues, "60s", 60), `queueName=~"a|b"`, "armada_job_* metrics use queueName")
 	require.Contains(t, runningAgeQuery(0.5, queues, "60s", 60), `queueName=~"a|b"`)
 	require.Contains(t, scheduledJobsQuery(queues, "60s"), `queue=~"a|b"`, "scheduler and queue metrics use queue")
-	require.Contains(t, peakQueueSizeQuery(queues, "60s"), `queue=~"a|b",state="validated"`)
-	require.Contains(t, peakLeasedPodCountQuery(queues, "60s"), `queue=~"a|b"`)
+	require.Contains(t, peakQueueSizeQuery(queues, "60s", 60), `queue=~"a|b",state="validated"`)
+	require.Contains(t, peakLeasedPodCountQuery(queues, "60s", 60), `queue=~"a|b"`)
 	require.Equal(t, `sum(armada_queue_size{queue=~"a|b",state="validated"})`, queueSizeQuery(queues))
 	require.Equal(t, `sum(armada_queue_leased_pod_count{queue=~"a|b"})`, leasedPodCountQuery(queues))
 	require.Equal(t, `sum(armada_queue_size{queue="a",state="validated"})`, queueSizeQuery([]string{"a"}))
@@ -274,4 +274,12 @@ func TestSnapshotStep_IsAsFineAsTheScrapeIntervalExceptOnVeryLongWindows(t *test
 	require.Equal(t, "10s", snapshotStep(7200), "beyond that the step grows to keep a query bounded")
 	require.Equal(t, "120s", snapshotStep(86400))
 	require.Contains(t, queuedAgeQuery(0.95, []string{"q"}, "160s", 160), "[160s:5s]")
+}
+
+func TestPeakQueueQueries_HaveAnExplicitSubqueryStep(t *testing.T) {
+	queues := []string{"a", "b"}
+	require.Contains(t, peakQueueSizeQuery(queues, "160s", 160), "[160s:5s]", "not Prometheus's default evaluation interval")
+	require.Contains(t, peakLeasedPodCountQuery(queues, "160s", 160), "[160s:5s]")
+	require.Contains(t, peakQueueSizeQuery(queues, "7200s", 7200), "[7200s:10s]", "a very long window coarsens the step")
+	require.NotContains(t, peakQueueSizeQuery(queues, "160s", 160), ":]", "a bare colon means the default step")
 }

@@ -152,48 +152,43 @@ var readyPollInterval = time.Second
 // WaitUntilReady polls targetName's fake nodes until all are Ready, ignoring other targets' nodes, and returns early if
 // ctx is cancelled. It polls because kubectl wait is unreliable for objects that are Ready before it attaches.
 func WaitUntilReady(ctx context.Context, client kubernetes.Interface, targetName string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	parent := ctx
+	// The deadline covers the requests too: a list call that never answers is cancelled when it passes.
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	var lastErr error
-	for time.Now().Before(deadline) {
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("waiting for fake nodes to become ready: %w", err)
-		}
+	for {
 		nodes, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{
 			LabelSelector: NodeAnnotation + "=" + NodeAnnotationOK + "," + TargetLabel + "=" + targetName,
 		})
-		if err != nil {
+		switch {
+		case err != nil:
 			lastErr = err
-			sleepOrDone(ctx, readyPollInterval)
-			continue
-		}
-		if len(nodes.Items) == 0 {
+		case len(nodes.Items) == 0:
 			lastErr = fmt.Errorf("no fake nodes found")
-			sleepOrDone(ctx, readyPollInterval)
-			continue
-		}
-
-		allReady := true
-		for _, node := range nodes.Items {
-			if !isNodeReady(&node) {
-				allReady = false
-				break
-			}
-		}
-		if allReady {
+		case allReady(nodes.Items):
 			return nil
+		default:
+			lastErr = fmt.Errorf("not all %d fake nodes are ready yet", len(nodes.Items))
 		}
-		lastErr = fmt.Errorf("not all %d fake nodes are ready yet", len(nodes.Items))
-		sleepOrDone(ctx, readyPollInterval)
+		if parent.Err() != nil {
+			return fmt.Errorf("waiting for fake nodes to become ready: %w", parent.Err())
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timed out waiting for fake nodes to become ready: %w", lastErr)
+		case <-time.After(readyPollInterval):
+		}
 	}
-	return fmt.Errorf("timed out waiting for fake nodes to become ready: %w", lastErr)
 }
 
-// sleepOrDone waits for d or until ctx is done, whichever comes first.
-func sleepOrDone(ctx context.Context, d time.Duration) {
-	select {
-	case <-ctx.Done():
-	case <-time.After(d):
+func allReady(nodes []v1.Node) bool {
+	for i := range nodes {
+		if !isNodeReady(&nodes[i]) {
+			return false
+		}
 	}
+	return true
 }
 
 func isNodeReady(node *v1.Node) bool {

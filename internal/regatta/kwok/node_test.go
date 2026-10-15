@@ -2,13 +2,17 @@ package kwok
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 
 	regattaconfig "github.com/armadaproject/armada/internal/regatta/config"
 )
@@ -80,4 +84,23 @@ func TestApplyFakeNodes_ARerunIsFineButAnotherTargetsNodesAreNotAdopted(t *testi
 		err := ApplyFakeNodes(ctx, client, profile, 1, "mine", 4)
 		require.ErrorContains(t, err, "was not created by regatta")
 	})
+}
+
+func TestWaitUntilReady_AListThatNeverAnswersEndsAtTheDeadline(t *testing.T) {
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select { // an API server that accepts the request and never replies
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	t.Cleanup(func() { close(release); server.Close() })
+	client, err := kubernetes.NewForConfig(&rest.Config{Host: server.URL})
+	require.NoError(t, err)
+
+	start := time.Now()
+	err = WaitUntilReady(context.Background(), client, "mine", 200*time.Millisecond)
+
+	require.ErrorContains(t, err, "timed out waiting for fake nodes")
+	require.Less(t, time.Since(start), 5*time.Second, "the in-flight request was cancelled at the deadline")
 }

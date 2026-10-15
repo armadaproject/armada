@@ -125,8 +125,8 @@ func Collect(ctx context.Context, promURL string, queues []string, start, end ti
 		{submitCheckQuery(0.95, window), &report.Scheduler.SubmitCheckP95},
 		{scheduledJobsQuery(queues, window), &report.Scheduler.ScheduledTotal},
 
-		{peakQueueSizeQuery(queues, window), &report.QueueDepth.PeakQueueSize},
-		{peakLeasedPodCountQuery(queues, window), &report.QueueDepth.PeakLeased},
+		{peakQueueSizeQuery(queues, window, lookbackSeconds), &report.QueueDepth.PeakQueueSize},
+		{peakLeasedPodCountQuery(queues, window, lookbackSeconds), &report.QueueDepth.PeakLeased},
 
 		{submitThroughputQuery(window, lookbackSeconds), &report.APISurface.SubmitThroughput},
 		{submitLatencyQuery(0.95, window), &report.APISurface.SubmitP95},
