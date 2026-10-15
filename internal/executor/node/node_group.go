@@ -1,6 +1,7 @@
 package node
 
 import (
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/context"
 	util2 "github.com/armadaproject/armada/internal/executor/util"
 )
@@ -29,7 +31,7 @@ type KubernetesNodeInfoService struct {
 	nodeTypeLabel          string
 	nodePoolLabel          string
 	reservedNodePoolSuffix string
-	toleratedTaints        map[string]bool
+	queuableTaints         configuration.QueueableTaintsConfiguration
 }
 
 func NewKubernetesNodeInfoService(
@@ -38,16 +40,18 @@ func NewKubernetesNodeInfoService(
 	nodePoolLabel string,
 	reservedNodePoolSuffix string,
 	toleratedTaints []string,
+	queueableTaints configuration.QueueableTaintsConfiguration,
 ) *KubernetesNodeInfoService {
 	if !slices.Contains(toleratedTaints, constants.ReservationTaintKey) {
 		toleratedTaints = append(toleratedTaints, constants.ReservationTaintKey)
 	}
+	queueableTaints.Keys = append(queueableTaints.Keys, toleratedTaints...)
 	return &KubernetesNodeInfoService{
 		clusterContext:         clusterContext,
 		nodePoolLabel:          nodePoolLabel,
 		nodeTypeLabel:          nodeTypeLabel,
 		reservedNodePoolSuffix: reservedNodePoolSuffix,
-		toleratedTaints:        util.StringListToSet(toleratedTaints),
+		queuableTaints:         queueableTaints,
 	}
 }
 
@@ -101,7 +105,7 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetType(node *v1.Nod
 	if labelValue, ok := node.Labels[kubernetesNodeInfoService.nodeTypeLabel]; ok {
 		nodeType = labelValue
 	} else {
-		relevantTaints := kubernetesNodeInfoService.filterToleratedTaints(node.Spec.Taints)
+		relevantTaints := kubernetesNodeInfoService.filterQueueableTaints(node.Spec.Taints)
 		if len(relevantTaints) > 0 {
 			nodeType = nodeGroupId(relevantTaints)
 		}
@@ -110,16 +114,32 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetType(node *v1.Nod
 	return nodeType
 }
 
-func (kubernetesNodeInfoService *KubernetesNodeInfoService) filterToleratedTaints(taints []v1.Taint) []v1.Taint {
+func (kubernetesNodeInfoService *KubernetesNodeInfoService) filterQueueableTaints(taints []v1.Taint) []v1.Taint {
 	result := []v1.Taint{}
 
 	for _, taint := range taints {
-		_, ok := kubernetesNodeInfoService.toleratedTaints[taint.Key]
-		if ok {
+		if isQueueableTaint(taint.Key, kubernetesNodeInfoService.queuableTaints) {
 			result = append(result, taint)
 		}
 	}
+
 	return result
+}
+
+func isQueueableTaint(taintKey string, queueableTaints configuration.QueueableTaintsConfiguration) bool {
+	queueableTaintKeys := queueableTaints.Keys
+	for _, adminTaint := range queueableTaints.Admin {
+		queueableTaintKeys = append(queueableTaintKeys, adminTaint.Keys...)
+	}
+
+	for _, queueableTaintKey := range queueableTaintKeys {
+		re := regexp.MustCompile(queueableTaintKey)
+		if re.MatchString(taintKey) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func nodeGroupId(taints []v1.Taint) string {
@@ -151,7 +171,7 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) IsAvailableProcessin
 
 	for _, taint := range node.Spec.Taints {
 		if taint.Effect == v1.TaintEffectNoSchedule &&
-			!kubernetesNodeInfoService.toleratedTaints[taint.Key] {
+			!isQueueableTaint(taint.Key, kubernetesNodeInfoService.queuableTaints) {
 			return false
 		}
 	}
