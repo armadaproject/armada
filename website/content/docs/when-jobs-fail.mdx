@@ -3,8 +3,6 @@ title: "When jobs fail or don't start"
 description: "Find out why a job is stuck in Queued or why it failed, and what Armada does and doesn't retry."
 ---
 
-{/* Sources: armadaproject/armada master f8bd058b: internal/scheduler/submitcheck.go (exceeds the total limit), internal/scheduler/scheduler.go (attempt messages), config/executor/config.yaml (pendingPodChecks), cmd/armadactl/cmd/scheduling.go (deprecated flag). Tested live 2026-10-08 on a laptop install (Armada 0.22.12): resource limit exceeded, a paused queue, a job too big for any node (100 CPU and 17 CPU), exit code 2, an image that doesn't exist (with and without failFast), scheduling-report --job-id. Retry behavior: see failure-categories.mdx and retry-policies.mdx. */}
-
 This page helps you answer two questions: **why isn't my job starting?** and **why did my job fail?** It also explains what Armada retries by itself.
 
 ## Before you start
