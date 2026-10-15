@@ -184,3 +184,37 @@ func TestRunContinuously_SubmissionFailureIsReturned(t *testing.T) {
 	err := runContinuously(context.Background(), in, func(context.Context) error { return errors.New("server down") }, "t", time.Now())
 	require.ErrorContains(t, err, "server down")
 }
+
+// The commands return their errors instead of exiting, so a failure can be tested (an os.Exit here would end the test
+// binary) and deferred cleanup in them runs.
+func TestRunCommand_ReturnsAnErrorForAScenarioItCannotLoad(t *testing.T) {
+	err := runCmdRunE(runCmd, []string{filepath.Join(t.TempDir(), "missing.yaml")})
+	require.ErrorContains(t, err, "loading scenario file")
+}
+
+func TestTeardownCommand_ReturnsAnErrorWhenToldNothingToTearDown(t *testing.T) {
+	err := teardownCmdRunE(teardownCmd, nil)
+	require.ErrorContains(t, err, "either a scenario file or --name must be given")
+}
+
+func TestTeardownCommand_ReturnsAnErrorForAScenarioItCannotLoad(t *testing.T) {
+	err := teardownCmdRunE(teardownCmd, []string{filepath.Join(t.TempDir(), "missing.yaml")})
+	require.ErrorContains(t, err, "loading scenario file")
+}
+
+func TestRootCommand_PrintsNoUsageForAFailureAfterTheArgumentsWereAccepted(t *testing.T) {
+	previous := rootCmd.SilenceUsage
+	t.Cleanup(func() { rootCmd.SilenceUsage = previous; viper.Reset() })
+	viper.Reset()
+	dir := t.TempDir()
+	config := filepath.Join(dir, "armadactl.yaml")
+	require.NoError(t, os.WriteFile(config, []byte(testArmadactlConfig), 0o600))
+	require.NoError(t, rootCmd.PersistentFlags().Set("config", config))
+	t.Cleanup(func() { _ = rootCmd.PersistentFlags().Set("config", "") })
+
+	require.NoError(t, rootCmd.PersistentPreRunE(runCmd, nil))
+
+	require.True(t, runCmd.SilenceUsage, "from here on an error is not a usage mistake")
+	runCmd.SilenceUsage = false
+	require.True(t, rootCmd.SilenceErrors, "Execute reports the error itself, once")
+}

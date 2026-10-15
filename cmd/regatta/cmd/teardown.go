@@ -2,7 +2,8 @@ package cmd
 
 import (
 	"context"
-	"os"
+	"errors"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -38,48 +39,45 @@ identify it directly, e.g.:
 Only touches nodes tagged kwok.x-k8s.io/node=fake, so real nodes are never affected. Safe to run
 even if there's nothing to tear down.`,
 	Args: cobra.MaximumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 1 {
-			// Only the targets are needed, so the job-spec files the scenario names may be gone.
-			scenario, err := regattaconfig.LoadScenarioTargets(args[0])
-			if err != nil {
-				log.Errorf("loading scenario file: %s", err)
-				os.Exit(1)
-			}
-			if err := orchestrate.Teardown(context.Background(), scenario); err != nil {
-				log.Errorf("teardown did not finish: %s", err)
-				os.Exit(1)
-			}
-			log.Info("teardown complete")
-			return
-		}
+	RunE: teardownCmdRunE,
+}
 
-		targetName, err := cmd.Flags().GetString("name")
+// teardownCmdRunE is the RunE of teardownCmd. It returns its errors, and Execute reports them.
+func teardownCmdRunE(cmd *cobra.Command, args []string) error {
+	if len(args) == 1 {
+		// Only the targets are needed, so the job-spec files the scenario names may be gone.
+		scenario, err := regattaconfig.LoadScenarioTargets(args[0])
 		if err != nil {
-			log.Errorf("reading --name flag: %s", err)
-			os.Exit(1)
+			return fmt.Errorf("loading scenario file: %w", err)
 		}
-		if targetName == "" {
-			log.Error("either a scenario file or --name must be given")
-			_ = cmd.Help()
-			os.Exit(1)
-		}
-		kubeconfigPath, err := cmd.Flags().GetString("kubeconfig")
-		if err != nil {
-			log.Errorf("reading --kubeconfig flag: %s", err)
-			os.Exit(1)
-		}
-		kubeClient, err := kwok.NewClientset(kubeconfigPath, regattaconfig.KubernetesClientConfiguration{})
-		if err != nil {
-			log.Errorf("could not build kubernetes client: %s", err)
-			os.Exit(1)
-		}
-
-		log.Info("tearing down KWOK fake nodes")
-		if err := kwok.Teardown(context.Background(), kubeClient, targetName, regattaconfig.DefaultNodeConcurrency); err != nil {
-			log.Errorf("teardown failed: %s", err)
-			os.Exit(1)
+		if err := orchestrate.Teardown(context.Background(), scenario); err != nil {
+			return fmt.Errorf("teardown did not finish: %w", err)
 		}
 		log.Info("teardown complete")
-	},
+		return nil
+	}
+
+	targetName, err := cmd.Flags().GetString("name")
+	if err != nil {
+		return fmt.Errorf("reading --name flag: %w", err)
+	}
+	if targetName == "" {
+		_ = cmd.Help()
+		return errors.New("either a scenario file or --name must be given")
+	}
+	kubeconfigPath, err := cmd.Flags().GetString("kubeconfig")
+	if err != nil {
+		return fmt.Errorf("reading --kubeconfig flag: %w", err)
+	}
+	kubeClient, err := kwok.NewClientset(kubeconfigPath, regattaconfig.KubernetesClientConfiguration{})
+	if err != nil {
+		return fmt.Errorf("could not build kubernetes client: %w", err)
+	}
+
+	log.Info("tearing down KWOK fake nodes")
+	if err := kwok.Teardown(context.Background(), kubeClient, targetName, regattaconfig.DefaultNodeConcurrency); err != nil {
+		return fmt.Errorf("teardown failed: %w", err)
+	}
+	log.Info("teardown complete")
+	return nil
 }
