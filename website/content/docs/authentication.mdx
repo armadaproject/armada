@@ -233,6 +233,8 @@ auth:
 
 You can enable several methods. Armada tries them in this order: `basicAuth`, `kubernetesAuth` (turned on by setting `kidMappingFileLocation`), `openIdAuth`, then `anonymousAuth`. A method that finds no credentials of its kind passes the request on to the next one. A method that finds credentials of its kind but rejects them stops there: a wrong password fails, and doesn't fall back to anonymous. The available blocks are `anonymousAuth`, `basicAuth`, `openIdAuth` (`providerUrl`, `clientId`, `groupsClaim`, and `skipClientIDCheck`) and `kubernetesAuth`. One `openIdAuth` block on the server serves every OpenID client method (browser, device, client credentials, Kubernetes). A client's `basicAuth` only works if the server has `basicAuth` too.
 
+**OpenID tokens must be meant for the server.** A token's audience (`aud`) must include the server's `clientId` (`armada-server` above). The client examples log in as `armada` or `my-pipeline`, so set up your provider to add `armada-server` to the audience of those clients' tokens. Otherwise logging in works, but Armada rejects every request, because the token's audience doesn't include its `clientId`. `skipClientIDCheck: true` turns this check off, but Armada then accepts a token your provider issued for any application.
+
 ### How logins become users and groups
 
 | Login method     | User name in Armada                        | Groups                                                                  |
@@ -246,7 +248,7 @@ Every logged-in user is also in the group `everyone`. The maps below take **grou
 Two things to check:
 
 - Queue owners and `User` permissions must match the token's `sub` value exactly. Many providers put an opaque ID there rather than a username, so prefer granting to groups.
-- If `groupsClaim` is missing or wrong, users have no groups at all, silently.
+- If `groupsClaim` is missing or wrong, or the claim isn't a list of strings, users silently lose their provider groups but stay in `everyone`. Rights granted to `everyone` still apply.
 
 ### Grant global rights
 
