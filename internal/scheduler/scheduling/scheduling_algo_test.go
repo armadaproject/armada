@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -1537,4 +1538,161 @@ func (t *testRunReconciler) ReconcileJobRuns(txn *jobdb.Txn, _ []*schedulerobjec
 		}
 	}
 	return result
+}
+
+// TestQueuedDemandEqual proves the equality check fires when the aggregate
+// diverges from the scan, and stays silent when they agree.
+func TestQueuedDemandEqual(t *testing.T) {
+	oneCpu := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).AllResourceRequirements()
+	twoCpu := oneCpu.Add(oneCpu)
+	pc := testfixtures.PriorityClass0
+
+	newDemand := func(queue string, rl internaltypes.ResourceList) map[string]map[string]internaltypes.ResourceList {
+		return map[string]map[string]internaltypes.ResourceList{queue: {pc: rl}}
+	}
+
+	t.Run("equal demands match", func(t *testing.T) {
+		require.True(t, queuedDemandEqual(newDemand("q1", oneCpu), newDemand("q1", oneCpu)))
+	})
+
+	t.Run("both empty match", func(t *testing.T) {
+		require.True(t, queuedDemandEqual(
+			map[string]map[string]internaltypes.ResourceList{},
+			map[string]map[string]internaltypes.ResourceList{},
+		))
+	})
+
+	t.Run("different quantity mismatches", func(t *testing.T) {
+		require.False(t, queuedDemandEqual(newDemand("q1", twoCpu), newDemand("q1", oneCpu)))
+	})
+
+	t.Run("missing queue mismatches", func(t *testing.T) {
+		require.False(t, queuedDemandEqual(newDemand("q1", oneCpu), newDemand("q2", oneCpu)))
+	})
+
+	t.Run("zero bucket matches absent bucket", func(t *testing.T) {
+		zero := oneCpu.Subtract(oneCpu)
+		require.True(t, queuedDemandEqual(newDemand("q1", zero), map[string]map[string]internaltypes.ResourceList{}))
+		require.True(t, queuedDemandEqual(map[string]map[string]internaltypes.ResourceList{}, newDemand("q1", zero)))
+		require.True(t, queuedDemandEqual(newDemand("q1", zero), newDemand("q2", zero)))
+	})
+
+	t.Run("zero bucket does not mask non-zero demand", func(t *testing.T) {
+		zero := oneCpu.Subtract(oneCpu)
+		require.False(t, queuedDemandEqual(newDemand("q1", zero), newDemand("q2", oneCpu)))
+		require.False(t, queuedDemandEqual(newDemand("q2", oneCpu), newDemand("q1", zero)))
+	})
+}
+
+// TestQueuedDemandDiff proves the mismatch diagnostics report the queue,
+// priority class and both values for the differing buckets.
+func TestQueuedDemandDiff(t *testing.T) {
+	oneCpu := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).AllResourceRequirements()
+	twoCpu := oneCpu.Add(oneCpu)
+	pc := testfixtures.PriorityClass0
+
+	t.Run("no differences yields empty string", func(t *testing.T) {
+		demand := map[string]map[string]internaltypes.ResourceList{"q1": {pc: oneCpu}}
+		require.Empty(t, queuedDemandDiff(demand, demand))
+	})
+
+	t.Run("reports differing quantity", func(t *testing.T) {
+		diff := queuedDemandDiff(
+			map[string]map[string]internaltypes.ResourceList{"q1": {pc: twoCpu}},
+			map[string]map[string]internaltypes.ResourceList{"q2": {pc: oneCpu}},
+		)
+		require.Contains(t, diff, "q1/"+pc)
+		require.Contains(t, diff, "q2/"+pc)
+	})
+}
+
+// TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords proves the full
+// aggregate comparison path on divergence: the mismatch is recorded in the
+// armada_scheduler_job_aggregate_* metrics, a
+// "JobDb queued demand aggregate mismatch for pool ..." error is logged, and
+// the authoritative scan result is returned.
+//
+// Divergence is forced by passing a jobs slice containing a queued job that was
+// never upserted into the JobDb, so the scan sees it but the aggregate does not
+// — the same shape a real aggregate accounting bug would produce.
+func TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-mismatch-pool"
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	queued := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithQueued(true).WithPools([]string{pool})
+	phantom := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithQueued(true).WithPools([]string{pool})
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{computeAggregateDemand: true}
+
+	beforeComparisons := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
+	beforeMismatches := testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool))
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued, phantom}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	// Scan wins: demand covers both jobs (2 cpu) although the aggregate only knows one.
+	cpu := info.demandByQueueAndPriorityClass()["q1"][testfixtures.PriorityClass0].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(2), cpu.Value())
+
+	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
+	require.Equal(t, beforeMismatches+1, testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool)))
+}
+
+// TestCalculateJobSchedulingInfo_AggregateDemandDisabledPublishesNothing proves the
+// default (flag off) path neither computes nor publishes anything.
+func TestCalculateJobSchedulingInfo_AggregateDemandDisabledPublishesNothing(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-demand-disabled-pool"
+	queued := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).WithQueued(true).WithPools([]string{pool})
+	phantom := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).WithQueued(true).WithPools([]string{pool})
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
+	txn := jobDb.ReadTxn()
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+	algo := &FairSchedulingAlgo{}
+
+	before := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
+	_, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued, phantom}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, before, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
+}
+
+// TestCalculateJobSchedulingInfo_AggregateDemandAgreementPublishesComparisonOnly proves
+// that when the aggregate agrees with the scan the aggregate comparison records a comparison
+// but no mismatch, and the scan-derived queued demand is used.
+func TestCalculateJobSchedulingInfo_AggregateDemandAgreementPublishesComparisonOnly(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-demand-agreement-pool"
+	pc := testfixtures.PriorityClass0
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	queued := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{computeAggregateDemand: true}
+
+	beforeComparisons := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
+	beforeMismatches := testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool))
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
+	require.Equal(t, beforeMismatches, testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool)))
+
+	cpu := info.demandByQueueAndPriorityClass()["q1"][pc].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(1), cpu.Value())
 }
