@@ -131,7 +131,6 @@ func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[
 // https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
 // https://man.archlinux.org/man/community/kubectl/kubectl-taint.1.en
 func nodeTypeIdFromTaintsAndLabels(taints []v1.Taint, labels, unsetIndexedLabels map[string]string) uint64 {
-	// TODO: We should test this function to ensure there are no collisions. And that the string is never empty.
 	h := fnv1a.Init64
 	for _, taint := range taints {
 		h = fnv1a.AddString64(h, taint.Key)
