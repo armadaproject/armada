@@ -12,7 +12,9 @@ import (
 	domain2 "github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/reporter/startup"
 	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type JobStateReporter struct {
@@ -21,6 +23,8 @@ type JobStateReporter struct {
 	podIssueHandler IssueHandler
 	classifier      *categorizer.Classifier
 	debugRenderer   *reporter.DebugMessageRenderer
+	// Nil when start-up timing capture is disabled, so no pod events are fetched for running pods.
+	startUpTimings *startup.Timings
 	// Runtime above which a failed pod's debug data is captured. See shouldCaptureFailureDebug.
 	minAppContainerRuntimeForFailureDebug time.Duration
 }
@@ -31,6 +35,7 @@ func NewJobStateReporter(
 	podIssueHandler IssueHandler,
 	classifier *categorizer.Classifier,
 	debugRenderer *reporter.DebugMessageRenderer,
+	startUpTimings *startup.Timings,
 	minAppContainerRuntimeForFailureDebug time.Duration,
 ) (*JobStateReporter, error) {
 	stateReporter := &JobStateReporter{
@@ -39,6 +44,7 @@ func NewJobStateReporter(
 		podIssueHandler:                       podIssueHandler,
 		classifier:                            classifier,
 		debugRenderer:                         debugRenderer,
+		startUpTimings:                        startUpTimings,
 		minAppContainerRuntimeForFailureDebug: minAppContainerRuntimeForFailureDebug,
 	}
 
@@ -111,6 +117,14 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 
 	var classifyResult categorizer.ClassifyResult
 	var debugMessage string
+	var startUpInfo *armadaevents.PodStartUpInfo
+	if pod.Status.Phase == v1.PodRunning && stateReporter.startUpTimings != nil {
+		podEvents, err := stateReporter.clusterContext.GetPodEvents(pod)
+		if err != nil {
+			log.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
+		}
+		startUpInfo = stateReporter.startUpTimings.Measure(pod, podEvents)
+	}
 	if pod.Status.Phase == v1.PodFailed {
 		podEvents, err := stateReporter.clusterContext.GetPodEvents(pod)
 		if err != nil {
@@ -141,7 +155,7 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 		}
 	}
 
-	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId(), classifyResult, debugMessage)
+	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId(), classifyResult, debugMessage, startUpInfo)
 	if err != nil {
 		log.Errorf("Failed to report event: %v", err)
 		return
