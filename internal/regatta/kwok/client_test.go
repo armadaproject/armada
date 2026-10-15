@@ -6,6 +6,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	regattaconfig "github.com/armadaproject/armada/internal/regatta/config"
 )
 
 const testKubeconfig = `apiVersion: v1
@@ -56,4 +60,33 @@ func TestParseContainerState(t *testing.T) {
 		_, _, err := parseContainerState(bad)
 		require.Error(t, err, bad)
 	}
+}
+
+func TestBuildRestConfig_BoundsEveryRequest(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "kubeconfig")
+	config := clientcmdapi.NewConfig()
+	config.Clusters["c"] = &clientcmdapi.Cluster{Server: "https://api.example:6443"}
+	config.AuthInfos["u"] = &clientcmdapi.AuthInfo{Token: "t"}
+	config.Contexts["c"] = &clientcmdapi.Context{Cluster: "c", AuthInfo: "u"}
+	config.CurrentContext = "c"
+	require.NoError(t, clientcmd.WriteToFile(*config, path))
+
+	restConfig, err := buildRestConfig(path, regattaconfig.KubernetesClientConfiguration{})
+
+	require.NoError(t, err)
+	require.Equal(t, kubeRequestTimeout, restConfig.Timeout, "a stalled API server cannot block a call forever")
+}
+
+func TestKubeconfigServerAddress(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "kubeconfig")
+	require.NoError(t, os.WriteFile(path, []byte(testKubeconfig), 0o600))
+
+	server, err := KubeconfigServerAddress(path)
+	require.NoError(t, err)
+	require.Equal(t, "https://0.0.0.0:59870", server, "the current context's cluster")
+
+	t.Setenv("KUBECONFIG", path)
+	server, err = KubeconfigServerAddress("")
+	require.NoError(t, err, "an empty path is the default kubeconfig, as for the Kubernetes client")
+	require.Equal(t, "https://0.0.0.0:59870", server)
 }

@@ -100,13 +100,15 @@ func scheduledJobsQuery(queues []string, window string) string {
 	return fmt.Sprintf(`sum(%s)`, counterDelta(fmt.Sprintf("armada_scheduler_scheduled_jobs{%s}", queueMatcher("queue", queues)), window))
 }
 
-// Tier 3: queue depth, summed across label dimensions (e.g. pool) before max_over_time, as in queueSizeQuery.
-func peakQueueSizeQuery(queues []string, window string) string {
-	return fmt.Sprintf(`max_over_time(sum(armada_queue_size{%s,state="validated"})[%s:])`, queueMatcher("queue", queues), window)
+// Tier 3: queue depth, summed across label dimensions (e.g. pool) before max_over_time, as in queueSizeQuery. The
+// subquery has an explicit step: its default is Prometheus's evaluation interval (a minute unless configured), which
+// could step over a short peak.
+func peakQueueSizeQuery(queues []string, window string, windowSeconds float64) string {
+	return fmt.Sprintf(`max_over_time(sum(armada_queue_size{%s,state="validated"})[%s:%s])`, queueMatcher("queue", queues), window, snapshotStep(windowSeconds))
 }
 
-func peakLeasedPodCountQuery(queues []string, window string) string {
-	return fmt.Sprintf(`max_over_time(sum(armada_queue_leased_pod_count{%s})[%s:])`, queueMatcher("queue", queues), window)
+func peakLeasedPodCountQuery(queues []string, window string, windowSeconds float64) string {
+	return fmt.Sprintf(`max_over_time(sum(armada_queue_leased_pod_count{%s})[%s:%s])`, queueMatcher("queue", queues), window, snapshotStep(windowSeconds))
 }
 
 // queueSizeQuery and leasedPodCountQuery are instant queries for WaitForQueueDrain. They are wrapped in sum() because

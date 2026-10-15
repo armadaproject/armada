@@ -2,6 +2,7 @@ package kwok
 
 import (
 	"fmt"
+	"time"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -17,6 +18,11 @@ const (
 	defaultQPS   = 100
 	defaultBurst = 200
 )
+
+// kubeRequestTimeout bounds every request of regatta's Kubernetes clients. Without it a server that accepts a request
+// and never answers (a proxy in front of the API server, say) blocks the caller, and a context deadline between
+// requests never gets a chance to fire. Regatta's clients make no long-lived watch requests.
+const kubeRequestTimeout = 30 * time.Second
 
 // NewClientset builds a typed Kubernetes clientset from a kubeconfig path (or the default
 // loading rules - KUBECONFIG env var, then $HOME/.kube/config - when kubeconfigPath is empty),
@@ -47,6 +53,7 @@ func buildRestConfig(kubeconfigPath string, kubernetesConfig regattaconfig.Kuber
 	if err != nil {
 		return nil, fmt.Errorf("building kube client config: %w", err)
 	}
+	restConfig.Timeout = kubeRequestTimeout
 	restConfig.QPS = kubernetesConfig.QPS
 	if restConfig.QPS == 0 {
 		restConfig.QPS = defaultQPS
