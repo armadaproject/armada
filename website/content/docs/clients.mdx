@@ -81,7 +81,7 @@ pod_spec = core_v1.PodSpec(
 )
 
 # A new job set for each run, so the events below are this run's only.
- job_set_id = f"python-demo-{int(time.time())}"
+job_set_id = f"python-demo-{int(time.time())}"
 
 job = client.create_job_request_item(
     namespace="default", priority=0, pod_spec=pod_spec
