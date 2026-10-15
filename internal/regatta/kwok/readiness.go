@@ -20,12 +20,10 @@ import (
 )
 
 const (
-	// canaryJobSetPrefix starts the job set id every readiness check uses. Canary jobs get a job set of
-	// their own - never the load's - so their events can't be confused with the load's.
+	// canaryJobSetPrefix starts the id of the job set each canary gets, apart from the load's job sets.
 	canaryJobSetPrefix = "regatta-readiness"
 
-	// schedulerReportTimeout bounds the best-effort scheduler report fetched for the error
-	// message when an attempt times out.
+	// schedulerReportTimeout bounds the best-effort scheduler report fetched when an attempt times out.
 	schedulerReportTimeout = 5 * time.Second
 )
 
@@ -33,25 +31,15 @@ const (
 type ReadinessConfig struct {
 	Retries      int           // number of canary-job attempts before giving up
 	InitialDelay time.Duration // how long the first attempt waits for the canary to run; doubles each retry
-	// SelectTarget makes the canary also select on this target's armadaproject.io/regatta-target
-	// node label, so it can only land on this target's fake nodes. Needed when several targets
-	// share one Armada; it requires the executors to report that label. Without it the canary
-	// selects on the KWOK annotation alone.
+	// SelectTarget also pins the canary to this target's fake nodes by TargetLabel; the executors must report the label.
 	SelectTarget bool
 }
 
-// WaitUntilSchedulable submits a throwaway canary job that only tolerates the KWOK fake-node
-// taint, and blocks until Armada reports the job running - i.e. until the executor has reported
-// the fake nodes' capacity to the scheduler, which has leased the canary onto one of them, and
-// the executor has started its pod. K8s "Ready" alone doesn't mean the scheduler knows about a
-// node yet, since the executor only reports on its own poll interval.
-//
-// The signal is the job's own lifecycle events on Armada's event API (the stream `armadactl
-// watch` uses), so it needs no access to the target's Kubernetes API and works the same for a
-// kind cluster and an external one. Each attempt waits up to the current delay for the canary to
-// reach Running, then cancels it and tries again with the delay doubled, since there's no direct
-// way to ask the scheduler "do you know about this node yet". A timed-out attempt's error carries
-// the scheduler's own explanation of why the canary is still queued, when it has one.
+// WaitUntilSchedulable submits a canary job tolerating the fake-node taint and waits until Armada reports it running,
+// which means the scheduler knows the fake nodes (k8s Ready alone does not). It reads the job's events from Armada's
+// event API, so it works for kind and external clusters alike. Each attempt waits up to the current delay, then cancels
+// the canary and retries with the delay doubled. A timed-out attempt's error carries the scheduler's own report of why
+// the canary is still queued, when it has one.
 func WaitUntilSchedulable(ctx context.Context, apiConnectionDetails *client.ApiConnectionDetails, cfg ReadinessConfig, targetName, queue string) error {
 	jobSetId := fmt.Sprintf("%s-%s-%s-%d", canaryJobSetPrefix, targetName, queue, time.Now().Unix())
 	delay := cfg.InitialDelay
@@ -99,10 +87,9 @@ func WaitUntilSchedulable(ctx context.Context, apiConnectionDetails *client.ApiC
 		}
 
 		log.Warnf("target %q: readiness attempt %d/%d failed: %s", targetName, attempt, cfg.Retries, last.brief)
-		// An attempt can end in well under its delay: the scheduler's submit check fails a canary
-		// that fits no node it knows of within about a second, and that view of the nodes only
-		// refreshes every scheduling.executorUpdateFrequency (60s by default). Retrying at once
-		// would spend every attempt inside that window, so pace retries by the backoff instead.
+		// An attempt can end well before its delay: the scheduler's submit check rejects a canary that fits no node it knows
+		// of, and that view refreshes only every scheduling.executorUpdateFrequency (60s by default). Pace retries by the
+		// backoff so they are not all spent inside that window.
 		if attempt < cfg.Retries {
 			if err := waitRemaining(ctx, attemptStart, delay); err != nil {
 				return err
@@ -113,16 +100,13 @@ func WaitUntilSchedulable(ctx context.Context, apiConnectionDetails *client.ApiC
 	return fmt.Errorf("fake nodes never became schedulable after %d attempts: %s", cfg.Retries, last.detail)
 }
 
-// attemptFailure is why one canary attempt did not get the canary running: brief is the short
-// text for the per-attempt log line, detail the longer text for the error returned once every
-// attempt has failed.
+// attemptFailure is why one canary attempt failed: brief for the per-attempt log line, detail for the final error.
 type attemptFailure struct {
 	brief, detail string
 }
 
-// timedOutFailure describes an attempt whose canary was still not running when its wait ended. The
-// log line only says how many nodes the scheduler had (falling back to the last event when it had
-// no report); the final error adds that event and why the scheduler excluded nodes.
+// timedOutFailure describes an attempt whose canary was still not running when its wait ended. The log line gives the
+// scheduler's node count, or the last event without a report; the final error adds why nodes were excluded.
 func timedOutFailure(jobId string, wait time.Duration, lastEvent string, view schedulerView) attemptFailure {
 	f := attemptFailure{brief: "canary job " + jobId}
 	if view.nodes != "" {
@@ -140,8 +124,7 @@ func timedOutFailure(jobId string, wait time.Duration, lastEvent string, view sc
 	return f
 }
 
-// waitRemaining blocks until budget has elapsed since start, or ctx ends (returning its error).
-// It returns at once if the budget has already been used up.
+// waitRemaining blocks until budget has elapsed since start, or ctx ends. It returns at once if the budget is used up.
 func waitRemaining(ctx context.Context, start time.Time, budget time.Duration) error {
 	remaining := budget - time.Since(start)
 	if remaining <= 0 {
@@ -168,9 +151,8 @@ type canaryOutcome struct {
 	last string
 }
 
-// awaitCanaryRunning reads jobSetId's event stream until jobId reaches Running, ends in a
-// terminal failure, or timeout elapses. Reaching the timeout (or ctx being cancelled) is not an
-// error: it returns the outcome so far with running unset.
+// awaitCanaryRunning reads the job set's event stream until jobId runs, fails, or timeout elapses. A timeout or a
+// cancelled ctx is not an error: the outcome so far comes back with running unset.
 func awaitCanaryRunning(ctx context.Context, eventClient api.EventClient, queue, jobSetId, jobId string, timeout time.Duration) (canaryOutcome, error) {
 	var outcome canaryOutcome
 	ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -228,10 +210,8 @@ var (
 	excludedNodeRe   = regexp.MustCompile(`(?m)^\s*(\d+):\s+(\S.*?)\s*$`)
 )
 
-// fetchSchedulerView returns the scheduler's report for jobId, parsed, or the zero value if it has
-// none. Best effort: the scheduler keeps only its most recent round, so a job it hasn't looked at
-// yet reports "none", and any failure to fetch it is swallowed since this only enriches an error
-// that is already being returned.
+// fetchSchedulerView returns the parsed scheduler report for jobId, or the zero value. Best effort: the scheduler keeps
+// only its latest round, and a failure here only costs detail in an error that is already being returned.
 func fetchSchedulerView(apiConnectionDetails *client.ApiConnectionDetails, jobId string) schedulerView {
 	var report string
 	_ = client.WithSchedulerReportingClient(apiConnectionDetails, func(reportingClient schedulerobjects.SchedulerReportingClient) error {
@@ -247,9 +227,9 @@ func fetchSchedulerView(apiConnectionDetails *client.ApiConnectionDetails, jobId
 	return parseSchedulerReport(report)
 }
 
-// parseSchedulerReport pulls the node count and the per-reason exclusion counts out of a job report
-// (the PodSchedulingContext text in internal/scheduler/scheduling/context/pod.go). Anything it does
-// not recognise is left out, so a changed format degrades to a shorter message, not an error.
+// parseSchedulerReport reads the node count and per-reason exclusion counts from a job report (the text built in
+// internal/scheduler/scheduling/context/pod.go). Anything unrecognised is left out, so a changed format shortens the
+// message and does not fail.
 func parseSchedulerReport(report string) schedulerView {
 	var view schedulerView
 	if m := nodesInClusterRe.FindStringSubmatch(report); m != nil {
@@ -292,9 +272,8 @@ func submitCanaryJob(apiConnectionDetails *client.ApiConnectionDetails, queue, j
 	return jobId, err
 }
 
-// cancelCanaryTimeout bounds the request that cancels a canary. The submit client waits for the connection to be
-// ready, so without a deadline a call made while Armada is unreachable blocks until it comes back, and the
-// readiness check, and so Ctrl+C handling, would hang on it.
+// cancelCanaryTimeout bounds the cancel request: the submit client waits for the connection, so without a deadline an
+// unreachable Armada would hang the readiness check, and Ctrl+C with it.
 const cancelCanaryTimeout = 10 * time.Second
 
 func cancelCanaryJob(apiConnectionDetails *client.ApiConnectionDetails, queue, jobSetId, jobId string) {
@@ -310,8 +289,8 @@ func cancelCanaryJob(apiConnectionDetails *client.ApiConnectionDetails, queue, j
 	})
 }
 
-// withTimeout runs call on a fresh context that ends after timeout. The context is not derived from the run's: a
-// canary is cancelled even when the run is being interrupted.
+// withTimeout runs call on a fresh context that ends after timeout, so a canary is cancelled even while the run is
+// being interrupted.
 func withTimeout(timeout time.Duration, call func(ctx context.Context) error) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

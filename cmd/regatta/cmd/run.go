@@ -32,9 +32,8 @@ func warnAboutReadinessFailures(failures []metrics.ReadinessFailure) {
 	}
 }
 
-// loadArmadaConnection loads the scenario's armadactl config and returns the connection details
-// for the context to run against: the --context flag if contextFlagSet, else the scenario's
-// authContext if set, else the config file's own currentContext.
+// loadArmadaConnection returns the connection details of the context to run against: --context if set, else the
+// scenario's authContext, else the armadactl file's currentContext.
 func loadArmadaConnection(scenario *regattaconfig.Scenario, contextFlagSet bool, configFlag string) (*client.ApiConnectionDetails, error) {
 	armadactl := scenario.Armadactl
 	if configFlag != "" {
@@ -69,7 +68,6 @@ any number of "cluster" targets. See cmd/regatta/config/scenarios/two-cluster.ex
 	RunE: runCmdRunE,
 }
 
-// runCmdRunE is the RunE of runCmd. It returns its errors, and Execute reports them.
 func runCmdRunE(cmd *cobra.Command, args []string) error {
 	scenario, err := regattaconfig.LoadScenario(args[0])
 	if err != nil {

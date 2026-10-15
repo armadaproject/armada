@@ -18,19 +18,15 @@ import (
 )
 
 const (
-	// submitConcurrency caps SubmitJobs batches in flight across all queues, so hundreds of queues do not
-	// open hundreds of simultaneous calls.
+	// submitConcurrency caps SubmitJobs batches in flight across all queues.
 	submitConcurrency = 8
 	progressInterval  = 10 * time.Second
 )
 
-// Run submits every queue's jobs on that queue's schedule, all measured from one common start, and
-// returns once every step of every queue has submitted or one has failed (which cancels the rest). A
-// continuous queue has no end: it submits until ctx is cancelled, and ending the run that way is a normal
-// stop, not an error. Regatta is a load generator, not a job-completion tracker: it never polls job state,
-// so it scales to submission batches far larger than would be practical to poll individually. Fake
-// nodes/executors started for the run are left running - tear them down explicitly with `regatta
-// teardown` once you're done collecting metrics.
+// Run submits every queue's jobs on its own schedule, all measured from one start, and returns when every step has
+// submitted or one failed (which cancels the rest). A continuous queue runs until ctx is cancelled, which is a normal
+// stop. Regatta never polls job state, so batch size is not limited by what could be polled. Nothing is torn down; see
+// `regatta teardown`.
 func Run(ctx context.Context, apiConnectionDetails *client.ApiConnectionDetails, spec *Spec) error {
 	return run(ctx, spec, func(ctx context.Context, queue, jobSetId, namespace string, jobs []JobItem) ([]string, error) {
 		return submitItems(ctx, apiConnectionDetails, queue, jobSetId, namespace, jobs)
@@ -95,8 +91,7 @@ func runQueue(ctx context.Context, q QueueSpec, start time.Time, limiter chan st
 	return nil
 }
 
-// runContinuous returns nil when ctx is cancelled. Rates are fractional, so a Carry turns them into whole
-// jobs without losing the remainder.
+// runContinuous returns nil when ctx is cancelled. A Carry turns the fractional rates into whole jobs.
 func runContinuous(ctx context.Context, q QueueSpec, limiter chan struct{}, submitted *atomic.Int64, submit batchSubmitter) error {
 	rates := make([]float64, len(q.Continuous.Rates))
 	for i, r := range q.Continuous.Rates {
@@ -162,8 +157,7 @@ func logProgress(done <-chan struct{}, submitted *atomic.Int64, total int, conti
 	}
 }
 
-// submitItems submits count copies of each JobItem's PodSpec, in list order, returning every
-// submitted job ID. The queue must already exist (see EnsureQueues).
+// submitItems submits each JobItem's copies in list order and returns the job ids. The queue must already exist.
 func submitItems(ctx context.Context, apiConnectionDetails *client.ApiConnectionDetails, queue, jobSetId, namespace string, jobs []JobItem) ([]string, error) {
 	if namespace == "" {
 		namespace = "default"
@@ -190,8 +184,8 @@ func submitItems(ctx context.Context, apiConnectionDetails *client.ApiConnection
 	return jobIds, err
 }
 
-// sendChunks sends each request in turn and returns the ids of the jobs created. client.SubmitJobs makes its own
-// context, so cancellation is checked between requests: a stopped run does not go on submitting the rest of a large step.
+// sendChunks sends each request in turn and returns the created job ids. client.SubmitJobs makes its own context, so
+// cancellation is checked between requests.
 func sendChunks(ctx context.Context, requests []*api.JobSubmitRequest, send func(*api.JobSubmitRequest) (*api.JobSubmitResponse, error)) ([]string, error) {
 	var jobIds []string
 	for _, request := range requests {
@@ -224,8 +218,7 @@ func sendChunks(ctx context.Context, requests []*api.JobSubmitRequest, send func
 	return jobIds, nil
 }
 
-// flattenJobItems expands each JobItem's Count into that many single-count JobItems, so take can
-// slice across job-spec boundaries one job at a time.
+// flattenJobItems expands each JobItem into single-count items, so take can cut across items one job at a time.
 func flattenJobItems(jobs []JobItem) []JobItem {
 	var flat []JobItem
 	for _, job := range jobs {
@@ -236,10 +229,8 @@ func flattenJobItems(jobs []JobItem) []JobItem {
 	return flat
 }
 
-// take returns up to n jobs from the front of flat, coalesced back into JobItems with Count>1 where the
-// same Spec repeats consecutively (keeps chunking/logging readable without changing submission order), and
-// the jobs that are left. The batch is shorter than the number of jobs taken, so callers must advance by the
-// rest, not by len(batch).
+// take returns up to n jobs from the front of flat, coalesced into JobItems where a spec repeats, and the jobs left. The
+// batch is shorter than the jobs taken, so callers advance by the rest, not by len(batch).
 func take(flat []JobItem, n int) (batch, rest []JobItem) {
 	if n > len(flat) {
 		n = len(flat)

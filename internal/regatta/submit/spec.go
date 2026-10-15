@@ -1,8 +1,5 @@
-// Package submit implements regatta's own minimal job-submission runner. It deliberately does
-// not reuse pkg/client/domain.LoadTestSpecification or client.ArmadaLoadTester.RunSubmissionTest
-// - those belong to armada-load-tester's ramped, delayed, multi-submission-round load-testing
-// model. Regatta only needs to submit a batch of jobs per queue from one or more templates, on the
-// schedule each queue's arrival asks for.
+// Package submit is regatta's job submitter: per queue, batches of jobs from templates, on the schedule the queue's
+// arrival asks for.
 package submit
 
 import (
@@ -15,8 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/regatta/load"
 )
 
-// Spec is regatta's resolved submission, built from a scenario file's Load section via
-// FromLoadConfig: one QueueSpec per queue.
+// Spec is the resolved submission, one QueueSpec per queue (see FromLoadConfig).
 type Spec struct {
 	Queues []QueueSpec
 }
@@ -28,34 +24,30 @@ type QueueSpec struct {
 	JobSetId       string
 	Namespace      string
 	Jobs           []JobItem
-	// Steps is the submission schedule: how many jobs to submit at which offset from the start of the run.
-	// The counts sum to the queue's total jobs.
+	// Steps is the submission schedule: how many jobs at which offset from the start. The counts sum to the total.
 	Steps []load.Step
-	// Continuous is set instead of Jobs and Steps when the queue submits at a fixed rate until the run is
-	// stopped.
+	// Continuous replaces Jobs and Steps when the queue submits at a fixed rate until stopped.
 	Continuous *ContinuousSpec
 }
 
-// ContinuousSpec is a queue that submits a batch every Step, for as long as the run lasts.
+// ContinuousSpec is a queue that submits a batch every Step until the run is stopped.
 type ContinuousSpec struct {
 	Step  time.Duration
 	Rates []JobRate
 }
 
-// JobRate is one job shape's rate: jobs per step, which may be fractional. The submitter carries the
-// remainder from step to step, so the long-run rate is exact.
+// JobRate is one job shape's rate, in jobs per step. It may be fractional: the submitter carries the remainder.
 type JobRate struct {
 	Spec    *v1.PodSpec
 	PerStep float64
 }
 
-// JobItem is one job-spec template and how many copies of it to submit.
+// JobItem is a job-spec template and how many copies of it to submit.
 type JobItem struct {
 	Spec  *v1.PodSpec
 	Count int
 }
 
-// TotalJobs is the number of jobs the queue submits.
 func (q QueueSpec) TotalJobs() int {
 	total := 0
 	for _, j := range q.Jobs {
@@ -74,7 +66,7 @@ func (s *Spec) Continuous() bool {
 	return false
 }
 
-// TotalJobs is the number of jobs across every bounded queue; continuous queues add nothing.
+// TotalJobs counts the jobs of the bounded queues.
 func (s *Spec) TotalJobs() int {
 	total := 0
 	for _, q := range s.Queues {
@@ -83,8 +75,7 @@ func (s *Spec) TotalJobs() int {
 	return total
 }
 
-// FromLoadConfig converts a scenario file's Load section (already normalised by config.LoadScenario)
-// into a Spec ready to hand to Run, planning each queue's submission steps.
+// FromLoadConfig converts the (normalised) Load into a Spec, planning each queue's steps.
 func FromLoadConfig(l config.Load) (*Spec, error) {
 	spec := &Spec{Queues: make([]QueueSpec, 0, len(l.Queues))}
 	for _, q := range l.Queues {
@@ -123,10 +114,9 @@ func FromLoadConfig(l config.Load) (*Spec, error) {
 	return spec, nil
 }
 
-// restrictToTargets returns a copy of spec that can only be scheduled onto the fake nodes of the named execution
-// targets: the required node affinity armadaproject.io/regatta-target In targets is added to every node selector
-// term the spec already has (terms are alternatives, so each one must carry it), or becomes the only term. With
-// no targets the spec is returned unchanged. The spec passed in is never modified.
+// restrictToTargets returns a copy of spec limited to the fake nodes of the named targets, by a required node affinity
+// on TargetLabel added to every node selector term the spec has (terms are alternatives), or as its only term. With no
+// targets, spec itself comes back. The argument is never modified.
 func restrictToTargets(spec *v1.PodSpec, targets []string) *v1.PodSpec {
 	if len(targets) == 0 || spec == nil {
 		return spec

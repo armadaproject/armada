@@ -1,7 +1,4 @@
-// Package orchestrate fans a Scenario's ExecutionTargets out into running kwok cluster targets
-// and back down again. It exists separately from cmd/regatta/cmd/run.go so the fan-out logic
-// (per-target naming/indexing, best-effort-all teardown) is testable independent of cobra
-// plumbing.
+// Package orchestrate fans a scenario's execution targets out into running kwok targets, and back down.
 package orchestrate
 
 import (
@@ -20,22 +17,14 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-// failureCleanupTimeout bounds the cleanup that follows a failed or interrupted Setup. The cleanup runs on a fresh
-// context, because the run's own is typically the reason for the failure (Ctrl+C cancels it) and a cancelled
-// context would make every docker and Kubernetes call in the cleanup fail at once.
+// failureCleanupTimeout bounds the cleanup after a failed or interrupted Setup. It runs on a fresh context: the run's
+// own is usually cancelled (Ctrl+C), which would fail every docker and Kubernetes call in the cleanup.
 const failureCleanupTimeout = 2 * time.Minute
 
-// Setup stands up every target in scenario.ExecutionTargets concurrently, since each target is
-// an independent cluster/process with no cross-target dependency - running them sequentially
-// meant one target's slow readiness check (WaitUntilSchedulable can retry for minutes)
-// starved every later target of even starting. Returns a teardown func that reverses every
-// target that started, even if another target's Setup failed (best-effort-all, not
-// strict-LIFO-on-success-only) - any failure still tears down everything that did come up,
-// including the target that failed itself, since by then it may have a controller and nodes.
-//
-// A target whose readiness check fails does not fail Setup if it sets
-// cluster.continueOnReadinessFailure: it is logged and returned in the second result instead, in
-// scenario target order, for the caller to put in the metrics report.
+// Setup stands up every target concurrently. It returns a teardown that reverses every target that started, the one
+// that failed included, since it may already have a controller and nodes; a failure tears down everything that came up.
+// A target that sets cluster.continueOnReadinessFailure does not fail Setup when only its readiness check fails: the
+// failure is returned in the second result, in target order, for the report.
 func Setup(ctx context.Context, scenario *config.Scenario, apiConnectionDetails *client.ApiConnectionDetails) (func(context.Context), []metrics.ReadinessFailure, error) {
 	return setupTargets(ctx, scenario.ExecutionTargets, func(ctx context.Context, target config.ExecutionTarget) (func(context.Context), error) {
 		nodeGroup, err := config.ResolveTargetNodeGroups(target, scenario.NodeGroups)
@@ -46,8 +35,8 @@ func Setup(ctx context.Context, scenario *config.Scenario, apiConnectionDetails 
 	})
 }
 
-// setupTargets runs setup for every target concurrently. setup returns the teardown for whatever it created,
-// which it must do on failure too (nil when nothing was created); every non-nil teardown is kept.
+// setupTargets runs setup for every target concurrently. setup returns the teardown for whatever it created, on
+// failure too (nil when nothing was created); every non-nil teardown is kept.
 func setupTargets(
 	ctx context.Context,
 	targets []config.ExecutionTarget,
@@ -74,8 +63,8 @@ func setupTargets(
 				teardowns = append(teardowns, teardown)
 				mu.Unlock()
 			}
-			// A run that was interrupted (or whose sibling failed) is not a readiness failure to continue past,
-			// whatever the target's opt-in: it has to fail setup so that the failure cleanup runs.
+			// An interrupted run (or a failed sibling) is not a readiness failure to continue past, whatever the opt-in: setup
+			// must fail so the cleanup runs.
 			if failure, tolerated := toleratedReadinessFailure(target, err); tolerated && groupCtx.Err() == nil {
 				log.Warnf("target %q: readiness check failed, continuing anyway because cluster.continueOnReadinessFailure is set: %s", target.Name, failure.Error)
 				failures[i] = failure
@@ -102,10 +91,8 @@ func setupTargets(
 	return teardownAll, readinessFailures, nil
 }
 
-// toleratedReadinessFailure reports whether err is a failed readiness check the target has opted
-// to continue past, and if so the failure to record. Only a readiness failure qualifies: by then
-// the nodes exist and setupCluster has returned a teardown for them, whereas any other setup error
-// means the target is not usable.
+// toleratedReadinessFailure reports whether err is a readiness failure the target opted to continue past, and the
+// failure to record. Only that qualifies: the nodes exist by then, whereas any other error leaves the target unusable.
 func toleratedReadinessFailure(target config.ExecutionTarget, err error) (*metrics.ReadinessFailure, bool) {
 	var readinessErr *kwok.ReadinessError
 	if err == nil || target.Cluster == nil || !target.Cluster.ContinueOnReadinessFailure || !errors.As(err, &readinessErr) {
@@ -114,9 +101,7 @@ func toleratedReadinessFailure(target config.ExecutionTarget, err error) (*metri
 	return &metrics.ReadinessFailure{Target: target.Name, Error: readinessErr.Err.Error()}, true
 }
 
-// Teardown tears down every cluster target in scenario.ExecutionTargets, best-effort - a failure
-// on one target doesn't stop the rest from being torn down. It returns the failures of all targets together, so
-// a caller can tell that something was left behind.
+// Teardown tears down every target, best-effort: a failure does not stop the rest. It returns all the failures together.
 func Teardown(ctx context.Context, scenario *config.Scenario) error {
 	return teardownTargets(ctx, scenario.ExecutionTargets, func(ctx context.Context, target config.ExecutionTarget) error {
 		kubeClient, err := kwok.NewClientset(target.Cluster.Kubeconfig, target.Cluster.Kubernetes)
@@ -150,14 +135,10 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 	if internalAPIServerAddress == "" {
 		var err error
 		if target.Cluster.Kind {
-			// Default to kind's own internal-DNS convention for a control-plane-only cluster on
-			// its own docker network, matching what `kind get kubeconfig --internal` used to
-			// produce.
+			// kind's internal DNS name of the control-plane container, on the "kind" docker network.
 			internalAPIServerAddress = fmt.Sprintf("https://%s-control-plane:6443", target.Cluster.Name)
 		} else {
-			// A real cluster reached over a normal network (e.g. EKS) has no kind-style internal
-			// address to derive - the kwok-controller container isn't confined to a private
-			// docker network for these, so it can just reuse Kubeconfig's own server address.
+			// A cluster on a normal network is reached at the kubeconfig's own server address.
 			internalAPIServerAddress, err = kwok.KubeconfigServerAddress(target.Cluster.Kubeconfig)
 			if err != nil {
 				return nil, fmt.Errorf("resolving default internal API server address: %w", err)
@@ -170,8 +151,7 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 		return nil, fmt.Errorf("resolving stages: %w", err)
 	}
 
-	// The readiness canary runs in the first queue whose jobs may land on this target, so it also
-	// proves that queue can be seen and scheduled; a target no queue uses has nothing to check.
+	// The canary runs in the first queue that may use this target, which also proves that queue is visible and schedulable.
 	readinessQueue := ""
 	if queues := load.QueuesForTarget(target.Name); len(queues) > 0 {
 		readinessQueue = queues[0].Name
@@ -215,9 +195,8 @@ func setupCluster(ctx context.Context, target config.ExecutionTarget, nodeGroup 
 	}
 	log.Infof("target %q: setting up KWOK fake nodes", target.Name)
 	if err := kwok.Setup(ctx, kubeClient, cfg); err != nil {
-		// Whatever step failed, the controller and some of the nodes may already exist, so the teardown is
-		// handed back with the error (it is safe to run for a step that never happened). A caller that carries
-		// on after a readiness failure keeps using it too.
+		// The controller and some nodes may exist whatever step failed, so the teardown comes back with the error (it is safe to
+		// run for a step that never happened). A caller that continues after a readiness failure keeps using it.
 		return teardown, fmt.Errorf("KWOK setup failed: %w", err)
 	}
 
