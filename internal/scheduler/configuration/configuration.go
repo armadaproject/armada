@@ -154,17 +154,13 @@ type HistogramConfig struct {
 	Count  int
 }
 
-// AggregateDemandConfig controls the rollout of the JobDb demand aggregates.
-// The Compare/Use pair is deliberately shared by all aggregate types (queued
-// demand now, running demand to follow) rather than split per type. When both
-// are off the JobDb skips aggregate maintenance entirely.
+// AggregateDemandConfig controls the rollout of a single JobDb aggregate.
 type AggregateDemandConfig struct {
-	// Compare derives demand both from the aggregates and by scanning jobs,
-	// and publishes any difference. The scan-derived value remains
-	// authoritative.
+	// Compare derives the aggregate-derived value alongside the scan and
+	// publishes any difference. The scan-derived value remains authoritative.
 	Compare bool
-	// Use sources queued demand from the aggregate instead of scanning jobs.
-	// Running jobs are still derived from the scan.
+	// Use sources the value from the aggregate instead of scanning jobs. When
+	// set (and Compare is off), the corresponding jobs are not fetched at all.
 	Use bool
 }
 
@@ -223,9 +219,10 @@ type SchedulingConfig struct {
 	MaxNewJobSchedulingDurationPerQueue time.Duration `validate:"omitempty,ltfield=MaxSchedulingDuration"`
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
-	// Experimental - controls the rollout of the JobDb demand aggregates.
-	// When both flags are off the aggregates are neither maintained nor read.
-	ExperimentalAggregateDemand AggregateDemandConfig
+	// Experimental - controls the rollout of the JobDb queued-jobs aggregate.
+	ExperimentalQueuedAggregate AggregateDemandConfig
+	// Experimental - controls the rollout of the JobDb running-jobs aggregate.
+	ExperimentalRunningAggregate AggregateDemandConfig
 	// If true, the scheduler tracks per-node pod capacity and refuses to schedule
 	// jobs onto nodes that have exhausted their pod limit.
 	RespectNodePodLimits bool
