@@ -149,7 +149,8 @@ func NewSimulator(
 		resourceListFactory,
 	)
 	jobDb.SetRespectNodePodLimits(schedulingConfig.RespectNodePodLimits)
-	jobDb.SetAggregateEnabled(schedulingConfig.ExperimentalAggregateDemand.Compare || schedulingConfig.ExperimentalAggregateDemand.Use)
+	jobDb.SetQueuedAggregateEnabled(schedulingConfig.ExperimentalQueuedAggregate.Compare || schedulingConfig.ExperimentalQueuedAggregate.Use)
+	jobDb.SetRunningAggregateEnabled(schedulingConfig.ExperimentalRunningAggregate.Compare || schedulingConfig.ExperimentalRunningAggregate.Use)
 	randomSeed := workloadSpec.RandomSeed
 	if randomSeed == 0 {
 		// Seed the RNG using the local time if no explicit random seed is provided.

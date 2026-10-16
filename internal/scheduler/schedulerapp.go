@@ -412,7 +412,8 @@ func Run(config schedulerconfig.Configuration) error {
 	// The aggregate is static-gated: both flags are command-line flags requiring
 	// a restart, so when neither Compare nor Use is set the JobDb skips all
 	// aggregate maintenance (no per-job add/remove cost on Upsert/BatchDelete).
-	jobDb.SetAggregateEnabled(config.Scheduling.ExperimentalAggregateDemand.Compare || config.Scheduling.ExperimentalAggregateDemand.Use)
+	jobDb.SetQueuedAggregateEnabled(config.Scheduling.ExperimentalQueuedAggregate.Compare || config.Scheduling.ExperimentalQueuedAggregate.Use)
+	jobDb.SetRunningAggregateEnabled(config.Scheduling.ExperimentalRunningAggregate.Compare || config.Scheduling.ExperimentalRunningAggregate.Use)
 
 	err = populateInitialBidPrices(ctx, bidPriceProvider, jobDb)
 	if err != nil {
