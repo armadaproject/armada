@@ -3,13 +3,16 @@ package reporter
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/common/errormatch"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -313,4 +316,21 @@ func createService(serviceType v1.ServiceType, port int32, nodePort int32) *v1.S
 			},
 		},
 	}
+}
+
+func TestCreateEventForCurrentState_PodSucceeded_CarriesTerminatedAt(t *testing.T) {
+	finishedAt := time.Date(2026, time.August, 25, 19, 57, 46, 0, time.UTC)
+	pod := makeTestPod(v1.PodSucceeded)
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{{
+		Name:  "main",
+		State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{FinishedAt: metav1.NewTime(finishedAt)}},
+	}}
+
+	result, err := CreateEventForCurrentState(pod, "cluster1", categorizer.ClassifyResult{}, "")
+	require.NoError(t, err)
+	require.Len(t, result.Events, 1)
+	event, ok := result.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunSucceeded)
+	require.True(t, ok)
+	require.NotNil(t, event.JobRunSucceeded.TerminatedAt)
+	assert.True(t, finishedAt.Equal(protoutil.ToStdTime(event.JobRunSucceeded.TerminatedAt)))
 }

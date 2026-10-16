@@ -11,6 +11,7 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -650,6 +651,40 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 		return nil
 	})
 	assert.NoError(t, err)
+}
+
+func TestUpdateJobRuns_ClampsExistingFinishedToLaterStartAndPending(t *testing.T) {
+	updaters := map[string]func(*LookoutDb, []*model.UpdateJobRunInstruction) error{
+		"batch": func(ldb *LookoutDb, updates []*model.UpdateJobRunInstruction) error {
+			return ldb.UpdateJobRunsBatch(armadacontext.Background(), updates)
+		},
+		"scalar": func(ldb *LookoutDb, updates []*model.UpdateJobRunInstruction) error {
+			return ldb.UpdateJobRunsScalar(armadacontext.Background(), updates)
+		},
+	}
+
+	for name, updateJobRuns := range updaters {
+		t.Run(name, func(t *testing.T) {
+			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+				ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+				require.NoError(t, ldb.CreateJobsBatch(armadacontext.Background(), defaultInstructionSet().JobsToCreate))
+				require.NoError(t, ldb.CreateJobRunsBatch(armadacontext.Background(), defaultInstructionSet().JobRunsToCreate))
+
+				finished := baseTime.Add(time.Minute)
+				started := finished.Add(time.Minute)
+				pending := started.Add(time.Minute)
+				require.NoError(t, updateJobRuns(ldb, []*model.UpdateJobRunInstruction{{RunId: RunId, Finished: &finished}}))
+				require.NoError(t, updateJobRuns(ldb, []*model.UpdateJobRunInstruction{{RunId: RunId, Started: &started}}))
+				require.NoError(t, updateJobRuns(ldb, []*model.UpdateJobRunInstruction{{RunId: RunId, Pending: &pending}}))
+
+				run := getJobRun(t, db, RunId)
+				require.NotNil(t, run.Finished)
+				assert.True(t, pending.Equal(*run.Finished))
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestCreateJobErrorsBatch(t *testing.T) {

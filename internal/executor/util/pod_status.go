@@ -73,9 +73,11 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod, clusterId string) []*armadae
 		}
 
 		containerInfo := &armadaevents.ContainerError{
-			ExitCode: containerStatus.State.Terminated.ExitCode,
-			Message:  containerStatus.State.Terminated.Message,
-			Reason:   containerStatus.State.Terminated.Reason,
+			ExitCode:   containerStatus.State.Terminated.ExitCode,
+			Message:    containerStatus.State.Terminated.Message,
+			Reason:     containerStatus.State.Terminated.Reason,
+			StartedAt:  protoTimestampOrNil(containerStatus.State.Terminated.StartedAt.Time),
+			FinishedAt: protoTimestampOrNil(containerStatus.State.Terminated.FinishedAt.Time),
 			ObjectMeta: &armadaevents.ObjectMeta{
 				ExecutorId:   clusterId,
 				Namespace:    pod.Namespace,
