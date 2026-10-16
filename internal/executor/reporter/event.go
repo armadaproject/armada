@@ -18,7 +18,15 @@ import (
 // CreateEventForCurrentState builds the armada event for pod's current phase.
 // For failed pods the caller supplies the classification result to attach to the event,
 // along with an optional debugMessage (rendered k8s events) to include on the PodError.
-func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult categorizer.ClassifyResult, debugMessage string) (*armadaevents.EventSequence, error) {
+// startUpInfo is the start-up breakdown for a pod that has reached Running, and is nil when capture
+// is disabled, nothing could be determined, or the pod is in any other phase.
+func CreateEventForCurrentState(
+	pod *v1.Pod,
+	clusterId string,
+	classifyResult categorizer.ClassifyResult,
+	debugMessage string,
+	startUpInfo *armadaevents.PodStartUpInfo,
+) (*armadaevents.EventSequence, error) {
 	phase := pod.Status.Phase
 	sequence := createEmptySequence(pod)
 	jobId, runId, err := extractIds(pod)
@@ -60,9 +68,10 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult ca
 			Created: now,
 			Event: &armadaevents.EventSequence_Event_JobRunRunning{
 				JobRunRunning: &armadaevents.JobRunRunning{
-					RunId: runId,
-					JobId: jobId,
-					Pool:  util.ExtractPool(pod),
+					RunId:       runId,
+					JobId:       jobId,
+					Pool:        util.ExtractPool(pod),
+					StartUpInfo: startUpInfo,
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{

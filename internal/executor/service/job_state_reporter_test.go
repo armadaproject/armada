@@ -14,10 +14,12 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/errormatch"
 	"github.com/armadaproject/armada/internal/executor/categorizer"
+	"github.com/armadaproject/armada/internal/executor/configuration"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
+	"github.com/armadaproject/armada/internal/executor/reporter/startup"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -321,8 +323,11 @@ func setUpJobStateReporterTestWithClassifier(
 ) (*JobStateReporter, *stubIssueHandler, *mocks.FakeEventReporter, *fakecontext.SyncFakeClusterContext) {
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
 	eventReporter := mocks.NewFakeEventReporter()
+	startUpTimings, err := startup.NewTimings(configuration.StartUpTimingsConfig{Enabled: true})
+	require.NoError(t, err)
 	jobStateReporter, err := NewJobStateReporter(fakeClusterContext, eventReporter, issueHandler, classifier,
-		reporter.NewDebugMessageRenderer(fakeClusterContext, testDebugConfig()), time.Minute)
+		reporter.NewDebugMessageRenderer(fakeClusterContext, testDebugConfig()),
+		startUpTimings, time.Minute)
 	require.NoError(t, err)
 	return jobStateReporter, issueHandler, eventReporter, fakeClusterContext
 }
