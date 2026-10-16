@@ -9,6 +9,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/podname"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/server/queryapi/database"
 	"github.com/armadaproject/armada/pkg/api"
@@ -120,7 +121,7 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 				if !ok {
 					jobRuns = []*api.JobRunDetails{}
 				}
-				jobRunDetails, err := parseJobDetails(database.GetJobRunsByRunIdsRow(row))
+				jobRunDetails, err := parseJobDetails(row)
 				if err != nil {
 					return err
 				}
@@ -284,7 +285,7 @@ func parseDbJobStateToApi(dbStatus int16) api.JobState {
 	return apiStatus
 }
 
-func parseJobDetails(row database.GetJobRunsByRunIdsRow) (*api.JobRunDetails, error) {
+func parseJobDetails(row database.JobRun) (*api.JobRunDetails, error) {
 	runState, ok := JobRunStateMap[row.JobRunState]
 	if !ok {
 		runState = api.JobRunState_RUN_STATE_UNKNOWN
@@ -299,6 +300,7 @@ func parseJobDetails(row database.GetJobRunsByRunIdsRow) (*api.JobRunDetails, er
 		State:            runState,
 		Cluster:          row.Cluster,
 		Node:             NilStringToString(row.Node),
+		PodName:          podname.Resolve(row.JobID, row.PodName, row.Pending.Valid, row.Started.Valid),
 		LeasedTs:         DbTimeToTimestamp(row.Leased),
 		PendingTs:        DbTimeToTimestamp(row.Pending),
 		StartedTs:        DbTimeToTimestamp(row.Started),
