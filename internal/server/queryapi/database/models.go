@@ -67,6 +67,11 @@ type JobRun struct {
 	SchedulerTerminationReason []byte           `db:"scheduler_termination_reason"`
 }
 
+type JobRunInfo struct {
+	RunID       string `db:"run_id"`
+	StartUpInfo []byte `db:"start_up_info"`
+}
+
 type JobSpec struct {
 	JobID   string `db:"job_id"`
 	JobSpec []byte `db:"job_spec"`
