@@ -22,6 +22,7 @@ DEFAULT_TASK_ID = "test_task_1"
 DEFAULT_JOB_SET = "prefix-test_run_1"
 DEFAULT_QUEUE = "test_queue_1"
 DEFAULT_CLUSTER = "cluster-1"
+DEFAULT_POD = "armada-test_job-test_run"
 
 
 def default_hook() -> MagicMock:
@@ -31,7 +32,10 @@ def default_hook() -> MagicMock:
     mock.job_by_external_job_uri.return_value = None
     mock.job_termination_reason.return_value = "FAILED"
     mock.refresh_context.return_value = dataclasses.replace(
-        job_context, job_state=JobState.SUCCEEDED.name, cluster=DEFAULT_CLUSTER
+        job_context,
+        job_state=JobState.SUCCEEDED.name,
+        cluster=DEFAULT_CLUSTER,
+        pod_name=DEFAULT_POD,
     )
     mock.cancel_job.return_value = dataclasses.replace(
         job_context, job_state=JobState.CANCELLED.name
@@ -269,15 +273,26 @@ def test_polls_for_logs(context):
     )
     op.execute(context)
 
-    # We polled logs as expected.
     op.pod_manager.fetch_container_logs.assert_called_once_with(
         k8s_context="cluster-1",
         namespace="namespace-1",
-        pod="armada-test_job-0",
+        pod=DEFAULT_POD,
         container="alpine",
         since_time=None,
         link_extractor=ANY,
     )
+
+
+def test_does_not_poll_for_logs_of_a_run_without_a_pod_name(context):
+    op = operator(
+        JobSubmitRequestItem(namespace="namespace-1"), container_logs="alpine"
+    )
+    op.hook.refresh_context.return_value = dataclasses.replace(
+        op.hook.refresh_context.return_value, pod_name=None
+    )
+    op.execute(context)
+
+    op.pod_manager.fetch_container_logs.assert_not_called()
 
 
 def test_publishes_xcom_state(context):
