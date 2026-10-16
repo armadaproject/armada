@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 )
 
@@ -84,6 +86,40 @@ func TestValidateConfig_WhenQueueableTaintPatternIsInvalid_Fails(t *testing.T) {
 		{Category: "platform", Keys: []string{"["}},
 	}
 	assert.Error(t, validateConfig(config))
+}
+
+func TestKubernetesConfigurationNewQueueableTaints(t *testing.T) {
+	kubernetesConfig := configuration.KubernetesConfiguration{
+		ToleratedTaints: []string{"legacy.example.com/dedicated"},
+		QueueableTaints: configuration.QueueableTaintsConfiguration{
+			Keys: []string{"user.example.com/dedicated"},
+			Admin: []configuration.QueueableTaintAdminConfiguration{
+				{Category: "platform", Keys: []string{"platform.example.com/.*", "legacy\\.example\\.com/.*"}},
+			},
+		},
+	}
+
+	queueableTaints, err := kubernetesConfig.NewQueueableTaints()
+	require.NoError(t, err)
+
+	category, ok := queueableTaints.QueueableTaintCategory("user.example.com/dedicated")
+	assert.True(t, ok)
+	assert.Empty(t, category)
+
+	category, ok = queueableTaints.QueueableTaintCategory("legacy.example.com/dedicated")
+	assert.True(t, ok)
+	assert.Empty(t, category)
+
+	category, ok = queueableTaints.QueueableTaintCategory(constants.ReservationTaintKey)
+	assert.True(t, ok)
+	assert.Empty(t, category)
+
+	category, ok = queueableTaints.QueueableTaintCategory("platform.example.com/gpu")
+	assert.True(t, ok)
+	assert.Equal(t, "platform", category)
+
+	_, ok = queueableTaints.QueueableTaintCategory("other.example.com/taint")
+	assert.False(t, ok)
 }
 
 func createBasicValidExecutorConfiguration() configuration.ExecutorConfiguration {

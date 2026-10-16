@@ -1,10 +1,12 @@
 package configuration
 
 import (
+	"regexp"
 	"time"
 
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
@@ -150,6 +152,55 @@ type QueueableTaintAdminConfiguration struct {
 	// If a node has a taint that is not in this list, the executor will not consider it for scheduling Armada jobs.
 	// Taints found in nodes that match the patterns listed are sent to the scheduler for jobs to remain queued if nodes with these taints are the only ones viable.
 	Keys []string
+}
+
+type QueueableTaint struct {
+	Pattern  string
+	Category string
+	regexp   *regexp.Regexp
+}
+
+type QueueableTaints struct {
+	Taints []QueueableTaint
+}
+
+func (c KubernetesConfiguration) NewQueueableTaints() (*QueueableTaints, error) {
+	taints := make([]QueueableTaint, 0, len(c.QueueableTaints.Keys)+len(c.ToleratedTaints)+1)
+	appendTaint := func(pattern, category string) error {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return err
+		}
+		taints = append(taints, QueueableTaint{Pattern: pattern, Category: category, regexp: re})
+		return nil
+	}
+	for _, taintKey := range append(append([]string{}, c.ToleratedTaints...), constants.ReservationTaintKey) {
+		if err := appendTaint(regexp.QuoteMeta(taintKey), ""); err != nil {
+			return nil, err
+		}
+	}
+	for _, pattern := range c.QueueableTaints.Keys {
+		if err := appendTaint(pattern, ""); err != nil {
+			return nil, err
+		}
+	}
+	for _, admin := range c.QueueableTaints.Admin {
+		for _, pattern := range admin.Keys {
+			if err := appendTaint(pattern, admin.Category); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return &QueueableTaints{Taints: taints}, nil
+}
+
+func (q *QueueableTaints) QueueableTaintCategory(taintKey string) (string, bool) {
+	for _, taint := range q.Taints {
+		if taint.regexp.MatchString(taintKey) {
+			return taint.Category, true
+		}
+	}
+	return "", false
 }
 
 type EtcdConfiguration struct {

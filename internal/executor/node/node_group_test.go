@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -25,9 +26,7 @@ func TestGetPool_WhenNodeHasNodePoolLabel(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{"tolerated1", "tolerated2"},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 	node := createNodeWithTaints("node1")
 	node.Labels = map[string]string{nodePoolLabel: "example-node-pool"}
 
@@ -41,9 +40,7 @@ func TestGetPool_WhenNodeDoesNotHaveNodePoolLabel(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{"tolerated1", "tolerated2"},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 	node := createNodeWithTaints("node1")
 
 	result := nodeInfoService.GetPool(node)
@@ -57,9 +54,7 @@ func TestGetPool_WhenReservedNodeHasNodePoolLabel(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{"tolerated1", "tolerated2"},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 	node := createNodeWithTaints("node1", constants.ReservationTaintKey)
 	node.Labels = map[string]string{nodePoolLabel: "example-node-pool"}
 
@@ -73,9 +68,7 @@ func TestGetPool_WhenReservedNodeHasNodePoolLabel_SuffixDisabled(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		"",
-		[]string{"tolerated1", "tolerated2"},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 	node := createNodeWithTaints("node1", constants.ReservationTaintKey)
 	node.Labels = map[string]string{nodePoolLabel: "example-node-pool"}
 
@@ -89,9 +82,7 @@ func TestGetType_WhenNodeHasNoTaint(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{"tolerated1", "tolerated2"},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 	node := createNodeWithTaints("node1")
 
 	result := nodeInfoService.GetType(node)
@@ -104,9 +95,7 @@ func TestGetType_WhenNodeHasNodeTypeLabel(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{"tolerated1", "tolerated2"},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 
 	node := createNodeWithTaints("node1", "tolerated1")
 	node.Labels = map[string]string{nodeTypeLabel: "example-node-type"}
@@ -121,9 +110,7 @@ func TestGetType_WhenNodeHasUntoleratedTaint(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{"tolerated1", "tolerated2"},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 	node := createNodeWithTaints("node1", "untolerated")
 
 	result := nodeInfoService.GetType(node)
@@ -136,9 +123,7 @@ func TestGetType_WhenNodeHasToleratedTaint(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{"tolerated1", "tolerated2"},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 
 	node := createNodeWithTaints("node1", "tolerated1")
 	result := nodeInfoService.GetType(node)
@@ -155,9 +140,7 @@ func TestGetType_WhenSomeNodeTaintsTolerated(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{"tolerated1", "tolerated2"},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 
 	node := createNodeWithTaints("node1", "tolerated1", "untolerated")
 	result := nodeInfoService.GetType(node)
@@ -170,9 +153,7 @@ func TestGetType_WhenNodeHasQueueableTaint(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{},
-		configuration.QueueableTaintsConfiguration{Keys: []string{"queueable1", "queueable2"}},
-	)
+		mustQueueableTaints(t, []string{}, configuration.QueueableTaintsConfiguration{Keys: []string{"queueable1", "queueable2"}}))
 
 	node := createNodeWithTaints("node1", "queueable1", "queueable2")
 	assert.Equal(t, "queueable1,queueable2", nodeInfoService.GetType(node))
@@ -184,9 +165,7 @@ func TestGroupNodesByType(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{"tolerated1", "tolerated2"},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 
 	node1 := createNodeWithTaints("node1")
 	node2 := createNodeWithTaints("node2", "untolerated")
@@ -216,9 +195,7 @@ func TestGroupNodesByType_WhenNodesHaveQueueableTaints(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{},
-		configuration.QueueableTaintsConfiguration{Keys: []string{"queueable1", "queueable2"}},
-	)
+		mustQueueableTaints(t, []string{}, configuration.QueueableTaintsConfiguration{Keys: []string{"queueable1", "queueable2"}}))
 
 	node1 := createNodeWithTaints("node1", "queueable1")
 	node2 := createNodeWithTaints("node2", "queueable1", "queueable2")
@@ -236,9 +213,7 @@ func TestFilterAvailableProcessingNodes(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{}, configuration.QueueableTaintsConfiguration{}))
 
 	node := v1.Node{
 		Spec: v1.NodeSpec{
@@ -257,9 +232,7 @@ func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{}, configuration.QueueableTaintsConfiguration{}))
 
 	node := v1.Node{
 		Spec: v1.NodeSpec{
@@ -278,9 +251,7 @@ func TestFilterAvailableProcessingNodes_IsFalse_NodeWithNoScheduleTaint(t *testi
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{}, configuration.QueueableTaintsConfiguration{}))
 
 	taint := v1.Taint{
 		Key:    "taint",
@@ -303,9 +274,7 @@ func TestFilterAvailableProcessingNodes_IsTrue_NodeWithToleratedTaint(t *testing
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{"taint"},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{"taint"}, configuration.QueueableTaintsConfiguration{}))
 
 	taint := v1.Taint{
 		Key:    "taint",
@@ -328,9 +297,7 @@ func TestFilterAvailableProcessingNodes_IsTrue_NodeWithQueueableTaint(t *testing
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{},
-		configuration.QueueableTaintsConfiguration{Keys: []string{"taint"}},
-	)
+		mustQueueableTaints(t, []string{}, configuration.QueueableTaintsConfiguration{Keys: []string{"taint"}}))
 
 	node := v1.Node{Spec: v1.NodeSpec{Taints: []v1.Taint{{Key: "taint", Effect: v1.TaintEffectNoSchedule}}}}
 	assert.True(t, nodeInfoService.IsAvailableProcessingNode(&node))
@@ -342,30 +309,10 @@ func TestFilterAvailableProcessingNodes_LegacyToleratedTaintsAreLiteral(t *testi
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{"example.com/dedicated"},
-		configuration.QueueableTaintsConfiguration{},
-	)
+		mustQueueableTaints(t, []string{"example.com/dedicated"}, configuration.QueueableTaintsConfiguration{}))
 
 	node := v1.Node{Spec: v1.NodeSpec{Taints: []v1.Taint{{Key: "exampleXcom/dedicated", Effect: v1.TaintEffectNoSchedule}}}}
 	assert.False(t, nodeInfoService.IsAvailableProcessingNode(&node))
-}
-
-func TestFilterAvailableProcessingNodes_InvalidQueueableTaintPatternDoesNotPanic(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context,
-		nodeTypeLabel,
-		nodePoolLabel,
-		reservedNodePoolSuffix,
-		[]string{},
-		configuration.QueueableTaintsConfiguration{Keys: []string{"["}},
-	)
-	node := v1.Node{Spec: v1.NodeSpec{Taints: []v1.Taint{{Key: "taint", Effect: v1.TaintEffectNoSchedule}}}}
-
-	available := true
-	assert.NotPanics(t, func() {
-		available = nodeInfoService.IsAvailableProcessingNode(&node)
-	})
-	assert.False(t, available)
 }
 
 func TestGetType_WhenNodeMatchesAdminQueueableTaintPattern(t *testing.T) {
@@ -374,15 +321,14 @@ func TestGetType_WhenNodeMatchesAdminQueueableTaintPattern(t *testing.T) {
 		nodeTypeLabel,
 		nodePoolLabel,
 		reservedNodePoolSuffix,
-		[]string{},
-		configuration.QueueableTaintsConfiguration{
+		mustQueueableTaints(t, []string{}, configuration.QueueableTaintsConfiguration{
 			Admin: []configuration.QueueableTaintAdminConfiguration{
 				{
 					Category: "platform",
 					Keys:     []string{`example\.com/.*`},
 				},
 			},
-		})
+		}))
 
 	node := createNodeWithTaints("node1", "example.com/dedicated")
 	assert.Equal(t, "example.com/dedicated", nodeInfoService.GetType(node))
@@ -405,4 +351,14 @@ func createNodeWithTaints(nodeName string, taintNames ...string) *v1.Node {
 			Taints: taints,
 		},
 	}
+}
+
+func mustQueueableTaints(t *testing.T, toleratedTaints []string, queueableTaints configuration.QueueableTaintsConfiguration) *configuration.QueueableTaints {
+	t.Helper()
+	result, err := (configuration.KubernetesConfiguration{
+		ToleratedTaints: toleratedTaints,
+		QueueableTaints: queueableTaints,
+	}).NewQueueableTaints()
+	require.NoError(t, err)
+	return result
 }
