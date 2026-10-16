@@ -543,6 +543,139 @@ func TestJobAggregate_NilReceiver(t *testing.T) {
 	require.Empty(t, a.getQueueDemand("pool-1", "queue-1"))
 }
 
+// runningInfo derives the running scheduling info for a pool, treating every
+// executor as inactive (allocation is exercised separately).
+func runningInfo(txn *Txn, pool string, queues ...string) *SchedulingInfo {
+	known := make(map[string]bool, len(queues))
+	for _, queue := range queues {
+		known[queue] = true
+	}
+	return txn.CalculateSchedulingInfo(map[string]bool{}, pool, nil, []string{pool}, known)
+}
+
+func TestJobAggregate_RunningDemand(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	// Leased jobs contribute running demand for the pool/executor of their run.
+	jobA := newAggregateTestJob(t, jobDb, "jobA", "queue-1", false, []string{"pool-1"}, 3).
+		WithNewRun("executor-1", "node-1", "node-1", "pool-1", 5)
+	jobB := newAggregateTestJob(t, jobDb, "jobB", "queue-1", false, []string{"pool-1"}, 2).
+		WithNewRun("executor-2", "node-2", "node-2", "pool-1", 5)
+	// A queued job contributes no running demand.
+	jobC := newAggregateTestJob(t, jobDb, "jobC", "queue-1", true, []string{"pool-1"}, 4)
+
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{jobA, jobB, jobC}))
+	txn.Commit()
+
+	demand := runningInfo(jobDb.ReadTxn(), "pool-1", "queue-1").DemandByQueueAndPriorityClass
+	assert.Equal(t, int64(5), cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
+
+	// Deleting a leased job removes it.
+	txn = jobDb.WriteTxn()
+	require.NoError(t, txn.BatchDelete([]string{jobA.Id()}))
+	txn.Commit()
+	demand = runningInfo(jobDb.ReadTxn(), "pool-1", "queue-1").DemandByQueueAndPriorityClass
+	assert.Equal(t, int64(2), cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
+}
+
+func TestJobAggregate_DisabledSkipsRunningMaintenance(t *testing.T) {
+	jobDb := NewTestJobDb()
+	jobDb.SetQueuedAggregateEnabled(false)
+	jobDb.SetRunningAggregateEnabled(false)
+
+	job := newAggregateTestJob(t, jobDb, "job", "queue-1", false, []string{"pool-1"}, 1).
+		WithNewRun("executor-1", "node-1", "node-1", "pool-1", 0)
+
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{job}))
+	txn.Commit()
+
+	assert.Empty(t, runningInfo(jobDb.ReadTxn(), "pool-1", "queue-1").DemandByQueueAndPriorityClass)
+}
+
+func TestJobAggregate_QueuedToLeasedTransitionAddsRunningDemand(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	jobA := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1"}, 1)
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{jobA}))
+	txn.Commit()
+	assert.Empty(t, runningInfo(jobDb.ReadTxn(), "pool-1", "queue-1").DemandByQueueAndPriorityClass)
+
+	jobAUpdated := jobA.WithQueued(false).WithNewRun("executor-1", "node-1", "node-1", "pool-1", 0)
+	txn = jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{jobAUpdated}))
+	txn.Commit()
+
+	assert.Empty(t, jobDb.ReadTxn().GetQueueDemand("pool-1", "queue-1"))
+	demand := runningInfo(jobDb.ReadTxn(), "pool-1", "queue-1").DemandByQueueAndPriorityClass
+	assert.Equal(t, int64(1), cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
+}
+
+func TestJobAggregate_CalculateSchedulingInfo(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	// Home-pool leased job on an active executor.
+	home := newAggregateTestJob(t, jobDb, "home", "queue-1", false, []string{"pool-1"}, 2).
+		WithNewRun("executor-1", "node-1", "node-1", "pool-1", 0)
+	// Away-pool leased job on an active executor.
+	away := newAggregateTestJob(t, jobDb, "away", "queue-1", false, []string{"pool-2"}, 4).
+		WithNewRun("executor-2", "node-2", "node-2", "pool-2", 0)
+	// Home-pool leased job on an inactive executor: demand but no allocation.
+	inactive := newAggregateTestJob(t, jobDb, "inactive", "queue-1", false, []string{"pool-1"}, 8).
+		WithNewRun("executor-3", "node-3", "node-3", "pool-1", 0)
+
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{home, away, inactive}))
+	txn.Commit()
+
+	info := jobDb.ReadTxn().CalculateSchedulingInfo(
+		map[string]bool{"executor-1": true, "executor-2": true},
+		"pool-1",
+		[]string{"pool-2"},
+		[]string{"pool-1", "pool-2"},
+		map[string]bool{"queue-1": true},
+	)
+
+	// Demand for the home pool counts every executor, including inactive ones.
+	assert.Equal(t, int64(10), cpuOf(info.DemandByQueueAndPriorityClass["queue-1"][aggregateTestPriorityClass]))
+	// Allocation only counts active executors on the home pool.
+	assert.Equal(t, int64(2), cpuOf(info.AllocatedByQueueAndPriorityClass["queue-1"][aggregateTestPriorityClass]))
+	// Away allocation counts active executors on away pools.
+	assert.Equal(t, int64(4), cpuOf(info.AwayAllocatedByQueueAndPriorityClass["queue-1"][aggregateTestPriorityClass]))
+	assert.True(t, info.InUsePriorityClasses[aggregateTestPriorityClass])
+
+	assert.ElementsMatch(t, []*Job{home, inactive}, info.JobsByPool["pool-1"])
+	assert.ElementsMatch(t, []*Job{away}, info.JobsByPool["pool-2"])
+	assert.ElementsMatch(t, []*Job{home}, info.JobsByExecutorId["executor-1"])
+	assert.ElementsMatch(t, []*Job{away}, info.JobsByExecutorId["executor-2"])
+	assert.ElementsMatch(t, []*Job{inactive}, info.JobsByExecutorId["executor-3"])
+}
+
+func TestJobAggregate_CalculateSchedulingInfoSkipsUnknownQueues(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	known := newAggregateTestJob(t, jobDb, "known", "queue-1", false, []string{"pool-1"}, 2).
+		WithNewRun("executor-1", "node-1", "node-1", "pool-1", 0)
+	unknown := newAggregateTestJob(t, jobDb, "unknown", "queue-2", false, []string{"pool-1"}, 4).
+		WithNewRun("executor-2", "node-2", "node-2", "pool-1", 0)
+
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{known, unknown}))
+	txn.Commit()
+
+	info := jobDb.ReadTxn().CalculateSchedulingInfo(
+		map[string]bool{"executor-1": true, "executor-2": true},
+		"pool-1", nil, []string{"pool-1"}, map[string]bool{"queue-1": true},
+	)
+
+	assert.Equal(t, int64(2), cpuOf(info.DemandByQueueAndPriorityClass["queue-1"][aggregateTestPriorityClass]))
+	assert.NotContains(t, info.DemandByQueueAndPriorityClass, "queue-2")
+	assert.NotContains(t, info.JobsByPool["pool-1"], unknown)
+	assert.NotContains(t, info.JobsByExecutorId["executor-2"], unknown)
+}
+
 type aggregateTestKey struct {
 	pool  string
 	queue string
