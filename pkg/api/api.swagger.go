@@ -1809,6 +1809,10 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
+		"        \"podName\": {\n" +
+		"          \"description\": \"pod_name is the name of the pod of the run, as the executor reports it. It is empty until the executor reports the pod.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"runId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +

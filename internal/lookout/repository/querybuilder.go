@@ -164,6 +164,9 @@ CROSS JOIN LATERAL (
 						'runId', run_id,
 						'cluster', cluster,
 						'node', node,
+						-- Lookout stored the runs before it stored pod names. Every pod of those runs has the
+						-- job-scoped name with the default prefix. A run without a pending time never had a pod.
+						'podName', COALESCE(pod_name, CASE WHEN pending IS NOT NULL THEN 'armada-' || job_id || '-0' END),
 						'leased', leased AT TIME ZONE 'UTC',
 						'pending', pending AT TIME ZONE 'UTC',
 						'started', started AT TIME ZONE 'UTC',
