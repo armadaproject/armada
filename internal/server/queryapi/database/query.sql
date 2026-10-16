@@ -5,10 +5,12 @@ SELECT job_id, state FROM job WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 SELECT j.job_id, j.queue, j.jobset, j.namespace, j.state, j.submitted, j.cancelled, j.cancel_reason, j.cancel_user, j.last_transition_time, j.latest_run_id, COALESCE(js.job_spec, j.job_spec) FROM job j left join job_spec js on j.job_id = js.job_id WHERE j.job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: GetJobRunsByRunIds :many
-SELECT * FROM job_run WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
+-- The columns are explicit, so the query reads only the columns that exist before the migrations of a release run.
+SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool, ingress_addresses, failure_category, failure_subcategory, scheduler_termination_reason FROM job_run WHERE run_id = ANY(sqlc.arg(run_ids)::text[]);
 
 -- name: GetJobRunsByJobIds :many
-SELECT * FROM job_run WHERE job_id = ANY(sqlc.arg(job_ids)::text[]) order by leased  desc;
+-- The columns are explicit, for the same reason as in GetJobRunsByRunIds.
+SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool, ingress_addresses, failure_category, failure_subcategory, scheduler_termination_reason FROM job_run WHERE job_id = ANY(sqlc.arg(job_ids)::text[]) order by leased  desc;
 
 -- name: GetJobErrorsByJobIds :many
 select j.job_id as job_id, coalesce(je.error, jr.error) as error from job j
