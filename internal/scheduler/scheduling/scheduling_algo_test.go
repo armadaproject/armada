@@ -1795,3 +1795,42 @@ func TestCalculateJobSchedulingInfo_UsesAggregateForQueuedDemand(t *testing.T) {
 	require.True(t, info.inUsePriorityClasses[queuedPc])
 	require.True(t, info.inUsePriorityClasses[runningPc])
 }
+
+// TestCalculateJobSchedulingInfo_UsesAggregateForRunningDemand proves that with
+// running use enabled the running scheduling info (demand, allocation, jobs and
+// in-use priority classes) is sourced from the aggregate and the passed jobs are
+// ignored, so the scheduler need not fetch or scan any leased jobs.
+func TestCalculateJobSchedulingInfo_UsesAggregateForRunningDemand(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-running-use-pool"
+	pc := testfixtures.PriorityClass0
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	leased := testfixtures.Test1Cpu4GiJob("q1", pc).
+		WithNewRun("executor-1", "node-1", "node-1", pool, 0)
+	// Visible only to the scan; the aggregate must win.
+	phantom := testfixtures.Test1Cpu4GiJob("q1", pc).
+		WithNewRun("executor-2", "node-2", "node-2", pool, 0)
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{leased})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{useRunningAggregateDemand: true}
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{"executor-1": true, "executor-2": true}, queues,
+		[]*jobdb.Job{phantom}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	// Only the JobDb job contributes: 1 cpu of demand and allocation.
+	cpu := info.demandByQueueAndPriorityClass()["q1"][pc].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(1), cpu.Value())
+	allocatedCpu := info.allocatedByQueueAndPriorityClass["q1"][pc].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(1), allocatedCpu.Value())
+
+	// Jobs come from the aggregate, so the phantom is ignored.
+	require.ElementsMatch(t, []*jobdb.Job{leased}, info.jobsByPool[pool])
+	require.ElementsMatch(t, []*jobdb.Job{leased}, info.jobsByExecutorId["executor-1"])
+	require.Empty(t, info.jobsByExecutorId["executor-2"])
+	require.True(t, info.inUsePriorityClasses[pc])
+}
