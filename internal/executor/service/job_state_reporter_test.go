@@ -273,6 +273,57 @@ func TestJobStateReporter_PodFailed_ClassifiesWithPodMatchersInRetainCategory(t 
 	}
 }
 
+func TestJobStateReporter_PodFailed_ReadsEventsOnceAndPassesThemToTheIssueHandler(t *testing.T) {
+	events := []*v1.Event{{Message: "Allocate failed for nvidia.com/gpu", Type: "Warning"}}
+	tests := map[string]struct {
+		ownedByIssueHandler bool
+		wantReads           int
+		wantReceived        []FailedPod
+	}{
+		"a pod that the issue handler owns reads no events": {
+			ownedByIssueHandler: true,
+			wantReads:           0,
+		},
+		"a pod without an issue reads the events once and passes them with their category": {
+			wantReads: 1,
+			wantReceived: []FailedPod{{
+				Events:         events,
+				Classification: categorizer.ClassifyResult{Category: "gpu", Action: categorizer.PodFailureActionRetain},
+			}},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+				Enabled: true,
+				Categories: []categorizer.CategoryConfig{{
+					Name:  "gpu",
+					Rules: []categorizer.CategoryRule{{OnPodEvents: &errormatch.PodEventMatcher{Regexp: "nvidia.com/gpu", Type: "Warning"}}},
+				}},
+			})
+			require.NoError(t, err)
+			pod := makeTestPod(v1.PodStatus{Phase: v1.PodFailed})
+			issueHandler := &stubIssueHandler{runIdsWithIssues: map[string]bool{}}
+			if tc.ownedByIssueHandler {
+				issueHandler.runIdsWithIssues[util.ExtractJobRunId(pod)] = true
+			}
+			stateReporter, _, _, fakeClusterContext := setUpJobStateReporterTestWithClassifier(t, classifier, issueHandler)
+			addPod(t, fakeClusterContext, pod)
+			addPodEvents(fakeClusterContext, pod, events)
+			readsBefore := fakeClusterContext.PodEventsReads()
+
+			stateReporter.reportCurrentStatus(pod)
+
+			assert.Equal(t, tc.wantReads, fakeClusterContext.PodEventsReads()-readsBefore)
+			for i := range issueHandler.received {
+				assert.Same(t, pod, issueHandler.received[i].Pod)
+				issueHandler.received[i].Pod = nil
+			}
+			assert.Equal(t, tc.wantReceived, issueHandler.received)
+		})
+	}
+}
+
 // The reporter under test is configured with a one minute threshold.
 func failedAfterRunningFor(ran time.Duration) v1.PodStatus {
 	startedAt := time.Now().Add(-ran)
@@ -489,6 +540,7 @@ type stubIssueHandler struct {
 	runIdsWithIssues map[string]bool
 	detectResult     bool
 	detectError      error
+	received         []FailedPod
 }
 
 func (s *stubIssueHandler) HasIssue(runId string) bool {
@@ -496,7 +548,8 @@ func (s *stubIssueHandler) HasIssue(runId string) bool {
 	return exists
 }
 
-func (s *stubIssueHandler) DetectAndRegisterIssuesForFailedPod(pod *v1.Pod) (bool, error) {
+func (s *stubIssueHandler) DetectAndRegisterIssuesForFailedPod(failed FailedPod) (bool, error) {
+	s.received = append(s.received, failed)
 	return s.detectResult, s.detectError
 }
 
