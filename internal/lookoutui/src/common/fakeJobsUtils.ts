@@ -89,8 +89,10 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
   for (let i = 0; i < n; i++) {
     const runState = randomProperty(JobRunState, rand)
     let node = undefined
+    let podName = undefined
     if (runState !== JobRunState.RunPending && runState !== JobRunState.RunLeased) {
       node = uuid()
+      podName = `armada-${jobId}-0`
     }
 
     const startedDateSeconds = 14 + 117 * i
@@ -106,6 +108,7 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
       jobId: jobId,
       jobRunState: runState,
       node: node,
+      podName,
       started,
       leased,
       pending,
