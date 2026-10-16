@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -338,6 +339,18 @@ func validateConfig(config configuration.ExecutorConfiguration) error {
 	}
 	if config.Application.DeleteConcurrencyLimit <= 0 {
 		return fmt.Errorf("DeleteConcurrencyLimit was %d, must be greater or equal to 1", config.Application.DeleteConcurrencyLimit)
+	}
+	for _, pattern := range config.Kubernetes.QueueableTaints.Keys {
+		if _, err := regexp.Compile(pattern); err != nil {
+			return fmt.Errorf("invalid kubernetes.queueableTaints key pattern %q: %w", pattern, err)
+		}
+	}
+	for _, adminTaint := range config.Kubernetes.QueueableTaints.Admin {
+		for _, pattern := range adminTaint.Keys {
+			if _, err := regexp.Compile(pattern); err != nil {
+				return fmt.Errorf("invalid kubernetes.queueableTaints admin category %q key pattern %q: %w", adminTaint.Category, pattern, err)
+			}
+		}
 	}
 	return nil
 }

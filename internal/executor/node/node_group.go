@@ -31,7 +31,7 @@ type KubernetesNodeInfoService struct {
 	nodeTypeLabel          string
 	nodePoolLabel          string
 	reservedNodePoolSuffix string
-	queuableTaints         configuration.QueueableTaintsConfiguration
+	queueableTaintPatterns []*regexp.Regexp
 }
 
 func NewKubernetesNodeInfoService(
@@ -45,13 +45,19 @@ func NewKubernetesNodeInfoService(
 	if !slices.Contains(toleratedTaints, constants.ReservationTaintKey) {
 		toleratedTaints = append(toleratedTaints, constants.ReservationTaintKey)
 	}
-	queueableTaints.Keys = append(queueableTaints.Keys, toleratedTaints...)
+	queueableTaintPatterns := make([]*regexp.Regexp, 0, len(toleratedTaints)+len(queueableTaints.Keys))
+	for _, toleratedTaint := range toleratedTaints {
+		queueableTaintPatterns = append(queueableTaintPatterns, regexp.MustCompile(regexp.QuoteMeta(toleratedTaint)))
+	}
+	if compiledQueueableTaintPatterns, err := compileQueueableTaintPatterns(queueableTaints); err == nil {
+		queueableTaintPatterns = append(queueableTaintPatterns, compiledQueueableTaintPatterns...)
+	}
 	return &KubernetesNodeInfoService{
 		clusterContext:         clusterContext,
 		nodePoolLabel:          nodePoolLabel,
 		nodeTypeLabel:          nodeTypeLabel,
 		reservedNodePoolSuffix: reservedNodePoolSuffix,
-		queuableTaints:         queueableTaints,
+		queueableTaintPatterns: queueableTaintPatterns,
 	}
 }
 
@@ -118,7 +124,7 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) filterQueueableTaint
 	result := []v1.Taint{}
 
 	for _, taint := range taints {
-		if isQueueableTaint(taint.Key, kubernetesNodeInfoService.queuableTaints) {
+		if isQueueableTaint(taint.Key, kubernetesNodeInfoService.queueableTaintPatterns) {
 			result = append(result, taint)
 		}
 	}
@@ -126,14 +132,25 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) filterQueueableTaint
 	return result
 }
 
-func isQueueableTaint(taintKey string, queueableTaints configuration.QueueableTaintsConfiguration) bool {
-	queueableTaintKeys := queueableTaints.Keys
+func compileQueueableTaintPatterns(queueableTaints configuration.QueueableTaintsConfiguration) ([]*regexp.Regexp, error) {
+	queueableTaintKeys := append([]string{}, queueableTaints.Keys...)
 	for _, adminTaint := range queueableTaints.Admin {
 		queueableTaintKeys = append(queueableTaintKeys, adminTaint.Keys...)
 	}
 
+	patterns := make([]*regexp.Regexp, 0, len(queueableTaintKeys))
 	for _, queueableTaintKey := range queueableTaintKeys {
-		re := regexp.MustCompile(queueableTaintKey)
+		re, err := regexp.Compile(queueableTaintKey)
+		if err != nil {
+			return nil, err
+		}
+		patterns = append(patterns, re)
+	}
+	return patterns, nil
+}
+
+func isQueueableTaint(taintKey string, queueableTaintPatterns []*regexp.Regexp) bool {
+	for _, re := range queueableTaintPatterns {
 		if re.MatchString(taintKey) {
 			return true
 		}
@@ -171,7 +188,7 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) IsAvailableProcessin
 
 	for _, taint := range node.Spec.Taints {
 		if taint.Effect == v1.TaintEffectNoSchedule &&
-			!isQueueableTaint(taint.Key, kubernetesNodeInfoService.queuableTaints) {
+			!isQueueableTaint(taint.Key, kubernetesNodeInfoService.queueableTaintPatterns) {
 			return false
 		}
 	}

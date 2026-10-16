@@ -74,6 +74,18 @@ func Test_ValidateConfig_When_DeleteThreadCount_LessThanOrEqualToZero(t *testing
 	assert.Error(t, validateConfig(config))
 }
 
+func TestValidateConfig_WhenQueueableTaintPatternIsInvalid_Fails(t *testing.T) {
+	config := createBasicValidExecutorConfiguration()
+	config.Kubernetes.QueueableTaints.Keys = []string{"["}
+	assert.Error(t, validateConfig(config))
+
+	config.Kubernetes.QueueableTaints.Keys = nil
+	config.Kubernetes.QueueableTaints.Admin = []configuration.QueueableTaintAdminConfiguration{
+		{Category: "platform", Keys: []string{"["}},
+	}
+	assert.Error(t, validateConfig(config))
+}
+
 func createBasicValidExecutorConfiguration() configuration.ExecutorConfiguration {
 	return configuration.ExecutorConfiguration{
 		Application: configuration.ApplicationConfiguration{

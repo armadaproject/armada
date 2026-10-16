@@ -137,7 +137,7 @@ type KubernetesConfiguration struct {
 
 type QueueableTaintsConfiguration struct {
 	// Taint keys that are tolerated by executor. Supports regex. Will eventually replace ToleratedTaints. Taints that are used by end users should go here.
-	// If a node has a taint that is not in this list, the executor will consider it for scheduling Armada jobs.
+	// If a node has a taint that is not in this list, the executor will not consider it for scheduling Armada jobs.
 	// Taints found in nodes that match the patterns listed are sent to the scheduler for jobs to remain queued if nodes with these taints are the only ones viable.
 	Keys  []string
 	Admin []QueueableTaintAdminConfiguration
@@ -147,7 +147,7 @@ type QueueableTaintAdminConfiguration struct {
 	// Name of a category to for admins to place taints in.
 	Category string
 	// Taint keys that are tolerated by executor. Supports regex. Only taints that are known/used by admins and operators should go here.
-	// If a node has a taint that is not in this list, the executor will consider it for scheduling Armada jobs.
+	// If a node has a taint that is not in this list, the executor will not consider it for scheduling Armada jobs.
 	// Taints found in nodes that match the patterns listed are sent to the scheduler for jobs to remain queued if nodes with these taints are the only ones viable.
 	Keys []string
 }
