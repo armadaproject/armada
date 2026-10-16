@@ -49,3 +49,11 @@ categorisation
 retryable
 organisations
 KUBECONFIG
+svcs
+apimachinery
+triggerer
+venv
+cadwyn
+fastapi
+starlette
+uvicorn
