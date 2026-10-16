@@ -32,6 +32,7 @@ const (
 	gpu              = 8
 	executorId       = "testCluster"
 	nodeName         = "testNode"
+	podName          = "testPod"
 	queue            = "test-queue"
 	userId           = "testUser"
 	priority         = 3
@@ -108,6 +109,7 @@ type JobRunRow struct {
 	JobId                      string
 	Cluster                    string
 	Node                       *string
+	PodName                    *string
 	Pending                    time.Time
 	Started                    *time.Time
 	Finished                   *time.Time
@@ -149,6 +151,7 @@ func defaultInstructionSet() *model.InstructionSet {
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
 			RunId:                      RunId,
 			Node:                       pointer.String(nodeName),
+			PodName:                    pointer.String(podName),
 			Started:                    &startTime,
 			Finished:                   &finishedTime,
 			Debug:                      []byte(testfixtures.DebugMsg),
@@ -229,6 +232,7 @@ var expectedJobRunAfterUpdate = JobRunRow{
 	JobId:                      JobId,
 	Cluster:                    executorId,
 	Node:                       pointer.String(nodeName),
+	PodName:                    pointer.String(podName),
 	Pending:                    updateTime,
 	Started:                    &startTime,
 	Finished:                   &finishedTime,
@@ -969,12 +973,12 @@ func TestConflateJobRunUpdates(t *testing.T) {
 	// Non-Empty
 	updates = conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
 		{RunId: RunId, Started: &baseTime},
-		{RunId: RunId, Node: pointer.String(nodeName), Debug: []byte("some \000 debug \000")},
+		{RunId: RunId, Node: pointer.String(nodeName), PodName: pointer.String(podName), Debug: []byte("some \000 debug \000")},
 		{RunId: "someOtherJobRun", Started: &baseTime},
 	})
 
 	expected := []*model.UpdateJobRunInstruction{
-		{RunId: RunId, Started: &baseTime, Node: pointer.String(nodeName), Debug: []byte("some \000 debug \000")},
+		{RunId: RunId, Started: &baseTime, Node: pointer.String(nodeName), PodName: pointer.String(podName), Debug: []byte("some \000 debug \000")},
 		{RunId: "someOtherJobRun", Started: &baseTime},
 	}
 
@@ -1354,6 +1358,7 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 			job_id,
 			cluster,
 			node,
+			pod_name,
 			pending,
 			started,
 			finished,
@@ -1374,6 +1379,7 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 		&run.JobId,
 		&run.Cluster,
 		&run.Node,
+		&run.PodName,
 		&run.Pending,
 		&run.Started,
 		&run.Finished,

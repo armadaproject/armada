@@ -65,6 +65,7 @@ type JobRun struct {
 	FailureCategory            *string          `db:"failure_category"`
 	FailureSubcategory         *string          `db:"failure_subcategory"`
 	SchedulerTerminationReason []byte           `db:"scheduler_termination_reason"`
+	PodName                    *string          `db:"pod_name"`
 }
 
 type JobSpec struct {
