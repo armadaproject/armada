@@ -74,6 +74,8 @@ type FairSchedulingAlgo struct {
 	compareQueuedAggregateDemand bool
 	// Whether queued demand is sourced from the aggregate.
 	useQueuedAggregateDemand bool
+	// Whether to compare the running aggregate against the scan.
+	compareRunningAggregateDemand bool
 }
 
 func NewFairSchedulingAlgo(
@@ -95,24 +97,25 @@ func NewFairSchedulingAlgo(
 		)
 	}
 	return &FairSchedulingAlgo{
-		schedulingConfig:             config,
-		executorRepository:           executorRepository,
-		queueCache:                   queueCache,
-		queueOverrideProvider:        queueOverrideProvider,
-		schedulingContextRepository:  schedulingContextRepository,
-		limiter:                      rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
-		limiterByQueue:               make(map[string]*rate.Limiter),
-		preemptionLimiterByPool:      initialisePerPoolRateLimiters(config.Pools),
-		lastOptimiserRoundTimeByPool: make(map[string]time.Time, len(config.Pools)),
-		maxSchedulingDuration:        maxSchedulingDuration,
-		clock:                        clock.RealClock{},
-		resourceListFactory:          resourceListFactory,
-		floatingResourceTypes:        floatingResourceTypes,
-		shortJobPenalty:              shortJobPenalty,
-		stateValidator:               stateValidator,
-		tracer:                       otel.Tracer("armada.scheduler.fair_scheduling_algo"),
-		compareQueuedAggregateDemand: config.ExperimentalQueuedAggregate.Compare,
-		useQueuedAggregateDemand:     config.ExperimentalQueuedAggregate.Use,
+		schedulingConfig:              config,
+		executorRepository:            executorRepository,
+		queueCache:                    queueCache,
+		queueOverrideProvider:         queueOverrideProvider,
+		schedulingContextRepository:   schedulingContextRepository,
+		limiter:                       rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+		limiterByQueue:                make(map[string]*rate.Limiter),
+		preemptionLimiterByPool:       initialisePerPoolRateLimiters(config.Pools),
+		lastOptimiserRoundTimeByPool:  make(map[string]time.Time, len(config.Pools)),
+		maxSchedulingDuration:         maxSchedulingDuration,
+		clock:                         clock.RealClock{},
+		resourceListFactory:           resourceListFactory,
+		floatingResourceTypes:         floatingResourceTypes,
+		shortJobPenalty:               shortJobPenalty,
+		stateValidator:                stateValidator,
+		tracer:                        otel.Tracer("armada.scheduler.fair_scheduling_algo"),
+		compareQueuedAggregateDemand:  config.ExperimentalQueuedAggregate.Compare,
+		useQueuedAggregateDemand:      config.ExperimentalQueuedAggregate.Use,
+		compareRunningAggregateDemand: config.ExperimentalRunningAggregate.Compare,
 	}, nil
 }
 
@@ -628,13 +631,30 @@ func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 		observeJobAggregateLookupDuration(currentPool, time.Since(lookupStart).Seconds())
 	}
 
+	// Running scheduling info, derived from the aggregate. Only read when it is
+	// being compared against the scan.
+	var aggregateRunningInfo *jobdb.SchedulingInfo
+	if l.compareRunningAggregateDemand {
+		knownQueues := make(map[string]bool, len(queues))
+		for name := range queues {
+			knownQueues[name] = true
+		}
+		runningLookupStart := time.Now()
+		aggregateRunningInfo = txn.CalculateSchedulingInfo(activeExecutorsSet, currentPool, awayAllocationPools, allPools, knownQueues)
+		observeJobAggregateRunningLookupDuration(currentPool, time.Since(runningLookupStart).Seconds())
+	}
+
 	info, err := l.calculateJobSchedulingInfo(ctx, activeExecutorsSet, queues, jobs, currentPool, awayAllocationPools, allPools, shortJobPenalty)
 	if err != nil {
 		return nil, err
 	}
 	if l.compareQueuedAggregateDemand {
 		observeJobAggregateSchedulingInfoDuration(currentPool, time.Since(start).Seconds())
-		l.compareScannedWithAggregate(ctx, aggregateDemand, currentPool, info.queuedDemandByQueueAndPriorityClass)
+		compareScannedDemandWithAggregate(ctx, queuedAggregateComparison, aggregateDemand, currentPool, info.queuedDemandByQueueAndPriorityClass)
+	}
+	if l.compareRunningAggregateDemand {
+		observeJobAggregateRunningSchedulingInfoDuration(currentPool, time.Since(start).Seconds())
+		compareScannedDemandWithAggregate(ctx, runningAggregateComparison, aggregateRunningInfo.DemandByQueueAndPriorityClass, currentPool, info.runningDemandByQueueAndPriorityClass)
 	}
 	if l.useQueuedAggregateDemand {
 		// Queued demand and its in-use priority classes come from the aggregate.
