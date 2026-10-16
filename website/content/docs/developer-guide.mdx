@@ -1,300 +1,365 @@
 ---
-title: 'Developer Guide'
-description: 'Set up your development environment and start contributing to Armada'
+title: 'Developer guide'
+description: 'Build Armada from source, run it on your machine, change a component and test your change.'
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout';
-import { Step, Steps } from 'fumadocs-ui/components/steps';
+This guide is for people changing Armada itself. It builds every Armada component from source, runs them as programs on your machine, and connects them to a small Kubernetes cluster, so you can change code, restart one component and test the result in seconds.
 
-This guide walks you through setting up a local Armada development environment using Goreman, our recommended approach for contributing to Armada.
+If you only want to **use** Armada, follow [Getting started](/getting-started) instead.
 
-## Prerequisites
+**Time needed:** about 30 minutes the first time, most of it downloading and compiling.
 
-Before you begin, make sure you have the following installed:
+## How the setup works
 
-- `Go` — [go.dev](https://go.dev/doc/install)
-- `gcc` — C compiler required by some Go packages
-- `mage` — [magefile.org](https://magefile.org/)
-- `Docker` — [docs.docker.com](https://docs.docker.com/get-docker/)
-- `kubectl` — [kubernetes.io](https://kubernetes.io/docs/tasks/tools/)
-- `protobuf` — Protocol buffer compiler
-- `kind` — [kind.sigs.k8s.io](https://kind.sigs.k8s.io/)
-- `yarn` — [yarnpkg.com](https://yarnpkg.com/getting-started/install) — required for Lookout UI development
+- **Dependencies** (PostgreSQL, Redis, Pulsar, and Keycloak when you test logins) run as Docker containers.
+- **Armada's components** (server, scheduler, executor, ingesters, Lookout, Binoculars and the Lookout web UI) run as programs on your machine, started together by [Goreman](https://github.com/mattn/goreman) from a _Procfile_ in `_local/procfiles/`.
+- **Jobs** run in a Kind cluster called `armada-test`, or, with the fake executor, nowhere at all.
+- **Mage** is the build tool that ties it together. Every command below is a Mage target.
 
-<Callout type='info'>
-  Additional tools are automatically installed via `mage BootstrapTools` from
-  `tools.yaml`, including golangci-lint, sqlc, go-swagger, and others.
-</Callout>
+> **Placeholders:** values you fill in yourself are shown in angle brackets, like `<job-id>`. Replace the whole thing, **including the brackets**.
 
-{/* divider */}
+## Before you start
 
-<hr className='bg-fd-border my-6 h-px w-full border-0' />
+### Install the tools
 
-## Using Goreman
+| Tool                                                                                       | Version                                               | Needed for                                                                                          |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| [Go](https://go.dev/doc/install)                                                           | 1.27.1 or later (the repository's `go.mod` sets this) | Everything. An older Go downloads 1.27.1 automatically the first time, if you have internet access. |
+| [Docker](https://docs.docker.com/get-docker/)                                              | Running, with enough memory (see below)               | Dependencies and the Kind cluster                                                                   |
+| [kubectl](https://kubernetes.io/docs/tasks/tools/)                                         | Any recent                                            | Looking at the cluster                                                                              |
+| [Kind](https://kind.sigs.k8s.io/)                                                          | Any; the build tools install the right one            | The `armada-test` cluster                                                                           |
+| [Node.js](https://nodejs.org/) and [Yarn](https://yarnpkg.com/getting-started/install) 1.x | Any recent                                            | The Lookout web UI, which `mage dev:up` always starts                                               |
+| `gcc`                                                                                      | Any                                                   | Some Go packages                                                                                    |
+| [`protoc`](https://github.com/protocolbuffers/protobuf/releases)                           | 3.17.3 or later (`protoc --version`)                  | The check in Step 2 (`mage checkDeps`), and regenerating code from `.proto` files with `mage proto` |
+| Python 3                                                                                   | Any                                                   | The image download in Step 3                                                                        |
 
-[Goreman](https://github.com/mattn/goreman) is a Go-based clone of
-[Foreman](https://github.com/ddollar/foreman) that manages Procfile-based
-applications, allowing you to run multiple processes with a single command.
-Components are built from source and run on the host, so iteration is fast
-and debuggers attach directly.
+Mage doesn't need installing: the commands below run a pinned version with `go run`.
 
-<Steps>
+### Give Docker enough memory
 
-<Step>
+The dependencies and the three-node `armada-test` cluster need several GB. If you also keep a [laptop install](/getting-started) running, it needs about 6.5 GB more. This guide was tested with Docker Desktop set to **16 GB** (Settings → Resources → Memory) with a laptop install alongside.
 
-**Clone the repository**
+Changing Docker's memory restarts Docker, which breaks a running laptop install; reinstall it afterwards (see [Getting started](/getting-started)). {/* LINK: restore "#troubleshooting" when that page merges */}
+
+**Ready when:**
+
+```bash
+go version
+docker info > /dev/null && echo "Docker is running"
+yarn --version
+```
+
+shows Go 1.27.1 or later (or any Go, if you're online), `Docker is running`, and a Yarn version.
+
+## Step 1. Get the code
 
 ```bash
 git clone https://github.com/armadaproject/armada.git
 cd armada
 ```
 
-</Step>
+Run every command in this guide from this folder.
 
-<Step>
+## Step 2. Set up Mage and the build tools
 
-**Create a local Kind cluster**
+Make `mage` run a pinned, known-good version, and put Go's tool folder first on your `PATH`. These last until you close the terminal, so run them again in each new terminal:
+
+```bash
+alias mage='go run github.com/magefile/mage@v1.17.2'
+export PATH="$(go env GOPATH)/bin:$PATH"
+```
+
+Then install the build tools (kind, sqlc, golangci-lint, goreleaser and others, listed in `tools.yaml`) into Go's tool folder:
+
+```bash
+mage BootstrapTools
+```
+
+This took about 2 minutes.
+
+**Success:**
+
+```bash
+mage checkDeps
+```
+
+shows `PASSED` for docker, go, mage, kind, kubectl, protoc, sqlc and docker compose. On Docker Desktop, `docker buildx` fails with `found docker-buildx version 0.33.0-desktop.1 but it failed constraint >=0.6.3`; that's a problem with the check, not your setup, and you can ignore it.
+
+The `PATH` line matters: without it, Mage uses whatever `kind` you installed yourself, and older versions fail in the next step with `ERROR: unknown containerd config version: 4 (supported versions: 2 and 3)`.
+
+## Step 3. Create the Kubernetes cluster
+
+You need this once. It creates a three-node Kind cluster called `armada-test`, separate from a laptop install's `armada` cluster.
+
+**On Docker Desktop**, first download every platform of the images Mage loads into the cluster. Recent Docker versions keep only your own platform, and loading then fails with `ctr: content digest sha256:...: not found`:
+
+```bash
+for image in nginx:1.27.0 alpine:3.20.0 bitnamilegacy/kubectl:1.33.4 \
+    registry.k8s.io/ingress-nginx/controller:v1.4.0 \
+    registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343; do
+  for platform in $(docker buildx imagetools inspect "$image" --raw \
+      | python3 -c 'import json,sys; print(" ".join(m["platform"]["os"]+"/"+m["platform"]["architecture"]+("/"+m["platform"]["variant"] if m["platform"].get("variant") else "") for m in json.load(sys.stdin)["manifests"] if m["platform"]["os"]!="unknown"))'); do
+    docker pull -q --platform "$platform" "$image" > /dev/null
+  done
+done
+```
+
+If a single pull fails with a network error, run the loop again. Then:
 
 ```bash
 mage kind
-export KUBECONFIG=.kube/external/config
+export KUBECONFIG=$PWD/.kube/external/config
 ```
 
-This is a one-time setup step.
+Run the `export` line again in each new terminal.
 
-</Step>
-
-<Step>
-
-**Start all Armada services**
+**Success:** `mage kind` ends with `Time to setup kind: ...` (about a minute), and
 
 ```bash
-mage dev:up
+kubectl get nodes
 ```
 
-This starts Redis, PostgreSQL, and Pulsar in containers, then runs the Armada
-server, scheduler, executor, Lookout, and all ingesters as local processes via
-Goreman.
+lists `armada-test-control-plane`, `armada-test-worker` and `armada-test-worker2`, all `Ready`.
 
-</Step>
-
-<Step>
-
-**Verify everything is running**
+## Step 4. Start Armada
 
 ```bash
-goreman run status
+mage dev:up no-auth
 ```
 
-Running processes are prefixed with `*`:
-*server <br/>
-*scheduler <br/>
-*scheduleringester <br/>
-*eventingester <br/>
-*executor <br/>
-*lookout <br/>
-*lookoutingester <br/>
-*binoculars <br/>
-\*lookoutui
+This starts the dependencies in Docker, creates the databases and Kubernetes priority classes, then compiles and starts every component. It keeps running in this terminal and prints every component's log, each line prefixed with its name. Leave it running and open a second terminal for the next steps (run the Step 2 and Step 3 `alias` and `export` lines there too).
 
-</Step>
+The first start compiles everything and takes a few minutes. Later starts take seconds.
 
-</Steps>
+**Success:** a scheduler line containing `Retrieved 1 executors` (about a minute after starting, on a clean start). Before that line appears, Armada isn't ready: jobs submitted too early fail with `Number of nodes in cluster: 0`.
 
-<Callout type='info'>
-  Restart individual processes without stopping everything:
+`no-auth` is the profile. The argument is required: plain `mage dev:up` fails with `not enough arguments for target "Dev:Up", expected 1, got 0`. Other profiles are in [Other ways to run Armada](#other-ways-to-run-armada).
+
+## Step 5. Check every component is running
+
+In your second terminal:
 
 ```bash
-  goreman restart server
+./bin/goreman run status
 ```
 
-</Callout>
+Mage installs Goreman into the repository's `bin` folder, so use `./bin/goreman` (plain `goreman` gives `command not found` unless you've installed it yourself).
 
-**Useful mage commands**
+**Success:** every line starts with `*`:
+
+```text title="Output"
+*server
+*scheduler
+*scheduleringester
+*eventingester
+*executor
+*lookout
+*lookoutingester
+*binoculars
+*lookoutui
+```
+
+## Step 6. Run a job
+
+Use `armadactl` from your source tree, with the repository's own config file. Without `--config`, `armadactl` uses `~/.armadactl.yaml`, which points at a laptop install if you have one.
 
 ```bash
-mage dev:up        # start dependencies + Armada components via Goreman
-mage dev:full      # run the entire stack in containers against Kind (what CI uses)
-mage dev:down      # stop dependency containers (after mage dev:up)
-mage dev:fullDown  # stop containerised stack and tear down Kind (after mage dev:full)
-mage -l            # list all available mage commands
+go build -o ./bin/armadactl ./cmd/armadactl
+./bin/armadactl --config _local/.armadactl.yaml create queue dev-test
 ```
 
-<Callout type='info'>
-  Use `mage dev:full` to replicate what CI runs. Use `mage dev:up` for
-  day-to-day development. It&apos;s faster since components run as host
-  processes.
-</Callout>
+Wait 15 seconds (Armada checks for new queues every 10 seconds), then submit a job:
 
-{/* divider */}
+```bash
+cat > /tmp/hello.yaml <<'EOF'
+queue: dev-test
+jobSetId: hello
+jobs:
+  - namespace: default
+    priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: hello
+          image: alpine:3.21
+          command: ['sh', '-c', 'echo hello']
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { cpu: 100m, memory: 64Mi }
+EOF
+./bin/armadactl --config _local/.armadactl.yaml submit /tmp/hello.yaml
+./bin/armadactl --config _local/.armadactl.yaml watch dev-test hello --exit-if-inactive
+```
 
-<hr className='bg-fd-border my-6 h-px w-full border-0' />
+**Success:** the watch ends with `JobSucceededEvent`, about 15 seconds after submitting.
 
-## Running with authentication
+The Lookout web UI from your source tree is at **http://localhost:3000**, and shows the job.
 
-<Steps>
+## Working on a component
 
-<Step>
+After changing code, rebuild and restart just that component:
 
-**Start dependencies with the auth profile**
+```bash
+./bin/goreman run restart server
+```
+
+Use the names from `goreman run status`. Goreman rebuilds the component from source before starting it. (Plain `goreman restart server`, without `run`, only prints Goreman's help.)
+
+To stop everything: press **Ctrl-C** in the terminal running `mage dev:up`, then remove the dependency containers:
+
+```bash
+mage dev:down
+```
+
+This also wipes the dev databases, so your next start is clean. The `armada-test` cluster keeps running; remove it with `mage kindTeardown` when you no longer need it.
+
+## Other ways to run Armada
+
+`mage dev:up` takes one profile:
+
+| Profile              | What it runs                                                                                  | Needs `mage kind`? |
+| -------------------- | --------------------------------------------------------------------------------------------- | ------------------ |
+| `no-auth`            | Everything, no logins. The default for day-to-day work.                                       | Yes                |
+| `auth`               | Everything, with Keycloak logins. See [Test with logins](#test-with-logins).                  | Yes                |
+| `fake-executor`      | A simulated executor with two fake nodes (8 CPUs, 32 Gi each). Jobs "run" without containers. | No                 |
+| `auth-fake-executor` | Logins plus the fake executor.                                                                | No                 |
+| `hot-cold`           | The hot-cold scheduler setup.                                                                 | Yes                |
+
+**Run `mage dev:down` before switching profiles.** Otherwise the scheduler still remembers the executor from your last run. For up to 10 minutes (`scheduling.executorTimeout`) it can hand jobs to that executor, which no longer exists, and those jobs stay in `Leased` until the scheduler gives up on them, which can take up to an hour (`executorTimeout`).
+
+## Test with logins
+
+```bash
+mage dev:up auth
+```
+
+This also starts Keycloak, with a test realm, and waits for it before starting Armada. The server accepts Keycloak (OpenID) logins and a username and password. Without credentials, requests fail with `Request could not be authenticated with any of the supported schemes.`
+
+`_local/.armadactl.yaml` has a context for each login method. Pick one with `--context`:
+
+| Context             | Login                                                        | Notes                                                                                                                   |
+| ------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `auth-password`     | Keycloak user `admin`, password `admin`                      | No browser needed. Tested.                                                                                              |
+| `auth-client-creds` | Keycloak client `armada-executor`                            | No browser needed. Tested.                                                                                              |
+| `auth-basic`        | Username `admin`, password `admin`, checked by Armada itself | Tested.                                                                                                                 |
+| `auth-oidc`         | Browser login                                                | Opens your browser; log in as `admin` / `admin`.                                                                        |
+| `auth-device`       | Device login                                                 | Doesn't work as shipped: the realm turns device login off for its `armada-server` client. Turn it on in Keycloak first. |
+
+```bash
+./bin/armadactl --config _local/.armadactl.yaml --context auth-password get queues
+```
+
+**Success:** no `rpc error` line. The `admin` user is in the `admins` group, which can submit, cancel, reprioritize, preempt and watch any job, create and delete queues, and manage retry policies. It can't cordon queues or nodes (see `_local/server/config-auth.yaml`).
+
+The Keycloak admin console is at http://localhost:8180, with user `admin` and password `admin` (set in `_local/compose/stack.yaml`). The realm has only the `admin` user; add others there to test permissions. One limitation: with the realm as shipped, tokens have no `sub` claim, so Armada sees every Keycloak user with an empty name. Permissions granted to **groups** work; permissions for individual users and queue owners don't.
+
+To run the steps by hand instead (for example to restart only Armada and keep Keycloak):
 
 ```bash
 docker compose -f _local/compose/stack.yaml --profile auth up -d
-```
-
-This starts Redis, PostgreSQL, Pulsar, and Keycloak with a pre-configured realm.
-
-</Step>
-
-<Step>
-
-**Initialise databases and Kubernetes resources**
-
-```bash
 _local/scripts/init.sh
+./bin/goreman -f _local/procfiles/auth.Procfile start
 ```
 
-</Step>
+Wait until http://localhost:8180/realms/armada answers before the last command, or components can fail to start.
 
-<Step>
+## Run the tests
 
-**Start Armada components with auth configuration**
+Run the end-to-end test cases against your running Armada. Like `armadactl`, the test runner reads `~/.armadactl.yaml` unless you pass `--config`:
 
 ```bash
-goreman -f _local/procfiles/auth.Procfile start
+export ARMADA_EXECUTOR_INGRESS_URL="http://localhost"
+export ARMADA_EXECUTOR_INGRESS_PORT=5001
+go run cmd/armadactl/main.go --config _local/.armadactl.yaml create queue e2e-test-queue
+go run cmd/testsuite/main.go test --config _local/.armadactl.yaml \
+  --tests "testsuite/testcases/basic/*" --junit junit.xml
 ```
 
-<Callout type='warn'>
-  The first run compiles all Armada components from source which can take
-  several minutes. Subsequent runs are faster as Go caches build artifacts.
-</Callout>
+**Success:** after about 2 minutes:
 
-</Step>
+```text title="Output"
+Ran 17 test(s) in 1m48s
+Success: 17
+Failure: 0
+```
 
-<Step>
+`mage testsuite` runs every test folder, but only against the containerised stack from [`mage dev:full`](#run-the-whole-stack-in-containers). Against `mage dev:up`, it waits a minute and fails with `Error: timed out waiting for scheduler to start`.
 
-**Use armadactl with OIDC authentication**
+## Run the whole stack in containers
+
+`mage dev:full` builds container images of every component and runs the whole stack in Docker against the Kind cluster, the same way CI does. Use it to check a change the way CI will, and to run `mage testsuite`. For day-to-day work, `mage dev:up` is faster.
+
+Stop `mage dev:up` and run `mage dev:down` first, because both start the same services.
+
+**On Docker Desktop**, the image build needs Docker's `default` context. Set it for these commands only, rather than switching your whole machine:
 
 ```bash
-armadactl --config _local/.armadactl.yaml --context auth-oidc get queues
+export DOCKER_CONTEXT=default
+mage dev:full
 ```
 
-</Step>
+Without it, the build fails with `docker buildx is not set to default context - please switch with 'docker context use default'`. `mage dev:full` also runs `mage kind`, so do the image download loop from [Step 3](#step-3-create-the-kubernetes-cluster) first if you haven't.
 
-</Steps>
+The first run compiles for about 5 minutes before building the images; later runs took about 1.5 minutes.
 
-<Callout type='info'>
-  Default Keycloak credentials — Admin: `admin` / `admin` · User: `user` /
-  `password`
-</Callout>
+**Success:** it ends with each component's container `Started` and the migration containers `Exited`.
 
-{/* divider */}
-
-<hr className='bg-fd-border my-6 h-px w-full border-0' />
-
-## Running without a Kubernetes cluster
-
-For testing Armada without a real Kubernetes cluster, use the fake executor
-which simulates a Kubernetes environment:
-
-```bash
-goreman -f _local/procfiles/fake-executor.Procfile start
-```
-
-The fake executor simulates:
-
-- 2 virtual nodes with 8 CPUs and 32Gi memory each
-- Pod lifecycle management without actual container execution
-- Resource allocation and job state transitions
-
-Useful for testing scheduling logic, development when Kubernetes is unavailable,
-and integration testing of job flows.
-
-{/* divider */}
-
-<hr className='bg-fd-border my-6 h-px w-full border-0' />
-
-## Testing your setup
-
-Run the full test suite:
+Then run every test folder, as CI does:
 
 ```bash
 mage testsuite
 ```
 
-Or manually:
+**Success:** after about 5.5 minutes, each folder reports `Failure: 0`, and the last line is `(Real) Total time to run all tests: ...`. (Tested: 34 tests in 8 groups, all passed.)
+
+To stop it, and **delete the `armada-test` cluster**:
 
 ```bash
-go run cmd/armadactl/main.go create queue e2e-test-queue
-export ARMADA_EXECUTOR_INGRESS_URL="http://localhost"
-export ARMADA_EXECUTOR_INGRESS_PORT=5001
-go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
+mage dev:fullDown
 ```
 
-{/* divider */}
+## Profile a component with pprof
 
-<hr className='bg-fd-border my-6 h-px w-full border-0' />
-
-## Profiling with pprof
-
-Enable profiling in your component config:
+Add a `profiling` block to the component's config file in `_local/<component>/config.yaml`, then restart it. The block needs an `auth` section; with only a port, the component logs `Pprof server auth not configured, will not set up pprof` and doesn't open the port.
 
 ```yaml
 profiling:
   port: 6060
+  auth:
+    anonymousAuth: true
+    permissionGroupMapping:
+      pprof: ['everyone']
 ```
-
-Then connect:
 
 ```bash
-go tool pprof http://localhost:6060/debug/pprof/profile
+./bin/goreman run restart server
+go tool pprof -top -seconds 10 http://localhost:6060/debug/pprof/profile
 ```
 
-{/* divider */}
-
-<hr className='bg-fd-border my-6 h-px w-full border-0' />
-
-## Debug port mappings
-
-| Component         | Debug host       |
-| ----------------- | ---------------- |
-| `server`          | `localhost:4000` |
-| `executor`        | `localhost:4001` |
-| `binoculars`      | `localhost:4002` |
-| `eventingester`   | `localhost:4003` |
-| `lookoutui`       | `localhost:4004` |
-| `lookout`         | `localhost:4005` |
-| `lookoutingester` | `localhost:4007` |
-
-{/* divider */}
-
-<hr className='bg-fd-border my-6 h-px w-full border-0' />
+**Success:** `http://localhost:6060/debug/pprof/` opens, and `go tool pprof` prints `Saved profile in ...` and a table of functions. Use a different port for each component you profile.
 
 ## Troubleshooting
 
-**Port 6443 already in use**
-
-Modify `_local/kind/cluster.yaml` to use a different port:
-
-```yaml
-- containerPort: 6443
-  hostPort: 6444
-  protocol: TCP
-```
-
-**Arm/M1 Mac issues**
-
-```bash
-export PULSAR_IMAGE=richgross/pulsar:2.11.0
-```
-
-See [Arm issue #2493](https://github.com/armadaproject/armada/issues/2493) and
-[Windows issue #2492](https://github.com/armadaproject/armada/issues/2492) for
-more details.
-
-{/* divider */}
-
-<hr className='bg-fd-border my-6 h-px w-full border-0' />
+| What you see                                                                                    | Cause                                                                                           | Fix                                                                                      |
+| ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `not enough arguments for target "Dev:Up", expected 1, got 0`                                   | `mage dev:up` needs a profile                                                                   | `mage dev:up no-auth`.                                                                   |
+| `mage: command not found`                                                                       | Mage isn't installed                                                                            | Use the `alias` from Step 2.                                                             |
+| `goreman: command not found`                                                                    | Mage installs Goreman into the repository's `bin` folder                                        | Use `./bin/goreman`.                                                                     |
+| `ERROR: unknown containerd config version: 4 (supported versions: 2 and 3)`                     | Your own, older `kind` is being used                                                            | Run `mage BootstrapTools`, and put `$(go env GOPATH)/bin` first on your `PATH` (Step 2). |
+| `ctr: content digest sha256:...: not found` from `mage kind`                                    | Docker only has your platform's copy of an image                                                | Run the download loop in Step 3, then `mage kind` again.                                 |
+| `docker buildx ... failed constraint >=0.6.3` from `mage checkDeps`                             | The check doesn't understand Docker Desktop's version format                                    | Ignore it.                                                                               |
+| A job fails with `Number of nodes in cluster: 0`                                                | Submitted before the executor reported in                                                       | Wait for `Retrieved 1 executors` in the log, then submit again.                          |
+| `could not find queue` straight after creating one                                              | Armada checks for new queues every 10 seconds                                                   | Wait 15 seconds.                                                                         |
+| Jobs stay in `Leased` and the executor logs `Received 0 new jobs`                               | The scheduler is giving jobs to an executor from an earlier run (for example the fake executor) | Stop, run `mage dev:down`, and start again.                                              |
+| `armadactl` or the test suite reaches the wrong Armada                                          | They read `~/.armadactl.yaml` by default                                                        | Add `--config _local/.armadactl.yaml`.                                                   |
+| `Request could not be authenticated with any of the supported schemes.`                         | You started the `auth` profile and sent no credentials                                          | Add `--context auth-password` (or another login context).                                |
+| `docker buildx is not set to default context - please switch with 'docker context use default'` | Docker Desktop uses its own `desktop-linux` context                                             | `export DOCKER_CONTEXT=default` in that terminal, then run the command again.            |
+| `Error: timed out waiting for scheduler to start` from `mage testsuite`                         | `mage testsuite` only works with `mage dev:full`                                                | Run the test runner directly (see [Run the tests](#run-the-tests)).                      |
+| `Pprof server auth not configured, will not set up pprof`                                       | The `profiling` block has no `auth` section                                                     | Add one (see [Profile a component with pprof](#profile-a-component-with-pprof)).         |
+| `traces export: failed to send to http://localhost:4318/` repeating in the log                  | No tracing collector is listening                                                               | Harmless. Ignore it.                                                                     |
+| `Unused keys: [...]` warnings at startup                                                        | Config files contain settings this version no longer reads                                      | Harmless. Ignore them.                                                                   |
+| Port 6443 already in use when running `mage kind`                                               | Another Kubernetes cluster uses the port                                                        | Change `hostPort: 6443` in `_local/kind/cluster.yaml` to a free port, such as `6444`.    |
 
 {/* ── CTA ── */}
 
@@ -311,7 +376,7 @@ more details.
 <div className='text-fd-foreground mb-2 text-2xl font-semibold'>Need help?</div>
 
 <div className='text-fd-muted-foreground mb-6 max-w-lg text-sm'>
-  Ask in the Armada Slack channel or find us on Github!
+  Ask in the Armada Slack channel or find us on GitHub!
 </div>
 
 <div className='flex flex-wrap justify-center gap-3'>
