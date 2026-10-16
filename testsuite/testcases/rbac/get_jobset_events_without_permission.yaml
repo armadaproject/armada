@@ -1,0 +1,38 @@
+# RBAC: a principal without watch_all_events and without a queue-level watch grant
+# cannot watch job-set events via GetJobSetEvents, even for a job it submitted itself.
+queue: rbac-queue-submit-no-watch
+authContext: rbac-queue-only
+numBatches: 1
+batchSize: 1
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: sleep
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          args:
+            - "ls"
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+timeout: "100s"
+expectedErrorCode: 7 # PERMISSION_DENIED
+queueConfig:
+  setup:
+    queueSpec:
+      userOwners: ["nobody"]
+      permissions:
+        - subjects:
+            - kind: Group
+              name: queue-only
+          verbs:
+            - submit
