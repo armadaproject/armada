@@ -120,7 +120,7 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 				if !ok {
 					jobRuns = []*api.JobRunDetails{}
 				}
-				jobRunDetails, err := parseJobDetails(row)
+				jobRunDetails, err := parseJobDetails(database.GetJobRunsByRunIdsRow(row))
 				if err != nil {
 					return err
 				}
@@ -284,7 +284,7 @@ func parseDbJobStateToApi(dbStatus int16) api.JobState {
 	return apiStatus
 }
 
-func parseJobDetails(row database.JobRun) (*api.JobRunDetails, error) {
+func parseJobDetails(row database.GetJobRunsByRunIdsRow) (*api.JobRunDetails, error) {
 	runState, ok := JobRunStateMap[row.JobRunState]
 	if !ok {
 		runState = api.JobRunState_RUN_STATE_UNKNOWN
