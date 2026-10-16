@@ -33,6 +33,9 @@ func testCmd(app *testsuite.App) *cobra.Command {
 	cmd.Flags().String("benchmark", "", "Write a benchmark test report to this path.")
 	cmd.Flags().String("prometheusPushgatewayUrl", "", "Push metrics to Prometheus pushgateway at this url.")
 	cmd.Flags().String("prometheusPushgatewayJobName", "armada-testsuite", "Metrics are annotated with with job=prometheusPushGatewayJobName.")
+	cmd.Flags().String("configHook", "", "Executable that applies the config overrides of test cases, "+
+		"called with a directory of <component>.yaml files, or an empty directory to remove them. "+
+		"Without it, the testsuite skips test cases with overrides.")
 	return cmd
 }
 
@@ -82,6 +85,14 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 		}
 		app.Params.PrometheusPushGatewayJobName = prometheusPushgatewayJobName
 
+		configHook, err := cmd.Flags().GetString("configHook")
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if configHook != "" {
+			app.Params.ConfigHook = testsuite.CommandConfigHook(configHook, app.Out)
+		}
+
 		// Create a context that is cancelled on SIGINT/SIGTERM.
 		// Ensures test jobs are cancelled on ctrl-c.
 		ctx, cancel := context.WithCancel(context.Background())
@@ -98,9 +109,9 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 		}()
 
 		start := time.Now()
-		testSuiteReport, err := app.TestPattern(ctx, testFilesPattern)
-		if err != nil {
-			return err
+		testSuiteReport, runErr := app.TestPattern(ctx, testFilesPattern)
+		if testSuiteReport == nil {
+			return runErr
 		}
 		junitTestSuite := &junit.Testsuite{
 			Name: testFilesPattern,
@@ -111,14 +122,18 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 
 		numSuccesses := testSuiteReport.NumSuccesses()
 		numFailures := testSuiteReport.NumFailures()
+		numSkipped := testSuiteReport.NumSkipped()
 		fmt.Printf("\n======= SUMMARY =======\n")
 		w := tabwriter.NewWriter(os.Stdout, 1, 1, 1, ' ', 0)
 		fmt.Fprint(w, "Test:\tResult:\tElapsed:\tJobSet:\n")
 		for _, testCaseReport := range testSuiteReport.TestCaseReports {
 			var result string
-			if testCaseReport.FailureReason == "" {
+			switch {
+			case testCaseReport.SkipReason != "":
+				result = "SKIPPED"
+			case testCaseReport.FailureReason == "":
 				result = "SUCCESS"
-			} else {
+			default:
 				result = "FAILURE"
 			}
 			elapsed := testCaseReport.Finish.Sub(testCaseReport.Start)
@@ -130,6 +145,7 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 		fmt.Printf("Ran %d test(s) in %s\n", numSuccesses+numFailures, time.Since(start).Round(time.Second))
 		fmt.Printf("Success: %d\n", numSuccesses)
 		fmt.Printf("Failure: %d\n", numFailures)
+		fmt.Printf("Skipped: %d\n", numSkipped)
 		fmt.Println()
 
 		// If junitPath is set, write a JUnit report.
@@ -145,6 +161,9 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 			}
 		}
 
+		if runErr != nil {
+			return runErr
+		}
 		if numFailures != 0 {
 			return errors.Errorf("test failure")
 		}

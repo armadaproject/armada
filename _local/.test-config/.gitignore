@@ -1,0 +1,3 @@
+# The testsuite config hook writes the config overrides of test cases here.
+*
+!.gitignore
