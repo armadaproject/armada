@@ -6,6 +6,8 @@ option csharp_namespace = "ArmadaProject.Io.ArmadaEvents";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/api/networking/v1/generated.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/wrappers.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
 
@@ -338,6 +340,75 @@ message JobRunRunning {
     string job_id = 4;
     string run_id = 5;
     string pool = 6;
+    PodStartUpInfo start_up_info = 7;
+}
+
+message PodStartUpInfo {
+    // Time the pod was created
+    google.protobuf.Timestamp created_at = 1;
+    // Time kube-scheduler bound the pod to a node, from its Scheduled event. Armada has already
+    // chosen the node by this point, so this is the bind rather than the placement decision.
+    //
+    // Read from the event rather than the PodScheduled condition, which does not mean what its name
+    // suggests: the scheduler only ever writes that condition as False, on a scheduling failure, and
+    // the kubelet hardcodes it to True in the same status update that first sets status.startTime.
+    // The condition is used as a fallback for a pod whose Scheduled event has expired, in which case
+    // this bounds the scheduling time rather than measuring it, and reads equal to
+    // kubelet_acknowledged_at.
+    google.protobuf.Timestamp scheduled_at = 2;
+    // Time the pod was acknowledged by the kubelet
+    google.protobuf.Timestamp kubelet_acknowledged_at = 3;
+    // Time a sandbox existed for the pod with its networking configured, from
+    // status.conditions[PodReadyToStartContainers]. Sandbox creation and CNI are not separable: the
+    // kubelet derives this condition from a single PodSandboxChanged check.
+    //
+    // Unset before Kubernetes 1.29, where the PodReadyToStartContainersCondition feature gate is
+    // off by default, and on any later cluster that turns it off - the gate is still Beta. The time
+    // is then simply unattributed, sitting in the gap between kubelet_acknowledged_at and the first
+    // container starting.
+    google.protobuf.Timestamp sandbox_ready_at = 4;
+    // Time the last of the pod's app containers started, and so the end of start up. This is the
+    // maximum of the started_at instants on containers below; it excludes init containers and
+    // sidecars, which necessarily start earlier.
+    //
+    // A close proxy for the pod reaching Running rather than the transition itself, because
+    // Kubernetes records no timestamp for a phase change. It can read early: a container that has
+    // restarted more than once no longer reports when it first started, and the phase flips when
+    // the last container first starts.
+    google.protobuf.Timestamp started_at = 5;
+    repeated ContainerStartUpInfo init_containers = 6;
+    repeated ContainerStartUpInfo containers = 7;
+    // Additional steps measured during start up.
+    // These are custom defined and often used to breakdown steps taken during startup, so may overlap with other intervals above
+    repeated StartUpStep extra_steps = 8;
+}
+
+message ContainerStartUpInfo {
+    string name = 1;
+    // Time the container was created
+    google.protobuf.Timestamp created_at = 2;
+    // Time the container started
+    google.protobuf.Timestamp started_at = 3;
+    // Time the container finished - Init containers only - an app container is expected to have this unset
+    google.protobuf.Timestamp finished_at = 4;
+    ImagePullInfo image_pull = 5;
+    // If this container was a sidecar container. As these are effectively main containers in k8s,
+    // it is used to distinguish real init containers from sidecar containers
+    bool sidecar = 6;
+}
+
+message ImagePullInfo {
+    google.protobuf.Duration duration = 1;
+    // Time the pull spent queued before it began
+    google.protobuf.Duration waiting_time = 2;
+    google.protobuf.UInt64Value size_bytes = 3;
+    bool cached = 4;
+}
+
+message StartUpStep {
+    string name = 1;
+    google.protobuf.Timestamp started_at = 2;
+    google.protobuf.Timestamp finished_at = 3;
 }
 
 // Message containing runtime information about some resource created for a job.

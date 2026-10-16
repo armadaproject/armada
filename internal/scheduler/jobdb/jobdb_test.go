@@ -26,7 +26,7 @@ import (
 )
 
 func NewTestJobDb() *JobDb {
-	return NewJobDb(
+	jobDb := NewJobDb(
 		map[string]types.PriorityClass{
 			"foo": {},
 			"bar": {},
@@ -35,6 +35,8 @@ func NewTestJobDb() *JobDb {
 		stringinterner.New(1024),
 		testResourceListFactory,
 	)
+	jobDb.SetAggregateEnabled(true)
+	return jobDb
 }
 
 func TestJobDb_TestUpsert(t *testing.T) {
