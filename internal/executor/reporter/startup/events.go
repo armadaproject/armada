@@ -1,7 +1,6 @@
 package startup
 
 import (
-	"sort"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -88,6 +87,23 @@ func eventTime(event *v1.Event) time.Time {
 	return event.LastTimestamp.Time
 }
 
+// lastEventOccurrence is when an event was last seen.
+// Kubernetes collapses events identical in reason and message into one object, bumping Count and advancing LastTimestamp,
+// so a single event can stand for several occurrences spanning a range.
+func lastEventOccurrence(event *v1.Event) time.Time {
+	last := event.FirstTimestamp.Time
+	if event.EventTime.After(last) {
+		last = event.EventTime.Time
+	}
+	if event.LastTimestamp.After(last) {
+		last = event.LastTimestamp.Time
+	}
+	if event.Series != nil && event.Series.LastObservedTime.After(last) {
+		last = event.Series.LastObservedTime.Time
+	}
+	return last
+}
+
 // firstEventTimeWithReason is the earliest time any of the pod's events carries a reason, or nil
 // when none does.
 func firstEventTimeWithReason(podEvents []*v1.Event, reason string) *time.Time {
@@ -105,17 +121,4 @@ func firstEventTimeWithReason(podEvents []*v1.Event, reason string) *time.Time {
 		}
 	}
 	return earliest
-}
-
-func eventsInTimeOrder(podEvents []*v1.Event) []*v1.Event {
-	ordered := make([]*v1.Event, 0, len(podEvents))
-	for _, event := range podEvents {
-		if event != nil {
-			ordered = append(ordered, event)
-		}
-	}
-	sort.SliceStable(ordered, func(i, j int) bool {
-		return eventTime(ordered[i]).Before(eventTime(ordered[j]))
-	})
-	return ordered
 }
