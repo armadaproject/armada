@@ -52,9 +52,10 @@ func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.Instru
 	// These can be conflated to help performance
 	jobsToUpdate := conflateJobUpdates(instructions.JobsToUpdate)
 	jobRunsToUpdate := conflateJobRunUpdates(instructions.JobRunsToUpdate)
+	jobRunInfosToCreate := conflateJobRunInfos(instructions.JobRunInfosToCreate)
 
 	numRowsToChange := len(instructions.JobsToCreate) + len(jobsToUpdate) + len(instructions.JobRunsToCreate) +
-		len(jobRunsToUpdate) + len(instructions.JobErrorsToCreate)
+		len(jobRunsToUpdate) + len(instructions.JobErrorsToCreate) + len(jobRunInfosToCreate)
 
 	start := time.Now()
 	// Jobs need to be ingested first as other updates may reference these
@@ -79,6 +80,9 @@ func (l *LookoutDb) Store(ctx *armadacontext.Context, instructions *model.Instru
 	})
 	jobUpdateGroup.Go(func() error {
 		return l.CreateJobErrors(jobUpdateCtx, instructions.JobErrorsToCreate)
+	})
+	jobUpdateGroup.Go(func() error {
+		return l.CreateJobRunInfos(jobUpdateCtx, jobRunInfosToCreate)
 	})
 	if err := jobUpdateGroup.Wait(); err != nil {
 		return err
@@ -241,6 +245,25 @@ func (l *LookoutDb) CreateJobErrors(ctx *armadacontext.Context, instructions []*
 	l.metrics.RecordAvRowChangeTimeByOperation("job_error", commonmetrics.DBOperationInsert, len(instructions), taken)
 	l.metrics.RecordRowsChange("job_error", commonmetrics.DBOperationInsert, len(instructions))
 	log.Infof("Inserted %d job errors in %s", len(instructions), taken)
+	return nil
+}
+
+func (l *LookoutDb) CreateJobRunInfos(ctx *armadacontext.Context, instructions []*model.CreateJobRunInfoInstruction) error {
+	if len(instructions) == 0 {
+		return nil
+	}
+	start := time.Now()
+	err := l.CreateJobRunInfosBatch(ctx, instructions)
+	if err != nil {
+		log.WithError(err).Warn("Creating job run infos via batch failed, will attempt to insert serially (this might be slow).")
+		if scalarErr := l.CreateJobRunInfosScalar(ctx, instructions); scalarErr != nil {
+			return scalarErr
+		}
+	}
+	taken := time.Since(start)
+	l.metrics.RecordAvRowChangeTimeByOperation("job_run_info", commonmetrics.DBOperationInsert, len(instructions), taken)
+	l.metrics.RecordRowsChange("job_run_info", commonmetrics.DBOperationInsert, len(instructions))
+	log.Infof("Inserted %d job run infos in %s", len(instructions), taken)
 	return nil
 }
 
@@ -1036,6 +1059,85 @@ func (l *LookoutDb) CreateJobErrorsScalar(ctx *armadacontext.Context, instructio
 	return nil
 }
 
+func (l *LookoutDb) CreateJobRunInfosBatch(ctx *armadacontext.Context, instructions []*model.CreateJobRunInfoInstruction) error {
+	tmpTable := "job_run_info_create_tmp"
+	return l.withDatabaseRetryInsert(ctx, func() error {
+		createTmp := func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, fmt.Sprintf(`
+				CREATE TEMPORARY TABLE %s (
+					run_id varchar(36),
+					start_up_info jsonb
+				) ON COMMIT DROP;`, tmpTable))
+			if err != nil {
+				l.metrics.RecordDBError(commonmetrics.DBOperationCreateTempTable)
+			}
+			return err
+		}
+
+		insertTmp := func(tx pgx.Tx) error {
+			_, err := tx.CopyFrom(
+				ctx,
+				pgx.Identifier{tmpTable},
+				[]string{
+					"run_id",
+					"start_up_info",
+				},
+				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
+					return []interface{}{
+						instructions[i].RunId,
+						instructions[i].StartUpInfo,
+					}, nil
+				}),
+			)
+			return err
+		}
+
+		copyToDest := func(tx pgx.Tx) error {
+			_, err := tx.Exec(
+				ctx,
+				fmt.Sprintf(`
+					INSERT INTO job_run_info (
+						run_id,
+						start_up_info
+					) SELECT * from %s
+					ON CONFLICT (run_id) DO UPDATE SET start_up_info = EXCLUDED.start_up_info`, tmpTable),
+			)
+			if err != nil {
+				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
+			}
+			return err
+		}
+		return batchInsert(ctx, l.db, createTmp, insertTmp, copyToDest)
+	})
+}
+
+func (l *LookoutDb) CreateJobRunInfosScalar(ctx *armadacontext.Context, instructions []*model.CreateJobRunInfoInstruction) error {
+	sqlStatement := `INSERT INTO job_run_info (run_id, start_up_info)
+		VALUES ($1, $2)
+		ON CONFLICT (run_id) DO UPDATE SET start_up_info = EXCLUDED.start_up_info`
+	for _, i := range instructions {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		err := l.withDatabaseRetryInsert(ctx, func() error {
+			_, err := l.db.Exec(ctx, sqlStatement,
+				i.RunId,
+				i.StartUpInfo)
+			if err != nil {
+				l.metrics.RecordDBError(commonmetrics.DBOperationInsert)
+			}
+			return err
+		})
+		if err != nil {
+			log.WithError(err).Warnf("Create job run info for run %s, failed", i.RunId)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+		}
+	}
+	return nil
+}
+
 func batchInsert(ctx *armadacontext.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) error,
 	insertTmp func(pgx.Tx) error, copyToDest func(pgx.Tx) error,
 ) error {
@@ -1133,6 +1235,22 @@ func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJo
 	// This isn't a problem as such for the database but does mean that reproducing errors etc will be hard
 	for _, v := range updatesById {
 		conflated = append(conflated, v)
+	}
+	return conflated
+}
+
+// conflateJobRunInfos keeps only the latest instruction for each run, as postgres rejects an
+// ON CONFLICT DO UPDATE that affects the same row twice in one statement.
+func conflateJobRunInfos(infos []*model.CreateJobRunInfoInstruction) []*model.CreateJobRunInfoInstruction {
+	latestIndexByRunId := make(map[string]int, len(infos))
+	for i, info := range infos {
+		latestIndexByRunId[info.RunId] = i
+	}
+	conflated := make([]*model.CreateJobRunInfoInstruction, 0, len(latestIndexByRunId))
+	for i, info := range infos {
+		if latestIndexByRunId[info.RunId] == i {
+			conflated = append(conflated, info)
+		}
 	}
 	return conflated
 }
