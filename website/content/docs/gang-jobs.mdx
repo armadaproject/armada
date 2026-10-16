@@ -1,0 +1,175 @@
+---
+title: 'Gang jobs'
+description: 'Run a group of jobs that must all start together, keep them on matching nodes, and let them find each other.'
+---
+
+A **gang** is a group of jobs that Armada schedules all together or not at all. This does not guarantee that every member runs on the same Kubernetes cluster. Use a gang when part of the group is useless on its own: multi-node training (torchrun, MPI), Spark drivers and executors, or any leader-and-workers setup.
+
+## Before you start
+
+You need a working `armadactl` and the `my-team` queue from Submitting jobs. Run the commands on this page from your `~/armada-guide` folder.
+
+## Step 1. Write a gang job file
+
+A gang is made with two annotations on every member:
+
+- `armadaproject.io/gangId`: the same name on every member. **Use a new name for every gang you submit.** A UUID is a good habit.
+- `armadaproject.io/gangCardinality`: the total number of members.
+
+Create `gang.yaml`, a gang of three identical members:
+
+```bash
+cat > gang.yaml <<'EOF'
+queue: my-team
+jobSetId: gang-demo-1
+jobs:
+  - namespace: default
+    annotations:
+      armadaproject.io/gangId: 'my-first-gang'
+      armadaproject.io/gangCardinality: '3'
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: worker
+          image: alpine:3.21
+          command: ['sh', '-c', 'echo "gang $ARMADA_GANG_ID, size $ARMADA_GANG_CARDINALITY"; sleep 30']
+          resources:
+            requests: { cpu: 500m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+  - namespace: default
+    annotations:
+      armadaproject.io/gangId: 'my-first-gang'
+      armadaproject.io/gangCardinality: '3'
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: worker
+          image: alpine:3.21
+          command: ['sh', '-c', 'echo "gang $ARMADA_GANG_ID, size $ARMADA_GANG_CARDINALITY"; sleep 30']
+          resources:
+            requests: { cpu: 500m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+  - namespace: default
+    annotations:
+      armadaproject.io/gangId: 'my-first-gang'
+      armadaproject.io/gangCardinality: '3'
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: worker
+          image: alpine:3.21
+          command: ['sh', '-c', 'echo "gang $ARMADA_GANG_ID, size $ARMADA_GANG_CARDINALITY"; sleep 30']
+          resources:
+            requests: { cpu: 500m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+            # ...repeat two more identical entries with the same annotations...
+EOF
+```
+
+`terminationGracePeriodSeconds: 0` is fine for a demo. In real training, give members enough time to save a checkpoint before they stop.
+
+Rules Armada enforces:
+
+- Every member must have the same `gangId`, `gangCardinality`, `priorityClassName` and node uniformity label. If they disagree within one file, the whole submission is rejected. If they disagree across separate submissions, the members are accepted and then fail.
+- Submit **exactly** as many members as `gangCardinality` says, normally all in one file. You can split them across several submissions while the gang is still waiting, but never after one of its members has started. With fewer members, the gang waits forever. With more, every member fails.
+- Use a **new `gangId`** each time. Reusing one from a finished gang leaves the new job waiting forever, with no error. Reusing one from a gang that's still running makes the new job fail with `cannot submit to gang that has running jobs`.
+
+## Step 2. Submit and watch it start together
+
+```bash
+armadactl submit gang.yaml
+armadactl watch my-team gang-demo-1
+```
+
+**Success:** three `Submitted job` lines, then all three `JobLeasedEvent` lines at the same moment. Each member then starts on its own, so one may reach Running a few seconds before another. Press Ctrl-C after the `JobSucceededEvent` lines.
+
+Armada never schedules part of a gang. If the cluster can't fit all three at once, all three wait.
+
+On a laptop install, the gang needs 1.5 CPUs free at once on the single worker. If it stays Queued, lower `cpu` to `200m` on every member (in both `requests` and `limits`) and resubmit with a new `gangId`.
+
+Each member's output shows its gang. Use one of the job IDs from the `Submitted job` lines:
+
+```bash
+kubectl logs -n default armada-<job-id>-0
+```
+
+```
+gang my-first-gang, size 3
+```
+
+## Step 3. Place members on matching nodes (node uniformity)
+
+To place every member on nodes that share the same value of a node label, such as the same zone or rack, add a third annotation to every member:
+
+```yaml
+armadaproject.io/gangNodeUniformityLabel: 'topology.kubernetes.io/zone'
+```
+
+Armada picks one value of that label that can fit the whole gang, and places every member there. This keeps network-heavy training inside one network domain.
+
+**The label must be enabled by your platform team**. Until it is, the gang never starts, and `armadactl get job-report <job-id>` shows:
+
+```
+UnschedulableReason: uniformity label topology.kubernetes.io/zone is not indexed
+```
+
+A laptop install has no labels enabled. Ask your platform team which labels are available on yours.
+
+Your platform team can also set a default label that applies to every gang that doesn't set one. If a gang stays Queued with `is not indexed` and you didn't add the annotation, ask them.
+
+## Step 4. Let members find each other
+
+Each member gets these environment variables, as well as the usual `ARMADA_JOB_ID`, `ARMADA_QUEUE` and `ARMADA_JOB_SET_ID`:
+
+| Variable                                  | Value                               |
+| ----------------------------------------- | ----------------------------------- |
+| `ARMADA_GANG_ID`                          | The gang's ID                       |
+| `ARMADA_GANG_CARDINALITY`                 | The number of members               |
+| `ARMADA_GANG_NODE_UNIFORMITY_LABEL_NAME`  | The uniformity label, if one is set |
+| `ARMADA_GANG_NODE_UNIFORMITY_LABEL_VALUE` | The label value the gang landed on  |
+
+There's no member number and no list of the other members' addresses. Members have to find each other, in one of two ways:
+
+1. **Through a service on one member.** Give one job (the leader) a headless service. Its address follows a fixed pattern, so the others can work it out. See Interactive jobs and services.
+2. **External coordination:** an etcd or Redis endpoint, or your framework's own meeting point (for example `torchrun --rdzv_backend=c10d` pointed at the leader's service address).
+
+## What happens when something fails
+
+- **Gangs aren't retried.** Armada marks every gang job fail-fast, and you can't turn that off. If a member's pod fails to start, or its node is lost, that job fails at once with `Job has fail fast flag set - this job will no longer be retried`. Plan to resubmit the whole gang with a new `gangId`.
+- **If one member is preempted, the whole gang is stopped.** All members end as failed with a `Preempted` reason. You're never left with part of a gang running.
+- **If one member's program crashes, the others keep running.** All-or-nothing applies to starting and preemption, not to your code. If your framework can't continue without every member, cancel the whole gang when one fails:
+
+  ```bash
+  armadactl cancel job-set my-team gang-demo-1
+  ```
+
+## Operator setup
+
+These settings decide what gangs can do on your installation. On an Operator install, they go in the `spec.applicationConfig` of the named resource. On a Helm install, use `scheduler.applicationConfig` in the scheduler chart and `applicationConfig` in the server chart.
+
+| Setting                                                                             | In                      | Default     | What it controls                                                                                                                                                       |
+| ----------------------------------------------------------------------------------- | ----------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scheduling.indexedNodeLabels`                                                      | Scheduler               | None        | Labels gangs may use for node uniformity. A gang naming any other label never starts.                                                                                  |
+| `submission.defaultGangNodeUniformityLabel`                                         | Server (`ArmadaServer`) | Not set     | A uniformity label applied to every gang that doesn't set one. It must also be in `indexedNodeLabels`.                                                                 |
+| `scheduling.maximumSchedulingBurst` and `scheduling.maximumPerQueueSchedulingBurst` | Scheduler               | `1000` each | The most jobs Armada starts in one scheduling round, overall and per queue. A gang with more members than either value can never start. Raise them, or split the gang. |
+
+## Troubleshooting
+
+| What you see                                                                                                                         | Cause                                                                                                                                                         | Fix                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| The gang stays Queued, and `job-report` says `...: none`                                                                             | Fewer members were submitted than `gangCardinality`, or the `gangId` was used before                                                                          | Count the members. Cancel the job set and resubmit everything with a new `gangId`.    |
+| The gang stays Queued, and `job-report` says `uniformity label <label> is not indexed`                                               | The uniformity label isn't enabled                                                                                                                            | Remove the annotation, or ask your platform team to enable the label.                 |
+| The gang stays Queued, and `job-report` says `gang cardinality too large: exceeds global max burst size` (or `queue max burst size`) | The gang has more members than Armada starts in one scheduling round                                                                                          | Use fewer members, or ask your platform team to raise the limit.                      |
+| The gang stays Queued, and `job-report` gives a resource reason                                                                      | The cluster can't fit every member at once                                                                                                                    | Wait for room, ask for less per member, or use fewer members.                         |
+| Members fail with `cannot submit more jobs to gang than specified in gang cardinality`                                               | More members were submitted than `gangCardinality` says, or members were added to a gang that was already full. Members from earlier submissions stay queued. | Make the number of members match `gangCardinality`, and resubmit with a new `gangId`. |
+| Members fail with `cannot submit to gang that has running jobs`                                                                      | Jobs were added to a gang after one of its members started                                                                                                    | Use a new `gangId` for every gang.                                                    |
+| Members fail with `Job has fail fast flag set - this job will no longer be retried`                                                  | A member's pod couldn't start (bad image, missing namespace) or its node was lost                                                                             | Fix the underlying problem, then resubmit the whole gang with a new `gangId`.         |
+| `inconsistent gang cardinality in gang <id>: expected N but got M` when submitting                                                   | Members disagree on `gangCardinality`                                                                                                                         | Use the same value on every member.                                                   |
+| `inconsistent PriorityClassName in gang <id>` or `inconsistent nodeUniformityLabel in gang <id>` when submitting                     | Members disagree on priority class or uniformity label                                                                                                        | Use the same value on every member.                                                   |
+| `gang jobs may not set fail fast flag ... to anything but true` when submitting                                                      | A member sets `armadaproject.io/failFast` to something other than `"true"`                                                                                    | Remove the annotation. Gang jobs are always fail-fast.                                |
+| The whole gang stopped when one member was preempted                                                                                 | Gangs are all-or-nothing                                                                                                                                      | Resubmit the whole gang with a new `gangId`.                                          |
+| I set `gangCardinality: '1'` and nothing gang-like happened                                                                          | A gang of one is an ordinary job                                                                                                                              | Expected.                                                                             |
+| `zsh: no such file or directory: job-id` (or `bash: job-id: No such file or directory`)                                              | A placeholder was pasted with its angle brackets                                                                                                              | Replace `<job-id>`, including `<` and `>`, with the real value.                       |
