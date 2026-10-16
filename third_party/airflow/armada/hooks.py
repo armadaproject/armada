@@ -167,15 +167,19 @@ class ArmadaHook(LoggingMixin):
             )
 
         cluster = job_context.cluster
-        if not cluster:
-            # Job is running / or completed already
-            if state == JobState.RUNNING or state.is_terminal():
-                job_id = job_context.job_id
-                job_details = self.client.get_job_details([job_id]).job_details[job_id]
-                run_details = self._get_latest_job_run_details(job_details)
-                if run_details:
-                    cluster = run_details.cluster
-        return dataclasses.replace(job_context, job_state=state.name, cluster=cluster)
+        pod_name = job_context.pod_name
+        # A retry starts a new run with a new pod, possibly on another cluster, so
+        # the hook reads the latest run on each poll.
+        if state == JobState.RUNNING or state.is_terminal():
+            job_id = job_context.job_id
+            job_details = self.client.get_job_details([job_id]).job_details[job_id]
+            run_details = self._get_latest_job_run_details(job_details)
+            if run_details:
+                cluster = run_details.cluster
+                pod_name = run_details.pod_name or None
+        return dataclasses.replace(
+            job_context, job_state=state.name, cluster=cluster, pod_name=pod_name
+        )
 
     @log_exceptions
     def context_from_xcom(self, ti: TaskInstance) -> RunningJobContext:
