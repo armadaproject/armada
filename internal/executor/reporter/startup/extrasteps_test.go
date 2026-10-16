@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/executor/configuration"
 )
@@ -240,6 +241,99 @@ func TestMeasure_ExtraSteps(t *testing.T) {
 			}
 			require.Len(t, info.ExtraSteps, 1)
 			assert.Equal(t, tc.step.Name, info.ExtraSteps[0].Name)
+			assert.Equal(t, *tc.expectedStart, mustTimestamp(t, info.ExtraSteps[0].StartedAt))
+			assert.Equal(t, *tc.expectedEnd, mustTimestamp(t, info.ExtraSteps[0].FinishedAt))
+		})
+	}
+}
+
+func TestMeasure_ExtraStepsWithAggregatedEvents(t *testing.T) {
+	// A plugin retrying with an unchanging message: three occurrences in one object.
+	aggregated := func(reason string, first, last metav1.Time) *v1.Event {
+		return &v1.Event{
+			Reason:         reason,
+			Message:        "retrying",
+			Count:          3,
+			FirstTimestamp: first,
+			LastTimestamp:  last,
+		}
+	}
+
+	tests := map[string]struct {
+		step          configuration.StartUpStepConfig
+		events        []*v1.Event
+		expectedStart *time.Time
+		expectedEnd   *time.Time
+	}{
+		"last match reads the final occurrence": {
+			step: stepConfig("retried", &markerConfig{Reason: "Begin"}, &markerConfig{Reason: "Retry", Match: "last"}),
+			events: []*v1.Event{
+				{Reason: "Begin", Message: "start", FirstTimestamp: baselineWithOffset(1)},
+				aggregated("Retry", baselineWithOffset(5), baselineWithOffset(15)),
+			},
+			expectedStart: new(baselineWithOffset(1).Time),
+			expectedEnd:   new(baselineWithOffset(15).Time),
+		},
+		"last match picks the maximum, not the last scanned": {
+			step: stepConfig("overlapping", &markerConfig{Reason: "Begin"}, &markerConfig{Reason: "Retry", Match: "last"}),
+			events: []*v1.Event{
+				{Reason: "Begin", Message: "start", FirstTimestamp: baselineWithOffset(1)},
+				aggregated("Retry", baselineWithOffset(5), baselineWithOffset(20)),
+				{Reason: "Retry", Message: "a later first, an earlier last", FirstTimestamp: baselineWithOffset(10)},
+			},
+			expectedStart: new(baselineWithOffset(1).Time),
+			expectedEnd:   new(baselineWithOffset(20).Time),
+		},
+		"first match with events out of order": {
+			step: stepConfig("unordered", &markerConfig{Reason: "Begin"}, &markerConfig{Reason: "End"}),
+			events: []*v1.Event{
+				{Reason: "Begin", Message: "second attempt", FirstTimestamp: baselineWithOffset(10)},
+				nil,
+				{Reason: "Begin", Message: "first attempt", FirstTimestamp: baselineWithOffset(2)},
+				{Reason: "End", Message: "done", FirstTimestamp: baselineWithOffset(20)},
+			},
+			expectedStart: new(baselineWithOffset(2).Time),
+			expectedEnd:   new(baselineWithOffset(20).Time),
+		},
+		"last match with events out of order": {
+			step: stepConfig("unorderedLast", &markerConfig{Reason: "Begin"}, &markerConfig{Reason: "End", Match: "last"}),
+			events: []*v1.Event{
+				{Reason: "End", Message: "later end", FirstTimestamp: baselineWithOffset(20)},
+				{Reason: "Begin", Message: "start", FirstTimestamp: baselineWithOffset(2)},
+				{Reason: "End", Message: "earlier end", FirstTimestamp: baselineWithOffset(12)},
+			},
+			expectedStart: new(baselineWithOffset(2).Time),
+			expectedEnd:   new(baselineWithOffset(20).Time),
+		},
+		// A first-match marker still wants the original occurrence.
+		"first match reads the original occurrence": {
+			step: stepConfig("retried", &markerConfig{Reason: "Retry"}, &markerConfig{Reason: "Done"}),
+			events: []*v1.Event{
+				aggregated("Retry", baselineWithOffset(5), baselineWithOffset(15)),
+				{Reason: "Done", Message: "finished", FirstTimestamp: baselineWithOffset(18)},
+			},
+			expectedStart: new(baselineWithOffset(5).Time),
+			expectedEnd:   new(baselineWithOffset(18).Time),
+		},
+		// An event whose first occurrence precedes the start but which recurred after it is still a
+		// valid end: what matters is that an occurrence falls at or after the start.
+		"an event that recurred after the start is eligible": {
+			step: stepConfig("recurring", &markerConfig{Reason: "Begin"}, &markerConfig{Reason: "Retry", Match: "last"}),
+			events: []*v1.Event{
+				aggregated("Retry", baselineWithOffset(1), baselineWithOffset(20)),
+				{Reason: "Begin", Message: "start", FirstTimestamp: baselineWithOffset(10)},
+			},
+			expectedStart: new(baselineWithOffset(10).Time),
+			expectedEnd:   new(baselineWithOffset(20).Time),
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			info := timingsWithSteps(t, tc.step).Measure(podWithConditions(), tc.events)
+
+			require.NotNil(t, info)
+			require.Len(t, info.ExtraSteps, 1)
 			assert.Equal(t, *tc.expectedStart, mustTimestamp(t, info.ExtraSteps[0].StartedAt))
 			assert.Equal(t, *tc.expectedEnd, mustTimestamp(t, info.ExtraSteps[0].FinishedAt))
 		})

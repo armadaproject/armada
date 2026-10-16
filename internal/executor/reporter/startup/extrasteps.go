@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
 
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -123,16 +125,14 @@ func measureExtraSteps(steps []compiledStep, podEvents []*v1.Event) []*armadaeve
 	if len(steps) == 0 {
 		return nil
 	}
-	ordered := eventsInTimeOrder(podEvents)
-
 	var measured []*armadaevents.StartUpStep
 	for _, step := range steps {
-		start := matchAtOrAfter(ordered, step.start, nil)
+		start := matchAtOrAfter(podEvents, step.start, nil)
 		if start == nil {
 			continue
 		}
 		// Constrained to at or after the start to prevent stale earlier events being taken as the latest.
-		end := matchAtOrAfter(ordered, step.end, start)
+		end := matchAtOrAfter(podEvents, step.end, start)
 		if end == nil {
 			continue
 		}
@@ -145,22 +145,36 @@ func measureExtraSteps(steps []compiledStep, podEvents []*v1.Event) []*armadaeve
 	return measured
 }
 
-// matchAtOrAfter returns a matching event's time at or after notBefore, which may be nil to mean no
-// lower bound.
-func matchAtOrAfter(ordered []*v1.Event, marker eventMarker, notBefore *time.Time) *time.Time {
-	var found *time.Time
-	for _, event := range ordered {
-		at := eventTime(event)
-		if notBefore != nil && at.Before(*notBefore) {
+// matchAtOrAfter returns the occurrence of a matching event at or after notBefore, which may be nil
+// to mean no lower bound.
+func matchAtOrAfter(podEvents []*v1.Event, marker eventMarker, notBefore *time.Time) *time.Time {
+	// A last-match marker cares when an event was last seen, every other marker when it was first.
+	getOccurrenceTime := eventTime
+	if marker.takeLast {
+		getOccurrenceTime = lastEventOccurrence
+	}
+
+	for _, event := range orderedByOccurrence(podEvents, getOccurrenceTime, marker.takeLast) {
+		occurrenceTime := getOccurrenceTime(event)
+		if notBefore != nil && occurrenceTime.Before(*notBefore) {
 			continue
 		}
-		if !marker.matches(event) {
-			continue
-		}
-		found = new(at)
-		if !marker.takeLast {
-			return found
+		if marker.matches(event) {
+			return new(occurrenceTime)
 		}
 	}
-	return found
+	return nil
+}
+
+// orderedByOccurrence sorts the pod's events by the occurrence a marker selects on, descending for
+// a last-match marker so that taking the first match yields the latest.
+func orderedByOccurrence(podEvents []*v1.Event, getOccurrenceTime func(*v1.Event) time.Time, descending bool) []*v1.Event {
+	ordered := armadaslices.Filter(podEvents, func(event *v1.Event) bool { return event != nil })
+	slices.SortStableFunc(ordered, func(a, b *v1.Event) int {
+		if descending {
+			return getOccurrenceTime(b).Compare(getOccurrenceTime(a))
+		}
+		return getOccurrenceTime(a).Compare(getOccurrenceTime(b))
+	})
+	return ordered
 }
