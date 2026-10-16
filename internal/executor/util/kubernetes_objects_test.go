@@ -89,7 +89,8 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 				Annotations: map[string]string{"runtime_gang_cardinality": "3"},
 				Namespace:   "test-namespace",
 			},
-			JobId: jobId,
+			JobId:            jobId,
+			ObjectNamePrefix: "team",
 			MainObject: &armadaevents.KubernetesMainObject{
 				Object: &armadaevents.KubernetesMainObject_PodSpec{
 					PodSpec: &armadaevents.PodSpecWithAvoidList{
@@ -110,7 +111,7 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 	}
 	expectedPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("armada-%s-0", jobId),
+			Name:      fmt.Sprintf("team-%s-0", jobId),
 			Namespace: "test-namespace",
 			Labels: map[string]string{
 				domain.JobId:     jobId,
@@ -378,4 +379,19 @@ func TestExtractServices_SelectsThePodOfTheRun(t *testing.T) {
 
 	require.Len(t, services, 1)
 	assert.Equal(t, map[string]string{domain.JobId: "job-1", domain.JobRunId: "run-1", domain.Queue: "queue", domain.PodNumber: "0"}, services[0].Spec.Selector)
+}
+
+func TestCreatePodFromExecutorApiJob_RunScopedPodName(t *testing.T) {
+	lease := createBasicJobRunLease()
+	lease.Job.ObjectNamePrefix = "team"
+	lease.Job.RunScopedPodNames = true
+
+	pod, err := CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+
+	require.NoError(t, err)
+	assert.Equal(t, "team-"+lease.JobRunId, pod.Name)
+}
+
+func TestObjectNamePrefix_JobFromAServerWithoutTheField(t *testing.T) {
+	assert.Equal(t, "armada", objectNamePrefix(&armadaevents.SubmitJob{}))
 }
