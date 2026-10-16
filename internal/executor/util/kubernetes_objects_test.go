@@ -89,7 +89,8 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 				Annotations: map[string]string{"runtime_gang_cardinality": "3"},
 				Namespace:   "test-namespace",
 			},
-			JobId: jobId,
+			JobId:            jobId,
+			ObjectNamePrefix: "team",
 			MainObject: &armadaevents.KubernetesMainObject{
 				Object: &armadaevents.KubernetesMainObject_PodSpec{
 					PodSpec: &armadaevents.PodSpecWithAvoidList{
@@ -110,7 +111,7 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 	}
 	expectedPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("armada-%s-0", jobId),
+			Name:      fmt.Sprintf("team-%s-0", jobId),
 			Namespace: "test-namespace",
 			Labels: map[string]string{
 				domain.JobId:     jobId,
@@ -378,4 +379,33 @@ func TestExtractServices_SelectsThePodOfTheRun(t *testing.T) {
 
 	require.Len(t, services, 1)
 	assert.Equal(t, map[string]string{domain.JobId: "job-1", domain.JobRunId: "run-1", domain.Queue: "queue", domain.PodNumber: "0"}, services[0].Spec.Selector)
+}
+
+func TestCreatePodFromExecutorApiJob_PodName(t *testing.T) {
+	tests := map[string]struct {
+		objectNamePrefix  string
+		runScopedPodNames bool
+		wantName          func(lease *executorapi.JobRunLease) string
+	}{
+		"a job from a server without the fields gets the job-scoped name with the default prefix": {
+			wantName: func(lease *executorapi.JobRunLease) string { return "armada-" + lease.Job.JobId + "-0" },
+		},
+		"a job with run-scoped names gets the name of its run": {
+			objectNamePrefix:  "team",
+			runScopedPodNames: true,
+			wantName:          func(lease *executorapi.JobRunLease) string { return "team-" + lease.JobRunId },
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			lease := createBasicJobRunLease()
+			lease.Job.ObjectNamePrefix = tc.objectNamePrefix
+			lease.Job.RunScopedPodNames = tc.runScopedPodNames
+
+			pod, err := CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantName(lease), pod.Name)
+		})
+	}
 }

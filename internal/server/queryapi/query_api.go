@@ -330,7 +330,7 @@ func podName(row database.JobRun) string {
 		return *row.PodName
 	}
 	if row.Pending.Valid {
-		return common.PodName(row.JobID)
+		return common.JobScopedName(common.DefaultObjectNamePrefix, row.JobID)
 	}
 	return ""
 }

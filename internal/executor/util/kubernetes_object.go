@@ -106,6 +106,23 @@ func ExtractServices(job *executorapi.JobRunLease, pod *v1.Pod) []*v1.Service {
 	return result
 }
 
+// objectNamePrefix returns the prefix that the server set on the job for the names of its objects. A job from a
+// server without the field gets the default prefix, because its services and ingresses use that prefix.
+func objectNamePrefix(job *armadaevents.SubmitJob) string {
+	if prefix := job.GetObjectNamePrefix(); prefix != "" {
+		return prefix
+	}
+	return common.DefaultObjectNamePrefix
+}
+
+func podName(job *armadaevents.SubmitJob, jobId string, runId string) string {
+	prefix := objectNamePrefix(job)
+	if job.GetRunScopedPodNames() {
+		return prefix + "-" + runId
+	}
+	return common.JobScopedName(prefix, jobId)
+}
+
 func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configuration.PodDefaults) (*v1.Pod, error) {
 	podSpec, err := getPodSpec(job)
 	if err != nil {
@@ -140,7 +157,7 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        common.PodNamePrefix + job.Job.JobId + "-" + strconv.Itoa(0),
+			Name:        podName(job.Job, jobId, runId),
 			Labels:      labels,
 			Annotations: annotation,
 			Namespace:   job.Job.ObjectMeta.Namespace,
