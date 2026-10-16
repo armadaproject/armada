@@ -101,7 +101,8 @@ func TestJobAggregate_JobAggregate(t *testing.T) {
 // GetQueueDemand stays empty, so the scheduler pays no aggregate cost.
 func TestJobAggregate_DisabledSkipsMaintenance(t *testing.T) {
 	jobDb := NewTestJobDb()
-	jobDb.SetAggregateEnabled(false)
+	jobDb.SetQueuedAggregateEnabled(false)
+	jobDb.SetRunningAggregateEnabled(false)
 
 	jobA := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1"}, 1)
 
@@ -116,6 +117,89 @@ func TestJobAggregate_DisabledSkipsMaintenance(t *testing.T) {
 	txn.Commit()
 
 	assert.Empty(t, jobDb.ReadTxn().GetQueueDemand("pool-1", "queue-1"))
+}
+
+// storedQueuedCPU returns the queued demand for a pool/queue held in the
+// aggregate itself, bypassing the read gate, so unwanted maintenance cannot be
+// hidden by GetQueueDemand returning empty.
+func storedQueuedCPU(jobDb *JobDb, pool, queue string) int64 {
+	return cpuOf(observedAggregate(jobDb.aggregate)[aggregateTestKey{pool: pool, queue: queue, pc: aggregateTestPriorityClass}])
+}
+
+// TestJobAggregate_IndependentGates proves queued maintenance follows the queued
+// gate alone, across insert, replacement and deletion: it runs when the queued
+// gate is on regardless of the running gate, and is skipped when the queued gate
+// is off even if the running gate is on. The stored aggregate is checked
+// directly because GetQueueDemand is itself gated by the queued flag.
+func TestJobAggregate_IndependentGates(t *testing.T) {
+	const (
+		pool  = "pool-1"
+		queue = "queue-1"
+	)
+
+	t.Run("queued only", func(t *testing.T) {
+		jobDb := NewTestJobDb()
+		jobDb.SetQueuedAggregateEnabled(true)
+		jobDb.SetRunningAggregateEnabled(false)
+
+		// Insert.
+		job := newAggregateTestJob(t, jobDb, "job", queue, true, []string{pool}, 1)
+		txn := jobDb.WriteTxn()
+		require.NoError(t, txn.Upsert([]*Job{job}))
+		txn.Commit()
+		assert.Equal(t, int64(1), storedQueuedCPU(jobDb, pool, queue))
+		assert.Equal(t, int64(1), cpuOf(jobDb.ReadTxn().GetQueueDemand(pool, queue)[aggregateTestPriorityClass]))
+
+		// Replacement.
+		updated := newAggregateTestJob(t, jobDb, "job", queue, true, []string{pool}, 3)
+		txn = jobDb.WriteTxn()
+		require.NoError(t, txn.Upsert([]*Job{updated}))
+		txn.Commit()
+		assert.Equal(t, int64(3), storedQueuedCPU(jobDb, pool, queue))
+
+		// Deletion.
+		txn = jobDb.WriteTxn()
+		require.NoError(t, txn.BatchDelete([]string{"job"}))
+		txn.Commit()
+		assert.Empty(t, observedAggregate(jobDb.aggregate))
+	})
+
+	t.Run("running only", func(t *testing.T) {
+		jobDb := NewTestJobDb()
+		jobDb.SetQueuedAggregateEnabled(false)
+		jobDb.SetRunningAggregateEnabled(true)
+
+		// Insert, replacement and deletion of a queued job must leave the queued
+		// aggregate untouched even though maintenance as a whole is enabled.
+		job := newAggregateTestJob(t, jobDb, "job", queue, true, []string{pool}, 1)
+		txn := jobDb.WriteTxn()
+		require.NoError(t, txn.Upsert([]*Job{job}))
+		txn.Commit()
+		assert.Empty(t, observedAggregate(jobDb.aggregate))
+		assert.Empty(t, jobDb.ReadTxn().GetQueueDemand(pool, queue))
+
+		updated := newAggregateTestJob(t, jobDb, "job", queue, true, []string{pool}, 3)
+		txn = jobDb.WriteTxn()
+		require.NoError(t, txn.Upsert([]*Job{updated}))
+		txn.Commit()
+		assert.Empty(t, observedAggregate(jobDb.aggregate))
+
+		txn = jobDb.WriteTxn()
+		require.NoError(t, txn.BatchDelete([]string{"job"}))
+		txn.Commit()
+		assert.Empty(t, observedAggregate(jobDb.aggregate))
+	})
+}
+
+// TestJobAggregate_ClonePreservesGates proves the per-type gates survive cloning.
+func TestJobAggregate_ClonePreservesGates(t *testing.T) {
+	jobDb := NewTestJobDb()
+	jobDb.SetQueuedAggregateEnabled(true)
+	jobDb.SetRunningAggregateEnabled(false)
+
+	clone := jobDb.Clone()
+	assert.True(t, clone.aggregate.queuedEnabled)
+	assert.False(t, clone.aggregate.runningEnabled)
 }
 
 func TestJobAggregate_QueuedToLeasedTransition(t *testing.T) {
