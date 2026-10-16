@@ -1798,6 +1798,10 @@
           "type": "string",
           "format": "date-time"
         },
+        "podName": {
+          "description": "pod_name is the name of the pod of the run, as the executor reports it. It is empty while the run has no pod.",
+          "type": "string"
+        },
         "runId": {
           "type": "string"
         },

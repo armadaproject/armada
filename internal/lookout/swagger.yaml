@@ -160,6 +160,9 @@ definitions:
       node:
         type: string
         x-nullable: true
+      podName:
+        type: string
+        x-nullable: true
       leased:
         type: string
         format: date-time

@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -120,7 +121,7 @@ func (q *QueryApi) GetJobDetails(ctx context.Context, req *api.JobDetailsRequest
 				if !ok {
 					jobRuns = []*api.JobRunDetails{}
 				}
-				jobRunDetails, err := parseJobDetails(database.GetJobRunsByRunIdsRow(row))
+				jobRunDetails, err := parseJobDetails(row)
 				if err != nil {
 					return err
 				}
@@ -284,7 +285,7 @@ func parseDbJobStateToApi(dbStatus int16) api.JobState {
 	return apiStatus
 }
 
-func parseJobDetails(row database.GetJobRunsByRunIdsRow) (*api.JobRunDetails, error) {
+func parseJobDetails(row database.JobRun) (*api.JobRunDetails, error) {
 	runState, ok := JobRunStateMap[row.JobRunState]
 	if !ok {
 		runState = api.JobRunState_RUN_STATE_UNKNOWN
@@ -299,6 +300,7 @@ func parseJobDetails(row database.GetJobRunsByRunIdsRow) (*api.JobRunDetails, er
 		State:            runState,
 		Cluster:          row.Cluster,
 		Node:             NilStringToString(row.Node),
+		PodName:          podName(row),
 		LeasedTs:         DbTimeToTimestamp(row.Leased),
 		PendingTs:        DbTimeToTimestamp(row.Pending),
 		StartedTs:        DbTimeToTimestamp(row.Started),
@@ -319,4 +321,16 @@ func parseIngressAddresses(raw []byte) (map[int32]string, error) {
 		return nil, nil
 	}
 	return ingressAddresses, nil
+}
+
+// podName returns the name of the pod of a run. Lookout stored the runs before it stored pod names, and every pod of
+// those runs has the job-scoped name with the default prefix. A run without a pending time never had a pod.
+func podName(row database.JobRun) string {
+	if row.PodName != nil {
+		return *row.PodName
+	}
+	if row.Pending.Valid {
+		return common.PodName(row.JobID)
+	}
+	return ""
 }
