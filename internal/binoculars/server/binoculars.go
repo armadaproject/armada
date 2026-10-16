@@ -28,10 +28,14 @@ func NewBinocularsServer(logService service.LogService, cordonService service.Co
 func (b *BinocularsServer) Logs(ctx context.Context, request *binoculars.LogRequest) (*binoculars.LogResponse, error) {
 	principal := auth.GetPrincipal(ctx)
 
+	podName := request.PodName
+	if podName == "" {
+		podName = common.PodNamePrefix + request.JobId + "-" + strconv.Itoa(int(request.PodNumber))
+	}
 	logLines, err := b.logService.GetLogs(armadacontext.FromGrpcCtx(ctx), &service.LogParams{
 		Principal:  principal,
 		Namespace:  request.PodNamespace,
-		PodName:    common.PodNamePrefix + request.JobId + "-" + strconv.Itoa(int(request.PodNumber)),
+		PodName:    podName,
 		SinceTime:  request.SinceTime,
 		LogOptions: request.LogOptions,
 	})
