@@ -402,7 +402,7 @@ func GetAllocationByQueue(pods []*v1.Pod) map[string]armadaresource.ComputeResou
 			continue
 		}
 
-		podAllocatedResourece := armadaresource.CalculateTotalResourceRequest([]*v1.Pod{pod})
+		podAllocatedResourece := armadaresource.TotalPodResourceRequest(&pod.Spec)
 		if _, ok := utilisationByQueue[queue]; ok {
 			utilisationByQueue[queue].Add(podAllocatedResourece)
 		} else {

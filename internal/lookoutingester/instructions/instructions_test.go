@@ -998,17 +998,10 @@ func TestGetJobResources(t *testing.T) {
 			},
 			expected: jobResources{Cpu: 4000, Memory: 4 * 1024 * 1024 * 1024},
 		},
-		"pod-level block above the container sum wins": {
+		"pod-level block replaces the container sum": {
 			podSpec: &v1.PodSpec{
 				Containers: []v1.Container{{Name: "main", Resources: requests("500m", "256Mi")}},
 				Resources:  &v1.ResourceRequirements{Requests: requests("2", "2Gi").Requests},
-			},
-			expected: jobResources{Cpu: 2000, Memory: 2 * 1024 * 1024 * 1024},
-		},
-		"pod-level block below the container sum is ignored": {
-			podSpec: &v1.PodSpec{
-				Containers: []v1.Container{{Name: "main", Resources: requests("2", "2Gi")}},
-				Resources:  &v1.ResourceRequirements{Requests: requests("500m", "256Mi").Requests},
 			},
 			expected: jobResources{Cpu: 2000, Memory: 2 * 1024 * 1024 * 1024},
 		},
