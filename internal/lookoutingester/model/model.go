@@ -61,6 +61,7 @@ type CreateJobRunInstruction struct {
 type UpdateJobRunInstruction struct {
 	RunId                      string
 	Node                       *string
+	PodName                    *string
 	Pending                    *time.Time
 	Started                    *time.Time
 	Finished                   *time.Time
