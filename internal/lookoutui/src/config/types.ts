@@ -74,6 +74,7 @@ export interface LookoutUiConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
   binocularsBaseUrlPattern: string
+  binocularsStaticBaseUrls: Record<string, string>
   jobSetsAutoRefreshMs: number | undefined
   jobsAutoRefreshMs: number | undefined
   customTitle: string

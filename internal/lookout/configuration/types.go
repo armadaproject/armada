@@ -218,6 +218,9 @@ type UIConfig struct {
 	ArmadaApiBaseUrl         string `json:"armadaApiBaseUrl"`
 	UserAnnotationPrefix     string `json:"userAnnotationPrefix"`
 	BinocularsBaseUrlPattern string `json:"binocularsBaseUrlPattern"`
+	// BinocularsStaticBaseUrls maps a cluster ID to the base URL of its Binoculars. A cluster listed here uses
+	// its URL as is; any other cluster falls back to BinocularsBaseUrlPattern.
+	BinocularsStaticBaseUrls map[string]string `json:"binocularsStaticBaseUrls,omitempty"`
 
 	JobSetsAutoRefreshMs int           `json:"jobSetsAutoRefreshMs,omitempty"`
 	JobsAutoRefreshMs    int           `json:"jobsAutoRefreshMs,omitempty"`
