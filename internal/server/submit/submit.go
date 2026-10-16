@@ -7,11 +7,13 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
 	"google.golang.org/grpc/codes"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/internal/common/cache"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -36,6 +38,7 @@ type Server struct {
 	submissionConfig configuration.SubmissionConfig
 	deduplicator     Deduplicator
 	authorizer       auth.ActionAuthorizer
+	retryPolicies    *cache.GenericCache[sets.Set[string]]
 	// Below are used only for testing
 	clock       clock.Clock
 	idGenerator func() string
@@ -48,6 +51,7 @@ func NewServer(
 	submissionConfig configuration.SubmissionConfig,
 	deduplicator Deduplicator,
 	authorizer auth.ActionAuthorizer,
+	retryPolicies *cache.GenericCache[sets.Set[string]],
 ) *Server {
 	return &Server{
 		queueService:     queueService,
@@ -56,6 +60,7 @@ func NewServer(
 		submissionConfig: submissionConfig,
 		deduplicator:     deduplicator,
 		authorizer:       authorizer,
+		retryPolicies:    retryPolicies,
 		clock:            clock.RealClock{},
 		idGenerator:      util.NewULID,
 	}
@@ -82,6 +87,9 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 	if err = validation.ValidateSubmitRequest(req, s.submissionConfig); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	if err = validation.ValidateRetryPolicies(req); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
 
 	// Get a mapping between req.ClientId and existing jobId.  If such a mapping exists, it means that
 	// this job has already been submitted.
@@ -90,6 +98,8 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		// Deduplication is best-effort, therefore this is not fatal
 		log.WithError(err).Warn("Error fetching original job ids, deduplication will not occur.")
 	}
+
+	retryPolicies, retryPoliciesErr := s.retryPolicies.Get(ctx)
 
 	submitMsgs := make([]*armadaevents.EventSequence_Event, 0, len(req.JobRequestItems))
 	jobResponses := make([]*api.JobSubmitResponseItem, 0, len(req.JobRequestItems))
@@ -103,6 +113,16 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 			ctx.Infof("Job with client id %s is a duplicate of %s", jobRequest.ClientId, originalId)
 			jobResponses = append(jobResponses, &api.JobSubmitResponseItem{JobId: originalId})
 			continue
+		}
+
+		// The existence check runs only for a new job. A deleted policy then cannot reject a resent request whose job
+		// the server already accepted. Until the first successful fetch, the set of retry policies is nil, so each name
+		// looks unknown. The error is then Unavailable, so the client retries.
+		if err = validation.ValidateRetryPoliciesExist(jobRequest, retryPolicies); err != nil {
+			if retryPoliciesErr != nil {
+				return nil, status.Error(codes.Unavailable, fmt.Sprintf("retry policies are not loaded: %s", retryPoliciesErr))
+			}
+			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
 
 		// If we get to here then it isn't a duplicate. Create a Job submission and a job response

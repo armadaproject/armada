@@ -592,3 +592,47 @@ func validateTolerations(j *api.JobSubmitRequestItem, config configuration.Submi
 	}
 	return nil
 }
+
+// ValidateRetryPolicies checks the retry policies annotation of each job, except that each policy exists. The result
+// depends only on the request, so a resent request gets the same result. A gang job and a fail-fast job do not use
+// retry policies, so they cannot set the annotation.
+func ValidateRetryPolicies(req *api.JobSubmitRequest) error {
+	for _, job := range req.JobRequestItems {
+		names := constants.RetryPolicyNames(job.Annotations)
+		if names == nil {
+			continue
+		}
+		if job.Annotations[constants.FailFastAnnotation] == "true" {
+			return errors.Errorf("a fail-fast job does not use retry policies, so it cannot set annotation %s", constants.RetryPoliciesAnnotation)
+		}
+		gangInfo, err := jobdb.GangInfoFromMinimalJob(jobAdapter{job})
+		if err != nil {
+			return fmt.Errorf("invalid gang information: %s", err.Error())
+		}
+		if gangInfo.IsGang() {
+			return errors.Errorf("a gang job does not use retry policies, so it cannot set annotation %s", constants.RetryPoliciesAnnotation)
+		}
+		seen := sets.New[string]()
+		for _, name := range names {
+			if name == "" {
+				return errors.Errorf("annotation %s has an empty entry", constants.RetryPoliciesAnnotation)
+			}
+			if seen.Has(name) {
+				return errors.Errorf("annotation %s lists retry policy %q more than once", constants.RetryPoliciesAnnotation, name)
+			}
+			seen.Insert(name)
+		}
+	}
+	return nil
+}
+
+// ValidateRetryPoliciesExist checks that each retry policy in the annotation of the job is in policies, the names of
+// all retry policies. The scheduler trusts the annotation, so the server is the only place that checks it.
+func ValidateRetryPoliciesExist(job *api.JobSubmitRequestItem, policies sets.Set[string]) error {
+	for _, name := range constants.RetryPolicyNames(job.Annotations) {
+		if !policies.Has(name) {
+			return errors.Errorf("retry policy %q does not exist", name)
+		}
+	}
+	return nil
+}
