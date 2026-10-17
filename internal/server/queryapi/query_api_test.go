@@ -459,6 +459,7 @@ func newJobRun(jobId, runId string, state int16, leased time.Time, error string,
 		JobID:   jobId,
 		Cluster: "testCluster",
 		Node:    pointer.String("testNode"),
+		PodName: pointer.String("testPod"),
 		Pending: pgtype.Timestamp{
 			Time:  baseTime,
 			Valid: true,
@@ -504,10 +505,33 @@ func newJobRunDetails(jobId string, runId string, state api.JobRunState, leased 
 		State:            state,
 		Cluster:          "testCluster",
 		Node:             "testNode",
+		PodName:          "testPod",
 		LeasedTs:         protoutil.ToTimestamp(leased),
 		PendingTs:        baseTimestamp,
 		StartedTs:        baseTimestamp,
 		FinishedTs:       nil,
 		IngressAddresses: ingressAddresses,
+	}
+}
+
+func TestPodName(t *testing.T) {
+	pending := pgtype.Timestamp{Time: baseTime, Valid: true}
+	tests := map[string]struct {
+		row  database.JobRun
+		want string
+	}{
+		"a run that Lookout stored before it stored pod names returns the job-scoped name": {
+			row:  database.JobRun{JobID: "job-1", Pending: pending},
+			want: "armada-job-1-0",
+		},
+		"a run without a pod returns no name": {
+			row:  database.JobRun{JobID: "job-1"},
+			want: "",
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, podName(tc.row))
+		})
 	}
 }

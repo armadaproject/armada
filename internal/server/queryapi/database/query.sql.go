@@ -261,39 +261,19 @@ func (q *Queries) GetJobErrorsByJobIds(ctx context.Context, jobIds []string) ([]
 }
 
 const getJobRunsByJobIds = `-- name: GetJobRunsByJobIds :many
-SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool, ingress_addresses, failure_category, failure_subcategory, scheduler_termination_reason FROM job_run WHERE job_id = ANY($1::text[]) order by leased  desc
+SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool, ingress_addresses, failure_category, failure_subcategory, scheduler_termination_reason, pod_name FROM job_run WHERE job_id = ANY($1::text[]) order by leased  desc
 `
 
-type GetJobRunsByJobIdsRow struct {
-	RunID                      string           `db:"run_id"`
-	JobID                      string           `db:"job_id"`
-	Cluster                    string           `db:"cluster"`
-	Node                       *string          `db:"node"`
-	Pending                    pgtype.Timestamp `db:"pending"`
-	Started                    pgtype.Timestamp `db:"started"`
-	Finished                   pgtype.Timestamp `db:"finished"`
-	JobRunState                int16            `db:"job_run_state"`
-	Error                      []byte           `db:"error"`
-	ExitCode                   *int32           `db:"exit_code"`
-	Leased                     pgtype.Timestamp `db:"leased"`
-	Debug                      []byte           `db:"debug"`
-	Pool                       *string          `db:"pool"`
-	IngressAddresses           []byte           `db:"ingress_addresses"`
-	FailureCategory            *string          `db:"failure_category"`
-	FailureSubcategory         *string          `db:"failure_subcategory"`
-	SchedulerTerminationReason []byte           `db:"scheduler_termination_reason"`
-}
-
 // The columns are explicit, for the same reason as in GetJobRunsByRunIds.
-func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]GetJobRunsByJobIdsRow, error) {
+func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]JobRun, error) {
 	rows, err := q.db.Query(ctx, getJobRunsByJobIds, jobIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetJobRunsByJobIdsRow
+	var items []JobRun
 	for rows.Next() {
-		var i GetJobRunsByJobIdsRow
+		var i JobRun
 		if err := rows.Scan(
 			&i.RunID,
 			&i.JobID,
@@ -312,6 +292,7 @@ func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]Ge
 			&i.FailureCategory,
 			&i.FailureSubcategory,
 			&i.SchedulerTerminationReason,
+			&i.PodName,
 		); err != nil {
 			return nil, err
 		}
@@ -324,39 +305,19 @@ func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]Ge
 }
 
 const getJobRunsByRunIds = `-- name: GetJobRunsByRunIds :many
-SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool, ingress_addresses, failure_category, failure_subcategory, scheduler_termination_reason FROM job_run WHERE run_id = ANY($1::text[])
+SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool, ingress_addresses, failure_category, failure_subcategory, scheduler_termination_reason, pod_name FROM job_run WHERE run_id = ANY($1::text[])
 `
 
-type GetJobRunsByRunIdsRow struct {
-	RunID                      string           `db:"run_id"`
-	JobID                      string           `db:"job_id"`
-	Cluster                    string           `db:"cluster"`
-	Node                       *string          `db:"node"`
-	Pending                    pgtype.Timestamp `db:"pending"`
-	Started                    pgtype.Timestamp `db:"started"`
-	Finished                   pgtype.Timestamp `db:"finished"`
-	JobRunState                int16            `db:"job_run_state"`
-	Error                      []byte           `db:"error"`
-	ExitCode                   *int32           `db:"exit_code"`
-	Leased                     pgtype.Timestamp `db:"leased"`
-	Debug                      []byte           `db:"debug"`
-	Pool                       *string          `db:"pool"`
-	IngressAddresses           []byte           `db:"ingress_addresses"`
-	FailureCategory            *string          `db:"failure_category"`
-	FailureSubcategory         *string          `db:"failure_subcategory"`
-	SchedulerTerminationReason []byte           `db:"scheduler_termination_reason"`
-}
-
-// The columns are explicit, so the query reads only the columns that exist before the migrations of a release run.
-func (q *Queries) GetJobRunsByRunIds(ctx context.Context, runIds []string) ([]GetJobRunsByRunIdsRow, error) {
+// The columns are explicit, so a new column of job_run reaches the Query API only through a change to this query.
+func (q *Queries) GetJobRunsByRunIds(ctx context.Context, runIds []string) ([]JobRun, error) {
 	rows, err := q.db.Query(ctx, getJobRunsByRunIds, runIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetJobRunsByRunIdsRow
+	var items []JobRun
 	for rows.Next() {
-		var i GetJobRunsByRunIdsRow
+		var i JobRun
 		if err := rows.Scan(
 			&i.RunID,
 			&i.JobID,
@@ -375,6 +336,7 @@ func (q *Queries) GetJobRunsByRunIds(ctx context.Context, runIds []string) ([]Ge
 			&i.FailureCategory,
 			&i.FailureSubcategory,
 			&i.SchedulerTerminationReason,
+			&i.PodName,
 		); err != nil {
 			return nil, err
 		}

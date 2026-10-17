@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -233,6 +234,40 @@ func TestGetJobsMultipleRuns(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+}
+
+func TestGetJobsPodNameOfRunFromBeforeLookoutStoredPodNames(t *testing.T) {
+	tests := map[string]struct {
+		pending     bool
+		wantPodName *string
+	}{
+		"a run with a pod gets the job-scoped name": {pending: true, wantPodName: pointer.String("armada-" + jobId + "-0")},
+		"a run without a pod gets no name":          {pending: false},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+				job := NewJobSimulatorWithClock(converter, store, testClock).
+					Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{JobId: jobId}).
+					Lease(runId, cluster, node, pool, baseTime)
+				if tc.pending {
+					job = job.Pending(runId, cluster, baseTime)
+				}
+				job.Build()
+				_, err := repo.db.Exec(armadacontext.TODO(), "UPDATE job_run SET pod_name = NULL")
+				require.NoError(t, err)
+
+				result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 1)
+
+				require.NoError(t, err)
+				require.Len(t, result.Jobs, 1)
+				require.Len(t, result.Jobs[0].Runs, 1)
+				assert.Equal(t, tc.wantPodName, result.Jobs[0].Runs[0].PodName)
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestOrderByUnsupportedField(t *testing.T) {
