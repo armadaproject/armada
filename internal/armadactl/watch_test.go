@@ -47,3 +47,27 @@ func TestPrintSummaryShowsRequestorAsUser(t *testing.T) {
 	assert.True(t, strings.Contains(buf.String(), "user: alice"), "expected output to contain user label, got %q", buf.String())
 	assert.False(t, strings.Contains(buf.String(), "actor: alice"), "expected output not to contain old actor label, got %q", buf.String())
 }
+
+func TestKubectlLogsHint(t *testing.T) {
+	tests := []struct {
+		name  string
+		event *api.JobFailedEvent
+		want  string
+	}{
+		{
+			name:  "a failed run with a pod gives a command for that pod",
+			event: &api.JobFailedEvent{ClusterId: "cluster-1", PodNamespace: "ns", PodName: "armada-run-1"},
+			want:  "kubectl --context cluster-1 -n ns logs armada-run-1",
+		},
+		{
+			name:  "a failed run without a pod gives no command",
+			event: &api.JobFailedEvent{ClusterId: "cluster-1", PodNamespace: "ns"},
+			want:  "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, kubectlLogsHint(tc.event))
+		})
+	}
+}
