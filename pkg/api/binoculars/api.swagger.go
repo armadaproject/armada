@@ -117,10 +117,15 @@ func SwaggerJsonTemplate() string {
 		"        \"logOptions\": {\n" +
 		"          \"$ref\": \"#/definitions/v1PodLogOptions\"\n" +
 		"        },\n" +
+		"        \"podName\": {\n" +
+		"          \"description\": \"pod_name is the pod to read, as Armada reports it for the run. A request without it reads the pod\\narmada-\\u003cjob_id\\u003e-\\u003cpod_number\\u003e.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"podNamespace\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run. Use pod_name.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
