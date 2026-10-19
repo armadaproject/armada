@@ -144,6 +144,15 @@ func TestEnsureQueues_CreatesMissingAndLeavesExistingAlone(t *testing.T) {
 	require.Equal(t, 7.0, f.existing["old-different"], "an existing queue is never updated")
 }
 
+func TestEnsureQueues_AnExistingQueueNeedsNoPermissionToCreateQueues(t *testing.T) {
+	f := newFake()
+	f.existing["shared"] = 1
+	f.failOn = "shared" // creating is denied; reading is not
+
+	require.NoError(t, ensureQueues(context.Background(), f, []QueueToEnsure{{Name: "shared", PriorityFactor: 1}}))
+	require.Empty(t, f.created)
+}
+
 func TestEnsureQueues_FailsOnAnyOtherError(t *testing.T) {
 	f := newFake()
 	f.failOn = "b"

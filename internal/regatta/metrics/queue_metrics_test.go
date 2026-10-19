@@ -267,6 +267,13 @@ func TestCounterQueriesCountGrowthExactlyAndJobLatencyStillUsesRate(t *testing.T
 	require.True(t, strings.HasSuffix(submitErrorsQuery("60s"), "or vector(0)"), "no errors reads as 0, not as a missing value")
 }
 
+func TestCounterDelta_ASeriesThatResetCountsWhatItHasSinceTheReset(t *testing.T) {
+	expr := counterDelta("m", "60s")
+	// Growth where the value did not fall; where it did (a reset), the value itself, which is all that was counted since.
+	require.Equal(t, "((m - ((m offset 60s) or (m * 0))) >= 0 or m)", expr)
+	require.NotContains(t, expr, "clamp_min", "clamping to 0 would drop everything a restarted service counted")
+}
+
 func TestSnapshotStep_IsAsFineAsTheScrapeIntervalExceptOnVeryLongWindows(t *testing.T) {
 	require.Equal(t, "5s", snapshotStep(60), "a short window is looked at every 5s, the local scrape interval")
 	require.Equal(t, "5s", snapshotStep(160))

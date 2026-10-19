@@ -73,21 +73,24 @@ func ensureQueues(ctx context.Context, submitClient api.SubmitClient, queues []Q
 	return nil
 }
 
-// ensureQueue creates the queue, or if it already exists reads it to compare priorityFactor.
+// ensureQueue reads the queue first and creates it only when it is missing: the server checks the permission to create
+// queues before it checks whether the queue exists, so creating an existing queue would fail for a user who may submit
+// to it but not create queues.
 func ensureQueue(ctx context.Context, submitClient api.SubmitClient, q QueueToEnsure) (ensureOutcome, error) {
-	createCtx, cancel := context.WithTimeout(ctx, ensureCallTimeout)
-	defer cancel()
-	_, err := submitClient.CreateQueue(createCtx, &api.Queue{Name: q.Name, PriorityFactor: q.PriorityFactor})
-	if err == nil {
-		return ensureOutcome{created: true}, nil
+	existing, err := getQueue(ctx, submitClient, q.Name)
+	if status.Code(err) == codes.NotFound {
+		createCtx, cancel := context.WithTimeout(ctx, ensureCallTimeout)
+		defer cancel()
+		_, err = submitClient.CreateQueue(createCtx, &api.Queue{Name: q.Name, PriorityFactor: q.PriorityFactor})
+		if err == nil {
+			return ensureOutcome{created: true}, nil
+		}
+		if status.Code(err) != codes.AlreadyExists {
+			return ensureOutcome{}, fmt.Errorf("creating: %w", err)
+		}
+		// Someone created it between the read and the create: read what they made.
+		existing, err = getQueue(ctx, submitClient, q.Name)
 	}
-	if status.Code(err) != codes.AlreadyExists {
-		return ensureOutcome{}, fmt.Errorf("creating: %w", err)
-	}
-
-	getCtx, cancelGet := context.WithTimeout(ctx, ensureCallTimeout)
-	defer cancelGet()
-	existing, err := submitClient.GetQueue(getCtx, &api.QueueGetRequest{Name: q.Name})
 	if err != nil {
 		return ensureOutcome{}, fmt.Errorf("reading the existing queue: %w", err)
 	}
@@ -96,6 +99,12 @@ func ensureQueue(ctx context.Context, submitClient api.SubmitClient, q QueueToEn
 			q.Name, existing.PriorityFactor, q.PriorityFactor)}, nil
 	}
 	return ensureOutcome{}, nil
+}
+
+func getQueue(ctx context.Context, submitClient api.SubmitClient, name string) (*api.Queue, error) {
+	getCtx, cancel := context.WithTimeout(ctx, ensureCallTimeout)
+	defer cancel()
+	return submitClient.GetQueue(getCtx, &api.QueueGetRequest{Name: name})
 }
 
 // summariseEnsure turns the outcomes into log lines: a summary, the first few drifts, and a count of the rest.

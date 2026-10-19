@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
@@ -78,6 +79,27 @@ func TestApplyFakeNodes_ARerunIsFineButAnotherTargetsNodesAreNotAdopted(t *testi
 		require.NoError(t, ApplyFakeNodes(ctx, client, profile, 2, "theirs", 4))
 		err := ApplyFakeNodes(ctx, client, profile, 2, "mine", 4)
 		require.ErrorContains(t, err, `belongs to target "theirs", not "mine"`)
+	})
+	t.Run("nodes left with different resources are an error, not silently reused", func(t *testing.T) {
+		client := fake.NewSimpleClientset()
+		old := &regattaconfig.NodeProfile{Name: "gpu", Allocatable: v1.ResourceList{v1.ResourceCPU: resource.MustParse("8")}}
+		changed := &regattaconfig.NodeProfile{Name: "gpu", Allocatable: v1.ResourceList{v1.ResourceCPU: resource.MustParse("64")}}
+		require.NoError(t, ApplyFakeNodes(ctx, client, old, 2, "mine", 4))
+		require.NoError(t, ApplyFakeNodes(ctx, client, old, 2, "mine", 4), "the same profile is still a clean rerun")
+		err := ApplyFakeNodes(ctx, client, changed, 2, "mine", 4)
+		require.ErrorContains(t, err, "different profile")
+		require.ErrorContains(t, err, "tear target")
+	})
+	t.Run("nodes left over from a larger count are an error", func(t *testing.T) {
+		client := fake.NewSimpleClientset()
+		require.NoError(t, ApplyFakeNodes(ctx, client, profile, 5, "mine", 4))
+		err := ApplyFakeNodes(ctx, client, profile, 2, "mine", 4)
+		require.ErrorContains(t, err, "3 more")
+	})
+	t.Run("a profile whose name extends another's is not counted as its surplus", func(t *testing.T) {
+		client := fake.NewSimpleClientset()
+		require.NoError(t, ApplyFakeNodes(ctx, client, &regattaconfig.NodeProfile{Name: "gpu-big"}, 4, "mine", 4))
+		require.NoError(t, ApplyFakeNodes(ctx, client, profile, 2, "mine", 4))
 	})
 	t.Run("a node regatta did not create is an error too", func(t *testing.T) {
 		client := fake.NewSimpleClientset(&v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "kwok-node-gpu-0"}})
