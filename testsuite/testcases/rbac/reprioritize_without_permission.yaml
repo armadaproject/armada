@@ -32,7 +32,9 @@ expectedEvents:
   - submitted:
   - succeeded:
 timeout: "100s"
-expectedErrorCode: 2 # UNKNOWN
+expectedError:
+  code: 2 # UNKNOWN
+  phase: ACTION
 queueConfig:
   setup:
     queueSpec:

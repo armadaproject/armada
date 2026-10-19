@@ -24,5 +24,7 @@ jobs:
               cpu: 100m
 ---
 timeout: "100s"
-expectedErrorCode: 16 # Unauthenticated
+expectedError:
+  code: 16 # Unauthenticated
+  phase: SUBMIT
 

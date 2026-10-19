@@ -64,10 +64,26 @@ message TestSpec {
     // Named armadactl context (see client.ApiConnectionDetails) to authenticate this test's
     // API calls with. If empty, falls back to the connection details the suite was invoked with.
     string auth_context = 27;
-    // If non-zero, the test expects job submission/cancellation/reprioritization or queue
-    // create/update/delete to fail with this gRPC status code (see google.golang.org/grpc/codes)
-    // rather than succeed.
-    int32 expected_error_code = 28;
+    // If set, the test expects a call to fail with the given error rather than succeed.
+    ExpectedErrorConfig expected_error = 28;
+}
+
+message ExpectedErrorConfig {
+    // The step of the test run expected to fail. A failure in any other step fails the test.
+    enum Phase {
+        // Must not be used when a code is set; the phase has to be stated explicitly.
+        UNSPECIFIED = 0;
+        // A queue create/update/delete call, for tests that submit no jobs.
+        QUEUE = 1;
+        // Job submission.
+        SUBMIT = 2;
+        // The action under test: cancel, preempt, reprioritize or watching events.
+        ACTION = 3;
+    }
+    // gRPC status code (see google.golang.org/grpc/codes) the failing call must return.
+    int32 code = 1;
+    // The phase expected to return the error.
+    Phase phase = 2;
 }
 
 message NodeCancelConfig {

@@ -25,7 +25,9 @@ jobs:
               cpu: 100m
 ---
 timeout: "100s"
-expectedErrorCode: 7 # PERMISSION_DENIED
+expectedError:
+  code: 7 # PERMISSION_DENIED
+  phase: SUBMIT
 queueConfig:
   setup:
     queueSpec:

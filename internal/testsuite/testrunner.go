@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/jstemmer/go-junit-report/v2/junit"
@@ -31,40 +30,39 @@ import (
 
 // Check a call's outcome is reconciled against testSpec.ExpectErrorCode for negative tests.
 func checkExpectedError(testSpec *api.TestSpec, err error) error {
-	if err == nil || testSpec.GetExpectedErrorCode() == 0 {
+	if err == nil || testSpec.GetExpectedError().GetCode() == 0 {
 		return err
 	}
-	wantCode := codes.Code(testSpec.GetExpectedErrorCode())
+	wantCode := codes.Code(testSpec.GetExpectedError().GetCode())
 	if status.Code(err) != wantCode {
 		return errors.Wrapf(err, "expected call to fail with code %s", wantCode)
 	}
 	return nil
 }
 
-// Check error message to ensure that expected errors are only for the action being tested.
-func checkExpectedActionError(testSpec *api.TestSpec, err error, wantVerb string) error {
-	checkedErr := checkExpectedError(testSpec, err)
-	if checkedErr != nil || err == nil {
-		return checkedErr
-	}
-	if !strings.Contains(err.Error(), wantVerb) {
-		return errors.Wrapf(err, "expected a denial of the %q action, got a differently-scoped denial", wantVerb)
+// validateExpectedError requires the phase to be stated whenever an error is expected.
+func validateExpectedError(testSpec *api.TestSpec) error {
+	expected := testSpec.GetExpectedError()
+	if expected.GetCode() != 0 && expected.GetPhase() == api.ExpectedErrorConfig_UNSPECIFIED {
+		return errors.New("expectedError.phase must be set (QUEUE, SUBMIT or ACTION) when expectedError.code is set")
 	}
 	return nil
 }
 
-// Map testSpec keys to the corresponding action verb.
-func actionVerb(testSpec *api.TestSpec) string {
-	switch {
-	case testSpec.Cancel != nil || testSpec.CancelJobSet != nil || testSpec.CancelOnNode != nil:
-		return "cancel"
-	case testSpec.Preempt != nil || testSpec.PreemptOnNode != nil:
-		return "preempt"
-	case testSpec.Reprioritize != nil:
-		return "reprioritize"
-	default:
-		return "watch"
+// reconcileError checks the outcome of a call made during the given phase. The expected error code
+// is only accepted from the phase under test, so a permission failure in an earlier setup step can't
+// satisfy a test that targets a later action. observed is true if the expected error was seen.
+func reconcileError(testSpec *api.TestSpec, under, current api.ExpectedErrorConfig_Phase, err error) (observed bool, outErr error) {
+	if err == nil {
+		return false, nil
 	}
+	if under != current {
+		return false, err
+	}
+	if outErr = checkExpectedError(testSpec, err); outErr != nil || testSpec.GetExpectedError().GetCode() == 0 {
+		return false, outErr
+	}
+	return true, nil
 }
 
 type TestRunner struct {
@@ -123,13 +121,17 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Track whether an expected error has been observed during the test run.
 	var expectedErrorObserved bool
 	defer func() {
-		if err == nil && srv.testSpec.GetExpectedErrorCode() != 0 && !expectedErrorObserved {
+		if err == nil && srv.testSpec.GetExpectedError().GetCode() != 0 && !expectedErrorObserved {
 			err = errors.Errorf(
 				"expected a call to fail with code %s, but the test completed successfully",
-				codes.Code(srv.testSpec.GetExpectedErrorCode()),
+				codes.Code(srv.testSpec.GetExpectedError().GetCode()),
 			)
 		}
 	}()
+
+	if err = validateExpectedError(srv.testSpec); err != nil {
+		return err
+	}
 
 	// Optional timeout
 	var cancel context.CancelFunc
@@ -142,37 +144,47 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	defer cancel()
 
 	// Create and (optionally) update the queue(s) under test.
-	queueNames, setupErr := queue.RunSetup(ctx, srv.testSpec, srv.apiConnectionDetails, out)
-	if err = checkExpectedError(srv.testSpec, setupErr); err != nil {
+	// Queues are fixtures unless the queue calls themselves are under test, so create and delete
+	// them as the privileged principal rather than the (possibly restricted) principal under test.
+	phaseUnderTest := srv.testSpec.GetExpectedError().GetPhase()
+	queueConn := srv.apiConnectionDetails
+	if phaseUnderTest == api.ExpectedErrorConfig_SUBMIT || phaseUnderTest == api.ExpectedErrorConfig_ACTION {
+		queueConn = srv.cleanupConn()
+	}
+
+	queueNames, setupErr := queue.RunSetup(ctx, srv.testSpec, queueConn, out)
+	observed, err := reconcileError(srv.testSpec, phaseUnderTest, api.ExpectedErrorConfig_QUEUE, setupErr)
+	if err != nil {
 		return err
 	}
-	if setupErr != nil {
+	if observed {
 		expectedErrorObserved = true
 		return nil
 	}
-	updateErr := queue.RunUpdate(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out)
-	if err = checkExpectedError(srv.testSpec, updateErr); err != nil {
+	updateErr := queue.RunUpdate(ctx, queueNames, srv.testSpec, queueConn, out)
+	observed, err = reconcileError(srv.testSpec, phaseUnderTest, api.ExpectedErrorConfig_QUEUE, updateErr)
+	if err != nil {
 		return err
 	}
-	if updateErr != nil {
+	if observed {
 		expectedErrorObserved = true
 		return nil
 	}
 
 	// (deferred): always delete the queue(s) once the test finishes.
 	defer func() {
-		teardownErr := queue.RunTeardown(queueNames, srv.testSpec, srv.apiConnectionDetails, out)
-		if teardownErr == nil {
-			return
-		}
-		if checkedErr := checkExpectedError(srv.testSpec, teardownErr); checkedErr != nil {
+		teardownErr := queue.RunTeardown(queueNames, srv.testSpec, queueConn, out)
+		observed, checkedErr := reconcileError(srv.testSpec, phaseUnderTest, api.ExpectedErrorConfig_QUEUE, teardownErr)
+		if checkedErr != nil {
 			fmt.Fprintf(out, "warning: queue teardown failed: %s\n", checkedErr)
 			if err == nil {
 				err = checkedErr
 			}
 			return
 		}
-		expectedErrorObserved = true
+		if observed {
+			expectedErrorObserved = true
+		}
 	}()
 
 	// Pure queue tests submit no jobs, so skip the job-submission block below and
@@ -187,12 +199,19 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Submit jobs. All jobs must be submitted before proceeding since we need the job ids.
 	sbmtr := submitter.NewSubmitterFromTestSpec(srv.apiConnectionDetails, srv.testSpec, out)
 	submitErr := sbmtr.Run(ctx)
-	if err = checkExpectedActionError(srv.testSpec, submitErr, "submit"); err != nil {
+	observed, err = reconcileError(srv.testSpec, phaseUnderTest, api.ExpectedErrorConfig_SUBMIT, submitErr)
+	if err != nil {
 		return err
 	}
-	if submitErr != nil {
+	if observed {
 		expectedErrorObserved = true
 		return nil
+	}
+	if phaseUnderTest == api.ExpectedErrorConfig_SUBMIT {
+		return errors.Errorf(
+			"expected job submission to fail with code %s, but it succeeded",
+			codes.Code(srv.testSpec.GetExpectedError().GetCode()),
+		)
 	}
 	jobIds := sbmtr.JobIds()
 	jobIdMap := make(map[string]bool)
@@ -278,16 +297,15 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Watch for ingress events and try to download from any ingresses found.
 	g.Go(func() error { return eventwatcher.GetFromIngresses(ctx, ingressCh) })
 
-	if srv.testSpec.GetExpectedErrorCode() != 0 {
+	if srv.testSpec.GetExpectedError().GetCode() != 0 {
 		_ = eventwatcher.AssertEvents(ctx, assertCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents)
 		cancel()
 		_ = g.Wait()
-		if checkedErr := checkExpectedActionError(srv.testSpec, actionUnderTestErr, actionVerb(srv.testSpec)); checkedErr != nil {
+		observed, checkedErr := reconcileError(srv.testSpec, phaseUnderTest, api.ExpectedErrorConfig_ACTION, actionUnderTestErr)
+		if checkedErr != nil {
 			return checkedErr
 		}
-		if actionUnderTestErr != nil {
-			expectedErrorObserved = true
-		}
+		expectedErrorObserved = observed
 		return nil
 	}
 
