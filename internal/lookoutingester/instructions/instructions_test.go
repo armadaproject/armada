@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
+	"unicode/utf8"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1033,4 +1036,60 @@ func TestGetJobResources(t *testing.T) {
 			assert.Equal(t, tc.expected, getJobResources(&api.Job{PodSpec: tc.podSpec}))
 		})
 	}
+}
+
+func TestHandleJobRunRunning_StartUpInfoStoredAsJson(t *testing.T) {
+	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
+	event := &armadaevents.JobRunRunning{
+		JobId: testfixtures.JobId,
+		RunId: testfixtures.RunId,
+		StartUpInfo: &armadaevents.PodStartUpInfo{
+			CreatedAt: protoutil.ToTimestamp(testfixtures.BaseTime),
+			StartedAt: protoutil.ToTimestamp(testfixtures.BaseTime.Add(time.Minute)),
+			Containers: []*armadaevents.ContainerStartUpInfo{
+				{
+					Name:      "main",
+					ImagePull: &armadaevents.ImagePullInfo{Duration: types.DurationProto(1500 * time.Millisecond)},
+				},
+			},
+		},
+	}
+
+	update := &model.InstructionSet{}
+	err := converter.handleJobRunRunning(testfixtures.BaseTime, event, update)
+	require.NoError(t, err)
+
+	require.Len(t, update.JobRunInfosToCreate, 1)
+	got := update.JobRunInfosToCreate[0]
+	assert.Equal(t, testfixtures.RunId, got.RunId)
+	assert.JSONEq(t, `{
+		"createdAt": "2022-03-01T15:04:05Z",
+		"startedAt": "2022-03-01T15:05:05Z",
+		"containers": [{"name": "main", "imagePull": {"duration": "1.500s"}}]
+	}`, string(got.StartUpInfo))
+}
+
+func TestHandleJobRunRunning_StartUpInfoSanitizesStringsJsonbWouldReject(t *testing.T) {
+	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
+	event := &armadaevents.JobRunRunning{
+		JobId: testfixtures.JobId,
+		RunId: testfixtures.RunId,
+		StartUpInfo: &armadaevents.PodStartUpInfo{
+			Containers: []*armadaevents.ContainerStartUpInfo{{Name: "ma\x00in"}},
+			ExtraSteps: []*armadaevents.StartUpStep{{Name: "bad-\xff-utf8\x00"}},
+		},
+	}
+
+	update := &model.InstructionSet{}
+	err := converter.handleJobRunRunning(testfixtures.BaseTime, event, update)
+	require.NoError(t, err)
+
+	require.Len(t, update.JobRunInfosToCreate, 1)
+	got := update.JobRunInfosToCreate[0].StartUpInfo
+	assert.NotContains(t, string(got), `\u0000`)
+	assert.True(t, utf8.Valid(got))
+	assert.JSONEq(t, `{
+		"containers": [{"name": "main"}],
+		"extraSteps": [{"name": "bad-\ufffd-utf8"}]
+	}`, string(got))
 }

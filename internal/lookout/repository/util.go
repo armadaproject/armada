@@ -286,6 +286,10 @@ func (js *JobSimulator) Running(runId string, node string, timestamp time.Time) 
 						},
 					},
 				},
+				StartUpInfo: &armadaevents.PodStartUpInfo{
+					CreatedAt: ts,
+					StartedAt: ts,
+				},
 			},
 		},
 	}
