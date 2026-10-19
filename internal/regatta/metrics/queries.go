@@ -18,9 +18,12 @@ func windowStr(windowSeconds float64) string {
 // counterDelta is how much each series of a counter grew over the window: its value now minus its last value at or
 // before the window's start. rate() and increase() count only growth between samples inside the window, so a burst that
 // falls between two scrapes (a one-shot load against a 5s scrape interval) reads as 0. A series new in the window
-// counts from 0, and a reset counts as 0.
+// counts from 0. A series whose value is now below its value at the window's start was reset (the service restarted), so
+// everything it counted since the reset is new: its current value counts. What it counted between the window's start
+// and the reset is lost, and a reset that has already grown past the old value looks like ordinary growth; the
+// samples are all this can see.
 func counterDelta(selector, window string) string {
-	return fmt.Sprintf("clamp_min(%[1]s - ((%[1]s offset %[2]s) or (%[1]s * 0)), 0)", selector, window)
+	return fmt.Sprintf("((%[1]s - ((%[1]s offset %[2]s) or (%[1]s * 0))) >= 0 or %[1]s)", selector, window)
 }
 
 const (
