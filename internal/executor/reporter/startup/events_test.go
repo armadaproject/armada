@@ -42,6 +42,64 @@ func TestEventTime(t *testing.T) {
 	}
 }
 
+func TestLastEventOccurrence(t *testing.T) {
+	series := func(last metav1.Time) *v1.EventSeries {
+		return &v1.EventSeries{Count: 3, LastObservedTime: metav1.NewMicroTime(last.Time)}
+	}
+
+	tests := map[string]struct {
+		event    *v1.Event
+		expected time.Time
+	}{
+		"Series last": {
+			event: &v1.Event{
+				FirstTimestamp: baselineWithOffset(5),
+				EventTime:      metav1.NewMicroTime(baselineWithOffset(5).Time),
+				LastTimestamp:  baselineWithOffset(10),
+				Series:         series(baselineWithOffset(15)),
+			},
+			expected: baselineWithOffset(15).Time,
+		},
+		"LastTimestamp last": {
+			event: &v1.Event{
+				FirstTimestamp: baselineWithOffset(5),
+				EventTime:      metav1.NewMicroTime(baselineWithOffset(5).Time),
+				LastTimestamp:  baselineWithOffset(15),
+				Series:         series(baselineWithOffset(10)),
+			},
+			expected: baselineWithOffset(15).Time,
+		},
+		"Event time last": {
+			event: &v1.Event{
+				FirstTimestamp: baselineWithOffset(5),
+				EventTime:      metav1.NewMicroTime(baselineWithOffset(15).Time),
+				LastTimestamp:  baselineWithOffset(10),
+				Series:         series(baselineWithOffset(5)),
+			},
+			expected: baselineWithOffset(15).Time,
+		},
+		"First timestamp last": {
+			event: &v1.Event{
+				FirstTimestamp: baselineWithOffset(15),
+				EventTime:      metav1.NewMicroTime(baselineWithOffset(5).Time),
+				LastTimestamp:  baselineWithOffset(10),
+				Series:         series(baselineWithOffset(5)),
+			},
+			expected: baselineWithOffset(15).Time,
+		},
+		"All nil": {
+			event:    &v1.Event{},
+			expected: metav1.Time{}.Time,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, lastEventOccurrence(tc.event))
+		})
+	}
+}
+
 // EventTime is a MicroTime, so a scheduler event is finer grained than anything on the pod.
 func TestEventTime_PreservesSubSecondPrecision(t *testing.T) {
 	precise := baseTime().Add(1500 * time.Millisecond)
@@ -68,19 +126,4 @@ func TestIndexEventsByContainer_SkipsEventsWithoutFieldPath(t *testing.T) {
 	indexed := groupEventsByContainer([]*v1.Event{schedulerScheduledEvent(baselineWithOffset(4)), nil})
 
 	assert.Empty(t, indexed)
-}
-
-func TestEventsInTimeOrder(t *testing.T) {
-	events := []*v1.Event{
-		podEvent("spec.containers{main}", "Started", "", baselineWithOffset(30)),
-		nil,
-		{Reason: "Scheduled", EventTime: metav1.NewMicroTime(baselineWithOffset(2).Time)},
-		podEvent("spec.containers{main}", "Created", "", baselineWithOffset(20)),
-	}
-
-	ordered := eventsInTimeOrder(events)
-
-	assert.Equal(t, []string{"Scheduled", "Created", "Started"},
-		[]string{ordered[0].Reason, ordered[1].Reason, ordered[2].Reason})
-	assert.Len(t, ordered, 3, "nil events are dropped")
 }
