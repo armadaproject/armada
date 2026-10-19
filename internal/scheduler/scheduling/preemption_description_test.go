@@ -42,16 +42,18 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 	}{
 		"unknown cause - basic job": {
 			preemptedJobContexts: []*context.JobSchedulingContext{{
-				JobId:        "job-1",
-				AssignedNode: testfixtures.TestSimpleNode("node-3"),
-				Job:          makeJob(t, "job-1", false),
+				JobId:               "job-1",
+				AssignedNode:        testfixtures.TestSimpleNode("node-3"),
+				Job:                 makeJob(t, "job-1", false),
+				UnschedulableReason: "some reason",
 			}},
 			expectedPreemptedJobContexts: []*context.JobSchedulingContext{{
 				JobId:                 "job-1",
 				AssignedNode:          testfixtures.TestSimpleNode("node-3"),
 				Job:                   makeJob(t, "job-1", false),
-				PreemptionDescription: fmt.Sprintf(unknownPreemptionCause, testfixtures.TestSimpleNode("node-3").SummaryString()),
+				PreemptionDescription: fmt.Sprintf(unknownPreemptionCause, "some reason", testfixtures.TestSimpleNode("node-3").SummaryString()),
 				PreemptionType:        context.Unknown,
+				UnschedulableReason:   "some reason",
 			}},
 		},
 		"unknown cause - gang job": {

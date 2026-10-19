@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	defaultDotnetDockerImg = "mcr.microsoft.com/dotnet/sdk:8.0.425"
+	defaultDotnetDockerImg = "mcr.microsoft.com/dotnet/sdk:10.0.401"
 	releaseTag             string
 	useSystemCerts         bool
 )

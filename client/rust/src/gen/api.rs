@@ -1665,6 +1665,8 @@ pub struct JobLeaseReturnedEvent {
     pub reason: ::prost::alloc::string::String,
     #[prost(string, tag = "7")]
     pub kubernetes_id: ::prost::alloc::string::String,
+    /// pod_number is always 0, because the executor creates one pod for each run.
+    #[deprecated]
     #[prost(int32, tag = "8")]
     pub pod_number: i32,
     #[prost(bool, tag = "9")]
@@ -1695,6 +1697,8 @@ pub struct JobPendingEvent {
     pub cluster_id: ::prost::alloc::string::String,
     #[prost(string, tag = "6")]
     pub kubernetes_id: ::prost::alloc::string::String,
+    /// pod_number is always 0, because the executor creates one pod for each run. Use pod_name.
+    #[deprecated]
     #[prost(int32, tag = "7")]
     pub pod_number: i32,
     #[prost(string, tag = "8")]
@@ -1720,6 +1724,8 @@ pub struct JobRunningEvent {
     pub kubernetes_id: ::prost::alloc::string::String,
     #[prost(string, tag = "7")]
     pub node_name: ::prost::alloc::string::String,
+    /// pod_number is always 0, because the executor creates one pod for each run. Use pod_name.
+    #[deprecated]
     #[prost(int32, tag = "8")]
     pub pod_number: i32,
     #[prost(string, tag = "9")]
@@ -1745,6 +1751,8 @@ pub struct JobIngressInfoEvent {
     pub kubernetes_id: ::prost::alloc::string::String,
     #[prost(string, tag = "7")]
     pub node_name: ::prost::alloc::string::String,
+    /// pod_number is always 0, because the executor creates one pod for each run. Use pod_name.
+    #[deprecated]
     #[prost(int32, tag = "8")]
     pub pod_number: i32,
     #[prost(string, tag = "10")]
@@ -1777,6 +1785,8 @@ pub struct JobFailedEvent {
     pub kubernetes_id: ::prost::alloc::string::String,
     #[prost(string, tag = "9")]
     pub node_name: ::prost::alloc::string::String,
+    /// pod_number is always 0, because the executor creates one pod for each run. Use pod_name.
+    #[deprecated]
     #[prost(int32, tag = "10")]
     pub pod_number: i32,
     #[prost(string, tag = "13")]
@@ -1853,6 +1863,8 @@ pub struct JobSucceededEvent {
     pub kubernetes_id: ::prost::alloc::string::String,
     #[prost(string, tag = "7")]
     pub node_name: ::prost::alloc::string::String,
+    /// pod_number is always 0, because the executor creates one pod for each run. Use pod_name.
+    #[deprecated]
     #[prost(int32, tag = "8")]
     pub pod_number: i32,
     #[prost(string, tag = "9")]
@@ -1881,6 +1893,8 @@ pub struct JobUtilisationEvent {
     >,
     #[prost(string, tag = "8")]
     pub node_name: ::prost::alloc::string::String,
+    /// pod_number is always 0, because the executor creates one pod for each run. Use pod_name.
+    #[deprecated]
     #[prost(int32, tag = "9")]
     pub pod_number: i32,
     #[prost(string, tag = "10")]
@@ -1972,6 +1986,8 @@ pub struct JobTerminatedEvent {
     pub cluster_id: ::prost::alloc::string::String,
     #[prost(string, tag = "6")]
     pub kubernetes_id: ::prost::alloc::string::String,
+    /// pod_number is always 0, because the executor creates one pod for each run. Use pod_name.
+    #[deprecated]
     #[prost(int32, tag = "7")]
     pub pod_number: i32,
     #[prost(string, tag = "9")]

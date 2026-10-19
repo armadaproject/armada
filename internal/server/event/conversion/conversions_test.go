@@ -323,6 +323,23 @@ func TestConvertLeaseExpired(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
+func TestConvertNilJobRunError(t *testing.T) {
+	jobRunErrors := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId:  jobId,
+				RunId:  runId,
+				Errors: []*armadaevents.Error{nil},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(jobRunErrors))
+	assert.NoError(t, err)
+	assert.Empty(t, apiEvents)
+}
+
 func TestConvertJobReconciliationError(t *testing.T) {
 	reconciliationError := &armadaevents.Error{
 		Terminal: true,
@@ -681,7 +698,7 @@ func TestConvertJobRunning(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
-func TestIgnoredEventDoesntDuplicate(t *testing.T) {
+func TestConvertedAndIgnoredEventsDontDuplicate(t *testing.T) {
 	leaseExpired := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{

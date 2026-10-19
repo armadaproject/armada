@@ -25,7 +25,7 @@ The retry engine is off by default. It only runs when `scheduling.retryPolicy.en
 One failure travels this path:
 
 1. A run's pod fails on a cluster.
-2. The executor's error categorizer inspects the failure and assigns a category and subcategory, for example `oom` or `internal` / `node-failure`.
+2. The executor's error categorizer inspects the failure and assigns a category and subcategory, for example `oom` or `node` / `eviction`. Armada sets the categories `internal` and `preemption` itself, so the categorizer cannot use these names.
 3. When the category is configured with `action: Delete`, the executor deletes the failed pod and confirms it is gone. This frees the pod name for the next attempt (see [Pod naming and collision avoidance](#pod-naming-and-collision-avoidance)).
 4. The executor reports the failed run, with its category, to the scheduler.
 5. The scheduler looks up the retry policy attached to the job's queue and evaluates the rules against the category. The first matching rule decides.
@@ -96,6 +96,8 @@ Order rules from most specific to most general. A common pattern is to put `Fail
 
 Category and subcategory matching is exact and case-sensitive, so the values here must match what the executor's categorizer emits byte for byte.
 
+Rules can also match the category `internal`, which Armada sets itself, for example `internal` / `lease-expired`. Executor error categories cannot use the names `internal` and `preemption`. A rule for `preemption` has no effect, because Armada does not retry a preempted run.
+
 Matching on failure signals directly (exit codes, Kubernetes conditions, termination-message patterns) is planned for a later version. For now, express those by defining a category for them in the executor's categorizer config and matching the category here.
 
 ### Mutating the job on retry
@@ -105,8 +107,8 @@ A `Retry` rule can carry a `mutate` block. The block describes changes the sched
 ```yaml
 rules:
   - action: Retry
-    onCategory: internal
-    onSubcategory: node-failure
+    onCategory: node
+    onSubcategory: eviction
     mutate:
       affinity:
         avoidSameNode: true

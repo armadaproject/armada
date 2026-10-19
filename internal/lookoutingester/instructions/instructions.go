@@ -1,9 +1,11 @@
 package instructions
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
@@ -241,6 +243,45 @@ func extractUserAnnotations(jobId string, userAnnotationPrefix string, blocklist
 	return result
 }
 
+func startUpInfoToJsonb(info *armadaevents.PodStartUpInfo) ([]byte, error) {
+	// jsonpb gives the proto json form (e.g. RFC3339 timestamps) and replaces invalid UTF-8; null bytes become \u0000
+	raw, err := (&jsonpb.Marshaler{}).MarshalToString(info)
+	if err != nil {
+		return nil, err
+	}
+	// Decoding turns \u0000 escapes back into real null bytes, which is the only place they can be safely removed
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	// UseNumber keeps numbers exactly as jsonpb wrote them, rather than converting them via float64
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
+	}
+	// Strip the null bytes from every string, then re-encode the now jsonb safe value
+	return json.Marshal(sanitizeJsonValue(value))
+}
+
+// sanitizeJsonValue recursively applies sanitizeForJsonb to every string, including object keys, in a decoded json value.
+func sanitizeJsonValue(value any) any {
+	switch v := value.(type) {
+	case string:
+		return sanitizeForJsonb(v)
+	case []any:
+		for i, elem := range v {
+			v[i] = sanitizeJsonValue(elem)
+		}
+		return v
+	case map[string]any:
+		sanitized := make(map[string]any, len(v))
+		for key, elem := range v {
+			sanitized[sanitizeForJsonb(key)] = sanitizeJsonValue(elem)
+		}
+		return sanitized
+	default:
+		return v
+	}
+}
+
 // sanitizeForJsonb removes null bytes (\x00) from s.
 // PostgreSQL jsonb rejects strings containing \u0000 with SQLSTATE 22P05.
 func sanitizeForJsonb(s string) string {
@@ -374,6 +415,17 @@ func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaev
 		JobRunState: pointer.Int32(lookout.JobRunRunningOrdinal),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+
+	if event.StartUpInfo != nil {
+		startUpInfo, err := startUpInfoToJsonb(event.StartUpInfo)
+		if err != nil {
+			return err
+		}
+		update.JobRunInfosToCreate = append(update.JobRunInfosToCreate, &model.CreateJobRunInfoInstruction{
+			RunId:       event.RunId,
+			StartUpInfo: startUpInfo,
+		})
+	}
 	return nil
 }
 
