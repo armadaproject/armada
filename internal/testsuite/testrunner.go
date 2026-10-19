@@ -34,6 +34,11 @@ func checkExpectedError(testSpec *api.TestSpec, err error) error {
 		return err
 	}
 	wantCode := codes.Code(testSpec.GetExpectedError().GetCode())
+	// A plain error (e.g. failing to reach the auth provider) maps to codes.Unknown, so only
+	// accept errors that are a real gRPC status returned by the server.
+	if _, ok := status.FromError(err); !ok {
+		return errors.Wrapf(err, "expected call to fail with a gRPC status of %s, got a non-gRPC error", wantCode)
+	}
 	if status.Code(err) != wantCode {
 		return errors.Wrapf(err, "expected call to fail with code %s", wantCode)
 	}
@@ -207,6 +212,14 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		expectedErrorObserved = true
 		return nil
 	}
+	// Before returning, cancel the job set to ensure there are no lingering jobs, including when
+	// a negative submit test unexpectedly succeeds.
+	defer func() {
+		if err := cancelJobSet(srv.cleanupConn(), srv.testSpec.Queue, srv.testSpec.JobSetId); err != nil {
+			fmt.Fprintf(out, "failed to cancel job set %s: %s\n", srv.testSpec.JobSetId, err)
+		}
+	}()
+
 	if phaseUnderTest == api.ExpectedErrorConfig_SUBMIT {
 		return errors.Errorf(
 			"expected job submission to fail with code %s, but it succeeded",
@@ -223,13 +236,6 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-
-	// Before returning, cancel the job set to ensure there are no lingering jobs.
-	defer func() {
-		if err := cancelJobSet(srv.cleanupConn(), srv.testSpec.Queue, srv.testSpec.JobSetId); err != nil {
-			fmt.Fprintf(out, "failed to cancel job set %s: %s\n", srv.testSpec.JobSetId, err)
-		}
-	}()
 
 	// One channel for each system listening to events.
 	benchmarkCh := make(chan *api.EventMessage)
