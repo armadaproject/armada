@@ -1,4 +1,5 @@
 import { isString } from "lodash"
+import { monotonicFactory } from "ulid"
 import { v4 as uuidV4 } from "uuid"
 
 import { Job, JobFilter, JobKey, JobRun, JobRunState, JobState, Match, SortDirection } from "../models/lookoutModels"
@@ -31,6 +32,16 @@ export function seededUuid(rand: () => number): () => string {
     })
 }
 
+const ULID_BASE_TIME_MS = new Date("2022-12-13T12:00:00.000Z").getTime()
+
+// Generates 26 character lower-case ULIDs, as used for real job and job run IDs (see util.NewULID). They are
+// lower-cased because Kubernetes requires names to be valid DNS subdomain names.
+export function seededUlid(rand: () => number): () => string {
+  const generateUlid = monotonicFactory(rand)
+  let counter = 0
+  return () => generateUlid(ULID_BASE_TIME_MS + counter++ * 1000).toLowerCase()
+}
+
 export async function simulateApiWait(abortSignal?: AbortSignal): Promise<void> {
   await new Promise((resolve, reject) => {
     const timeoutId = setTimeout(resolve, randomInt(50, 250, Math.random))
@@ -44,6 +55,7 @@ export async function simulateApiWait(abortSignal?: AbortSignal): Promise<void> 
 export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSets = 100, state?: JobState): Job[] {
   const rand = mulberry32(seed)
   const uuid = seededUuid(rand)
+  const ulid = seededUlid(rand)
   const annotationKeys = ["hyperparameter", "some/very/long/annotation/key/name/with/forward/slashes", "region"]
   const numAnnotationValues = 10
   const annotationValues = [...Array(numAnnotationValues)].map(() => uuid())
@@ -53,8 +65,10 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
 
   const jobs: Job[] = []
   for (let i = 0; i < nJobs; i++) {
-    const jobId = "01gkv9cj53h0rk9407mds" + i
-    const runs = createJobRuns(randomInt(0, 3, rand), jobId, rand, uuid)
+    const jobId = ulid()
+    // Every fourth job has 3-5 runs so that multi-run behaviour is easy to exercise
+    const nRuns = randomInt(0, 3, rand)
+    const runs = createJobRuns(i % 4 === 3 ? 3 + (i % 3) : nRuns, jobId, rand, uuid, ulid)
 
     jobs.push({
       gpu: randomInt(0, 8, rand),
@@ -80,7 +94,7 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
   return jobs
 }
 
-function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () => string): JobRun[] {
+function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () => string, ulid: () => string): JobRun[] {
   if (n === 0) {
     return []
   }
@@ -100,7 +114,7 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
     const finished = new Date(2022, 11, 13, 12, 15, startedDateSeconds + 90, 123).toISOString()
 
     runs.push({
-      runId: uuid(),
+      runId: ulid(),
       cluster: uuid(),
       exitCode: randomInt(0, 64, rand),
       jobId: jobId,
@@ -141,6 +155,12 @@ export function mergeFilters(filters: JobFilter[]): (job: Job) => boolean {
 
 export function filterFn(filter: JobFilter): (job: Job) => boolean {
   return (job) => {
+    if (filter.field === "runId" && !filter.isAnnotation) {
+      // Run ID filters match if any of the job's runs match
+      const matcher = getMatch(filter.match)
+      return job.runs.some((run) => matcher(run.runId, filter.value))
+    }
+
     const objectToFilter = filter.isAnnotation ? job.annotations : job
 
     if (!Object.prototype.hasOwnProperty.call(objectToFilter, filter.field)) {
