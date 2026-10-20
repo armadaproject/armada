@@ -70,6 +70,19 @@ func (b *aggregateBucket) add(rl internaltypes.ResourceList) *aggregateBucket {
 	return &aggregateBucket{resources: b.resources.Add(rl), jobs: b.jobs + 1}
 }
 
+// merge returns a copy of b combined with other. Both the summed resources and
+// the contributing job counts add, so merging per-bucket totals accumulated
+// from a batch is equivalent to adding each job individually.
+func (b *aggregateBucket) merge(other *aggregateBucket) *aggregateBucket {
+	if b == nil {
+		return other
+	}
+	if other == nil {
+		return b
+	}
+	return &aggregateBucket{resources: b.resources.Add(other.resources), jobs: b.jobs + other.jobs}
+}
+
 // subtract returns a copy of b with rl and one contributing job removed. The
 // caller prunes the bucket when the returned bucket has no remaining jobs.
 func (b *aggregateBucket) subtract(rl internaltypes.ResourceList) *aggregateBucket {
@@ -121,6 +134,138 @@ func (a *JobAggregate) add(job *Job) {
 	}
 	if run := job.LatestRun(); run != nil && a.runningEnabled {
 		a.addLeased(job, run)
+	}
+}
+
+// aggregateAddBatchSize bounds the temporary per-bucket maps built by addAll,
+// so batching a very large upsert cannot grow memory with the batch size.
+const aggregateAddBatchSize = 4096
+
+type queuedAggregateKey struct {
+	pool          string
+	queue         string
+	priorityClass string
+}
+
+type runningAggregateKey struct {
+	pool          string
+	executor      string
+	queue         string
+	priorityClass string
+}
+
+// addAll incorporates jobs into the aggregate using one immutable-map update
+// per distinct bucket instead of one per job.
+//
+// Adding jobs to a bucket is associative and commutative: both the resources
+// and the contributing job count are summed. Accumulating per-bucket totals
+// and merging them therefore produces exactly the same aggregate as calling
+// add once per job, but avoids copying the immutable trie for every job.
+// This matters most at scheduler startup, where the whole JobDb is built by a
+// single Upsert.
+func (a *JobAggregate) addAll(jobs []*Job) {
+	if a == nil || len(jobs) == 0 || (!a.queuedEnabled && !a.runningEnabled) {
+		return
+	}
+	if len(jobs) == 1 {
+		// Avoid the temporary maps for the common small-batch case.
+		a.add(jobs[0])
+		return
+	}
+	for start := 0; start < len(jobs); start += aggregateAddBatchSize {
+		end := start + aggregateAddBatchSize
+		if end > len(jobs) {
+			end = len(jobs)
+		}
+		a.addBatch(jobs[start:end])
+	}
+}
+
+func (a *JobAggregate) addBatch(jobs []*Job) {
+	var queued map[queuedAggregateKey]*aggregateBucket
+	var running map[runningAggregateKey]*aggregateBucket
+
+	for _, job := range jobs {
+		if job == nil || job.InTerminalState() {
+			continue
+		}
+		if job.Queued() {
+			if !a.queuedEnabled {
+				continue
+			}
+			req := job.AllResourceRequirements()
+			queue := job.Queue()
+			pc := job.PriorityClassName()
+			pools := job.pools
+			for i, pool := range pools {
+				if slices.Contains(pools[:i], pool) {
+					continue
+				}
+				if queued == nil {
+					queued = make(map[queuedAggregateKey]*aggregateBucket)
+				}
+				key := queuedAggregateKey{pool: pool, queue: queue, priorityClass: pc}
+				queued[key] = queued[key].add(req)
+			}
+			continue
+		}
+		if !a.runningEnabled {
+			continue
+		}
+		run := job.LatestRun()
+		if run == nil {
+			continue
+		}
+		if running == nil {
+			running = make(map[runningAggregateKey]*aggregateBucket)
+		}
+		key := runningAggregateKey{
+			pool:          run.Pool(),
+			executor:      run.Executor(),
+			queue:         job.Queue(),
+			priorityClass: job.PriorityClassName(),
+		}
+		running[key] = running[key].add(job.AllResourceRequirements())
+	}
+
+	a.applyQueuedBatch(queued)
+	a.applyRunningBatch(running)
+}
+
+// applyQueuedBatch merges per-bucket totals into the queued-demand aggregate.
+func (a *JobAggregate) applyQueuedBatch(batch map[queuedAggregateKey]*aggregateBucket) {
+	for key, bucket := range batch {
+		poolMap, _ := a.queuedDemand.Get(key.pool)
+		if poolMap == nil {
+			poolMap = immutable.NewMap[string, *immutable.Map[string, *aggregateBucket]](nil)
+		}
+		queueMap, _ := poolMap.Get(key.queue)
+		if queueMap == nil {
+			queueMap = immutable.NewMap[string, *aggregateBucket](nil)
+		}
+		current, _ := queueMap.Get(key.priorityClass)
+		a.queuedDemand = a.queuedDemand.Set(key.pool, poolMap.Set(key.queue, queueMap.Set(key.priorityClass, current.merge(bucket))))
+	}
+}
+
+// applyRunningBatch merges per-bucket totals into the running-allocation aggregate.
+func (a *JobAggregate) applyRunningBatch(batch map[runningAggregateKey]*aggregateBucket) {
+	for key, bucket := range batch {
+		poolMap, _ := a.allocatedByExecutor.Get(key.pool)
+		if poolMap == nil {
+			poolMap = immutable.NewMap[string, *immutable.Map[string, *immutable.Map[string, *aggregateBucket]]](nil)
+		}
+		executorMap, _ := poolMap.Get(key.executor)
+		if executorMap == nil {
+			executorMap = immutable.NewMap[string, *immutable.Map[string, *aggregateBucket]](nil)
+		}
+		queueMap, _ := executorMap.Get(key.queue)
+		if queueMap == nil {
+			queueMap = immutable.NewMap[string, *aggregateBucket](nil)
+		}
+		current, _ := queueMap.Get(key.priorityClass)
+		merged := current.merge(bucket)
+		a.allocatedByExecutor = a.allocatedByExecutor.Set(key.pool, poolMap.Set(key.executor, executorMap.Set(key.queue, queueMap.Set(key.priorityClass, merged))))
 	}
 }
 

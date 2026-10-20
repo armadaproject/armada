@@ -842,11 +842,9 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 		defer wg.Done()
 		// Skipped entirely when the aggregate is disabled (both Compare and
 		// Use flags off), so that path pays no per-job aggregate cost.
-		if txn.aggregate.enabled() {
-			for _, job := range jobs {
-				txn.aggregate.add(job)
-			}
-		}
+		// Adds are batched per bucket so that bulk upserts (e.g. the initial
+		// JobDb population) do not copy the immutable aggregate per job.
+		txn.aggregate.addAll(jobs)
 	}()
 
 	wg.Wait()
