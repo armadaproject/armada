@@ -991,3 +991,228 @@ func requireDemandEqual(t *testing.T, want, got map[string]map[string]internalty
 		}
 	}
 }
+
+// aggregateSnapshot renders an aggregate as comparable text, keyed by bucket.
+func aggregateSnapshot(a *JobAggregate) map[string]string {
+	out := map[string]string{}
+	if a == nil {
+		return out
+	}
+	if a.queuedDemand != nil {
+		poolIt := a.queuedDemand.Iterator()
+		for !poolIt.Done() {
+			pool, queueMap, _ := poolIt.Next()
+			if queueMap == nil {
+				continue
+			}
+			queueIt := queueMap.Iterator()
+			for !queueIt.Done() {
+				queue, pcMap, _ := queueIt.Next()
+				if pcMap == nil {
+					continue
+				}
+				pcIt := pcMap.Iterator()
+				for !pcIt.Done() {
+					pc, bucket, _ := pcIt.Next()
+					out[fmt.Sprintf("queued/%s/%s/%s", pool, queue, pc)] = fmt.Sprintf("%s jobs=%d", bucket.resources.String(), bucket.jobs)
+				}
+			}
+		}
+	}
+	if a.allocatedByExecutor != nil {
+		poolIt := a.allocatedByExecutor.Iterator()
+		for !poolIt.Done() {
+			pool, executorMap, _ := poolIt.Next()
+			if executorMap == nil {
+				continue
+			}
+			executorIt := executorMap.Iterator()
+			for !executorIt.Done() {
+				executor, queueMap, _ := executorIt.Next()
+				if queueMap == nil {
+					continue
+				}
+				queueIt := queueMap.Iterator()
+				for !queueIt.Done() {
+					queue, pcMap, _ := queueIt.Next()
+					if pcMap == nil {
+						continue
+					}
+					pcIt := pcMap.Iterator()
+					for !pcIt.Done() {
+						pc, bucket, _ := pcIt.Next()
+						out[fmt.Sprintf("running/%s/%s/%s/%s", pool, executor, queue, pc)] = fmt.Sprintf("%s jobs=%d", bucket.resources.String(), bucket.jobs)
+					}
+				}
+			}
+		}
+	}
+	return out
+}
+
+// batchEquivalenceJobs builds a job mix exercising every branch of add:
+// queued jobs across multiple pools (including duplicate pools), running jobs
+// across executors, terminal jobs, and a non-queued job without a run.
+func batchEquivalenceJobs(t testing.TB, jobDb *JobDb) []*Job {
+	t.Helper()
+	jobs := make([]*Job, 0)
+	for i := 0; i < 50; i++ {
+		queued := i%3 != 0
+		pools := []string{"pool-1"}
+		switch i % 4 {
+		case 0:
+			pools = []string{"pool-1", "pool-2"}
+		case 1:
+			pools = []string{"pool-2"}
+		case 2:
+			pools = []string{"pool-2", "pool-2", "pool-1"}
+		}
+		queue := fmt.Sprintf("queue-%d", i%4)
+		pc := []string{"foo", "bar"}[i%2]
+		job := newAggregateTestJobWithPC(t, jobDb, fmt.Sprintf("job-%d", i), queue, pc, queued, pools, cpuAndMemory(int64(i%5+1), int64(i%3)))
+		if !queued {
+			executor := fmt.Sprintf("executor-%d", i%3)
+			runPool := pools[i%len(pools)]
+			job = job.WithNewRun(executor, fmt.Sprintf("node-%d", i), fmt.Sprintf("node-%d", i), runPool, 0)
+		}
+		switch i % 7 {
+		case 0:
+			job = job.WithFailed(true)
+		case 1:
+			job = job.WithSucceeded(true)
+		case 2:
+			job = job.WithCancelled(true)
+		}
+		jobs = append(jobs, job)
+	}
+	// A non-queued job without a run contributes to neither aggregate.
+	jobs = append(jobs, newAggregateTestJob(t, jobDb, "no-run", "queue-1", false, []string{"pool-1"}, 9))
+	return jobs
+}
+
+// TestJobAggregate_AddAllMatchesAdd verifies that batching adds per bucket is
+// exactly equivalent to adding the jobs one at a time, for every gate
+// combination and across the chunk boundary.
+func TestJobAggregate_AddAllMatchesAdd(t *testing.T) {
+	jobDb := NewTestJobDb()
+	jobs := batchEquivalenceJobs(t, jobDb)
+
+	// Cross the chunk boundary so the batched path is exercised more than once.
+	for i := 0; len(jobs) < aggregateAddBatchSize+250; i++ {
+		queued := i%2 == 0
+		job := newAggregateTestJob(t, jobDb, fmt.Sprintf("bulk-%d", i), fmt.Sprintf("queue-%d", i%4), queued, []string{"pool-1"}, int64(i%3+1))
+		if !queued {
+			job = job.WithNewRun(fmt.Sprintf("executor-%d", i%5), fmt.Sprintf("node-%d", i), fmt.Sprintf("node-%d", i), "pool-1", 0)
+		}
+		jobs = append(jobs, job)
+	}
+	require.Greater(t, len(jobs), aggregateAddBatchSize)
+
+	for _, gates := range []struct {
+		name    string
+		queued  bool
+		running bool
+	}{
+		{"both", true, true},
+		{"queuedOnly", true, false},
+		{"runningOnly", false, true},
+		{"none", false, false},
+	} {
+		t.Run(gates.name, func(t *testing.T) {
+			sequential := NewJobAggregate()
+			sequential.SetEnabled(gates.queued, gates.running)
+			for _, job := range jobs {
+				sequential.add(job)
+			}
+
+			batched := NewJobAggregate()
+			batched.SetEnabled(gates.queued, gates.running)
+			batched.addAll(jobs)
+
+			assert.Equal(t, aggregateSnapshot(sequential), aggregateSnapshot(batched))
+		})
+	}
+}
+
+// TestJobAggregate_BatchUpsertMatchesIndividualUpserts verifies the production
+// path: one bulk Upsert (batched aggregate maintenance) must leave the JobDb
+// aggregate identical to Upserting the same jobs one at a time (per-job
+// maintenance).
+func TestJobAggregate_BatchUpsertMatchesIndividualUpserts(t *testing.T) {
+	const n = aggregateAddBatchSize + 100
+	build := func() (*JobDb, []*Job) {
+		jobDb := NewTestJobDb()
+		jobs := make([]*Job, 0, n)
+		for i := 0; i < n; i++ {
+			queued := i%4 != 0
+			pool := []string{"pool-1", "pool-2"}[i%2]
+			job := newAggregateTestJobWithPC(t, jobDb,
+				fmt.Sprintf("job-%d", i),
+				fmt.Sprintf("queue-%d", i%5),
+				[]string{"foo", "bar"}[i%2],
+				queued,
+				[]string{pool},
+				cpuAndMemory(int64(i%4+1), int64(i%3)),
+			)
+			if !queued {
+				job = job.WithNewRun(fmt.Sprintf("executor-%d", i%4), fmt.Sprintf("node-%d", i), fmt.Sprintf("node-%d", i), pool, 0)
+			}
+			jobs = append(jobs, job)
+		}
+		return jobDb, jobs
+	}
+
+	batchDb, batchJobs := build()
+	txn := batchDb.WriteTxn()
+	require.NoError(t, txn.Upsert(batchJobs))
+	txn.Commit()
+
+	individualDb, individualJobs := build()
+	for _, job := range individualJobs {
+		txn := individualDb.WriteTxn()
+		require.NoError(t, txn.Upsert([]*Job{job}))
+		txn.Commit()
+	}
+
+	batchTxn := batchDb.ReadTxn()
+	individualTxn := individualDb.ReadTxn()
+
+	pools := []string{"pool-1", "pool-2"}
+	for i := 0; i < 5; i++ {
+		queue := fmt.Sprintf("queue-%d", i)
+		for _, pool := range pools {
+			want := individualTxn.GetQueueDemand(pool, queue)
+			got := batchTxn.GetQueueDemand(pool, queue)
+			require.Len(t, got, len(want), "queue %s pool %s", queue, pool)
+			for pc, wantRL := range want {
+				gotRL, ok := got[pc]
+				require.Truef(t, ok, "queue %s pool %s pc %s missing", queue, pool, pc)
+				require.Truef(t, wantRL.Equal(gotRL), "queue %s pool %s pc %s want %s got %s", queue, pool, pc, wantRL, gotRL)
+			}
+		}
+	}
+
+	activeExecutors := map[string]bool{}
+	for i := 0; i < 4; i++ {
+		activeExecutors[fmt.Sprintf("executor-%d", i)] = true
+	}
+	allPools := []string{"pool-1", "pool-2"}
+	for _, currentPool := range allPools {
+		want := individualTxn.CalculateSchedulingInfo(activeExecutors, currentPool, allPools, allPools, nil)
+		got := batchTxn.CalculateSchedulingInfo(activeExecutors, currentPool, allPools, allPools, nil)
+		require.Equal(t, resourceListMapSnapshot(want.DemandByQueueAndPriorityClass), resourceListMapSnapshot(got.DemandByQueueAndPriorityClass))
+		require.Equal(t, resourceListMapSnapshot(want.AllocatedByQueueAndPriorityClass), resourceListMapSnapshot(got.AllocatedByQueueAndPriorityClass))
+		require.Equal(t, resourceListMapSnapshot(want.AwayAllocatedByQueueAndPriorityClass), resourceListMapSnapshot(got.AwayAllocatedByQueueAndPriorityClass))
+		require.Equal(t, want.InUsePriorityClasses, got.InUsePriorityClasses)
+	}
+}
+
+func resourceListMapSnapshot(m map[string]map[string]internaltypes.ResourceList) map[string]string {
+	out := make(map[string]string, len(m))
+	for queue, byPC := range m {
+		for pc, rl := range byPC {
+			out[queue+"/"+pc] = rl.String()
+		}
+	}
+	return out
+}
