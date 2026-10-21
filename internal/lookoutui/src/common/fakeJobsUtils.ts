@@ -74,7 +74,9 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
     const jobId = ulid()
     // Every fourth job has 3-5 runs so that multi-run behaviour is easy to exercise
     const nRuns = randomInt(0, 3, rand)
-    const runs = createJobRuns(i % 4 === 3 ? 3 + (i % 3) : nRuns, jobId, rand, uuid, ulid)
+    const { runs, lastRunRuntimeSeconds } = createJobRuns(i % 4 === 3 ? 3 + (i % 3) : nRuns, jobId, rand, uuid, ulid)
+    // As in the real API, these job-level fields come from the job's latest run
+    const lastRun = runs.at(-1)
 
     jobs.push({
       gpu: randomInt(0, 8, rand),
@@ -94,45 +96,80 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
       state: state ? state : randomProperty(JobState, rand),
       lastTransitionTime: randomDate(BASE_TIME_MS + 20 * MS_PER_MINUTE, BASE_TIME_MS + 7 * MS_PER_DAY),
       priorityClass: rand() > 0.5 ? "armada-preemptible" : "armada-default",
+      node: lastRun?.node,
+      cluster: lastRun?.cluster,
+      pool: lastRun?.pool,
+      exitCode: lastRun?.exitCode,
+      runtimeSeconds: lastRunRuntimeSeconds,
     })
   }
 
   return jobs
 }
 
-function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () => string, ulid: () => string): JobRun[] {
-  if (n === 0) {
-    return []
-  }
+const POOLS = ["default", "cpu", "gpu", "cpu-large"]
 
+const FAILURE_SUBCATEGORIES: Record<string, string[]> = {
+  application: ["oom-killed", "non-zero-exit", "timeout"],
+  infrastructure: ["node-failure", "network-error", "disk-pressure"],
+  scheduling: ["image-pull-backoff", "unschedulable"],
+}
+
+const NOT_STARTED_RUN_STATES = [JobRunState.RunPending, JobRunState.RunLeased]
+
+function randomElement<T>(items: T[], rand: () => number): T {
+  return items[randomInt(0, items.length, rand)]
+}
+
+function createJobRuns(
+  n: number,
+  jobId: string,
+  rand: () => number,
+  uuid: () => string,
+  ulid: () => string,
+): { runs: JobRun[]; lastRunRuntimeSeconds: number | undefined } {
   const runs: JobRun[] = []
+  let lastRunRuntimeSeconds: number | undefined = undefined
+  // Runs happen one after another, each starting shortly after the previous one ended
+  let startedMs = BASE_TIME_MS + 15 * MS_PER_MINUTE + 14 * MS_PER_SECOND
   for (let i = 0; i < n; i++) {
     const runState = randomProperty(JobRunState, rand)
-    let node = undefined
-    if (runState !== JobRunState.RunPending && runState !== JobRunState.RunLeased) {
-      node = uuid()
-    }
+    const hasStarted = !NOT_STARTED_RUN_STATES.includes(runState)
+    const isFinished = hasStarted && runState !== JobRunState.RunRunning
+    const runtimeSeconds = randomInt(30, 3600, rand)
+    const finishedMs = startedMs + runtimeSeconds * MS_PER_SECOND
 
-    const startedMs = BASE_TIME_MS + 15 * MS_PER_MINUTE + (14 + 117 * i) * MS_PER_SECOND
-    const started = new Date(startedMs).toISOString()
-    const leased = new Date(startedMs + 40 * MS_PER_SECOND).toISOString()
-    const pending = new Date(startedMs + 45 * MS_PER_SECOND).toISOString()
-    const finished = new Date(startedMs + 90 * MS_PER_SECOND).toISOString()
+    let exitCode = undefined
+    let failureCategory = undefined
+    let failureSubcategory = undefined
+    if (isFinished) {
+      exitCode = runState === JobRunState.RunSucceeded ? 0 : randomInt(1, 64, rand)
+    }
+    if (runState === JobRunState.RunFailed) {
+      failureCategory = randomElement(Object.keys(FAILURE_SUBCATEGORIES), rand)
+      failureSubcategory = randomElement(FAILURE_SUBCATEGORIES[failureCategory], rand)
+    }
 
     runs.push({
       runId: ulid(),
       cluster: uuid(),
-      exitCode: randomInt(0, 64, rand),
+      exitCode,
       jobId: jobId,
       jobRunState: runState,
-      node: node,
-      started,
-      leased,
-      pending,
-      finished,
+      node: hasStarted ? uuid() : undefined,
+      started: new Date(startedMs).toISOString(),
+      leased: new Date(startedMs - 10 * MS_PER_SECOND).toISOString(),
+      pending: new Date(startedMs - 5 * MS_PER_SECOND).toISOString(),
+      finished: isFinished ? new Date(finishedMs).toISOString() : undefined,
+      pool: randomElement(POOLS, rand),
+      failureCategory,
+      failureSubcategory,
     })
+
+    lastRunRuntimeSeconds = hasStarted ? runtimeSeconds : undefined
+    startedMs = finishedMs + 27 * MS_PER_SECOND
   }
-  return runs
+  return { runs, lastRunRuntimeSeconds }
 }
 
 function randomProperty<T>(obj: Record<string, T>, rand: () => number): T {
