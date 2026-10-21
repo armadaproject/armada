@@ -113,12 +113,15 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority)
 
 		nodePool := cls.nodeInfoService.GetPool(node)
+		taints := armadaslices.Map(node.Spec.Taints, func(taint v1.Taint) *v1.Taint {
+			return &taint
+		})
+		nodeTaints := cls.queueableNodeTaints(taints)
 		nodes = append(nodes, executorapi.NodeInfo{
-			Name:   node.Name,
-			Labels: cls.filterTrackedLabels(node.Labels),
-			Taints: armadaslices.Map(node.Spec.Taints, func(t v1.Taint) *v1.Taint {
-				return &t
-			}),
+			Name:                        node.Name,
+			Labels:                      cls.filterTrackedLabels(node.Labels),
+			Taints:                      taints,
+			NodeTaints:                  nodeTaints,
 			AllocatableResources:        allocatable.ToProtoMap(),
 			AvailableResources:          available.ToProtoMap(),
 			TotalResources:              allocatable.ToProtoMap(),
@@ -135,6 +138,20 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 		AvailableCapacity: &totalAvailable, // TODO: This should be the total - max job priority resources.
 		Nodes:             nodes,
 	}, nil
+}
+
+func (cls *ClusterUtilisationService) queueableNodeTaints(taints []*v1.Taint) []*executorapi.NodeTaint {
+	result := make([]*executorapi.NodeTaint, 0)
+	for _, taint := range taints {
+		if queueableTaint, ok := cls.queueableTaints.MatchQueueableTaint(taint.Key); ok {
+			result = append(result, &executorapi.NodeTaint{
+				Taint:      taint,
+				Category:   queueableTaint.Category,
+				UserFacing: queueableTaint.UserFacing,
+			})
+		}
+	}
+	return result
 }
 
 // This returns all the pods assigned the node or soon to be assigned (via node-selector)

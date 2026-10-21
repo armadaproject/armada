@@ -11,12 +11,44 @@ import (
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 const nodeIdLabel = "node-id"
+
+func TestQueueableNodeTaints(t *testing.T) {
+	queueableTaints, err := (configuration.KubernetesConfiguration{
+		ToleratedTaints: []string{"legacy"},
+		QueueableTaints: configuration.QueueableTaintsConfiguration{
+			Keys: []string{"user"},
+			Admin: []configuration.QueueableTaintAdminConfiguration{
+				{Category: "platform", Keys: []string{"admin"}},
+			},
+		},
+	}).NewQueueableTaints()
+	require.NoError(t, err)
+	legacy := &v1.Taint{Key: "legacy"}
+	user := &v1.Taint{Key: "user"}
+	admin := &v1.Taint{Key: "admin"}
+	other := &v1.Taint{Key: "other"}
+
+	service := &ClusterUtilisationService{queueableTaints: queueableTaints}
+	actual := service.queueableNodeTaints([]*v1.Taint{legacy, user, admin, other})
+
+	require.Len(t, actual, 3)
+	assert.Same(t, legacy, actual[0].Taint)
+	assert.Empty(t, actual[0].Category)
+	assert.True(t, actual[0].UserFacing)
+	assert.Same(t, user, actual[1].Taint)
+	assert.Equal(t, configuration.UserQueueableTaintCategory, actual[1].Category)
+	assert.True(t, actual[1].UserFacing)
+	assert.Same(t, admin, actual[2].Taint)
+	assert.Equal(t, "platform", actual[2].Category)
+	assert.False(t, actual[2].UserFacing)
+}
 
 func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludePodsNotOnGivenNodes(t *testing.T) {
 	presentNodeName := "Node1"

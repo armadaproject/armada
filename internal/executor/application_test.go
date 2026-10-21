@@ -102,23 +102,27 @@ func TestKubernetesConfigurationNewQueueableTaints(t *testing.T) {
 	queueableTaints, err := kubernetesConfig.NewQueueableTaints()
 	require.NoError(t, err)
 
-	category, ok := queueableTaints.QueueableTaintCategory("user.example.com/dedicated")
+	taint, ok := queueableTaints.MatchQueueableTaint("user.example.com/dedicated")
 	assert.True(t, ok)
-	assert.Empty(t, category)
+	assert.Equal(t, configuration.UserQueueableTaintCategory, taint.Category)
+	assert.True(t, taint.UserFacing)
 
-	category, ok = queueableTaints.QueueableTaintCategory("legacy.example.com/dedicated")
+	taint, ok = queueableTaints.MatchQueueableTaint("legacy.example.com/dedicated")
 	assert.True(t, ok)
-	assert.Empty(t, category)
+	assert.Empty(t, taint.Category)
+	assert.True(t, taint.UserFacing)
 
-	category, ok = queueableTaints.QueueableTaintCategory(constants.ReservationTaintKey)
+	taint, ok = queueableTaints.MatchQueueableTaint(constants.ReservationTaintKey)
 	assert.True(t, ok)
-	assert.Empty(t, category)
+	assert.Empty(t, taint.Category)
+	assert.True(t, taint.UserFacing)
 
-	category, ok = queueableTaints.QueueableTaintCategory("platform.example.com/gpu")
+	taint, ok = queueableTaints.MatchQueueableTaint("platform.example.com/gpu")
 	assert.True(t, ok)
-	assert.Equal(t, "platform", category)
+	assert.Equal(t, "platform", taint.Category)
+	assert.False(t, taint.UserFacing)
 
-	_, ok = queueableTaints.QueueableTaintCategory("other.example.com/taint")
+	_, ok = queueableTaints.MatchQueueableTaint("other.example.com/taint")
 	assert.False(t, ok)
 }
 

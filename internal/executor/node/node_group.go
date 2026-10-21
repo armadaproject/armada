@@ -110,7 +110,7 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) filterQueueableTaint
 	result := []v1.Taint{}
 
 	for _, taint := range taints {
-		if _, isQueueable := kubernetesNodeInfoService.queueableTaints.QueueableTaintCategory(taint.Key); isQueueable {
+		if _, isQueueable := kubernetesNodeInfoService.queueableTaints.MatchQueueableTaint(taint.Key); isQueueable {
 			result = append(result, taint)
 		}
 	}
@@ -146,7 +146,7 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) IsAvailableProcessin
 	}
 
 	for _, taint := range node.Spec.Taints {
-		_, isQueueable := kubernetesNodeInfoService.queueableTaints.QueueableTaintCategory(taint.Key)
+		_, isQueueable := kubernetesNodeInfoService.queueableTaints.MatchQueueableTaint(taint.Key)
 		if taint.Effect == v1.TaintEffectNoSchedule && !isQueueable {
 			return false
 		}

@@ -15,6 +15,8 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
+const UserQueueableTaintCategory = "user"
+
 type ApplicationConfiguration struct {
 	// ClusterId is the unique identifier for the cluster that the executor is running on.
 	// It is used to identify the cluster in the scheduler.
@@ -155,9 +157,10 @@ type QueueableTaintAdminConfiguration struct {
 }
 
 type QueueableTaint struct {
-	Pattern  string
-	Category string
-	regexp   *regexp.Regexp
+	Pattern    string
+	Category   string
+	UserFacing bool
+	regexp     *regexp.Regexp
 }
 
 type QueueableTaints struct {
@@ -166,27 +169,27 @@ type QueueableTaints struct {
 
 func (c KubernetesConfiguration) NewQueueableTaints() (*QueueableTaints, error) {
 	taints := make([]QueueableTaint, 0, len(c.QueueableTaints.Keys)+len(c.ToleratedTaints)+1)
-	appendTaint := func(pattern, category string) error {
+	appendTaint := func(pattern, category string, userFacing bool) error {
 		re, err := regexp.Compile(pattern)
 		if err != nil {
 			return err
 		}
-		taints = append(taints, QueueableTaint{Pattern: pattern, Category: category, regexp: re})
+		taints = append(taints, QueueableTaint{Pattern: pattern, Category: category, UserFacing: userFacing, regexp: re})
 		return nil
 	}
 	for _, taintKey := range append(append([]string{}, c.ToleratedTaints...), constants.ReservationTaintKey) {
-		if err := appendTaint(regexp.QuoteMeta(taintKey), ""); err != nil {
+		if err := appendTaint(regexp.QuoteMeta(taintKey), "", true); err != nil {
 			return nil, err
 		}
 	}
 	for _, pattern := range c.QueueableTaints.Keys {
-		if err := appendTaint(pattern, ""); err != nil {
+		if err := appendTaint(pattern, UserQueueableTaintCategory, true); err != nil {
 			return nil, err
 		}
 	}
 	for _, admin := range c.QueueableTaints.Admin {
 		for _, pattern := range admin.Keys {
-			if err := appendTaint(pattern, admin.Category); err != nil {
+			if err := appendTaint(pattern, admin.Category, false); err != nil {
 				return nil, err
 			}
 		}
@@ -194,13 +197,13 @@ func (c KubernetesConfiguration) NewQueueableTaints() (*QueueableTaints, error) 
 	return &QueueableTaints{Taints: taints}, nil
 }
 
-func (q *QueueableTaints) QueueableTaintCategory(taintKey string) (string, bool) {
+func (q *QueueableTaints) MatchQueueableTaint(taintKey string) (QueueableTaint, bool) {
 	for _, taint := range q.Taints {
 		if taint.regexp.MatchString(taintKey) {
-			return taint.Category, true
+			return taint, true
 		}
 	}
-	return "", false
+	return QueueableTaint{}, false
 }
 
 type EtcdConfiguration struct {
