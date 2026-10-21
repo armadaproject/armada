@@ -32,14 +32,20 @@ export function seededUuid(rand: () => number): () => string {
     })
 }
 
-const ULID_BASE_TIME_MS = new Date("2022-12-13T12:00:00.000Z").getTime()
+const MS_PER_SECOND = 1000
+const MS_PER_MINUTE = 60 * MS_PER_SECOND
+const MS_PER_DAY = 24 * 60 * MS_PER_MINUTE
+
+// Base time that all fake dates (ULID timestamps, job submitted/transition times, run times) are derived from: a week
+// before the module is loaded, so generated dates are recent but never in the future
+const BASE_TIME_MS = Date.now() - 7 * MS_PER_DAY
 
 // Generates 26 character lower-case ULIDs, as used for real job and job run IDs (see util.NewULID). They are
 // lower-cased because Kubernetes requires names to be valid DNS subdomain names.
 export function seededUlid(rand: () => number): () => string {
   const generateUlid = monotonicFactory(rand)
   let counter = 0
-  return () => generateUlid(ULID_BASE_TIME_MS + counter++ * 1000).toLowerCase()
+  return () => generateUlid(BASE_TIME_MS + counter++ * MS_PER_SECOND).toLowerCase()
 }
 
 export async function simulateApiWait(abortSignal?: AbortSignal): Promise<void> {
@@ -77,7 +83,7 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
       namespace: uuid(),
       priority: randomInt(0, 1000, rand),
       runs: runs,
-      submitted: randomDate(new Date("2022-12-13T11:57:25.733Z"), new Date("2022-12-27T11:57:25.733Z")),
+      submitted: randomDate(BASE_TIME_MS, BASE_TIME_MS + 3 * MS_PER_DAY),
       cpu: randomInt(2, 200, rand) * 100,
       ephemeralStorage: randomInt(2, 2048, rand) * 1024 ** 3,
       memory: randomInt(2, 1024, rand) * 1024 ** 2,
@@ -86,7 +92,7 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
       jobId: jobId,
       jobSet: jobSets[i % jobSets.length],
       state: state ? state : randomProperty(JobState, rand),
-      lastTransitionTime: randomDate(new Date("2022-12-13T12:19:14.956Z"), new Date("2022-12-31T11:57:25.733Z")),
+      lastTransitionTime: randomDate(BASE_TIME_MS + 20 * MS_PER_MINUTE, BASE_TIME_MS + 7 * MS_PER_DAY),
       priorityClass: rand() > 0.5 ? "armada-preemptible" : "armada-default",
     })
   }
@@ -107,11 +113,11 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
       node = uuid()
     }
 
-    const startedDateSeconds = 14 + 117 * i
-    const started = new Date(2022, 11, 13, 12, 15, startedDateSeconds, 123).toISOString()
-    const leased = new Date(2022, 11, 13, 12, 15, startedDateSeconds + 40, 123).toISOString()
-    const pending = new Date(2022, 11, 13, 12, 15, startedDateSeconds + 45, 123).toISOString()
-    const finished = new Date(2022, 11, 13, 12, 15, startedDateSeconds + 90, 123).toISOString()
+    const startedMs = BASE_TIME_MS + 15 * MS_PER_MINUTE + (14 + 117 * i) * MS_PER_SECOND
+    const started = new Date(startedMs).toISOString()
+    const leased = new Date(startedMs + 40 * MS_PER_SECOND).toISOString()
+    const pending = new Date(startedMs + 45 * MS_PER_SECOND).toISOString()
+    const finished = new Date(startedMs + 90 * MS_PER_SECOND).toISOString()
 
     runs.push({
       runId: ulid(),
@@ -215,8 +221,8 @@ export function compareValues(valueA: any, valueB: any, direction: SortDirection
   return val
 }
 
-function randomDate(start: Date, end: Date): string {
-  return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime())).toISOString()
+function randomDate(startMs: number, endMs: number): string {
+  return new Date(startMs + Math.random() * (endMs - startMs)).toISOString()
 }
 
 type Resources = {
