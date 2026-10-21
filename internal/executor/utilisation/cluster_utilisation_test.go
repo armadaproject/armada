@@ -38,7 +38,7 @@ func TestQueueableNodeTaints(t *testing.T) {
 	service := &ClusterUtilisationService{queueableTaints: queueableTaints}
 	actual := service.queueableNodeTaints([]*v1.Taint{legacy, user, admin, other})
 
-	require.Len(t, actual, 3)
+	require.Len(t, actual, 4)
 	assert.Same(t, legacy, actual[0].Taint)
 	assert.Empty(t, actual[0].Category)
 	assert.True(t, actual[0].UserFacing)
@@ -48,6 +48,9 @@ func TestQueueableNodeTaints(t *testing.T) {
 	assert.Same(t, admin, actual[2].Taint)
 	assert.Equal(t, "platform", actual[2].Category)
 	assert.False(t, actual[2].UserFacing)
+	assert.Same(t, other, actual[3].Taint)
+	assert.Empty(t, actual[3].Category)
+	assert.False(t, actual[3].UserFacing)
 }
 
 func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludePodsNotOnGivenNodes(t *testing.T) {

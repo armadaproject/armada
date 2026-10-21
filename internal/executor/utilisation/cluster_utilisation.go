@@ -143,13 +143,12 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 func (cls *ClusterUtilisationService) queueableNodeTaints(taints []*v1.Taint) []*executorapi.NodeTaint {
 	result := make([]*executorapi.NodeTaint, 0)
 	for _, taint := range taints {
+		nodeTaint := &executorapi.NodeTaint{Taint: taint}
 		if queueableTaint, ok := cls.queueableTaints.MatchQueueableTaint(taint.Key); ok {
-			result = append(result, &executorapi.NodeTaint{
-				Taint:      taint,
-				Category:   queueableTaint.Category,
-				UserFacing: queueableTaint.UserFacing,
-			})
+			nodeTaint.Category = queueableTaint.Category
+			nodeTaint.UserFacing = queueableTaint.UserFacing
 		}
+		result = append(result, nodeTaint)
 	}
 	return result
 }

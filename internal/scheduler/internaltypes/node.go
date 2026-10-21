@@ -47,8 +47,9 @@ type Node struct {
 
 	// We need to store taints and labels separately from the node type: the latter only includes
 	// indexed taints and labels, but we need all of them when checking pod requirements.
-	taints []v1.Taint
-	labels map[string]string
+	taints     []v1.Taint
+	labels     map[string]string
+	nodeTaints []NodeTaint
 
 	// Which taint and label keys the node type indexes.
 	// Held so the node can recompute its own node type whenever its taints or labels change
@@ -94,6 +95,12 @@ type Node struct {
 	knownPriorities []int32
 }
 
+type NodeTaint struct {
+	Taint      v1.Taint
+	Category   string
+	UserFacing bool
+}
+
 func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 	nodeIndex uint64,
 	indexedTaints map[string]bool,
@@ -110,8 +117,18 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 			taints = append(taints, *t)
 		}
 	}
+	nodeTaints := make([]NodeTaint, 0, len(node.NodeTaints))
+	for _, nodeTaint := range node.NodeTaints {
+		if nodeTaint != nil && nodeTaint.Taint != nil {
+			nodeTaints = append(nodeTaints, NodeTaint{
+				Taint:      *nodeTaint.Taint,
+				Category:   nodeTaint.Category,
+				UserFacing: nodeTaint.UserFacing,
+			})
+		}
+	}
 
-	return CreateNodeAndType(
+	result := CreateNodeAndType(
 		node.Id,
 		nodeIndex,
 		node.Executor,
@@ -127,6 +144,8 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		allocatableResources,
 		allowedPriorities,
 	)
+	result.nodeTaints = nodeTaints
+	return result
 }
 
 func CreateNodeAndType(
@@ -231,6 +250,10 @@ func (node *Node) GetId() string {
 
 func (node *Node) GetName() string {
 	return node.name
+}
+
+func (node *Node) GetNodeTaints() []NodeTaint {
+	return slices.Clone(node.nodeTaints)
 }
 
 func (node *Node) IsUnschedulable() bool {

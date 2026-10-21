@@ -122,6 +122,15 @@ func TestNode(t *testing.T) {
 	assert.Equal(t, node, nodeCopy)
 }
 
+func TestGetNodeTaintsReturnsCopy(t *testing.T) {
+	node := &Node{nodeTaints: []NodeTaint{{Taint: v1.Taint{Key: "example.com/dedicated"}, Category: "platform"}}}
+
+	actual := node.GetNodeTaints()
+	actual[0].Category = "changed"
+
+	assert.Equal(t, "platform", node.GetNodeTaints()[0].Category)
+}
+
 func createNodeWithIndexedLabelsAndTaints(taints []v1.Taint, labels map[string]string) *Node {
 	indexedTaints := map[string]bool{"foo": true, unschedulableTaintKey: true}
 	indexedNodeLabels := map[string]bool{"key": true}
