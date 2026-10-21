@@ -86,7 +86,7 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
       priority: randomInt(0, 1000, rand),
       runs: runs,
       submitted: randomDate(BASE_TIME_MS, BASE_TIME_MS + 3 * MS_PER_DAY),
-      cpu: randomInt(2, 200, rand) * 100,
+      cpu: randomElement(CPU_SIZES, rand),
       ephemeralStorage: randomInt(2, 2048, rand) * 1024 ** 3,
       memory: randomInt(2, 1024, rand) * 1024 ** 2,
       queue: queues[i % queues.length],
@@ -106,6 +106,9 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
 
   return jobs
 }
+
+// CPU requests in thousandths of a CPU (the unit formatCpu expects), using sizes people actually request (250m, 500m, 1, 2, 4, ...)
+const CPU_SIZES = [250, 500, 1000, 2000, 4000, 8000, 16000, 32000]
 
 const POOLS = ["default", "cpu", "gpu", "cpu-large"]
 
