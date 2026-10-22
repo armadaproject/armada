@@ -85,7 +85,7 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
       namespace: uuid(),
       priority: randomInt(0, 1000, rand),
       runs: runs,
-      submitted: randomDate(BASE_TIME_MS, BASE_TIME_MS + 3 * MS_PER_DAY),
+      submitted: randomDate(BASE_TIME_MS, BASE_TIME_MS + 3 * MS_PER_DAY, rand),
       cpu: randomElement(CPU_SIZES, rand),
       ephemeralStorage: randomInt(2, 2048, rand) * 1024 ** 3,
       memory: randomInt(2, 1024, rand) * 1024 ** 2,
@@ -94,7 +94,7 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
       jobId: jobId,
       jobSet: jobSets[i % jobSets.length],
       state: state ? state : randomProperty(JobState, rand),
-      lastTransitionTime: randomDate(BASE_TIME_MS + 20 * MS_PER_MINUTE, BASE_TIME_MS + 7 * MS_PER_DAY),
+      lastTransitionTime: randomDate(BASE_TIME_MS + 20 * MS_PER_MINUTE, BASE_TIME_MS + 7 * MS_PER_DAY, rand),
       priorityClass: rand() > 0.5 ? "armada-preemptible" : "armada-default",
       node: lastRun?.node,
       cluster: lastRun?.cluster,
@@ -261,8 +261,8 @@ export function compareValues(valueA: any, valueB: any, direction: SortDirection
   return val
 }
 
-function randomDate(startMs: number, endMs: number): string {
-  return new Date(startMs + Math.random() * (endMs - startMs)).toISOString()
+function randomDate(startMs: number, endMs: number, rand: () => number): string {
+  return new Date(startMs + rand() * (endMs - startMs)).toISOString()
 }
 
 type Resources = {
@@ -354,4 +354,21 @@ export function getActiveJobSets(jobs: Job[]): Record<string, string[]> {
     }
   }
   return result
+}
+
+const ACTIVE_JOB_STATES = new Set([JobState.Queued, JobState.Leased, JobState.Pending, JobState.Running])
+
+export function filterFakeJobs(jobs: Job[], filters: JobFilter[], activeJobSets: boolean): Job[] {
+  const filtered = jobs.filter(mergeFilters(filters))
+  return activeJobSets ? filtered.filter((j) => ACTIVE_JOB_STATES.has(j.state)) : filtered
+}
+
+let fakeJobsCache: Job[] | undefined
+
+// Shared by every fake-data hook so that the jobs table and group counts are derived from the same dataset
+export function getFakeJobs(): Job[] {
+  if (fakeJobsCache === undefined) {
+    fakeJobsCache = makeRandomJobs(10_000, 42)
+  }
+  return fakeJobsCache
 }
