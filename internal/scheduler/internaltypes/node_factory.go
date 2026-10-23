@@ -62,6 +62,7 @@ func (f *NodeFactory) CreateNodeAndType(
 	unschedulable bool,
 	taints []v1.Taint,
 	nodeTaints []NodeTaint,
+	hasCompleteNodeTaintMetadata bool,
 	labels map[string]string,
 	totalResources ResourceList,
 	allocatableResources ResourceList,
@@ -76,6 +77,7 @@ func (f *NodeFactory) CreateNodeAndType(
 		unschedulable,
 		taints,
 		nodeTaints,
+		hasCompleteNodeTaintMetadata,
 		labels,
 		f.indexedTaints,
 		f.indexedNodeLabels,
@@ -149,18 +151,37 @@ func (f *NodeFactory) RemoveCordonTaints(nodes []*Node) []*Node {
 			result[i] = node
 			continue
 		}
-		nonCordonTaints := make([]v1.Taint, 0, len(node.GetTaints()))
-		nodeTaints := node.GetNodeTaints()
-		nonCordonNodeTaints := make([]NodeTaint, 0, len(nodeTaints))
-		for _, nodeTaint := range nodeTaints {
-			if !IsCordonTaint(nodeTaint.Taint) && nodeTaint.Category == "" && !nodeTaint.UserFacing {
-				nonCordonNodeTaints = append(nonCordonNodeTaints, nodeTaint)
-				nonCordonTaints = append(nonCordonTaints, nodeTaint.Taint)
-			}
+		if node.hasCompleteNodeTaintMetadata {
+			result[i] = removeCordonTaintsWithMetadata(node)
+		} else {
+			result[i] = removeLegacyCordonTaints(node)
 		}
-		result[i] = node.WithTaints(nonCordonTaints).WithNodeTaints(nonCordonNodeTaints).WithSchedulable(true)
 	}
 	return result
+}
+
+func removeLegacyCordonTaints(node *Node) *Node {
+	taints := node.GetTaints()
+	nonCordonTaints := make([]v1.Taint, 0, len(taints))
+	for _, taint := range taints {
+		if !IsCordonTaint(taint) {
+			nonCordonTaints = append(nonCordonTaints, taint)
+		}
+	}
+	return node.WithTaints(nonCordonTaints).WithSchedulable(true)
+}
+
+func removeCordonTaintsWithMetadata(node *Node) *Node {
+	nonCordonTaints := make([]v1.Taint, 0, len(node.GetTaints()))
+	nodeTaints := node.GetNodeTaints()
+	nonCordonNodeTaints := make([]NodeTaint, 0, len(nodeTaints))
+	for _, nodeTaint := range nodeTaints {
+		if !IsCordonTaint(nodeTaint.Taint) && nodeTaint.Category == "" && !nodeTaint.UserFacing {
+			nonCordonNodeTaints = append(nonCordonNodeTaints, nodeTaint)
+			nonCordonTaints = append(nonCordonTaints, nodeTaint.Taint)
+		}
+	}
+	return node.WithTaints(nonCordonTaints).WithNodeTaints(nonCordonNodeTaints).WithSchedulable(true)
 }
 
 func (f *NodeFactory) allocateNodeIndex() uint64 {

@@ -940,6 +940,7 @@ func TestSimpleNode(id string) *internaltypes.Node {
 		"",
 		nil,
 		nil,
+		false,
 		nil,
 		nil,
 		nil,
@@ -961,6 +962,7 @@ func TestNode(priorities []int32, resources map[string]*resource.Quantity) *inte
 		false,
 		[]v1.Taint{},
 		nil,
+		false,
 		map[string]string{
 			TestHostnameLabel:                  id,
 			schedulerconfiguration.NodeIdLabel: id,
