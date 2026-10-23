@@ -1,0 +1,169 @@
+---
+title: 'Priority and preemption'
+description: 'Choose a priority class, see what happens when Armada stops your job, and write jobs that survive it.'
+---
+
+Armada can stop a running job to make room for more urgent work, or to keep sharing fairly between queues. That's **preemption**. This page shows you how to choose a job's **priority class**, what preemption looks like, and how to write jobs that survive it.
+
+## Before you start
+
+You need a working `armadactl` and the `my-team` queue.
+{/* from [Submitting jobs](/docs/submitting-jobs). */}
+
+## Choose a priority class
+
+Every job runs under a priority class, set with `priorityClassName` in the pod spec. Two properties of the class matter:
+
+- **Priority (urgency):** jobs in a higher-priority class are scheduled first, and can push out **preemptible** running jobs from lower classes when resources are short.
+- **Preemptible or not:** whether Armada may stop your running job to rebalance resources between queues.
+
+These classes are available by default:
+
+| Class                | Priority | Can Armada stop it once it's running?                                               |
+| -------------------- | -------- | ----------------------------------------------------------------------------------- |
+| `armada-default`     | 1000     | No. Used when you don't set `priorityClassName`.                                    |
+| `armada-preemptible` | 1000     | Yes, to give other queues their fair share, or for work in a higher-priority class. |
+
+Your installation may allow others; using a naming that isn't allowed fails with `priority class <name> is not supported`. Don't use `armada-resilient`: the server accepts it, but the scheduler doesn't define it and logs `unknown priority class found armada-resilient` for each job.
+
+**Which to use:** choose `armada-preemptible` for work that can be interrupted and resubmitted. Both default classes can use spare capacity; choosing a preemptible class does not itself make a job start sooner. Choose `armada-default` for work that must not be interrupted.
+
+## Try it: preempt a job yourself
+
+### Step 1. Submit a preemptible job
+
+```bash
+cat > preempt-me.yaml <<'EOF'
+queue: my-team
+jobSetId: preempt-demo-1
+jobs:
+  - namespace: default
+    priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      priorityClassName: armada-preemptible
+      containers:
+        - name: sleeper
+          image: alpine:3.21
+          command: ['sh', '-c', 'sleep 600']
+          resources:
+            requests: { cpu: 200m, memory: 128Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+EOF
+armadactl submit preempt-me.yaml
+```
+
+Copy the job ID.
+
+### Step 2. Watch it
+
+In a second terminal:
+
+```bash
+armadactl watch my-team preempt-demo-1
+```
+
+Wait for `JobRunningEvent`.
+
+### Step 3. Preempt it
+
+Back in the first terminal:
+
+```bash
+armadactl preempt job my-team preempt-demo-1 <job-id> "testing preemption"
+```
+
+**Success:** the watch window shows:
+
+```text title="Output"
+... | JobPreemptingEvent, job id: <job-id>, user: anonymous
+... | JobPreemptedEvent, job id: <job-id>, user: anonymous
+... | JobFailedEvent, job id: <job-id> pod: 0
+Job failed: Preempted by anonymous - testing preemption
+```
+
+(On a team installation, your username appears instead of `anonymous`.) Press Ctrl-C to stop watching.
+
+Preempting a single job needs the `preempt` permission on its queue.
+
+### What if the job isn't preemptible?
+
+Try the same with `priorityClassName: armada-default`. The `preempt job` command reports success and `watch` shows `JobPreemptingEvent`, but **the job keeps running**: non-preemptible jobs are protected once running. If a preemption seems to do nothing, check the job's priority class.
+
+## When Armada preempts jobs by itself
+
+When the scheduler preempts a job, `watch` shows `JobPreemptedEvent` and then `JobFailedEvent`, with the reason on a `Job failed:` line. There's no `JobPreemptingEvent`; that only appears when a person asks for the preemption.
+
+#### **1. Fair-share preemption.**
+
+Your queue is using more than its fair share, and other queues have work waiting. Armada stops jobs from over-served queues to rebalance. Only preemptible jobs are eligible, and by default, queues at or below their fair share are left alone. This is on by default. Armada stops only as many jobs as it needs: in testing, one queue had three jobs running when a second queue asked for two, and Armada stopped one job, leaving two and one. The reason names the job that took the space:
+
+```text title="Output"
+Job failed: Preempted by scheduler using fair share preemption - preempting job <job-id>
+```
+
+#### **2. Urgency preemption.**
+
+A job in a higher-priority class needs resources your job is using, so Armada stops enough preemptible lower-priority jobs to make room. This happens even within one queue. The reason names the job that displaced yours:
+
+```text title="Output"
+Job failed: Preempted by scheduler using urgency preemption - preempting job <job-id>
+```
+
+If several urgent jobs landed on the node at once, the reason lists them all: `... urgency preemption - preemption caused by one of the following jobs <job-id>,<job-id>`.
+
+| Your job's class | Fair-share preemption | Urgency preemption     |
+| ---------------- | --------------------- | ---------------------- |
+| Preemptible      | Yes                   | Yes, by higher classes |
+| Not preemptible  | No                    | No, once running       |
+
+By default both classes have the **same** priority (1000), so urgency preemption doesn't happen until your platform team sets up classes with different priorities.
+{/* (see [Install and configure](/docs/install-and-configure#priority-classes)). */}
+
+## What happens to a preempted job
+
+- You see a preempted event with the reason. The job ends as failed, with the reason on a `Job failed:` line.
+- The pod gets `SIGTERM`, and its `terminationGracePeriodSeconds` to shut down, before it's killed. Use that time to save progress. (Tested: a job that traps `SIGTERM` ran its save step and exited cleanly.)
+- **Armada doesn't restart preempted jobs.** The job stays failed; it isn't put back in the queue. If the work still matters, resubmit it, or let a workflow tool such as Airflow do it as a retry.
+- If the job is part of a gang, the whole gang is stopped.
+
+## Write jobs that survive preemption
+
+If you run under a preemptible class:
+
+- Handle `SIGTERM` in your program, and set `terminationGracePeriodSeconds` long enough to save a checkpoint.
+- Save progress to storage outside the pod, so a resubmitted job picks up where it left off.
+- Make jobs safe to run twice, so resubmitting is always fine.
+- Automate resubmission: watch the job set for preempted jobs and resubmit them, or use a workflow tool's retries.
+
+## Priority class or the `priority` field?
+
+Jobs also have a numeric `priority` field. They're different:
+
+|                         | Priority class                                                         | `priority` field                                        |
+| ----------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------- |
+| Decides                 | Urgency across the whole cluster, and whether the job can be preempted | Order **within your own queue** only. Lower runs first. |
+| Can cause preemption    | Yes                                                                    | Never                                                   |
+| Change after submitting | No: cancel and resubmit                                                | Yes: `armadactl reprioritize`                           |
+
+## Armada classes aren't Kubernetes priority classes
+
+Armada makes all preemption decisions itself, before pods reach the cluster. It picks the exact node for each job. By default, the scheduler's `priorityClassNameOverride` sets the Kubernetes priority class to `armada-default` on every pod, so Kubernetes treats all Armada pods equally. Your installation can set a different class, use an empty value to remove the class, or omit the setting to preserve each job's submitted class. When your job is preempted, Armada decided it, and the reason says why.
+Kubernetes can still act on its own in two cases: it can evict pods when a node runs short of memory or disk (the job fails with reason `Evicted`), and non-Armada pods with a higher Kubernetes priority can displace Armada pods. Neither is an Armada preemption.
+
+## Troubleshooting
+
+| What you see                                                                                                           | Cause                                                                                 | Fix                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `Job failed: Preempted by ...`                                                                                         | Armada or a person stopped the job on purpose                                         | Read the reason: urgency, fair share, or a person's name. Resubmit if the work still needs to run. |
+| `Preempted by scheduler due to the job failing to reschedule - possibly node resource changed ...`                     | The node the job was on changed or disappeared, so Armada couldn't keep the job there | Resubmit. If it repeats, tell your platform team; the message includes a node summary.             |
+| `Preempted by scheduler using fair share preemption because the fellow gang member <job-id> was preempted by <job-id>` | Another member of your gang was preempted, so the whole gang was stopped              | Resubmit the whole gang.                                                                           |
+| `Preempted by scheduler due to the job failing to reschedule - possibly another job in the gang was preempted ...`     | Another gang member was preempted, or its node changed                                | Resubmit the whole gang.                                                                           |
+| A higher-class job stays queued even though lower-class jobs are running                                               | The running jobs aren't preemptible (`armada-default`)                                | Expected: running non-preemptible jobs are never stopped for urgency.                              |
+| `preempt job` succeeded but the job keeps running                                                                      | The job's class isn't preemptible                                                     | Check its `priorityClassName`.                                                                     |
+| The job failed with reason `Evicted`                                                                                   | Kubernetes stopped it, usually because the node ran short of memory or disk           | If it keeps happening on the same nodes, tell your platform team.                                  |
+| `priority class <name> is not supported`                                                                               | That class isn't allowed on this installation                                         | Use `armada-default` or `armada-preemptible`, or ask your platform team.                           |
+| The whole gang stopped when one member was preempted                                                                   | Gangs are all-or-nothing                                                              | Resubmit the whole gang.                                                                           |
+| A high `priority` number didn't stop the job being preempted                                                           | `priority` only orders your own queue                                                 | Preemption depends on the priority class.                                                          |
+| `zsh: no such file or directory: job-id` (or `bash: job-id: No such file or directory`)                                | A placeholder was pasted with its angle brackets                                      | Replace `<job-id>`, including `<` and `>`, with the real value.                                    |
