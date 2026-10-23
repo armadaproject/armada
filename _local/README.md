@@ -9,7 +9,8 @@ Everything the local dev stack uses. `mage dev:up <profiles>` wires these pieces
 | `compose/full.yaml`       | Fully containerized Armada stack, used by `mage dev:full` and CI                                                                                          |
 | `compose/postgres-init.sql` | Creates the scheduler and lookout databases when the postgres container first initialises                                                               |
 | `procfiles/`              | Goreman procfiles: `no-auth`, `auth`, `fake-executor`, `auth-fake-executor`, each with a `-dap` (Delve debug) variant                                                           |
-| `scripts/`                | `init.sh` (migrations + priority classes) and helpers for port conflicts, dlv readiness, and pre-building components                                      |
+| `scripts/`                | `init.sh` (migrations + priority classes), helpers for port conflicts, dlv readiness, and pre-building components, and `run-component.sh` and `apply-test-config.sh`, which start the `full.yaml` components with the config overrides of test cases |
+| `.test-config/`           | Config overrides of the running test cases, one `<component>.yaml` per component. `apply-test-config.sh` writes them; git ignores them                   |
 | `kind/`                   | Kind cluster config for running a real executor locally                                                                                                  |
 | `keycloak/`               | Keycloak realm import for the `auth` profile                                                                                                             |
 | `airflow/`                | Separate docker compose ecosystem for the Airflow operator e2e tests                                                                                     |
