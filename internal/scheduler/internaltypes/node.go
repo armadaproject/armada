@@ -145,7 +145,6 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		allocatableResources,
 		allowedPriorities,
 	)
-	result.nodeTaints = nodeTaints
 	return result
 }
 
@@ -408,6 +407,12 @@ func (node *Node) WithTaints(taints []v1.Taint) *Node {
 	return result
 }
 
+func (node *Node) WithNodeTaints(nodeTaints []NodeTaint) *Node {
+	result := node.DeepCopyNilKeys()
+	result.nodeTaints = slices.Clone(nodeTaints)
+	return result
+}
+
 func (node *Node) WithLabels(labels map[string]string) *Node {
 	result := node.DeepCopyNilKeys()
 	result.labels = deepCopyLabels(labels)
@@ -466,6 +471,7 @@ func (node *Node) WithSchedulable(schedulable bool) *Node {
 
 	unschedulableTaint := UnschedulableTaint()
 	var taints []v1.Taint
+	var nodeTaints []NodeTaint
 	if schedulable {
 		taints = make([]v1.Taint, 0, len(node.taints))
 		for _, taint := range node.taints {
@@ -473,11 +479,17 @@ func (node *Node) WithSchedulable(schedulable bool) *Node {
 				taints = append(taints, taint)
 			}
 		}
+		for _, nodeTaint := range node.nodeTaints {
+			if !nodeTaint.Taint.MatchTaint(&unschedulableTaint) {
+				nodeTaints = append(nodeTaints, nodeTaint)
+			}
+		}
 	} else {
 		taints = append(node.GetTaints(), unschedulableTaint)
+		nodeTaints = append(node.GetNodeTaints(), NodeTaint{Taint: unschedulableTaint})
 	}
 
-	result := node.WithTaints(taints)
+	result := node.WithTaints(taints).WithNodeTaints(nodeTaints)
 	result.unschedulable = !schedulable
 	return result
 }
@@ -494,6 +506,7 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		reportingNodeType:    node.reportingNodeType,
 		nodeType:             node.nodeType,
 		taints:               node.taints,
+		nodeTaints:           node.nodeTaints,
 		labels:               node.labels,
 		indexedTaints:        node.indexedTaints,
 		indexedNodeLabels:    node.indexedNodeLabels,

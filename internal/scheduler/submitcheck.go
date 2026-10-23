@@ -153,7 +153,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 			[]*schedulerobjects.Executor{ex},
 			func(s string) { ctx.Error(s) })
 		// Treat cordoned nodes as available.
-		nodes = nodeFactory.RemoveCordonTaint(nodes)
+		nodes = nodeFactory.RemoveCordonTaints(nodes)
 		allNodes = append(allNodes, nodes...)
 	}
 

@@ -132,6 +132,21 @@ func TestGetNodeTaintsReturnsCopy(t *testing.T) {
 	assert.Equal(t, "platform", node.GetNodeTaints()[0].Category)
 }
 
+func TestWithNodeTaintsReplacesMetadataWithoutChangingTaints(t *testing.T) {
+	rawTaints := []v1.Taint{{Key: "example.com/dedicated", Value: "gpu", Effect: v1.TaintEffectNoSchedule}}
+	node := &Node{
+		taints:     rawTaints,
+		nodeTaints: []NodeTaint{{Taint: rawTaints[0], Category: "old"}},
+	}
+	updatedNodeTaints := []NodeTaint{{Taint: rawTaints[0], Category: "platform", UserFacing: true}}
+
+	updated := node.WithNodeTaints(updatedNodeTaints)
+
+	assert.Equal(t, rawTaints, updated.GetTaints())
+	assert.Equal(t, updatedNodeTaints, updated.GetNodeTaints())
+	assert.Equal(t, []NodeTaint{{Taint: rawTaints[0], Category: "old"}}, node.GetNodeTaints())
+}
+
 func createNodeWithIndexedLabelsAndTaints(taints []v1.Taint, labels map[string]string) *Node {
 	indexedTaints := map[string]bool{"foo": true, unschedulableTaintKey: true}
 	indexedNodeLabels := map[string]bool{"key": true}

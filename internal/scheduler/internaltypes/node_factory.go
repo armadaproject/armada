@@ -129,7 +129,8 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 	return result
 }
 
-// RemoveCordonTaint returns copies of nodes with cordon taints stripped (see IsCordonTaint) and the
+// RemoveCordonTaints returns copies of nodes with the cordon taint stripped (see IsCordonTaint),
+// taints that have been categorized stripped, user facing taints stripped, and the
 // unschedulable flag cleared. The submit checker uses it so that jobs targeting a node type whose
 // nodes are all cordoned (via `kubectl cordon`, or otherwise reported unschedulable by the executor)
 // stay queued rather than being rejected. See issue #4946.
@@ -140,7 +141,7 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 //
 // WithSchedulable only strips the Armada taint, so we strip the whole cordon taint set here
 // and let WithSchedulable clear the flag.
-func (f *NodeFactory) RemoveCordonTaint(nodes []*Node) []*Node {
+func (f *NodeFactory) RemoveCordonTaints(nodes []*Node) []*Node {
 	result := make([]*Node, len(nodes))
 	for i, node := range nodes {
 		if !node.IsUnschedulable() {
@@ -148,14 +149,16 @@ func (f *NodeFactory) RemoveCordonTaint(nodes []*Node) []*Node {
 			result[i] = node
 			continue
 		}
-		taints := node.GetTaints()
-		nonCordonTaints := make([]v1.Taint, 0, len(taints))
-		for _, taint := range taints {
-			if !IsCordonTaint(taint) {
-				nonCordonTaints = append(nonCordonTaints, taint)
+		nonCordonTaints := make([]v1.Taint, 0, len(node.GetTaints()))
+		nodeTaints := node.GetNodeTaints()
+		nonCordonNodeTaints := make([]NodeTaint, 0, len(nodeTaints))
+		for _, nodeTaint := range nodeTaints {
+			if !IsCordonTaint(nodeTaint.Taint) && nodeTaint.Category == "" && !nodeTaint.UserFacing {
+				nonCordonNodeTaints = append(nonCordonNodeTaints, nodeTaint)
+				nonCordonTaints = append(nonCordonTaints, nodeTaint.Taint)
 			}
 		}
-		result[i] = node.WithTaints(nonCordonTaints).WithSchedulable(true)
+		result[i] = node.WithTaints(nonCordonTaints).WithNodeTaints(nonCordonNodeTaints).WithSchedulable(true)
 	}
 	return result
 }
