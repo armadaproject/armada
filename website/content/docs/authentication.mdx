@@ -1,0 +1,305 @@
+---
+title: 'Authentication'
+description: 'Connect armadactl and the client libraries to Armada, understand permission errors, and turn on login for an installation.'
+---
+
+This page has two halves:
+
+- **[For users](#for-users):** connect `armadactl` and your code to an Armada installation, and understand "permission denied".
+- **[For operators](#operator-setup):** turn on login methods and decide who may do what.
+
+**On a laptop install there is no login.** Every request is accepted as the user `anonymous`, and `armadactl` is already set up by [Getting started](/getting-started). You only need this page for a team installation, or to set up login yourself.
+
+## For users
+
+### Step 1. Get your connection details
+
+Ask your platform team for:
+
+- the **server address**, for example `armada.example.com:443`
+- the **login method**, and its details (for most installations: a provider URL and a client ID)
+
+### Step 2. Add a context to `~/.armadactl.yaml`
+
+`armadactl` reads `~/.armadactl.yaml`. Each Armada installation you use gets a named **context**:
+
+```yaml
+currentContext: prod
+contexts:
+  prod:
+    armadaUrl: armada.example.com:443
+    openIdAuth:
+      providerUrl: 'https://login.example.com/realms/armada'
+      clientId: 'armada'
+      localPort: 8085
+      scopes: ['openid', 'profile', 'email']
+    cacheRefreshToken: true
+  laptop:
+    armadaUrl: localhost:30002
+```
+
+Switch between them:
+
+```bash
+armadactl config get-contexts       # list all contexts
+armadactl config current-context    # show the active one
+armadactl config use-context laptop # switch
+```
+
+You can also pick a context for a single command with `-c <name>`, or a different config file with `--config <path>`.
+
+**Encryption (TLS):** `armadactl` uses TLS unless the address contains `localhost`, or the context sets `forceNoTls: true`. For example, `127.0.0.1:30002` tries TLS and fails against a laptop install, with `tls: first record does not look like a TLS handshake`. Never set `forceNoTls` for a real installation: credentials would travel unencrypted.
+
+### Step 3. Choose your login block
+
+Add exactly one login block to the context. Which one depends on how you work:
+
+| You are...                                                | Use                                                              |
+| --------------------------------------------------------- | ---------------------------------------------------------------- |
+| A person at a computer with a browser                     | `openIdAuth` (opens your browser to log in)                      |
+| A person on a machine without a browser, such as over SSH | `openIdDeviceAuth` (gives you a code to enter on another device) |
+| A service or CI pipeline with its own identity            | `openIdClientCredentialsAuth`                                    |
+| A pod running inside Kubernetes                           | `openIdKubernetesAuth`                                           |
+| Using your company's token tool                           | `execAuth` (runs a command and uses what it prints as the token) |
+| On a test setup that uses usernames and passwords         | `basicAuth`                                                      |
+
+The shapes:
+
+```yaml
+# Browser login
+openIdAuth:
+  providerUrl: 'https://login.example.com/realms/armada'
+  clientId: 'armada'
+  localPort: 8085 # armadactl listens here for the login to finish
+  scopes: ['openid', 'profile', 'email']
+
+# Login without a browser
+openIdDeviceAuth:
+  providerUrl: 'https://login.example.com/realms/armada'
+  clientId: 'armada'
+  scopes: ['openid', 'profile', 'email']
+
+# Service identity
+openIdClientCredentialsAuth:
+  providerUrl: 'https://login.example.com/realms/armada'
+  clientId: 'my-pipeline'
+  clientSecret: '...'
+  scopes: ['openid']
+
+# Your company's token tool
+execAuth:
+  cmd: '/usr/local/bin/token-helper'
+  args: ['--get-token']
+
+# Test setups only
+basicAuth:
+  username: 'admin'
+  password: 'admin'
+```
+
+To avoid logging in on every command with browser or device login, add `cacheRefreshToken: true` to the context. `armadactl` then keeps the refresh token in your operating system's keychain (Keychain on macOS), under the name `armada-oidc`, not in a file.
+
+### Step 4. Check it works
+
+```bash
+armadactl get queues
+```
+
+**Success:** it lists queues with no line containing `error`. If login is set up wrong, you get a connection or token error here, before anything job-related.
+
+Read the whole output, not just the exit code. When you aren't logged in, `get queues` prints an `Unauthenticated` error and then an empty list, and still exits with success:
+
+```text title="Output"
+... rpc error: code = Unauthenticated desc = Request could not be authenticated: Request could not be authenticated with any of the supported schemes.
+apiVersion: armadaproject.io/v1beta1
+kind: Queue
+[]
+```
+
+On a laptop install, any `basicAuth` username and password is accepted, even wrong ones. The install has no `basicAuth` users set up, so the login is ignored and the request is accepted as `anonymous`.
+
+### Connecting from your own code (Python and Airflow)
+
+The Python client and the Airflow operator connect over gRPC directly, so you give them a gRPC channel instead of the YAML above.
+
+**On a laptop install**, use a plain channel:
+
+```python
+import grpc
+from armada_client.client import ArmadaClient
+
+client = ArmadaClient(grpc.insecure_channel("localhost:30002"))
+```
+
+**On a team installation**, get a token and attach it to an encrypted channel. For a service identity using client credentials:
+
+```python
+import grpc
+import requests
+from armada_client.client import ArmadaClient
+
+# Standard OAuth2 client-credentials request to your login provider
+resp = requests.post(
+    'https://login.example.com/realms/armada/protocol/openid-connect/token',
+    data={
+        'grant_type': 'client_credentials',
+        'client_id': 'my-pipeline',
+        'client_secret': '...',
+    },
+)
+token = resp.json()['access_token']
+
+channel = grpc.secure_channel(
+    'armada.example.com:443',
+    grpc.composite_channel_credentials(
+        grpc.ssl_channel_credentials(),
+        grpc.access_token_call_credentials(token),
+    ),
+)
+client = ArmadaClient(channel)
+```
+
+Tokens expire, so long-running programs must fetch a new one and rebuild the channel, or use a `grpc.AuthMetadataPlugin` that refreshes it. For Airflow, see Airflow. {/* LINK: restore "[Airflow](/docs/airflow#connecting-to-a-team-installation)" when that page merges */}
+
+### What you're allowed to do
+
+Armada checks two kinds of rights:
+
+- **Queue rights**, set on each queue for users or groups: `submit`, `cancel`, `preempt`, `reprioritize` and `watch`. Queue owners have all five, and if a queue is created without named owners, its creator becomes the owner. See Managing queues. {/* LINK: restore "[Managing queues](/docs/managing-queues)" when that page merges */}
+- **Global rights**, granted by your platform team to groups: for example `submit_any_jobs` or `create_queue`.
+
+Single jobs and job sets are allowed if you have **either** the queue right **or** the matching global right. Bulk actions across whole queues need the global right: `cancel queues` needs `cancel_any_jobs`, `preempt queues` needs `preempt_any_jobs`, and cordoning needs `cordon_queue`. The queue's own rights aren't enough for these.
+
+Owning a queue doesn't let you delete it (`delete_queue`) or change its settings (`update queue` needs `create_queue`). Any logged-in user can list every queue and see who has rights on it.
+
+`--dry-run` doesn't check your rights. A dry run of `cancel queues` can succeed and the real command still be denied.
+
+When you're denied, the error names the missing right:
+
+```text title="Output"
+... code = PermissionDenied desc = <user> lacks permission submit required for action submit for queue <queue>; user <user> cannot perform action submit on queue <queue> as they are neither explicitly permissioned on the queue or a member of submit_any_jobs group
+```
+
+For `reprioritize` and `cancel job-set`, the same kind of message arrives as `code = Unknown` rather than `PermissionDenied`. Ask the queue's owner to add you or your group to the queue, or ask your platform team for the global right.
+
+---
+
+## Operator setup
+
+This section is for whoever runs your Armada installation.
+
+### Where the settings live
+
+Login is configured in an `auth:` block, in both the **server** and the **scheduler** configuration. On an Operator install, that's `spec.applicationConfig.auth` on the `ArmadaServer` and `Scheduler` resources.
+
+A laptop install from Getting started ships with:
+
+```yaml
+# ArmadaServer: spec.applicationConfig.auth
+anonymousAuth: true
+permissionGroupMapping:
+  submit_any_jobs: ['everyone']
+  cancel_any_jobs: ['everyone']
+  reprioritize_any_jobs: ['everyone']
+  watch_all_events: ['everyone']
+  create_queue: ['everyone']
+  delete_queue: ['everyone']
+
+# Scheduler: spec.applicationConfig.auth
+anonymousAuth: true
+permissionGroupMapping:
+  execute_jobs: ['everyone']
+```
+
+That's why anyone can use a laptop install without logging in, and why `preempt_any_jobs` and `cordon_queue` actions are refused there.
+
+### Turn on login methods
+
+```yaml
+auth:
+  anonymousAuth: false
+  basicAuth:
+    users:
+      admin:
+        password: 'admin'
+        groups: ['admins']
+  openIdAuth:
+    providerUrl: 'https://login.example.com/realms/armada'
+    clientId: 'armada-server'
+    groupsClaim: 'groups'
+  permissionGroupMapping:
+    # see below
+```
+
+You can enable several methods. Armada tries them in this order: `basicAuth`, `kubernetesAuth` (turned on by setting `kidMappingFileLocation`), `openIdAuth`, then `anonymousAuth`. A method that finds no credentials of its kind passes the request on to the next one. A method that finds credentials of its kind but rejects them stops there: a wrong password fails, and doesn't fall back to anonymous. The available blocks are `anonymousAuth`, `basicAuth`, `openIdAuth` (`providerUrl`, `clientId`, `groupsClaim`, and `skipClientIDCheck`) and `kubernetesAuth`. One `openIdAuth` block on the server serves every OpenID client method (browser, device, client credentials, Kubernetes). A client's `basicAuth` only works if the server has `basicAuth` too.
+
+**OpenID tokens must be meant for the server.** A token's audience (`aud`) must include the server's `clientId` (`armada-server` above). The client examples log in as `armada` or `my-pipeline`, so set up your provider to add `armada-server` to the audience of those clients' tokens. Otherwise logging in works, but Armada rejects every request, because the token's audience doesn't include its `clientId`. `skipClientIDCheck: true` turns this check off, but Armada then accepts a token your provider issued for any application.
+
+### How logins become users and groups
+
+| Login method     | User name in Armada                        | Groups                                                                  |
+| ---------------- | ------------------------------------------ | ----------------------------------------------------------------------- |
+| `openIdAuth`     | The token's `sub` claim                    | The token claim named by `groupsClaim`, which must be a list of strings |
+| `basicAuth`      | The configured username                    | That user's configured `groups`                                         |
+| `kubernetesAuth` | `system:serviceaccount:<namespace>:<name>` | The same string                                                         |
+
+Every logged-in user is also in the group `everyone`. The maps below take **group** names only: putting a username in `permissionGroupMapping` grants that user nothing.
+
+Two things to check:
+
+- Queue owners and `User` permissions must match the token's `sub` value exactly. Many providers put an opaque ID there rather than a username, so prefer granting to groups.
+- If `groupsClaim` is missing or wrong, or the claim isn't a list of strings, users silently lose their provider groups but stay in `everyone`. Rights granted to `everyone` still apply.
+
+### Grant global rights
+
+Map groups to global rights in `permissionGroupMapping`:
+
+```yaml
+auth:
+  permissionGroupMapping:
+    submit_any_jobs: ['admins']
+    cancel_any_jobs: ['admins']
+    preempt_any_jobs: ['admins']
+    reprioritize_any_jobs: ['admins']
+    watch_all_events: ['admins']
+    create_queue: ['admins', 'team-leads']
+    delete_queue: ['admins']
+    cordon_queue: ['admins']
+```
+
+Granting a right to `everyone` gives it to every logged-in user (the laptop install does this for most rights).
+
+Two more maps grant rights in other ways: `permissionScopeMapping` (by OAuth scope, useful for service identities) and `permissionClaimMapping` (by the presence of a token claim).
+
+Other rights exist for platform components and admin tools: `execute_jobs` (needed by executors, on the scheduler), `cordon_nodes`, `update_executor_settings`, and `create_retry_policy`, `update_retry_policy` and `delete_retry_policy`.
+
+### The REST API and Lookout
+
+The REST API on the server's HTTP port uses the same logins and rights. For `basicAuth`, `curl -u <user>:<password> <rest-address>/v1/queue/<queue>` works; without credentials you get HTTP 401, and a missing right gives HTTP 403 with the same message as `armadactl`. `/health` needs no login, so it's safe for readiness checks.
+
+Lookout reads its own database and doesn't apply queue rights: anyone it lets in sees every queue's jobs. Lookout can require a login, but it never checks queue permissions, and its shipped settings allow anonymous access. **Control who can reach Lookout at the network or ingress level.** Its **Cancel**, **Reprioritize** and **Preempt** buttons call the server as the person using the browser. If anonymous access is off and Lookout has no login set up, they fail with `Request could not be authenticated...` and `All jobs failed to cancel. See table for error responses.`
+
+### Components connecting to each other
+
+Executors connect to the scheduler, and the server connects to the scheduler too. The scheduler's `auth:` block decides whether to accept them. The executor's credentials go under `executorApiConnection` in the executor configuration, using the same login blocks as `~/.armadactl.yaml` (usually `openIdClientCredentialsAuth`), and that identity needs `execute_jobs` on the scheduler.
+
+To try a complete login setup locally with Keycloak, see the [Developer guide](/docs/developer-guide). {/* LINK: restore "#test-with-logins" when that page merges */}
+
+## Troubleshooting
+
+| What you see                                                                                                                       | Cause                                                                                                                                                                 | Fix                                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `connection refused`                                                                                                               | Wrong address or port, or Armada isn't running                                                                                                                        | Check `armadaUrl`. A laptop install uses `localhost:30002`.                                                     |
+| `tls: first record does not look like a TLS handshake`                                                                             | `armadactl` is using TLS against a server without it                                                                                                                  | Use `localhost` in the address, or set `forceNoTls: true` (test setups only).                                   |
+| The browser opens on every command                                                                                                 | Token caching is off                                                                                                                                                  | Add `cacheRefreshToken: true` to the context.                                                                   |
+| `Unauthenticated desc = Request could not be authenticated: Request could not be authenticated with any of the supported schemes.` | No credentials were sent, and the server doesn't allow anonymous access                                                                                               | Add a login block to your context.                                                                              |
+| `Unauthenticated desc = Invalid credentials presented for user "<user>" via auth service "Basic"`                                  | Wrong username or password                                                                                                                                            | Check the `basicAuth` block in your context.                                                                    |
+| `<user> lacks permission <right> required for action <right>; user <user> does not have permission to perform <right> action`      | You need a global right, such as `create_queue`, `delete_queue`, `cancel_any_jobs` (for `cancel queues`), `preempt_any_jobs` (for `preempt queues`) or `cordon_queue` | Ask your platform team. Owning the queue isn't enough.                                                          |
+| `failed to create queue with name <queue> ... lacks permission create_queue` when running `update queue`                           | Updating a queue needs `create_queue`                                                                                                                                 | Ask your platform team, or a queue admin, to make the change.                                                   |
+| A dry run worked, but the real command was denied                                                                                  | `--dry-run` doesn't check rights                                                                                                                                      | Ask for the right named in the error.                                                                           |
+| `get queues` shows `[]`                                                                                                            | You may not be logged in: an `Unauthenticated` line appears above the list                                                                                            | Fix your login and run it again.                                                                                |
+| Lookout shows `Request could not be authenticated` when you cancel a job                                                           | Lookout has no login set up and the server doesn't allow anonymous access                                                                                             | Use `armadactl`, or ask your platform team to set up Lookout login.                                             |
+| A user listed in `permissionGroupMapping` still lacks the right                                                                    | The mapping takes group names, not usernames                                                                                                                          | Put the user in a group and map the group.                                                                      |
+| Logged in fine, but `permission denied`                                                                                            | Logging in and being allowed are separate                                                                                                                             | Ask to be added to the queue, or for the global right. If you were just added to a group, log out and in again. |
+| Works on your computer, fails in CI                                                                                                | Browser and device logins need a person                                                                                                                               | Give CI its own identity with `openIdClientCredentialsAuth` or `execAuth`.                                      |
+| A group was granted access but its members are still denied                                                                        | The groups claim isn't set up                                                                                                                                         | Check `groupsClaim` on the server and the provider's group claim.                                               |
