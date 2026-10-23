@@ -109,6 +109,22 @@
       "cwd": "${workspaceFolder}"
     },
     {
+      "name": "Attach Lookout (two-cluster)",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec",
+      "debugAdapter": "dlv-dap",
+      "outputMode": "remote",
+      "port": 2350,
+      "host": "127.0.0.1",
+      "program": "${workspaceFolder}/dist/armada-lookout",
+      "args": [
+        "--config",
+        "${workspaceFolder}/_local/lookout/config.yaml,${workspaceFolder}/_local/lookout/two-cluster/config.yaml"
+      ],
+      "cwd": "${workspaceFolder}"
+    },
+    {
       "name": "Attach Lookout",
       "type": "go",
       "request": "launch",
@@ -472,7 +488,7 @@
         "Attach Event Ingester",
         "Attach Executor (cluster 1)",
         "Attach Executor (cluster 2)",
-        "Attach Lookout",
+        "Attach Lookout (two-cluster)",
         "Attach Lookout Ingester",
         "Attach Binoculars (cluster 1)",
         "Attach Binoculars (cluster 2)",
