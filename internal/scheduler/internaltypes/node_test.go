@@ -71,6 +71,7 @@ func TestNode(t *testing.T) {
 		pool,
 		reportingNodeType,
 		taints,
+		nil,
 		labels,
 		indexedTaints,
 		indexedNodeLabels,
@@ -136,7 +137,7 @@ func createNodeWithIndexedLabelsAndTaints(taints []v1.Taint, labels map[string]s
 	indexedNodeLabels := map[string]bool{"key": true}
 	return CreateNode(
 		"id", 1, "executor", "name", "pool", "type",
-		taints, labels, indexedTaints, indexedNodeLabels,
+		taints, nil, labels, indexedTaints, indexedNodeLabels,
 		false, ResourceList{}, ResourceList{},
 		[]int32{1, 2}, nil,
 	)
@@ -318,7 +319,7 @@ func testAccountingNode(t *testing.T, factory *ResourceListFactory) *Node {
 	total := testAccountingNodeTotal(factory)
 	return CreateNode(
 		"node-1", 1, "executor", "node-1", "pool", "type",
-		nil, nil, map[string]bool{}, map[string]bool{},
+		nil, nil, nil, map[string]bool{}, map[string]bool{},
 		false, total, total,
 		[]int32{1, 10},
 		nil,
@@ -714,6 +715,7 @@ func createNode(allocatableResource ResourceList, allowedPriorities []int32) *No
 		name,
 		pool,
 		reportingNodeType,
+		nil,
 		nil,
 		nil,
 		nil,

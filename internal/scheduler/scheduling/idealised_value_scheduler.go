@@ -155,6 +155,7 @@ func createMegaNode(pool string, nodes []*internaltypes.Node, schedulingConfig c
 		"mega-node",
 		false,
 		[]v1.Taint{},
+		[]internaltypes.NodeTaint{},
 		map[string]string{gangUniformityLabel: gangUniformityValue},
 		totalResources,
 		allocatableResources)
