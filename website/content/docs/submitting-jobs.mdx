@@ -1,0 +1,310 @@
+---
+title: 'Submitting jobs'
+description: 'This page shows you how to write an Armada job, submit it, follow it, and cancel it. The first half is a walkthrough; the second half is a reference for every field you can use.'
+---
+
+## Before you start
+
+You need a working `armadactl`:
+
+- **On your laptop:** follow [Getting started](/getting-started) first.
+- **On your team's Armada:** ask your platform team for the server address and how to log in, then set up `armadactl`.
+  {/* with [Authentication](/docs/authentication). */}
+
+Check that `armadactl` can reach Armada:
+
+```bash
+armadactl get queues
+```
+
+**Ready when:** the command prints no line containing `error`.
+
+Make a folder for the files in this guide and work from it:
+
+```bash
+mkdir -p ~/armada-guide
+cd ~/armada-guide
+```
+
+## 1. Create a queue
+
+Every job goes into one **queue**. Queues are how Armada shares resources fairly between teams. These guides use a queue called `my-team`.
+
+```bash
+armadactl create queue my-team --priority-factor 1
+```
+
+**Success:** `Created queue my-team`.
+
+Creating a queue requires the `create_queue` permission. On a laptop install you have it. On a team installation you usually don't: ask your platform team to create the queue for you.
+{/* See [Managing queues](/docs/managing-queues). */}
+
+> **Wait about 15 seconds before the next step.** Armada checks for new queues every 10 seconds. Submitting to a brand-new queue straight away fails with `could not find queue`.
+
+## 2. Write a job file
+
+A **job file** describes one or more jobs. Create `job.yaml`:
+
+```bash
+cat > job.yaml <<'EOF'
+queue: my-team
+jobSetId: demo-1
+jobs:
+  - namespace: default
+    priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: sleeper
+          image: alpine:3.21
+          command: ['sh', '-c']
+          args: ['echo hello from Armada; sleep 30']
+          resources:
+            requests:
+              cpu: 200m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+EOF
+```
+
+This job starts a small Linux container, prints `hello from Armada`, waits 30 seconds, and exits.
+
+| Term                               | Meaning                                                                                                                |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `queue`                            | The queue the job goes into.                                                                                           |
+| `jobSetId`                         | A label you choose to group related jobs, so you can watch or cancel them together.                                    |
+| `namespace`                        | The Kubernetes namespace the pod runs in. Required. `default` always exists; on a team installation, ask which to use. |
+| `priority`                         | Order within your queue. Lower runs first.                                                                             |
+| `podSpec`                          | A normal Kubernetes pod spec, for exactly one pod.                                                                     |
+| `terminationGracePeriodSeconds: 0` | Fine for a demo. Real jobs need time to shut down cleanly.                                                             |
+
+Armada rejects the whole file if any job breaks one of these rules:
+
+- Each job has exactly one pod. To start several pods together, use a gang.
+- `namespace` is required.
+- Every container has `resources` with both `requests` and `limits`, and they're equal (unless your cluster is configured to allow oversubscription).
+- Node affinity is supported only in its `required...` form. `preferred...` node affinity is rejected.
+- `priorityClassName`, if set, must be on the cluster's allowed list.
+  {/* See [Priority and preemption](/docs/priority-and-preemption). */}
+
+## 3. Check the file
+
+Dry-run for a quick check. It only checks, on your computer, that the file is valid YAML and has at least one job; the rules above are checked by the server when you really submit:
+
+```bash
+armadactl submit job.yaml --dry-run
+```
+
+**Success:** it prints **nothing** and returns to the prompt.
+
+## 4. Submit the job
+
+```bash
+JOB_ID=$(armadactl submit job.yaml | awk '{print $5}')
+echo "Job ID: $JOB_ID"
+```
+
+This submits the job and keeps its ID in `JOB_ID` for the rest of this terminal session. You'll need the ID to read the job's output and to cancel it.
+
+**Success:** it prints the job's ID:
+
+> Without the variable, `armadactl submit job.yaml` prints `Submitted job with id <job-id> to job set demo-1`. Use one command or the other, not both: each one submits a new job.
+
+```text title="Output"
+Job ID: <job-id>
+```
+
+If you open a new terminal, set it again with `JOB_ID=<job-id>`, using your own ID. If you lose the ID, it's in every `watch` line for the job, and in Lookout.
+
+## 5. Watch it run
+
+```bash
+armadactl watch my-team demo-1
+```
+
+You'll see the lifecycle as a stream of events. Each line carries a timestamp and running state counts, then the event:
+
+```
+Watching job set demo-1
+Oct  2 18:34:13 | Queued:   0, Leased:   0, ... | JobSubmittedEvent, job id: 01m3...
+Oct  2 18:34:13 | Queued:   1, Leased:   0, ... | JobQueuedEvent, job id: 01m3...
+Oct  2 18:34:17 | Queued:   0, Leased:   1, ... | JobLeasedEvent, job id: 01m3...
+Oct  2 18:34:24 | ... | JobPendingEvent, job id: 01m3... pod: 0
+Oct  2 18:34:27 | ... | JobRunningEvent, job id: 01m3... pod: 0
+Oct  2 18:34:59 | ... | JobSucceededEvent, job id: 01m3... pod: 0
+```
+
+**Success:** the last event is `JobSucceededEvent`.
+
+A job moves through this sequence:
+**Queued** (waiting for the scheduler), **Leased** (cluster and node chosen), **Pending** (pod being created), **Running**, then Succeeded, Failed, or Cancelled.
+{/* see [When jobs fail or don't start](/docs/when-jobs-fail). */}
+
+**`watch` doesn't stop by itself.** Once the last event is `JobSucceededEvent` or a `Job failed:` line, the job is finished: press Ctrl-C. (The `--exit-if-inactive` flag is meant to stop it automatically, but it doesn't always.)
+
+If `watch` says the job set does not exist, wait a few seconds and run it again.
+
+You can also follow jobs in Lookout, Armada's web UI. On a laptop install it's at [http://localhost:30000](http://localhost:30000).
+
+## 6. See the job's output
+
+Read the output soon after the job finishes. Finished pods are cleaned up after a few minutes, and their output goes with them.
+
+**On a laptop install**, use `kubectl`. Each job's pod is named `armada-<job-id>-0`:
+
+```bash
+kubectl logs -n default armada-$JOB_ID-0
+```
+
+(Or replace `$JOB_ID` with the ID itself.)
+
+**On your team's Armada**, open the job in Lookout and choose the **Logs** tab. (This needs a log service that the laptop install doesn't include.)
+
+**Success:** you see `hello from Armada`.
+
+## 7. Reorder or cancel jobs
+
+Change the priority of one job, or of every job in a job set. Lower numbers run first:
+
+```bash
+armadactl reprioritize job my-team demo-1 <job-id> 5
+armadactl reprioritize job-set my-team demo-1 5
+```
+
+This changes the priority of every unfinished job, including running jobs. It does not interrupt a running job, but the new priority affects its order if it needs to run again.
+
+The job you submitted earlier has already finished, so cancelling it does nothing. Submit a new copy first:
+
+```bash
+armadactl submit job.yaml
+```
+
+Then, within 30 seconds, before it ends, cancel every job in the job set:
+
+```bash
+armadactl cancel job-set my-team demo-1
+```
+
+To cancel only one job, use its ID: `armadactl cancel job my-team demo-1 <job-id>`.
+
+**Success:** in `watch` or Lookout, the job moves to Cancelled. If you cancel a job while it's starting, `watch` may still print `JobPendingEvent` or `JobRunningEvent` after `JobCancelledEvent`; these are late updates, and the job stays cancelled.
+
+## Clean up
+
+Nothing to do: finished pods are cleaned up automatically. Keep the `my-team` queue and the `~/armada-guide` folder for the next guides.
+
+## Reference
+
+### Job file fields
+
+Fields on each entry under `jobs:`:
+
+| Field                    | Meaning                                                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `namespace`              | Kubernetes namespace the pod runs in. Required.                                                                                                                           |
+| `priority`               | Order within your queue. Lower runs first. No effect on other queues, and never causes preemption.                                                                        |
+| `podSpec`                | A standard Kubernetes pod spec, for one pod.                                                                                                                              |
+| `labels` / `annotations` | Added to the pod. The text `{JobId}` in any value is replaced with the job's ID.                                                                                          |
+| `clientId`               | A key that prevents duplicates, up to 100 characters. Submitting again with the same `clientId` to the same queue returns the original job instead of creating a new one. |
+| `ingress` / `services`   | Make the job reachable over the network.                                                                                                                                  |
+
+{/* See [Interactive jobs and services](/docs/interactive-jobs-and-services).                                                        | */}
+
+### The pod spec
+
+Apart from the rules in Step 2, the pod spec is plain Kubernetes: `imagePullSecrets`, secret and config-map volumes, `securityContext`, init containers, `nodeSelector`, `tolerations`, `activeDeadlineSeconds` and `serviceAccountName` work as the Kubernetes docs describe.
+
+Armada changes three things:
+
+- It sets `restartPolicy: Never`, whatever you wrote. Armada handles retries, not Kubernetes.
+- It adds a node selector that pins the pod to the node the scheduler chose.
+- It adds the environment variables below.
+
+Fields you leave empty may be filled in from server defaults:
+
+| Field                                  | Default                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------- |
+| `priorityClassName`                    | `armada-default`                                                          |
+| `activeDeadlineSeconds`                | 72 hours                                                                  |
+| `terminationGracePeriodSeconds`        | `0` or unset becomes 1 second; the allowed range is 1 second to 5 minutes |
+| A resource a container doesn't mention | `cpu: 1`, `memory: 1Gi`, `ephemeral-storage: 8Gi`                         |
+| `tolerations`                          | Armada's own taint tolerations are added                                  |
+
+Operators can change these.
+{/* See [Install and configure](/docs/install-and-configure). */}
+
+### Special annotations
+
+| Annotation                                 | Meaning                                                                                                                                                                                                             |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `armadaproject.io/gangId`                  | Makes the job part of a gang, which starts all together or not at all.                                                                                                                                              |
+| `armadaproject.io/gangCardinality`         | The total number of jobs in the gang.                                                                                                                                                                               |
+| `armadaproject.io/gangNodeUniformityLabel` | Places every gang member on nodes with the same value of this node label.                                                                                                                                           |
+| `armadaproject.io/failFast`                | When `"true"`, Armada never retries the job: if a run fails or its node is lost, the job fails at once, even if the queue has a retry policy. Gang jobs get this automatically. `"true"` is the only allowed value. |
+
+### Environment variables in every job
+
+Armada adds these to every container, including init containers, unless you set a variable with the same name:
+
+| Variable                                  | Value                                                         |
+| ----------------------------------------- | ------------------------------------------------------------- |
+| `ARMADA_JOB_ID`                           | The job's ID                                                  |
+| `ARMADA_QUEUE`                            | The job's queue                                               |
+| `ARMADA_JOB_SET_ID`                       | The job's job set                                             |
+| `ARMADA_GANG_ID`                          | Gang jobs only: the gang ID                                   |
+| `ARMADA_GANG_CARDINALITY`                 | Gang jobs only: the number of jobs in the gang                |
+| `ARMADA_GANG_NODE_UNIFORMITY_LABEL_NAME`  | Gang jobs only: the node label the gang is grouped by, if any |
+| `ARMADA_GANG_NODE_UNIFORMITY_LABEL_VALUE` | Gang jobs only: that label's value on the gang's nodes        |
+
+### Getting data in and out
+
+Armada runs pods. It doesn't move data.
+
+- **Inputs** come from your container image, or from volumes in the job's namespace (a PVC, or object storage your code reads).
+- **Results** must be written to storage outside the pod before the container exits. The pod's files are gone when the job ends.
+- **Logs** are normal container logs, readable while the pod exists (see [Step 6](#6-see-the-jobs-output)). Finished pods are cleaned up after a few minutes. Lookout keeps the job's outcome: its state, error message and exit codes. To keep logs, write them to your own storage.
+
+## Operator setup
+
+These settings control the rules and defaults above. They're in the Armada server's configuration, under `submission:`. On an Operator install, that's the `ArmadaServer` resource's `spec.applicationConfig.submission`.
+{/* See [Install Armada](/docs/install#configure-armada). */}
+
+| Setting                                                   | Default                                                    | What it controls                                                      |
+| --------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------- |
+| `allowedPriorityClassNames`                               | `armada-default`, `armada-preemptible`, `armada-resilient` | Which `priorityClassName` values jobs may use                         |
+| `defaultPriorityClassName`                                | `armada-default`                                           | The class used when a job names none                                  |
+| `defaultJobLimits`                                        | `cpu: 1`, `memory: 1Gi`, `ephemeral-storage: 8Gi`          | Filled in for any resource a container doesn't mention                |
+| `minJobResources`                                         | `memory: 1Mi`                                              | Smallest allowed request per resource                                 |
+| `maxOversubscriptionByResourceRequest`                    | Not set                                                    | How far limits may exceed requests. Not set means they must be equal. |
+| `minTerminationGracePeriod` / `maxTerminationGracePeriod` | `1s` / `5m`                                                | Allowed shutdown time. `0` or not set becomes the minimum.            |
+| `defaultActiveDeadline`                                   | `72h`                                                      | Time limit for jobs that set none                                     |
+| `defaultActiveDeadlineByResourceRequest`                  | `nvidia.com/gpu: 336h`                                     | Time limit by resource; the highest match wins                        |
+| `defaultJobTolerations`                                   | Armada's own taints                                        | Tolerations added to every pod, so operators can reserve nodes        |
+| `restrictedTolerationKeys`                                | Not set                                                    | Toleration keys users may not set                                     |
+| `maxPodSpecSizeBytes`                                     | `65535`                                                    | Largest allowed pod spec                                              |
+
+## Troubleshooting
+
+| What you see                                                                                       | Cause                                                                            | Fix                                                                                                                                                                                                           |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PermissionDenied ... could not find queue "<name>"`                                               | The queue is brand new, or doesn't exist                                         | Wait 15 seconds and try again. Check the name with `armadactl get queues`.                                                                                                                                    |
+| `user ... cannot perform action submit on queue ...`                                               | You don't have submit rights on the queue                                        | Ask your platform team to give you (or your group) the `submit` permission on the queue.                                                                                                                      |
+| `Error: Warning: You have provided no jobs to submit.`                                             | The file has no jobs under `jobs:`                                               | Add at least one job.                                                                                                                                                                                         |
+| `Failed to parse file ... found character that cannot start any token`                             | The YAML is broken, usually by a tab                                             | Replace tabs with spaces.                                                                                                                                                                                     |
+| `namespace is a required field`                                                                    | The job has no `namespace`                                                       | Add `namespace: default` (or your team's namespace).                                                                                                                                                          |
+| `Job must contain at least one PodSpec`                                                            | The job has no `podSpec`                                                         | Add one.                                                                                                                                                                                                      |
+| `container <name> has no resources specified`                                                      | A container has no `resources`                                                   | Add `requests` and matching `limits`.                                                                                                                                                                         |
+| `container <name> defines different resources for requests and limits`                             | A container has `requests` but no `limits`                                       | Add `limits` equal to `requests`.                                                                                                                                                                             |
+| defines cpu with limits great than 1.00\*requests or defines cpu with limits smaller than requests | A limit doesn't equal its request                                                | Make each limit equal to its request.                                                                                                                                                                         |
+| `preferredDuringSchedulingIgnoredDuringExecution` node affinity is not supported by Armada         | `preferred...` node affinity                                                     | Use `requiredDuringSchedulingIgnoredDuringExecution`.                                                                                                                                                         |
+| `priority class X is not supported`                                                                | That class isn't allowed on this installation                                    | Use `armada-default` or `armada-preemptible`, or ask your platform team.                                                                                                                                      |
+| client id of length N is greater than max allowed length of 100                                    | `clientId` is too long                                                           | Use 100 characters or fewer.                                                                                                                                                                                  |
+| `watch` says the job set does not exist                                                            | The job hasn't reached the event stream yet                                      | Wait a few seconds and run `watch` again.                                                                                                                                                                     |
+| `watch` keeps running after the job ends                                                           | `watch` doesn't always stop by itself                                            | Press Ctrl-C.                                                                                                                                                                                                 |
+| The job fails at once with `exceeds the total limit` or `insufficient resources available`         | The job asks for more than the cluster has, or the install has only just started | Read the full reason on the `Job failed:` line in `watch`, or in the job's **Result** tab in Lookout. On a new install, wait two minutes and submit again; otherwise lower the job's `requests` and `limits`. |
+| The job stays Queued                                                                               | A scheduling question                                                            | Check why with `armadactl get job-report <job-id>`.                                                                                                                                                           |
+| The job ran twice                                                                                  | Two submits without a `clientId` create two jobs                                 | Set `clientId` to a stable, unique value.                                                                                                                                                                     |
+| zsh: no such file or directory: `job-id` (or bash: `job-id`: No such file or directory)            | A placeholder was pasted with its angle brackets                                 | Replace `<job-id>`, including `<` and `>`, with the real value.                                                                                                                                               |
