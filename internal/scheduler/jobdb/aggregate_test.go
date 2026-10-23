@@ -110,12 +110,14 @@ func TestJobAggregate_DisabledSkipsMaintenance(t *testing.T) {
 	require.NoError(t, txn.Upsert([]*Job{jobA}))
 	txn.Commit()
 
+	assert.Empty(t, observedAggregate(jobDb.aggregate))
 	assert.Empty(t, jobDb.ReadTxn().GetQueueDemand("pool-1", "queue-1"))
 
 	txn = jobDb.WriteTxn()
 	require.NoError(t, txn.BatchDelete([]string{jobA.Id()}))
 	txn.Commit()
 
+	assert.Empty(t, observedAggregate(jobDb.aggregate))
 	assert.Empty(t, jobDb.ReadTxn().GetQueueDemand("pool-1", "queue-1"))
 }
 
@@ -543,6 +545,241 @@ func TestJobAggregate_NilReceiver(t *testing.T) {
 	require.Empty(t, a.getQueueDemand("pool-1", "queue-1"))
 }
 
+// runningInfo derives the running scheduling info for a pool, treating every
+// executor as inactive (allocation is exercised separately).
+func runningInfo(txn *Txn, pool string, queues ...string) *SchedulingInfo {
+	known := make(map[string]bool, len(queues))
+	for _, queue := range queues {
+		known[queue] = true
+	}
+	return txn.CalculateSchedulingInfo(map[string]bool{}, pool, nil, []string{pool}, known)
+}
+
+func TestJobAggregate_RunningDemand(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	// Leased jobs contribute running demand for the pool/executor of their run.
+	jobA := newAggregateTestJob(t, jobDb, "jobA", "queue-1", false, []string{"pool-1"}, 3).
+		WithNewRun("executor-1", "node-1", "node-1", "pool-1", 5)
+	jobB := newAggregateTestJob(t, jobDb, "jobB", "queue-1", false, []string{"pool-1"}, 2).
+		WithNewRun("executor-2", "node-2", "node-2", "pool-1", 5)
+	// A queued job contributes no running demand.
+	jobC := newAggregateTestJob(t, jobDb, "jobC", "queue-1", true, []string{"pool-1"}, 4)
+
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{jobA, jobB, jobC}))
+	txn.Commit()
+
+	demand := runningInfo(jobDb.ReadTxn(), "pool-1", "queue-1").DemandByQueueAndPriorityClass
+	assert.Equal(t, int64(5), cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
+
+	// Deleting a leased job removes it.
+	txn = jobDb.WriteTxn()
+	require.NoError(t, txn.BatchDelete([]string{jobA.Id()}))
+	txn.Commit()
+	demand = runningInfo(jobDb.ReadTxn(), "pool-1", "queue-1").DemandByQueueAndPriorityClass
+	assert.Equal(t, int64(2), cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
+}
+
+// TestJobAggregate_DisabledSkipsRunningMaintenance proves the running-gate-off
+// path: with running maintenance disabled, Upsert/BatchDelete apply no running
+// deltas regardless of the queued gate. The stored running aggregate is checked
+// directly because CalculateSchedulingInfo is itself gated by the running flag
+// and would return empty regardless of what maintenance actually did.
+func TestJobAggregate_DisabledSkipsRunningMaintenance(t *testing.T) {
+	for _, queuedEnabled := range []bool{false, true} {
+		name := fmt.Sprintf("queued=%t", queuedEnabled)
+		t.Run(name, func(t *testing.T) {
+			jobDb := NewTestJobDb()
+			jobDb.SetQueuedAggregateEnabled(queuedEnabled)
+			jobDb.SetRunningAggregateEnabled(false)
+
+			job := newAggregateTestJob(t, jobDb, "job", "queue-1", false, []string{"pool-1"}, 1).
+				WithNewRun("executor-1", "node-1", "node-1", "pool-1", 0)
+
+			// Insert.
+			txn := jobDb.WriteTxn()
+			require.NoError(t, txn.Upsert([]*Job{job}))
+			txn.Commit()
+			assert.Empty(t, observedRunningAggregate(jobDb.aggregate))
+			assert.Empty(t, runningInfo(jobDb.ReadTxn(), "pool-1", "queue-1").DemandByQueueAndPriorityClass)
+
+			// Replacement with a different run must not populate anything either.
+			updated := job.WithNewRun("executor-2", "node-2", "node-2", "pool-1", 5)
+			txn = jobDb.WriteTxn()
+			require.NoError(t, txn.Upsert([]*Job{updated}))
+			txn.Commit()
+			assert.Empty(t, observedRunningAggregate(jobDb.aggregate))
+
+			// Deletion.
+			txn = jobDb.WriteTxn()
+			require.NoError(t, txn.BatchDelete([]string{job.Id()}))
+			txn.Commit()
+			assert.Empty(t, observedRunningAggregate(jobDb.aggregate))
+		})
+	}
+}
+
+// TestJobAggregate_ZeroResourceLeasedJobKeepsBucket covers a leased job that
+// requests no resources at all (possible when min job resources are unset and
+// node pod limits are not respected). It shares a queue/priority-class bucket
+// with another job, so deleting the other job leaves the bucket's resources
+// all zero. The bucket must survive while the zero-resource job is still
+// leased, and only disappear when it is removed too.
+func TestJobAggregate_ZeroResourceLeasedJobKeepsBucket(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	zero := newAggregateTestJob(t, jobDb, "zero", "queue-1", false, []string{"pool-1"}, 0).
+		WithNewRun("executor-1", "node-1", "node-1", "pool-1", 0)
+	other := newAggregateTestJob(t, jobDb, "other", "queue-1", false, []string{"pool-1"}, 2).
+		WithNewRun("executor-1", "node-2", "node-2", "pool-1", 0)
+
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{zero, other}))
+	txn.Commit()
+
+	// Delete the non-zero job it shared the (executor-1, queue-1, foo) bucket with.
+	txn = jobDb.WriteTxn()
+	require.NoError(t, txn.BatchDelete([]string{other.Id()}))
+	txn.Commit()
+
+	// The bucket stays with all-zero resources, so the still-leased zero-resource
+	// job keeps its priority class and demand entry instead of disappearing.
+	info := runningInfo(jobDb.ReadTxn(), "pool-1", "queue-1")
+	demand := info.DemandByQueueAndPriorityClass
+	require.Contains(t, demand, "queue-1")
+	require.Contains(t, demand["queue-1"], aggregateTestPriorityClass)
+	assert.Equal(t, int64(0), cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
+	assert.True(t, info.InUsePriorityClasses[aggregateTestPriorityClass])
+	assert.Equal(
+		t,
+		map[aggregateRunningTestKey]internaltypes.ResourceList{
+			{pool: "pool-1", executor: "executor-1", queue: "queue-1", pc: aggregateTestPriorityClass}: zero.AllResourceRequirements(),
+		},
+		observedRunningAggregate(jobDb.aggregate),
+	)
+
+	// Removing the zero-resource job prunes the bucket for good.
+	txn = jobDb.WriteTxn()
+	require.NoError(t, txn.BatchDelete([]string{zero.Id()}))
+	txn.Commit()
+	assert.Empty(t, observedRunningAggregate(jobDb.aggregate))
+	info = runningInfo(jobDb.ReadTxn(), "pool-1", "queue-1")
+	assert.Empty(t, info.DemandByQueueAndPriorityClass)
+	assert.False(t, info.InUsePriorityClasses[aggregateTestPriorityClass])
+}
+
+// TestJobAggregate_ZeroResourceQueuedJobKeepsDemand covers the queued-demand
+// equivalent: a zero-resource queued job sharing a bucket with another queued
+// job must keep the bucket (with all-zero resources) when the other job leaves.
+func TestJobAggregate_ZeroResourceQueuedJobKeepsDemand(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	zero := newAggregateTestJob(t, jobDb, "zero", "queue-1", true, []string{"pool-1"}, 0)
+	other := newAggregateTestJob(t, jobDb, "other", "queue-1", true, []string{"pool-1"}, 2)
+
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{zero, other}))
+	txn.Commit()
+
+	txn = jobDb.WriteTxn()
+	require.NoError(t, txn.BatchDelete([]string{other.Id()}))
+	txn.Commit()
+
+	// The still-queued zero-resource job keeps its demand entry, all-zero.
+	demand := jobDb.ReadTxn().GetQueueDemand("pool-1", "queue-1")
+	require.Contains(t, demand, aggregateTestPriorityClass)
+	assert.Equal(t, int64(0), cpuOf(demand[aggregateTestPriorityClass]))
+
+	txn = jobDb.WriteTxn()
+	require.NoError(t, txn.BatchDelete([]string{zero.Id()}))
+	txn.Commit()
+	assert.Empty(t, jobDb.ReadTxn().GetQueueDemand("pool-1", "queue-1"))
+	assert.Empty(t, observedAggregate(jobDb.aggregate))
+}
+
+func TestJobAggregate_QueuedToLeasedTransitionAddsRunningDemand(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	jobA := newAggregateTestJob(t, jobDb, "jobA", "queue-1", true, []string{"pool-1"}, 1)
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{jobA}))
+	txn.Commit()
+	assert.Empty(t, runningInfo(jobDb.ReadTxn(), "pool-1", "queue-1").DemandByQueueAndPriorityClass)
+
+	jobAUpdated := jobA.WithQueued(false).WithNewRun("executor-1", "node-1", "node-1", "pool-1", 0)
+	txn = jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{jobAUpdated}))
+	txn.Commit()
+
+	assert.Empty(t, jobDb.ReadTxn().GetQueueDemand("pool-1", "queue-1"))
+	demand := runningInfo(jobDb.ReadTxn(), "pool-1", "queue-1").DemandByQueueAndPriorityClass
+	assert.Equal(t, int64(1), cpuOf(demand["queue-1"][aggregateTestPriorityClass]))
+}
+
+func TestJobAggregate_CalculateSchedulingInfo(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	// Home-pool leased job on an active executor.
+	home := newAggregateTestJob(t, jobDb, "home", "queue-1", false, []string{"pool-1"}, 2).
+		WithNewRun("executor-1", "node-1", "node-1", "pool-1", 0)
+	// Away-pool leased job on an active executor.
+	away := newAggregateTestJob(t, jobDb, "away", "queue-1", false, []string{"pool-2"}, 4).
+		WithNewRun("executor-2", "node-2", "node-2", "pool-2", 0)
+	// Home-pool leased job on an inactive executor: demand but no allocation.
+	inactive := newAggregateTestJob(t, jobDb, "inactive", "queue-1", false, []string{"pool-1"}, 8).
+		WithNewRun("executor-3", "node-3", "node-3", "pool-1", 0)
+
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{home, away, inactive}))
+	txn.Commit()
+
+	info := jobDb.ReadTxn().CalculateSchedulingInfo(
+		map[string]bool{"executor-1": true, "executor-2": true},
+		"pool-1",
+		[]string{"pool-2"},
+		[]string{"pool-1", "pool-2"},
+		map[string]bool{"queue-1": true},
+	)
+
+	// Demand for the home pool counts every executor, including inactive ones.
+	assert.Equal(t, int64(10), cpuOf(info.DemandByQueueAndPriorityClass["queue-1"][aggregateTestPriorityClass]))
+	// Allocation only counts active executors on the home pool.
+	assert.Equal(t, int64(2), cpuOf(info.AllocatedByQueueAndPriorityClass["queue-1"][aggregateTestPriorityClass]))
+	// Away allocation counts active executors on away pools.
+	assert.Equal(t, int64(4), cpuOf(info.AwayAllocatedByQueueAndPriorityClass["queue-1"][aggregateTestPriorityClass]))
+	assert.True(t, info.InUsePriorityClasses[aggregateTestPriorityClass])
+
+	assert.ElementsMatch(t, []*Job{home, inactive}, info.JobsByPool["pool-1"])
+	assert.ElementsMatch(t, []*Job{away}, info.JobsByPool["pool-2"])
+	assert.ElementsMatch(t, []*Job{home}, info.JobsByExecutorId["executor-1"])
+	assert.ElementsMatch(t, []*Job{away}, info.JobsByExecutorId["executor-2"])
+	assert.ElementsMatch(t, []*Job{inactive}, info.JobsByExecutorId["executor-3"])
+}
+
+func TestJobAggregate_CalculateSchedulingInfoSkipsUnknownQueues(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	known := newAggregateTestJob(t, jobDb, "known", "queue-1", false, []string{"pool-1"}, 2).
+		WithNewRun("executor-1", "node-1", "node-1", "pool-1", 0)
+	unknown := newAggregateTestJob(t, jobDb, "unknown", "queue-2", false, []string{"pool-1"}, 4).
+		WithNewRun("executor-2", "node-2", "node-2", "pool-1", 0)
+
+	txn := jobDb.WriteTxn()
+	require.NoError(t, txn.Upsert([]*Job{known, unknown}))
+	txn.Commit()
+
+	info := jobDb.ReadTxn().CalculateSchedulingInfo(
+		map[string]bool{"executor-1": true, "executor-2": true},
+		"pool-1", nil, []string{"pool-1"}, map[string]bool{"queue-1": true},
+	)
+
+	assert.Equal(t, int64(2), cpuOf(info.DemandByQueueAndPriorityClass["queue-1"][aggregateTestPriorityClass]))
+	assert.NotContains(t, info.DemandByQueueAndPriorityClass, "queue-2")
+	assert.NotContains(t, info.JobsByPool["pool-1"], unknown)
+	assert.NotContains(t, info.JobsByExecutorId["executor-2"], unknown)
+}
+
 type aggregateTestKey struct {
 	pool  string
 	queue string
@@ -569,7 +806,10 @@ func TestJobAggregate_ChurnMatchesReference(t *testing.T) {
 			selectedPools := randomPoolSubset(rng, pools)
 			job := newAggregateTestJobWithPC(
 				t, jobDb, id, queues[rng.Intn(len(queues))], priorityClasses[rng.Intn(len(priorityClasses))],
-				queued, selectedPools, cpuAndMemory(int64(1+rng.Intn(4)), int64(rng.Intn(8))),
+				queued, selectedPools,
+				// Cpu is sometimes zero, so jobs occasionally request no
+				// resources at all, exercising zero-resource bucket survival.
+				cpuAndMemory(int64(rng.Intn(5)), int64(rng.Intn(8))),
 			)
 			if !queued && rng.Intn(2) == 0 {
 				job = job.WithNewRun("executor", "node", id, selectedPools[0], 0)
@@ -654,12 +894,57 @@ func observedAggregate(a *JobAggregate) map[aggregateTestKey]internaltypes.Resou
 			}
 			pcIt := pcMap.Iterator()
 			for !pcIt.Done() {
-				pc, rl, _ := pcIt.Next()
-				result[aggregateTestKey{pool: pool, queue: queue, pc: pc}] = rl
+				pc, bucket, _ := pcIt.Next()
+				result[aggregateTestKey{pool: pool, queue: queue, pc: pc}] = bucket.resources
 			}
 		}
 	}
 	return result
+}
+
+// observedRunningAggregate returns the running allocation held in the
+// aggregate itself, bypassing the runningEnabled read gate, so unwanted
+// running maintenance cannot be hidden by CalculateSchedulingInfo returning
+// empty.
+func observedRunningAggregate(a *JobAggregate) map[aggregateRunningTestKey]internaltypes.ResourceList {
+	result := map[aggregateRunningTestKey]internaltypes.ResourceList{}
+	if a == nil || a.allocatedByExecutor == nil {
+		return result
+	}
+	poolIt := a.allocatedByExecutor.Iterator()
+	for !poolIt.Done() {
+		pool, executorMap, _ := poolIt.Next()
+		if executorMap == nil {
+			continue
+		}
+		executorIt := executorMap.Iterator()
+		for !executorIt.Done() {
+			executor, queueMap, _ := executorIt.Next()
+			if queueMap == nil {
+				continue
+			}
+			queueIt := queueMap.Iterator()
+			for !queueIt.Done() {
+				queue, pcMap, _ := queueIt.Next()
+				if pcMap == nil {
+					continue
+				}
+				pcIt := pcMap.Iterator()
+				for !pcIt.Done() {
+					pc, bucket, _ := pcIt.Next()
+					result[aggregateRunningTestKey{pool: pool, executor: executor, queue: queue, pc: pc}] = bucket.resources
+				}
+			}
+		}
+	}
+	return result
+}
+
+type aggregateRunningTestKey struct {
+	pool     string
+	executor string
+	queue    string
+	pc       string
 }
 
 func requireAggregatesEqual(t *testing.T, want, got map[aggregateTestKey]internaltypes.ResourceList, context string) {
@@ -705,4 +990,229 @@ func requireDemandEqual(t *testing.T, want, got map[string]map[string]internalty
 			require.Truef(t, wantRL.Equal(gotRL), "%s: queue %s pc %s want %s got %s", context, queue, pc, wantRL, gotRL)
 		}
 	}
+}
+
+// aggregateSnapshot renders an aggregate as comparable text, keyed by bucket.
+func aggregateSnapshot(a *JobAggregate) map[string]string {
+	out := map[string]string{}
+	if a == nil {
+		return out
+	}
+	if a.queuedDemand != nil {
+		poolIt := a.queuedDemand.Iterator()
+		for !poolIt.Done() {
+			pool, queueMap, _ := poolIt.Next()
+			if queueMap == nil {
+				continue
+			}
+			queueIt := queueMap.Iterator()
+			for !queueIt.Done() {
+				queue, pcMap, _ := queueIt.Next()
+				if pcMap == nil {
+					continue
+				}
+				pcIt := pcMap.Iterator()
+				for !pcIt.Done() {
+					pc, bucket, _ := pcIt.Next()
+					out[fmt.Sprintf("queued/%s/%s/%s", pool, queue, pc)] = fmt.Sprintf("%s jobs=%d", bucket.resources.String(), bucket.jobs)
+				}
+			}
+		}
+	}
+	if a.allocatedByExecutor != nil {
+		poolIt := a.allocatedByExecutor.Iterator()
+		for !poolIt.Done() {
+			pool, executorMap, _ := poolIt.Next()
+			if executorMap == nil {
+				continue
+			}
+			executorIt := executorMap.Iterator()
+			for !executorIt.Done() {
+				executor, queueMap, _ := executorIt.Next()
+				if queueMap == nil {
+					continue
+				}
+				queueIt := queueMap.Iterator()
+				for !queueIt.Done() {
+					queue, pcMap, _ := queueIt.Next()
+					if pcMap == nil {
+						continue
+					}
+					pcIt := pcMap.Iterator()
+					for !pcIt.Done() {
+						pc, bucket, _ := pcIt.Next()
+						out[fmt.Sprintf("running/%s/%s/%s/%s", pool, executor, queue, pc)] = fmt.Sprintf("%s jobs=%d", bucket.resources.String(), bucket.jobs)
+					}
+				}
+			}
+		}
+	}
+	return out
+}
+
+// batchEquivalenceJobs builds a job mix exercising every branch of add:
+// queued jobs across multiple pools (including duplicate pools), running jobs
+// across executors, terminal jobs, and a non-queued job without a run.
+func batchEquivalenceJobs(t testing.TB, jobDb *JobDb) []*Job {
+	t.Helper()
+	jobs := make([]*Job, 0)
+	for i := 0; i < 50; i++ {
+		queued := i%3 != 0
+		pools := []string{"pool-1"}
+		switch i % 4 {
+		case 0:
+			pools = []string{"pool-1", "pool-2"}
+		case 1:
+			pools = []string{"pool-2"}
+		case 2:
+			pools = []string{"pool-2", "pool-2", "pool-1"}
+		}
+		queue := fmt.Sprintf("queue-%d", i%4)
+		pc := []string{"foo", "bar"}[i%2]
+		job := newAggregateTestJobWithPC(t, jobDb, fmt.Sprintf("job-%d", i), queue, pc, queued, pools, cpuAndMemory(int64(i%5+1), int64(i%3)))
+		if !queued {
+			executor := fmt.Sprintf("executor-%d", i%3)
+			runPool := pools[i%len(pools)]
+			job = job.WithNewRun(executor, fmt.Sprintf("node-%d", i), fmt.Sprintf("node-%d", i), runPool, 0)
+		}
+		switch i % 7 {
+		case 0:
+			job = job.WithFailed(true)
+		case 1:
+			job = job.WithSucceeded(true)
+		case 2:
+			job = job.WithCancelled(true)
+		}
+		jobs = append(jobs, job)
+	}
+	// A non-queued job without a run contributes to neither aggregate.
+	jobs = append(jobs, newAggregateTestJob(t, jobDb, "no-run", "queue-1", false, []string{"pool-1"}, 9))
+	return jobs
+}
+
+// TestJobAggregate_AddAllMatchesAdd verifies that batching adds per bucket is
+// exactly equivalent to adding the jobs one at a time, for every gate
+// combination and across the chunk boundary.
+func TestJobAggregate_AddAllMatchesAdd(t *testing.T) {
+	jobDb := NewTestJobDb()
+	jobs := batchEquivalenceJobs(t, jobDb)
+
+	// Cross the chunk boundary so the batched path is exercised more than once.
+	for i := 0; len(jobs) < aggregateAddBatchSize+250; i++ {
+		queued := i%2 == 0
+		job := newAggregateTestJob(t, jobDb, fmt.Sprintf("bulk-%d", i), fmt.Sprintf("queue-%d", i%4), queued, []string{"pool-1"}, int64(i%3+1))
+		if !queued {
+			job = job.WithNewRun(fmt.Sprintf("executor-%d", i%5), fmt.Sprintf("node-%d", i), fmt.Sprintf("node-%d", i), "pool-1", 0)
+		}
+		jobs = append(jobs, job)
+	}
+	require.Greater(t, len(jobs), aggregateAddBatchSize)
+
+	for _, gates := range []struct {
+		name    string
+		queued  bool
+		running bool
+	}{
+		{"both", true, true},
+		{"queuedOnly", true, false},
+		{"runningOnly", false, true},
+		{"none", false, false},
+	} {
+		t.Run(gates.name, func(t *testing.T) {
+			sequential := NewJobAggregate()
+			sequential.SetEnabled(gates.queued, gates.running)
+			for _, job := range jobs {
+				sequential.add(job)
+			}
+
+			batched := NewJobAggregate()
+			batched.SetEnabled(gates.queued, gates.running)
+			batched.addAll(jobs)
+
+			assert.Equal(t, aggregateSnapshot(sequential), aggregateSnapshot(batched))
+		})
+	}
+}
+
+// TestJobAggregate_BatchUpsertMatchesIndividualUpserts verifies the production
+// path: one bulk Upsert (batched aggregate maintenance) must leave the JobDb
+// aggregate identical to Upserting the same jobs one at a time (per-job
+// maintenance).
+func TestJobAggregate_BatchUpsertMatchesIndividualUpserts(t *testing.T) {
+	const n = aggregateAddBatchSize + 100
+	build := func() (*JobDb, []*Job) {
+		jobDb := NewTestJobDb()
+		jobs := make([]*Job, 0, n)
+		for i := 0; i < n; i++ {
+			queued := i%4 != 0
+			pool := []string{"pool-1", "pool-2"}[i%2]
+			job := newAggregateTestJobWithPC(t, jobDb,
+				fmt.Sprintf("job-%d", i),
+				fmt.Sprintf("queue-%d", i%5),
+				[]string{"foo", "bar"}[i%2],
+				queued,
+				[]string{pool},
+				cpuAndMemory(int64(i%4+1), int64(i%3)),
+			)
+			if !queued {
+				job = job.WithNewRun(fmt.Sprintf("executor-%d", i%4), fmt.Sprintf("node-%d", i), fmt.Sprintf("node-%d", i), pool, 0)
+			}
+			jobs = append(jobs, job)
+		}
+		return jobDb, jobs
+	}
+
+	batchDb, batchJobs := build()
+	txn := batchDb.WriteTxn()
+	require.NoError(t, txn.Upsert(batchJobs))
+	txn.Commit()
+
+	individualDb, individualJobs := build()
+	for _, job := range individualJobs {
+		txn := individualDb.WriteTxn()
+		require.NoError(t, txn.Upsert([]*Job{job}))
+		txn.Commit()
+	}
+
+	batchTxn := batchDb.ReadTxn()
+	individualTxn := individualDb.ReadTxn()
+
+	pools := []string{"pool-1", "pool-2"}
+	for i := 0; i < 5; i++ {
+		queue := fmt.Sprintf("queue-%d", i)
+		for _, pool := range pools {
+			want := individualTxn.GetQueueDemand(pool, queue)
+			got := batchTxn.GetQueueDemand(pool, queue)
+			require.Len(t, got, len(want), "queue %s pool %s", queue, pool)
+			for pc, wantRL := range want {
+				gotRL, ok := got[pc]
+				require.Truef(t, ok, "queue %s pool %s pc %s missing", queue, pool, pc)
+				require.Truef(t, wantRL.Equal(gotRL), "queue %s pool %s pc %s want %s got %s", queue, pool, pc, wantRL, gotRL)
+			}
+		}
+	}
+
+	activeExecutors := map[string]bool{}
+	for i := 0; i < 4; i++ {
+		activeExecutors[fmt.Sprintf("executor-%d", i)] = true
+	}
+	allPools := []string{"pool-1", "pool-2"}
+	for _, currentPool := range allPools {
+		want := individualTxn.CalculateSchedulingInfo(activeExecutors, currentPool, allPools, allPools, nil)
+		got := batchTxn.CalculateSchedulingInfo(activeExecutors, currentPool, allPools, allPools, nil)
+		require.Equal(t, resourceListMapSnapshot(want.DemandByQueueAndPriorityClass), resourceListMapSnapshot(got.DemandByQueueAndPriorityClass))
+		require.Equal(t, resourceListMapSnapshot(want.AllocatedByQueueAndPriorityClass), resourceListMapSnapshot(got.AllocatedByQueueAndPriorityClass))
+		require.Equal(t, resourceListMapSnapshot(want.AwayAllocatedByQueueAndPriorityClass), resourceListMapSnapshot(got.AwayAllocatedByQueueAndPriorityClass))
+		require.Equal(t, want.InUsePriorityClasses, got.InUsePriorityClasses)
+	}
+}
+
+func resourceListMapSnapshot(m map[string]map[string]internaltypes.ResourceList) map[string]string {
+	out := make(map[string]string, len(m))
+	for queue, byPC := range m {
+		for pc, rl := range byPC {
+			out[queue+"/"+pc] = rl.String()
+		}
+	}
+	return out
 }
