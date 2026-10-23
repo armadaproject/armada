@@ -1,0 +1,233 @@
+---
+title: 'Install and configure'
+description: 'Install Armada on a Kubernetes cluster with the Armada Operator, and change its settings.'
+---
+
+This page is for whoever runs Armada for a team. It shows how Armada is installed with the **Armada Operator**, where every setting lives, and how to change the settings that the user guides refer to.
+
+{/* To try Armada on a laptop, use [Getting started](/getting-started) instead: it does all of this in one command. */}
+
+## How an Operator install fits together
+
+The Armada Operator runs in your cluster and manages Armada for you. You describe each Armada component as a Kubernetes resource, and the Operator creates and updates the component to match.
+
+| Resource kind                                           | Component                                          |
+| ------------------------------------------------------- | -------------------------------------------------- |
+| `ArmadaServer`                                          | The API server that accepts jobs and queue changes |
+| `Scheduler`                                             | Decides which jobs run where                       |
+| `Executor`                                              | Runs jobs on one worker cluster                    |
+| `Lookout`                                               | The web UI                                         |
+| `Binoculars`                                            | The log service behind Lookout's **Logs** tab      |
+| `SchedulerIngester`, `LookoutIngester`, `EventIngester` | Keep each component's database up to date          |
+
+Armada also needs PostgreSQL, Pulsar and Redis, and uses kube-prometheus-stack for metrics.
+
+## Install Armada on a cluster
+
+### Step 1. Install the Operator
+
+```bash
+helm repo add gresearch https://g-research.github.io/charts
+helm install armada-operator gresearch/armada-operator --namespace armada-system --create-namespace
+```
+
+**Success:** `kubectl get pods -n armada-system` shows the operator running.
+
+### Step 2. Install the dependencies
+
+Armada needs PostgreSQL, Pulsar, Redis and kube-prometheus-stack. From a clone of the [armada-operator repository](https://github.com/armadaproject/armada-operator):
+
+```bash
+make install-armada-deps
+```
+
+This installs them with the values in `dev/quickstart/`. For production, install and size them yourself. Wait until they're all running before the next step.
+
+### Step 3. Install the Armada components
+
+```bash
+kubectl create namespace armada
+kubectl apply -n armada -f dev/quickstart/armada-crs.yaml
+kubectl apply -f dev/quickstart/priority-class.yaml
+```
+
+`armada-crs.yaml` is the smallest working set of resources. It exposes Armada with NodePort services (Lookout on 30000, the HTTP API on 30001, the gRPC API on 30002), which suits the laptop install, **not production**. For production, start from it, and replace the NodePorts with your own ingress, TLS and login settings. More examples are in `config/samples/` in the operator repository, including one for Binoculars.
+
+{/* TODO: add how to replace the NodePorts with ingress, TLS and login settings, once the production install test results are back. */}
+
+`priority-class.yaml` creates the Kubernetes `PriorityClass` called `armada-default`, which Armada stamps on every pod.
+
+**Success:** `kubectl get pods -n armada` shows every component `Running`, and the two `migration` pods `Completed`.
+
+## Change a setting
+
+Every resource has a `spec.applicationConfig` field. Whatever you put there is merged over the component's built-in defaults. For example, to allow an extra priority class on the server:
+
+```bash
+kubectl patch armadaserver armada-server -n armada --type merge -p '
+{"spec":{"applicationConfig":{"submission":{"allowedPriorityClassNames":{"my-class":true}}}}}'
+```
+
+Or edit the resource directly:
+
+```bash
+kubectl edit armadaserver armada-server -n armada
+```
+
+The Operator restarts the component with the new settings within seconds. Check it's healthy:
+
+```bash
+kubectl rollout status deploy/armada-server -n armada
+```
+
+Things to know:
+
+- **Settings are merged, not replaced.** You can add entries to a map, but not remove the built-in ones by patching.
+- **A new install has no `submission`, `scheduling` or similar blocks.** Missing blocks mean the built-in defaults apply. Add only the settings you want to change.
+- To undo a change, remove what you added: `kubectl patch ... --type json -p '[{"op":"remove","path":"/spec/applicationConfig/<block>"}]'`.
+
+The full list of settings for each component is in its configuration reference: [server](https://pkg.go.dev/github.com/armadaproject/armada/internal/server/configuration#ArmadaConfig), [scheduler](https://pkg.go.dev/github.com/armadaproject/armada/internal/scheduler/configuration#Configuration), [executor](https://pkg.go.dev/github.com/armadaproject/armada/internal/executor/configuration#ApplicationConfiguration), [Lookout](https://pkg.go.dev/github.com/armadaproject/armada/internal/lookout/configuration#LookoutConfig) and [Binoculars](https://pkg.go.dev/github.com/armadaproject/armada/internal/binoculars/configuration#BinocularsConfig).
+
+## Settings the user guides refer to
+
+### Job submission rules and defaults
+
+On the `ArmadaServer` resource, under `spec.applicationConfig.submission`:
+
+| Setting                                                   | Default                                                    | What it controls                                                                                                                                                                                                                                                                    |
+| --------------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allowedPriorityClassNames`                               | `armada-default`, `armada-preemptible`, `armada-resilient` | Which `priorityClassName` values jobs may use. A map of `name: true`. `armada-resilient` is allowed here but isn't defined on the scheduler by default, which logs `unknown priority class found armada-resilient` for each such job: define it on the scheduler or remove it here. |
+| `defaultPriorityClassName`                                | `armada-default`                                           | The class used when a job names none                                                                                                                                                                                                                                                |
+| `defaultJobLimits`                                        | `cpu: 1`, `memory: 1Gi`, `ephemeral-storage: 8Gi`          | Filled in for any resource a container doesn't mention                                                                                                                                                                                                                              |
+| `minJobResources`                                         | `memory: 1Mi`                                              | Smallest allowed request per resource                                                                                                                                                                                                                                               |
+| `maxOversubscriptionByResourceRequest`                    | Not set                                                    | How far limits may exceed requests. Not set means they must be equal.                                                                                                                                                                                                               |
+| `minTerminationGracePeriod` / `maxTerminationGracePeriod` | `1s` / `5m`                                                | Allowed shutdown time. `0` or not set becomes the minimum.                                                                                                                                                                                                                          |
+| `defaultActiveDeadline`                                   | `72h`                                                      | Time limit for jobs that set none                                                                                                                                                                                                                                                   |
+| `defaultActiveDeadlineByResourceRequest`                  | `nvidia.com/gpu: 336h`                                     | Time limit by resource; the highest match wins                                                                                                                                                                                                                                      |
+| `defaultJobTolerations`                                   | Armada's own taints                                        | Tolerations added to every pod                                                                                                                                                                                                                                                      |
+| `restrictedTolerationKeys`                                | Not set                                                    | Toleration keys users may not set                                                                                                                                                                                                                                                   |
+| `maxPodSpecSizeBytes`                                     | `65535`                                                    | Largest allowed pod spec                                                                                                                                                                                                                                                            |
+| `allowCustomServiceNames`                                 | `false`                                                    | Whether a service's `name:` is used, or replaced by the generated name                                                                                                                                                                                                              |
+| `defaultGangNodeUniformityLabel`                          | Not set                                                    | Node uniformity label applied to gangs that don't set one                                                                                                                                                                                                                           |
+
+### Priority classes
+
+On the `Scheduler` resource, under `spec.applicationConfig.scheduling.priorityClasses`. The defaults:
+
+```yaml
+scheduling:
+  priorityClasses:
+    armada-default:
+      priority: 1000
+      preemptible: false
+      maximumResourceFractionPerQueue:
+        memory: 1.0
+        cpu: 1.0
+    armada-preemptible:
+      priority: 1000
+      preemptible: true
+  defaultPriorityClassName: armada-default
+  priorityClassNameOverride: armada-default
+  protectedFractionOfFairShare: 1.0
+```
+
+- `priority` is urgency. Both default classes are at 1000, so **urgency preemption doesn't happen** until you add classes at different priorities (for example a preemptible class at 900 and an urgent one at 1100).
+- `preemptible` decides whether fair-share preemption and `armadactl preempt` can stop the class's running jobs.
+- `maximumResourceFractionPerQueue` caps how much of a pool one queue may hold in this class. Lower it (for example `cpu: 0.25`) to stop one queue filling the cluster with jobs Armada can never reclaim.
+- `protectedFractionOfFairShare`: queues at or below this fraction of their fair share are never preempted for fairness. At the default `1.0`, fair-share preemption is **on**: a queue above its fair share can lose preemptible jobs to a queue below it (tested 2026-10-06). Lower values protect less, so preempt more. (A comment in the scheduler's source says `1.0` disables fair-share preemption; testing shows it doesn't.) You can also set it per pool, under `scheduling.pools[].protectedFractionOfFairShare`.
+- `priorityClassNameOverride` is the Kubernetes priority class stamped on every pod, so Kubernetes treats all Armada pods equally.
+
+**Adding a priority class takes three changes:**
+
+1. **Scheduler:** define it under `scheduling.priorityClasses`.
+2. **Server:** add it to `submission.allowedPriorityClassNames`, or submissions fail with `priority class X is not supported`.
+3. **Worker clusters:** if you don't use `priorityClassNameOverride`, create a Kubernetes `PriorityClass` with the same name in every cluster.
+
+For example, this adds an urgent class on a laptop install (tested with the same settings under the name `pp-urgent`; the override is set there, so step 3 isn't needed). Settings maps merge with the defaults, so the two default classes stay:
+
+```bash
+kubectl patch armadaserver armada-server -n armada --type merge -p '
+{"spec":{"applicationConfig":{"submission":{"allowedPriorityClassNames":{"urgent":true}}}}}'
+kubectl patch scheduler armada-scheduler -n armada --type merge -p '
+{"spec":{"applicationConfig":{"scheduling":{"priorityClasses":{"urgent":{"priority":2000,"preemptible":false}}}}}}'
+```
+
+**Success:** a job with `priorityClassName: urgent` is accepted, and when the cluster is full of `armada-preemptible` jobs it starts by stopping one of them, which fails with `Preempted by scheduler using urgency preemption - preempting job <job-id>`.
+
+### Gang node uniformity
+
+On the `Scheduler` resource, under `spec.applicationConfig.scheduling.indexedNodeLabels`: a list of the node labels gangs may use with `armadaproject.io/gangNodeUniformityLabel`. None are enabled by default. For example:
+
+```bash
+kubectl patch scheduler armada-scheduler -n armada --type merge -p '
+{"spec":{"applicationConfig":{"scheduling":{"indexedNodeLabels":["topology.kubernetes.io/zone"]}}}}'
+```
+
+Until a label is listed, gangs that use it never start, and `armadactl get job-report` shows `uniformity label <label> is not indexed`.
+
+The executor must also report the label to the scheduler. It only reports the labels in its `kubernetes.trackedNodeLabels` (by default just `kubernetes.io/hostname`), so add the label there too, on the `Executor` resource. The list replaces the default, so keep `kubernetes.io/hostname` in it.
+
+**To keep gangs inside one worker cluster:** Armada places gangs across every cluster in a pool, and sets no label that names a cluster. Give every node in each cluster a label naming its cluster, for example `example.com/cluster=<cluster-name>` (from your node provisioning, or `kubectl label node`). Then add that label to the executor's `trackedNodeLabels` and the scheduler's `indexedNodeLabels`, and tell users to set `armadaproject.io/gangNodeUniformityLabel: example.com/cluster` on gangs that must stay together. (Tested on a laptop install with a test label: a gang using it ran, and one using an unindexed label stayed queued with `uniformity label ... is not indexed`.)
+
+Also under `scheduling`: `maximumSchedulingBurst` and `maximumPerQueueSchedulingBurst` (both 1000 by default). A gang with more members than either can never start.
+
+### Services and ingress
+
+On the `Executor` resource, under `spec.applicationConfig.kubernetes.podDefaults.ingress`:
+
+| Setting          | Default                   | What it controls                                                                                         |
+| ---------------- | ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `hostnameSuffix` | `svc`                     | The last part of ingress addresses. Your DNS must send `*.<suffix>` to the cluster's ingress controller. |
+| `certNameSuffix` | `ingress-tls-certificate` | Added to a job's `certName` to form the TLS secret name                                                  |
+| `annotations`    | None                      | Added to every ingress the executor creates, for example the ingress class                               |
+
+### Login and permissions
+
+See Authentication. {/* LINK: restore "[Authentication](/docs/authentication#operator-setup)" when that page merges */}
+
+### Job logs in Lookout
+
+Lookout's **Logs** tab reads logs through **Binoculars**. The laptop install doesn't include it, so the tab shows `TypeError: Failed to fetch` there.
+
+To provide logs:
+
+1. **Deploy a `Binoculars` resource.** The operator's sample (`config/samples/install_v1alpha1_binoculars.yaml`) is a starting point, but update it: it pins image tag `0.5.0` (use the same version as the rest of Armada), and it assumes an nginx ingress, a cert-manager cluster issuer and a secret called `testsecret`. A minimal resource:
+
+   ```yaml
+   apiVersion: install.armadaproject.io/v1alpha1
+   kind: Binoculars
+   metadata:
+     name: armada-binoculars
+     namespace: armada
+   spec:
+     replicas: 1
+     ingress:
+       ingressClass: 'nginx'
+     hostNames: [<binoculars-host>]
+     image:
+       repository: gresearch/armada-binoculars
+       tag: <armada-version>
+     applicationConfig:
+       corsAllowedOrigins:
+         - '<lookout-address>'
+   ```
+
+   Include the `ingress` block even if you expose Binoculars another way: without it, the operator fails with `panic: runtime error: invalid memory address or nil pointer dereference`.
+
+2. **Check the operator may create Binoculars' role.** Binoculars' cluster role includes `patch` on `nodes`, and Kubernetes only lets the operator grant permissions it holds itself. With the operator as installed by the quickstart, it fails with `clusterroles.rbac.authorization.k8s.io "armada-binoculars" is forbidden: ... attempting to grant RBAC permissions not currently held: {APIGroups:[""], Resources:["nodes"], Verbs:["patch"]}`. Give the operator's service account (`armada-system/armada-operator`) that permission, or ask the maintainers.
+
+3. **Point Lookout at it.** Lookout's web UI calls Binoculars from the user's browser, at `uiConfig.binocularsBaseUrlPattern` on the `Lookout` resource. The default (`http://armada-binoculars:8080`) only works inside the cluster. Set it to an address browsers can reach; `{CLUSTER_ID}` in the pattern is replaced with the job's cluster, for installations with a Binoculars per cluster.
+
+{/* Binoculars tested 2026-10-08 on a laptop install up to step 2 (both errors above reproduced); not tested end to end because granting the operator extra RBAC wasn't approved. Sources: armada-operator 363c414 internal/controller/install/binoculars_controller.go; armada f8bd058b internal/lookout/configuration/types.go (BinocularsBaseUrlPattern), internal/lookoutui/src/services/apiClients/context.tsx ({CLUSTER_ID}). */}
+
+## Troubleshooting
+
+| What you see                                                                                                                       | Cause                                                                        | Fix                                                                                                                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| A setting you added has no effect                                                                                                  | It's in the wrong resource or under the wrong block                          | Check which component reads it. For example, `submission` is on `ArmadaServer`, `scheduling` on `Scheduler`.                            |
+| A component won't start after a change                                                                                             | The setting has the wrong shape (for example a list where a map is expected) | Run `kubectl logs -n armada deploy/<component>`, then fix or remove the setting.                                                        |
+| You can't remove a default entry                                                                                                   | Settings are merged over the defaults                                        | Override its value instead, where the setting allows it.                                                                                |
+| `panic: runtime error: invalid memory address or nil pointer dereference` in the operator log after adding a `Binoculars` resource | The resource has no `ingress` block                                          | Add one (see [Job logs in Lookout](#job-logs-in-lookout)).                                                                              |
+| `clusterroles.rbac.authorization.k8s.io "armada-binoculars" is forbidden: ... not currently held: ... nodes ... patch`             | The operator lacks a permission Binoculars' role needs                       | Give the operator's service account `patch` on `nodes`.                                                                                 |
+| `Config error in error categories: ...` and the executor won't start                                                               | The executor's failure category settings aren't valid                        | See Failure categories. {/* LINK: restore "[Failure categories](/docs/failure-categories#check-the-settings)" when that page merges */} |
+| Every pod in `armada` fails after the cluster or Docker restarted                                                                  | Pulsar can't recover its storage                                             | On a laptop install, reinstall. For production, give Pulsar persistent storage.                                                         |
