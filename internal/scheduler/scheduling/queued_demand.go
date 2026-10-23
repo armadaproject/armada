@@ -11,19 +11,20 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-// compareScannedWithAggregate scans queued demand from jobs, compares it
-// against a precomputed aggregate-derived demand, and publishes any
-// difference. The scan-derived value remains authoritative.
-func (l *FairSchedulingAlgo) compareScannedWithAggregate(
+// compareScannedDemandWithAggregate compares the demand derived from scanning
+// jobs against the aggregate-derived demand and publishes any difference to the
+// metrics identified by comparison. The scan-derived value remains authoritative.
+func compareScannedDemandWithAggregate(
 	ctx *armadacontext.Context,
+	comparison aggregateComparison,
 	aggregate map[string]map[string]internaltypes.ResourceList,
 	currentPool string,
-	queuedDemandByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList,
+	scanned map[string]map[string]internaltypes.ResourceList,
 ) {
-	jobAggregateComparisons.WithLabelValues(currentPool).Inc()
-	if !queuedDemandEqual(queuedDemandByQueueAndPriorityClass, aggregate) {
-		jobAggregateMismatches.WithLabelValues(currentPool).Inc()
-		ctx.Errorf("JobDb queued demand aggregate mismatch for pool %s: %s", currentPool, queuedDemandDiff(queuedDemandByQueueAndPriorityClass, aggregate))
+	comparison.comparisons.WithLabelValues(currentPool).Inc()
+	if !demandEqual(scanned, aggregate) {
+		comparison.mismatches.WithLabelValues(currentPool).Inc()
+		ctx.Errorf("JobDb %s demand aggregate mismatch for pool %s: %s", comparison.kind, currentPool, demandDiff(scanned, aggregate))
 	}
 }
 
@@ -46,19 +47,19 @@ func queuedDemandFromAggregate(
 	return demand
 }
 
-// queuedDemandEqual reports whether the scan-derived and aggregate-derived
-// queued demand are equivalent.
+// demandEqual reports whether the scan-derived and aggregate-derived demand are
+// equivalent.
 //
 // An absent bucket is treated as an empty (zero) bucket. Both sides keep a
 // bucket (with all-zero resources) while any job contributes to it and drop it
 // when the last contributing job leaves, so absence and zero demand are
 // equivalent. A bucket holding non-zero demand on either side must be present
 // and equal on both.
-func queuedDemandEqual(a, b map[string]map[string]internaltypes.ResourceList) bool {
-	return queuedDemandSubsetEqual(a, b) && queuedDemandSubsetEqual(b, a)
+func demandEqual(a, b map[string]map[string]internaltypes.ResourceList) bool {
+	return demandSubsetEqual(a, b) && demandSubsetEqual(b, a)
 }
 
-func queuedDemandSubsetEqual(a, b map[string]map[string]internaltypes.ResourceList) bool {
+func demandSubsetEqual(a, b map[string]map[string]internaltypes.ResourceList) bool {
 	for queue, aByPriorityClass := range a {
 		bByPriorityClass := b[queue]
 		for priorityClass, aRL := range aByPriorityClass {
@@ -74,10 +75,10 @@ func resourceListsEqual(a, b internaltypes.ResourceList) bool {
 	return a.AllZero() && b.AllZero() || a.Equal(b)
 }
 
-// queuedDemandDiff renders the queue/priority-class buckets that differ between
-// the scan-derived and aggregate-derived queued demand. It is only called when a
-// mismatch is detected, so the extra allocation is kept off the hot path.
-func queuedDemandDiff(scanned, aggregate map[string]map[string]internaltypes.ResourceList) string {
+// demandDiff renders the queue/priority-class buckets that differ between the
+// scan-derived and aggregate-derived demand. It is only called when a mismatch
+// is detected, so the extra allocation is kept off the hot path.
+func demandDiff(scanned, aggregate map[string]map[string]internaltypes.ResourceList) string {
 	var differences []string
 	for _, queue := range unionQueueNames(scanned, aggregate) {
 		for _, priorityClass := range unionPriorityClasses(scanned[queue], aggregate[queue]) {
