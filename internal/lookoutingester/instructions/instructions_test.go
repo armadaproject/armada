@@ -265,11 +265,19 @@ func TestConvert_PodNameOfRun(t *testing.T) {
 				JobRunErrors: &armadaevents.JobRunErrors{JobId: testfixtures.JobId, RunId: testfixtures.RunId, Errors: []*armadaevents.Error{{
 					Terminal: true,
 					Reason: &armadaevents.Error_PodError{PodError: &armadaevents.PodError{
-						ObjectMeta: &armadaevents.ObjectMeta{Name: "pod-failed"},
+						ObjectMeta: &armadaevents.ObjectMeta{KubernetesId: "uid-1", Name: "pod-failed"},
 					}},
 				}}},
 			}},
 			wantPodName: pointer.String("pod-failed"),
+		},
+		"a pod error of a pod that Kubernetes never created stores no pod name": {
+			event: &armadaevents.EventSequence_Event{Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{JobId: testfixtures.JobId, RunId: testfixtures.RunId, Errors: []*armadaevents.Error{{
+					Terminal: true,
+					Reason:   &armadaevents.Error_PodError{PodError: &armadaevents.PodError{ObjectMeta: &armadaevents.ObjectMeta{Name: "pod-not-created"}}},
+				}}},
+			}},
 		},
 		"a pod error without a pod stores no pod name": {
 			event: &armadaevents.EventSequence_Event{Event: &armadaevents.EventSequence_Event_JobRunErrors{
