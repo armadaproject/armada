@@ -1,0 +1,12 @@
+ # 1/18th of a GB300 NVL72 rack, see README.md
+name: gb300-tray
+allocatable:
+  cpu: "144"  # 2 Grace x 72 cores
+  memory: "960Gi"  # 2 x 480 GB LPDDR5X; sheet says "1 TB"; GiB to match gb200-tray
+  ephemeral-storage: "20954Gi"  # placeholder, copied from gb200-tray
+  pods: "1913"  # placeholder, copied from gb200-tray
+  nvidia.com/gpu: "4"  # 4 x B300
+labels:
+  node.kubernetes.io/instance-type: gb300-tray
+  nvidia.com/gpu.memory: "274658"  # MiB per GPU, 288 GB
+taints: []
