@@ -439,6 +439,54 @@ func TestCancelJobSet_ReasonTooLong(t *testing.T) {
 	assert.Equal(t, codes.InvalidArgument, armadaerrors.CodeFromError(err))
 }
 
+func TestCancelJobs_JobIdNotStorable(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	server, _ := createTestServer(t)
+
+	resp, err := server.CancelJobs(ctx, &api.JobCancelRequest{
+		JobIds:   []string{util.ULID().String(), "job\x00id"},
+		Queue:    testfixtures.DefaultQueue.Name,
+		JobSetId: testfixtures.DefaultJobset,
+	})
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, codes.InvalidArgument, armadaerrors.CodeFromError(err))
+}
+
+func TestPreemptJobs_JobIdNotStorable(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	server, _ := createTestServer(t)
+
+	jobId := util.ULID().String()
+	resp, err := server.PreemptJobs(ctx, &api.JobPreemptRequest{
+		JobIds:   []string{jobId + "\x00"},
+		Queue:    testfixtures.DefaultQueue.Name,
+		JobSetId: testfixtures.DefaultJobset,
+	})
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, codes.InvalidArgument, armadaerrors.CodeFromError(err))
+}
+
+func TestReprioritizeJobs_JobIdNotStorable(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	server, _ := createTestServer(t)
+
+	jobId := util.ULID().String()
+	resp, err := server.ReprioritizeJobs(ctx, &api.JobReprioritizeRequest{
+		JobIds:      []string{jobId + "\x00"},
+		Queue:       testfixtures.DefaultQueue.Name,
+		JobSetId:    testfixtures.DefaultJobset,
+		NewPriority: 1,
+	})
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, codes.InvalidArgument, armadaerrors.CodeFromError(err))
+}
+
 func TestReprioritizeJobs(t *testing.T) {
 	jobId1 := util.ULID().String()
 	jobId2 := util.ULID().String()
