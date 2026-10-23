@@ -49,3 +49,10 @@ categorisation
 retryable
 organisations
 KUBECONFIG
+venv
+apimachinery
+jobset
+godemo
+temurin
+Dskip
+protoc
