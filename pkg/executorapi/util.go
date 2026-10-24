@@ -56,6 +56,18 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		jobRunsByState[jobId] = api.JobRunStateFromApiJobState(state)
 	}
 
+	var nodeTaints []*schedulerobjects.NodeTaint
+	if len(nodeInfo.NodeTaints) > 0 {
+		nodeTaints = make([]*schedulerobjects.NodeTaint, 0, len(nodeInfo.NodeTaints))
+		for _, nodeTaint := range nodeInfo.NodeTaints {
+			nodeTaints = append(nodeTaints, &schedulerobjects.NodeTaint{
+				Taint:      nodeTaint.Taint,
+				Category:   nodeTaint.Category,
+				UserFacing: nodeTaint.UserFacing,
+			})
+		}
+	}
+
 	return &schedulerobjects.Node{
 		Id:                          api.NodeIdFromExecutorAndNodeName(executor, nodeInfo.Name),
 		Name:                        nodeInfo.Name,
@@ -63,6 +75,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		Pool:                        nodeInfo.Pool,
 		LastSeen:                    protoutil.ToTimestamp(lastSeen),
 		Taints:                      nodeInfo.GetTaints(),
+		NodeTaints:                  nodeTaints,
 		Labels:                      nodeInfo.GetLabels(),
 		TotalResources:              ResourceListFromProtoResources(nodeInfo.TotalResources),
 		UnallocatableResources:      unallocatableResources,

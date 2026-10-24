@@ -3,17 +3,20 @@ package internaltypes
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestNode(t *testing.T) {
@@ -71,6 +74,8 @@ func TestNode(t *testing.T) {
 		pool,
 		reportingNodeType,
 		taints,
+		nil,
+		false,
 		labels,
 		indexedTaints,
 		indexedNodeLabels,
@@ -122,12 +127,92 @@ func TestNode(t *testing.T) {
 	assert.Equal(t, node, nodeCopy)
 }
 
+func TestGetNodeTaintsReturnsCopy(t *testing.T) {
+	node := &Node{nodeTaints: []NodeTaint{{Taint: v1.Taint{Key: "example.com/dedicated"}, Category: "platform"}}}
+
+	actual := node.GetNodeTaints()
+	actual[0].Category = "changed"
+
+	assert.Equal(t, "platform", node.GetNodeTaints()[0].Category)
+}
+
+func TestFromSchedulerObjectsNodeTaintMetadataCompleteness(t *testing.T) {
+	a := &v1.Taint{Key: "dedicated", Value: "gpu", Effect: v1.TaintEffectNoSchedule}
+	b := &v1.Taint{Key: "maintenance", Effect: v1.TaintEffectNoSchedule}
+	withTime := a.DeepCopy()
+	withTime.TimeAdded = &metav1.Time{Time: time.Unix(1, 0)}
+	withDifferentTime := a.DeepCopy()
+	withDifferentTime.TimeAdded = &metav1.Time{Time: time.Unix(2, 0)}
+	resources, err := NewResourceListFactory([]schedulerconfiguration.ResourceType{{Name: "cpu", Resolution: resource.MustParse("1m")}}, nil)
+	require.NoError(t, err)
+	factory := NewNodeFactory(nil, nil, nil, resources)
+
+	for _, tc := range []struct {
+		name     string
+		taints   []*v1.Taint
+		metadata []*schedulerobjects.NodeTaint
+		complete bool
+	}{
+		{name: "empty inventories", complete: true},
+		{name: "legacy", taints: []*v1.Taint{a}},
+		{name: "metadata only", metadata: []*schedulerobjects.NodeTaint{{Taint: a}}},
+		{name: "matching", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: a, Category: "user", UserFacing: true}}, complete: true},
+		{name: "separate taint objects", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: a.DeepCopy()}}, complete: true},
+		{name: "metadata timestamp only", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: withTime}}, complete: true},
+		{name: "raw timestamp only", taints: []*v1.Taint{withTime}, metadata: []*schedulerobjects.NodeTaint{{Taint: a}}, complete: true},
+		{name: "different timestamps", taints: []*v1.Taint{withTime}, metadata: []*schedulerobjects.NodeTaint{{Taint: withDifferentTime}}, complete: true},
+		{name: "reordered", taints: []*v1.Taint{a, b}, metadata: []*schedulerobjects.NodeTaint{{Taint: b}, {Taint: a}}, complete: true},
+		{name: "partial", taints: []*v1.Taint{a, b}, metadata: []*schedulerobjects.NodeTaint{{Taint: a}}},
+		{name: "different key", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: b}}},
+		{name: "different value", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: &v1.Taint{Key: a.Key, Value: "cpu", Effect: a.Effect}}}},
+		{name: "different effect", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: &v1.Taint{Key: a.Key, Value: a.Value, Effect: v1.TaintEffectNoExecute}}}},
+		{name: "matching duplicates", taints: []*v1.Taint{a, a}, metadata: []*schedulerobjects.NodeTaint{{Taint: a}, {Taint: a}}, complete: true},
+		{name: "different duplicate counts", taints: []*v1.Taint{a, b}, metadata: []*schedulerobjects.NodeTaint{{Taint: a}, {Taint: a}}},
+		{name: "nil raw taint", taints: []*v1.Taint{nil}, metadata: []*schedulerobjects.NodeTaint{{Taint: a}}},
+		{name: "nil metadata entry", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{nil}},
+		{name: "nil metadata taint", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			node := factory.FromSchedulerObjectsNode(&schedulerobjects.Node{
+				Taints: tc.taints, NodeTaints: tc.metadata,
+				Unschedulable: true, TotalResources: &schedulerobjects.ResourceList{},
+			})
+			// The synthesized cordon taint must not affect report completeness.
+			assert.Contains(t, node.GetTaints(), UnschedulableTaint())
+			assert.Equal(t, tc.complete, node.hasCompleteNodeTaintMetadata)
+			assert.Equal(t, tc.complete, node.DeepCopyNilKeys().hasCompleteNodeTaintMetadata)
+			assert.Equal(t, tc.complete, node.WithSchedulable(true).hasCompleteNodeTaintMetadata)
+		})
+	}
+}
+
+func TestWithNodeTaintsReplacesMetadataWithoutChangingTaints(t *testing.T) {
+	rawTaints := []v1.Taint{{Key: "example.com/dedicated", Value: "gpu", Effect: v1.TaintEffectNoSchedule}}
+	node := &Node{
+		taints:     rawTaints,
+		nodeTaints: []NodeTaint{{Taint: rawTaints[0], Category: "old"}},
+	}
+	updatedNodeTaints := []NodeTaint{{
+		Taint:    v1.Taint{Key: "example.com/maintenance", Effect: v1.TaintEffectNoSchedule},
+		Category: "platform", UserFacing: true,
+	}}
+
+	updated := node.WithNodeTaints(updatedNodeTaints)
+
+	assert.Equal(t, rawTaints, updated.GetTaints())
+	assert.Equal(t, updatedNodeTaints, updated.GetNodeTaints())
+	assert.Equal(t, []NodeTaint{{Taint: rawTaints[0], Category: "old"}}, node.GetNodeTaints())
+
+	updatedNodeTaints[0].Category = "changed by caller"
+	assert.Equal(t, "platform", updated.GetNodeTaints()[0].Category)
+}
+
 func createNodeWithIndexedLabelsAndTaints(taints []v1.Taint, labels map[string]string) *Node {
 	indexedTaints := map[string]bool{"foo": true, unschedulableTaintKey: true}
 	indexedNodeLabels := map[string]bool{"key": true}
 	return CreateNode(
 		"id", 1, "executor", "name", "pool", "type",
-		taints, labels, indexedTaints, indexedNodeLabels,
+		taints, nil, false, labels, indexedTaints, indexedNodeLabels,
 		false, ResourceList{}, ResourceList{},
 		[]int32{1, 2}, nil,
 	)
@@ -309,7 +394,7 @@ func testAccountingNode(t *testing.T, factory *ResourceListFactory) *Node {
 	total := testAccountingNodeTotal(factory)
 	return CreateNode(
 		"node-1", 1, "executor", "node-1", "pool", "type",
-		nil, nil, map[string]bool{}, map[string]bool{},
+		nil, nil, false, nil, map[string]bool{}, map[string]bool{},
 		false, total, total,
 		[]int32{1, 10},
 		nil,
@@ -706,6 +791,8 @@ func createNode(allocatableResource ResourceList, allowedPriorities []int32) *No
 		pool,
 		reportingNodeType,
 		nil,
+		nil,
+		false,
 		nil,
 		nil,
 		nil,

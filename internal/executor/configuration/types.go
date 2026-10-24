@@ -1,10 +1,13 @@
 package configuration
 
 import (
+	"regexp"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
@@ -12,6 +15,8 @@ import (
 	"github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 	"github.com/armadaproject/armada/pkg/client"
 )
+
+const UserQueueableTaintCategory = "user"
 
 type ApplicationConfiguration struct {
 	// ClusterId is the unique identifier for the cluster that the executor is running on.
@@ -147,6 +152,7 @@ type KubernetesConfiguration struct {
 	// ToleratedTaints specifies taints which are tolerated by the executor.
 	// If a node has a taint that is not in this list, the executor will consider it for scheduling Armada jobs.
 	ToleratedTaints           []string
+	QueueableTaints           QueueableTaintsConfiguration
 	MinimumPodAge             time.Duration
 	StuckTerminatingPodExpiry time.Duration
 	FailedPodExpiry           time.Duration
@@ -166,6 +172,80 @@ type KubernetesConfiguration struct {
 	MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority int32
 
 	PodKillTimeout time.Duration
+}
+
+type QueueableTaintsConfiguration struct {
+	// Taint keys that are tolerated by executor. Supports regex. Will eventually replace ToleratedTaints. Taints that are used by end users should go here.
+	// Keys match literally unless they contain regex syntax other than dots
+	// (*+?[](){}|^$ or backslash). Regex patterns must match the entire taint key.
+	// If a node has a taint that is not in this list, the executor will not consider it for scheduling Armada jobs.
+	// Taints found in nodes that match the patterns listed are sent to the scheduler for jobs to remain queued if nodes with these taints are the only ones viable.
+	Keys  []string
+	Admin []QueueableTaintAdminConfiguration
+}
+
+type QueueableTaintAdminConfiguration struct {
+	// Name of a category to for admins to place taints in.
+	Category string
+	// Taint keys that are tolerated by executor. Supports regex. Only taints that are known/used by admins and operators should go here.
+	// Literal and regex matching follow the same rules as QueueableTaintsConfiguration.Keys.
+	// If a node has a taint that is not in this list, the executor will not consider it for scheduling Armada jobs.
+	// Taints found in nodes that match the patterns listed are sent to the scheduler for jobs to remain queued if nodes with these taints are the only ones viable.
+	Keys []string
+}
+
+type QueueableTaint struct {
+	Pattern    string
+	Category   string
+	UserFacing bool
+	regexp     *regexp.Regexp
+}
+
+type QueueableTaints struct {
+	Taints []QueueableTaint
+}
+
+func (c KubernetesConfiguration) NewQueueableTaints() (*QueueableTaints, error) {
+	taints := make([]QueueableTaint, 0, len(c.QueueableTaints.Keys)+len(c.ToleratedTaints)+1)
+	appendTaint := func(pattern, category string, userFacing bool) error {
+		expression := pattern
+		if !strings.ContainsAny(expression, `*+?[](){}|^$\`) {
+			expression = regexp.QuoteMeta(expression)
+		}
+		re, err := regexp.Compile("^(?:" + expression + ")$")
+		if err != nil {
+			return err
+		}
+		taints = append(taints, QueueableTaint{Pattern: pattern, Category: category, UserFacing: userFacing, regexp: re})
+		return nil
+	}
+	for _, taintKey := range append(append([]string{}, c.ToleratedTaints...), constants.ReservationTaintKey) {
+		if err := appendTaint("^"+regexp.QuoteMeta(taintKey)+"$", "", true); err != nil {
+			return nil, err
+		}
+	}
+	for _, pattern := range c.QueueableTaints.Keys {
+		if err := appendTaint(pattern, UserQueueableTaintCategory, true); err != nil {
+			return nil, err
+		}
+	}
+	for _, admin := range c.QueueableTaints.Admin {
+		for _, pattern := range admin.Keys {
+			if err := appendTaint(pattern, admin.Category, false); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return &QueueableTaints{Taints: taints}, nil
+}
+
+func (q *QueueableTaints) MatchQueueableTaint(taintKey string) (QueueableTaint, bool) {
+	for _, taint := range q.Taints {
+		if taint.regexp.MatchString(taintKey) {
+			return taint, true
+		}
+	}
+	return QueueableTaint{}, false
 }
 
 type EtcdConfiguration struct {

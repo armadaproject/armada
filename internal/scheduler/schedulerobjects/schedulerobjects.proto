@@ -53,6 +53,13 @@ message Node {
     repeated PoolQueueResource resource_usage_by_queue_and_pool = 20;
     // The name of the reservation for this node, will be empty if this node is not reserved
     string reservation = 21;
+    repeated NodeTaint node_taints = 22;
+}
+
+message NodeTaint {
+    k8s.io.api.core.v1.Taint taint = 1;
+    string category = 2;
+    bool user_facing = 3;
 }
 
 enum JobRunState {

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -21,7 +22,11 @@ var (
 
 func TestGetPool_WhenNodeHasNodePoolLabel(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 	node := createNodeWithTaints("node1")
 	node.Labels = map[string]string{nodePoolLabel: "example-node-pool"}
 
@@ -31,7 +36,11 @@ func TestGetPool_WhenNodeHasNodePoolLabel(t *testing.T) {
 
 func TestGetPool_WhenNodeDoesNotHaveNodePoolLabel(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 	node := createNodeWithTaints("node1")
 
 	result := nodeInfoService.GetPool(node)
@@ -41,7 +50,11 @@ func TestGetPool_WhenNodeDoesNotHaveNodePoolLabel(t *testing.T) {
 
 func TestGetPool_WhenReservedNodeHasNodePoolLabel(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 	node := createNodeWithTaints("node1", constants.ReservationTaintKey)
 	node.Labels = map[string]string{nodePoolLabel: "example-node-pool"}
 
@@ -51,7 +64,11 @@ func TestGetPool_WhenReservedNodeHasNodePoolLabel(t *testing.T) {
 
 func TestGetPool_WhenReservedNodeHasNodePoolLabel_SuffixDisabled(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, "", []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		"",
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 	node := createNodeWithTaints("node1", constants.ReservationTaintKey)
 	node.Labels = map[string]string{nodePoolLabel: "example-node-pool"}
 
@@ -61,7 +78,11 @@ func TestGetPool_WhenReservedNodeHasNodePoolLabel_SuffixDisabled(t *testing.T) {
 
 func TestGetType_WhenNodeHasNoTaint(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 	node := createNodeWithTaints("node1")
 
 	result := nodeInfoService.GetType(node)
@@ -70,7 +91,11 @@ func TestGetType_WhenNodeHasNoTaint(t *testing.T) {
 
 func TestGetType_WhenNodeHasNodeTypeLabel(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 
 	node := createNodeWithTaints("node1", "tolerated1")
 	node.Labels = map[string]string{nodeTypeLabel: "example-node-type"}
@@ -81,7 +106,11 @@ func TestGetType_WhenNodeHasNodeTypeLabel(t *testing.T) {
 
 func TestGetType_WhenNodeHasUntoleratedTaint(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 	node := createNodeWithTaints("node1", "untolerated")
 
 	result := nodeInfoService.GetType(node)
@@ -90,7 +119,11 @@ func TestGetType_WhenNodeHasUntoleratedTaint(t *testing.T) {
 
 func TestGetType_WhenNodeHasToleratedTaint(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 
 	node := createNodeWithTaints("node1", "tolerated1")
 	result := nodeInfoService.GetType(node)
@@ -103,16 +136,36 @@ func TestGetType_WhenNodeHasToleratedTaint(t *testing.T) {
 
 func TestGetType_WhenSomeNodeTaintsTolerated(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 
 	node := createNodeWithTaints("node1", "tolerated1", "untolerated")
 	result := nodeInfoService.GetType(node)
 	assert.Equal(t, result, "tolerated1")
 }
 
+func TestGetType_WhenNodeHasQueueableTaint(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{}, configuration.QueueableTaintsConfiguration{Keys: []string{"queueable1", "queueable2"}}))
+
+	node := createNodeWithTaints("node1", "queueable1", "queueable2")
+	assert.Equal(t, "queueable1,queueable2", nodeInfoService.GetType(node))
+}
+
 func TestGroupNodesByType(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"tolerated1", "tolerated2"})
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{"tolerated1", "tolerated2"}, configuration.QueueableTaintsConfiguration{}))
 
 	node1 := createNodeWithTaints("node1")
 	node2 := createNodeWithTaints("node2", "untolerated")
@@ -136,9 +189,31 @@ func TestGroupNodesByType(t *testing.T) {
 	}
 }
 
+func TestGroupNodesByType_WhenNodesHaveQueueableTaints(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{}, configuration.QueueableTaintsConfiguration{Keys: []string{"queueable1", "queueable2"}}))
+
+	node1 := createNodeWithTaints("node1", "queueable1")
+	node2 := createNodeWithTaints("node2", "queueable1", "queueable2")
+	groups := nodeInfoService.GroupNodesByType([]*v1.Node{node1, node2})
+
+	assert.ElementsMatch(t, []*NodeGroup{
+		{NodeType: "queueable1", Nodes: []*v1.Node{node1}},
+		{NodeType: "queueable1,queueable2", Nodes: []*v1.Node{node2}},
+	}, groups)
+}
+
 func TestFilterAvailableProcessingNodes(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{})
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{}, configuration.QueueableTaintsConfiguration{}))
 
 	node := v1.Node{
 		Spec: v1.NodeSpec{
@@ -153,7 +228,11 @@ func TestFilterAvailableProcessingNodes(t *testing.T) {
 
 func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{})
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{}, configuration.QueueableTaintsConfiguration{}))
 
 	node := v1.Node{
 		Spec: v1.NodeSpec{
@@ -168,7 +247,11 @@ func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
 
 func TestFilterAvailableProcessingNodes_IsFalse_NodeWithNoScheduleTaint(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{})
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{}, configuration.QueueableTaintsConfiguration{}))
 
 	taint := v1.Taint{
 		Key:    "taint",
@@ -187,7 +270,11 @@ func TestFilterAvailableProcessingNodes_IsFalse_NodeWithNoScheduleTaint(t *testi
 
 func TestFilterAvailableProcessingNodes_IsTrue_NodeWithToleratedTaint(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	nodeInfoService := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, []string{"taint"})
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{"taint"}, configuration.QueueableTaintsConfiguration{}))
 
 	taint := v1.Taint{
 		Key:    "taint",
@@ -202,6 +289,64 @@ func TestFilterAvailableProcessingNodes_IsTrue_NodeWithToleratedTaint(t *testing
 
 	result := nodeInfoService.IsAvailableProcessingNode(&node)
 	assert.True(t, result)
+}
+
+func TestFilterAvailableProcessingNodes_IsTrue_NodeWithQueueableTaint(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{}, configuration.QueueableTaintsConfiguration{Keys: []string{"taint"}}))
+
+	node := v1.Node{Spec: v1.NodeSpec{Taints: []v1.Taint{{Key: "taint", Effect: v1.TaintEffectNoSchedule}}}}
+	assert.True(t, nodeInfoService.IsAvailableProcessingNode(&node))
+}
+
+func TestFilterAvailableProcessingNodes_LegacyToleratedTaintsAreLiteral(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{"example.com/dedicated"}, configuration.QueueableTaintsConfiguration{}))
+
+	for _, tc := range []struct {
+		key       string
+		available bool
+	}{
+		{key: "example.com/dedicated", available: true},
+		{key: "exampleXcom/dedicated"},
+		{key: "prefix-example.com/dedicated"},
+		{key: "example.com/dedicated-extra"},
+		{key: constants.ReservationTaintKey, available: true},
+		{key: "prefix-" + constants.ReservationTaintKey},
+		{key: constants.ReservationTaintKey + "-extra"},
+	} {
+		t.Run(tc.key, func(t *testing.T) {
+			node := v1.Node{Spec: v1.NodeSpec{Taints: []v1.Taint{{Key: tc.key, Effect: v1.TaintEffectNoSchedule}}}}
+			assert.Equal(t, tc.available, nodeInfoService.IsAvailableProcessingNode(&node))
+		})
+	}
+}
+
+func TestGetType_WhenNodeMatchesAdminQueueableTaintPattern(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		reservedNodePoolSuffix,
+		mustQueueableTaints(t, []string{}, configuration.QueueableTaintsConfiguration{
+			Admin: []configuration.QueueableTaintAdminConfiguration{
+				{
+					Category: "platform",
+					Keys:     []string{`example\.com/.*`},
+				},
+			},
+		}))
+
+	node := createNodeWithTaints("node1", "example.com/dedicated")
+	assert.Equal(t, "example.com/dedicated", nodeInfoService.GetType(node))
 }
 
 func createNodeWithTaints(nodeName string, taintNames ...string) *v1.Node {
@@ -221,4 +366,14 @@ func createNodeWithTaints(nodeName string, taintNames ...string) *v1.Node {
 			Taints: taints,
 		},
 	}
+}
+
+func mustQueueableTaints(t *testing.T, toleratedTaints []string, queueableTaints configuration.QueueableTaintsConfiguration) *configuration.QueueableTaints {
+	t.Helper()
+	result, err := (configuration.KubernetesConfiguration{
+		ToleratedTaints: toleratedTaints,
+		QueueableTaints: queueableTaints,
+	}).NewQueueableTaints()
+	require.NoError(t, err)
+	return result
 }

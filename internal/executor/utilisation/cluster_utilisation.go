@@ -10,6 +10,7 @@ import (
 	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/node"
@@ -27,6 +28,7 @@ type ClusterUtilisationService struct {
 	clusterContext                                                context.ClusterContext
 	queueUtilisationService                                       PodUtilisationService
 	nodeInfoService                                               node.NodeInfoService
+	queueableTaints                                               *configuration.QueueableTaints
 	trackedNodeLabels                                             []string
 	nodeIdLabel                                                   string
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode         armadaresource.ComputeResources
@@ -37,6 +39,7 @@ func NewClusterUtilisationService(
 	clusterContext context.ClusterContext,
 	queueUtilisationService PodUtilisationService,
 	nodeInfoService node.NodeInfoService,
+	queueableTaints *configuration.QueueableTaints,
 	trackedNodeLabels []string,
 	nodeIdLabel string,
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode armadaresource.ComputeResources,
@@ -46,6 +49,7 @@ func NewClusterUtilisationService(
 		clusterContext:          clusterContext,
 		queueUtilisationService: queueUtilisationService,
 		nodeInfoService:         nodeInfoService,
+		queueableTaints:         queueableTaints,
 		trackedNodeLabels:       trackedNodeLabels,
 		nodeIdLabel:             nodeIdLabel,
 		minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode:         minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
@@ -109,12 +113,15 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority)
 
 		nodePool := cls.nodeInfoService.GetPool(node)
+		taints := armadaslices.Map(node.Spec.Taints, func(taint v1.Taint) *v1.Taint {
+			return &taint
+		})
+		nodeTaints := cls.queueableNodeTaints(taints)
 		nodes = append(nodes, executorapi.NodeInfo{
-			Name:   node.Name,
-			Labels: cls.filterTrackedLabels(node.Labels),
-			Taints: armadaslices.Map(node.Spec.Taints, func(t v1.Taint) *v1.Taint {
-				return &t
-			}),
+			Name:                        node.Name,
+			Labels:                      cls.filterTrackedLabels(node.Labels),
+			Taints:                      taints,
+			NodeTaints:                  nodeTaints,
 			AllocatableResources:        allocatable.ToProtoMap(),
 			AvailableResources:          available.ToProtoMap(),
 			TotalResources:              allocatable.ToProtoMap(),
@@ -131,6 +138,19 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 		AvailableCapacity: &totalAvailable, // TODO: This should be the total - max job priority resources.
 		Nodes:             nodes,
 	}, nil
+}
+
+func (cls *ClusterUtilisationService) queueableNodeTaints(taints []*v1.Taint) []*executorapi.NodeTaint {
+	result := make([]*executorapi.NodeTaint, 0)
+	for _, taint := range taints {
+		nodeTaint := &executorapi.NodeTaint{Taint: taint}
+		if queueableTaint, ok := cls.queueableTaints.MatchQueueableTaint(taint.Key); ok {
+			nodeTaint.Category = queueableTaint.Category
+			nodeTaint.UserFacing = queueableTaint.UserFacing
+		}
+		result = append(result, nodeTaint)
+	}
+	return result
 }
 
 // This returns all the pods assigned the node or soon to be assigned (via node-selector)
