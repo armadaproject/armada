@@ -52,17 +52,21 @@ func TestResourceListFromProtoResources(t *testing.T) {
 
 func TestNewNodeFromNodeInfoCopiesNodeTaints(t *testing.T) {
 	taint := &v1.Taint{Key: "example.com/dedicated", Value: "gpu", Effect: v1.TaintEffectNoSchedule}
+	userFacingTaint := &v1.Taint{Key: "example.com/legacy", Value: "true", Effect: v1.TaintEffectNoSchedule}
 	nodeInfo := &NodeInfo{
-		Name: "node-1",
+		Name:   "node-1",
+		Taints: []*v1.Taint{taint, userFacingTaint},
 		NodeTaints: []*NodeTaint{
 			{Taint: taint, Category: "platform", UserFacing: false},
+			{Taint: userFacingTaint, UserFacing: true},
 		},
 	}
 
 	node, err := NewNodeFromNodeInfo(nodeInfo, "executor-1", nil, time.Now())
-	assert.NoError(t, err)
-	require.Len(t, node.NodeTaints, 1)
-	assert.Equal(t, taint, node.NodeTaints[0].Taint)
-	assert.Equal(t, "platform", node.NodeTaints[0].Category)
-	assert.False(t, node.NodeTaints[0].UserFacing)
+	require.NoError(t, err)
+	assert.Equal(t, nodeInfo.Taints, node.Taints)
+	assert.Equal(t, []*schedulerobjects.NodeTaint{
+		{Taint: taint, Category: "platform", UserFacing: false},
+		{Taint: userFacingTaint, UserFacing: true},
+	}, node.NodeTaints)
 }

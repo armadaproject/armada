@@ -3,12 +3,14 @@ package internaltypes
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/pointer"
@@ -137,6 +139,10 @@ func TestGetNodeTaintsReturnsCopy(t *testing.T) {
 func TestFromSchedulerObjectsNodeTaintMetadataCompleteness(t *testing.T) {
 	a := &v1.Taint{Key: "dedicated", Value: "gpu", Effect: v1.TaintEffectNoSchedule}
 	b := &v1.Taint{Key: "maintenance", Effect: v1.TaintEffectNoSchedule}
+	withTime := a.DeepCopy()
+	withTime.TimeAdded = &metav1.Time{Time: time.Unix(1, 0)}
+	withDifferentTime := a.DeepCopy()
+	withDifferentTime.TimeAdded = &metav1.Time{Time: time.Unix(2, 0)}
 	resources, err := NewResourceListFactory([]schedulerconfiguration.ResourceType{{Name: "cpu", Resolution: resource.MustParse("1m")}}, nil)
 	require.NoError(t, err)
 	factory := NewNodeFactory(nil, nil, nil, resources)
@@ -151,6 +157,10 @@ func TestFromSchedulerObjectsNodeTaintMetadataCompleteness(t *testing.T) {
 		{name: "legacy", taints: []*v1.Taint{a}},
 		{name: "metadata only", metadata: []*schedulerobjects.NodeTaint{{Taint: a}}},
 		{name: "matching", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: a, Category: "user", UserFacing: true}}, complete: true},
+		{name: "separate taint objects", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: a.DeepCopy()}}, complete: true},
+		{name: "metadata timestamp only", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: withTime}}, complete: true},
+		{name: "raw timestamp only", taints: []*v1.Taint{withTime}, metadata: []*schedulerobjects.NodeTaint{{Taint: a}}, complete: true},
+		{name: "different timestamps", taints: []*v1.Taint{withTime}, metadata: []*schedulerobjects.NodeTaint{{Taint: withDifferentTime}}, complete: true},
 		{name: "reordered", taints: []*v1.Taint{a, b}, metadata: []*schedulerobjects.NodeTaint{{Taint: b}, {Taint: a}}, complete: true},
 		{name: "partial", taints: []*v1.Taint{a, b}, metadata: []*schedulerobjects.NodeTaint{{Taint: a}}},
 		{name: "different key", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: b}}},
@@ -182,13 +192,19 @@ func TestWithNodeTaintsReplacesMetadataWithoutChangingTaints(t *testing.T) {
 		taints:     rawTaints,
 		nodeTaints: []NodeTaint{{Taint: rawTaints[0], Category: "old"}},
 	}
-	updatedNodeTaints := []NodeTaint{{Taint: rawTaints[0], Category: "platform", UserFacing: true}}
+	updatedNodeTaints := []NodeTaint{{
+		Taint:    v1.Taint{Key: "example.com/maintenance", Effect: v1.TaintEffectNoSchedule},
+		Category: "platform", UserFacing: true,
+	}}
 
 	updated := node.WithNodeTaints(updatedNodeTaints)
 
 	assert.Equal(t, rawTaints, updated.GetTaints())
 	assert.Equal(t, updatedNodeTaints, updated.GetNodeTaints())
 	assert.Equal(t, []NodeTaint{{Taint: rawTaints[0], Category: "old"}}, node.GetNodeTaints())
+
+	updatedNodeTaints[0].Category = "changed by caller"
+	assert.Equal(t, "platform", updated.GetNodeTaints()[0].Category)
 }
 
 func createNodeWithIndexedLabelsAndTaints(taints []v1.Taint, labels map[string]string) *Node {

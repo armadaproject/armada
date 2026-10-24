@@ -13,13 +13,15 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	fakeContext "github.com/armadaproject/armada/internal/executor/fake/context"
+	"github.com/armadaproject/armada/internal/executor/node"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 const nodeIdLabel = "node-id"
 
-func TestQueueableNodeTaints(t *testing.T) {
+func TestGetAvailableClusterCapacity_ReportsAllNodeTaints(t *testing.T) {
 	queueableTaints, err := (configuration.KubernetesConfiguration{
 		ToleratedTaints: []string{"legacy"},
 		QueueableTaints: configuration.QueueableTaintsConfiguration{
@@ -30,25 +32,41 @@ func TestQueueableNodeTaints(t *testing.T) {
 		},
 	}).NewQueueableTaints()
 	require.NoError(t, err)
-	legacy := &v1.Taint{Key: "legacy"}
-	user := &v1.Taint{Key: "user"}
-	admin := &v1.Taint{Key: "admin"}
-	other := &v1.Taint{Key: "other"}
+	legacy := &v1.Taint{Key: "legacy", Value: "true", Effect: v1.TaintEffectNoSchedule}
+	user := &v1.Taint{Key: "user", Value: "gpu", Effect: v1.TaintEffectNoSchedule}
+	admin := &v1.Taint{Key: "admin", Value: "maintenance", Effect: v1.TaintEffectNoSchedule}
+	other := &v1.Taint{Key: "other", Value: "restricted", Effect: v1.TaintEffectNoSchedule}
+	clusterContext := fakeContext.NewFakeClusterContext(
+		configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"},
+		nodeIdLabel,
+		[]*fakeContext.NodeSpec{{
+			Name: "worker", Count: 1,
+			Taints:      []v1.Taint{*legacy, *user, *admin, *other},
+			Allocatable: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")},
+		}},
+	)
+	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, "node-type", "node-pool", "", queueableTaints)
+	// No pods are present, so this report does not need a pod utilisation service.
+	service := NewClusterUtilisationService(clusterContext, nil, nodeInfoService, queueableTaints, nil, nodeIdLabel, nil, 0)
 
-	service := &ClusterUtilisationService{queueableTaints: queueableTaints}
-	actual := service.queueableNodeTaints([]*v1.Taint{legacy, user, admin, other})
+	report, err := service.GetAvailableClusterCapacity()
+
+	require.NoError(t, err)
+	require.Len(t, report.Nodes, 1)
+	assert.Equal(t, []*v1.Taint{legacy, user, admin, other}, report.Nodes[0].Taints)
+	actual := report.Nodes[0].NodeTaints
 
 	require.Len(t, actual, 4)
-	assert.Same(t, legacy, actual[0].Taint)
+	assert.Equal(t, legacy, actual[0].Taint)
 	assert.Empty(t, actual[0].Category)
 	assert.True(t, actual[0].UserFacing)
-	assert.Same(t, user, actual[1].Taint)
+	assert.Equal(t, user, actual[1].Taint)
 	assert.Equal(t, configuration.UserQueueableTaintCategory, actual[1].Category)
 	assert.True(t, actual[1].UserFacing)
-	assert.Same(t, admin, actual[2].Taint)
+	assert.Equal(t, admin, actual[2].Taint)
 	assert.Equal(t, "platform", actual[2].Category)
 	assert.False(t, actual[2].UserFacing)
-	assert.Same(t, other, actual[3].Taint)
+	assert.Equal(t, other, actual[3].Taint)
 	assert.Empty(t, actual[3].Category)
 	assert.False(t, actual[3].UserFacing)
 }
