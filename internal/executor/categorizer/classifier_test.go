@@ -660,6 +660,14 @@ func TestClassify_RecordsRuleEvaluationDuration(t *testing.T) {
 		"rule after the match should not be observed")
 }
 
+func TestClassify_WithoutCategoriesGivesTheSameResultAsNoClassifier(t *testing.T) {
+	classifier, err := NewClassifier(ErrorCategoriesConfig{Enabled: true})
+	require.NoError(t, err)
+	pod := podWithTerminatedContainer(137, "OOMKilled", "")
+
+	assert.Equal(t, (*Classifier)(nil).Classify(pod, "OOMKilled", nil), classifier.Classify(pod, "OOMKilled", nil))
+}
+
 type labelKey struct{ category, subcategory string }
 
 // ruleHistogramCounts gathers the rule-evaluation histogram from the default
