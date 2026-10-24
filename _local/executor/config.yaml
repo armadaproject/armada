@@ -22,7 +22,6 @@ application:
   pool: "default"
   errorCategories:
     enabled: true
-    defaultCategory: uncategorized
     categories:
       # The action Delete makes the executor remove the failed pod. A retry
       # then reuses the name of the pod. The retry/ testcases need this.
