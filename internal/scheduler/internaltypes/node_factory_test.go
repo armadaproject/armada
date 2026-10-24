@@ -2,15 +2,60 @@ package internaltypes
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
+
+func TestAddTaintsPreservesMetadataAndAddsNeutralEntries(t *testing.T) {
+	existing := v1.Taint{Key: "user", Effect: v1.TaintEffectNoSchedule}
+	added := v1.Taint{
+		Key: "dedicated", Value: "gpu", Effect: v1.TaintEffectNoSchedule,
+		TimeAdded: &metav1.Time{Time: time.Unix(1, 0)},
+	}
+	resources, err := NewResourceListFactory([]configuration.ResourceType{{Name: "cpu", Resolution: resource.MustParse("1m")}}, nil)
+	require.NoError(t, err)
+	factory := NewNodeFactory(nil, nil, nil, resources)
+	node := factory.FromSchedulerObjectsNode(&schedulerobjects.Node{
+		Taints:         []*v1.Taint{&existing},
+		NodeTaints:     []*schedulerobjects.NodeTaint{{Taint: &existing, Category: "user", UserFacing: true}},
+		Unschedulable:  true,
+		TotalResources: &schedulerobjects.ResourceList{},
+	})
+	originalTaints := node.GetTaints()
+	originalMetadata := node.GetNodeTaints()
+	extraTaints := []v1.Taint{*added.DeepCopy()}
+
+	result := factory.AddTaints([]*Node{node}, extraTaints)
+
+	require.Len(t, result, 1)
+	assert.Equal(t, []v1.Taint{existing, UnschedulableTaint(), added}, result[0].GetTaints())
+	assert.Equal(t, []NodeTaint{
+		{Taint: existing, Category: "user", UserFacing: true},
+		{Taint: added},
+	}, result[0].GetNodeTaints())
+	assert.True(t, result[0].hasCompleteNodeTaintMetadata)
+	assert.Equal(t, originalTaints, node.GetTaints())
+	assert.Equal(t, originalMetadata, node.GetNodeTaints())
+
+	// Added restrictions must survive subsequent metadata-aware filtering.
+	filtered := factory.RemoveCordonTaints(result)
+	assert.Equal(t, []v1.Taint{added}, filtered[0].GetTaints())
+	assert.Equal(t, []NodeTaint{{Taint: added}}, filtered[0].GetNodeTaints())
+
+	// Neither representation may retain mutable timestamps owned by the caller.
+	extraTaints[0].TimeAdded.Time = time.Unix(2, 0)
+	assert.Equal(t, added, result[0].GetTaints()[2])
+	require.Len(t, result[0].GetNodeTaints(), 2)
+	assert.Equal(t, added, result[0].GetNodeTaints()[1].Taint)
+}
 
 func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 	cordon := v1.Taint{Key: v1.TaintNodeUnschedulable, Effect: v1.TaintEffectNoSchedule}

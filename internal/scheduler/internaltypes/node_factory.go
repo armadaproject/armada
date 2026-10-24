@@ -126,7 +126,11 @@ func (f *NodeFactory) AddLabels(nodes []*Node, extraLabels map[string]string) []
 func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 	result := make([]*Node, len(nodes))
 	for i, node := range nodes {
-		result[i] = node.WithTaints(append(node.GetTaints(), extraTaints...))
+		nodeTaints := node.GetNodeTaints()
+		for _, taint := range extraTaints {
+			nodeTaints = append(nodeTaints, NodeTaint{Taint: *taint.DeepCopy()})
+		}
+		result[i] = node.WithTaints(append(node.GetTaints(), extraTaints...)).WithNodeTaints(nodeTaints)
 	}
 	return result
 }
