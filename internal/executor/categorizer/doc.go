@@ -6,6 +6,8 @@
 // # Configuration
 //
 // Categories are defined in the executor config under application.errorCategories.
+// The shipped executor config turns classification on. Without categories and
+// without a default category, the classifier assigns no category to a failure.
 // Each category has a name and one or more rules. The classifier evaluates
 // rules in config order across all categories. The first matching rule wins
 // and sets both the category name and the rule's optional subcategory.
