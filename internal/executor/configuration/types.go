@@ -2,6 +2,7 @@ package configuration
 
 import (
 	"regexp"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc/keepalive"
@@ -141,6 +142,8 @@ type KubernetesConfiguration struct {
 
 type QueueableTaintsConfiguration struct {
 	// Taint keys that are tolerated by executor. Supports regex. Will eventually replace ToleratedTaints. Taints that are used by end users should go here.
+	// Keys match literally unless they contain regex syntax other than dots
+	// (*+?[](){}|^$ or backslash). Regex patterns must match the entire taint key.
 	// If a node has a taint that is not in this list, the executor will not consider it for scheduling Armada jobs.
 	// Taints found in nodes that match the patterns listed are sent to the scheduler for jobs to remain queued if nodes with these taints are the only ones viable.
 	Keys  []string
@@ -151,6 +154,7 @@ type QueueableTaintAdminConfiguration struct {
 	// Name of a category to for admins to place taints in.
 	Category string
 	// Taint keys that are tolerated by executor. Supports regex. Only taints that are known/used by admins and operators should go here.
+	// Literal and regex matching follow the same rules as QueueableTaintsConfiguration.Keys.
 	// If a node has a taint that is not in this list, the executor will not consider it for scheduling Armada jobs.
 	// Taints found in nodes that match the patterns listed are sent to the scheduler for jobs to remain queued if nodes with these taints are the only ones viable.
 	Keys []string
@@ -170,7 +174,11 @@ type QueueableTaints struct {
 func (c KubernetesConfiguration) NewQueueableTaints() (*QueueableTaints, error) {
 	taints := make([]QueueableTaint, 0, len(c.QueueableTaints.Keys)+len(c.ToleratedTaints)+1)
 	appendTaint := func(pattern, category string, userFacing bool) error {
-		re, err := regexp.Compile(pattern)
+		expression := pattern
+		if !strings.ContainsAny(expression, `*+?[](){}|^$\`) {
+			expression = regexp.QuoteMeta(expression)
+		}
+		re, err := regexp.Compile("^(?:" + expression + ")$")
 		if err != nil {
 			return err
 		}
@@ -178,7 +186,7 @@ func (c KubernetesConfiguration) NewQueueableTaints() (*QueueableTaints, error) 
 		return nil
 	}
 	for _, taintKey := range append(append([]string{}, c.ToleratedTaints...), constants.ReservationTaintKey) {
-		if err := appendTaint(regexp.QuoteMeta(taintKey), "", true); err != nil {
+		if err := appendTaint("^"+regexp.QuoteMeta(taintKey)+"$", "", true); err != nil {
 			return nil, err
 		}
 	}

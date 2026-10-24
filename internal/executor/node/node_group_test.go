@@ -311,8 +311,23 @@ func TestFilterAvailableProcessingNodes_LegacyToleratedTaintsAreLiteral(t *testi
 		reservedNodePoolSuffix,
 		mustQueueableTaints(t, []string{"example.com/dedicated"}, configuration.QueueableTaintsConfiguration{}))
 
-	node := v1.Node{Spec: v1.NodeSpec{Taints: []v1.Taint{{Key: "exampleXcom/dedicated", Effect: v1.TaintEffectNoSchedule}}}}
-	assert.False(t, nodeInfoService.IsAvailableProcessingNode(&node))
+	for _, tc := range []struct {
+		key       string
+		available bool
+	}{
+		{key: "example.com/dedicated", available: true},
+		{key: "exampleXcom/dedicated"},
+		{key: "prefix-example.com/dedicated"},
+		{key: "example.com/dedicated-extra"},
+		{key: constants.ReservationTaintKey, available: true},
+		{key: "prefix-" + constants.ReservationTaintKey},
+		{key: constants.ReservationTaintKey + "-extra"},
+	} {
+		t.Run(tc.key, func(t *testing.T) {
+			node := v1.Node{Spec: v1.NodeSpec{Taints: []v1.Taint{{Key: tc.key, Effect: v1.TaintEffectNoSchedule}}}}
+			assert.Equal(t, tc.available, nodeInfoService.IsAvailableProcessingNode(&node))
+		})
+	}
 }
 
 func TestGetType_WhenNodeMatchesAdminQueueableTaintPattern(t *testing.T) {

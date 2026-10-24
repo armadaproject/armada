@@ -112,6 +112,12 @@ func TestKubernetesConfigurationNewQueueableTaints(t *testing.T) {
 	assert.Empty(t, taint.Category)
 	assert.True(t, taint.UserFacing)
 
+	// A longer key must use the configured admin regex, not the legacy literal.
+	taint, ok = queueableTaints.MatchQueueableTaint("legacy.example.com/dedicated-extra")
+	assert.True(t, ok)
+	assert.Equal(t, "platform", taint.Category)
+	assert.False(t, taint.UserFacing)
+
 	taint, ok = queueableTaints.MatchQueueableTaint(constants.ReservationTaintKey)
 	assert.True(t, ok)
 	assert.Empty(t, taint.Category)
