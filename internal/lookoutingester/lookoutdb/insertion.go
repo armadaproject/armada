@@ -841,6 +841,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 				CREATE TEMPORARY TABLE %s (
 					run_id               varchar(36),
 					node                 varchar(512),
+					pod_name             varchar(253),
 				    pending              timestamp,
 					started              timestamp,
 					finished             timestamp,
@@ -866,6 +867,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 				[]string{
 					"run_id",
 					"node",
+					"pod_name",
 					"pending",
 					"started",
 					"finished",
@@ -882,6 +884,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 					return []interface{}{
 						instructions[i].RunId,
 						instructions[i].Node,
+						instructions[i].PodName,
 						instructions[i].Pending,
 						instructions[i].Started,
 						instructions[i].Finished,
@@ -905,6 +908,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.Context, instructions 
 				fmt.Sprintf(`UPDATE job_run
 					SET
 						node                 = coalesce(tmp.node, job_run.node),
+						pod_name             = coalesce(tmp.pod_name, job_run.pod_name),
 						pending              = coalesce(tmp.pending, job_run.pending),
 						started              = coalesce(tmp.started, job_run.started),
 						finished             = coalesce(tmp.finished, job_run.finished),
@@ -942,7 +946,8 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 			ingress_addresses    = coalesce($10, ingress_addresses),
 			failure_category     = coalesce($11, failure_category),
 			failure_subcategory  = coalesce($12, failure_subcategory),
-			scheduler_termination_reason = coalesce($13, scheduler_termination_reason)
+			scheduler_termination_reason = coalesce($13, scheduler_termination_reason),
+			pod_name             = coalesce($14, pod_name)
 		WHERE run_id = $1`
 	for _, i := range instructions {
 		if ctx.Err() != nil {
@@ -964,6 +969,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 				i.FailureCategory,
 				i.FailureSubcategory,
 				i.SchedulerTerminationReason,
+				i.PodName,
 			)
 			if err != nil {
 				l.metrics.RecordDBError(commonmetrics.DBOperationUpdate)
@@ -1262,6 +1268,9 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 		if ok {
 			if update.Node != nil {
 				existing.Node = update.Node
+			}
+			if update.PodName != nil {
+				existing.PodName = update.PodName
 			}
 			if update.Started != nil {
 				existing.Started = update.Started

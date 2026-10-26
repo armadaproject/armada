@@ -53,7 +53,7 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
 
   const jobs: Job[] = []
   for (let i = 0; i < nJobs; i++) {
-    const jobId = "01gkv9cj53h0rk9407mds" + i
+    const jobId = "01gkv9cj53h0rk9407mds" + i.toString().padStart(5, "0")
     const runs = createJobRuns(randomInt(0, 3, rand), jobId, rand, uuid)
 
     jobs.push({
@@ -89,8 +89,10 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
   for (let i = 0; i < n; i++) {
     const runState = randomProperty(JobRunState, rand)
     let node = undefined
+    let podName = undefined
     if (runState !== JobRunState.RunPending && runState !== JobRunState.RunLeased) {
       node = uuid()
+      podName = `armada-${jobId}-0`
     }
 
     const startedDateSeconds = 14 + 117 * i
@@ -106,6 +108,7 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
       jobId: jobId,
       jobRunState: runState,
       node: node,
+      podName,
       started,
       leased,
       pending,

@@ -12,6 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/podname"
 	"github.com/armadaproject/armada/internal/lookout/model"
 )
 
@@ -129,6 +130,11 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 		if runs.Valid {
 			if err := json.Unmarshal([]byte(runs.String), &job.Runs); err != nil {
 				return nil, err
+			}
+		}
+		for _, run := range job.Runs {
+			if name := podname.Resolve(job.JobId, run.PodName, run.Pending != nil, run.Started != nil); name != "" {
+				run.PodName = &name
 			}
 		}
 		if len(job.Runs) > 0 {
