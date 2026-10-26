@@ -151,8 +151,22 @@ func (f *NodeFactory) RemoveCordonTaints(nodes []*Node) []*Node {
 	result := make([]*Node, len(nodes))
 	for i, node := range nodes {
 		if !node.IsUnschedulable() {
-			// Not cordoned. Freshly built node, not yet inserted into a NodeDb, so reuse it as-is.
-			result[i] = node
+			// Check for not cordoned nodes that have configured admin taints
+			hasAdminTaints := false
+			if node.hasCompleteNodeTaintMetadata {
+				for _, nodeTaint := range node.nodeTaints {
+					if !nodeTaint.UserFacing && nodeTaint.Category != "" {
+						hasAdminTaints = true
+						break
+					}
+				}
+			}
+			if hasAdminTaints {
+				result[i] = removeCordonTaintsWithMetadata(node)
+			} else {
+				// Not cordoned. Freshly built node, not yet inserted into a NodeDb, so reuse it as-is.
+				result[i] = node
+			}
 			continue
 		}
 		if node.hasCompleteNodeTaintMetadata {
