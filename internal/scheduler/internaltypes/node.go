@@ -106,6 +106,18 @@ type NodeTaint struct {
 	UserFacing bool
 }
 
+func deepCopyNodeTaints(nodeTaints []NodeTaint) []NodeTaint {
+	if nodeTaints == nil {
+		return nil
+	}
+	result := make([]NodeTaint, len(nodeTaints))
+	for i, nodeTaint := range nodeTaints {
+		result[i] = nodeTaint
+		result[i].Taint = *nodeTaint.Taint.DeepCopy()
+	}
+	return result
+}
+
 func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 	nodeIndex uint64,
 	indexedTaints map[string]bool,
@@ -270,7 +282,7 @@ func CreateNode(
 		pool:                            pool,
 		reportingNodeType:               reportingNodeType,
 		taints:                          taints,
-		nodeTaints:                      nodeTaints,
+		nodeTaints:                      deepCopyNodeTaints(nodeTaints),
 		hasCompleteNodeTaintMetadata:    hasCompleteNodeTaintMetadata,
 		reservation:                     util.GetReservationName(taints),
 		labels:                          labels,
@@ -298,7 +310,7 @@ func (node *Node) GetName() string {
 }
 
 func (node *Node) GetNodeTaints() []NodeTaint {
-	return slices.Clone(node.nodeTaints)
+	return deepCopyNodeTaints(node.nodeTaints)
 }
 
 func (node *Node) IsUnschedulable() bool {
@@ -450,7 +462,7 @@ func (node *Node) WithTaints(taints []v1.Taint) *Node {
 
 func (node *Node) WithNodeTaints(nodeTaints []NodeTaint) *Node {
 	result := node.DeepCopyNilKeys()
-	result.nodeTaints = slices.Clone(nodeTaints)
+	result.nodeTaints = deepCopyNodeTaints(nodeTaints)
 	return result
 }
 
@@ -547,7 +559,7 @@ func (node *Node) DeepCopyNilKeys() *Node {
 		reportingNodeType:            node.reportingNodeType,
 		nodeType:                     node.nodeType,
 		taints:                       node.taints,
-		nodeTaints:                   node.nodeTaints,
+		nodeTaints:                   deepCopyNodeTaints(node.nodeTaints),
 		hasCompleteNodeTaintMetadata: node.hasCompleteNodeTaintMetadata,
 		labels:                       node.labels,
 		indexedTaints:                node.indexedTaints,

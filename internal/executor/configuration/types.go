@@ -1,6 +1,7 @@
 package configuration
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -195,7 +196,10 @@ func (c KubernetesConfiguration) NewQueueableTaints() (*QueueableTaints, error) 
 			return nil, err
 		}
 	}
-	for _, admin := range c.QueueableTaints.Admin {
+	for i, admin := range c.QueueableTaints.Admin {
+		if strings.TrimSpace(admin.Category) == "" {
+			return nil, fmt.Errorf("queueableTaints.admin[%d].category must not be empty", i)
+		}
 		for _, pattern := range admin.Keys {
 			if err := appendTaint(pattern, admin.Category, false); err != nil {
 				return nil, err

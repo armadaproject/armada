@@ -136,6 +136,33 @@ func TestGetNodeTaintsReturnsCopy(t *testing.T) {
 	assert.Equal(t, "platform", node.GetNodeTaints()[0].Category)
 }
 
+func TestNodeTaintMetadataTimestampIsolation(t *testing.T) {
+	originalTime := metav1.NewTime(time.Unix(1, 0))
+	metadata := []NodeTaint{{Taint: v1.Taint{Key: "example.com/dedicated", TimeAdded: &originalTime}}}
+	node := CreateNode(
+		"id", 1, "executor", "name", "pool", "type",
+		nil, metadata, true, nil, map[string]bool{}, map[string]bool{},
+		false, ResourceList{}, ResourceList{}, nil, nil,
+	)
+
+	metadata[0].Taint.TimeAdded.Time = time.Unix(2, 0)
+	assert.Equal(t, time.Unix(1, 0), node.nodeTaints[0].Taint.TimeAdded.Time)
+
+	returnedMetadata := node.GetNodeTaints()
+	returnedMetadata[0].Taint.TimeAdded.Time = time.Unix(3, 0)
+	assert.Equal(t, time.Unix(1, 0), node.nodeTaints[0].Taint.TimeAdded.Time)
+
+	replacementTime := metav1.NewTime(time.Unix(4, 0))
+	replacement := []NodeTaint{{Taint: v1.Taint{Key: "example.com/replacement", TimeAdded: &replacementTime}}}
+	updated := node.WithNodeTaints(replacement)
+	replacement[0].Taint.TimeAdded.Time = time.Unix(5, 0)
+	assert.Equal(t, time.Unix(4, 0), updated.nodeTaints[0].Taint.TimeAdded.Time)
+
+	copy := updated.DeepCopyNilKeys()
+	copy.nodeTaints[0].Taint.TimeAdded.Time = time.Unix(6, 0)
+	assert.Equal(t, time.Unix(4, 0), updated.nodeTaints[0].Taint.TimeAdded.Time)
+}
+
 func TestFromSchedulerObjectsNodeTaintMetadataCompleteness(t *testing.T) {
 	a := &v1.Taint{Key: "dedicated", Value: "gpu", Effect: v1.TaintEffectNoSchedule}
 	b := &v1.Taint{Key: "maintenance", Effect: v1.TaintEffectNoSchedule}

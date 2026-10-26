@@ -86,6 +86,11 @@ func TestValidateConfig_WhenQueueableTaintPatternIsInvalid_Fails(t *testing.T) {
 		{Category: "platform", Keys: []string{"["}},
 	}
 	assert.Error(t, validateConfig(config))
+
+	config.Kubernetes.QueueableTaints.Admin = []configuration.QueueableTaintAdminConfiguration{
+		{Keys: []string{"admin.example.com/maintenance"}},
+	}
+	assert.Error(t, validateConfig(config))
 }
 
 func TestKubernetesConfigurationNewQueueableTaints(t *testing.T) {
