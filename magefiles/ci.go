@@ -68,6 +68,9 @@ rules:
       resources:
         memory:
           factor: 2.0
+  - action: Retry
+    onCategory: "preemption"
+    onSubcategory: "api"
 `
 	f, err := os.CreateTemp("", "retry-policy-*.yaml")
 	if err != nil {
