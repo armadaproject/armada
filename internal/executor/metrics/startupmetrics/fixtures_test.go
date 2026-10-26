@@ -37,9 +37,6 @@ func sizeBytes(size uint64) *types.UInt64Value {
 	return &types.UInt64Value{Value: size}
 }
 
-// testPod carries the labels the recorder reads: the queue from a label, the pool from an
-// annotation, the node from the spec. The spec lists one init container and one app container, so
-// that a breakdown describing neither reads as a failure to describe them.
 func testPod(queue, pool, node string) *v1.Pod {
 	pod := podWithSpec(1, 1)
 	pod.Labels = map[string]string{domain.Queue: queue}
@@ -48,9 +45,7 @@ func testPod(queue, pool, node string) *v1.Pod {
 	return pod
 }
 
-// podWithSpec is a pod whose spec lists a given number of containers of each kind, which is what a
-// breakdown's description of them is compared against.
-func podWithSpec(initContainers, containers int) *v1.Pod {
+func podWithSpec(initContainers int, containers int) *v1.Pod {
 	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "test-pod"}}
 	for i := 0; i < initContainers; i++ {
 		pod.Spec.InitContainers = append(pod.Spec.InitContainers, v1.Container{Name: fmt.Sprintf("init-%d", i)})

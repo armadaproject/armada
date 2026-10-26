@@ -172,9 +172,6 @@ func TestRecord_CollectionErrorCountedOncePerFieldPerPod(t *testing.T) {
 	assert.Equal(t, float64(1), testutil.ToFloat64(podStartUpInfoCollectionErrorTotal.WithLabelValues(pool, fieldImagePullDetails)))
 }
 
-// The per image counter is the denominator for how often describing an image works, so it counts
-// every container - including one whose pull was not described at all, where whether the image was
-// cached is itself unknown.
 func TestRecord_ImagePullInfoCountedPerImage(t *testing.T) {
 	recorder := NewRecorder(configuration.StartUpMetricsConfig{})
 	queue, pool := "image-info-queue", "image-info-pool"
@@ -249,4 +246,3 @@ func TestRecord_NoPod(t *testing.T) {
 
 	assert.Equal(t, float64(0), testutil.ToFloat64(podStartUpInfoCollectedTotal.WithLabelValues("", "true")))
 }
-
