@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -17,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/metrics/startupmetrics"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/internal/executor/reporter/startup"
@@ -84,6 +86,43 @@ func TestJobStateReporter_HandlesPodAddEvents(t *testing.T) {
 			assert.Len(t, fakeClusterContext.GetAnnotationsAdded(), 0)
 		}
 	}
+}
+
+// The breakdown attached to JobRunRunning is also summarised into metrics, once the event has been
+// reported: a failed send leaves the pod to be reported again, which would otherwise count it twice.
+func TestJobStateReporter_SummarisesStartUpOfRunningPodIntoMetrics(t *testing.T) {
+	stateReporter, _, _, fakeClusterContext := setUpJobStateReporterTest(t)
+	pod := makeTestPod(v1.PodStatus{
+		Phase: v1.PodRunning,
+		ContainerStatuses: []v1.ContainerStatus{
+			{Name: "main", State: v1.ContainerState{Running: &v1.ContainerStateRunning{StartedAt: metav1.Now()}}},
+		},
+	})
+	before := collectedStartUpInfoTotal(t)
+
+	addPod(t, fakeClusterContext, pod)
+	stateReporter.reportCurrentStatus(pod)
+
+	assert.Equal(t, before+1, collectedStartUpInfoTotal(t))
+}
+
+// collectedStartUpInfoTotal sums armada_executor_pod_start_up_info_collected_total over its label
+// values. Gathered rather than read off the collector, which belongs to another package.
+func collectedStartUpInfoTotal(t *testing.T) float64 {
+	t.Helper()
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+
+	total := float64(0)
+	for _, family := range families {
+		if family.GetName() != "armada_executor_pod_start_up_info_collected_total" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			total += metric.GetCounter().GetValue()
+		}
+	}
+	return total
 }
 
 func TestJobStateReporter_HandlesPodUpdateEvents(t *testing.T) {
@@ -323,11 +362,15 @@ func setUpJobStateReporterTestWithClassifier(
 ) (*JobStateReporter, *stubIssueHandler, *mocks.FakeEventReporter, *fakecontext.SyncFakeClusterContext) {
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
 	eventReporter := mocks.NewFakeEventReporter()
-	startUpTimings, err := startup.NewTimings(configuration.StartUpTimingsConfig{Enabled: true})
+	startUpConfig := configuration.StartUpTimingsConfig{
+		Enabled: true,
+		Metrics: configuration.StartUpMetricsConfig{Enabled: true},
+	}
+	startUpTimings, err := startup.NewTimings(startUpConfig)
 	require.NoError(t, err)
 	jobStateReporter, err := NewJobStateReporter(fakeClusterContext, eventReporter, issueHandler, classifier,
 		reporter.NewDebugMessageRenderer(fakeClusterContext, testDebugConfig()),
-		startUpTimings, time.Minute)
+		startUpTimings, startupmetrics.NewRecorder(startUpConfig.Metrics), time.Minute)
 	require.NoError(t, err)
 	return jobStateReporter, issueHandler, eventReporter, fakeClusterContext
 }
