@@ -152,7 +152,10 @@ function createJobRuns(
       failureCategory = randomElement(Object.keys(FAILURE_SUBCATEGORIES), rand)
       failureSubcategory = randomElement(FAILURE_SUBCATEGORIES[failureCategory], rand)
     }
-
+    let podName = undefined
+    if (runState !== JobRunState.RunPending && runState !== JobRunState.RunLeased) {
+      podName = `armada-${jobId}-0`
+    }
     runs.push({
       runId: ulid(),
       cluster: uuid(),
@@ -160,6 +163,7 @@ function createJobRuns(
       jobId: jobId,
       jobRunState: runState,
       node: hasStarted ? uuid() : undefined,
+      podName,
       started: new Date(startedMs).toISOString(),
       leased: new Date(startedMs - 10 * MS_PER_SECOND).toISOString(),
       pending: new Date(startedMs - 5 * MS_PER_SECOND).toISOString(),
