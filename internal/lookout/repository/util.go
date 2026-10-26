@@ -63,6 +63,7 @@ type runPatch struct {
 	finished         *time.Time
 	jobRunState      lookout.JobRunState
 	node             *string
+	podName          *string
 	leased           *time.Time
 	pending          *time.Time
 	started          *time.Time
@@ -225,6 +226,7 @@ func (js *JobSimulator) Lease(runId string, cluster string, node string, pool st
 }
 
 func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Time) *JobSimulator {
+	const podName = "test-job"
 	ts := timestampOrNow(timestamp)
 	pending := protoutil.ToStdTime(ts)
 	assignedEvent := &armadaevents.EventSequence_Event{
@@ -237,7 +239,7 @@ func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Tim
 					{
 						ObjectMeta: &armadaevents.ObjectMeta{
 							KubernetesId: runId,
-							Name:         "test-job",
+							Name:         podName,
 							Namespace:    js.queue,
 							ExecutorId:   cluster,
 						},
@@ -261,6 +263,7 @@ func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Tim
 		runId:       runId,
 		cluster:     &cluster,
 		jobRunState: lookout.JobRunPending,
+		podName:     pointer.String(podName),
 		pending:     &pending,
 	}
 	js.updateRun(js.job, rp)
@@ -285,6 +288,10 @@ func (js *JobSimulator) Running(runId string, node string, timestamp time.Time) 
 							},
 						},
 					},
+				},
+				StartUpInfo: &armadaevents.PodStartUpInfo{
+					CreatedAt: ts,
+					StartedAt: ts,
 				},
 			},
 		},
@@ -742,6 +749,7 @@ func (js *JobSimulator) updateRun(job *model.Job, patch *runPatch) {
 		Finished:         model.NewPostgreSQLTime(patch.finished),
 		JobRunState:      lookout.JobRunStateOrdinalMap[patch.jobRunState],
 		Node:             patch.node,
+		PodName:          patch.podName,
 		Leased:           model.NewPostgreSQLTime(patch.leased),
 		Pending:          model.NewPostgreSQLTime(patch.pending),
 		Pool:             patch.pool,
@@ -768,6 +776,9 @@ func patchRun(run *model.Run, patch *runPatch) {
 	run.JobRunState = lookout.JobRunStateOrdinalMap[patch.jobRunState]
 	if patch.node != nil {
 		run.Node = patch.node
+	}
+	if patch.podName != nil {
+		run.PodName = patch.podName
 	}
 	if patch.leased != nil {
 		run.Leased = model.NewPostgreSQLTime(patch.leased)

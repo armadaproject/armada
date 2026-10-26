@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -103,6 +104,7 @@ func TestCreatePodFromExecutorApiJob(t *testing.T) {
 
 	expectedEnvVars := []v1.EnvVar{
 		{Name: serverconfiguration.JobIdEnvVar, Value: jobId},
+		{Name: serverconfiguration.JobRunIdEnvVar, Value: runId},
 		{Name: serverconfiguration.QueueEnvVar, Value: "queue"},
 		{Name: serverconfiguration.JobSetIdEnvVar, Value: "job-set"},
 	}
@@ -187,6 +189,7 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 	tests := []struct {
 		name                      string
 		jobId                     string
+		runId                     string
 		queue                     string
 		jobsetId                  string
 		annotations               map[string]string
@@ -199,10 +202,12 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 		{
 			name:     "injects base env vars for non-gang job",
 			jobId:    "job-123",
+			runId:    "run-100",
 			queue:    "test-queue",
 			jobsetId: "jobset-456",
 			wantEnvs: map[string]string{
 				serverconfiguration.JobIdEnvVar:    "job-123",
+				serverconfiguration.JobRunIdEnvVar: "run-100",
 				serverconfiguration.QueueEnvVar:    "test-queue",
 				serverconfiguration.JobSetIdEnvVar: "jobset-456",
 			},
@@ -212,6 +217,7 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 			},
 			wantInitContainerEnvs: map[string]string{
 				serverconfiguration.JobIdEnvVar:    "job-123",
+				serverconfiguration.JobRunIdEnvVar: "run-100",
 				serverconfiguration.QueueEnvVar:    "test-queue",
 				serverconfiguration.JobSetIdEnvVar: "jobset-456",
 			},
@@ -223,18 +229,22 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 		{
 			name:     "preserves user-defined env vars",
 			jobId:    "new-job",
+			runId:    "run-200",
 			queue:    "new-queue",
 			jobsetId: "new-jobset",
 			existingEnvs: []v1.EnvVar{
 				{Name: serverconfiguration.JobIdEnvVar, Value: "existing-job"},
+				{Name: serverconfiguration.JobRunIdEnvVar, Value: "existing-run"},
 			},
 			wantEnvs: map[string]string{
 				serverconfiguration.JobIdEnvVar:    "existing-job", // preserved in main container
+				serverconfiguration.JobRunIdEnvVar: "existing-run",
 				serverconfiguration.QueueEnvVar:    "new-queue",
 				serverconfiguration.JobSetIdEnvVar: "new-jobset",
 			},
 			wantInitContainerEnvs: map[string]string{
 				serverconfiguration.JobIdEnvVar:    "new-job", // init container gets new value
+				serverconfiguration.JobRunIdEnvVar: "run-200",
 				serverconfiguration.QueueEnvVar:    "new-queue",
 				serverconfiguration.JobSetIdEnvVar: "new-jobset",
 			},
@@ -242,6 +252,7 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 		{
 			name:     "injects all gang-related env vars for fully configured gang job",
 			jobId:    "job-123",
+			runId:    "run-300",
 			queue:    "queue",
 			jobsetId: "jobset",
 			annotations: map[string]string{
@@ -252,6 +263,7 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 			},
 			wantEnvs: map[string]string{
 				serverconfiguration.JobIdEnvVar:                        "job-123",
+				serverconfiguration.JobRunIdEnvVar:                     "run-300",
 				serverconfiguration.QueueEnvVar:                        "queue",
 				serverconfiguration.JobSetIdEnvVar:                     "jobset",
 				serverconfiguration.GangIdEnvVar:                       "gang-789",
@@ -261,6 +273,7 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 			},
 			wantInitContainerEnvs: map[string]string{
 				serverconfiguration.JobIdEnvVar:                        "job-123",
+				serverconfiguration.JobRunIdEnvVar:                     "run-300",
 				serverconfiguration.QueueEnvVar:                        "queue",
 				serverconfiguration.JobSetIdEnvVar:                     "jobset",
 				serverconfiguration.GangIdEnvVar:                       "gang-789",
@@ -272,6 +285,7 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 		{
 			name:     "skips node uniformity env vars when only label name annotation exists",
 			jobId:    "job-123",
+			runId:    "run-400",
 			queue:    "queue",
 			jobsetId: "jobset",
 			annotations: map[string]string{
@@ -279,6 +293,7 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 			},
 			wantEnvs: map[string]string{
 				serverconfiguration.JobIdEnvVar:    "job-123",
+				serverconfiguration.JobRunIdEnvVar: "run-400",
 				serverconfiguration.QueueEnvVar:    "queue",
 				serverconfiguration.JobSetIdEnvVar: "jobset",
 			},
@@ -288,6 +303,7 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 			},
 			wantInitContainerEnvs: map[string]string{
 				serverconfiguration.JobIdEnvVar:    "job-123",
+				serverconfiguration.JobRunIdEnvVar: "run-400",
 				serverconfiguration.QueueEnvVar:    "queue",
 				serverconfiguration.JobSetIdEnvVar: "jobset",
 			},
@@ -305,7 +321,13 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 				InitContainers: []v1.Container{{Name: "init"}},
 			}
 
-			injectArmadaEnvVars(podSpec, tc.jobId, tc.queue, tc.jobsetId, tc.annotations)
+			lease := &executorapi.JobRunLease{
+				JobRunId: tc.runId,
+				Queue:    tc.queue,
+				Jobset:   tc.jobsetId,
+				Job:      &armadaevents.SubmitJob{JobId: tc.jobId},
+			}
+			injectArmadaEnvVars(podSpec, lease, tc.annotations)
 
 			for _, container := range podSpec.InitContainers {
 				envMap := make(map[string]string, len(container.Env))
@@ -334,4 +356,26 @@ func TestInjectArmadaEnvVars(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExtractServices_SelectsThePodOfTheRun(t *testing.T) {
+	lease := &executorapi.JobRunLease{
+		Job: &armadaevents.SubmitJob{
+			Objects: []*armadaevents.KubernetesObject{{
+				ObjectMeta: &armadaevents.ObjectMeta{Name: "armada-job-1-0-service-0"},
+				Object:     &armadaevents.KubernetesObject_Service{Service: &v1.ServiceSpec{}},
+			}},
+		},
+	}
+	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+		domain.JobId:     "job-1",
+		domain.JobRunId:  "run-1",
+		domain.Queue:     "queue",
+		domain.PodNumber: "0",
+	}}}
+
+	services := ExtractServices(lease, pod)
+
+	require.Len(t, services, 1)
+	assert.Equal(t, map[string]string{domain.JobId: "job-1", domain.JobRunId: "run-1", domain.Queue: "queue", domain.PodNumber: "0"}, services[0].Spec.Selector)
 }
