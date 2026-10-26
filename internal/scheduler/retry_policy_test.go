@@ -1,6 +1,8 @@
 package scheduler
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -47,7 +49,7 @@ func (c fakePolicyCache) Get(name string) (*retry.Policy, bool) {
 // dependencies needed to exercise the failure path through
 // generateUpdateMessagesFromJob. The legacy maxAttemptedRuns and the queue
 // cache are still needed even with the feature flag off, so we set them.
-func makeRetryTestScheduler(t *testing.T, ffEnabled bool, policyCache retry.PolicyCache) *Scheduler {
+func makeRetryTestScheduler(t testing.TB, ffEnabled bool, policyCache retry.PolicyCache) *Scheduler {
 	// GlobalMaxRetries 0 is the kill switch, so default to a cap high enough
 	// that per-policy limits are the only gate in most tests.
 	return makeRetryTestSchedulerWithGlobalMax(t, ffEnabled, policyCache, 10)
@@ -56,7 +58,7 @@ func makeRetryTestScheduler(t *testing.T, ffEnabled bool, policyCache retry.Poli
 // makeRetryTestSchedulerWithGlobalMax is the same as makeRetryTestScheduler
 // but lets the caller set the global retry cap, used to pin the contract
 // that the cap counts failed runs only.
-func makeRetryTestSchedulerWithGlobalMax(t *testing.T, ffEnabled bool, policyCache retry.PolicyCache, globalMaxRetries uint) *Scheduler {
+func makeRetryTestSchedulerWithGlobalMax(t testing.TB, ffEnabled bool, policyCache retry.PolicyCache, globalMaxRetries uint) *Scheduler {
 	t.Helper()
 	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 
@@ -93,7 +95,7 @@ func makeRetryTestSchedulerWithGlobalMax(t *testing.T, ffEnabled bool, policyCac
 
 // mkPolicy converts an api.RetryPolicy named "test-policy" into the engine
 // Policy the fakePolicyCache serves, failing the test on a conversion error.
-func mkPolicy(t *testing.T, limit uint32, defaultAction api.RetryAction, rules ...*api.RetryRule) *retry.Policy {
+func mkPolicy(t testing.TB, limit uint32, defaultAction api.RetryAction, rules ...*api.RetryRule) *retry.Policy {
 	t.Helper()
 	policy, err := retry.ConvertPolicy(&api.RetryPolicy{
 		Name:          "test-policy",
@@ -121,7 +123,7 @@ type jobRunOpts struct {
 
 // makeRetryJob builds a job whose run history matches opts, centralizing the
 // error-prone 24-positional-arg CreateRun call the retry tests share.
-func makeRetryJob(t *testing.T, sched *Scheduler, opts jobRunOpts) *jobdb.Job {
+func makeRetryJob(t testing.TB, sched *Scheduler, opts jobRunOpts) *jobdb.Job {
 	t.Helper()
 	jobId := util.NewULID()
 	job := testfixtures.NewJob(
@@ -153,6 +155,10 @@ func makeRetryJob(t *testing.T, sched *Scheduler, opts jobRunOpts) *jobdb.Job {
 			opts.returned, opts.runAttempted,
 		)
 		job = job.WithUpdatedRun(run)
+	}
+	// Each run adds a lease and each earlier run adds a requeue, as the job db expects.
+	if runs := len(job.AllRuns()); runs > 0 {
+		job = job.WithQueuedVersion(int32(2*runs - 1))
 	}
 	return job
 }
@@ -920,9 +926,9 @@ func TestRetryPolicy_FFOff_ApiPreemptionIdentity(t *testing.T) {
 
 	expected := createEventsForPreemptedJob(
 		job.Id(), job.LatestRun().Id(), "",
-		"Preempted - preemption requested via API",
 		requestor,
-		schedulercontext.PreemptedViaApi,
+		preemptionError("Preempted - preemption requested via API", schedulercontext.PreemptedViaApi),
+		nil,
 		sched.clock.Now(),
 	)
 	assert.Equal(t, expected, events.Events)
@@ -1074,4 +1080,328 @@ func TestRetryPolicy_FFOff_LeaseExpiryIgnoresPopulatedPolicy(t *testing.T) {
 	require.NotNil(t, updated)
 	assert.True(t, updated.Failed(), "flag off must terminally fail the lease-expired job even when the default policy would retry it")
 	assert.False(t, updated.Queued(), "flag off must not requeue via the engine on lease expiry")
+}
+
+func eventKinds(events []*armadaevents.EventSequence_Event) []string {
+	kinds := make([]string, 0, len(events))
+	for _, e := range events {
+		kinds = append(kinds, strings.TrimPrefix(fmt.Sprintf("%T", e.Event), "*armadaevents.EventSequence_Event_"))
+	}
+	return kinds
+}
+
+func jobError(events []*armadaevents.EventSequence_Event) *armadaevents.Error {
+	for _, e := range events {
+		if je := e.GetJobErrors(); je != nil {
+			return je.Errors[0]
+		}
+	}
+	return nil
+}
+
+// preemptedByScheduler returns the job in the state that the scheduling runner gives a job it preempts.
+func preemptedByScheduler(job *jobdb.Job, now time.Time) *jobdb.Job {
+	return job.WithQueued(false).WithFailed(true).WithUpdatedRun(job.LatestRun().WithFailedEnd().WithPreemptedTime(&now))
+}
+
+func TestRetryPolicy_FFOn_ApiPreemption(t *testing.T) {
+	retryOnSubcategory := func(subcategory string) *api.RetryRule {
+		return &api.RetryRule{Action: api.RetryAction_RETRY_ACTION_RETRY, OnCategory: "preemption", OnSubcategory: subcategory}
+	}
+	tests := []struct {
+		name             string
+		limit            uint32
+		defaultAction    api.RetryAction
+		rules            []*api.RetryRule
+		failedRuns       int
+		wantRequeued     bool
+		wantAntiAffinity []string
+	}{
+		{
+			name:          "a rule for the api subcategory requeues the job",
+			limit:         3,
+			defaultAction: api.RetryAction_RETRY_ACTION_FAIL,
+			rules:         []*api.RetryRule{retryOnSubcategory("api")},
+			wantRequeued:  true,
+		},
+		{
+			name:          "a rule for another subcategory leaves the preemption terminal",
+			limit:         3,
+			defaultAction: api.RetryAction_RETRY_ACTION_FAIL,
+			rules:         []*api.RetryRule{retryOnSubcategory("fairshare")},
+			wantRequeued:  false,
+		},
+		{
+			name:          "the default action applies to a preemption",
+			limit:         3,
+			defaultAction: api.RetryAction_RETRY_ACTION_RETRY,
+			wantRequeued:  true,
+		},
+		{
+			name:          "a rule with avoidSameNode steers the requeued job away from the node of the preempted run",
+			limit:         3,
+			defaultAction: api.RetryAction_RETRY_ACTION_FAIL,
+			rules: []*api.RetryRule{{
+				Action:        api.RetryAction_RETRY_ACTION_RETRY,
+				OnCategory:    "preemption",
+				OnSubcategory: "api",
+				Mutate:        &api.RetryMutation{Affinity: &api.RetryAffinityMutation{AvoidSameNode: true}},
+			}},
+			wantRequeued:     true,
+			wantAntiAffinity: []string{"testNode"},
+		},
+		{
+			name:          "the preempted run uses the retry limit like a failed run",
+			limit:         1,
+			defaultAction: api.RetryAction_RETRY_ACTION_FAIL,
+			rules:         []*api.RetryRule{retryOnSubcategory("api")},
+			failedRuns:    1,
+			wantRequeued:  false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sched := makeRetryTestScheduler(t, true, fakePolicyCache{"test-policy": mkPolicy(t, tc.limit, tc.defaultAction, tc.rules...)})
+			job := makeRetryJob(t, sched, jobRunOpts{
+				schedulingInfo: preemptibleSchedulingInfo, leased: true, running: true, preemptRequested: true, failedRuns: tc.failedRuns,
+			})
+			txn := sched.jobDb.WriteTxn()
+			defer txn.Abort()
+			require.NoError(t, txn.Upsert([]*jobdb.Job{job}))
+
+			events, err := sched.generateUpdateMessagesFromJob(armadacontext.Background(), job, nil, map[string][]string{"testQueue": {"test-policy"}}, txn)
+			require.NoError(t, err)
+			require.NotNil(t, events)
+
+			wantJobError := &armadaevents.Error{
+				Terminal:           true,
+				FailureCategory:    "preemption",
+				FailureSubcategory: "api",
+				Reason: &armadaevents.Error_JobRunPreemptedError{
+					JobRunPreemptedError: &armadaevents.JobRunPreemptedError{Reason: "Preempted - preemption requested via API"},
+				},
+			}
+			wantKinds := []string{"JobRunPreempted", "JobRunErrors", "JobErrors"}
+			wantQueuedVersion := job.QueuedVersion()
+			if tc.wantRequeued {
+				wantJobError.Terminal = false
+				wantJobError.RetryPolicyName = "test-policy"
+				wantKinds = append(wantKinds, "JobRequeued")
+				wantQueuedVersion++
+				assert.Equal(t, tc.wantAntiAffinity, nodeAntiAffinityValues(requeuedSchedulingInfo(t, events.Events)))
+			}
+			assert.Equal(t, wantKinds, eventKinds(events.Events))
+			assert.Equal(t, wantJobError, jobError(events.Events))
+
+			require.NoError(t, txn.Assert(false))
+			updated := txn.GetById(job.Id())
+			require.NotNil(t, updated)
+			assert.True(t, updated.LatestRun().Failed())
+			assert.Equal(t, tc.wantRequeued, updated.Queued())
+			assert.Equal(t, !tc.wantRequeued, updated.Failed())
+			assert.Equal(t, wantQueuedVersion, updated.QueuedVersion())
+		})
+	}
+}
+
+func TestRetryPolicy_FFOn_RequeuedApiPreemptionIsNotPreemptedAgain(t *testing.T) {
+	policy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_RETRY)
+	sched := makeRetryTestScheduler(t, true, fakePolicyCache{"test-policy": policy})
+	job := makeRetryJob(t, sched, jobRunOpts{
+		schedulingInfo: preemptibleSchedulingInfo, leased: true, running: true, preemptRequested: true,
+	})
+	txn := sched.jobDb.WriteTxn()
+	defer txn.Abort()
+	require.NoError(t, txn.Upsert([]*jobdb.Job{job}))
+	queueRetryPolicies := map[string][]string{"testQueue": {"test-policy"}}
+	_, err := sched.generateUpdateMessagesFromJob(armadacontext.Background(), job, nil, queueRetryPolicies, txn)
+	require.NoError(t, err)
+	requeued := txn.GetById(job.Id())
+	require.True(t, requeued.Queued())
+
+	events, err := sched.generateUpdateMessagesFromJob(armadacontext.Background(), requeued, nil, queueRetryPolicies, txn)
+	require.NoError(t, err)
+	assert.Nil(t, events)
+	assert.Same(t, requeued, txn.GetById(job.Id()))
+}
+
+func TestScheduler_RetryPreemptedJobs(t *testing.T) {
+	retryOnSubcategory := func(subcategory string, mutate *api.RetryMutation) *api.RetryRule {
+		return &api.RetryRule{Action: api.RetryAction_RETRY_ACTION_RETRY, OnCategory: "preemption", OnSubcategory: subcategory, Mutate: mutate}
+	}
+	tests := []struct {
+		name             string
+		retryPolicies    bool
+		rule             *api.RetryRule
+		viaReconciler    bool
+		failedRuns       int
+		schedulingInfo   *schedulerobjects.JobSchedulingInfo
+		unschedulable    bool
+		wantSubcategory  string
+		wantReason       string
+		wantRequeued     bool
+		wantAntiAffinity []string
+		wantMemory       string
+	}{
+		{
+			name:            "a fairshare preemption that a rule retries requeues the job",
+			retryPolicies:   true,
+			rule:            retryOnSubcategory("fairshare", nil),
+			wantSubcategory: "fairshare",
+			wantReason:      "preempted by the fairshare scheduler",
+			wantRequeued:    true,
+		},
+		{
+			name:            "a reconciler preemption that a rule retries requeues the job",
+			retryPolicies:   true,
+			rule:            retryOnSubcategory("reconciler", nil),
+			viaReconciler:   true,
+			wantSubcategory: "reconciler",
+			wantReason:      "reconciliation failure",
+			wantRequeued:    true,
+		},
+		{
+			name:            "a preemption that no rule retries fails the job",
+			retryPolicies:   true,
+			rule:            retryOnSubcategory("api", nil),
+			wantSubcategory: "fairshare",
+			wantReason:      "preempted by the fairshare scheduler",
+			wantRequeued:    false,
+		},
+		{
+			name:            "a preemption fails the job when retry policies are disabled",
+			retryPolicies:   false,
+			rule:            retryOnSubcategory("fairshare", nil),
+			wantSubcategory: "fairshare",
+			wantReason:      "preempted by the fairshare scheduler",
+			wantRequeued:    false,
+		},
+		{
+			name:             "a rule with avoidSameNode steers the requeued job away from the node",
+			retryPolicies:    true,
+			rule:             retryOnSubcategory("fairshare", &api.RetryMutation{Affinity: &api.RetryAffinityMutation{AvoidSameNode: true}}),
+			wantSubcategory:  "fairshare",
+			wantReason:       "preempted by the fairshare scheduler",
+			wantRequeued:     true,
+			wantAntiAffinity: []string{"testNode"},
+		},
+		{
+			name:            "a rule with a memory bump grows the requeued job",
+			retryPolicies:   true,
+			rule:            retryOnSubcategory("fairshare", &api.RetryMutation{Resources: &api.RetryResourceMutation{Memory: &api.RetryResourceBump{Factor: 1.5}}}),
+			schedulingInfo:  memorySchedulingInfoFixture(),
+			wantSubcategory: "fairshare",
+			wantReason:      "preempted by the fairshare scheduler",
+			wantRequeued:    true,
+			wantMemory:      "1536Mi",
+		},
+		{
+			name:            "a preemption fails the job when the memory bump makes it fit no node",
+			retryPolicies:   true,
+			rule:            retryOnSubcategory("fairshare", &api.RetryMutation{Resources: &api.RetryResourceMutation{Memory: &api.RetryResourceBump{Factor: 1.5}}}),
+			schedulingInfo:  memorySchedulingInfoFixture(),
+			unschedulable:   true,
+			wantSubcategory: "fairshare",
+			wantReason:      "preempted by the fairshare scheduler",
+			wantRequeued:    false,
+		},
+		{
+			name:            "a preemption fails the job when the retry limit is used",
+			retryPolicies:   true,
+			rule:            retryOnSubcategory("fairshare", nil),
+			failedRuns:      3,
+			wantSubcategory: "fairshare",
+			wantReason:      "preempted by the fairshare scheduler",
+			wantRequeued:    false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			policy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL, tc.rule)
+			sched := makeRetryTestScheduler(t, tc.retryPolicies, fakePolicyCache{"test-policy": policy})
+			sched.submitChecker = &testSubmitChecker{checkSuccess: !tc.unschedulable}
+			schedulingInfo := preemptibleSchedulingInfo
+			if tc.schedulingInfo != nil {
+				schedulingInfo = tc.schedulingInfo
+			}
+			job := makeRetryJob(t, sched, jobRunOpts{
+				schedulingInfo: schedulingInfo, leased: true, running: true, failedRuns: tc.failedRuns,
+			})
+			job = preemptedByScheduler(job, sched.clock.Now())
+			txn := sched.jobDb.WriteTxn()
+			defer txn.Abort()
+			require.NoError(t, txn.Upsert([]*jobdb.Job{job}))
+
+			result := NewSchedulerResultForTest([]*jobdb.Job{job}, []*jobdb.Job{}, []*jobdb.Job{}, []*jobdb.Job{})
+			if tc.viaReconciler {
+				result = NewSchedulerResultForTest([]*jobdb.Job{}, []*jobdb.Job{}, []*jobdb.Job{}, []*jobdb.Job{job})
+			} else {
+				jctx := result.PoolResults[0].SchedulingResult.PreemptedJobs[0]
+				jctx.PreemptionType = schedulercontext.PreemptedWithFairsharePreemption
+				jctx.PreemptionDescription = "preempted by the fairshare scheduler"
+			}
+
+			retries, err := sched.retryPreemptedJobs(armadacontext.Background(), txn, result)
+			require.NoError(t, err)
+			sequences, err := EventsFromSchedulerResult(result, retries, sched.clock.Now())
+			require.NoError(t, err)
+			require.Len(t, sequences, 1)
+			events := sequences[0].Events
+
+			wantJobError := &armadaevents.Error{
+				Terminal:           true,
+				FailureCategory:    "preemption",
+				FailureSubcategory: tc.wantSubcategory,
+				Reason: &armadaevents.Error_JobRunPreemptedError{
+					JobRunPreemptedError: &armadaevents.JobRunPreemptedError{Reason: tc.wantReason},
+				},
+			}
+			wantKinds := []string{"JobRunPreempted", "JobRunErrors", "JobErrors"}
+			if tc.wantRequeued {
+				wantJobError.Terminal = false
+				wantJobError.RetryPolicyName = "test-policy"
+				wantKinds = append(wantKinds, "JobRequeued")
+				si := requeuedSchedulingInfo(t, events)
+				assert.Equal(t, tc.wantAntiAffinity, nodeAntiAffinityValues(si))
+				if tc.wantMemory != "" {
+					request := si.GetPodRequirements().ResourceRequirements.Requests["memory"]
+					wantMemory := resource.MustParse(tc.wantMemory)
+					assert.Equal(t, wantMemory.Value(), request.Value())
+				}
+			}
+			assert.Equal(t, wantKinds, eventKinds(events))
+			assert.Equal(t, wantJobError, jobError(events))
+
+			require.NoError(t, txn.Assert(false))
+			updated := txn.GetById(job.Id())
+			require.NotNil(t, updated)
+			assert.Equal(t, tc.wantRequeued, updated.Queued())
+			assert.Equal(t, !tc.wantRequeued, updated.Failed())
+		})
+	}
+}
+
+func BenchmarkScheduler_RetryPreemptedJobs(b *testing.B) {
+	policy := mkPolicy(b, 3, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{
+		Action:     api.RetryAction_RETRY_ACTION_RETRY,
+		OnCategory: "preemption",
+	})
+	sched := makeRetryTestScheduler(b, true, fakePolicyCache{"test-policy": policy})
+	jobs := make([]*jobdb.Job, 10000)
+	for i := range jobs {
+		job := makeRetryJob(b, sched, jobRunOpts{schedulingInfo: preemptibleSchedulingInfo, leased: true, running: true})
+		jobs[i] = preemptedByScheduler(job, sched.clock.Now())
+	}
+	txn := sched.jobDb.WriteTxn()
+	require.NoError(b, txn.Upsert(jobs))
+	txn.Commit()
+	result := NewSchedulerResultForTest(jobs, []*jobdb.Job{}, []*jobdb.Job{}, []*jobdb.Job{})
+
+	for b.Loop() {
+		txn := sched.jobDb.WriteTxn()
+		retries, err := sched.retryPreemptedJobs(armadacontext.Background(), txn, result)
+		require.NoError(b, err)
+		require.Len(b, retries, len(jobs))
+		txn.Abort()
+	}
 }

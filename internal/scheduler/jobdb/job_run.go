@@ -537,6 +537,17 @@ func (run *JobRun) WithAttempted(attempted bool) *JobRun {
 	return run
 }
 
+// WithFailedEnd returns a copy of the run that ended with a failure: failed, not running, and attempted. The ingester
+// stores the same state when it applies the terminal error of the run, so the job db matches the database in the cycle
+// that ends the run.
+func (run *JobRun) WithFailedEnd() *JobRun {
+	run = run.DeepCopy()
+	run.failed = true
+	run.running = false
+	run.runAttempted = true
+	return run
+}
+
 // Created Returns the creation time of the job run
 func (run *JobRun) Created() int64 {
 	return run.created

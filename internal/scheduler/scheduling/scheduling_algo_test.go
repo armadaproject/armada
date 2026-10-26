@@ -1189,6 +1189,14 @@ func TestSchedule(t *testing.T) {
 				}
 			}
 
+			for _, result := range schedulerResult.GetCombinedReconciliationResult().PreemptedJobs {
+				run := result.Job.LatestRun()
+				assert.True(t, run.Failed())
+				assert.False(t, run.Running())
+				assert.True(t, run.RunAttempted())
+				assert.NotNil(t, run.PreemptedTime())
+			}
+
 			// Check that jobs were scheduled as expected.
 			scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
 			actualScheduledIndices := make([]int, 0)
