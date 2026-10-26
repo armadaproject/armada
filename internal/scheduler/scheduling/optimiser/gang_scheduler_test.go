@@ -1,7 +1,9 @@
 package optimiser
 
 import (
+	stdcontext "context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,6 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/constraints"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -41,6 +44,7 @@ func TestFairnessOptimisingScheduler_Schedule(t *testing.T) {
 		Job                              *jobdb.Job
 		MinFairnessImprovementPercentage float64
 		ShouldSchedule                   bool
+		ExpectedReason                   string
 		ExpectedNodeIndex                int
 		PreemptedJobs                    []string
 	}{
@@ -67,6 +71,7 @@ func TestFairnessOptimisingScheduler_Schedule(t *testing.T) {
 			PreemptedJobs:     []string{queueBJobs[0].Id()},
 		},
 		"should not schedule - MinFairnessImprovementPercentage": {
+			ExpectedReason: constraints.OptimiserNoFairnessImprovementUnschedulableReason,
 			Nodes: []*NodeInfo{
 				{Node: testfixtures.Test32CpuNode(testfixtures.TestPriorities), Jobs: []*jobdb.Job{queueBJobs[0], queueCJobs[0]}, ScheduleCost: 0.1, PreemptedJobs: []*jobdb.Job{queueBJobs[0]}},
 				{Node: testfixtures.Test32CpuNode(testfixtures.TestPriorities), Jobs: []*jobdb.Job{queueBJobs[1], queueCJobs[1]}, ScheduleCost: 0.12, PreemptedJobs: []*jobdb.Job{queueBJobs[1]}},
@@ -148,7 +153,7 @@ func TestFairnessOptimisingScheduler_Schedule(t *testing.T) {
 			if tc.MinFairnessImprovementPercentage > 0 {
 				improvementThreshold = tc.MinFairnessImprovementPercentage
 			}
-			gangScheduler := NewFairnessOptimisingScheduler(stubNodeScheduler, jobDbTxn, nodeDb, improvementThreshold)
+			gangScheduler := NewFairnessOptimisingScheduler(stubNodeScheduler, jobDbTxn, nodeDb, improvementThreshold, false)
 			sctx := createSctx(t, totalResource, queues, jobsByQueue)
 
 			ctx := armadacontext.Background()
@@ -164,7 +169,8 @@ func TestFairnessOptimisingScheduler_Schedule(t *testing.T) {
 				})
 				assertStringListsEqual(t, tc.PreemptedJobs, actualPreemptedJobIds)
 			} else {
-				assert.NotEmpty(t, reason)
+				assert.Equal(t, tc.ExpectedReason, reason)
+				assert.False(t, constraints.UnschedulableReasonIsPropertyOfGang(reason))
 				assert.False(t, scheduled)
 				assert.Empty(t, preemptedJobs)
 				expectedScheduledNodes = []*internaltypes.Node{}
@@ -190,16 +196,142 @@ func TestFairnessOptimisingScheduler_Schedule_WhenSubmittingGangs(t *testing.T) 
 
 	job1 := testfixtures.Test16Cpu128GiJob("A", testfixtures.PriorityClass1)
 	job2 := testfixtures.Test16Cpu128GiJob("A", testfixtures.PriorityClass1)
+	gangB := testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass1, 2))
+	largeGangB := testfixtures.WithGangAnnotationsJobs([]*jobdb.Job{
+		createTestCpuJobWithPriorityClass("B", 8, testfixtures.PriorityClass1),
+		createTestCpuJobWithPriorityClass("B", 8, testfixtures.PriorityClass1),
+	})
+	expensiveGangB := testfixtures.WithGangAnnotationsJobs([]*jobdb.Job{
+		testfixtures.Test1Cpu4GiJob("B", testfixtures.PriorityClass1),
+		testfixtures.Test32Cpu256GiJob("B", testfixtures.PriorityClass1),
+	})
+	gangC := testfixtures.WithGangAnnotationsJobs([]*jobdb.Job{
+		createTestCpuJobWithPriorityClass("C", 2, testfixtures.PriorityClass1),
+		createTestCpuJobWithPriorityClass("C", 2, testfixtures.PriorityClass1),
+	})
 
 	tests := map[string]struct {
-		Nodes []*NodeInfo
+		Nodes               []*NodeInfo
+		AllowGangPreemption bool
 		// Jobs to try scheduling as a gang
 		Jobs                             []*jobdb.Job
 		MinFairnessImprovementPercentage float64
 		ShouldSchedule                   bool
+		ExpectedReason                   string
 		ExpectedNodeIndex                []int
 		PreemptedJobs                    []string
 	}{
+		"preempted siblings make room for the rest of the incoming gang": {
+			Nodes: []*NodeInfo{
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: largeGangB[:1]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: largeGangB[1:]},
+			},
+			Jobs:                testfixtures.WithGangAnnotationsJobs([]*jobdb.Job{job1.DeepCopy(), job2.DeepCopy()}),
+			AllowGangPreemption: true,
+			// Removing 16 CPU to place 32 CPU passes, although the first placement alone would not.
+			MinFairnessImprovementPercentage: 10,
+			ShouldSchedule:                   true,
+			ExpectedNodeIndex:                []int{0, 1},
+			PreemptedJobs:                    []string{largeGangB[0].Id(), largeGangB[1].Id()},
+		},
+		"prefer nodes that avoid preempting a sibling in another cluster": {
+			Nodes: []*NodeInfo{
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: expensiveGangB[:1]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: queueCJobs[:1]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: queueCJobs[1:2]},
+				{Node: testfixtures.Test32CpuNode(testfixtures.TestPriorities).WithLabels(map[string]string{testfixtures.ClusterNameLabel: "cluster2"}), Jobs: expensiveGangB[1:]},
+			},
+			Jobs:                             testfixtures.WithNodeUniformityGangAnnotationsJobs([]*jobdb.Job{job1.DeepCopy(), job2.DeepCopy()}, testfixtures.ClusterNameLabel),
+			AllowGangPreemption:              true,
+			MinFairnessImprovementPercentage: 10,
+			ShouldSchedule:                   true,
+			ExpectedNodeIndex:                []int{1, 2},
+			PreemptedJobs:                    []string{queueCJobs[0].Id(), queueCJobs[1].Id()},
+		},
+		"reject placement when the sibling outside the node group makes it too expensive": {
+			ExpectedReason: constraints.OptimiserNoFairnessImprovementUnschedulableReason,
+			Nodes: []*NodeInfo{
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: expensiveGangB[:1]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1")},
+				{Node: testfixtures.Test32CpuNode(testfixtures.TestPriorities).WithLabels(map[string]string{testfixtures.ClusterNameLabel: "cluster2"}), Jobs: expensiveGangB[1:]},
+				// This group cannot fit the whole gang; the other groups fail on fairness.
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster3")},
+			},
+			Jobs:                             testfixtures.WithNodeUniformityGangAnnotationsJobs([]*jobdb.Job{job1.DeepCopy(), job2.DeepCopy()}, testfixtures.ClusterNameLabel),
+			AllowGangPreemption:              true,
+			MinFairnessImprovementPercentage: 10,
+		},
+		"move an incoming job to keep the first preempted job on its node": {
+			Nodes: []*NodeInfo{
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: queueCJobs[:1]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: gangB[:1]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: gangB[1:]},
+			},
+			Jobs:                             testfixtures.WithGangAnnotationsJobs([]*jobdb.Job{job1.DeepCopy(), job2.DeepCopy()}),
+			AllowGangPreemption:              true,
+			MinFairnessImprovementPercentage: 10,
+			ShouldSchedule:                   true,
+			ExpectedNodeIndex:                []int{1, 2},
+			PreemptedJobs:                    []string{gangB[0].Id(), gangB[1].Id()},
+		},
+		"keep jobs in preemption order when only one can stay": {
+			Nodes: []*NodeInfo{
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1").WithId("node-0"), Jobs: queueCJobs[:1]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1").WithId("node-1"), Jobs: queueCJobs[1:2]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1").WithId("node-2"), Jobs: gangB[:1]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1").WithId("node-3"), Jobs: gangB[1:]},
+			},
+			Jobs:                             testfixtures.WithGangAnnotationsJobs([]*jobdb.Job{job1.DeepCopy(), job2.DeepCopy(), testfixtures.Test16Cpu128GiJob("A", testfixtures.PriorityClass1)}),
+			AllowGangPreemption:              true,
+			MinFairnessImprovementPercentage: 10,
+			ShouldSchedule:                   true,
+			ExpectedNodeIndex:                []int{1, 2, 3},
+			PreemptedJobs:                    []string{queueCJobs[1].Id(), gangB[0].Id(), gangB[1].Id()},
+		},
+		"keeping a gang also keeps its sibling outside the node group": {
+			Nodes: []*NodeInfo{
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: gangB[:1]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: gangC[:1]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: gangC[1:]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster2"), Jobs: gangB[1:]},
+			},
+			Jobs:                             testfixtures.WithNodeUniformityGangAnnotationsJobs([]*jobdb.Job{job1.DeepCopy(), job2.DeepCopy()}, testfixtures.ClusterNameLabel),
+			AllowGangPreemption:              true,
+			MinFairnessImprovementPercentage: 10,
+			ShouldSchedule:                   true,
+			ExpectedNodeIndex:                []int{1, 2},
+			PreemptedJobs:                    []string{gangC[0].Id(), gangC[1].Id()},
+		},
+		"keep the original placement when a node selector prevents reducing preemption": {
+			Nodes: []*NodeInfo{
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: queueCJobs[:1]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster2").WithId("node-1"), Jobs: gangB[:1]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster2").WithId("node-2"), Jobs: gangB[1:]},
+			},
+			Jobs: testfixtures.WithGangAnnotationsJobs([]*jobdb.Job{
+				testfixtures.WithNodeSelectorJob(map[string]string{testfixtures.ClusterNameLabel: "cluster1"}, job1.DeepCopy()),
+				job2.DeepCopy(),
+			}),
+			AllowGangPreemption:              true,
+			MinFairnessImprovementPercentage: 10,
+			ShouldSchedule:                   true,
+			ExpectedNodeIndex:                []int{0, 1},
+			PreemptedJobs:                    []string{queueCJobs[0].Id(), gangB[0].Id(), gangB[1].Id()},
+		},
+		"a failed node group leaves its jobs running when another group succeeds": {
+			Nodes: []*NodeInfo{
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: gangB[:1]},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster2")},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster2")},
+				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster3"), Jobs: gangB[1:]},
+			},
+			Jobs:                             testfixtures.WithNodeUniformityGangAnnotationsJobs([]*jobdb.Job{job1.DeepCopy(), job2.DeepCopy()}, testfixtures.ClusterNameLabel),
+			AllowGangPreemption:              true,
+			MinFairnessImprovementPercentage: 10,
+			ShouldSchedule:                   true,
+			ExpectedNodeIndex:                []int{1, 2},
+			PreemptedJobs:                    []string{},
+		},
 		"should schedule gang on nodes with lowest cost": {
 			Nodes: []*NodeInfo{
 				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: []*jobdb.Job{queueBJobs[0]}},
@@ -214,6 +346,7 @@ func TestFairnessOptimisingScheduler_Schedule_WhenSubmittingGangs(t *testing.T) 
 			PreemptedJobs:                    []string{queueBJobs[0].Id(), queueCJobs[0].Id()},
 		},
 		"should not schedule over members of the scheduling gang": {
+			ExpectedReason: constraints.OptimiserNoPlacementUnschedulableReason,
 			Nodes: []*NodeInfo{
 				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: []*jobdb.Job{queueBJobs[0]}},
 			},
@@ -222,6 +355,7 @@ func TestFairnessOptimisingScheduler_Schedule_WhenSubmittingGangs(t *testing.T) 
 			ShouldSchedule:                   false,
 		},
 		"MinFairnessImprovementPercentage -  must be met by all members of the gang": {
+			ExpectedReason: constraints.OptimiserNoFairnessImprovementUnschedulableReason,
 			Nodes: []*NodeInfo{
 				// queueBLargeJob1 takes up the full node and the queue is below fairshare, preempting it won't lead to a fairness improvement
 				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: []*jobdb.Job{queueBLargeJob1}},
@@ -232,6 +366,7 @@ func TestFairnessOptimisingScheduler_Schedule_WhenSubmittingGangs(t *testing.T) 
 			ShouldSchedule:                   false,
 		},
 		"nodeUniformityLabel - label must be indexed": {
+			ExpectedReason: "uniformity label unknown is not indexed",
 			Nodes: []*NodeInfo{
 				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: []*jobdb.Job{queueBJobs[0]}},
 				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: []*jobdb.Job{queueCJobs[0]}},
@@ -243,6 +378,7 @@ func TestFairnessOptimisingScheduler_Schedule_WhenSubmittingGangs(t *testing.T) 
 			ShouldSchedule:                   false,
 		},
 		"nodeUniformityLabel - no matching nodes": {
+			ExpectedReason: "no nodes with uniformity label " + testfixtures.PoolNameLabel,
 			Nodes: []*NodeInfo{
 				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: []*jobdb.Job{queueBJobs[0]}},
 				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: []*jobdb.Job{queueCJobs[0]}},
@@ -254,6 +390,7 @@ func TestFairnessOptimisingScheduler_Schedule_WhenSubmittingGangs(t *testing.T) 
 			ShouldSchedule:                   false,
 		},
 		"nodeUniformityLabel - not enough nodes in each group": {
+			ExpectedReason: constraints.OptimiserNoPlacementUnschedulableReason,
 			Nodes: []*NodeInfo{
 				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster1"), Jobs: []*jobdb.Job{queueBJobs[0]}},
 				{Node: createTest16CpuNodeWithLabel(testfixtures.ClusterNameLabel, "cluster2"), Jobs: []*jobdb.Job{queueCJobs[0]}},
@@ -315,8 +452,8 @@ func TestFairnessOptimisingScheduler_Schedule_WhenSubmittingGangs(t *testing.T) 
 			if tc.MinFairnessImprovementPercentage > 0 {
 				improvementThreshold = tc.MinFairnessImprovementPercentage
 			}
-			nodeScheduler := NewPreemptingNodeScheduler(jobDbTxn, nil)
-			gangScheduler := NewFairnessOptimisingScheduler(nodeScheduler, jobDbTxn, nodeDb, improvementThreshold)
+			nodeScheduler := NewPreemptingNodeScheduler(jobDbTxn, nodeDb, nil, tc.AllowGangPreemption)
+			gangScheduler := NewFairnessOptimisingScheduler(nodeScheduler, jobDbTxn, nodeDb, improvementThreshold, tc.AllowGangPreemption)
 			sctx := createSctx(t, totalResource, queues, jobsByQueue)
 
 			ctx := armadacontext.Background()
@@ -335,7 +472,8 @@ func TestFairnessOptimisingScheduler_Schedule_WhenSubmittingGangs(t *testing.T) 
 				})
 				assertStringListsEqual(t, tc.PreemptedJobs, actualPreemptedJobIds)
 			} else {
-				assert.NotEmpty(t, reason)
+				assert.Equal(t, tc.ExpectedReason, reason)
+				assert.False(t, constraints.UnschedulableReasonIsPropertyOfGang(reason))
 				assert.False(t, scheduled)
 				assert.Empty(t, preemptedJobs)
 				expectedScheduledNodes = []*internaltypes.Node{}
@@ -414,8 +552,8 @@ func TestFairnessOptimisingScheduler_ScheduleGangsEvenly(t *testing.T) {
 			})
 
 			improvementThreshold := float64(-100000) // Effectively no threshold
-			nodeScheduler := NewPreemptingNodeScheduler(jobDbTxn, nil)
-			gangScheduler := NewFairnessOptimisingScheduler(nodeScheduler, jobDbTxn, nodeDb, improvementThreshold)
+			nodeScheduler := NewPreemptingNodeScheduler(jobDbTxn, nodeDb, nil, false)
+			gangScheduler := NewFairnessOptimisingScheduler(nodeScheduler, jobDbTxn, nodeDb, improvementThreshold, false)
 			sctx := createSctx(t, totalResource, queues, jobsByQueue)
 
 			ctx := armadacontext.Background()
@@ -431,6 +569,95 @@ func TestFairnessOptimisingScheduler_ScheduleGangsEvenly(t *testing.T) {
 				preemptedJobs := preemptedJobsByQueue[queue]
 				assert.Len(t, preemptedJobs, expectedPreemptedJobs)
 			}
+		})
+	}
+}
+
+func TestFairnessOptimisingScheduler_ContextExpiry(t *testing.T) {
+	// B occupies 9 of the node's 16 CPUs. A needs all 16 CPUs, in one or two jobs.
+	node := testfixtures.Test16CpuNode(testfixtures.TestPriorities).WithId("node-0")
+	secondNode := testfixtures.Test16CpuNode(testfixtures.TestPriorities).WithId("node-1")
+	runningJobs := assignJobsToNode(createNTestCpuJob("B", 9, 1), node)
+	queues := armadaslices.Concatenate(testfixtures.SingleQueuePriorityOne("A"), testfixtures.SingleQueuePriorityOne("B"))
+	expired, cancelDeadline := stdcontext.WithDeadline(stdcontext.Background(), time.Unix(0, 0))
+	defer cancelDeadline()
+	canceled, cancel := stdcontext.WithCancel(stdcontext.Background())
+	cancel()
+
+	tests := map[string]struct {
+		Jobs                  []*jobdb.Job
+		InitialContext        stdcontext.Context
+		ContextAfterFirstNode stdcontext.Context
+		ShouldSchedule        bool
+	}{
+		"deadline before scheduling returns no reason": {
+			Jobs:           createNTestCpuJob("A", 16, 1),
+			InitialContext: expired,
+		},
+		"cancellation before scheduling returns no reason": {
+			Jobs:           createNTestCpuJob("A", 16, 1),
+			InitialContext: canceled,
+		},
+		"deadline before reduction doesn't schedule": {
+			Jobs:                  createNTestCpuJob("A", 16, 1),
+			ContextAfterFirstNode: expired,
+		},
+		"deadline after first member discards a partial placement": {
+			Jobs:                  createNTestCpuJob("A", 8, 2),
+			ContextAfterFirstNode: expired,
+		},
+		"cancellation discards even a complete placement": {
+			Jobs:                  createNTestCpuJob("A", 16, 1),
+			ContextAfterFirstNode: canceled,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			jobs := testfixtures.WithGangAnnotationsJobs(tc.Jobs)
+			gctx := context.NewGangSchedulingContext(armadaslices.Map(jobs, context.JobSchedulingContextFromJob))
+			jobDb := testfixtures.NewJobDbWithJobs(armadaslices.Concatenate(runningJobs, jobs))
+			nodeDb, err := NewNodeDb(testfixtures.TestSchedulingConfig())
+			require.NoError(t, err)
+			txn := nodeDb.Txn(true)
+			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, runningJobs, node.DeepCopyNilKeys()))
+			require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, secondNode.DeepCopyNilKeys()))
+			txn.Commit()
+			nodes, err := nodeDb.GetNodes()
+			require.NoError(t, err)
+			jobsByQueue := map[string][]*jobdb.Job{"B": runningJobs}
+			sctx := createSctx(t, testfixtures.CpuMem("100", "2000Gi"), queues, jobsByQueue)
+			ctx := armadacontext.Background()
+			if tc.InitialContext != nil {
+				ctx.Context = tc.InitialContext
+			}
+			nodeScheduler := &StubNodeScheduler{
+				resultByNodeId: map[string]*nodeSchedulingResult{
+					node.GetId(): createNodeSchedulingResult(gctx.JobSchedulingContexts[0], node, 0.09, runningJobs...),
+				},
+				onSchedule: func() { ctx.Context = tc.ContextAfterFirstNode },
+			}
+			scheduler := NewFairnessOptimisingScheduler(nodeScheduler, jobDb.ReadTxn(), nodeDb, 10, true)
+
+			scheduled, preemptedJobs, reason, err := scheduler.Schedule(ctx, gctx, sctx)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.ShouldSchedule, scheduled)
+			expectedNodes := []*internaltypes.Node{}
+			if tc.ShouldSchedule {
+				assert.Empty(t, reason)
+				require.Len(t, preemptedJobs, 1)
+				assert.Equal(t, runningJobs[0].Id(), preemptedJobs[0].JobId)
+				expectedNodes = append(expectedNodes, node)
+				assert.Equal(t, 1, sctx.NumScheduledGangs)
+			} else {
+				assert.Empty(t, reason)
+				assert.Empty(t, preemptedJobs)
+				assert.Empty(t, sctx.PreemptedJobIds)
+				assert.Zero(t, sctx.NumScheduledGangs)
+			}
+			assertExpectedJctxUpdates(t, sctx, gctx, expectedNodes, tc.ShouldSchedule)
+			assertExpectedNodeUpdates(t, gctx, preemptedJobs, nodeDb, nodes, expectedNodes)
+			assertExpectedSctxUpdates(t, sctx, gctx, preemptedJobs, jobsByQueue)
 		})
 	}
 }
@@ -473,8 +700,10 @@ func assertExpectedNodeUpdates(
 	nodeDb *nodedb.NodeDb, originalNodeStates []*internaltypes.Node,
 	expectedScheduledNodes []*internaltypes.Node,
 ) {
-	preemptedJobsByNodeId := armadaslices.GroupByFunc(preemptedJobs, func(jctx *context.JobSchedulingContext) string {
-		return jctx.Job.LatestRun().NodeId()
+	preemptedJobsByNodeId := armadaslices.MapAndGroupByFuncs(preemptedJobs, func(jctx *context.JobSchedulingContext) string {
+		return jctx.AssignedNode.GetId()
+	}, func(jctx *context.JobSchedulingContext) string {
+		return jctx.JobId
 	})
 	originalNodesById := armadaslices.GroupByFuncUnique(originalNodeStates, func(node *internaltypes.Node) string {
 		return node.GetId()
@@ -486,6 +715,7 @@ func assertExpectedNodeUpdates(
 	nodes, err := nodeDb.GetNodes()
 	assert.NoError(t, err)
 	for _, node := range nodes {
+		assert.False(t, internaltypes.ResourceList{}.Exceeds(node.AllocatableAtPriority(internaltypes.EvictedPriority)))
 		// Should have been scheduled
 		if _, shouldBeScheduled := expectedScheduledNodesById[node.GetId()]; shouldBeScheduled {
 			for _, jobId := range preemptedJobsByNodeId[node.GetId()] {
@@ -500,7 +730,8 @@ func assertExpectedNodeUpdates(
 				assert.Contains(t, node.GetRunningJobIds(), job.JobId)
 			}
 		} else {
-			assertStringListsEqual(t, originalNodesById[node.GetId()].GetRunningJobIds(), node.GetRunningJobIds())
+			expectedJobIds := armadaslices.Subtract(originalNodesById[node.GetId()].GetRunningJobIds(), preemptedJobsByNodeId[node.GetId()])
+			assertStringListsEqual(t, expectedJobIds, node.GetRunningJobIds())
 		}
 	}
 }
@@ -574,15 +805,18 @@ func assertStringListsEqual(t *testing.T, expected []string, actual []string) {
 }
 
 func createNodeSchedulingResult(jctx *context.JobSchedulingContext, node *internaltypes.Node, cost float64, preemptedJobs ...*jobdb.Job) *nodeSchedulingResult {
-	preemptedJobIds := armadaslices.Map(preemptedJobs, func(job *jobdb.Job) string {
-		return job.Id()
-	})
+	gangs := make([]*preemptibleGang, 0, len(preemptedJobs))
+	for _, job := range preemptedJobs {
+		preemptedJctx := context.JobSchedulingContextFromJob(job)
+		preemptedJctx.AssignedNode = node
+		gangs = append(gangs, &preemptibleGang{preemptedSiblingJobId: job.Id(), queue: job.Queue(), jobs: []*context.JobSchedulingContext{preemptedJctx}, totalResources: job.AllResourceRequirements()})
+	}
 	return &nodeSchedulingResult{
-		scheduled:       true,
-		jctx:            jctx,
-		node:            node,
-		schedulingCost:  cost,
-		jobIdsToPreempt: preemptedJobIds,
+		scheduled:      true,
+		jctx:           jctx,
+		node:           node,
+		schedulingCost: cost,
+		gangsToPreempt: gangs,
 	}
 }
 
@@ -606,11 +840,15 @@ func assignJobsToNode(jobs []*jobdb.Job, node *internaltypes.Node) []*jobdb.Job 
 type StubNodeScheduler struct {
 	resultByNodeId map[string]*nodeSchedulingResult
 	scheduleError  error
+	onSchedule     func()
 }
 
 func (s *StubNodeScheduler) Schedule(schedContext *SchedulingContext,
 	jctx *context.JobSchedulingContext, node *internaltypes.Node,
 ) (*nodeSchedulingResult, error) {
+	if s.onSchedule != nil {
+		s.onSchedule()
+	}
 	if s.scheduleError != nil {
 		return nil, s.scheduleError
 	}

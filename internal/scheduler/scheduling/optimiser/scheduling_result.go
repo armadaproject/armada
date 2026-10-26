@@ -8,7 +8,8 @@ import (
 type schedulingResult struct {
 	scheduled      bool
 	schedulingCost float64
-	results        []*nodeSchedulingResult
+	schedulingGain float64
+	nodeResults    []*nodeSchedulingResult
 	// Used to tie-break when sorting
 	resultId string
 }
@@ -34,12 +35,14 @@ func (sco schedulingCostOrder) Swap(i, j int) {
 	sco[i], sco[j] = sco[j], sco[i]
 }
 
+// node is a snapshot from evaluation. Read the transaction before updating it,
+// since other placements may have preempted siblings on that node.
 type nodeSchedulingResult struct {
 	scheduled          bool
 	jctx               *context.JobSchedulingContext
 	node               *internaltypes.Node
 	schedulingCost     float64
-	jobIdsToPreempt    []string
+	gangsToPreempt     []*preemptibleGang
 	maximumQueueImpact float64
 	queueCostChanges   map[string]float64
 	// Used to tie-break when sorting
