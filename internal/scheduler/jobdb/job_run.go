@@ -53,12 +53,6 @@ type JobRun struct {
 	preemptReason *string
 	// True if the run has been reported as preempted by the executor.
 	preempted bool
-	// True if the run was ever preempted, even after another terminal state
-	// takes precedence over preempted during reconciliation. Job.FailureCount
-	// reads this to exclude a run that is both failed and preempted (the
-	// API-preemption path marks preempted runs failed to terminate them on the
-	// executor) from the job's genuine-failure count.
-	everPreempted bool
 	// The time at which the run was reported as preempted by the executor.
 	preemptedTime *time.Time
 	// True if the job has been reported as succeeded by the executor.
@@ -168,9 +162,6 @@ func (run *JobRun) Equal(other *JobRun) bool {
 	if run.id != other.id {
 		return false
 	}
-	if run.everPreempted != other.everPreempted {
-		return false
-	}
 	if run.jobId != other.jobId {
 		return false
 	}
@@ -202,6 +193,9 @@ func (run *JobRun) Equal(other *JobRun) bool {
 		return false
 	}
 	if run.failed != other.failed {
+		return false
+	}
+	if run.preempted != other.preempted {
 		return false
 	}
 	if run.cancelled != other.cancelled {
@@ -269,7 +263,6 @@ func (jobDb *JobDb) CreateRun(
 		preemptRequested:    preemptRequested,
 		preemptReason:       preemptReason,
 		preempted:           preempted,
-		everPreempted:       preempted,
 		succeeded:           succeeded,
 		failed:              failed,
 		cancelled:           cancelled,
@@ -491,17 +484,7 @@ func (run *JobRun) PreemptedTime() *time.Time {
 func (run *JobRun) WithPreempted(preempted bool) *JobRun {
 	run = run.DeepCopy()
 	run.preempted = preempted
-	if preempted {
-		run.everPreempted = true
-	}
 	return run
-}
-
-// EverPreempted returns true if the run was preempted at any point, even when
-// a later terminal state (typically failed) replaced preempted as the run's
-// single terminal state. Unlike Preempted, this survives WithoutTerminal.
-func (run *JobRun) EverPreempted() bool {
-	return run.everPreempted
 }
 
 func (run *JobRun) WithPreemptedTime(preemptedTime *time.Time) *JobRun {

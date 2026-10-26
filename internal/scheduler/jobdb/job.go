@@ -880,16 +880,15 @@ func (job *Job) AllRuns() []*JobRun {
 	return maps.Values(job.runsById)
 }
 
-// FailureCount returns the number of runs of this job that genuinely failed.
-// The retry engine charges this count against a policy's retry budgets.
-// Preempted and lease-returned runs are marked failed but never ran to a
-// genuine failure, so they do not count: neither is something the job did.
-// The count derives from run history, which keeps it correct across
-// scheduler restarts.
+// FailureCount returns the number of runs of this job that failed or were preempted. The retry engine charges this
+// count against the retry limits of a policy, so a retried preemption uses the same budget as a retried failure. A
+// preempted run is failed in the cycle that preempts it, and failed or preempted after reconciliation, so the count
+// includes both. A lease-returned run never ran, so it does not count. The count derives from run history, which keeps
+// it correct across scheduler restarts.
 func (job *Job) FailureCount() uint32 {
 	count := uint32(0)
 	for _, run := range job.runsById {
-		if run.failed && !run.everPreempted && !run.returned {
+		if (run.failed || run.preempted) && !run.returned {
 			count++
 		}
 	}
