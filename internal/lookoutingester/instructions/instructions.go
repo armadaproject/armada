@@ -1,9 +1,11 @@
 package instructions
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
@@ -241,6 +243,45 @@ func extractUserAnnotations(jobId string, userAnnotationPrefix string, blocklist
 	return result
 }
 
+func startUpInfoToJsonb(info *armadaevents.PodStartUpInfo) ([]byte, error) {
+	// jsonpb gives the proto json form (e.g. RFC3339 timestamps) and replaces invalid UTF-8; null bytes become \u0000
+	raw, err := (&jsonpb.Marshaler{}).MarshalToString(info)
+	if err != nil {
+		return nil, err
+	}
+	// Decoding turns \u0000 escapes back into real null bytes, which is the only place they can be safely removed
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	// UseNumber keeps numbers exactly as jsonpb wrote them, rather than converting them via float64
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
+	}
+	// Strip the null bytes from every string, then re-encode the now jsonb safe value
+	return json.Marshal(sanitizeJsonValue(value))
+}
+
+// sanitizeJsonValue recursively applies sanitizeForJsonb to every string, including object keys, in a decoded json value.
+func sanitizeJsonValue(value any) any {
+	switch v := value.(type) {
+	case string:
+		return sanitizeForJsonb(v)
+	case []any:
+		for i, elem := range v {
+			v[i] = sanitizeJsonValue(elem)
+		}
+		return v
+	case map[string]any:
+		sanitized := make(map[string]any, len(v))
+		for key, elem := range v {
+			sanitized[sanitizeForJsonb(key)] = sanitizeJsonValue(elem)
+		}
+		return sanitized
+	default:
+		return v
+	}
+}
+
 // sanitizeForJsonb removes null bytes (\x00) from s.
 // PostgreSQL jsonb rejects strings containing \u0000 with SQLSTATE 22P05.
 func sanitizeForJsonb(s string) string {
@@ -370,10 +411,22 @@ func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaev
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       event.RunId,
 		Node:        node,
+		PodName:     getPodName(event.ResourceInfos),
 		Started:     &ts,
 		JobRunState: pointer.Int32(lookout.JobRunRunningOrdinal),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+
+	if event.StartUpInfo != nil {
+		startUpInfo, err := startUpInfoToJsonb(event.StartUpInfo)
+		if err != nil {
+			return err
+		}
+		update.JobRunInfosToCreate = append(update.JobRunInfosToCreate, &model.CreateJobRunInfoInstruction{
+			RunId:       event.RunId,
+			StartUpInfo: startUpInfo,
+		})
+	}
 	return nil
 }
 
@@ -426,6 +479,7 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 	update.JobsToUpdate = append(update.JobsToUpdate, &job)
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       event.RunId,
+		PodName:     getPodName(event.ResourceInfos),
 		Pending:     &ts,
 		JobRunState: pointer.Int32(lookout.JobRunPendingOrdinal),
 	}
@@ -470,6 +524,7 @@ func (c *InstructionConverter) handleJobRunTerminatedDebugInfo(event *armadaeven
 func (c *InstructionConverter) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       event.RunId,
+		PodName:     getPodName(event.ResourceInfos),
 		Finished:    &ts,
 		JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal),
 		ExitCode:    pointer.Int32(0),
@@ -490,6 +545,9 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 		switch reason := e.Reason.(type) {
 		case *armadaevents.Error_PodError:
 			jobRunUpdate.Node = extractNodeName(reason.PodError)
+			if name := reason.PodError.GetObjectMeta().GetName(); name != "" {
+				jobRunUpdate.PodName = pointer.String(name)
+			}
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
 			jobRunUpdate.Error = tryCompressError(event.JobId, reason.PodError.GetMessage(), c.compressor)
 			jobRunUpdate.Debug = tryCompressError(event.JobId, reason.PodError.DebugMessage, c.compressor)
@@ -612,6 +670,17 @@ func getNode(resources []*armadaevents.KubernetesResourceInfo) *string {
 		}
 	}
 	return pointer.String("UNKNOWN")
+}
+
+// getPodName returns the name of the pod in the resources of a run event. The executor reports only the current phase
+// of a pod, so a fast pod skips earlier events. The ingester therefore reads the name from every event that has it.
+func getPodName(resources []*armadaevents.KubernetesResourceInfo) *string {
+	for _, r := range resources {
+		if name := r.GetObjectMeta().GetName(); r.GetPodInfo() != nil && name != "" {
+			return pointer.String(name)
+		}
+	}
+	return nil
 }
 
 func extractNodeName(x HasNodeName) *string {
