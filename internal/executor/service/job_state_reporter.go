@@ -171,6 +171,10 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 			log.Errorf("Failed to report event: %s", err)
 			return
 		}
+		// Increment only after successful emission so failed sends do not inflate the counter.
+		// RecordJobFailure is a no-op for non-failure phases and for nil classifiers (empty category).
+		metrics.RecordJobFailure(classifyResult.Category, classifyResult.Subcategory)
+		stateReporter.startUpMetrics.Record(pod, startUpInfo)
 
 		if util.IsReportingPhaseRequired(pod.Status.Phase) {
 			err = stateReporter.addAnnotationToMarkStateReported(pod)
@@ -179,11 +183,6 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 				return
 			}
 		}
-
-		// Increment only after successful emission so failed sends do not inflate the counter.
-		// RecordJobFailure is a no-op for non-failure phases and for nil classifiers (empty category).
-		metrics.RecordJobFailure(classifyResult.Category, classifyResult.Subcategory)
-		stateReporter.startUpMetrics.Record(pod, startUpInfo)
 	})
 
 	if pod.Status.Phase == v1.PodRunning && requiresIngressToBeReported(pod) {
