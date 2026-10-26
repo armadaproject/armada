@@ -67,6 +67,7 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 		taints       []*v1.Taint
 		metadata     []*schedulerobjects.NodeTaint
 		schedulable  bool
+		expectReuse  bool
 		wantTaints   []v1.Taint
 		wantMetadata []NodeTaint
 	}{
@@ -79,8 +80,10 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			name:   "complete reordered metadata uses new flow",
 			taints: []*v1.Taint{&cordon, &restricted, &user, &admin},
 			metadata: []*schedulerobjects.NodeTaint{
-				{Taint: &admin, Category: "platform"}, {Taint: &user, UserFacing: true},
-				{Taint: &restricted}, {Taint: &cordon},
+				{Taint: &admin, Category: "platform"},
+				{Taint: &user, UserFacing: true},
+				{Taint: &restricted},
+				{Taint: &cordon},
 			},
 			wantTaints:   []v1.Taint{restricted},
 			wantMetadata: []NodeTaint{{Taint: restricted}},
@@ -97,8 +100,39 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			taints:       []*v1.Taint{&user},
 			metadata:     []*schedulerobjects.NodeTaint{{Taint: &user, UserFacing: true}},
 			schedulable:  true,
+			expectReuse:  true,
 			wantTaints:   []v1.Taint{user},
 			wantMetadata: []NodeTaint{{Taint: user, UserFacing: true}},
+		},
+		{
+			name:         "schedulable admin taint is removed",
+			taints:       []*v1.Taint{&admin},
+			metadata:     []*schedulerobjects.NodeTaint{{Taint: &admin, Category: "platform"}},
+			schedulable:  true,
+			wantMetadata: []NodeTaint{},
+		},
+		{
+			name:         "schedulable admin taint filters user taints",
+			taints:       []*v1.Taint{&admin, &user},
+			metadata:     []*schedulerobjects.NodeTaint{{Taint: &admin, Category: "platform"}, {Taint: &user, UserFacing: true}},
+			schedulable:  true,
+			wantMetadata: []NodeTaint{},
+		},
+		{
+			name:         "schedulable neutral taint is reused",
+			taints:       []*v1.Taint{&restricted},
+			metadata:     []*schedulerobjects.NodeTaint{{Taint: &restricted}},
+			schedulable:  true,
+			expectReuse:  true,
+			wantTaints:   []v1.Taint{restricted},
+			wantMetadata: []NodeTaint{{Taint: restricted}},
+		},
+		{
+			name:        "schedulable incomplete metadata is reused",
+			taints:      []*v1.Taint{&admin},
+			schedulable: true,
+			expectReuse: true,
+			wantTaints:  []v1.Taint{admin},
 		},
 		{name: "empty report removes synthetic cordon taint"},
 	}
@@ -124,9 +158,12 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			assert.ElementsMatch(t, tc.wantMetadata, result[i].GetNodeTaints())
 			assert.False(t, result[i].IsUnschedulable())
 			assert.Equal(t, !tc.schedulable, nodes[i].IsUnschedulable())
-			if tc.schedulable {
+			if tc.expectReuse {
 				assert.Same(t, nodes[i], result[i])
 			} else {
+				assert.NotSame(t, nodes[i], result[i])
+			}
+			if !tc.schedulable {
 				assert.Contains(t, nodes[i].GetTaints(), UnschedulableTaint())
 			}
 			for _, taint := range tc.taints {
