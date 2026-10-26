@@ -154,7 +154,7 @@ function createJobRuns(
     }
     let podName = undefined
     if (runState !== JobRunState.RunPending && runState !== JobRunState.RunLeased) {
-      podName = `armada-${jobId}-0`
+      podName = ulid()
     }
     runs.push({
       runId: ulid(),
