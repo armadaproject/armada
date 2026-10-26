@@ -152,12 +152,13 @@ function createJobRuns(
       failureCategory = randomElement(Object.keys(FAILURE_SUBCATEGORIES), rand)
       failureSubcategory = randomElement(FAILURE_SUBCATEGORIES[failureCategory], rand)
     }
+    const runId = ulid()
     let podName = undefined
     if (runState !== JobRunState.RunPending && runState !== JobRunState.RunLeased) {
-      podName = ulid()
+      podName = `armada-${runId}`
     }
     runs.push({
-      runId: ulid(),
+      runId: runId,
       cluster: uuid(),
       exitCode,
       jobId: jobId,
