@@ -10,9 +10,7 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-// Field names reported by pod_start_up_info_collection_error_total. Every part of the breakdown is
-// optional, as each is derived either from a Kubernetes field that may not be populated or from a
-// kubelet message that may change format, so each needs to be visible when it stops arriving.
+// These fields feed into the metric pod_start_up_info_collection_error_total.
 const (
 	fieldScheduledAt           = "scheduled_at"
 	fieldKubeletAcknowledgedAt = "kubelet_acknowledged_at"
@@ -22,15 +20,9 @@ const (
 	fieldContainers            = "containers"
 	fieldImagePull             = "image_pull"
 	fieldImagePullDetails      = "image_pull_details"
-	// A cached pull is told apart from a real one, as the two fail for different reasons: a real
-	// pull's details come from parsing the kubelet's message, a cached pull's size is resolved
-	// separately and best effort.
-	fieldCachedImagePullSize = "cached_image_pull_size"
+	fieldCachedImagePullSize   = "cached_image_pull_size"
 )
 
-// collectionIssue is one thing about a pod's start up that could not be determined. The field is
-// what the metric counts, deliberately coarse; the detail is which container and which instant it
-// actually was, which is logged rather than labelled.
 type collectionIssue struct {
 	field  string
 	detail string
@@ -43,18 +35,8 @@ func (i collectionIssue) String() string {
 	return fmt.Sprintf("%s (%s)", i.field, i.detail)
 }
 
-// collectionIssues lists everything about the breakdown that could not be determined. A problem
-// with any one of a pod's containers is reported as a problem with that kind of container: what the
-// metric has to answer is whether collection still works, and splitting it per container and per
-// instant would only multiply the series.
-//
-// created_at is not reported: it comes from the pod's own creationTimestamp, so a pod we are
-// measuring at all always has it.
-//
-// Configured extra steps are not reported either. A step may apply to only a fraction of jobs - a
-// shape of job, a pool, a label - so a step that matched no event is not an error unless we know
-// it was expected of this pod, which is knowledge the configuration does not carry yet. The steps
-// that did match are still measured as steps.
+// collectionIssues lists all issues that occurred during collection of pod start up info
+// The aim here is to monitor what fields we're failing to monitor properly and increment a metric when the field isn't measured
 func collectionIssues(pod *v1.Pod, info *armadaevents.PodStartUpInfo) []collectionIssue {
 	issues := &issueList{}
 
@@ -69,22 +51,16 @@ func collectionIssues(pod *v1.Pod, info *armadaevents.PodStartUpInfo) []collecti
 	return issues.found
 }
 
-// issueList accumulates what was found wrong with one pod's breakdown.
 type issueList struct {
 	found []collectionIssue
 }
 
-// report records an issue when isMissing. The detail may be empty, for a field whose name already
-// says everything there is to say.
 func (l *issueList) report(isMissing bool, field, detail string) {
 	if isMissing {
 		l.found = append(l.found, collectionIssue{field: field, detail: detail})
 	}
 }
 
-// reportContainers covers the containers of one kind, and the image pull of each: a pull is the
-// kubelet doing the same thing whichever kind of container it is for, so both kinds report under
-// the one image pull field.
 func (l *issueList) reportContainers(
 	field string,
 	inSpec []v1.Container,
@@ -110,13 +86,6 @@ func (l *issueList) reportContainers(
 	}
 }
 
-// imagePullIssues is what could not be determined about one container's image pull. A pod has one
-// per container, so these are counted per image as well as per pod - pod_image_pull_info_total
-// carries the per image view.
-//
-// A cached pull is expected to carry only a size: the kubelet's "already present on machine"
-// message has no duration or waiting time to parse, and the size is resolved separately and best
-// effort, so it is the part that can fail on its own.
 func imagePullIssues(container *armadaevents.ContainerStartUpInfo) []collectionIssue {
 	issues := &issueList{}
 
@@ -127,6 +96,7 @@ func imagePullIssues(container *armadaevents.ContainerStartUpInfo) []collectionI
 	}
 
 	if pull.Cached {
+		// A cached pull is expected to carry only a size
 		issues.report(pull.SizeBytes == nil, fieldCachedImagePullSize,
 			fmt.Sprintf("%s cached pull has no size", container.Name))
 		return issues.found
@@ -151,9 +121,6 @@ func reportableIssues(issues []collectionIssue) []collectionIssue {
 	})
 }
 
-// incompleteBreakdownMessage is what to warn an operator about a pod, or empty when there is
-// nothing worth warning about. It is where the detail of each issue is reported, as the metrics
-// carry only the coarse field.
 func incompleteBreakdownMessage(podName string, issues []collectionIssue) string {
 	reportable := reportableIssues(issues)
 	if len(reportable) == 0 {
