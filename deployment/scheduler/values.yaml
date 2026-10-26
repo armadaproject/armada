@@ -45,6 +45,13 @@ scheduler:
     labels: {}
     scrapeInterval: 15s
     scrapeTimeout: 10s
+    preemptionLoss:
+      # Windows to precompute the preemption loss ratio over.
+      windows:
+        - "30m"
+        - "1d"
+      # Long windows are expensive to evaluate, so evaluate them less often than the scrape interval.
+      windowEvaluationInterval: 1m
 
 ingester:
   replicas: 1
