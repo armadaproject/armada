@@ -465,6 +465,8 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpA
 	assert.True(t, ok)
 	assert.Len(t, failedEvent.JobRunErrors.Errors, 1)
 	assert.True(t, failedEvent.JobRunErrors.Errors[0].GetPodError() != nil)
+	assert.Equal(t, errormatch.CategoryInternal, failedEvent.JobRunErrors.Errors[0].GetFailureCategory())
+	assert.Equal(t, errormatch.SubcategoryIssueHandlerError, failedEvent.JobRunErrors.Errors[0].GetFailureSubcategory())
 }
 
 func TestPodIssueService_ReportsFailed_IfDeletedExternally(t *testing.T) {
@@ -867,6 +869,72 @@ func TestPodIssueService_RetryableIssue_LeaseReturnClassification(t *testing.T) 
 			} else {
 				assert.Equal(t, familyTotalBefore, failureCounterFamilyTotal(t), "unclassified lease return must not record a failure")
 			}
+		})
+	}
+}
+
+func TestPodIssueService_ClassifiesIssueWithPodEventsWhenDetected(t *testing.T) {
+	classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{{
+			Name: "gpu",
+			Rules: []categorizer.CategoryRule{{
+				OnPodEvents: &errormatch.PodEventMatcher{Regexp: "nvidia.com/gpu", Type: "Warning"},
+				Subcategory: "unavailable",
+			}},
+		}},
+	})
+	require.NoError(t, err)
+	failedPodWithRetryableIssue := makeTestPod(v1.PodStatus{Phase: v1.PodFailed, Message: retryableFailedPodStatusMessage})
+
+	tests := map[string]struct {
+		pod             *v1.Pod
+		detect          func(*testing.T, *PodIssueHandler, *v1.Pod)
+		passes          int
+		wantLeaseReturn bool
+	}{
+		"a pending pod that a check fails gets the category from the events at detection": {
+			pod:    makeUnretryableStuckPod(),
+			passes: 1,
+		},
+		"a pending pod that a check retries gets the category from the events at detection": {
+			pod:             makeRetryableStuckPod(),
+			passes:          2,
+			wantLeaseReturn: true,
+		},
+		"a failed pod that a failed pod check retries gets the category from the events at detection": {
+			pod: failedPodWithRetryableIssue,
+			detect: func(t *testing.T, handler *PodIssueHandler, pod *v1.Pod) {
+				added, err := handler.DetectAndRegisterFailedPodIssue(pod)
+				require.NoError(t, err)
+				require.True(t, added)
+			},
+			passes:          2,
+			wantLeaseReturn: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			podIssueService, _, fakeClusterContext, eventReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
+			require.NoError(t, err)
+			pod := tc.pod.DeepCopy()
+			addPod(t, fakeClusterContext, pod)
+			addPodEvents(fakeClusterContext, pod, []*v1.Event{{Message: "Allocate failed for nvidia.com/gpu", Type: "Warning"}})
+
+			if tc.detect != nil {
+				tc.detect(t, podIssueService, pod)
+			}
+			// A retried issue needs one pass to delete the pod and a second pass to return the lease.
+			for i := 0; i < tc.passes; i++ {
+				podIssueService.HandlePodIssues()
+			}
+
+			require.Len(t, eventReporter.ReceivedEvents, 1)
+			runErrors, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+			require.True(t, ok)
+			runError := runErrors.JobRunErrors.Errors[0]
+			assert.Equal(t, tc.wantLeaseReturn, runError.GetPodLeaseReturned() != nil)
+			assert.Equal(t, "gpu", runError.GetFailureCategory())
+			assert.Equal(t, "unavailable", runError.GetFailureSubcategory())
 		})
 	}
 }

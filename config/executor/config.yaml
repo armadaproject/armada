@@ -9,7 +9,9 @@ application:
   jobLeaseRequestTimeout: "30s"
   maxLeasedJobs: 100
   errorCategories:
-    enabled: false
+    enabled: true
+    defaultCategory: unknown
+    defaultSubcategory: unknown
   debugEvents:
     enabled: false
     minAppContainerRuntimeForFailureDebug: 60s

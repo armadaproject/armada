@@ -112,6 +112,8 @@ func clearEventFieldsNotForRedis(es *armadaevents.EventSequence) {
 			event.CancelJobSet.Reason = ""
 		case *armadaevents.EventSequence_Event_CancelledJob:
 			event.CancelledJob.Reason = ""
+		case *armadaevents.EventSequence_Event_JobRunRunning:
+			event.JobRunRunning.StartUpInfo = nil
 		case *armadaevents.EventSequence_Event_JobErrors:
 			for _, jobError := range event.JobErrors.Errors {
 				if jobError == nil {

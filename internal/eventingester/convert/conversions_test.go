@@ -9,6 +9,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -141,6 +142,36 @@ func TestConvert_FiltersEventsNotForRedis(t *testing.T) {
 			assert.Equal(t, tt.want, es.Events)
 		})
 	}
+}
+
+func TestConvert_RemovesJobRunRunningStartUpInfo(t *testing.T) {
+	jobRunRunning := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunRunning{
+			JobRunRunning: &armadaevents.JobRunRunning{
+				JobId: JobId,
+				RunId: RunId,
+				Pool:  "testPool",
+				StartUpInfo: &armadaevents.PodStartUpInfo{
+					CreatedAt:   &types.Timestamp{Seconds: 1790000000},
+					ScheduledAt: &types.Timestamp{Seconds: 1790000002},
+					StartedAt:   &types.Timestamp{Seconds: 1790000137},
+					InitContainers: []*armadaevents.ContainerStartUpInfo{
+						{Name: "fetch-dataset", StartedAt: &types.Timestamp{Seconds: 1790000070}},
+					},
+				},
+			},
+		},
+	}
+
+	batchUpdate := simpleEventConverter().Convert(armadacontext.Background(), NewMsg(jobRunRunning))
+
+	require.Len(t, batchUpdate.Events, 1)
+	es, err := extractEventSeq(batchUpdate.Events[0].Event)
+	require.NoError(t, err)
+	running := es.Events[0].GetJobRunRunning()
+	require.NotNil(t, running)
+	assert.Nil(t, running.StartUpInfo)
 }
 
 func TestConvert_RemovesJobRunErrors(t *testing.T) {
