@@ -1,12 +1,33 @@
-// Package podname holds the rules for the names of the pods of Armada runs.
+// Package podname holds the rules for the names of the pods of Armada runs. The job-scoped name is also the start of
+// the names of the services and the ingresses of a job.
 package podname
 
-import "github.com/armadaproject/armada/internal/common"
+// DefaultPrefix is the default prefix of the names of the pod, the services and the ingresses of a job.
+const DefaultPrefix = "armada"
+
+// JobScoped returns <prefix>-<jobId>-0. It is the job-scoped pod name. The names of the services and the ingresses of
+// the job start with it, and the ingress hosts contain it.
+func JobScoped(prefix string, jobId string) string {
+	return prefix + "-" + jobId + "-0"
+}
+
+// ForRun returns the name that the executor gives to the pod of a run: <prefix>-<runId> with run-scoped names, else
+// the job-scoped name. An empty prefix means DefaultPrefix, because a job that the server stored before it stored the
+// prefix has none, and the services and the ingresses of that job use the default prefix.
+func ForRun(prefix string, runScoped bool, jobId string, runId string) string {
+	if prefix == "" {
+		prefix = DefaultPrefix
+	}
+	if runScoped {
+		return prefix + "-" + runId
+	}
+	return JobScoped(prefix, jobId)
+}
 
 // Default returns the name of the pod of a job with the default settings. A component that does not know the reported
 // name of a pod uses it, because the executor gave every pod this name before Armada reported pod names.
 func Default(jobId string) string {
-	return common.PodName(jobId)
+	return JobScoped(DefaultPrefix, jobId)
 }
 
 // Resolve returns the name of the pod of a run that Lookout stores, or "" when the run has no pod. Lookout stored runs
