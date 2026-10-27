@@ -260,7 +260,8 @@ func (n *PreemptingNodeScheduler) getPreemptibleGang(
 		if err != nil {
 			return nil, err
 		}
-		if !n.isJobPreemptionCandidate(member, memberNode) {
+		// NodeDB can return nil nodes for cordoned executors.
+		if !n.isJobPreemptionCandidate(member, memberNode) || memberNode == nil {
 			return nil, nil
 		}
 		if scheduledAtPriority > jobToSchedule.Job.PriorityClass().Priority {
