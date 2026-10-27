@@ -1,4 +1,5 @@
 import { isString } from "lodash"
+import { monotonicFactory } from "ulid"
 import { v4 as uuidV4 } from "uuid"
 
 import { Job, JobFilter, JobKey, JobRun, JobRunState, JobState, Match, SortDirection } from "../models/lookoutModels"
@@ -31,6 +32,22 @@ export function seededUuid(rand: () => number): () => string {
     })
 }
 
+const MS_PER_SECOND = 1000
+const MS_PER_MINUTE = 60 * MS_PER_SECOND
+const MS_PER_DAY = 24 * 60 * MS_PER_MINUTE
+
+// Base time that all fake dates (ULID timestamps, job submitted/transition times, run times) are derived from: a week
+// before the module is loaded, so generated dates are recent but never in the future
+const BASE_TIME_MS = Date.now() - 7 * MS_PER_DAY
+
+// Generates 26 character lower-case ULIDs, as used for real job and job run IDs (see util.NewULID). They are
+// lower-cased because Kubernetes requires names to be valid DNS subdomain names.
+export function seededUlid(rand: () => number): () => string {
+  const generateUlid = monotonicFactory(rand)
+  let counter = 0
+  return () => generateUlid(BASE_TIME_MS + counter++ * MS_PER_SECOND).toLowerCase()
+}
+
 export async function simulateApiWait(abortSignal?: AbortSignal): Promise<void> {
   await new Promise((resolve, reject) => {
     const timeoutId = setTimeout(resolve, randomInt(50, 250, Math.random))
@@ -44,6 +61,7 @@ export async function simulateApiWait(abortSignal?: AbortSignal): Promise<void> 
 export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSets = 100, state?: JobState): Job[] {
   const rand = mulberry32(seed)
   const uuid = seededUuid(rand)
+  const ulid = seededUlid(rand)
   const annotationKeys = ["hyperparameter", "some/very/long/annotation/key/name/with/forward/slashes", "region"]
   const numAnnotationValues = 10
   const annotationValues = [...Array(numAnnotationValues)].map(() => uuid())
@@ -53,8 +71,12 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
 
   const jobs: Job[] = []
   for (let i = 0; i < nJobs; i++) {
-    const jobId = "01gkv9cj53h0rk9407mds" + i.toString().padStart(5, "0")
-    const runs = createJobRuns(randomInt(0, 3, rand), jobId, rand, uuid)
+    const jobId = ulid()
+    // Every fourth job has 3-5 runs so that multi-run behaviour is easy to exercise
+    const nRuns = randomInt(0, 3, rand)
+    const { runs, lastRunRuntimeSeconds } = createJobRuns(i % 4 === 3 ? 3 + (i % 3) : nRuns, jobId, rand, uuid, ulid)
+    // As in the real API, these job-level fields come from the job's latest run
+    const lastRun = runs.at(-1)
 
     jobs.push({
       gpu: randomInt(0, 8, rand),
@@ -63,8 +85,8 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
       namespace: uuid(),
       priority: randomInt(0, 1000, rand),
       runs: runs,
-      submitted: randomDate(new Date("2022-12-13T11:57:25.733Z"), new Date("2022-12-27T11:57:25.733Z")),
-      cpu: randomInt(2, 200, rand) * 100,
+      submitted: randomDate(BASE_TIME_MS, BASE_TIME_MS + 3 * MS_PER_DAY, rand),
+      cpu: randomElement(CPU_SIZES, rand),
       ephemeralStorage: randomInt(2, 2048, rand) * 1024 ** 3,
       memory: randomInt(2, 1024, rand) * 1024 ** 2,
       queue: queues[i % queues.length],
@@ -72,50 +94,90 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
       jobId: jobId,
       jobSet: jobSets[i % jobSets.length],
       state: state ? state : randomProperty(JobState, rand),
-      lastTransitionTime: randomDate(new Date("2022-12-13T12:19:14.956Z"), new Date("2022-12-31T11:57:25.733Z")),
+      lastTransitionTime: randomDate(BASE_TIME_MS + 20 * MS_PER_MINUTE, BASE_TIME_MS + 7 * MS_PER_DAY, rand),
       priorityClass: rand() > 0.5 ? "armada-preemptible" : "armada-default",
+      node: lastRun?.node,
+      cluster: lastRun?.cluster,
+      pool: lastRun?.pool,
+      exitCode: lastRun?.exitCode,
+      runtimeSeconds: lastRunRuntimeSeconds,
     })
   }
 
   return jobs
 }
 
-function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () => string): JobRun[] {
-  if (n === 0) {
-    return []
-  }
+// CPU requests in thousandths of a CPU (the unit formatCpu expects), using sizes people actually request (250m, 500m, 1, 2, 4, ...)
+const CPU_SIZES = [250, 500, 1000, 2000, 4000, 8000, 16000, 32000]
 
+const POOLS = ["default", "cpu", "gpu", "cpu-large"]
+
+const FAILURE_SUBCATEGORIES: Record<string, string[]> = {
+  application: ["oom-killed", "non-zero-exit", "timeout"],
+  infrastructure: ["node-failure", "network-error", "disk-pressure"],
+  scheduling: ["image-pull-backoff", "unschedulable"],
+}
+
+const NOT_STARTED_RUN_STATES = [JobRunState.RunPending, JobRunState.RunLeased]
+
+function randomElement<T>(items: T[], rand: () => number): T {
+  return items[randomInt(0, items.length, rand)]
+}
+
+function createJobRuns(
+  n: number,
+  jobId: string,
+  rand: () => number,
+  uuid: () => string,
+  ulid: () => string,
+): { runs: JobRun[]; lastRunRuntimeSeconds: number | undefined } {
   const runs: JobRun[] = []
+  let lastRunRuntimeSeconds: number | undefined = undefined
+  // Runs happen one after another, each starting shortly after the previous one ended
+  let startedMs = BASE_TIME_MS + 15 * MS_PER_MINUTE + 14 * MS_PER_SECOND
   for (let i = 0; i < n; i++) {
     const runState = randomProperty(JobRunState, rand)
-    let node = undefined
+    const hasStarted = !NOT_STARTED_RUN_STATES.includes(runState)
+    const isFinished = hasStarted && runState !== JobRunState.RunRunning
+    const runtimeSeconds = randomInt(30, 3600, rand)
+    const finishedMs = startedMs + runtimeSeconds * MS_PER_SECOND
+
+    let exitCode = undefined
+    let failureCategory = undefined
+    let failureSubcategory = undefined
+    if (isFinished) {
+      exitCode = runState === JobRunState.RunSucceeded ? 0 : randomInt(1, 64, rand)
+    }
+    if (runState === JobRunState.RunFailed) {
+      failureCategory = randomElement(Object.keys(FAILURE_SUBCATEGORIES), rand)
+      failureSubcategory = randomElement(FAILURE_SUBCATEGORIES[failureCategory], rand)
+    }
+    const runId = ulid()
     let podName = undefined
     if (runState !== JobRunState.RunPending && runState !== JobRunState.RunLeased) {
-      node = uuid()
-      podName = `armada-${jobId}-0`
+      podName = `armada-${runId}`
     }
-
-    const startedDateSeconds = 14 + 117 * i
-    const started = new Date(2022, 11, 13, 12, 15, startedDateSeconds, 123).toISOString()
-    const leased = new Date(2022, 11, 13, 12, 15, startedDateSeconds + 40, 123).toISOString()
-    const pending = new Date(2022, 11, 13, 12, 15, startedDateSeconds + 45, 123).toISOString()
-    const finished = new Date(2022, 11, 13, 12, 15, startedDateSeconds + 90, 123).toISOString()
-
     runs.push({
-      runId: uuid(),
+      runId: runId,
       cluster: uuid(),
-      exitCode: randomInt(0, 64, rand),
+      exitCode,
       jobId: jobId,
       jobRunState: runState,
-      node: node,
+      node: hasStarted ? uuid() : undefined,
       podName,
-      started,
-      leased,
-      pending,
-      finished,
+      started: new Date(startedMs).toISOString(),
+      leased: new Date(startedMs - 10 * MS_PER_SECOND).toISOString(),
+      pending: new Date(startedMs - 5 * MS_PER_SECOND).toISOString(),
+      finished: isFinished ? new Date(finishedMs).toISOString() : undefined,
+      pool: randomElement(POOLS, rand),
+      failureCategory,
+      failureSubcategory,
     })
+
+    lastRunRuntimeSeconds = hasStarted ? runtimeSeconds : undefined
+    startedMs = finishedMs + 27 * MS_PER_SECOND
   }
-  return runs
+  return { runs, lastRunRuntimeSeconds }
 }
 
 function randomProperty<T>(obj: Record<string, T>, rand: () => number): T {
@@ -144,6 +206,12 @@ export function mergeFilters(filters: JobFilter[]): (job: Job) => boolean {
 
 export function filterFn(filter: JobFilter): (job: Job) => boolean {
   return (job) => {
+    if (filter.field === "runId" && !filter.isAnnotation) {
+      // Run ID filters match if any of the job's runs match
+      const matcher = getMatch(filter.match)
+      return job.runs.some((run) => matcher(run.runId, filter.value))
+    }
+
     const objectToFilter = filter.isAnnotation ? job.annotations : job
 
     if (!Object.prototype.hasOwnProperty.call(objectToFilter, filter.field)) {
@@ -198,8 +266,8 @@ export function compareValues(valueA: any, valueB: any, direction: SortDirection
   return val
 }
 
-function randomDate(start: Date, end: Date): string {
-  return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime())).toISOString()
+function randomDate(startMs: number, endMs: number, rand: () => number): string {
+  return new Date(startMs + rand() * (endMs - startMs)).toISOString()
 }
 
 type Resources = {
@@ -291,4 +359,21 @@ export function getActiveJobSets(jobs: Job[]): Record<string, string[]> {
     }
   }
   return result
+}
+
+const ACTIVE_JOB_STATES = new Set([JobState.Queued, JobState.Leased, JobState.Pending, JobState.Running])
+
+export function filterFakeJobs(jobs: Job[], filters: JobFilter[], activeJobSets: boolean): Job[] {
+  const filtered = jobs.filter(mergeFilters(filters))
+  return activeJobSets ? filtered.filter((j) => ACTIVE_JOB_STATES.has(j.state)) : filtered
+}
+
+let fakeJobsCache: Job[] | undefined
+
+// Shared by every fake-data hook so that the jobs table and group counts are derived from the same dataset
+export function getFakeJobs(): Job[] {
+  if (fakeJobsCache === undefined) {
+    fakeJobsCache = makeRandomJobs(10_000, 42)
+  }
+  return fakeJobsCache
 }
