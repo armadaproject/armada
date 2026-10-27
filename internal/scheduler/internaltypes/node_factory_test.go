@@ -67,12 +67,13 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 	admin := v1.Taint{Key: "maintenance", Effect: v1.TaintEffectNoSchedule}
 	legacyUserFacing := v1.Taint{Key: "legacy", Effect: v1.TaintEffectNoSchedule}
 	tests := []struct {
-		name         string
-		taints       []*v1.Taint
-		metadata     []*schedulerobjects.NodeTaint
-		schedulable  bool
-		wantTaints   []v1.Taint
-		wantMetadata []NodeTaint
+		name           string
+		taints         []*v1.Taint
+		metadata       []*schedulerobjects.NodeTaint
+		schedulable    bool
+		expectOriginal bool
+		wantTaints     []v1.Taint
+		wantMetadata   []NodeTaint
 	}{
 		{
 			name:       "legacy report preserves non-cordon restrictions",
@@ -133,10 +134,11 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			wantMetadata: []NodeTaint{{Taint: restricted}},
 		},
 		{
-			name:        "schedulable incomplete metadata is kept",
-			taints:      []*v1.Taint{&admin},
-			schedulable: true,
-			wantTaints:  []v1.Taint{admin},
+			name:           "schedulable incomplete metadata is kept",
+			taints:         []*v1.Taint{&admin},
+			schedulable:    true,
+			expectOriginal: true,
+			wantTaints:     []v1.Taint{admin},
 		},
 		{
 			name:         "legacy user-facing taint is kept",
@@ -177,6 +179,9 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			assert.ElementsMatch(t, tc.wantMetadata, result[i].GetNodeTaints())
 			assert.False(t, result[i].IsUnschedulable())
 			assert.Equal(t, !tc.schedulable, nodes[i].IsUnschedulable())
+			if tc.expectOriginal {
+				assert.Same(t, nodes[i], result[i])
+			}
 			if !tc.schedulable {
 				assert.Contains(t, nodes[i].GetTaints(), UnschedulableTaint())
 			}
