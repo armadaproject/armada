@@ -103,13 +103,23 @@ func running(startedAt metav1.Time) v1.ContainerState {
 func startedUpPod() *v1.Pod {
 	pod := podWithConditions()
 	pod.Status.InitContainerStatuses = []v1.ContainerStatus{
-		{Name: "fetch-dataset", State: terminated(baselineWithOffset(70), baselineWithOffset(111))},
-		{Name: "warm-cache", State: terminated(baselineWithOffset(112), baselineWithOffset(120))},
+		{Name: "fetch-dataset", Image: "repo/fetch:1.0", ImageID: "repo/fetch@sha256:aaaa", State: terminated(baselineWithOffset(70), baselineWithOffset(111))},
+		{Name: "warm-cache", Image: "repo/warm:1.0", ImageID: "repo/warm@sha256:bbbb", State: terminated(baselineWithOffset(112), baselineWithOffset(120))},
 	}
 	pod.Status.ContainerStatuses = []v1.ContainerStatus{
-		{Name: "main", State: running(baselineWithOffset(137))},
+		{Name: "main", Image: "repo/main:1.0", ImageID: "repo/main@sha256:cccc", State: running(baselineWithOffset(137))},
 	}
 	return pod
+}
+
+// startedUpPodNode is the node startedUpPod runs on. It reports every image of the pod, with sizes that differ
+// from the Pulled events so tests can tell which source a size came from.
+func startedUpPodNode() *v1.Node {
+	return &v1.Node{Status: v1.NodeStatus{Images: []v1.ContainerImage{
+		{Names: []string{"repo/fetch@sha256:aaaa", "repo/fetch:1.0"}, SizeBytes: 1},
+		{Names: []string{"repo/warm@sha256:bbbb", "repo/warm:1.0"}, SizeBytes: 268435456},
+		{Names: []string{"repo/main@sha256:cccc", "repo/main:1.0"}, SizeBytes: 2},
+	}}}
 }
 
 func startedUpPodEvents() []*v1.Event {
