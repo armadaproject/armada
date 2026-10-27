@@ -244,6 +244,9 @@ func (c KubernetesConfiguration) NewQueueableTaints() (*QueueableTaints, error) 
 		if strings.TrimSpace(admin.Category) == "" {
 			return nil, fmt.Errorf("queueableTaints.admin[%d].category must not be empty", i)
 		}
+		if admin.Category == UserQueueableTaintCategory {
+			return nil, fmt.Errorf("queueableTaints.admin[%d].category must not be %q, as that is the implied category for outer level queueableTaints", i, UserQueueableTaintCategory)
+		}
 		for _, pattern := range admin.Keys {
 			if err := appendTaint(pattern, admin.Category, false); err != nil {
 				return nil, err
