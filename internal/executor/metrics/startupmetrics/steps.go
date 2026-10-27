@@ -17,6 +17,15 @@ const (
 	sandboxCreationStep = "sandbox_creation"
 )
 
+var internalSteps = map[string]bool{
+	schedulingStep:      true,
+	sandboxCreationStep: true,
+}
+
+func IsInternalStep(name string) bool {
+	return internalSteps[name]
+}
+
 type measuredStep struct {
 	name     string
 	duration time.Duration
