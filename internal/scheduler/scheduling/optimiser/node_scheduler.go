@@ -6,7 +6,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -15,30 +14,34 @@ import (
 
 type PreemptingNodeScheduler struct {
 	jobDb                   jobdb.JobRepository
+	nodeDb                  *nodedb.NodeDb
 	maximumJobSizeToPreempt *internaltypes.ResourceList
+	allowGangPreemption     bool
 }
 
 type NodeScheduler interface {
 	Schedule(schedContext *SchedulingContext, jctx *context.JobSchedulingContext, node *internaltypes.Node) (*nodeSchedulingResult, error)
 }
 
-func NewPreemptingNodeScheduler(jobDb jobdb.JobRepository, maximumJobSizeToPreempt *internaltypes.ResourceList) *PreemptingNodeScheduler {
+func NewPreemptingNodeScheduler(jobDb jobdb.JobRepository, nodeDb *nodedb.NodeDb, maximumJobSizeToPreempt *internaltypes.ResourceList, allowGangPreemption bool) *PreemptingNodeScheduler {
 	return &PreemptingNodeScheduler{
 		jobDb:                   jobDb,
+		nodeDb:                  nodeDb,
 		maximumJobSizeToPreempt: maximumJobSizeToPreempt,
+		allowGangPreemption:     allowGangPreemption,
 	}
 }
 
 // Schedule
 // This function is responsible for determining if a job can be scheduled on a node, and the cost to do so
 // High level steps:
-// - Determine all the jobs that can be preempted
+// - Determine the jobs or gangs that can be preempted
 // - Order these jobs in the ideal order to preempt them in
 //   - Group these jobs by queue and order them by the order that queue would want those jobs ordered
 //   - This will give you N ordered lists, one of each queue
 //   - Combine these ordered lists into a "global" order, which is the ideal order to preempt jobs in
 //
-// - Attempt to schedule the new job on the node, preempting one job at a time until the job fit
+// - Attempt to schedule the new job on the node, preempting one gang at a time until the job fits
 func (n *PreemptingNodeScheduler) Schedule(schedContext *SchedulingContext, jctx *context.JobSchedulingContext, node *internaltypes.Node) (*nodeSchedulingResult, error) {
 	met, _, err := nodedb.StaticJobRequirementsMet(node, jctx)
 	if err != nil {
@@ -48,7 +51,7 @@ func (n *PreemptingNodeScheduler) Schedule(schedContext *SchedulingContext, jctx
 		return &nodeSchedulingResult{
 			jctx:      jctx,
 			node:      node,
-			resultId:  util.NewULID(),
+			resultId:  node.GetId(),
 			scheduled: false,
 		}, nil
 	}
@@ -58,12 +61,15 @@ func (n *PreemptingNodeScheduler) Schedule(schedContext *SchedulingContext, jctx
 		return &nodeSchedulingResult{
 			jctx:      jctx,
 			node:      node,
-			resultId:  util.NewULID(),
+			resultId:  node.GetId(),
 			scheduled: true,
 		}, nil
 	}
 
-	queues, err := n.getPreemptibleJobDetailsByQueue(schedContext, jctx, node)
+	if schedContext.NodeDbTxn == nil {
+		return nil, fmt.Errorf("node db transaction is nil")
+	}
+	queues, err := n.getPreemptibleGangsByQueue(schedContext, jctx, node)
 	if err != nil {
 		return nil, err
 	}
@@ -72,24 +78,24 @@ func (n *PreemptingNodeScheduler) Schedule(schedContext *SchedulingContext, jctx
 		return nil, err
 	}
 
-	allJobs := []*preemptibleJobDetails{}
+	allGangs := []*preemptibleGang{}
 	for _, queueItems := range queues {
-		allJobs = append(allJobs, queueItems...)
+		allGangs = append(allGangs, queueItems...)
 	}
-	sort.Sort(globalPreemptionOrder(allJobs))
+	sort.Sort(globalPreemptionOrder(allGangs))
 
 	scheduled := false
 	totalCost := float64(0)
-	jobsToPreempt := []string{}
-	queueCostChanges := map[string]float64{}
-	for _, jobToEvict := range allJobs {
-		availableResource = availableResource.Add(jobToEvict.resources)
-		totalCost += jobToEvict.costToPreempt
-		if _, present := queueCostChanges[jobToEvict.queue]; !present {
-			queueCostChanges[jobToEvict.queue] = 0
+	gangsToPreempt := []*preemptibleGang{}
+	resourcesPreemptedByQueue := map[string]internaltypes.ResourceList{}
+	for _, gangToPreempt := range allGangs {
+		availableResource = availableResource.Add(gangToPreempt.applicableResources)
+		totalCost += gangToPreempt.costToPreempt
+		if _, ok := resourcesPreemptedByQueue[gangToPreempt.queue]; !ok {
+			resourcesPreemptedByQueue[gangToPreempt.queue] = internaltypes.ResourceList{}
 		}
-		queueCostChanges[jobToEvict.queue] -= jobToEvict.cost
-		jobsToPreempt = append(jobsToPreempt, jobToEvict.jobId)
+		resourcesPreemptedByQueue[gangToPreempt.queue] = resourcesPreemptedByQueue[gangToPreempt.queue].Add(gangToPreempt.totalResources)
+		gangsToPreempt = append(gangsToPreempt, gangToPreempt)
 
 		if !jctx.Job.KubernetesResourceRequirements().Exceeds(availableResource) {
 			scheduled = true
@@ -97,14 +103,25 @@ func (n *PreemptingNodeScheduler) Schedule(schedContext *SchedulingContext, jctx
 		}
 	}
 
+	queueCostChanges := map[string]float64{}
 	maximumQueueImpact := float64(0)
-	for queue, costChange := range queueCostChanges {
+	for queue, preemptedResource := range resourcesPreemptedByQueue {
 		qctx, ok := schedContext.Queues[queue]
 		if !ok {
 			return nil, fmt.Errorf("could not find queue context for queue %s", queue)
 		}
 
-		impact := math.Abs(costChange) / qctx.CurrentCost
+		newCost := schedContext.Sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.AllocationInclShortJobPenalty.Subtract(preemptedResource))
+		costChange := math.Abs(qctx.CurrentCost - newCost)
+		if _, ok := queueCostChanges[qctx.Name]; !ok {
+			queueCostChanges[qctx.Name] = 0
+		}
+		queueCostChanges[qctx.Name] -= costChange
+
+		impact := float64(0)
+		if qctx.CurrentCost > 0 {
+			impact = costChange / qctx.CurrentCost
+		}
 		if impact > maximumQueueImpact {
 			maximumQueueImpact = impact
 		}
@@ -115,7 +132,7 @@ func (n *PreemptingNodeScheduler) Schedule(schedContext *SchedulingContext, jctx
 			scheduled: false,
 			jctx:      jctx,
 			node:      node,
-			resultId:  util.NewULID(),
+			resultId:  node.GetId(),
 		}, nil
 	}
 
@@ -124,103 +141,155 @@ func (n *PreemptingNodeScheduler) Schedule(schedContext *SchedulingContext, jctx
 		jctx:               jctx,
 		node:               node,
 		schedulingCost:     totalCost,
-		jobIdsToPreempt:    jobsToPreempt,
+		gangsToPreempt:     gangsToPreempt,
 		queueCostChanges:   queueCostChanges,
 		maximumQueueImpact: maximumQueueImpact,
-		resultId:           util.NewULID(),
+		resultId:           node.GetId(),
 	}, nil
 }
 
-func (n *PreemptingNodeScheduler) getPreemptibleJobDetailsByQueue(
+func (n *PreemptingNodeScheduler) getPreemptibleGangsByQueue(
 	schedContext *SchedulingContext,
 	jobToSchedule *context.JobSchedulingContext,
 	node *internaltypes.Node,
-) (map[string][]*preemptibleJobDetails, error) {
-	queues := map[string][]*preemptibleJobDetails{}
+) (map[string][]*preemptibleGang, error) {
+	queues := map[string][]*preemptibleGang{}
 	start := time.Now()
-	for jobId, jobResource := range node.AllocatedByJob() {
+	seen := make(map[string]bool)
+	for jobId := range node.AllocatedByJob() {
+		if seen[jobId] {
+			continue
+		}
 		job := n.jobDb.GetById(jobId)
 		if job == nil {
 			return nil, fmt.Errorf("job %s not found in jobDb", jobId)
 		}
-		if job.InTerminalState() {
+		if !n.isJobPreemptionCandidate(job, node) {
 			continue
 		}
-		if !job.PriorityClass().Preemptible {
-			// Don't evict non-preemptible jobs
-			continue
-		}
-		if isTooLargeToEvict(job, n.maximumJobSizeToPreempt) {
-			// Don't evict jobs larger than the maximum size
-			continue
-		}
+		jobs := []*jobdb.Job{job}
 		if job.IsInGang() {
-			// Don't evict gang jobs
-			continue
+			if !n.allowGangPreemption {
+				continue
+			}
+			if job.Queue() == jobToSchedule.Job.Queue() && job.GetGangInfo().Id() == jobToSchedule.Job.GetGangInfo().Id() {
+				// Members placed earlier in this attempt must stay scheduled.
+				continue
+			}
+			var err error
+			jobs, err = n.jobDb.GetGangJobsByGangId(job.Queue(), job.GetGangInfo().Id())
+			if err != nil {
+				return nil, err
+			}
 		}
-		queue := job.Queue()
-		crossPool := false
-		if !context.IsHomeJob(job, schedContext.Sctx.Pool) {
-			queue = context.CalculateAwayQueueName(job.Queue())
-			crossPool = true
+		// Several members on this node must still count as one gang.
+		for _, member := range jobs {
+			seen[member.Id()] = true
 		}
-		var scheduledAtPriority int32
-		age := int64(0)
-		if crossPool {
-			if job.LatestRun() == nil {
-				return nil, fmt.Errorf("no job run found for cross pool job %s", jobId)
-			}
-			age = start.Sub(*job.LatestRun().LeaseTime()).Milliseconds()
-			scheduledAtPriority = internaltypes.CrossPoolPriority
-		} else if job.Queued() {
-			qctx, ok := schedContext.Sctx.QueueSchedulingContexts[queue]
-			if !ok {
-				return nil, fmt.Errorf("could not find queue context for queue %s", queue)
-			}
-			jctx, ok := qctx.SuccessfulJobSchedulingContexts[jobId]
-			if !ok {
-				return nil, fmt.Errorf("could not find job context for job %s in successful scheduling contexts for queue %s, expected to find it scheduled on node %s", jobId, queue, node.GetName())
-			}
-			if jctx.PodSchedulingContext == nil {
-				return nil, fmt.Errorf("no pod scheduling context exists on jctx for job %s despite it being in successful scheduling contexts", jobId)
-			}
-			scheduledAtPriority = jctx.PodSchedulingContext.ScheduledAtPriority
-		} else {
-			if job.LatestRun() == nil {
-				return nil, fmt.Errorf("no job run found for scheduled job %s", jobId)
-			}
-			if job.LatestRun().ScheduledAtPriority() == nil {
-				return nil, fmt.Errorf("scheduled at priority is nil for scheduled job %s", jobId)
-			}
-			scheduledAtPriority = *job.LatestRun().ScheduledAtPriority()
-			age = start.Sub(*job.LatestRun().LeaseTime()).Milliseconds()
+		gang, err := n.getPreemptibleGang(schedContext, jobToSchedule, job, jobs, node, start)
+		if err != nil {
+			return nil, err
 		}
-		if scheduledAtPriority > jobToSchedule.Job.PriorityClass().Priority {
-			// Can't evict jobs of higher priority
-			continue
-		}
-
-		cost := schedContext.Sctx.FairnessCostProvider.UnweightedCostFromAllocation(jobResource)
-		runInfo := &preemptibleJobDetails{
-			cost:                cost,
-			crossPool:           crossPool,
-			resources:           jobResource,
-			jobId:               jobId,
-			queue:               queue,
-			scheduledAtPriority: scheduledAtPriority,
-			ageMillis:           age,
-		}
-
-		if _, present := queues[queue]; !present {
-			queues[queue] = []*preemptibleJobDetails{runInfo}
-		} else {
-			queues[queue] = append(queues[queue], runInfo)
+		if gang != nil {
+			queues[gang.queue] = append(queues[gang.queue], gang)
 		}
 	}
 	return queues, nil
 }
 
-func (n *PreemptingNodeScheduler) populateQueueImpactFields(schedContext *SchedulingContext, jobToSchedule *context.JobSchedulingContext, queues map[string][]*preemptibleJobDetails) error {
+// getPreemptibleGang constructs a preemptibleGang from individual member jobs.
+func (n *PreemptingNodeScheduler) getPreemptibleGang(
+	schedContext *SchedulingContext,
+	jobToSchedule *context.JobSchedulingContext,
+	job *jobdb.Job,
+	jobs []*jobdb.Job,
+	node *internaltypes.Node,
+	now time.Time,
+) (*preemptibleGang, error) {
+	queue := job.Queue()
+	crossPool := !context.IsHomeJob(job, schedContext.Sctx.Pool)
+	if crossPool {
+		queue = context.CalculateAwayQueueName(queue)
+	}
+	qctx, ok := schedContext.Sctx.QueueSchedulingContexts[queue]
+	if !ok {
+		return nil, fmt.Errorf("could not find queue context for queue %s", queue)
+	}
+	gang := &preemptibleGang{
+		preemptedSiblingJobId: job.Id(),
+		queue:                 queue,
+		crossPool:             crossPool,
+		scheduledAtPriority:   internaltypes.MinPriority,
+	}
+	for _, member := range jobs {
+		// This round's placement takes precedence over a previous run's node.
+		nodeId := ""
+		var scheduledAtPriority int32
+
+		if crossPool {
+			if member.LatestRun() == nil {
+				return nil, fmt.Errorf("no job run found for cross pool job %s", member.Id())
+			}
+
+			nodeId = member.LatestRun().NodeId()
+			scheduledAtPriority = internaltypes.CrossPoolPriority
+		} else if member.Queued() {
+			jctx, ok := qctx.SuccessfulJobSchedulingContexts[member.Id()]
+			if !ok {
+				return nil, fmt.Errorf("could not find job context for job %s in successful scheduling contexts for queue %s, expected to find it scheduled on node %s", member.Id(), queue, node.GetName())
+			}
+			if jctx.PodSchedulingContext == nil {
+				return nil, fmt.Errorf("no pod scheduling context exists on jctx for job %s despite it being in successful scheduling contexts", member.Id())
+			}
+
+			nodeId = jctx.PodSchedulingContext.NodeId
+			scheduledAtPriority = jctx.PodSchedulingContext.ScheduledAtPriority
+		} else {
+			if member.LatestRun() == nil {
+				return nil, fmt.Errorf("no job run found for scheduled job %s", member.Id())
+			}
+			if member.LatestRun().ScheduledAtPriority() == nil {
+				return nil, fmt.Errorf("scheduled at priority is nil for scheduled job %s", member.Id())
+			}
+
+			nodeId = member.LatestRun().NodeId()
+			scheduledAtPriority = *member.LatestRun().ScheduledAtPriority()
+		}
+
+		memberNode, err := n.nodeDb.GetNodeWithTxn(schedContext.NodeDbTxn, nodeId)
+		if err != nil {
+			return nil, err
+		}
+		if !n.isJobPreemptionCandidate(member, memberNode) {
+			return nil, nil
+		}
+		if scheduledAtPriority > jobToSchedule.Job.PriorityClass().Priority {
+			return nil, nil
+		}
+		jctx := context.JobSchedulingContextFromJob(member)
+		// Record the original node on this new context for unbinding and preemption details.
+		jctx.AssignedNode = memberNode
+		gang.jobs = append(gang.jobs, jctx)
+		gang.scheduledAtPriority = max(gang.scheduledAtPriority, scheduledAtPriority)
+		if !member.Queued() && member.LatestRun() != nil && member.LatestRun().LeaseTime() != nil {
+			gang.ageMillis = max(gang.ageMillis, now.Sub(*member.LatestRun().LeaseTime()).Milliseconds())
+		}
+		gang.totalResources = gang.totalResources.Add(member.AllResourceRequirements())
+		if scheduledAtPriority < jobToSchedule.Job.PriorityClass().Priority {
+			gang.lowerPriorityResources = gang.lowerPriorityResources.Add(member.AllResourceRequirements())
+		}
+		if nodeId == node.GetId() {
+			gang.applicableResources = gang.applicableResources.Add(member.KubernetesResourceRequirements())
+		}
+	}
+	if len(gang.jobs) == 0 {
+		return nil, nil
+	}
+	gang.cost = schedContext.Sctx.FairnessCostProvider.UnweightedCostFromAllocation(gang.totalResources)
+	return gang, nil
+}
+
+func (n *PreemptingNodeScheduler) populateQueueImpactFields(schedContext *SchedulingContext, jobToSchedule *context.JobSchedulingContext, queues map[string][]*preemptibleGang) error {
 	for queue, items := range queues {
 		sort.Sort(internalQueueOrder(items))
 
@@ -229,22 +298,15 @@ func (n *PreemptingNodeScheduler) populateQueueImpactFields(schedContext *Schedu
 			return fmt.Errorf("queue context for queue %s not found", queue)
 		}
 
-		updatedQueueCost := qctx.CurrentCost
+		allocation := qctx.AllocationInclShortJobPenalty
 		count := 0
 		for _, item := range items {
-			updatedQueueCost = roundFloatHighPrecision(updatedQueueCost - item.cost)
-			item.weightedCostAfterPreemption = updatedQueueCost / qctx.Weight
-			if item.crossPool {
-				item.costToPreempt = 0
-			} else if item.scheduledAtPriority < jobToSchedule.Job.PriorityClass().Priority {
-				item.costToPreempt = 0
+			item.costToPreempt = item.unweightedPreemptionCost(schedContext, allocation)
+			allocation = allocation.Subtract(item.totalResources)
+			after := schedContext.Sctx.FairnessCostProvider.UnweightedCostFromAllocation(allocation)
+			item.weightedCostAfterPreemption = after / qctx.Weight
+			if !item.crossPool && item.scheduledAtPriority < jobToSchedule.Job.PriorityClass().Priority {
 				item.priorityPreemption = true
-			} else if updatedQueueCost > qctx.Fairshare {
-				item.costToPreempt = 0
-			} else {
-				// This could be improved to handle crossing the fairshare boundary better
-				// It could just cost the amount the queue is brought below fairshare, rather than the full item cost
-				item.costToPreempt = item.cost
 			}
 			item.queuePreemptedOrdinal = count
 			count++
@@ -255,8 +317,22 @@ func (n *PreemptingNodeScheduler) populateQueueImpactFields(schedContext *Schedu
 	return nil
 }
 
-func roundFloatHighPrecision(input float64) float64 {
-	return math.Round(input*100000000) / 100000000
+func (n *PreemptingNodeScheduler) isJobPreemptionCandidate(job *jobdb.Job, allocatedNode *internaltypes.Node) bool {
+	if allocatedNode != nil && allocatedNode.IsJobEvicted(job.Id()) {
+		return false
+	}
+	if job.InTerminalState() {
+		return false
+	}
+	if !job.PriorityClass().Preemptible {
+		// Don't evict non-preemptible jobs
+		return false
+	}
+	if isTooLargeToEvict(job, n.maximumJobSizeToPreempt) {
+		// Don't evict jobs larger than the maximum size
+		return false
+	}
+	return true
 }
 
 func isTooLargeToEvict(job *jobdb.Job, limit *internaltypes.ResourceList) bool {

@@ -221,6 +221,9 @@ func TestEvictOversubscribed_CrossPoolJobsEvicted(t *testing.T) {
 }
 
 func TestPreemptingQueueScheduler(t *testing.T) {
+	gangOptimiserConfig := createOptimiserConfig(10, map[string]float64{}, nil)
+	gangOptimiserConfig.AllowGangPreemption = true
+
 	type SchedulingRound struct {
 		// Map from queue name to pod requirements for that queue.
 		JobsByQueue map[string][]*jobdb.Job
@@ -303,6 +306,46 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 				"C": 1,
 			},
+		},
+		"optimiser preempts a gang scheduled earlier in the round": {
+			SchedulingConfig: testfixtures.WithProtectedFractionOfFairShareConfig(1,
+				testfixtures.WithOptimiserConfig(testfixtures.TestPool, gangOptimiserConfig, testfixtures.TestSchedulingConfig())),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities), // Counts towards fairshare, but neither queue can use it.
+				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass2, 2)),
+						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass2, 1),
+					},
+					OptimiserEnabled: true,
+					// A is placed first, then removed to fit B. A has not run, so no preemption is returned.
+					ExpectedScheduledIndices: map[string][]int{"B": {0}},
+				},
+			},
+			// A's higher weight makes its small gang get considered before B's large job.
+			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 32},
+		},
+		"optimiser does not preempt gangs when gang preemption is disabled": {
+			SchedulingConfig: testfixtures.WithProtectedFractionOfFairShareConfig(1,
+				testfixtures.WithOptimiserConfig(testfixtures.TestPool, createOptimiserConfig(10, map[string]float64{}, nil), testfixtures.TestSchedulingConfig())),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities),
+				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass2, 2)),
+						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass2, 1),
+					},
+					OptimiserEnabled:         true,
+					ExpectedScheduledIndices: map[string][]int{"A": {0, 1}},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 32},
 		},
 		"optimiser": {
 			SchedulingConfig: testfixtures.WithProtectedFractionOfFairShareConfig(1,
