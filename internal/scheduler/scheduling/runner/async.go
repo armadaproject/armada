@@ -420,7 +420,7 @@ func (r *AsyncSchedulingRunner) updatePreemptedJobs(ctx *armadacontext.Context, 
 	preemptedJobs := make([]*schedulercontext.JobSchedulingContext, 0, len(poolResult.SchedulingResult.PreemptedJobs))
 	for _, preemptedJob := range poolResult.SchedulingResult.PreemptedJobs {
 		currentJob := txn.GetById(preemptedJob.JobId)
-		if isJobActionable(currentJob) {
+		if isRunActionable(currentJob, preemptedJob.Job) {
 			updatedCurrentJob, err := markJobPreempted(currentJob, r.clock.Now())
 			if err != nil {
 				return err
@@ -445,7 +445,7 @@ func (r *AsyncSchedulingRunner) updateReconciliationResult(ctx *armadacontext.Co
 	preemptedJobs := make([]*scheduling.FailedReconciliationResult, 0, len(poolResult.ReconciliationResult.PreemptedJobs))
 	for _, preemptedJob := range poolResult.ReconciliationResult.PreemptedJobs {
 		currentJob := txn.GetById(preemptedJob.Job.Id())
-		if isJobActionable(currentJob) {
+		if isRunActionable(currentJob, preemptedJob.Job) {
 			updatedJob, err := markJobFailedReconciliation(currentJob, r.clock.Now())
 			if err != nil {
 				return err
@@ -461,7 +461,7 @@ func (r *AsyncSchedulingRunner) updateReconciliationResult(ctx *armadacontext.Co
 	failedJobs := make([]*scheduling.FailedReconciliationResult, 0, len(poolResult.ReconciliationResult.FailedJobs))
 	for _, failedJob := range poolResult.ReconciliationResult.FailedJobs {
 		currentJob := txn.GetById(failedJob.Job.Id())
-		if isJobActionable(currentJob) {
+		if isRunActionable(currentJob, failedJob.Job) {
 			updatedJob, err := markJobFailedReconciliation(currentJob, r.clock.Now())
 			if err != nil {
 				return err
@@ -478,6 +478,16 @@ func (r *AsyncSchedulingRunner) updateReconciliationResult(ctx *armadacontext.Co
 
 func isQueuedJobActionable(job *jobdb.Job) bool {
 	return isJobActionable(job) && job.Queued()
+}
+
+// isRunActionable reports whether the run that the result acts on is still the active run of the job. While the
+// async run computes the result, a cycle can end that run, requeue the job, or lease the job again.
+func isRunActionable(currentJob *jobdb.Job, resultJob *jobdb.Job) bool {
+	if !isJobActionable(currentJob) {
+		return false
+	}
+	currentRun, resultRun := currentJob.LatestRun(), resultJob.LatestRun()
+	return currentRun != nil && resultRun != nil && currentRun.Id() == resultRun.Id() && !currentRun.InTerminalState()
 }
 
 func isJobActionable(job *jobdb.Job) bool {
