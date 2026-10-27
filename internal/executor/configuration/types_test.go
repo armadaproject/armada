@@ -13,38 +13,59 @@ func TestQueueableTaintsLiteralAndRegexMatching(t *testing.T) {
 			for _, tc := range []struct {
 				name    string
 				pattern string
-				matches []string
-				rejects []string
+				matches map[string]bool
 			}{
 				{
 					name: "literal dotted key", pattern: "nmc2.ai/cpe-test",
-					matches: []string{"nmc2.ai/cpe-test"},
-					rejects: []string{"nmc2.ai/cpe-testx", "prefix-nmc2.ai/cpe-test", "nmc2Xai/cpe-test"},
+					matches: map[string]bool{
+						"nmc2.ai/cpe-test":        true,
+						"nmc2.ai/cpe-testx":       false,
+						"prefix-nmc2.ai/cpe-test": false,
+						"nmc2Xai/cpe-test":        false,
+					},
 				},
 				{
 					name: "explicit suffix regex", pattern: `nmc2\.ai/cpe-test.*`,
-					matches: []string{"nmc2.ai/cpe-test", "nmc2.ai/cpe-testx"},
-					rejects: []string{"prefix-nmc2.ai/cpe-test", "nmc2Xai/cpe-test"},
+					matches: map[string]bool{
+						"nmc2.ai/cpe-test":        true,
+						"nmc2.ai/cpe-testx":       true,
+						"prefix-nmc2.ai/cpe-test": false,
+						"nmc2Xai/cpe-test":        false,
+					},
 				},
 				{
 					name: "numeric suffix regex", pattern: `nmc2\.ai/cpe-test[0-9]+`,
-					matches: []string{"nmc2.ai/cpe-test12"},
-					rejects: []string{"nmc2.ai/cpe-test", "nmc2.ai/cpe-test12x"},
+					matches: map[string]bool{
+						"nmc2.ai/cpe-test12":  true,
+						"nmc2.ai/cpe-test":    false,
+						"nmc2.ai/cpe-test12x": false,
+					},
 				},
 				{
 					name: "alternation matches complete keys", pattern: "foo|bar",
-					matches: []string{"foo", "bar"},
-					rejects: []string{"foox", "xbar", "xfoox"},
+					matches: map[string]bool{
+						"foo":   true,
+						"bar":   true,
+						"foox":  false,
+						"xbar":  false,
+						"xfoox": false,
+					},
 				},
 				{
 					name: "anchors explicitly select regex semantics", pattern: "^nmc2.ai/cpe-test$",
-					matches: []string{"nmc2.ai/cpe-test", "nmc2Xai/cpe-test"},
-					rejects: []string{"nmc2.ai/cpe-testx"},
+					matches: map[string]bool{
+						"nmc2.ai/cpe-test":  true,
+						"nmc2Xai/cpe-test":  true,
+						"nmc2.ai/cpe-testx": false,
+					},
 				},
 				{
 					name: "escaped dot selects regex semantics", pattern: `nmc2\.ai/cpe-test`,
-					matches: []string{"nmc2.ai/cpe-test"},
-					rejects: []string{"nmc2Xai/cpe-test", "nmc2.ai/cpe-testx"},
+					matches: map[string]bool{
+						"nmc2.ai/cpe-test":  true,
+						"nmc2Xai/cpe-test":  false,
+						"nmc2.ai/cpe-testx": false,
+					},
 				},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
@@ -58,15 +79,13 @@ func TestQueueableTaintsLiteralAndRegexMatching(t *testing.T) {
 					}
 					matcher, err := config.NewQueueableTaints()
 					require.NoError(t, err)
-					for _, key := range tc.matches {
+					for key, expectedMatch := range tc.matches {
 						taint, ok := matcher.MatchQueueableTaint(key)
-						assert.True(t, ok, "expected %q to match", key)
-						assert.Equal(t, category, taint.Category)
-						assert.Equal(t, scope == "user", taint.UserFacing)
-					}
-					for _, key := range tc.rejects {
-						_, ok := matcher.MatchQueueableTaint(key)
-						assert.False(t, ok, "expected %q not to match", key)
+						assert.Equal(t, expectedMatch, ok, "unexpected match result for %q", key)
+						if expectedMatch {
+							assert.Equal(t, category, taint.Category)
+							assert.Equal(t, scope == "user", taint.UserFacing)
+						}
 					}
 				})
 			}

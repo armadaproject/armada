@@ -139,7 +139,8 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 // taints that have been categorized stripped, user facing taints stripped, and the
 // unschedulable flag cleared. The submit checker uses it so that jobs targeting a node type whose
 // nodes are all cordoned (via `kubectl cordon`, or otherwise reported unschedulable by the executor)
-// stay queued rather than being rejected. See issue #4946.
+// stay queued rather than being rejected. See issue #4946. This behavior also gets applied to
+// non-cordoned nodes with categorized taints.
 //
 // A cordoned node always has the unschedulable flag set (Kubernetes only adds
 // node.kubernetes.io/unschedulable when the node is unschedulable, and the Armada taint is only

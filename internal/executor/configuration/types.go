@@ -220,16 +220,20 @@ func (c KubernetesConfiguration) NewQueueableTaints() (*QueueableTaints, error) 
 		taints = append(taints, QueueableTaint{Pattern: pattern, Category: category, UserFacing: userFacing, regexp: re})
 		return nil
 	}
+	// Convert legacy tolerated taints and the reservation taint key to user facing queueable taints
 	for _, taintKey := range append(append([]string{}, c.ToleratedTaints...), constants.ReservationTaintKey) {
 		if err := appendTaint("^"+regexp.QuoteMeta(taintKey)+"$", "", true); err != nil {
 			return nil, err
 		}
 	}
+	// Convert kubernetes.queueableTaints.keys to user facing queueable taints
 	for _, pattern := range c.QueueableTaints.Keys {
 		if err := appendTaint(pattern, UserQueueableTaintCategory, true); err != nil {
 			return nil, err
 		}
 	}
+	// Convert kubernetes.queueableTaints.admin.keys to categorized queueable taints with
+	// their respective category strings
 	for i, admin := range c.QueueableTaints.Admin {
 		if strings.TrimSpace(admin.Category) == "" {
 			return nil, fmt.Errorf("queueableTaints.admin[%d].category must not be empty", i)
@@ -243,6 +247,7 @@ func (c KubernetesConfiguration) NewQueueableTaints() (*QueueableTaints, error) 
 	return &QueueableTaints{Taints: taints}, nil
 }
 
+// Check if a taint key matches a configured queueable taint
 func (q *QueueableTaints) MatchQueueableTaint(taintKey string) (QueueableTaint, bool) {
 	for _, taint := range q.Taints {
 		if taint.regexp.MatchString(taintKey) {
