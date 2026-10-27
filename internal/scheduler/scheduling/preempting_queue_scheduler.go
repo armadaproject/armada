@@ -676,8 +676,8 @@ func (sch *PreemptingQueueScheduler) runOptimiser(ctx *armadacontext.Context) (*
 		minimumJobSizeToSchedule = &minJobSize
 	}
 
-	nodeScheduler := optimiser.NewPreemptingNodeScheduler(sch.jobRepo, maximumJobSizeToPreempt)
-	optimisingScheduler := optimiser.NewFairnessOptimisingScheduler(nodeScheduler, sch.jobRepo, sch.nodeDb, sch.optimiserConfig.MinimumFairnessImprovementPercentage)
+	nodeScheduler := optimiser.NewPreemptingNodeScheduler(sch.jobRepo, sch.nodeDb, maximumJobSizeToPreempt, sch.optimiserConfig.AllowGangPreemption)
+	optimisingScheduler := optimiser.NewFairnessOptimisingScheduler(nodeScheduler, sch.jobRepo, sch.nodeDb, sch.optimiserConfig.MinimumFairnessImprovementPercentage, sch.optimiserConfig.AllowGangPreemption)
 	optimisingQueueScheduler := NewOptimisingQueueScheduler(
 		sch.jobRepo,
 		optimisingScheduler,

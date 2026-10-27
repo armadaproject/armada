@@ -2,13 +2,19 @@ package optimiser
 
 import (
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 )
 
-type preemptibleJobDetails struct {
-	// metadata
-	jobId     string
-	queue     string
-	resources internaltypes.ResourceList
+// A preemptibleGang contains the allocated members of a gang, or a single non-gang job.
+type preemptibleGang struct {
+	preemptedSiblingJobId string
+	queue                 string
+	// applicableResources are the only resources applicable to the job being considered for scheduling
+	applicableResources internaltypes.ResourceList
+	jobs                []*context.JobSchedulingContext
+	totalResources      internaltypes.ResourceList
+	// lowerPriorityResources are resources of a lower priority than the job being considered for scheduling
+	lowerPriorityResources internaltypes.ResourceList
 	// Used for in queue ordering
 	cost                float64
 	costToPreempt       float64
@@ -21,7 +27,17 @@ type preemptibleJobDetails struct {
 	queuePreemptedOrdinal       int
 }
 
-type internalQueueOrder []*preemptibleJobDetails
+// unweightedPreemptionCost charges only the increase in shortfall below fair share caused
+// by equal-priority members. Lower-priority members can be preempted for free.
+func (g *preemptibleGang) unweightedPreemptionCost(sctx *SchedulingContext, allocation internaltypes.ResourceList) float64 {
+	fairshare := sctx.Queues[g.queue].Fairshare
+	costProvider := sctx.Sctx.FairnessCostProvider
+	before := costProvider.UnweightedCostFromAllocation(allocation.Subtract(g.lowerPriorityResources))
+	after := costProvider.UnweightedCostFromAllocation(allocation.Subtract(g.totalResources))
+	return max(0, fairshare-after) - max(0, fairshare-before)
+}
+
+type internalQueueOrder []*preemptibleGang
 
 func (iqo internalQueueOrder) Len() int {
 	return len(iqo)
@@ -42,7 +58,7 @@ func (iqo internalQueueOrder) Less(i, j int) bool {
 		if iqo[i].ageMillis != iqo[j].ageMillis {
 			return iqo[i].ageMillis < iqo[j].ageMillis
 		}
-		return iqo[i].jobId < iqo[j].jobId
+		return iqo[i].preemptedSiblingJobId < iqo[j].preemptedSiblingJobId
 	}
 
 	return false
@@ -52,7 +68,7 @@ func (iqo internalQueueOrder) Swap(i, j int) {
 	iqo[i], iqo[j] = iqo[j], iqo[i]
 }
 
-type globalPreemptionOrder []*preemptibleJobDetails
+type globalPreemptionOrder []*preemptibleGang
 
 func (gpo globalPreemptionOrder) Len() int {
 	return len(gpo)
@@ -86,7 +102,7 @@ func (gpo globalPreemptionOrder) Less(i, j int) bool {
 		if gpo[i].ageMillis != gpo[j].ageMillis {
 			return gpo[i].ageMillis < gpo[j].ageMillis
 		}
-		return gpo[i].jobId < gpo[j].jobId
+		return gpo[i].preemptedSiblingJobId < gpo[j].preemptedSiblingJobId
 	}
 
 	return false
