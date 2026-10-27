@@ -136,7 +136,7 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 }
 
 // RemoveCordonTaints returns copies of nodes with the cordon taint stripped (see IsCordonTaint),
-// taints that have been non-user-facing stripped, and the
+// taints that have been categorized stripped, and the
 // unschedulable flag cleared. The submit checker uses it so that jobs targeting a node type whose
 // nodes are all cordoned (via `kubectl cordon`, or otherwise reported unschedulable by the executor)
 // stay queued rather than being rejected. See issue #4946. This behavior also gets applied to
