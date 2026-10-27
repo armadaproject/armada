@@ -32,7 +32,7 @@ jobs:
       containers:
         - name: reader
           imagePullPolicy: IfNotPresent
-          image: alpine:3.16
+          image: alpine:3.20.0
           command:
             - sh
             - -c

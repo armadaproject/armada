@@ -240,6 +240,7 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
 					tc.SchedulingConfig.MaximumSchedulingBurst,
 				),
+				nil,
 				tc.TotalSchedulingCapacity,
 			)
 			for _, q := range tc.Queues {

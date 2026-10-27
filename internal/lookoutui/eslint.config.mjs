@@ -76,6 +76,11 @@ export default tseslint.config(
               "aggregatable",
               "ingester",
 
+              // TanStack Query terminology
+              "refetch",
+              "refetches",
+              "refetching",
+
               // Use the American spelling of these words for consistency with the Armada API
               "reprioritize",
               "reprioritized",

@@ -12,10 +12,10 @@ armada.operators.armada module
    :undoc-members:
    :show-inheritance:
 
-armada.triggers.armada module
+armada.triggers module
 -----------------------------
 
-.. automodule:: armada.triggers.armada
+.. automodule:: armada.triggers
    :members:
    :undoc-members:
    :show-inheritance:

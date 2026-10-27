@@ -1,5 +1,5 @@
 import grpc
-from airflow.serialization.serde import deserialize, serialize
+from armada._compat import deserialize, serialize
 from armada.model import GrpcChannelArgs, RunningJobContext
 from armada_client.typings import JobState
 from pendulum import DateTime

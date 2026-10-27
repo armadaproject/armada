@@ -8,10 +8,13 @@ import (
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/database"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/leaderelection"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -25,19 +28,24 @@ const (
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
+	// Migration configuration controlling optional schema creation
+	Migration database.MigrationConfig
 	// Armada Api Connection.  Used to fetch queues.
 	ArmadaApi client.ApiConnectionDetails
 	// General Pulsar configuration
 	Pulsar commonconfig.PulsarConfig
 	// Configuration controlling leader election
-	Leader LeaderConfig
+	Leader leaderelection.Config
 	// Configuration controlling metrics
 	Metrics MetricsConfig
+	// Configuration controlling OpenTelemetry observability
+	Observability observability.ObservabilityConfig
 	// Scheduler configuration (this is shared with the old scheduler)
-	Scheduling SchedulingConfig
-	Auth       authconfig.AuthConfig
-	Grpc       grpcconfig.GrpcConfig
-	Http       HttpConfig
+	Scheduling  SchedulingConfig
+	Auth        authconfig.AuthConfig
+	Grpc        grpcconfig.GrpcConfig
+	Http        HttpConfig
+	SubmitCheck SubmitCheckConfig
 	// If non-nil, configures pprof profiling
 	Profiling *profilingconfig.ProfilingConfig
 	// Maximum number of strings that should be cached at any one time
@@ -88,24 +96,22 @@ type Configuration struct {
 	PublishMetricsToPulsar bool
 }
 
-type LeaderConfig struct {
-	// Valid modes are "standalone" or "kubernetes"
-	Mode string `validate:"required"`
-	// Name of the K8s Lock Object
-	LeaseLockName string
-	// Namespace of the K8s Lock Object
-	LeaseLockNamespace string
-	// The name of the pod
-	PodName string
-	// How long the lease is held for.
-	// Non leaders much wait this long before trying to acquire the lease
-	LeaseDuration time.Duration
-	// RenewDeadline is the duration that the acting leader will retry refreshing leadership before giving up.
-	RenewDeadline time.Duration
-	// RetryPeriod is the duration the LeaderElector clients should waite between tries of actions.
-	RetryPeriod time.Duration
-	// Connection details to the leader
-	LeaderConnection client.ApiConnectionDetails
+type SubmitCheckConfig struct {
+	// MaxDuration is the global time limit for the submit check phase
+	// of a scheduler cycle. The submit check validates whether newly submitted
+	// jobs can physically fit on any cluster. When this limit is exceeded,
+	// the checker stops processing additional queues and returns partial results.
+	// Unchecked jobs remain unvalidated and will be checked in the next cycle.
+	//
+	// Set to 0 to disable (no global time limit on submit check).
+	MaxDuration time.Duration `validate:"omitempty,gt=0"`
+	// MaxDurationPerQueue is the per-queue time limit for the submit
+	// check phase. When exceeded for a given queue, the checker stops processing
+	// additional jobs in that queue and moves on to the next. Unchecked jobs
+	// remain unvalidated and will be checked in the next cycle.
+	//
+	// Set to 0 to disable (no per-queue time limit on submit check).
+	MaxDurationPerQueue time.Duration `validate:"omitempty,gt=0"`
 }
 
 type FloatingResourceConfig struct {
@@ -135,10 +141,6 @@ type MetricsConfig struct {
 	// Used to calculate job seconds lost to preemption
 	// Calculate as if the job checkpoints at these different intervals
 	JobCheckpointIntervals []time.Duration
-	// Regexes used for job error categorisation.
-	// Specifically, the subCategory label for job failure counters is the first regex that matches the job error.
-	// If no regex matches, the subCategory label is the empty string.
-	TrackedErrorRegexes []string
 	// Metrics are exported for these resources.
 	TrackedResourceNames []v1.ResourceName
 	// Node label key used to identify which scalable unit it belongs to.
@@ -150,6 +152,20 @@ type HistogramConfig struct {
 	Start  float64
 	Factor float64
 	Count  int
+}
+
+// AggregateDemandConfig controls the rollout of the JobDb demand aggregates.
+// The Compare/Use pair is deliberately shared by all aggregate types (queued
+// demand now, running demand to follow) rather than split per type. When both
+// are off the JobDb skips aggregate maintenance entirely.
+type AggregateDemandConfig struct {
+	// Compare derives demand both from the aggregates and by scanning jobs,
+	// and publishes any difference. The scan-derived value remains
+	// authoritative.
+	Compare bool
+	// Use sources queued demand from the aggregate instead of scanning jobs.
+	// Running jobs are still derived from the scan.
+	Use bool
 }
 
 // SchedulingConfig contains config controlling the Armada scheduler.
@@ -167,6 +183,10 @@ type HistogramConfig struct {
 type SchedulingConfig struct {
 	// Set to true to disable scheduling
 	DisableScheduling bool
+	// Set to true to run scheduling on a background goroutine;
+	// The purpose of this is to keep the main loop free allowing it to send job state updates in a timely manner
+	// The main loop will consume and reconcile the scheduling result when it exists
+	AsyncSchedulingEnabled bool
 	// Set to true to make scheduling all or nothing
 	// By default pools the scheduler will attempt fail scheduling independently, not causing other pools to also fail
 	// This only applies to certain types of known failures
@@ -203,10 +223,23 @@ type SchedulingConfig struct {
 	MaxNewJobSchedulingDurationPerQueue time.Duration `validate:"omitempty,ltfield=MaxSchedulingDuration"`
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
+	// Experimental - controls the rollout of the JobDb demand aggregates.
+	// When both flags are off the aggregates are neither maintained nor read.
+	ExperimentalAggregateDemand AggregateDemandConfig
+	// If true, the scheduler tracks per-node pod capacity and refuses to schedule
+	// jobs onto nodes that have exhausted their pod limit.
+	RespectNodePodLimits bool
 	// Experimental
 	// Set to true to enable larger job preferential ordering in the candidate gang iterator.
 	// This will result in larger jobs being ordered earlier in the job scheduling order
 	EnablePreferLargeJobOrdering bool
+	// Experimental
+	// This will cause urgency preemption to be ordered before fairshare preemption.
+	// This is desirable as fairshare preemption is for kicking off jobs of the same priority as the scheduled job,
+	//  and that should only happen after lower priority jobs have been preempted first.
+	// It will additionally handle more complex cases more gracefully,
+	//  such as where a job requires a fairshare and urgency preemption to fit
+	EnableUrgencyBeforeFairSharePreemptionOrdering bool
 	// ProtectedFractionOfFairShare sets the threshold for fair-share preemption.
 	// Queues at or below this fraction of their fair share are protected from preemption.
 	//
@@ -284,6 +317,8 @@ type SchedulingConfig struct {
 	MaximumPerQueueSchedulingBurst int `validate:"gt=0"`
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
+	// RetryPolicy controls the policy-based retry engine (disabled by default).
+	RetryPolicy RetryPolicyConfig
 	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness costs.
 	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
 	DominantResourceFairnessResourcesToConsider []string
@@ -338,12 +373,32 @@ type SchedulingConfig struct {
 	ExperimentalIndicativeShare ExperimentalIndicativeShare
 }
 
+// RetryPolicyConfig controls the scheduler's retry policy behavior.
+type RetryPolicyConfig struct {
+	// Enabled controls whether the retry policy engine is active.
+	Enabled bool
+	// GlobalMaxRetries is the scheduler-wide cap on genuine-failure retries per
+	// job, on top of every policy. It counts retries, not runs: the initial
+	// failure consumes no budget, only subsequent retries do. Preempted and
+	// lease-returned runs are never charged. A value of 0 is the kill switch:
+	// no job is ever retried by the policy engine. There is no unlimited
+	// setting for the global cap.
+	GlobalMaxRetries uint
+	// DefaultPolicyName is the retry policy applied to jobs whose queue has no
+	// policy of its own. It lets an operator turn on retry policies fleet-wide
+	// with a single named policy before per-queue attachment is configured.
+	// Optional: when empty, only queues with an attached policy get engine
+	// decisions and every other queue keeps the existing behaviour.
+	DefaultPolicyName string
+}
+
 const (
-	DuplicateWellKnownNodeTypeErrorMessage           = "duplicate well-known node type name"
-	AwayNodeTypesWithoutPreemptionErrorMessage       = "priority class has away node types but is not preemptible"
-	UnknownWellKnownNodeTypeErrorMessage             = "priority class refers to unknown well-known node type"
-	WildCardWellKnownNodeTypeValue                   = "*"
-	InvalidAwayNodeTypeConditionOperatorErrorMessage = "away node type condition has invalid operator; must be one of >, <, =="
+	DuplicateWellKnownNodeTypeErrorMessage              = "duplicate well-known node type name"
+	AwayNodeTypesWithoutPreemptionErrorMessage          = "priority class has away node types but is not preemptible"
+	UnknownWellKnownNodeTypeErrorMessage                = "priority class refers to unknown well-known node type"
+	WildCardWellKnownNodeTypeValue                      = "*"
+	InvalidAwayNodeTypeConditionOperatorErrorMessage    = "away node type condition has invalid operator; must be one of >, <, =="
+	PreemptionRateLimitWithMarketSchedulingErrorMessage = "preemption rate limit is not supported with market scheduling enabled on the same pool"
 )
 
 // ResourceType represents a resource the scheduler indexes for efficient lookup.
@@ -374,7 +429,7 @@ type WellKnownNodeType struct {
 
 type PoolConfig struct {
 	Name                         string `validate:"required"`
-	AwayPools                    []string
+	AwayPools                    []AwayPoolConfig
 	ProtectedFractionOfFairShare *float64
 	// List of resource names, (e.g. "cpu" or "memory"), to consider when computing DominantResourceFairness costs.
 	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
@@ -394,6 +449,38 @@ type PoolConfig struct {
 	DisableHomeScheduling            bool
 	DisableAwayScheduling            bool
 	DisableGangAwayScheduling        bool
+	DisableFairshareScheduling       bool
+	DisableUrgencyScheduling         bool
+	FairsharePreemptionRateLimit     *RateLimit
+	// Default (false) - This will cause cross-pool jobs to always be preempted before home-pool jobs,
+	//  regardless of scheduled priority of the jobs
+	// Set to true to fall back to the legacy behaviour
+	//  where preemption ordering is determined purely by scheduled-at priority.
+	DisablePreemptCrossPoolJobsFirst bool
+	JobDefaults                      *JobDefaults
+}
+
+func (p PoolConfig) GetDefaultJobTolerations() []v1.Toleration {
+	if p.JobDefaults == nil || p.JobDefaults.Tolerations == nil {
+		return nil
+	}
+	return p.JobDefaults.Tolerations
+}
+
+type JobDefaults struct {
+	Tolerations []v1.Toleration
+}
+
+// RateLimit The rate at which an action can happen using a token bucket approach
+type RateLimit struct {
+	// Sustained actions per second (tokens/sec).
+	MaximumRate float64 `validate:"gte=0"`
+	// Bucket capacity: the maximum number of actions that can bunch up in a single scheduling round.
+	MaximumBurst int `validate:"gte=0"`
+}
+
+func (p PoolConfig) ShouldPreemptCrossPoolJobsFirst() bool {
+	return !p.DisablePreemptCrossPoolJobsFirst
 }
 
 func (p PoolConfig) GetSubmissionGroup() string {
@@ -401,6 +488,29 @@ func (p PoolConfig) GetSubmissionGroup() string {
 		return p.Name
 	}
 	return p.ExperimentalSubmissionGroup
+}
+
+// UnmarshalConfigString allows an away pool to be specified in config as a plain
+// string (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
+// This preserves backwards compatibility with the deprecated []string form.
+// It opts AwayPoolConfig in to commonconfig.StringConfigUnmarshalerHook during config decode.
+func (a *AwayPoolConfig) UnmarshalConfigString(text string) error {
+	a.Name = text
+	return nil
+}
+
+// AwayPoolNames returns the names of the away pools configured for this pool.
+func (p PoolConfig) AwayPoolNames() []string {
+	names := make([]string, len(p.AwayPools))
+	for i, ap := range p.AwayPools {
+		names[i] = ap.Name
+	}
+	return names
+}
+
+type AwayPoolConfig struct {
+	// Name of the away pool.
+	Name string `validate:"required"`
 }
 
 type MarketSchedulingConfig struct {
@@ -467,6 +577,16 @@ func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string)
 	return false
 }
 
+func (sc *SchedulingConfig) GetPreemptCrossPoolJobsFirst(poolName string) bool {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return !poolConfig.DisablePreemptCrossPoolJobsFirst
+		}
+	}
+	// Default (including unknown pools): cross-pool preemption ordering is on.
+	return true
+}
+
 func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig {
 	for _, poolConfig := range sc.Pools {
 		if poolConfig.Name == poolName {
@@ -521,4 +641,36 @@ type PricingApiConfig struct {
 	// This is for local testing only
 	// It will stub the pricing api so it returns non-zero values but won't call and external service
 	DevModeEnabled bool
+}
+
+// ApplyRespectNodePodLimits registers "pods" as a supported and indexed resource
+// when RespectNodePodLimits is on. Must be called before constructing the
+// ResourceListFactory / NodeDb so every downstream consumer sees "pods" as tracked.
+// Returns true if config was modified.
+func ApplyRespectNodePodLimits(config *SchedulingConfig) bool {
+	if !config.RespectNodePodLimits {
+		return false
+	}
+	config.SupportedResourceTypes = ensurePodsResourceType(config.SupportedResourceTypes)
+	config.IndexedResources = ensurePodsResourceType(config.IndexedResources)
+	return true
+}
+
+// ensurePodsResourceType ensures a "pods" entry with resolution 1 is present.
+// If an entry already exists with a different resolution it is normalized.
+// Resolution must be 1: jobdb injects a pods=1 quantity per job, so any other
+// scale would break 1-to-1 pod accounting (e.g. resolution 10 would cause each
+// job to consume 10 pod slots). Idempotent.
+func ensurePodsResourceType(types []ResourceType) []ResourceType {
+	podsEntry := ResourceType{
+		Name:       armadaresource.PodsResourceName,
+		Resolution: resource.MustParse("1"),
+	}
+	for i, t := range types {
+		if t.Name == armadaresource.PodsResourceName {
+			types[i] = podsEntry
+			return types
+		}
+	}
+	return append(types, podsEntry)
 }

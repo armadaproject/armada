@@ -6,6 +6,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/armadaproject/armada/internal/common"
@@ -14,13 +15,17 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/jobsetevents"
+	ingestermetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/eventingester/convert"
 	"github.com/armadaproject/armada/internal/eventingester/metrics"
+	redismetrics "github.com/armadaproject/armada/internal/eventingester/metrics/redis"
 	"github.com/armadaproject/armada/internal/eventingester/model"
+	"github.com/armadaproject/armada/internal/eventingester/repository"
 	"github.com/armadaproject/armada/internal/eventingester/store"
+	"github.com/armadaproject/armada/internal/leaderelection"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -70,13 +75,39 @@ func Run(config *configuration.EventIngesterConfiguration) {
 
 	eventDb := store.NewRedisEventStore(dbs, dbNames, config.EventRetentionPolicy, fatalRegexes, 100*time.Millisecond, 60*time.Second)
 
+	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
+
+	if config.Metrics.Redis.Enabled {
+		scanner := repository.NewScanner(db, config.Metrics.Redis)
+
+		leaderOptions := leaderelection.MetricsOptions{
+			MetricsPrefix:               ingestermetrics.ArmadaEventIngesterMetricsPrefix,
+			MarkLeadingInStandaloneMode: true,
+		}
+		leaderController, err := leaderelection.CreateLeaderController(ctx, config.Metrics.Redis.Leader, &leaderOptions)
+		if err != nil {
+			log.Fatalf("failed to create leader controller for redis metrics: %v", err)
+		}
+
+		collector := redismetrics.NewCollector(scanner, config.Metrics.Redis, leaderController)
+		prometheus.MustRegister(collector)
+
+		g.Go(func() error {
+			return leaderController.Run(ctx)
+		})
+
+		g.Go(func() error {
+			return collector.Run(ctx)
+		})
+	}
+
 	// Turn the messages into event rows
 	compressor, err := compress.NewZlibCompressor(config.MinMessageCompressionSize)
 	if err != nil {
 		log.Errorf("Error creating compressor for consumer")
 		panic(err)
 	}
-	converter := convert.NewEventConverter(compressor, uint(config.MaxOutputMessageSizeBytes), metrics)
+	converter := convert.NewEventConverter(compressor, uint(config.MaxOutputMessageSizeBytes), metrics, config.Metrics.EventSizeMetricsEnabled)
 
 	// Start metric server
 	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
@@ -97,7 +128,12 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		eventDb,
 		metrics,
 	)
-	if err := ingester.Run(app.CreateContextWithShutdown()); err != nil {
-		panic(errors.WithMessage(err, "Error running ingestion pipeline"))
+
+	g.Go(func() error {
+		return ingester.Run(ctx)
+	})
+
+	if err := g.Wait(); err != nil {
+		panic(errors.WithMessage(err, "Error running event ingester services"))
 	}
 }

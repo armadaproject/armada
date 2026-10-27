@@ -14,7 +14,7 @@ import (
 
 func TestBasicAuthService(t *testing.T) {
 	service := NewBasicAuthService(map[string]configuration.UserInfo{
-		"root": {"toor", []string{}},
+		"root": {Password: "toor", Groups: []string{}},
 	})
 
 	auth1 := basicPassword("root", "toor")

@@ -84,10 +84,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     .map(|p| format!("{proto_root}/{p}"))
     .collect();
 
-    tonic_build::configure()
+    tonic_prost_build::configure()
         .build_client(false)
         .build_server(false)
-        .compile_protos(&k8s_protos, &[proto_root])?;
+        .compile_protos(&k8s_protos, &[proto_root.to_string()])?;
 
     // Pass 2: compile Armada API protos.
     // extern_path tells prost that k8s types live in our module tree (from pass 1)
@@ -117,13 +117,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // always resolve from the bootstrapped proto directory rather than anything
     // else. "../../" is second (monorepo only) so that intra-Armada imports
     // (e.g. `import "pkg/api/health.proto"`) fall through to the monorepo source.
-    let armada_includes: Vec<&str> = if in_monorepo {
-        vec![proto_root, "../../"]
+    let armada_includes: Vec<String> = if in_monorepo {
+        vec![proto_root.to_string(), "../../".to_string()]
     } else {
-        vec![proto_root]
+        vec![proto_root.to_string()]
     };
 
-    tonic_build::configure()
+    tonic_prost_build::configure()
         .build_server(false)
         .extern_path(".k8s.io.api.core.v1", "crate::k8s::io::api::core::v1")
         .extern_path(

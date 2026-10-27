@@ -34,6 +34,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/podchecks"
 	"github.com/armadaproject/armada/internal/executor/podchecks/failedpodchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/reporter/startup"
 	"github.com/armadaproject/armada/internal/executor/service"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
 	"github.com/armadaproject/armada/pkg/client"
@@ -67,6 +68,7 @@ func StartUp(ctx *armadacontext.Context, config configuration.ExecutorConfigurat
 		for _, metricsUrl := range etcdClusterHealthMonitoring.MetricUrls {
 			etcdReplicaHealthMonitorsByUrl[metricsUrl] = etcdhealth.NewEtcdReplicaHealthMonitor(
 				metricsUrl,
+				etcdClusterHealthMonitoring.Name,
 				etcdClusterHealthMonitoring.FractionOfStorageInUseLimit,
 				etcdClusterHealthMonitoring.FractionOfStorageLimit,
 				etcdClusterHealthMonitoring.ReplicaTimeout,
@@ -79,21 +81,19 @@ func StartUp(ctx *armadacontext.Context, config configuration.ExecutorConfigurat
 		}
 		etcdClusterHealthMonitoringByName[etcdClusterHealthMonitoring.Name] = healthmonitor.NewMultiHealthMonitor(
 			etcdClusterHealthMonitoring.Name,
+			metrics.ArmadaExecutorMetricsPrefix+"etcd_cluster",
 			etcdReplicaHealthMonitorsByUrl,
 		).WithMinimumReplicasAvailable(
 			etcdClusterHealthMonitoring.MinimumReplicasAvailable,
-		).WithMetricsPrefix(
-			metrics.ArmadaExecutorMetricsPrefix,
 		)
 	}
 	var etcdClustersHealthMonitoring healthmonitor.HealthMonitor
 	if len(etcdClusterHealthMonitoringByName) > 0 {
 		ctx.Info("etcd URLs provided; monitoring etcd health enabled")
 		etcdClustersHealthMonitoring = healthmonitor.NewMultiHealthMonitor(
-			"overall_etcd",
+			"overall",
+			metrics.ArmadaExecutorMetricsPrefix+"overall_etcd",
 			etcdClusterHealthMonitoringByName,
-		).WithMetricsPrefix(
-			metrics.ArmadaExecutorMetricsPrefix,
 		)
 		g.Go(func() error { return etcdClustersHealthMonitoring.Run(ctx) })
 		prometheus.MustRegister(etcdClustersHealthMonitoring)
@@ -141,7 +141,7 @@ func StartUpWithContext(
 	if config.Kubernetes.PendingPodChecks == nil {
 		ctx.Fatalf("Config error: Missing pending pod checks")
 	}
-	pendingPodChecker, err := podchecks.NewPodChecks(*config.Kubernetes.PendingPodChecks)
+	pendingPodChecker, err := podchecks.NewPodChecks(*config.Kubernetes.PendingPodChecks, clock.RealClock{})
 	if err != nil {
 		ctx.Fatalf("Config error in pending pod checks: %s", err)
 	}
@@ -203,9 +203,12 @@ func setupExecutorApiComponents(
 		ctx.Fatalf("Config error in failed pod checks: %s", err)
 	}
 
-	classifier, err := categorizer.NewClassifier(config.Application.ErrorCategories)
-	if err != nil {
-		ctx.Fatalf("Config error in error categories: %s", err)
+	var classifier *categorizer.Classifier
+	if config.Application.ErrorCategories.Enabled {
+		classifier, err = categorizer.NewClassifier(config.Application.ErrorCategories)
+		if err != nil {
+			ctx.Fatalf("Config error in error categories: %s", err)
+		}
 	}
 
 	eventReporter, stopReporter := reporter.NewJobEventReporter(eventSender, clock.RealClock{}, 200)
@@ -217,9 +220,20 @@ func setupExecutorApiComponents(
 		config.Kubernetes.FatalPodSubmissionErrors,
 	)
 
+	debugConfig := config.Application.DebugEvents
+	debugRenderer := reporter.NewDebugMessageRenderer(clusterContext, debugConfig)
+	// Left nil when capture is disabled, which is how the state reporter knows not to measure.
+	var startUpTimings *startup.Timings
+	if config.Application.StartUpTimings.Enabled {
+		startUpTimings, err = startup.NewTimings(config.Application.StartUpTimings)
+		if err != nil {
+			ctx.Fatalf("Config error in start up timings: %s", err)
+		}
+	}
+
 	leaseRequester := service.NewJobLeaseRequester(executorApiClient, clusterContext)
-	preemptRunProcessor := processors.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter)
-	removeRunProcessor := processors.NewRemoveRunProcessor(clusterContext, jobRunState)
+	preemptRunProcessor := processors.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter, debugRenderer)
+	removeRunProcessor := processors.NewRemoveRunProcessor(clusterContext, jobRunState, eventReporter, debugRenderer)
 
 	jobRequester := service.NewJobRequester(
 		clusterContext,
@@ -246,7 +260,9 @@ func setupExecutorApiComponents(
 		pendingPodChecker,
 		failedPodChecker,
 		config.Kubernetes.StuckTerminatingPodExpiry,
+		config.Kubernetes.PodKillTimeout,
 		classifier,
+		debugRenderer,
 	)
 	if err != nil {
 		ctx.Fatalf("Failed to create pod issue service: %s", err)
@@ -257,6 +273,9 @@ func setupExecutorApiComponents(
 		eventReporter,
 		podIssueService,
 		classifier,
+		debugRenderer,
+		startUpTimings,
+		debugConfig.MinAppContainerRuntimeForFailureDebug,
 	)
 	if err != nil {
 		ctx.Fatalf("Failed to create job state reporter: %s", err)

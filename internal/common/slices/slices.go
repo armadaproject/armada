@@ -87,6 +87,24 @@ func Unique[S ~[]E, E comparable](s S) S {
 	return rv
 }
 
+// UniqueBy returns a copy of s with duplicate elements removed based on the result of keyFunc(e),
+// keeping only the first occurrence of each unique key.
+func UniqueBy[S ~[]E, E any, K comparable](s S, keyFunc func(E) K) S {
+	if s == nil {
+		return nil
+	}
+	rv := make(S, 0)
+	seen := make(map[K]bool)
+	for _, v := range s {
+		key := keyFunc(v)
+		if !seen[key] {
+			rv = append(rv, v)
+			seen[key] = true
+		}
+	}
+	return rv
+}
+
 // GroupByFunc groups the elements e_1, ..., e_n of s into separate slices by keyFunc(e).
 func GroupByFunc[S ~[]E, E any, K comparable](s S, keyFunc func(E) K) map[K]S {
 	rv := make(map[K]S)

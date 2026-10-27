@@ -28,6 +28,7 @@ import { JobRun } from "../../../../models/lookoutModels"
 import { useCordonNode } from "../../../../services/lookout/useCordonNode"
 import { useGetJobRunDebugMessage } from "../../../../services/lookout/useGetJobRunDebugMessage"
 import { useGetJobRunError } from "../../../../services/lookout/useGetJobRunError"
+import { useGetJobRunSchedulerTerminationReason } from "../../../../services/lookout/useGetJobRunSchedulerTerminationReason"
 
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import { SidebarTabSubheading } from "./sidebarTabContentComponents"
@@ -51,7 +52,8 @@ const makeKeyValuePairsData = (
     cluster,
     node,
     pool,
-    failureInfo,
+    failureCategory,
+    failureSubcategory,
   }: Pick<
     JobRun,
     | "runId"
@@ -64,7 +66,8 @@ const makeKeyValuePairsData = (
     | "cluster"
     | "node"
     | "pool"
-    | "failureInfo"
+    | "failureCategory"
+    | "failureSubcategory"
   >,
 ): KeyValuePairTable["data"] => {
   const d = [] as KeyValuePairTable["data"]
@@ -103,15 +106,11 @@ const makeKeyValuePairsData = (
   if (node) {
     d.push({ key: "Node", value: node, allowCopy: true })
   }
-  if (failureInfo?.containerName) {
-    d.push({ key: "Failed Container", value: failureInfo.containerName })
+  if (failureCategory) {
+    d.push({ key: "Failure Category", value: failureCategory })
   }
-  if (failureInfo?.terminationMessage) {
-    d.push({ key: "Termination Message", value: failureInfo.terminationMessage })
-  }
-  const categories = failureInfo?.categories
-  if (categories && categories.length > 0) {
-    d.push({ key: "Error Categories", value: categories.join(", ") })
+  if (failureSubcategory) {
+    d.push({ key: "Failure Subcategory", value: failureSubcategory })
   }
   return d
 }
@@ -150,7 +149,8 @@ export const JobRunDetails = ({
     runId,
     exitCode,
     ingressAddresses,
-    failureInfo,
+    failureCategory,
+    failureSubcategory,
   },
   runIndex,
   defaultExpanded,
@@ -183,6 +183,17 @@ export const JobRunDetails = ({
   // Ignore any errors from this call - the API returns an error if there is no debug message, which is happy-path
   const { data: debugMessage, status: debugMessageStatus } = useGetJobRunDebugMessage(runId)
 
+  // Ignore any errors from this call - the API returns an error if there is no scheduler termination reason, which is happy-path
+  const { data: schedulerTerminationReason, status: schedulerTerminationReasonStatus } =
+    useGetJobRunSchedulerTerminationReason(runId)
+  const prettyTerminationReason = useMemo(() => {
+    try {
+      return JSON.stringify(JSON.parse(schedulerTerminationReason ?? ""), undefined, 2)
+    } catch {
+      return schedulerTerminationReason ?? ""
+    }
+  }, [schedulerTerminationReason])
+
   const headingTextParts = ["Run", (runIndex + 1).toString()]
   const runIndicativeTimestamp = started || pending || leased || ""
   if (runIndicativeTimestamp) {
@@ -205,7 +216,8 @@ export const JobRunDetails = ({
       cluster,
       node,
       pool,
-      failureInfo,
+      failureCategory,
+      failureSubcategory,
     })
 
     const ingressRows = ingressAddressEntries.map(({ address }, index) => ({
@@ -228,7 +240,8 @@ export const JobRunDetails = ({
     node,
     pool,
     ingressAddressEntries,
-    failureInfo,
+    failureCategory,
+    failureSubcategory,
   ])
 
   return (
@@ -317,6 +330,27 @@ export const JobRunDetails = ({
                 <CodeBlock
                   code={debugMessage}
                   language="text"
+                  downloadable={false}
+                  showLineNumbers={false}
+                  loading={false}
+                />
+              </AccordionDetails>
+            </Accordion>
+          )}
+          {schedulerTerminationReasonStatus === "pending" && (
+            <Accordion variant="elevation" square>
+              <AccordionSummary disabled>
+                <Skeleton width="5ch" />
+              </AccordionSummary>
+            </Accordion>
+          )}
+          {schedulerTerminationReasonStatus === "success" && schedulerTerminationReason && (
+            <Accordion variant="elevation" square>
+              <AccordionSummary>Scheduler Termination Reason</AccordionSummary>
+              <AccordionDetails>
+                <CodeBlock
+                  code={prettyTerminationReason}
+                  language="json"
                   downloadable={false}
                   showLineNumbers={false}
                   loading={false}

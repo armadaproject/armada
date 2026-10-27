@@ -1,15 +1,20 @@
 package pricing
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
@@ -218,9 +223,11 @@ func TestConvert(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			actual := convert(tc.input, testResourceListFactory)
 
-			// Remove non-deterministic time field before comparison
+			// Remove non-deterministic fields before comparison
 			require.False(t, actual.Timestamp.IsZero(), "timestamp should be set")
 			actual.Timestamp = time.Time{}
+			require.NotEqual(t, uuid.Nil, actual.Id, "id should be set")
+			actual.Id = uuid.Nil
 
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -248,4 +255,38 @@ func CreateRunningBid(p float64) *bidstore.PricingPhaseBid {
 func mustParsePtr(qty string) *resource.Quantity {
 	q := resource.MustParse(qty)
 	return &q
+}
+
+func TestGetBidPrices_SetsId(t *testing.T) {
+	ctx := armadacontext.Background()
+
+	t.Run("LocalBidPriceService", func(t *testing.T) {
+		svc := NewLocalBidPriceService([]string{"pool1"}, &fakeQueueCache{queues: []*api.Queue{{Name: "queue1"}}})
+		snapshot, err := svc.GetBidPrices(ctx)
+		require.NoError(t, err)
+		assert.NotEqual(t, uuid.Nil, snapshot.Id)
+	})
+
+	t.Run("ExternalBidPriceService", func(t *testing.T) {
+		svc := NewExternalBidPriceService(&fakeBidRetrieverClient{resp: &bidstore.RetrieveBidsResponse{}}, testResourceListFactory)
+		snapshot, err := svc.GetBidPrices(ctx)
+		require.NoError(t, err)
+		assert.NotEqual(t, uuid.Nil, snapshot.Id)
+	})
+}
+
+type fakeQueueCache struct {
+	queues []*api.Queue
+}
+
+func (f *fakeQueueCache) GetAll(_ *armadacontext.Context) ([]*api.Queue, error) {
+	return f.queues, nil
+}
+
+type fakeBidRetrieverClient struct {
+	resp *bidstore.RetrieveBidsResponse
+}
+
+func (f *fakeBidRetrieverClient) RetrieveBids(_ context.Context, _ *bidstore.RetrieveBidsRequest, _ ...grpc.CallOption) (*bidstore.RetrieveBidsResponse, error) {
+	return f.resp, nil
 }

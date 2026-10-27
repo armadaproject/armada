@@ -2,7 +2,10 @@ package scheduling
 
 import (
 	"container/heap"
+	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
@@ -10,9 +13,10 @@ import (
 )
 
 type MarketIteratorPQ struct {
-	items               []*MarketIteratorPQItem
-	previousResultCost  float64
-	previousResultQueue string
+	preemptCrossPoolJobsFirst bool
+	items                     []*MarketIteratorPQItem
+	previousResultCost        float64
+	previousResultQueue       string
 }
 
 type MarketBasedCandidateGangIterator struct {
@@ -32,13 +36,15 @@ func NewMarketCandidateGangIterator(
 	pool string,
 	queueRepository fairness.QueueRepository,
 	iteratorsByQueue map[string]*QueuedGangIterator,
+	preemptCrossPoolJobsFirst bool,
 ) (*MarketBasedCandidateGangIterator, error) {
 	it := &MarketBasedCandidateGangIterator{
 		pool:                    pool,
 		queueRepository:         queueRepository,
 		onlyYieldEvictedByQueue: make(map[string]bool),
 		pq: MarketIteratorPQ{
-			items: make([]*MarketIteratorPQItem, 0, len(iteratorsByQueue)),
+			preemptCrossPoolJobsFirst: preemptCrossPoolJobsFirst,
+			items:                     make([]*MarketIteratorPQItem, 0, len(iteratorsByQueue)),
 		},
 	}
 	for queue, queueIt := range iteratorsByQueue {
@@ -116,6 +122,7 @@ func (it *MarketBasedCandidateGangIterator) updatePQItem(item *MarketIteratorPQI
 
 	job := gctx.JobSchedulingContexts[0].Job
 	item.gctx = gctx
+	item.away = !gctx.JobSchedulingContexts[0].IsHomeJob(it.pool)
 	item.price = job.GetBidPrice(it.pool)
 	item.queued = job.Queued()
 	if !job.Queued() && job.LatestRun() != nil {
@@ -126,6 +133,21 @@ func (it *MarketBasedCandidateGangIterator) updatePQItem(item *MarketIteratorPQI
 	item.submittedTime = job.SubmitTime().UnixNano()
 
 	return nil
+}
+
+// SecondPrice returns the highest remaining bid from a queue other than priceSettingQueue.
+// Away queues are ignored entirely because away jobs run for free under market scheduling.
+func (it *MarketBasedCandidateGangIterator) SecondPrice(priceSettingQueue string) float64 {
+	secondPrice := 0.0
+	for _, item := range it.pq.items {
+		if item.queue == priceSettingQueue || strings.HasSuffix(item.queue, "-away") {
+			continue
+		}
+		if item.price > secondPrice {
+			secondPrice = item.price
+		}
+	}
+	return secondPrice
 }
 
 func (it *MarketBasedCandidateGangIterator) OnlyYieldEvicted() error {
@@ -151,6 +173,13 @@ func (it *MarketBasedCandidateGangIterator) OnlyYieldEvicted() error {
 	}
 	it.onlyYieldEvicted = true
 	return nil
+}
+
+// ResumeNonEvicted is not supported for market-driven scheduling. The preemption rate limit that
+// drives the drain/resume flow is rejected at config validation for market-scheduled pools
+// (see PreemptionRateLimitWithMarketSchedulingErrorMessage), so this should never be called.
+func (it *MarketBasedCandidateGangIterator) ResumeNonEvicted() error {
+	return errors.New("ResumeNonEvicted is not supported for market-driven scheduling")
 }
 
 func (it *MarketBasedCandidateGangIterator) OnlyYieldEvictedForQueue(queue string) error {
@@ -181,6 +210,8 @@ type MarketIteratorPQItem struct {
 	runtime       int64
 	queued        bool
 	submittedTime int64
+	// away is true when this item's gang is a cross-pool ("away") gang for the pool being scheduled.
+	away bool
 	// Most recent value produced by the iterator.
 	// Cached here to avoid repeating scheduling checks unnecessarily.
 	gctx *schedulercontext.GangSchedulingContext
@@ -194,6 +225,12 @@ type MarketIteratorPQItem struct {
 func (pq *MarketIteratorPQ) Len() int { return len(pq.items) }
 
 func (pq *MarketIteratorPQ) Less(i, j int) bool {
+	// Home jobs are always scheduled before cross-pool ("away") jobs when enabled.
+	// Within each group, the existing ordering below applies unchanged.
+	if pq.preemptCrossPoolJobsFirst && pq.items[i].away != pq.items[j].away {
+		return !pq.items[i].away
+	}
+
 	// First by price
 	if pq.items[i].price != pq.items[j].price {
 		return pq.items[i].price > pq.items[j].price

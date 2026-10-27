@@ -146,53 +146,6 @@ func TestExtractFailedPodContainerStatuses(t *testing.T) {
 	assert.Equal(t, containerStatuses[0].KubernetesReason, armadaevents.KubernetesReason_AppError)
 }
 
-func TestExtractFailureInfo(t *testing.T) {
-	tests := map[string]struct {
-		pod                   *v1.Pod
-		categories            []string
-		expectedExitCode      int32
-		expectedTermMsg       string
-		expectedContainerName string
-	}{
-		"OOM pod": {
-			pod:                   oomPod,
-			categories:            []string{"oom"},
-			expectedExitCode:      137,
-			expectedContainerName: "custom-error",
-		},
-		"evicted pod": {
-			pod:              evictedPod,
-			expectedExitCode: 0,
-		},
-		"deadline exceeded pod": {
-			pod:              deadlineExceededPod,
-			expectedExitCode: 0,
-		},
-		"custom error pod": {
-			pod:                   customErrorPod,
-			expectedExitCode:      1,
-			expectedTermMsg:       "Custom error",
-			expectedContainerName: "custom-error",
-		},
-		"nil pod": {
-			pod:              nil,
-			expectedExitCode: 0,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			info := ExtractFailureInfo(tc.pod, tc.categories)
-			assert.Equal(t, tc.expectedExitCode, info.ExitCode)
-			assert.Equal(t, tc.categories, info.Categories)
-			if tc.expectedTermMsg != "" {
-				assert.Equal(t, tc.expectedTermMsg, info.TerminationMessage)
-			}
-			assert.Equal(t, tc.expectedContainerName, info.ContainerName)
-		})
-	}
-}
-
 func createOomContainerStatus() v1.ContainerStatus {
 	return v1.ContainerStatus{
 		Name: "custom-error",

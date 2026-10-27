@@ -9,3 +9,4 @@ export const SETTINGS_VISUAL_THEME = `${SETTINGS}/visual-theme`
 export const SETTINGS_VALUE_DISPLAY = `${SETTINGS}/value-display`
 export const SETTINGS_APPEARANCE = `${SETTINGS}/appearance`
 export const SETTINGS_ACCOUNT = `${SETTINGS}/account`
+export const SETTINGS_ABOUT = `${SETTINGS}/about`

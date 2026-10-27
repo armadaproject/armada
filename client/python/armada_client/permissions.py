@@ -21,7 +21,7 @@ class Permissions:
     """
     Permissions including Subjects and Verbs
 
-    .. code-block:: python
+    Usage::
 
         permissions = Permissions(...)
         client = ArmadaClient(...)

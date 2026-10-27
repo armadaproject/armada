@@ -483,3 +483,106 @@ func TestCancelOnExecutor_SuccessPublishesExpectedEvent(t *testing.T) {
 	assert.Equal(t, req.Queues, wrapped.CancelOnExecutor.Queues)
 	assert.Equal(t, req.PriorityClasses, wrapped.CancelOnExecutor.PriorityClasses)
 }
+
+func TestDeleteExecutor_PermissionDenied(t *testing.T) {
+	s, m := newExecutorTestServer(t)
+	grpcCtx := armadacontext.Background()
+
+	m.authorizer.
+		EXPECT().
+		AuthorizeAction(gomock.Any(), permission.Permission(permissions.UpdateExecutorSettings)).
+		Return(&armadaerrors.ErrUnauthorized{Principal: "alice", Permission: "update_executor_settings"}).
+		Times(1)
+
+	_, err := s.DeleteExecutor(grpcCtx, &api.ExecutorDeleteRequest{Name: "executor-1"})
+	require.Error(t, err)
+	requireGrpcCode(t, err, codes.PermissionDenied)
+}
+
+func TestDeleteExecutor_AuthorizeErrorUnavailable(t *testing.T) {
+	s, m := newExecutorTestServer(t)
+	grpcCtx := armadacontext.Background()
+
+	m.authorizer.
+		EXPECT().
+		AuthorizeAction(gomock.Any(), permission.Permission(permissions.UpdateExecutorSettings)).
+		Return(errors.New("authorizer down")).
+		Times(1)
+
+	_, err := s.DeleteExecutor(grpcCtx, &api.ExecutorDeleteRequest{Name: "executor-1"})
+	require.Error(t, err)
+	requireGrpcCode(t, err, codes.Unavailable)
+}
+
+func TestDeleteExecutor_ValidationName(t *testing.T) {
+	s, m := newExecutorTestServer(t)
+	grpcCtx := armadacontext.Background()
+
+	m.authorizer.
+		EXPECT().
+		AuthorizeAction(gomock.Any(), permission.Permission(permissions.UpdateExecutorSettings)).
+		Return(nil).
+		Times(1)
+
+	_, err := s.DeleteExecutor(grpcCtx, &api.ExecutorDeleteRequest{Name: ""})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must provide non-empty executor name")
+}
+
+func TestDeleteExecutor_PublishErrorInternal(t *testing.T) {
+	s, m := newExecutorTestServer(t)
+	grpcCtx := armadacontext.Background()
+
+	m.authorizer.
+		EXPECT().
+		AuthorizeAction(gomock.Any(), permission.Permission(permissions.UpdateExecutorSettings)).
+		Return(nil).
+		Times(1)
+
+	m.publisher.
+		EXPECT().
+		PublishMessages(gomock.Any(), gomock.Any()).
+		Return(errors.New("publish failed")).
+		Times(1)
+
+	_, err := s.DeleteExecutor(grpcCtx, &api.ExecutorDeleteRequest{Name: "executor-1"})
+	require.Error(t, err)
+	requireGrpcCode(t, err, codes.Internal)
+}
+
+func TestDeleteExecutor_SuccessPublishesExpectedEvent(t *testing.T) {
+	s, m := newExecutorTestServer(t)
+	grpcCtx := armadacontext.Background()
+
+	fixedTime := time.Date(2025, 5, 6, 7, 8, 9, 0, time.UTC)
+	s.clock = clocktesting.NewFakeClock(fixedTime)
+
+	req := &api.ExecutorDeleteRequest{Name: "executor-1"}
+
+	m.authorizer.
+		EXPECT().
+		AuthorizeAction(gomock.Any(), permission.Permission(permissions.UpdateExecutorSettings)).
+		Return(nil).
+		Times(1)
+
+	var captured *controlplaneevents.Event
+	m.publisher.
+		EXPECT().
+		PublishMessages(gomock.Any(), gomock.Any()).
+		Do(func(_ *armadacontext.Context, ev *controlplaneevents.Event) {
+			captured = ev
+		}).
+		Return(nil).
+		Times(1)
+
+	_, err := s.DeleteExecutor(grpcCtx, req)
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	assert.Equal(t, protoutil.ToTimestamp(fixedTime.UTC()), captured.Created)
+
+	wrapped, ok := captured.Event.(*controlplaneevents.Event_ExecutorDelete)
+	require.True(t, ok, "expected Event_ExecutorDelete")
+	require.NotNil(t, wrapped.ExecutorDelete)
+	assert.Equal(t, req.Name, wrapped.ExecutorDelete.Name)
+	assert.Equal(t, auth.GetPrincipal(grpcCtx).GetName(), wrapped.ExecutorDelete.Requestor)
+}

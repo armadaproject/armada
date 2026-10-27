@@ -104,7 +104,7 @@ func (r *RunNodeReconciler) checkJobNodeMatch(job *jobdb.Job, node *schedulerobj
 
 	runPools := []string{run.Pool()}
 	if len(config.AwayPools) > 0 {
-		runPools = append(runPools, config.AwayPools...)
+		runPools = append(runPools, config.AwayPoolNames()...)
 	}
 
 	if !slices.Contains(runPools, node.GetPool()) {
@@ -169,8 +169,7 @@ func (r *RunNodeReconciler) getJobsToReconcileByNodeId(txn *jobdb.Txn) map[strin
 	})
 
 	activeJobByNodeId := map[string][]*jobdb.Job{}
-	// TODO make more efficient by having an index of running jobs (or running jobs by pool / all jobs by pool)
-	jobs := txn.GetAll()
+	jobs := txn.GetAllLeasedJobs()
 	for _, job := range jobs {
 		if job.InTerminalState() || job.Queued() || job.LatestRun() == nil {
 			continue

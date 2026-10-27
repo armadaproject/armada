@@ -14,6 +14,7 @@ type Queue struct {
 	ResourceLimitsByPriorityClassName map[string]api.PriorityClassResourceLimits
 	Cordoned                          bool              `json:"cordoned"`
 	Labels                            map[string]string `json:"labels"`
+	RetryPolicies                     []string          `json:"retryPolicies"`
 }
 
 // NewQueue returns new Queue using the in parameter. Error is returned if
@@ -62,6 +63,7 @@ func NewQueue(in *api.Queue) (Queue, error) {
 		ResourceLimitsByPriorityClassName: resourceLimitsByPriorityClassName,
 		Cordoned:                          in.Cordoned,
 		Labels:                            in.Labels,
+		RetryPolicies:                     in.RetryPolicies,
 	}, nil
 }
 
@@ -75,8 +77,9 @@ func (q Queue) ToAPI() *api.Queue {
 			func(p api.PriorityClassResourceLimits) *api.PriorityClassResourceLimits {
 				return &p
 			}),
-		Cordoned: q.Cordoned,
-		Labels:   q.Labels,
+		Cordoned:      q.Cordoned,
+		Labels:        q.Labels,
+		RetryPolicies: q.RetryPolicies,
 	}
 	for _, permission := range q.Permissions {
 		rv.Permissions = append(rv.Permissions, permission.ToAPI())

@@ -3,11 +3,13 @@ import { PointerEvent, useCallback, useMemo, useRef, useState } from "react"
 import { DndContext, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core"
 import { restrictToWindowEdges, restrictToVerticalAxis } from "@dnd-kit/modifiers"
 import { arrayMove, SortableContext } from "@dnd-kit/sortable"
-import { ArrowDownward, Close } from "@mui/icons-material"
+import { ArrowDownward, Close, RestartAlt } from "@mui/icons-material"
 import {
   Alert,
+  Button,
   Chip,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogContentText,
   DialogTitle,
@@ -19,6 +21,7 @@ import {
 } from "@mui/material"
 import { ErrorBoundary } from "react-error-boundary"
 
+import { ANALYTICS_EVENTS, trackAnalyticsEvent } from "../../../../analytics"
 import {
   AnnotationColumnId,
   ColumnId,
@@ -39,7 +42,7 @@ const ScrollToAddAnnotationColumnChip = styled(Chip)({
 
   position: "absolute",
   left: "50%",
-  bottom: 10,
+  bottom: 62,
   transform: "translate(-50%, 0)",
 })
 
@@ -84,6 +87,7 @@ export interface ColumnConfigurationDialogProps {
   columnOrderIds: ColumnId[]
   setColumnOrder: (columnOrder: ColumnId[]) => void
   toggleColumnVisibility: (columnId: ColumnId) => void
+  onResetColumnConfiguration: () => void
   onAddAnnotationColumn: (annotationKey: string) => void
   onRemoveAnnotationColumn: (colId: ColumnId) => void
   onEditAnnotationColumn: (colId: ColumnId, annotationKey: string) => void
@@ -100,6 +104,7 @@ export const ColumnConfigurationDialog = ({
   columnOrderIds,
   setColumnOrder,
   toggleColumnVisibility,
+  onResetColumnConfiguration,
   onAddAnnotationColumn,
   onRemoveAnnotationColumn,
   onEditAnnotationColumn,
@@ -172,8 +177,22 @@ export const ColumnConfigurationDialog = ({
     }
   }, [])
 
+  const handleReset = useCallback(() => {
+    trackAnalyticsEvent(ANALYTICS_EVENTS.COLUMN_CONFIGURATION_RESET, {
+      visibleColumnIds: visibleColumnIds.join(","),
+    })
+    onResetColumnConfiguration()
+  }, [onResetColumnConfiguration, visibleColumnIds])
+
+  const handleClose = useCallback(() => {
+    trackAnalyticsEvent(ANALYTICS_EVENTS.COLUMN_CONFIGURATION_DIALOG_CLOSED, {
+      visibleColumnIds: visibleColumnIds.join(","),
+    })
+    onClose()
+  }, [onClose, visibleColumnIds])
+
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
       {!isAddAnnotationColumnContainerVisible && (
         <ScrollToAddAnnotationColumnChip
           label="Add an annotation column"
@@ -183,7 +202,7 @@ export const ColumnConfigurationDialog = ({
         />
       )}
       <StyledDialogTitle>Column configuration</StyledDialogTitle>
-      <CloseIconButton aria-label="close" onClick={onClose} title="Close">
+      <CloseIconButton aria-label="close" onClick={handleClose} title="Close">
         <Close />
       </CloseIconButton>
       <DialogContent>
@@ -255,6 +274,11 @@ export const ColumnConfigurationDialog = ({
           </Stack>
         </ErrorBoundary>
       </DialogContent>
+      <DialogActions>
+        <Button onClick={handleReset} color="secondary" startIcon={<RestartAlt />}>
+          Reset to defaults
+        </Button>
+      </DialogActions>
     </Dialog>
   )
 }

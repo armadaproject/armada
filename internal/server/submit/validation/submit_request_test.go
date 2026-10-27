@@ -1150,6 +1150,415 @@ func TestValidateResources(t *testing.T) {
 	}
 }
 
+func TestValidatePodLevelResourcesEnabled(t *testing.T) {
+	oneCpu := v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")}
+
+	tests := map[string]struct {
+		req             *api.JobSubmitRequestItem
+		podLevelEnabled bool
+		expectSuccess   bool
+	}{
+		"no pod-level block, feature disabled": {
+			req:           &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "main"}}}},
+			expectSuccess: true,
+		},
+		"pod-level block rejected when feature disabled": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main"}},
+				Resources:  &v1.ResourceRequirements{Requests: oneCpu, Limits: oneCpu},
+			}},
+			expectSuccess: false,
+		},
+		"pod-level block accepted when feature enabled": {
+			req: &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main"}},
+				Resources:  &v1.ResourceRequirements{Requests: oneCpu, Limits: oneCpu},
+			}},
+			podLevelEnabled: true,
+			expectSuccess:   true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validatePodLevelResourcesEnabled(tc.req, configuration.SubmissionConfig{
+				PodLevelResources: tc.podLevelEnabled,
+			})
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, "pod-level resources (podSpec.resources) are not enabled on this server")
+			}
+		})
+	}
+}
+
+func TestValidateResources_PodLevel(t *testing.T) {
+	oneCpu := v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")}
+	twoCpu := v1.ResourceList{v1.ResourceCPU: resource.MustParse("2")}
+	negativeCpu := v1.ResourceList{v1.ResourceCPU: resource.MustParse("-1")}
+
+	emptyContainer := []v1.Container{{Name: "main"}}
+
+	req := func(podResources *v1.ResourceRequirements, containers []v1.Container) *api.JobSubmitRequestItem {
+		return &api.JobSubmitRequestItem{
+			PodSpec: &v1.PodSpec{
+				Containers: containers,
+				Resources:  podResources,
+			},
+		}
+	}
+
+	tests := map[string]struct {
+		req             *api.JobSubmitRequestItem
+		podLevelEnabled bool
+		expectSuccess   bool
+	}{
+		"pod-level-only accepted when feature enabled": {
+			req:             req(&v1.ResourceRequirements{Requests: oneCpu, Limits: oneCpu}, emptyContainer),
+			podLevelEnabled: true,
+			expectSuccess:   true,
+		},
+		"pod-level-only rejected when feature disabled": {
+			req:             req(&v1.ResourceRequirements{Requests: oneCpu, Limits: oneCpu}, emptyContainer),
+			podLevelEnabled: false,
+			expectSuccess:   false,
+		},
+		"empty container with NO pod-level still rejected even when enabled": {
+			req:             req(nil, emptyContainer),
+			podLevelEnabled: true,
+			expectSuccess:   false,
+		},
+		"pod-level with limits < requests rejected": {
+			req:             req(&v1.ResourceRequirements{Requests: twoCpu, Limits: oneCpu}, emptyContainer),
+			podLevelEnabled: true,
+			expectSuccess:   false,
+		},
+		"pod-level negative request rejected": {
+			req:             req(&v1.ResourceRequirements{Requests: negativeCpu, Limits: negativeCpu}, emptyContainer),
+			podLevelEnabled: true,
+			expectSuccess:   false,
+		},
+		"pod-level empty block rejected": {
+			req:             req(&v1.ResourceRequirements{}, emptyContainer),
+			podLevelEnabled: true,
+			expectSuccess:   false,
+		},
+		"container-only still valid with feature enabled": {
+			req: req(nil, []v1.Container{{
+				Name:      "main",
+				Resources: v1.ResourceRequirements{Requests: oneCpu, Limits: oneCpu},
+			}}),
+			podLevelEnabled: true,
+			expectSuccess:   true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			cfg := configuration.SubmissionConfig{PodLevelResources: tc.podLevelEnabled}
+			err := validateResources(tc.req, cfg)
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateResources_PodLevelKubernetesParity(t *testing.T) {
+	always := v1.ContainerRestartPolicyAlways
+	cpu := func(s string) v1.ResourceList { return v1.ResourceList{v1.ResourceCPU: resource.MustParse(s)} }
+	rl := func(name, q string) v1.ResourceList {
+		return v1.ResourceList{v1.ResourceName(name): resource.MustParse(q)}
+	}
+	container := func(name, q string) v1.Container {
+		return v1.Container{Name: name, Resources: v1.ResourceRequirements{Requests: cpu(q), Limits: cpu(q)}}
+	}
+	sidecar := func(name, q string) v1.Container {
+		c := container(name, q)
+		c.RestartPolicy = &always
+		return c
+	}
+	req := func(pod *v1.ResourceRequirements, containers, initContainers []v1.Container) *api.JobSubmitRequestItem {
+		return &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{
+			Containers:     containers,
+			InitContainers: initContainers,
+			Resources:      pod,
+		}}
+	}
+	emptyContainer := []v1.Container{{Name: "main"}}
+
+	tests := map[string]struct {
+		req                                  *api.JobSubmitRequestItem
+		maxOversubscriptionByResourceRequest map[string]float64
+		expectSuccess                        bool
+		expectErrSubstr                      string
+	}{
+		"cpu and memory accepted at the pod level": {
+			req: req(&v1.ResourceRequirements{
+				Requests: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1"), v1.ResourceMemory: resource.MustParse("1Gi")},
+				Limits:   v1.ResourceList{v1.ResourceCPU: resource.MustParse("1"), v1.ResourceMemory: resource.MustParse("1Gi")},
+			}, emptyContainer, nil),
+			expectSuccess: true,
+		},
+		"extended resource request rejected at the pod level": {
+			req:             req(&v1.ResourceRequirements{Requests: rl("nvidia.com/gpu", "8"), Limits: rl("nvidia.com/gpu", "8")}, emptyContainer, nil),
+			expectSuccess:   false,
+			expectErrSubstr: "unsupported request nvidia.com/gpu",
+		},
+		"ephemeral-storage request rejected at the pod level": {
+			req:             req(&v1.ResourceRequirements{Requests: rl("ephemeral-storage", "8Gi"), Limits: rl("ephemeral-storage", "8Gi")}, emptyContainer, nil),
+			expectSuccess:   false,
+			expectErrSubstr: "unsupported request ephemeral-storage",
+		},
+		"hugepages-only block rejected by the current Kubernetes dependency": {
+			req: req(&v1.ResourceRequirements{
+				Requests: rl("hugepages-2Mi", "80Mi"),
+				Limits:   rl("hugepages-2Mi", "80Mi"),
+			}, emptyContainer, nil),
+			expectErrSubstr: "unsupported request hugepages-2Mi; only cpu, memory may be requested at the pod level",
+		},
+		"unsupported resource in limits only rejected": {
+			req: req(&v1.ResourceRequirements{
+				Requests: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")},
+				Limits:   rl("ephemeral-storage", "8Gi"),
+			}, emptyContainer, nil),
+			expectSuccess:   false,
+			expectErrSubstr: "unsupported limit ephemeral-storage",
+		},
+		"claims rejected at the pod level": {
+			req: req(&v1.ResourceRequirements{
+				Requests: cpu("1"),
+				Limits:   cpu("1"),
+				Claims:   []v1.ResourceClaim{{Name: "gpu-claim"}},
+			}, emptyContainer, nil),
+			expectSuccess:   false,
+			expectErrSubstr: "may not define claims",
+		},
+		"empty claims slice rejected at the pod level": {
+			req: req(&v1.ResourceRequirements{
+				Requests: cpu("1"),
+				Limits:   cpu("1"),
+				Claims:   []v1.ResourceClaim{},
+			}, emptyContainer, nil),
+			expectSuccess:   false,
+			expectErrSubstr: "may not define claims",
+		},
+		"pod-level request below single container request rejected": {
+			req:             req(&v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("2")}, []v1.Container{container("main", "5")}, nil),
+			expectSuccess:   false,
+			expectErrSubstr: "aggregate container requests of 5",
+		},
+		"pod-level request below summed container requests rejected": {
+			req: req(&v1.ResourceRequirements{Requests: cpu("4"), Limits: cpu("4")},
+				[]v1.Container{container("a", "3"), container("b", "3")}, nil),
+			expectSuccess:   false,
+			expectErrSubstr: "aggregate container requests of 6",
+		},
+		"pod-level request equal to summed container requests accepted": {
+			req: req(&v1.ResourceRequirements{Requests: cpu("6"), Limits: cpu("6")},
+				[]v1.Container{container("a", "3"), container("b", "3")}, nil),
+			expectSuccess: true,
+		},
+		"pod-level request ignoring a native sidecar rejected": {
+			req: req(&v1.ResourceRequirements{Requests: cpu("1"), Limits: cpu("1")},
+				[]v1.Container{container("main", "1")}, []v1.Container{sidecar("side", "2")}),
+			expectSuccess:   false,
+			expectErrSubstr: "aggregate container requests of 3",
+		},
+		"pod-level request covering a native sidecar accepted": {
+			req: req(&v1.ResourceRequirements{Requests: cpu("3"), Limits: cpu("3")},
+				[]v1.Container{container("main", "1")}, []v1.Container{sidecar("side", "2")}),
+			expectSuccess: true,
+		},
+		"pod-level request below a classic init container request rejected": {
+			req: req(&v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("2")},
+				[]v1.Container{container("main", "1")}, []v1.Container{container("init", "4")}),
+			expectSuccess:   false,
+			expectErrSubstr: "aggregate container requests of 4",
+		},
+		"pod-level request covering a classic init container accepted": {
+			req: req(&v1.ResourceRequirements{Requests: cpu("4"), Limits: cpu("4")},
+				[]v1.Container{container("main", "1")}, []v1.Container{container("init", "4")}),
+			expectSuccess: true,
+		},
+		"container request for a resource absent from the pod-level block ignored": {
+			req: req(&v1.ResourceRequirements{
+				Requests: v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Gi")},
+				Limits:   v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Gi")},
+			}, []v1.Container{container("main", "9")}, nil),
+			expectSuccess: true,
+		},
+		"container limit above the pod-level limit rejected": {
+			req: req(&v1.ResourceRequirements{Requests: cpu("4"), Limits: cpu("4")},
+				[]v1.Container{{Name: "main", Resources: v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("5")}}}, nil),
+			expectSuccess:   false,
+			expectErrSubstr: "must be less than or equal to the pod-level limit",
+		},
+		"classic init container limit above the pod-level limit rejected": {
+			req: req(&v1.ResourceRequirements{Requests: cpu("4"), Limits: cpu("4")},
+				[]v1.Container{container("main", "1")},
+				[]v1.Container{{Name: "init", Resources: v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("5")}}}),
+			maxOversubscriptionByResourceRequest: map[string]float64{"cpu": 4},
+			expectSuccess:                        false,
+			expectErrSubstr:                      `container "init" cpu limit (5) must be less than or equal to the pod-level limit`,
+		},
+		"native sidecar limit above the pod-level limit rejected": {
+			req: req(&v1.ResourceRequirements{Requests: cpu("4"), Limits: cpu("4")},
+				[]v1.Container{container("main", "1")},
+				[]v1.Container{{Name: "side", RestartPolicy: &always, Resources: v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("5")}}}),
+			maxOversubscriptionByResourceRequest: map[string]float64{"cpu": 4},
+			expectSuccess:                        false,
+			expectErrSubstr:                      `container "side" cpu limit (5) must be less than or equal to the pod-level limit`,
+		},
+		"init container limit equal to the pod-level limit accepted": {
+			req: req(&v1.ResourceRequirements{Requests: cpu("4"), Limits: cpu("4")},
+				[]v1.Container{container("main", "1")},
+				[]v1.Container{{Name: "init", Resources: v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("4")}}}),
+			maxOversubscriptionByResourceRequest: map[string]float64{"cpu": 4},
+			expectSuccess:                        true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			cfg := configuration.SubmissionConfig{PodLevelResources: true, MaxOversubscriptionByResourceRequest: tc.maxOversubscriptionByResourceRequest}
+			err := validateResources(tc.req, cfg)
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+				assert.ErrorContains(t, err, tc.expectErrSubstr)
+			}
+		})
+	}
+}
+
+func TestValidateResources_PodLevelMinJobResources(t *testing.T) {
+	fourCpuMin := v1.ResourceList{v1.ResourceCPU: resource.MustParse("4")}
+	cpu := func(s string) v1.ResourceList { return v1.ResourceList{v1.ResourceCPU: resource.MustParse(s)} }
+
+	req := func(pod *v1.ResourceRequirements, containers []v1.Container) *api.JobSubmitRequestItem {
+		return &api.JobSubmitRequestItem{PodSpec: &v1.PodSpec{Containers: containers, Resources: pod}}
+	}
+	container5 := []v1.Container{{Name: "main", Resources: v1.ResourceRequirements{Requests: cpu("5"), Limits: cpu("5")}}}
+	container2 := []v1.Container{{Name: "main", Resources: v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("2")}}}
+
+	tests := map[string]struct {
+		req             *api.JobSubmitRequestItem
+		expectSuccess   bool
+		expectErrSubstr string
+	}{
+		"container total meets minimum, pod-level block covers it": {
+			req:           req(&v1.ResourceRequirements{Requests: cpu("5"), Limits: cpu("5")}, container5),
+			expectSuccess: true,
+		},
+		"container total above a lower pod-level request rejected": {
+			req:             req(&v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("2")}, container5),
+			expectSuccess:   false,
+			expectErrSubstr: "aggregate container requests",
+		},
+		"pod-level below minimum with empty container rejected": {
+			req:           req(&v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("2")}, []v1.Container{{Name: "main"}}),
+			expectSuccess: false,
+		},
+		"container below minimum covered by pod-level block, accepted": {
+			req:           req(&v1.ResourceRequirements{Requests: cpu("4"), Limits: cpu("4")}, container2),
+			expectSuccess: true,
+		},
+		"fractional pod-level cpu below minimum rejected": {
+			req:           req(&v1.ResourceRequirements{Requests: cpu("3500m"), Limits: cpu("3500m")}, []v1.Container{{Name: "main"}}),
+			expectSuccess: false,
+		},
+		"fractional container cpu below minimum rejected": {
+			req: req(nil, []v1.Container{{
+				Name:      "main",
+				Resources: v1.ResourceRequirements{Requests: cpu("3500m"), Limits: cpu("3500m")},
+			}}),
+			expectSuccess: false,
+		},
+		"container cpu below minimum not covered by pod-level block rejected": {
+			req: req(
+				&v1.ResourceRequirements{
+					Requests: v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Gi")},
+					Limits:   v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Gi")},
+				},
+				container2,
+			),
+			expectSuccess: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			cfg := configuration.SubmissionConfig{PodLevelResources: true, MinJobResources: fourCpuMin}
+			err := validateResources(tc.req, cfg)
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+				if tc.expectErrSubstr != "" {
+					assert.ErrorContains(t, err, tc.expectErrSubstr)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateResources_MinJobResourcesAgreeOnUnrequestedResource(t *testing.T) {
+	tests := map[string]struct {
+		requested     v1.ResourceList
+		minimum       v1.ResourceList
+		expectSuccess bool
+	}{
+		"cpu-only job with a memory minimum": {
+			requested:     v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")},
+			minimum:       v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Mi")},
+			expectSuccess: true,
+		},
+		"cpu-only job with a GPU minimum": {
+			requested:     v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")},
+			minimum:       v1.ResourceList{"nvidia.com/gpu": resource.MustParse("1")},
+			expectSuccess: true,
+		},
+		"requested memory below minimum": {
+			requested: v1.ResourceList{v1.ResourceMemory: resource.MustParse("512Ki")},
+			minimum:   v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Mi")},
+		},
+		"explicit zero memory below minimum": {
+			requested: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1"), v1.ResourceMemory: resource.MustParse("0")},
+			minimum:   v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Mi")},
+		},
+		"requested memory meets minimum": {
+			requested:     v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Mi")},
+			minimum:       v1.ResourceList{v1.ResourceMemory: resource.MustParse("1Mi")},
+			expectSuccess: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			cfg := configuration.SubmissionConfig{PodLevelResources: true, MinJobResources: tc.minimum}
+			for _, podLevel := range []bool{false, true} {
+				t.Run(strconv.FormatBool(podLevel), func(t *testing.T) {
+					resources := v1.ResourceRequirements{Requests: tc.requested, Limits: tc.requested.DeepCopy()}
+					spec := &v1.PodSpec{Containers: []v1.Container{{Name: "main"}}}
+					if podLevel {
+						spec.Resources = &resources
+					} else {
+						spec.Containers[0].Resources = resources
+					}
+					err := validateResources(&api.JobSubmitRequestItem{PodSpec: spec}, cfg)
+					if tc.expectSuccess {
+						assert.NoError(t, err)
+					} else {
+						assert.ErrorContains(t, err, "below server minimum")
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestValidateTerminationGracePeriod(t *testing.T) {
 	defaultMinPeriod := 30 * time.Second
 	defaultMaxPeriod := 300 * time.Second

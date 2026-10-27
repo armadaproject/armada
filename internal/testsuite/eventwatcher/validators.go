@@ -2,8 +2,6 @@ package eventwatcher
 
 import (
 	"regexp"
-	"slices"
-	"strings"
 
 	"github.com/pkg/errors"
 
@@ -38,25 +36,21 @@ func assertEventFailed(expected *api.EventMessage_Failed, actual *api.EventMessa
 		}
 	}
 
-	if len(expected.Failed.GetCategories()) > 0 {
-		if err := assertCategories(expected.Failed.GetCategories(), actual.Failed.GetCategories()); err != nil {
-			return err
-		}
+	if cat := expected.Failed.GetFailureCategory(); cat != "" && cat != actual.Failed.GetFailureCategory() {
+		return errors.Errorf("expected failure_category %q but got %q", cat, actual.Failed.GetFailureCategory())
 	}
 
-	return nil
-}
-
-func assertCategories(expected, actual []string) error {
-	exp := slices.Clone(expected)
-	slices.Sort(exp)
-
-	act := slices.Clone(actual)
-	slices.Sort(act)
-
-	if !slices.Equal(exp, act) {
-		return errors.Errorf("expected categories [%s] but got [%s]",
-			strings.Join(exp, ", "), strings.Join(act, ", "))
+	if sub := expected.Failed.GetFailureSubcategory(); sub != "" && sub != actual.Failed.GetFailureSubcategory() {
+		return errors.Errorf("expected failure_subcategory %q but got %q", sub, actual.Failed.GetFailureSubcategory())
 	}
+
+	// retryable is compared unconditionally, unlike the category fields above:
+	// a testcase expecting a terminal failure (the zero value, retryable=false)
+	// must reject a retryable, non-terminal failure rather than pass silently.
+	if expected.Failed.GetRetryable() != actual.Failed.GetRetryable() {
+		return errors.Errorf("expected retryable=%t but got retryable=%t",
+			expected.Failed.GetRetryable(), actual.Failed.GetRetryable())
+	}
+
 	return nil
 }

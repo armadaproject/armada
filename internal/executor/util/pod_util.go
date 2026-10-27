@@ -2,7 +2,6 @@ package util
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -134,13 +133,10 @@ func ExtractJobRunId(pod *v1.Pod) string {
 	return pod.Labels[domain.JobRunId]
 }
 
-func ExtractPodNumber(pod *v1.Pod) int {
-	i, _ := strconv.Atoi(pod.Labels[domain.PodNumber])
-	return i
-}
-
+// ExtractPodKey returns the run ID of the pod. The executor creates exactly one pod for each run, so the run ID
+// identifies the pod. A cache entry can outlive its pod, and a key per job then blocks the pod of the next run.
 func ExtractPodKey(pod *v1.Pod) string {
-	return fmt.Sprintf("%s_%d", ExtractJobId(pod), ExtractPodNumber(pod))
+	return ExtractJobRunId(pod)
 }
 
 func FilterCompletedPods(pods []*v1.Pod) []*v1.Pod {
@@ -210,7 +206,7 @@ func FilterPods(pods []*v1.Pod, filter func(*v1.Pod) bool) []*v1.Pod {
 
 func LastStatusChange(pod *v1.Pod) (time.Time, error) {
 	maxStatusChange := pod.CreationTimestamp.Time
-	for _, containerStatus := range pod.Status.ContainerStatuses {
+	for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
 		if s := containerStatus.State.Running; s != nil {
 			maxStatusChange = maxTime(maxStatusChange, s.StartedAt.Time)
 		}
@@ -227,20 +223,6 @@ func LastStatusChange(pod *v1.Pod) (time.Time, error) {
 		return maxStatusChange, errors.New("cannot determine last status change")
 	}
 	return maxStatusChange, nil
-}
-
-func FindLastContainerStartTime(pod *v1.Pod) time.Time {
-	// Fallback to pod creation if there is no container
-	startTime := pod.CreationTimestamp.Time
-	for _, c := range pod.Status.ContainerStatuses {
-		if s := c.State.Running; s != nil {
-			startTime = maxTime(startTime, s.StartedAt.Time)
-		}
-		if s := c.State.Terminated; s != nil {
-			startTime = maxTime(startTime, s.StartedAt.Time)
-		}
-	}
-	return startTime
 }
 
 func HasPodBeenInStateForLongerThanGivenDuration(pod *v1.Pod, duration time.Duration) bool {
@@ -266,6 +248,48 @@ func GetPodContainerStatuses(pod *v1.Pod) []v1.ContainerStatus {
 	return containerStatuses
 }
 
+// HasAppContainerStarted returns true if any of the pod's app containers has started
+// - i.e. reached a Running or Terminated state, now or previously. Init containers
+// (including native sidecars, which appear in InitContainerStatuses) are deliberately
+// ignored, so a pod whose init containers ran but whose app containers never started is
+// treated as not started.
+//
+// Note: this checks ALL app containers, matching the aggregate semantics used elsewhere
+// (e.g. ExtractFailedPodContainerStatuses). Armada has no notion of a single "main"
+// container, so in a multi-container pod a started sidecar will mask an app container
+// that never started. This only affects whether diagnostic debug data is captured.
+func HasAppContainerStarted(pod *v1.Pod) bool {
+	for _, container := range pod.Status.ContainerStatuses {
+		if container.State.Running != nil ||
+			container.State.Terminated != nil ||
+			container.LastTerminationState.Running != nil ||
+			container.LastTerminationState.Terminated != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// LongestAppContainerRunDuration returns how long the pod's longest-running app container ran for, or
+// zero if none of them ran to completion - only terminated containers have a measurable runtime. Init
+// containers are ignored, matching HasAppContainerStarted.
+func LongestAppContainerRunDuration(pod *v1.Pod) time.Duration {
+	longest := time.Duration(0)
+	for _, container := range pod.Status.ContainerStatuses {
+		terminated := container.State.Terminated
+		if terminated == nil {
+			terminated = container.LastTerminationState.Terminated
+		}
+		if terminated == nil || terminated.StartedAt.IsZero() || terminated.FinishedAt.IsZero() {
+			continue
+		}
+		if ran := terminated.FinishedAt.Sub(terminated.StartedAt.Time); ran > longest {
+			longest = ran
+		}
+	}
+	return longest
+}
+
 func IsMarkedForDeletion(pod *v1.Pod) bool {
 	_, exists := pod.Annotations[domain.MarkedForDeletion]
 	return exists
@@ -274,17 +298,6 @@ func IsMarkedForDeletion(pod *v1.Pod) bool {
 func IsReportedPreempted(pod *v1.Pod) bool {
 	_, exists := pod.Annotations[domain.JobPreemptedAnnotation]
 	return exists
-}
-
-// GetDeletionGracePeriodOrDefault returns the pod's DeletionGracePeriodSeconds seconds (if populated) or the K8s
-// default value of 30 seconds (if it isn't)
-func GetDeletionGracePeriodOrDefault(pod *v1.Pod) time.Duration {
-	podGracePeriodSeconds := pod.GetDeletionGracePeriodSeconds()
-	if podGracePeriodSeconds == nil {
-		return 30 * time.Second
-	} else {
-		return time.Duration(*podGracePeriodSeconds) * time.Second
-	}
 }
 
 func IsPodFinishedAndReported(pod *v1.Pod) bool {

@@ -1,4 +1,4 @@
-import { Component, FC } from "react"
+import { Component, FC, useRef } from "react"
 
 import { Location, NavigateFunction, Params, useLocation, useNavigate, useParams } from "react-router-dom"
 
@@ -117,6 +117,35 @@ export function withRouter<T extends PropsWithRouter>(Component: FC<T>): FC<Omit
     return <Component {...props} router={{ location, navigate, params }} />
   }
   return ComponentWithRouterProp as FC<Omit<T, "router">>
+}
+
+// Returns a referentially-stable Router whose location, navigate and params always
+// reflect the current render. Use this when passing a router to a service that is
+// instantiated once (e.g. via useMemo with an empty dependency array), so the service
+// reads the live location rather than a snapshot captured at mount.
+export function useStableRouter(): Router {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const params = useParams()
+
+  const ref = useRef<Router>({ location, navigate, params })
+  ref.current.location = location
+  ref.current.navigate = navigate
+  ref.current.params = params
+
+  const stableRouter = useRef<Router>({
+    get location() {
+      return ref.current.location
+    },
+    get navigate() {
+      return ref.current.navigate
+    },
+    get params() {
+      return ref.current.params
+    },
+  })
+
+  return stableRouter.current
 }
 
 export const PlatformCancelReason = "Platform error marked by user"

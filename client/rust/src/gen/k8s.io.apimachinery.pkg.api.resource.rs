@@ -5,7 +5,7 @@
 ///
 /// The serialization format is:
 ///
-/// ```
+/// ```text,
 /// <quantity>        ::= <signedNumber><suffix>
 ///
 /// 	(Note that <suffix> may be empty, from the "" case in <decimalSI>.)
@@ -40,16 +40,16 @@
 /// This means that Exponent/suffix will be adjusted up or down (with a
 /// corresponding increase or decrease in Mantissa) such that:
 ///
-/// - No precision is lost
-/// - No fractional digits will be emitted
-/// - The exponent (or suffix) is as large as possible.
+/// * No precision is lost
+/// * No fractional digits will be emitted
+/// * The exponent (or suffix) is as large as possible.
 ///
 /// The sign will be omitted unless the number is negative.
 ///
 /// Examples:
 ///
-/// - 1.5 will be serialized as "1500m"
-/// - 1.5Gi will be serialized as "1536Mi"
+/// * 1.5 will be serialized as "1500m"
+/// * 1.5Gi will be serialized as "1536Mi"
 ///
 /// Note that the quantity will NEVER be internally represented by a
 /// floating point number. That is the whole point of this exercise.
@@ -68,7 +68,7 @@
 /// +protobuf.options.(gogoproto.goproto_stringer)=false
 /// +k8s:deepcopy-gen=true
 /// +k8s:openapi-gen=true
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Quantity {
     #[prost(string, optional, tag = "1")]
     pub string: ::core::option::Option<::prost::alloc::string::String>,
@@ -81,7 +81,7 @@ pub struct Quantity {
 /// +protobuf.options.marshal=false
 /// +protobuf.options.(gogoproto.goproto_stringer)=false
 /// +k8s:deepcopy-gen=true
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct QuantityValue {
     #[prost(string, optional, tag = "1")]
     pub string: ::core::option::Option<::prost::alloc::string::String>,

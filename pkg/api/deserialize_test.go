@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMarshalJsonIngressType(t *testing.T) {
@@ -132,4 +133,65 @@ func deserializeJobState(input []byte) error {
 	deserializer := deserializerStruct{x: JobState_QUEUED}
 
 	return deserializer.x.UnmarshalJSON(input)
+}
+
+func TestUnmarshalRetryAction(t *testing.T) {
+	tests := map[string]struct {
+		input     string
+		expected  RetryAction
+		expectErr bool
+	}{
+		"canonical FAIL":      {input: `"RETRY_ACTION_FAIL"`, expected: RetryAction_RETRY_ACTION_FAIL},
+		"canonical RETRY":     {input: `"RETRY_ACTION_RETRY"`, expected: RetryAction_RETRY_ACTION_RETRY},
+		"alias Fail":          {input: `"Fail"`, expected: RetryAction_RETRY_ACTION_FAIL},
+		"alias Retry":         {input: `"Retry"`, expected: RetryAction_RETRY_ACTION_RETRY},
+		"alias FAIL":          {input: `"FAIL"`, expected: RetryAction_RETRY_ACTION_FAIL},
+		"alias retry":         {input: `"retry"`, expected: RetryAction_RETRY_ACTION_RETRY},
+		"numeric 1":           {input: `1`, expected: RetryAction_RETRY_ACTION_FAIL},
+		"numeric 2":           {input: `2`, expected: RetryAction_RETRY_ACTION_RETRY},
+		"unknown name":        {input: `"BANANAS"`, expectErr: true},
+		"out-of-range number": {input: `99`, expectErr: true},
+		"non-string non-int":  {input: `{}`, expectErr: true},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			var got RetryAction
+			err := got.UnmarshalJSON([]byte(tc.input))
+			if tc.expectErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, got)
+		})
+	}
+}
+
+func TestMarshalRetryAction(t *testing.T) {
+	tests := map[string]struct {
+		value     RetryAction
+		wantJSON  string
+		expectErr bool
+	}{
+		"Fail":                   {value: RetryAction_RETRY_ACTION_FAIL, wantJSON: `"Fail"`},
+		"Retry":                  {value: RetryAction_RETRY_ACTION_RETRY, wantJSON: `"Retry"`},
+		"Unspecified":            {value: RetryAction_RETRY_ACTION_UNSPECIFIED, wantJSON: `"Unspecified"`},
+		"unknown value rejected": {value: RetryAction(99), expectErr: true},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, err := json.Marshal(tc.value)
+			if tc.expectErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantJSON, string(got))
+
+			// The emitted alias must round-trip back through UnmarshalJSON.
+			var back RetryAction
+			require.NoError(t, back.UnmarshalJSON(got))
+			assert.Equal(t, tc.value, back)
+		})
+	}
 }

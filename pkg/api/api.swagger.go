@@ -691,6 +691,148 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"/v1/retry-policies\": {\n" +
+		"      \"get\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"RetryPolicyService\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetRetryPolicies\",\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiRetryPolicyList\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"/v1/retry-policy\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"RetryPolicyService\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"CreateRetryPolicy\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiRetryPolicy\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {}\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"/v1/retry-policy/{name}\": {\n" +
+		"      \"get\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"RetryPolicyService\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetRetryPolicy\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"type\": \"string\",\n" +
+		"            \"name\": \"name\",\n" +
+		"            \"in\": \"path\",\n" +
+		"            \"required\": true\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiRetryPolicy\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"put\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"RetryPolicyService\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"UpdateRetryPolicy\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"type\": \"string\",\n" +
+		"            \"name\": \"name\",\n" +
+		"            \"in\": \"path\",\n" +
+		"            \"required\": true\n" +
+		"          },\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiRetryPolicy\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {}\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"delete\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"RetryPolicyService\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"DeleteRetryPolicy\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"type\": \"string\",\n" +
+		"            \"name\": \"name\",\n" +
+		"            \"in\": \"path\",\n" +
+		"            \"required\": true\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {}\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"/v1/run/details\": {\n" +
 		"      \"post\": {\n" +
 		"        \"tags\": [\n" +
@@ -1231,12 +1373,6 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobFailedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"categories\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          }\n" +
-		"        },\n" +
 		"        \"cause\": {\n" +
 		"          \"$ref\": \"#/definitions/apiCause\"\n" +
 		"        },\n" +
@@ -1260,6 +1396,12 @@ func SwaggerJsonTemplate() string {
 		"            \"format\": \"int32\"\n" +
 		"          }\n" +
 		"        },\n" +
+		"        \"failureCategory\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"failureSubcategory\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -1279,6 +1421,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run. Use pod_name.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
@@ -1287,6 +1430,10 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"retryable\": {\n" +
+		"          \"description\": \"retryable indicates the scheduler emitted this failure for an\\nintermediate (non-terminal) run that will be retried. When true,\\na subsequent leased/succeeded/failed event for the same job is\\nexpected. Default false preserves the prior behavior where every\\nemitted JobFailedEvent was terminal.\",\n" +
+		"          \"type\": \"boolean\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -1325,6 +1472,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run. Use pod_name.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
@@ -1371,6 +1519,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
@@ -1435,6 +1584,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run. Use pod_name.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
@@ -1483,7 +1633,7 @@ func SwaggerJsonTemplate() string {
 		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"preemptiveJobId\": {\n" +
+		"        \"preemptingJobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"preemptiveRunId\": {\n" +
@@ -1493,6 +1643,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"reason\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"requestor\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"runId\": {\n" +
@@ -1656,6 +1809,10 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
+		"        \"podName\": {\n" +
+		"          \"description\": \"pod_name is the name of the pod of the run, as the executor reports it. It is empty while the run has no pod.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"runId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -1735,6 +1892,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run. Use pod_name.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
@@ -1881,6 +2039,10 @@ func SwaggerJsonTemplate() string {
 		"        \"clientId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"externalJobUri\": {\n" +
+		"          \"description\": \"URI identifying this job in an external system (e.g. Airflow).\\nIf not set, the server falls back to the \\\"armadaproject.io/externalJobUri\\\" annotation.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"ingress\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
@@ -2000,6 +2162,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run. Use pod_name.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
@@ -2049,6 +2212,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run. Use pod_name.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
@@ -2210,6 +2374,13 @@ func SwaggerJsonTemplate() string {
 		"            \"$ref\": \"#/definitions/apiPriorityClassResourceLimits\"\n" +
 		"          }\n" +
 		"        },\n" +
+		"        \"retryPolicies\": {\n" +
+		"          \"description\": \"retry_policies are the names of the retry policies attached to this queue,\\nin precedence order. The scheduler evaluates the first policy in the list.\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"userOwners\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
@@ -2249,6 +2420,116 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"$ref\": \"#/definitions/apiQueue\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiRetryAction\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"default\": \"RETRY_ACTION_UNSPECIFIED\",\n" +
+		"      \"enum\": [\n" +
+		"        \"RETRY_ACTION_UNSPECIFIED\",\n" +
+		"        \"RETRY_ACTION_FAIL\",\n" +
+		"        \"RETRY_ACTION_RETRY\"\n" +
+		"      ]\n" +
+		"    },\n" +
+		"    \"apiRetryAffinityMutation\": {\n" +
+		"      \"description\": \"RetryAffinityMutation groups placement changes applied to a retried job.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"avoidSameNode\": {\n" +
+		"          \"description\": \"avoid_same_node, when true, steers the retry away from every node a\\nprevious run attempted. This matches the lease-return retry behaviour:\\nthe job fails if the anti-affinity makes it unschedulable. Default\\nfalse: the retry requeues without the per-job scheduling probe.\",\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiRetryMutation\": {\n" +
+		"      \"description\": \"RetryMutation groups the changes applied to a job on a policy-driven retry.\\nFields are additive: new mutation kinds get new fields over time.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"affinity\": {\n" +
+		"          \"description\": \"affinity changes where the retry is allowed to run.\",\n" +
+		"          \"$ref\": \"#/definitions/apiRetryAffinityMutation\"\n" +
+		"        },\n" +
+		"        \"resources\": {\n" +
+		"          \"description\": \"resources bumps the retried job's resource requirements. If the bumped\\njob no longer fits any node, the job fails terminally.\",\n" +
+		"          \"$ref\": \"#/definitions/apiRetryResourceMutation\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiRetryPolicy\": {\n" +
+		"      \"description\": \"RetryPolicy defines rules that determine whether failed jobs should be retried.\\nOperators create policies and assign them to queues by name.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"defaultAction\": {\n" +
+		"          \"$ref\": \"#/definitions/apiRetryAction\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"retryLimit\": {\n" +
+		"          \"description\": \"retry_limit is the maximum number of retries after the initial failure.\\nA retry_limit of 0 means the policy never retries.\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\"\n" +
+		"        },\n" +
+		"        \"rules\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiRetryRule\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiRetryPolicyList\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"retryPolicies\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiRetryPolicy\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiRetryResourceBump\": {\n" +
+		"      \"description\": \"RetryResourceBump grows one resource on retry. Set exactly one field.\\nThe bump changes requests and limits together, and it compounds across\\nretries: each retry grows the amount the previous retry produced.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"factor\": {\n" +
+		"          \"description\": \"factor multiplies the current amount. 1.1 means a 10% increase.\\nMust be greater than 1.0 when set.\",\n" +
+		"          \"type\": \"number\",\n" +
+		"          \"format\": \"double\"\n" +
+		"        },\n" +
+		"        \"static\": {\n" +
+		"          \"description\": \"static adds a fixed amount, as a Kubernetes quantity, e.g. \\\"512Mi\\\".\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiRetryResourceMutation\": {\n" +
+		"      \"description\": \"RetryResourceMutation groups per-resource bumps applied to a retried job.\\nNew resources get new fields over time.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"memory\": {\n" +
+		"          \"$ref\": \"#/definitions/apiRetryResourceBump\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiRetryRule\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"action\": {\n" +
+		"          \"$ref\": \"#/definitions/apiRetryAction\"\n" +
+		"        },\n" +
+		"        \"mutate\": {\n" +
+		"          \"description\": \"mutate describes changes applied to the job when this rule retries it.\\nOnly meaningful when action is Retry.\",\n" +
+		"          \"$ref\": \"#/definitions/apiRetryMutation\"\n" +
+		"        },\n" +
+		"        \"onCategory\": {\n" +
+		"          \"description\": \"on_category matches against Error.failure_category. When set with on_subcategory,\\nboth must match.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"onSubcategory\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

@@ -120,6 +120,7 @@ func NewSimulator(
 	schedulerCyclePeriodSeconds int,
 	sink sink.Sink,
 ) (*Simulator, error) {
+	configuration.ApplyRespectNodePodLimits(&schedulingConfig)
 	resourceListFactory, err := internaltypes.NewResourceListFactory(
 		schedulingConfig.SupportedResourceTypes,
 		schedulingConfig.FloatingResources,
@@ -147,6 +148,8 @@ func NewSimulator(
 		stringinterner.New(1024),
 		resourceListFactory,
 	)
+	jobDb.SetRespectNodePodLimits(schedulingConfig.RespectNodePodLimits)
+	jobDb.SetAggregateEnabled(schedulingConfig.ExperimentalAggregateDemand.Compare || schedulingConfig.ExperimentalAggregateDemand.Use)
 	randomSeed := workloadSpec.RandomSeed
 	if randomSeed == 0 {
 		// Seed the RNG using the local time if no explicit random seed is provided.
@@ -563,6 +566,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			pool,
 			fairnessCostProvider,
 			s.limiter,
+			nil, // no fairshare preemption rate limit in the simulator
 			totalResources,
 		)
 

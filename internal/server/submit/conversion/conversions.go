@@ -7,8 +7,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 
-	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/constants"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/podname"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
@@ -29,6 +30,12 @@ func SubmitJobFromApiRequest(
 	priority := PriorityAsInt32(jobReq.GetPriority())
 	ingressesAndServices := convertIngressesAndServices(config, jobReq, jobId, jobSetId, queue, owner)
 
+	// Resolve externalJobUri: prefer the proto field, fall back to annotation.
+	externalJobUri := jobReq.GetExternalJobUri()
+	if externalJobUri == "" {
+		externalJobUri = jobReq.GetAnnotations()[constants.ExternalJobUriAnnotation]
+	}
+
 	msg := &armadaevents.SubmitJob{
 		JobId:           jobId,
 		DeduplicationId: jobReq.GetClientId(),
@@ -45,8 +52,11 @@ func SubmitJobFromApiRequest(
 				},
 			},
 		},
-		Objects:   ingressesAndServices,
-		Scheduler: jobReq.Scheduler,
+		Objects:           ingressesAndServices,
+		Scheduler:         jobReq.Scheduler,
+		ExternalJobUri:    externalJobUri,
+		ObjectNamePrefix:  config.ObjectNamePrefix,
+		RunScopedPodNames: config.RunScopedPodNames,
 	}
 
 	postProcess(msg, config)
@@ -116,7 +126,7 @@ func convertIngressesAndServices(
 				useClusterIp = true
 			}
 
-			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx)
+			serviceName := fmt.Sprintf("%s-service-%d", podname.JobScoped(config.ObjectNamePrefix, jobId), serviceIdx)
 			serviceNameCustomized := false
 
 			if len(serviceConfig.Name) > 0 {
@@ -164,12 +174,13 @@ func convertIngressesAndServices(
 				ingressConfig,
 				targetService.ObjectMeta.Name,
 				jobReq.Namespace,
+				config.ObjectNamePrefix,
 				jobId)
 			objects = append(objects, ingressObject)
 			ingressIdx++
 		} else {
 			// No suitable service exists - create both service and ingress
-			serviceName := fmt.Sprintf("%s-service-%d", common.PodName(jobId), serviceIdx)
+			serviceName := fmt.Sprintf("%s-service-%d", podname.JobScoped(config.ObjectNamePrefix, jobId), serviceIdx)
 			serviceObject := createService(serviceName, jobId, ingressPorts, v1.ServiceTypeClusterIP, ingressConfig.UseClusterIP)
 			serviceIdx++
 			ingressObject := createIngressFromService(
@@ -178,6 +189,7 @@ func convertIngressesAndServices(
 				ingressConfig,
 				serviceObject.ObjectMeta.Name,
 				jobReq.Namespace,
+				config.ObjectNamePrefix,
 				jobId)
 			objects = append(objects, serviceObject)
 			objects = append(objects, ingressObject)
@@ -239,7 +251,7 @@ func createIngressFromService(
 	service *v1.ServiceSpec,
 	serviceIdx int,
 	ingressConfig *api.IngressConfig,
-	serviceName, namespace, jobId string,
+	serviceName, namespace, objectNamePrefix, jobId string,
 ) *armadaevents.KubernetesObject {
 	// Use specified ingress ports, or all service ports if none specified (legacy behavior)
 	ingressPorts := service.Ports
@@ -252,7 +264,7 @@ func createIngressFromService(
 
 	// Create ingress rules only for the specified ingress ports
 	for _, servicePort := range ingressPorts {
-		host := fmt.Sprintf("%s-%s.%s.", servicePort.Name, common.PodName(jobId), namespace)
+		host := fmt.Sprintf("%s-%s.%s.", servicePort.Name, podname.JobScoped(objectNamePrefix, jobId), namespace)
 		tlsHosts = append(tlsHosts, host)
 
 		// Workaround to get constant's address
@@ -296,7 +308,7 @@ func createIngressFromService(
 
 	return &armadaevents.KubernetesObject{
 		ObjectMeta: &armadaevents.ObjectMeta{
-			Name:        fmt.Sprintf("%s-ingress-%d", common.PodName(jobId), serviceIdx),
+			Name:        fmt.Sprintf("%s-ingress-%d", podname.JobScoped(objectNamePrefix, jobId), serviceIdx),
 			Annotations: util.MergeMaps(map[string]string{}, ingressConfig.Annotations),
 			Labels:      map[string]string{},
 		},

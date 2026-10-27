@@ -35,9 +35,6 @@ var (
 )
 
 func TestGetJobDetails(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
-	defer cancel()
-
 	job1 := newJob("job1", lookout.JobQueuedOrdinal, "")
 	job2 := newJob("job2", lookout.JobRunningOrdinal, "")
 	job2.LatestRunID = pointer.String("run1")
@@ -114,17 +111,20 @@ func TestGetJobDetails(t *testing.T) {
 						api.JobState_RUNNING,
 						"run1",
 						newJobRunDetails("job2", "run1", api.JobRunState_RUN_STATE_RUNNING, baseTime, testIngressAddresses),
-						newJobRunDetails("job2", "run2", api.JobRunState_RUNS_STATE_LEASE_RETURNED, baseTime.Add(-1*time.Minute), nil)),
+						newJobRunDetails("job2", "run2", api.JobRunState_RUNS_STATE_LEASE_RETURNED, baseTime.Add(-1*time.Minute), nil),
+					),
 				},
 			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+			defer cancel()
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testJobs)
+				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testJobs)
 				require.NoError(t, err)
-				err = dbcommon.UpsertWithTransaction(ctx, db, "job_run", testJobRuns)
+				err = dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job_run", []string{"run_id"}, testJobRuns)
 				require.NoError(t, err)
 				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
 				resp, err := queryApi.GetJobDetails(ctx, tc.request)
@@ -138,9 +138,6 @@ func TestGetJobDetails(t *testing.T) {
 }
 
 func TestGetJobRunDetails(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
-	defer cancel()
-
 	testJobs := []database.Job{
 		newJob("job1", lookout.JobRunningOrdinal, ""),
 	}
@@ -195,10 +192,12 @@ func TestGetJobRunDetails(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+			defer cancel()
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testJobs)
+				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testJobs)
 				require.NoError(t, err)
-				err = dbcommon.UpsertWithTransaction(ctx, db, "job_run", testJobRuns)
+				err = dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job_run", []string{"run_id"}, testJobRuns)
 				require.NoError(t, err)
 				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
 				resp, err := queryApi.GetJobRunDetails(ctx, tc.request)
@@ -212,9 +211,6 @@ func TestGetJobRunDetails(t *testing.T) {
 }
 
 func TestGetJobStatus(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
-	defer cancel()
-
 	testdata := []database.Job{
 		newJob("leasedJob", lookout.JobLeasedOrdinal, ""),
 		newJob("runningJob", lookout.JobRunningOrdinal, ""),
@@ -275,8 +271,10 @@ func TestGetJobStatus(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+			defer cancel()
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testdata)
+				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testdata)
 				require.NoError(t, err)
 				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
 				resp, err := queryApi.GetJobStatus(ctx, &api.JobStatusRequest{JobIds: tc.jobIds})
@@ -290,9 +288,6 @@ func TestGetJobStatus(t *testing.T) {
 }
 
 func TestGetJobStatusUsingExternalJobUri(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
-	defer cancel()
-
 	testdata := []database.Job{
 		newJob("runningJob", lookout.JobRunningOrdinal, ""),
 	}
@@ -318,8 +313,10 @@ func TestGetJobStatusUsingExternalJobUri(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+			defer cancel()
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testdata)
+				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testdata)
 				require.NoError(t, err)
 				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
 				resp, err := queryApi.GetJobStatusUsingExternalJobUri(ctx, &api.JobStatusUsingExternalJobUriRequest{
@@ -337,9 +334,6 @@ func TestGetJobStatusUsingExternalJobUri(t *testing.T) {
 }
 
 func TestGetJobErrors(t *testing.T) {
-	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
-	defer cancel()
-
 	testJobs := []database.Job{
 		newJob("job1", lookout.JobRunningOrdinal, ""),
 		newJob("job2", lookout.JobRunningOrdinal, "run2"),
@@ -394,12 +388,14 @@ func TestGetJobErrors(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+			defer cancel()
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				err := dbcommon.UpsertWithTransaction(ctx, db, "job", testJobs)
+				err := dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, testJobs)
 				require.NoError(t, err)
-				err = dbcommon.UpsertWithTransaction(ctx, db, "job_run", testJobRuns)
+				err = dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job_run", []string{"run_id"}, testJobRuns)
 				require.NoError(t, err)
-				err = dbcommon.UpsertWithTransaction(ctx, db, "job_error", testJobErrors)
+				err = dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job_error", []string{"job_id"}, testJobErrors)
 				require.NoError(t, err)
 				queryApi := New(db, defaultMaxQueryItems, testDecompressor)
 				resp, err := queryApi.GetJobErrors(ctx, tc.request)
@@ -408,6 +404,37 @@ func TestGetJobErrors(t *testing.T) {
 				return nil
 			})
 			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestGetJobRunDetailsPodNameOfRunFromBeforeLookoutStoredPodNames(t *testing.T) {
+	tests := map[string]struct {
+		pending     bool
+		started     bool
+		wantPodName string
+	}{
+		"a run with a pending time gets the job-scoped name": {pending: true, wantPodName: "armada-job1-0"},
+		"a run first seen running gets the job-scoped name":  {started: true, wantPodName: "armada-job1-0"},
+		"a run without a pending or start time gets no name": {wantPodName: ""},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+			defer cancel()
+			run := newJobRun("job1", "run1", lookout.JobRunLeaseReturnedOrdinal, baseTime, "", nil)
+			run.PodName = nil
+			run.Pending.Valid = tc.pending
+			run.Started.Valid = tc.started
+			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+				require.NoError(t, dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, []database.Job{newJob("job1", lookout.JobRunningOrdinal, "run1")}))
+				require.NoError(t, dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job_run", []string{"run_id"}, []database.JobRun{run}))
+				resp, err := New(db, defaultMaxQueryItems, testDecompressor).GetJobRunDetails(ctx, &api.JobRunDetailsRequest{RunIds: []string{"run1"}})
+				require.NoError(t, err)
+				assert.Equal(t, tc.wantPodName, resp.JobRunDetails["run1"].PodName)
+				return nil
+			})
+			require.NoError(t, err)
 		})
 	}
 }
@@ -463,6 +490,7 @@ func newJobRun(jobId, runId string, state int16, leased time.Time, error string,
 		JobID:   jobId,
 		Cluster: "testCluster",
 		Node:    pointer.String("testNode"),
+		PodName: pointer.String("testPod"),
 		Pending: pgtype.Timestamp{
 			Time:  baseTime,
 			Valid: true,
@@ -508,6 +536,7 @@ func newJobRunDetails(jobId string, runId string, state api.JobRunState, leased 
 		State:            state,
 		Cluster:          "testCluster",
 		Node:             "testNode",
+		PodName:          "testPod",
 		LeasedTs:         protoutil.ToTimestamp(leased),
 		PendingTs:        baseTimestamp,
 		StartedTs:        baseTimestamp,

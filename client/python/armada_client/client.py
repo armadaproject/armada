@@ -118,9 +118,7 @@ class ArmadaClient:
         Uses the GetJobSetEvents rpc to get a stream of events relating
         to the provided job_set_id.
 
-        Usage:
-
-        .. code-block:: python
+        Usage::
 
             events = client.get_job_events_stream(...)
             for event in events:
@@ -154,6 +152,7 @@ class ArmadaClient:
     def submit_health(self) -> health_pb2.HealthCheckResponse:
         """
         Health check for Submit Service.
+
         :return: A HealthCheckResponse object.
         """
         return self.submit_stub.Health(request=empty_pb2.Empty())
@@ -161,6 +160,7 @@ class ArmadaClient:
     def event_health(self) -> health_pb2.HealthCheckResponse:
         """
         Health check for Event Service.
+
         :return: A HealthCheckResponse object.
         """
         return self.event_stub.Health(request=empty_pb2.Empty())
@@ -200,9 +200,7 @@ class ArmadaClient:
         """
         Retrieves termination reason from query api.
 
-        :param queue: The name of the queue
-        :param job_set_id: The name of the job set (a grouping of jobs)
-        :param external_job_uri: externalJobUri annotation value
+        :param job_ids: A list of unique job identifiers.
 
         :returns: The response from the server containing the job errors.
         :rtype: JobErrorsResponse
@@ -296,7 +294,7 @@ class ArmadaClient:
         A filter is used to only cancel jobs in certain states.
 
         :param queue: The name of the queue
-        :param job_set_id: An array of JobSubmitRequestItems.
+        :param job_set_id: The name of the job set (a grouping of jobs)
         :param filter_states: A list of states to filter by.
         :return: An empty response.
         """

@@ -288,6 +288,22 @@ func TestJob_TestWithNewRun(t *testing.T) {
 	)
 }
 
+func TestJob_Leased(t *testing.T) {
+	leasedJob := baseJob.WithQueued(false).WithUpdatedRun(baseRun)
+	assert.True(t, leasedJob.Leased())
+
+	queuedJob := leasedJob.WithQueued(true)
+	assert.False(t, queuedJob.Leased())
+
+	// Terminal jobs
+	assert.False(t, leasedJob.WithSucceeded(true).Leased())
+	assert.False(t, leasedJob.WithFailed(true).Leased())
+	assert.False(t, leasedJob.WithCancelled(true).Leased())
+
+	jobWithoutRun := baseJob.WithQueued(false)
+	assert.False(t, jobWithoutRun.Leased())
+}
+
 func TestJob_TestWithUpdatedRun_NewRun(t *testing.T) {
 	jobWithRun := baseJob.WithUpdatedRun(baseRun)
 	assert.Equal(t, true, jobWithRun.HasRuns())
@@ -404,6 +420,35 @@ func TestJob_TestNumAttempts(t *testing.T) {
 	// two returned runs
 	returned3 := returned2.WithUpdatedRun(attemptedRun())
 	assert.Equal(t, uint(2), returned3.NumAttempts())
+}
+
+func TestJob_FailureCount(t *testing.T) {
+	newRun := func(mutate func(*JobRun)) *JobRun {
+		run := &JobRun{id: uuid.New().String(), created: baseRun.created}
+		mutate(run)
+		return run
+	}
+	failed := func() *JobRun { return newRun(func(r *JobRun) { r.failed = true }) }
+	// Preempted and lease-returned runs are marked failed but never ran to a
+	// genuine failure. everPreempted is set alongside preempted, mirroring
+	// WithPreempted and CreateRun.
+	preempted := func() *JobRun {
+		return newRun(func(r *JobRun) { r.failed = true; r.preempted = true; r.everPreempted = true })
+	}
+	leaseReturned := func() *JobRun { return newRun(func(r *JobRun) { r.failed = true; r.returned = true }) }
+	succeeded := func() *JobRun { return newRun(func(r *JobRun) { r.succeeded = true }) }
+
+	assert.Equal(t, uint32(0), baseJob.FailureCount())
+
+	job := baseJob.WithUpdatedRun(failed())
+	assert.Equal(t, uint32(1), job.FailureCount())
+
+	// Preempted, lease-returned, and succeeded runs are not genuine failures.
+	job = job.WithUpdatedRun(preempted()).WithUpdatedRun(leaseReturned()).WithUpdatedRun(succeeded())
+	assert.Equal(t, uint32(1), job.FailureCount())
+
+	job = job.WithUpdatedRun(failed())
+	assert.Equal(t, uint32(2), job.FailureCount())
 }
 
 func TestJob_TestRunsById(t *testing.T) {

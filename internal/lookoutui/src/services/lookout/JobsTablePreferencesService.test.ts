@@ -73,6 +73,18 @@ describe("JobsTablePreferencesService", () => {
         order: { id: StandardColumnId.JobID, direction: "ASC" },
       })
     })
+
+    it("falls back to defaults when local storage prefs have non-array fields", () => {
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify({ filters: "FAILED", groupedColumns: { queue: true } }))
+
+      try {
+        expect(() => service.getUserPrefs()).not.toThrow()
+        expect(service.getUserPrefs().filters).toStrictEqual([])
+        expect(service.getUserPrefs().groupedColumns).toStrictEqual([])
+      } finally {
+        localStorage.clear()
+      }
+    })
   })
 
   describe("saveNewPrefs", () => {
@@ -183,6 +195,17 @@ describe("JobsTablePreferencesService", () => {
       savePartialPrefs({ filters: [] })
       expect(service.getUserPrefs().filters).toStrictEqual([])
     })
+
+    it("ignores a scalar filters query param", () => {
+      router.navigate({ search: "?f=jobId" })
+      expect(service.getUserPrefs().filters).toStrictEqual(DEFAULT_PREFERENCES.filters)
+    })
+
+    it("ignores filters beyond the qs array limit", () => {
+      const search = Array.from({ length: 22 }, (_, i) => `f[${i}][id]=jobId&f[${i}][value]=v${i}`).join("&")
+      router.navigate({ search: `?${search}` })
+      expect(service.getUserPrefs().filters).toStrictEqual(DEFAULT_PREFERENCES.filters)
+    })
   })
 
   describe("Sort order", () => {
@@ -238,6 +261,17 @@ describe("JobsTablePreferencesService", () => {
       savePartialPrefs({ expandedState: {} })
       expect(router.location.search).not.toContain("e[0]=")
       expect(service.getUserPrefs().expandedState).toMatchObject({})
+    })
+
+    it("ignores a scalar expanded rows query param", () => {
+      router.navigate({ search: "?e=myRowId" })
+      expect(service.getUserPrefs().expandedState).toStrictEqual(DEFAULT_PREFERENCES.expandedState)
+    })
+
+    it("ignores expanded rows beyond the qs array limit", () => {
+      const search = Array.from({ length: 22 }, (_, i) => `e[${i}]=row${i}`).join("&")
+      router.navigate({ search: `?${search}` })
+      expect(service.getUserPrefs().expandedState).toStrictEqual(DEFAULT_PREFERENCES.expandedState)
     })
   })
 
@@ -557,7 +591,8 @@ describe("JobsTablePreferencesService", () => {
           StandardColumnId.Pool,
           StandardColumnId.ExitCode,
           StandardColumnId.RuntimeSeconds,
-          StandardColumnId.ErrorCategories,
+          StandardColumnId.FailureCategory,
+          StandardColumnId.FailureSubcategory,
         ],
         order: DEFAULT_COLUMN_ORDERING,
         pageIndex: 0,
@@ -634,7 +669,8 @@ describe("JobsTablePreferencesService", () => {
           StandardColumnId.Pool,
           StandardColumnId.ExitCode,
           StandardColumnId.RuntimeSeconds,
-          StandardColumnId.ErrorCategories,
+          StandardColumnId.FailureCategory,
+          StandardColumnId.FailureSubcategory,
         ],
         order: { id: StandardColumnId.TimeInState, direction: "ASC" },
         pageIndex: 0,
@@ -688,7 +724,8 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.Cluster,
         "annotation_preferences.com/foo-alpha",
         StandardColumnId.Node,
-        StandardColumnId.ErrorCategories,
+        StandardColumnId.FailureCategory,
+        StandardColumnId.FailureSubcategory,
       ],
       order: { id: StandardColumnId.TimeInState, direction: "ASC" },
       pageIndex: 5,
@@ -738,7 +775,8 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.Cluster,
         "annotation_preferences.com/foo-alpha",
         StandardColumnId.Node,
-        StandardColumnId.ErrorCategories,
+        StandardColumnId.FailureCategory,
+        StandardColumnId.FailureSubcategory,
       ],
       order: { id: StandardColumnId.TimeInState, direction: "ASC" },
       pageIndex: 5,
@@ -770,7 +808,8 @@ describe("ensurePreferencesAreConsistent", () => {
         [StandardColumnId.Pool]: false,
         [StandardColumnId.ExitCode]: false,
         [StandardColumnId.RuntimeSeconds]: false,
-        [StandardColumnId.ErrorCategories]: false,
+        [StandardColumnId.FailureCategory]: false,
+        [StandardColumnId.FailureSubcategory]: false,
       },
     }
 
@@ -807,7 +846,8 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.Pool,
         StandardColumnId.ExitCode,
         StandardColumnId.RuntimeSeconds,
-        StandardColumnId.ErrorCategories,
+        StandardColumnId.FailureCategory,
+        StandardColumnId.FailureSubcategory,
         "annotation_preferences.com/foo-alpha",
       ],
       order: { id: StandardColumnId.TimeInState, direction: "ASC" },
@@ -857,7 +897,8 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.Pool,
         StandardColumnId.ExitCode,
         StandardColumnId.RuntimeSeconds,
-        StandardColumnId.ErrorCategories,
+        StandardColumnId.FailureCategory,
+        StandardColumnId.FailureSubcategory,
         "annotation_preferences.com/foo-alpha",
         "annotation_preferences.com/foo-delta", // added
       ],
@@ -891,7 +932,8 @@ describe("ensurePreferencesAreConsistent", () => {
         [StandardColumnId.Pool]: false,
         [StandardColumnId.ExitCode]: false,
         [StandardColumnId.RuntimeSeconds]: false,
-        [StandardColumnId.ErrorCategories]: false,
+        [StandardColumnId.FailureCategory]: false,
+        [StandardColumnId.FailureSubcategory]: false,
       },
     }
 
@@ -938,7 +980,8 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.Pool,
         StandardColumnId.ExitCode,
         StandardColumnId.RuntimeSeconds,
-        StandardColumnId.ErrorCategories,
+        StandardColumnId.FailureCategory,
+        StandardColumnId.FailureSubcategory,
       ],
       order: { id: StandardColumnId.TimeInState, direction: "ASC" },
       pageIndex: 5,
@@ -988,7 +1031,8 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.Pool,
         StandardColumnId.ExitCode,
         StandardColumnId.RuntimeSeconds,
-        StandardColumnId.ErrorCategories,
+        StandardColumnId.FailureCategory,
+        StandardColumnId.FailureSubcategory,
       ],
       order: { id: StandardColumnId.TimeInState, direction: "ASC" },
       pageIndex: 5,
@@ -1020,7 +1064,8 @@ describe("ensurePreferencesAreConsistent", () => {
         [StandardColumnId.Pool]: false,
         [StandardColumnId.ExitCode]: false,
         [StandardColumnId.RuntimeSeconds]: false,
-        [StandardColumnId.ErrorCategories]: false,
+        [StandardColumnId.FailureCategory]: false,
+        [StandardColumnId.FailureSubcategory]: false,
       },
     }
 
@@ -1048,7 +1093,7 @@ describe("ensurePreferencesAreConsistent", () => {
       visibleColumns: {
         [StandardColumnId.JobID]: true,
         [StandardColumnId.TimeInState]: true,
-        'annotation_"preferences.com/foo-bravo': true,
+        'annotation_"preferences.com/foo-bravo': true, // orphaned — not in annotationColumnKeys
       },
     }
 
@@ -1088,7 +1133,8 @@ describe("ensurePreferencesAreConsistent", () => {
         StandardColumnId.Pool,
         StandardColumnId.ExitCode,
         StandardColumnId.RuntimeSeconds,
-        StandardColumnId.ErrorCategories,
+        StandardColumnId.FailureCategory,
+        StandardColumnId.FailureSubcategory,
       ],
       order: { id: StandardColumnId.TimeInState, direction: "ASC" },
       pageIndex: 5,
@@ -1097,7 +1143,7 @@ describe("ensurePreferencesAreConsistent", () => {
       visibleColumns: {
         [StandardColumnId.JobID]: true,
         [StandardColumnId.TimeInState]: true,
-        'annotation_"preferences.com/foo-bravo': true,
+        // orphaned annotation_"preferences.com/foo-bravo is removed
         // Standard columns not in saved prefs default to hidden
         [StandardColumnId.Queue]: false,
         [StandardColumnId.Namespace]: false,
@@ -1119,10 +1165,29 @@ describe("ensurePreferencesAreConsistent", () => {
         [StandardColumnId.Pool]: false,
         [StandardColumnId.ExitCode]: false,
         [StandardColumnId.RuntimeSeconds]: false,
-        [StandardColumnId.ErrorCategories]: false,
+        [StandardColumnId.FailureCategory]: false,
+        [StandardColumnId.FailureSubcategory]: false,
       },
     }
 
     expect(validPreferences).toEqual(expected)
+  })
+
+  it("coerces non-array fields from corrupted preferences instead of throwing", () => {
+    const corruptedPreferences = {
+      ...DEFAULT_PREFERENCES,
+      filters: undefined,
+      groupedColumns: "queue",
+      columnOrder: {},
+      annotationColumnKeys: null,
+      expandedState: null,
+    } as unknown as JobsTablePreferences
+
+    expect(() => ensurePreferencesAreConsistent(corruptedPreferences)).not.toThrow()
+    expect(corruptedPreferences.filters).toStrictEqual([])
+    expect(corruptedPreferences.groupedColumns).toStrictEqual([])
+    expect(corruptedPreferences.annotationColumnKeys).toStrictEqual([])
+    expect(corruptedPreferences.expandedState).toStrictEqual({})
+    expect(Array.isArray(corruptedPreferences.columnOrder)).toBe(true)
   })
 })

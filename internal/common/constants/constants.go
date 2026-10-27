@@ -17,6 +17,7 @@ const (
 
 	// Environment variables injected into all jobs
 	JobIdEnvVar    = internalEnvVarPrefix + "JOB_ID"
+	JobRunIdEnvVar = internalEnvVarPrefix + "JOB_RUN_ID"
 	QueueEnvVar    = internalEnvVarPrefix + "QUEUE"
 	JobSetIdEnvVar = internalEnvVarPrefix + "JOB_SET_ID"
 
@@ -33,6 +34,14 @@ const (
 	FailFastAnnotation  = "armadaproject.io/failFast"
 	PoolAnnotation      = "armadaproject.io/pool"
 	ReservationTaintKey = "armadaproject.io/reservation"
+
+	// EventStreamPrefix is the Redis stream key prefix for Armada event streams.
+	// Event stream keys follow the pattern: "Events:{queue}:{jobSetId}"
+	EventStreamPrefix = "Events:"
+
+	// ExternalJobUriAnnotation is the legacy annotation key for setting an external job URI.
+	// Prefer the ExternalJobUri proto field on JobSubmitRequestItem / SubmitJob instead.
+	ExternalJobUriAnnotation = "armadaproject.io/externalJobUri"
 )
 
 var schedulingAnnotations = map[string]bool{

@@ -22,6 +22,14 @@ var (
 	postgresImage = "postgres:14.2"
 )
 
+// testPackageParallelism caps how many packages go test runs at once. Many
+// tests spin up a fresh Postgres database and apply the full migration chain,
+// so running every package in parallel overwhelms the shared test postgres and
+// causes context deadline exceeded flakes. 1 runs the whole suite serially,
+// which is slow but reliable even on loaded dev machines; raise it on a lighter
+// machine to trade some reliability for speed. See Tests.
+const testPackageParallelism = "1"
+
 func makeLocalBin() error {
 	if _, err := os.Stat(LocalBin); os.IsNotExist(err) {
 		err = os.MkdirAll(LocalBin, os.ModePerm)
@@ -97,7 +105,11 @@ func Tests() error {
 		"--junitfile", "test-reports/unit-tests.xml",
 		"--jsonfile", "test-reports/unit-tests.json",
 		"--no-color=false",
-		"--", "-coverprofile=test-reports/coverage.out",
+		// Cap concurrent package execution so the many Postgres-backed tests
+		// (each spins up a fresh database and runs the full migration chain)
+		// don't overwhelm the shared test postgres container and blow their
+		// context timeouts.
+		"--", "-p", testPackageParallelism, "-coverprofile=test-reports/coverage.out",
 		"-covermode=atomic", "./cmd/...",
 		"./pkg/...",
 	}
@@ -125,7 +137,7 @@ func Tests() error {
 }
 
 func runTest(name, outputFileName string) error {
-	cmd := exec.Command(Gotestsum, "--", "-v", name, "-count=1")
+	cmd := exec.Command(Gotestsum, "--", "-v", name, "-count=1", "-p", testPackageParallelism)
 	file, err := os.Create(filepath.Join("test_reports", outputFileName))
 	if err != nil {
 		return err
@@ -139,16 +151,10 @@ func runTest(name, outputFileName string) error {
 // Teste2eAirflow runs e2e tests for airflow
 func Teste2eAirflow() error {
 	mg.Deps(AirflowOperator)
-	cmd, err := go_CMD()
-	if err != nil {
-		return err
-	}
-	cmd = append(cmd, "go", "run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
-	if err := dockerRun(cmd...); err != nil {
-		fmt.Println(err)
-	}
+	// Waits for Armada to be ready and creates the e2e-test-queue the tests submit to.
+	mg.Deps(CheckForArmadaRunning)
 
-	err = dockerRun("run", "-v", "${PWD}/e2e:/e2e", "-v", "${PWD}/third_party/airflow:/code",
+	err := dockerRun("run", "-v", "${PWD}/e2e:/e2e", "-v", "${PWD}/third_party/airflow:/code",
 		"--workdir", "/code", "-e", "ARMADA_SERVER=server", "-e", "ARMADA_PORT=50051", "--entrypoint",
 		"python3", "--network=kind", "armada-airflow-operator-builder:latest",
 		"-m", "pytest", "-v", "-s", "/code/test/integration/test_airflow_operator_logic.py")

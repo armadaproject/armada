@@ -26,14 +26,20 @@ author = "armada@armadaproject.io"
 # -- General configuration ---------------------------------------------------
 
 # Jekyll is the style of markdown used by github pages; using
-# sphinx_jekyll_builder here allows us to generate docs as
+# sphinx_markdown_builder here allows us to generate docs as
 # markdown files.
-extensions = ["sphinx.ext.autodoc", "sphinx_jekyll_builder"]
+extensions = ["sphinx.ext.autodoc", "sphinx_markdown_builder"]
+
+markdown_flavor = "github"
 
 # This setting puts information about typing in the description section instead
 # of in the function signature directly. This makes rendered content look much
 # better in our gh-pages template that renders the generated markdown.
 autodoc_typehints = "description"
+
+# Merge the class docstring with __init__'s so constructor :param: descriptions
+# are rendered alongside the class summary, not lost.
+autoclass_content = "both"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = []

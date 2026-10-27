@@ -32,6 +32,8 @@ type Job struct {
 	Annotations               []byte           `db:"annotations"`
 	ExternalJobUri            *string          `db:"external_job_uri"`
 	CancelUser                *string          `db:"cancel_user"`
+	PreemptUser               *string          `db:"preempt_user"`
+	ReprioritizeUser          *string          `db:"reprioritize_user"`
 }
 
 type JobDeduplication struct {
@@ -46,21 +48,29 @@ type JobError struct {
 }
 
 type JobRun struct {
-	RunID            string           `db:"run_id"`
-	JobID            string           `db:"job_id"`
-	Cluster          string           `db:"cluster"`
-	Node             *string          `db:"node"`
-	Pending          pgtype.Timestamp `db:"pending"`
-	Started          pgtype.Timestamp `db:"started"`
-	Finished         pgtype.Timestamp `db:"finished"`
-	JobRunState      int16            `db:"job_run_state"`
-	Error            []byte           `db:"error"`
-	ExitCode         *int32           `db:"exit_code"`
-	Leased           pgtype.Timestamp `db:"leased"`
-	Debug            []byte           `db:"debug"`
-	Pool             *string          `db:"pool"`
-	IngressAddresses []byte           `db:"ingress_addresses"`
-	FailureInfo      []byte           `db:"failure_info"`
+	RunID                      string           `db:"run_id"`
+	JobID                      string           `db:"job_id"`
+	Cluster                    string           `db:"cluster"`
+	Node                       *string          `db:"node"`
+	Pending                    pgtype.Timestamp `db:"pending"`
+	Started                    pgtype.Timestamp `db:"started"`
+	Finished                   pgtype.Timestamp `db:"finished"`
+	JobRunState                int16            `db:"job_run_state"`
+	Error                      []byte           `db:"error"`
+	ExitCode                   *int32           `db:"exit_code"`
+	Leased                     pgtype.Timestamp `db:"leased"`
+	Debug                      []byte           `db:"debug"`
+	Pool                       *string          `db:"pool"`
+	IngressAddresses           []byte           `db:"ingress_addresses"`
+	FailureCategory            *string          `db:"failure_category"`
+	FailureSubcategory         *string          `db:"failure_subcategory"`
+	SchedulerTerminationReason []byte           `db:"scheduler_termination_reason"`
+	PodName                    *string          `db:"pod_name"`
+}
+
+type JobRunInfo struct {
+	RunID       string `db:"run_id"`
+	StartUpInfo []byte `db:"start_up_info"`
 }
 
 type JobSpec struct {
@@ -69,6 +79,17 @@ type JobSpec struct {
 }
 
 type Queue struct {
+	Name       string `db:"name"`
+	Definition []byte `db:"definition"`
+}
+
+type QueueRetryPolicy struct {
+	QueueName  string `db:"queue_name"`
+	PolicyName string `db:"policy_name"`
+	Ordinal    int32  `db:"ordinal"`
+}
+
+type RetryPolicy struct {
 	Name       string `db:"name"`
 	Definition []byte `db:"definition"`
 }

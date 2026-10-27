@@ -5,6 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
+	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
@@ -214,9 +215,12 @@ func allocatedByPriorityAndResourceTypeFromPods(pods []*v1.Pod) (map[int32]armad
 	for _, pod := range pods {
 		var priority int32 = 0
 		if pod.Spec.Priority != nil {
-			priority = *(pod.Spec.Priority)
+			priority = *pod.Spec.Priority
 		}
 		request := armadaresource.TotalPodResourceRequest(&pod.Spec)
+		// Always reported so the scheduler can track non-Armada pods against per-node pod capacity
+		// when RespectNodePodLimits is enabled; dropped by the scheduler's resource list factory otherwise.
+		request[armadaresource.PodsResourceName] = *k8sResource.NewQuantity(1, k8sResource.DecimalSI)
 		_, ok := resourcesByPc[priority]
 		if ok {
 			resourcesByPc[priority].Add(request)
@@ -276,10 +280,7 @@ func getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) armadaresource.Comput
 	podsOnNodes := util.GetPodsOnNodes(pods, cordonedNodes)
 	usage := armadaresource.ComputeResources{}
 	for _, pod := range podsOnNodes {
-		for _, container := range pod.Spec.Containers {
-			containerResource := armadaresource.FromResourceList(container.Resources.Limits) // Not 100% on whether this should be Requests or Limits
-			usage.Add(containerResource)
-		}
+		usage.Add(armadaresource.TotalPodResourceRequest(&pod.Spec))
 	}
 	return usage
 }

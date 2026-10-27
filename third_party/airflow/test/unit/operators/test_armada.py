@@ -7,18 +7,22 @@ import pytest
 from airflow.exceptions import TaskDeferred
 from armada.model import GrpcChannelArgs, RunningJobContext
 from armada.operators.armada import ArmadaOperator
-from armada.operators.errors import ArmadaOperatorJobFailedError
+from armada.operators.errors import (
+    ArmadaOperatorJobFailedError,
+    ArmadaOperatorJobFailedFatalError,
+)
 from armada.triggers import ArmadaPollJobTrigger
 from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.typings import JobState
 from pendulum import UTC, DateTime
 
 DEFAULT_CURRENT_TIME = DateTime(2024, 8, 7, tzinfo=UTC)
-DEFAULT_JOB_ID = "test_job"
+DEFAULT_JOB_ID = "01hcq4x7d2k9m3n5p8r0s1t2v4"
 DEFAULT_TASK_ID = "test_task_1"
 DEFAULT_JOB_SET = "prefix-test_run_1"
 DEFAULT_QUEUE = "test_queue_1"
 DEFAULT_CLUSTER = "cluster-1"
+DEFAULT_POD = f"armada-{DEFAULT_JOB_ID}-0"
 
 
 def default_hook() -> MagicMock:
@@ -28,7 +32,10 @@ def default_hook() -> MagicMock:
     mock.job_by_external_job_uri.return_value = None
     mock.job_termination_reason.return_value = "FAILED"
     mock.refresh_context.return_value = dataclasses.replace(
-        job_context, job_state=JobState.SUCCEEDED.name, cluster=DEFAULT_CLUSTER
+        job_context,
+        job_state=JobState.SUCCEEDED.name,
+        cluster=DEFAULT_CLUSTER,
+        pod_name=DEFAULT_POD,
     )
     mock.cancel_job.return_value = dataclasses.replace(
         job_context, job_state=JobState.CANCELLED.name
@@ -193,6 +200,38 @@ def test_execute_fail(terminal_state, context):
     op.pod_manager.fetch_container_logs.assert_not_called()
 
 
+def test_execute_fail_rejected_does_not_retry(context):
+    op = operator(JobSubmitRequestItem())
+
+    op.hook.refresh_context.side_effect = [
+        running_job_context(cluster="cluster-1", job_state=s.name)
+        for s in [JobState.RUNNING, JobState.REJECTED]
+    ]
+
+    with pytest.raises(ArmadaOperatorJobFailedFatalError) as exec_info:
+        op.execute(context)
+
+    # Error message contains terminal state and job id
+    assert DEFAULT_JOB_ID in str(exec_info.value)
+    assert JobState.REJECTED.name.capitalize() in str(exec_info.value)
+
+
+def test_execute_fail_when_reattach_policy_matches_terminal_job(context):
+    op = operator(JobSubmitRequestItem(), reattach_policy=lambda state, reason: True)
+
+    op.hook.refresh_context.side_effect = [
+        running_job_context(cluster="cluster-1", job_state=s.name)
+        for s in [JobState.RUNNING, JobState.FAILED]
+    ]
+
+    # A retry would reattach to the same failed job, so we fail without retry.
+    with pytest.raises(ArmadaOperatorJobFailedFatalError) as exec_info:
+        op.execute(context)
+
+    assert DEFAULT_JOB_ID in str(exec_info.value)
+    assert JobState.FAILED.name.capitalize() in str(exec_info.value)
+
+
 @patch("armada.operators.armada.get_current_context")
 def test_on_kill_terminates_running_job(mock_get_context):
     op = operator(JobSubmitRequestItem())
@@ -234,15 +273,26 @@ def test_polls_for_logs(context):
     )
     op.execute(context)
 
-    # We polled logs as expected.
     op.pod_manager.fetch_container_logs.assert_called_once_with(
         k8s_context="cluster-1",
         namespace="namespace-1",
-        pod="armada-test_job-0",
+        pod=DEFAULT_POD,
         container="alpine",
         since_time=None,
         link_extractor=ANY,
     )
+
+
+def test_does_not_poll_for_logs_of_a_run_without_a_pod_name(context):
+    op = operator(
+        JobSubmitRequestItem(namespace="namespace-1"), container_logs="alpine"
+    )
+    op.hook.refresh_context.return_value = dataclasses.replace(
+        op.hook.refresh_context.return_value, pod_name=None
+    )
+    op.execute(context)
+
+    op.pod_manager.fetch_container_logs.assert_not_called()
 
 
 def test_publishes_xcom_state(context):

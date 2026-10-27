@@ -6,7 +6,9 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
+	"github.com/armadaproject/armada/internal/leaderelection"
 )
 
 type EventIngesterConfiguration struct {
@@ -17,6 +19,10 @@ type EventIngesterConfiguration struct {
 	RedisReplica redis.UniversalOptions
 	// Metrics configuration
 	MetricsPort uint16
+	// Metrics configuration for Redis memory metrics collection
+	Metrics MetricsConfig
+	// Configuration controlling OpenTelemetry observability
+	Observability observability.ObservabilityConfig
 	// General Pulsar configuration
 	Pulsar commonconfig.PulsarConfig
 	// Pulsar subscription name
@@ -35,6 +41,33 @@ type EventIngesterConfiguration struct {
 	FatalInsertionErrors []string
 	// If non-nil, configures pprof profiling
 	Profiling *profilingconfig.ProfilingConfig
+}
+
+type MetricsConfig struct {
+	Redis                   RedisMemoryMetricsConfig
+	EventSizeMetricsEnabled bool
+}
+
+type RedisMemoryMetricsConfig struct {
+	Enabled            bool
+	CollectionInterval time.Duration
+	// InitialCollectionDelayMax controls startup jitter before first collection.
+	// If zero, a default of 1 minute is used.
+	InitialCollectionDelayMax time.Duration
+	TopN                      int
+	ScanBatchSize             int64
+	PipelineBatchSize         int
+	InterBatchDelay           time.Duration
+	MemoryUsageSamples        int
+	Leader                    leaderelection.Config
+	// CollectionTimeout is the maximum duration of a single scan attempt.
+	// Set to a negative value to disable.
+	CollectionTimeout time.Duration
+	// RetryInitialBackoff is the initial backoff between scan attempts after a retryable error.
+	RetryInitialBackoff time.Duration `validate:"gte=0"`
+	// MaxRetries is the maximum number of retries per collection cycle after the first attempt.
+	// Set to a negative value to disable retries.
+	MaxRetries int
 }
 
 // TODO: unpack this into just EventExpirtation

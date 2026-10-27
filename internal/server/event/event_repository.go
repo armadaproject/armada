@@ -13,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/server/event/conversion"
 	"github.com/armadaproject/armada/internal/server/event/sequence"
@@ -21,8 +22,7 @@ import (
 )
 
 const (
-	eventStreamPrefix = "Events:"
-	dataKey           = "message"
+	dataKey = "message"
 )
 
 type EventRepository interface {
@@ -161,5 +161,5 @@ func (repo *RedisEventRepository) extractEvents(ctx *armadacontext.Context, msg 
 }
 
 func getJobSetEventsKey(queue, jobSetId string) string {
-	return eventStreamPrefix + queue + ":" + jobSetId
+	return constants.EventStreamPrefix + queue + ":" + jobSetId
 }

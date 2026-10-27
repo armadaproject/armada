@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/benbjohnson/immutable"
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -15,10 +14,13 @@ import (
 	"k8s.io/utils/clock"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
@@ -69,7 +71,20 @@ type JobDb struct {
 	jobsByGangKey      map[gangKey]immutable.Set[string]
 	jobsByQueue        map[string]immutable.SortedSet[*Job]
 	jobsByPoolAndQueue map[string]map[string]immutable.SortedSet[*Job]
+	leasedJobs         *immutable.Set[*Job]
 	unvalidatedJobs    *immutable.Set[*Job]
+	// Incrementally maintained aggregate of queued demand.
+	// Maintained only when aggregateEnabled is true. The scheduler enables it
+	// when ExperimentalAggregateDemand.Compare or .Use is set. Both flags are
+	// static command-line flags requiring a restart to change, so a JobDb
+	// created with the aggregate disabled never needs to start maintaining it
+	// later; a restart rebuilds the JobDb from scratch with it enabled.
+	aggregate *JobAggregate
+	// aggregateEnabled gates all aggregate maintenance (Upsert/BatchDelete
+	// deltas) and reads. When false the aggregate stays empty and
+	// GetQueueDemand always returns empty, so the both-flags-off path pays no
+	// per-job aggregate cost.
+	aggregateEnabled bool
 	// Configured priority classes.
 	priorityClasses map[string]types.PriorityClass
 	// Priority class assigned to jobs with a priorityClassName not in jobDb.priorityClasses.
@@ -84,9 +99,13 @@ type JobDb struct {
 	// Set here so that it can be mocked.
 	clock clock.PassiveClock
 	// Used for generating job run ids.
-	uuidProvider IDProvider
+	jobRunIDProvider IDProvider
 	// Used to make efficient ResourceList types.
-	resourceListFactory *internaltypes.ResourceListFactory
+	resourceListFactory  *internaltypes.ResourceListFactory
+	respectNodePodLimits bool
+	// The current bid price snapshot. Used by NewJob to apply prices to newly created jobs.
+	// Updated through the same WriteTxn → SetBidPriceSnapshot → Commit flow as the rest of the JobDb state.
+	bidPriceSnapshot *pricing.BidPriceSnapshot
 }
 
 // IDProvider is an interface used to mock run id  generation for tests.
@@ -94,11 +113,11 @@ type IDProvider interface {
 	New() string
 }
 
-// RealUUIDProvider generates an id using a UUID
-type RealUUIDProvider struct{}
+// RealULIDProvider generates an id using a ULID
+type RealULIDProvider struct{}
 
-func (_ RealUUIDProvider) New() string {
-	return uuid.New().String()
+func (_ RealULIDProvider) New() string {
+	return util.NewULID()
 }
 
 func NewJobDb(priorityClasses map[string]types.PriorityClass,
@@ -128,19 +147,23 @@ func NewJobDbWithSchedulingKeyGenerator(
 		panic(fmt.Sprintf("unknown default priority class %s", defaultPriorityClassName))
 	}
 	unvalidatedJobs := immutable.NewSet[*Job](JobHasher{})
+	leasedJobs := immutable.NewSet[*Job](JobHasher{})
 	return &JobDb{
 		jobsById:               immutable.NewMap[string, *Job](nil),
 		jobsByRunId:            immutable.NewMap[string, string](nil),
 		jobsByGangKey:          map[gangKey]immutable.Set[string]{},
 		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
 		jobsByPoolAndQueue:     map[string]map[string]immutable.SortedSet[*Job]{},
+		leasedJobs:             &leasedJobs,
 		unvalidatedJobs:        &unvalidatedJobs,
+		aggregate:              NewJobAggregate(),
+		aggregateEnabled:       false,
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
 		stringInterner:         stringInterner,
 		clock:                  clock.RealClock{},
-		uuidProvider:           RealUUIDProvider{},
+		jobRunIDProvider:       RealULIDProvider{},
 		resourceListFactory:    resourceListFactory,
 	}
 }
@@ -149,8 +172,22 @@ func (jobDb *JobDb) SetClock(clock clock.PassiveClock) {
 	jobDb.clock = clock
 }
 
-func (jobDb *JobDb) SetUUIDProvider(uuidProvider IDProvider) {
-	jobDb.uuidProvider = uuidProvider
+func (jobDb *JobDb) SetRespectNodePodLimits(enabled bool) {
+	jobDb.respectNodePodLimits = enabled
+}
+
+// SetAggregateEnabled toggles incremental maintenance of the queued-demand
+// aggregate. Must be called before any Upsert/BatchDelete if enabled: jobs
+// inserted while disabled contribute nothing to the aggregate. Production
+// entry points (scheduler, simulator) call this once at startup from the
+// static ExperimentalAggregateDemand flags (Compare || Use); no restart-free
+// path re-enables it.
+func (jobDb *JobDb) SetAggregateEnabled(enabled bool) {
+	jobDb.aggregateEnabled = enabled
+}
+
+func (jobDb *JobDb) SetJobRunIDProvider(jobRunIDProvider IDProvider) {
+	jobDb.jobRunIDProvider = jobRunIDProvider
 }
 
 // Clone returns a copy of the jobDb.
@@ -161,12 +198,17 @@ func (jobDb *JobDb) Clone() *JobDb {
 		jobsByGangKey:          maps.Clone(jobDb.jobsByGangKey),
 		jobsByQueue:            maps.Clone(jobDb.jobsByQueue),
 		jobsByPoolAndQueue:     deepClone(jobDb.jobsByPoolAndQueue),
+		leasedJobs:             jobDb.leasedJobs,
 		unvalidatedJobs:        jobDb.unvalidatedJobs,
+		aggregate:              jobDb.aggregate.Clone(),
+		aggregateEnabled:       jobDb.aggregateEnabled,
 		priorityClasses:        jobDb.priorityClasses,
 		defaultPriorityClass:   jobDb.defaultPriorityClass,
 		schedulingKeyGenerator: jobDb.schedulingKeyGenerator,
 		stringInterner:         jobDb.stringInterner,
 		resourceListFactory:    jobDb.resourceListFactory,
+		respectNodePodLimits:   jobDb.respectNodePodLimits,
+		bidPriceSnapshot:       jobDb.bidPriceSnapshot,
 	}
 }
 
@@ -202,6 +244,14 @@ func (jobDb *JobDb) NewJob(
 		pb = bidstore.PriceBand(priceBand)
 	}
 
+	bidPrices := map[string]pricing.Bid{}
+	if jobDb.bidPriceSnapshot != nil {
+		prices, ok := jobDb.bidPriceSnapshot.GetPrice(queue, pb)
+		if ok {
+			bidPrices = maps.Clone(prices)
+		}
+	}
+
 	gangInfo, err := GangInfoFromMinimalJob(schedulingInfo)
 	if err != nil {
 		log.Errorf("failed creating gang info for job %s", jobId)
@@ -230,6 +280,7 @@ func (jobDb *JobDb) NewJob(
 		runsById:                       map[string]*JobRun{},
 		pools:                          jobDb.internPools(pools),
 		priceBand:                      pb,
+		bidPricesPool:                  bidPrices,
 		gangInfo:                       *gangInfo,
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
@@ -239,7 +290,12 @@ func (jobDb *JobDb) NewJob(
 }
 
 func (jobDb *JobDb) getResourceRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) internaltypes.ResourceList {
-	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(safeGetRequirements(schedulingInfo))
+	requirements := safeGetRequirements(schedulingInfo)
+	if jobDb.respectNodePodLimits {
+		// Each Armada job is exactly one pod; consume one pod slot from the node's allocatable.
+		requirements[armadaresource.PodsResourceName] = *resource.NewQuantity(1, resource.DecimalSI)
+	}
+	return jobDb.resourceListFactory.FromJobResourceListIgnoreUnknown(requirements)
 }
 
 func safeGetRequirements(schedulingInfo *internaltypes.JobSchedulingInfo) map[string]resource.Quantity {
@@ -318,7 +374,11 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 		jobsByGangKey:      jobDb.jobsByGangKey,
 		jobsByQueue:        jobDb.jobsByQueue,
 		jobsByPoolAndQueue: jobDb.jobsByPoolAndQueue,
+		leasedJobs:         jobDb.leasedJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		aggregate:          jobDb.aggregate,
+		aggregateEnabled:   jobDb.aggregateEnabled,
+		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
 	}
@@ -338,7 +398,35 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		jobsByGangKey:      maps.Clone(jobDb.jobsByGangKey),
 		jobsByQueue:        maps.Clone(jobDb.jobsByQueue),
 		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
+		leasedJobs:         jobDb.leasedJobs,
 		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		aggregate:          jobDb.aggregate.Clone(),
+		aggregateEnabled:   jobDb.aggregateEnabled,
+		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
+		active:             true,
+		jobDb:              jobDb,
+	}
+}
+
+// DryRunTxn returns a writable transaction over an isolated snapshot of the current db state.
+// Mutations are local to the snapshot and are never committed back to the db.
+// This is useful for processes that need to speculatively modify state without affecting the real db.
+func (jobDb *JobDb) DryRunTxn() *Txn {
+	jobDb.copyMutex.Lock()
+	defer jobDb.copyMutex.Unlock()
+	return &Txn{
+		readOnly:           false,
+		dryRun:             true,
+		jobsById:           jobDb.jobsById,
+		jobsByRunId:        jobDb.jobsByRunId,
+		jobsByGangKey:      maps.Clone(jobDb.jobsByGangKey),
+		jobsByQueue:        maps.Clone(jobDb.jobsByQueue),
+		jobsByPoolAndQueue: deepClone(jobDb.jobsByPoolAndQueue),
+		leasedJobs:         jobDb.leasedJobs,
+		unvalidatedJobs:    jobDb.unvalidatedJobs,
+		aggregate:          jobDb.aggregate.Clone(),
+		aggregateEnabled:   jobDb.aggregateEnabled,
+		bidPriceSnapshot:   jobDb.bidPriceSnapshot,
 		active:             true,
 		jobDb:              jobDb,
 	}
@@ -363,6 +451,9 @@ func (jobDb *JobDb) CumulativeInternedStringsCount() uint64 {
 // until the transaction is committed.
 type Txn struct {
 	readOnly bool
+	// dryRun transactions allow mutations but Commit is a no-op — changes are never written back to the db.
+	// Created via DryRunTxn(); useful for speculative state manipulation without affecting the real db.
+	dryRun bool
 	// Map from job ids to jobs.
 	jobsById *immutable.Map[string, *Job]
 	// Map from run ids to jobs.
@@ -376,8 +467,17 @@ type Txn struct {
 	// Queued jobs for each queue and pool.
 	// Stored as a set and needs sorting to determine the order they should be scheduled in.
 	jobsByPoolAndQueue map[string]map[string]immutable.SortedSet[*Job]
+	// Jobs that are currently leased
+	leasedJobs *immutable.Set[*Job]
 	// Jobs that require submit checking
 	unvalidatedJobs *immutable.Set[*Job]
+	// Incrementally maintained aggregate of queued demand.
+	aggregate *JobAggregate
+	// Mirrors JobDb.aggregateEnabled at transaction creation. When false,
+	// aggregate add/remove calls are skipped and GetQueueDemand returns empty.
+	aggregateEnabled bool
+	// The current snapshot of bid prices - allowing look up of bidding prices on job creation
+	bidPriceSnapshot *pricing.BidPriceSnapshot
 	// The jobDb from which this transaction was created.
 	jobDb *JobDb
 	// Set to false when this transaction is either committed or aborted.
@@ -388,6 +488,10 @@ func (txn *Txn) Commit() {
 	if txn.readOnly || !txn.active {
 		return
 	}
+	if txn.dryRun {
+		txn.active = false
+		return
+	}
 	txn.jobDb.copyMutex.Lock()
 	defer txn.jobDb.copyMutex.Unlock()
 	defer txn.jobDb.writerMutex.Unlock()
@@ -396,7 +500,10 @@ func (txn *Txn) Commit() {
 	txn.jobDb.jobsByGangKey = txn.jobsByGangKey
 	txn.jobDb.jobsByQueue = txn.jobsByQueue
 	txn.jobDb.jobsByPoolAndQueue = txn.jobsByPoolAndQueue
+	txn.jobDb.leasedJobs = txn.leasedJobs
 	txn.jobDb.unvalidatedJobs = txn.unvalidatedJobs
+	txn.jobDb.aggregate = txn.aggregate
+	txn.jobDb.bidPriceSnapshot = txn.bidPriceSnapshot
 
 	txn.active = false
 }
@@ -491,6 +598,10 @@ func (txn *Txn) Abort() {
 	if txn.readOnly || !txn.active {
 		return
 	}
+	if txn.dryRun {
+		txn.active = false
+		return
+	}
 	txn.active = false
 	txn.jobDb.writerMutex.Unlock()
 }
@@ -502,6 +613,10 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 	}
 
 	hasJobs := txn.jobsById.Len() > 0
+
+	// jobsById is last-write-wins for duplicate IDs. Dedupe up front so every
+	// index below, as well as the aggregate, sees the same jobs.
+	jobs = dedupeJobsLastWins(jobs)
 
 	// First, delete any jobs to be upserted from the sets of queued and unvalidated jobs
 	// We will replace these jobs later if they are still queued
@@ -526,9 +641,18 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 					txn.jobsByPoolAndQueue[pool][job.queue] = existingJobs.Delete(existingJob)
 				}
 
+				if existingJob.Leased() {
+					newLeasedJobs := txn.leasedJobs.Delete(existingJob)
+					txn.leasedJobs = &newLeasedJobs
+				}
+
 				if !existingJob.Validated() {
 					newUnvalidatedJobs := txn.unvalidatedJobs.Delete(existingJob)
 					txn.unvalidatedJobs = &newUnvalidatedJobs
+				}
+
+				if txn.aggregateEnabled {
+					txn.aggregate.remove(existingJob)
 				}
 			}
 		}
@@ -536,7 +660,7 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 
 	// Now need to insert jobs, runs and queuedJobs. This can be done in parallel.
 	wg := sync.WaitGroup{}
-	wg.Add(5)
+	wg.Add(7)
 
 	// jobs
 	go func() {
@@ -675,6 +799,30 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 		}
 	}()
 
+	// Leased jobs
+	go func() {
+		defer wg.Done()
+		if hasJobs {
+			for _, job := range jobs {
+				if job.Leased() {
+					leasedJobs := txn.leasedJobs.Add(job)
+					txn.leasedJobs = &leasedJobs
+				}
+			}
+		} else {
+			leasedJobs := map[*Job]bool{}
+
+			for _, job := range jobs {
+				if job.Leased() {
+					leasedJobs[job] = true
+				}
+			}
+
+			leasedJobsImmutable := immutable.NewSet[*Job](JobHasher{}, maps.Keys(leasedJobs)...)
+			txn.leasedJobs = &leasedJobsImmutable
+		}
+	}()
+
 	// Unvalidated jobs
 	go func() {
 		defer wg.Done()
@@ -699,8 +847,37 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 		}
 	}()
 
+	// Queued-demand aggregate.
+	go func() {
+		defer wg.Done()
+		// Skipped entirely when the aggregate is disabled (both Compare and
+		// Use flags off), so that path pays no per-job aggregate cost.
+		if txn.aggregateEnabled {
+			for _, job := range jobs {
+				txn.aggregate.add(job)
+			}
+		}
+	}()
+
 	wg.Wait()
+
 	return nil
+}
+
+// dedupeJobsLastWins returns jobs with duplicate IDs collapsed to the last
+// occurrence, matching the last-write-wins behaviour of jobsById.
+func dedupeJobsLastWins(jobs []*Job) []*Job {
+	result := make([]*Job, 0, len(jobs))
+	seen := make(map[string]bool, len(jobs))
+	for i := len(jobs) - 1; i >= 0; i-- {
+		job := jobs[i]
+		if seen[job.id] {
+			continue
+		}
+		seen[job.id] = true
+		result = append(result, job)
+	}
+	return result
 }
 
 // NewJob creates a new scheduler job.
@@ -721,7 +898,8 @@ func (txn *Txn) NewJob(
 	pools []string,
 	priceBand int32,
 ) (*Job, error) {
-	return txn.jobDb.NewJob(jobId,
+	return txn.jobDb.NewJob(
+		jobId,
 		jobSet,
 		queue,
 		priority,
@@ -811,6 +989,22 @@ func (txn *Txn) UnvalidatedJobs() *immutable.SetIterator[*Job] {
 	return txn.unvalidatedJobs.Iterator()
 }
 
+// GetAllLeasedJobs returns all leased jobs in the database
+func (txn *Txn) GetAllLeasedJobs() []*Job {
+	return txn.leasedJobs.Items()
+}
+
+// GetQueueDemand returns queued demand for the given pool and queue by priority
+// class, derived from the aggregate. It is the caller's responsibility to
+// decide whether to query cordoned or unknown queues.
+// Returns empty when the aggregate is disabled (both Compare and Use off).
+func (txn *Txn) GetQueueDemand(pool string, queue string) map[string]internaltypes.ResourceList {
+	if !txn.aggregateEnabled {
+		return map[string]internaltypes.ResourceList{}
+	}
+	return txn.aggregate.getQueueDemand(pool, queue)
+}
+
 // GetAll returns all jobs in the database.
 func (txn *Txn) GetAll() []*Job {
 	allJobs := make([]*Job, 0, txn.jobsById.Len())
@@ -818,6 +1012,15 @@ func (txn *Txn) GetAll() []*Job {
 	for !iter.Done() {
 		_, job, _ := iter.Next()
 		allJobs = append(allJobs, job)
+	}
+	return allJobs
+}
+
+// GetQueuedJobsByPool returns all queued jobs against a given pool
+func (txn *Txn) GetQueuedJobsByPool(pool string) []*Job {
+	allJobs := make([]*Job, 0)
+	for _, jobs := range txn.jobsByPoolAndQueue[pool] {
+		allJobs = append(allJobs, jobs.Items()...)
 	}
 	return allJobs
 }
@@ -839,6 +1042,9 @@ func (txn *Txn) BatchDelete(jobIds []string) error {
 func (txn *Txn) delete(jobId string) {
 	job, present := txn.jobsById.Get(jobId)
 	if present {
+		if txn.aggregateEnabled {
+			txn.aggregate.remove(job)
+		}
 		txn.jobsById = txn.jobsById.Delete(jobId)
 		for _, run := range job.runsById {
 			txn.jobsByRunId = txn.jobsByRunId.Delete(run.id)
@@ -871,6 +1077,9 @@ func (txn *Txn) delete(jobId string) {
 				}
 			}
 		}
+		newLeasedJobs := txn.leasedJobs.Delete(job)
+		txn.leasedJobs = &newLeasedJobs
+
 		newUnvalidatedJobs := txn.unvalidatedJobs.Delete(job)
 		txn.unvalidatedJobs = &newUnvalidatedJobs
 	}
@@ -883,5 +1092,17 @@ func (txn *Txn) checkWritableTransaction() error {
 	if !txn.active {
 		return errors.New("Cannot write using an inactive transaction")
 	}
+	return nil
+}
+
+func (txn *Txn) GetBidPriceSnapshot() *pricing.BidPriceSnapshot {
+	return txn.bidPriceSnapshot
+}
+
+func (txn *Txn) SetBidPriceSnapshot(snapshot *pricing.BidPriceSnapshot) error {
+	if err := txn.checkWritableTransaction(); err != nil {
+		return err
+	}
+	txn.bidPriceSnapshot = snapshot
 	return nil
 }

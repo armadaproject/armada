@@ -15,9 +15,31 @@ pulsar:
     interval: 30s
 subscriptionName: "events-ingester"
 minMessageCompressionSize: 1024
-maxOutputMessageSizeBytes: 1048576  #1MB
+maxOutputMessageSizeBytes: 1048576 #1MB
 batchSize: 10000
 batchDuration: 100ms
 eventRetentionPolicy:
   retentionDuration: 336h
 metricsPort: 9001
+metrics:
+  eventSizeMetricsEnabled: true
+  redis:
+    enabled: false
+    collectionInterval: 15m
+    initialCollectionDelayMax: 5m
+    topN: 100
+    scanBatchSize: 1000
+    pipelineBatchSize: 500
+    interBatchDelay: 100ms
+    memoryUsageSamples: 25
+    collectionTimeout: 15m
+    retryInitialBackoff: 5s
+    maxRetries: 2
+    leader:
+      mode: "kubernetes"
+      leaseLockName: "armada-redis-metrics-leader"
+      leaseLockNamespace: "armada" # This must be set so viper allows env vars to overwrite it
+      leaseDuration: 15s
+      renewDeadline: 10s
+      podName: "" # This must be set so viper allows env vars to overwrite it
+      retryPeriod: 2s

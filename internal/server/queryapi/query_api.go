@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/podname"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/server/queryapi/database"
 	"github.com/armadaproject/armada/pkg/api"
@@ -43,12 +43,12 @@ var JobRunStateMap = map[int16]api.JobRunState{
 }
 
 type QueryApi struct {
-	db                  *pgxpool.Pool
+	db                  QueryDB
 	decompressorFactory func() compress.Decompressor
 	maxQueryItems       int
 }
 
-func New(db *pgxpool.Pool, maxQueryItems int, decompressorFactory func() compress.Decompressor) *QueryApi {
+func New(db QueryDB, maxQueryItems int, decompressorFactory func() compress.Decompressor) *QueryApi {
 	return &QueryApi{
 		db:                  db,
 		maxQueryItems:       maxQueryItems,
@@ -300,6 +300,7 @@ func parseJobDetails(row database.JobRun) (*api.JobRunDetails, error) {
 		State:            runState,
 		Cluster:          row.Cluster,
 		Node:             NilStringToString(row.Node),
+		PodName:          podname.Resolve(row.JobID, row.PodName, row.Pending.Valid, row.Started.Valid),
 		LeasedTs:         DbTimeToTimestamp(row.Leased),
 		PendingTs:        DbTimeToTimestamp(row.Pending),
 		StartedTs:        DbTimeToTimestamp(row.Started),

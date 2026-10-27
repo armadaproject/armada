@@ -6,6 +6,7 @@ import (
 	log "github.com/armadaproject/armada/internal/common/logging"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	"github.com/armadaproject/armada/internal/server/configuration"
 )
@@ -15,6 +16,8 @@ type LookoutIngesterConfiguration struct {
 	Postgres configuration.PostgresConfig
 	// Metrics configuration
 	MetricsPort uint16
+	// Configuration controlling OpenTelemetry observability
+	Observability observability.ObservabilityConfig
 	// General Pulsar configuration
 	Pulsar commonconfig.PulsarConfig
 	// Pulsar subscription name

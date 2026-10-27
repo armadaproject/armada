@@ -27,10 +27,10 @@ func NewFloatMetricsRecorder(buckets ...float64) *FloatMetricsRecorder {
 
 func NewDefaultJobDurationMetricsRecorder() *FloatMetricsRecorder {
 	return NewFloatMetricsRecorder(
-		(time.Minute).Seconds(),
+		time.Minute.Seconds(),
 		(time.Minute * 10).Seconds(),
 		(time.Minute * 30).Seconds(),
-		(time.Hour).Seconds(),
+		time.Hour.Seconds(),
 		(time.Hour * 3).Seconds(),
 		(time.Hour * 12).Seconds(),
 		(time.Hour * 24).Seconds(),

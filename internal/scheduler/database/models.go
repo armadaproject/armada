@@ -30,7 +30,6 @@ type Job struct {
 	Queue                   string    `db:"queue"`
 	UserID                  string    `db:"user_id"`
 	Submitted               int64     `db:"submitted"`
-	Groups                  []byte    `db:"groups"`
 	Priority                int64     `db:"priority"`
 	Queued                  bool      `db:"queued"`
 	QueuedVersion           int32     `db:"queued_version"`
@@ -39,7 +38,6 @@ type Job struct {
 	CancelByJobsetRequested bool      `db:"cancel_by_jobset_requested"`
 	Succeeded               bool      `db:"succeeded"`
 	Failed                  bool      `db:"failed"`
-	SubmitMessage           []byte    `db:"submit_message"`
 	SchedulingInfo          []byte    `db:"scheduling_info"`
 	SchedulingInfoVersion   int32     `db:"scheduling_info_version"`
 	Serial                  int64     `db:"serial"`
@@ -50,6 +48,14 @@ type Job struct {
 	CancelUser              *string   `db:"cancel_user"`
 	PriceBand               int32     `db:"price_band"`
 	Terminated              *bool     `db:"terminated"`
+	CancelReason            *string   `db:"cancel_reason"`
+	ReprioritiseUser        *string   `db:"reprioritise_user"`
+}
+
+type JobMetadatum struct {
+	JobID         string `db:"job_id"`
+	SubmitMessage []byte `db:"submit_message"`
+	Groups        []byte `db:"groups"`
 }
 
 type JobRunError struct {
@@ -93,4 +99,5 @@ type Run struct {
 	Pool                   string     `db:"pool"`
 	Terminated             bool       `db:"terminated"`
 	PreemptReason          *string    `db:"preempt_reason"`
+	PreemptUser            *string    `db:"preempt_user"`
 }

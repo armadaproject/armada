@@ -3,7 +3,8 @@ import { memo, useCallback, useMemo, useState } from "react"
 import { Clear, FilterAltOff, ViewColumn } from "@mui/icons-material"
 import { Divider, Button, Checkbox, FormControlLabel, FormGroup, Tooltip } from "@mui/material"
 
-import { ColumnId, JobTableColumn, PINNED_COLUMNS, toColId } from "../../../common/jobsTableColumns"
+import { ColumnId, getColumnMetadata, JobTableColumn, PINNED_COLUMNS, toColId } from "../../../common/jobsTableColumns"
+import { formatColumnList } from "../../../common/jobsTableFormatters"
 import AutoRefreshToggle from "../../../components/AutoRefreshToggle"
 import RefreshButton from "../../../components/RefreshButton"
 import { JobFiltersWithExcludes } from "../../../models/lookoutModels"
@@ -36,6 +37,7 @@ export interface JobsTableActionBarProps {
   onRemoveAnnotationColumn: (colId: ColumnId) => void
   onEditAnnotationColumn: (colId: ColumnId, annotationKey: string) => void
   toggleColumnVisibility: (columnId: ColumnId) => void
+  onResetColumnConfiguration: () => void
   onGroupsChanged: (newGroups: ColumnId[]) => void
   onClearFilters: () => void
   onClearSorting: () => void
@@ -44,6 +46,8 @@ export interface JobsTableActionBarProps {
   onAddCustomView: (name: string) => void
   onDeleteCustomView: (name: string) => void
   onLoadCustomView: (name: string) => void
+  getViewEventData: (name: string) => Record<string, string>
+  getCurrentViewEventData: (name?: string) => Record<string, string>
 }
 
 export const JobsTableActionBar = memo(
@@ -67,6 +71,7 @@ export const JobsTableActionBar = memo(
     onRemoveAnnotationColumn,
     onEditAnnotationColumn,
     toggleColumnVisibility,
+    onResetColumnConfiguration,
     onGroupsChanged,
     onClearFilters,
     onClearSorting,
@@ -75,6 +80,8 @@ export const JobsTableActionBar = memo(
     onAddCustomView,
     onDeleteCustomView,
     onLoadCustomView,
+    getViewEventData,
+    getCurrentViewEventData,
   }: JobsTableActionBarProps) => {
     const [columnConfigurationDialogOpen, setColumnConfigurationDialogOpen] = useState(false)
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
@@ -88,6 +95,21 @@ export const JobsTableActionBar = memo(
         return !PINNED_COLUMNS.includes(colId) && visibleColumnsSet.has(colId)
       }).length
     }, [allColumns, visibleColumns])
+
+    // Filters on hidden columns have no visible input, so they are called out here to keep them
+    // discoverable
+    const activeFilterSummary = useMemo(() => {
+      if (filterColumns.length === 0) {
+        return ""
+      }
+      const visibleColumnsSet = new Set(visibleColumns)
+      const names = filterColumns.map((colId) => {
+        const column = allColumns.find((col) => toColId(col.id) === colId)
+        const displayName = (column ? getColumnMetadata(column).displayName : undefined) ?? colId
+        return visibleColumnsSet.has(colId) ? displayName : `${displayName} (hidden column)`
+      })
+      return `Filtering by ${formatColumnList(names)}`
+    }, [filterColumns, visibleColumns, allColumns])
 
     const numSelectedItems = selectedItemFilters.length
 
@@ -108,6 +130,7 @@ export const JobsTableActionBar = memo(
           columnOrderIds={columnOrder}
           setColumnOrder={setColumnOrder}
           toggleColumnVisibility={toggleColumnVisibility}
+          onResetColumnConfiguration={onResetColumnConfiguration}
           onAddAnnotationColumn={onAddAnnotationColumn}
           onEditAnnotationColumn={onEditAnnotationColumn}
           onRemoveAnnotationColumn={onRemoveAnnotationColumn}
@@ -148,18 +171,20 @@ export const JobsTableActionBar = memo(
           </div>
           <Divider orientation="vertical" />
           <div>
-            <Button
-              variant="outlined"
-              onClick={() => {
-                onClearFilters()
-                onClearSorting()
-              }}
-              color="primary"
-              endIcon={<FilterAltOff />}
-              disabled={filterColumns.length === 0 && !customSortingApplied}
-            >
-              Clear Filters and Sorting
-            </Button>
+            <Tooltip title={activeFilterSummary}>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  onClearFilters()
+                  onClearSorting()
+                }}
+                color="primary"
+                endIcon={<FilterAltOff />}
+                disabled={filterColumns.length === 0 && !customSortingApplied}
+              >
+                Clear Filters{filterColumns.length > 0 && ` (${filterColumns.length})`} and Sorting
+              </Button>
+            </Tooltip>
           </div>
           <div>
             <Button
@@ -188,6 +213,8 @@ export const JobsTableActionBar = memo(
               onAddCustomView={onAddCustomView}
               onDeleteCustomView={onDeleteCustomView}
               onLoadCustomView={onLoadCustomView}
+              getViewEventData={getViewEventData}
+              getCurrentViewEventData={getCurrentViewEventData}
             />
           </div>
           <Divider orientation="vertical" />

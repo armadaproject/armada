@@ -59,21 +59,6 @@ func ExtractPodFailureCause(pod *v1.Pod) armadaevents.KubernetesReason {
 	return armadaevents.KubernetesReason_AppError
 }
 
-func ExtractPodExitCodes(pod *v1.Pod) map[string]int32 {
-	containerStatuses := pod.Status.ContainerStatuses
-	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
-
-	exitCodes := map[string]int32{}
-
-	for _, containerStatus := range containerStatuses {
-		if containerStatus.State.Terminated != nil {
-			exitCodes[containerStatus.Name] = containerStatus.State.Terminated.ExitCode
-		}
-	}
-
-	return exitCodes
-}
-
 func ExtractFailedPodContainerStatuses(pod *v1.Pod, clusterId string) []*armadaevents.ContainerError {
 	containerStatuses := pod.Status.ContainerStatuses
 	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
@@ -107,27 +92,6 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod, clusterId string) []*armadae
 		returnStatuses = append(returnStatuses, containerInfo)
 	}
 	return returnStatuses
-}
-
-// ExtractFailureInfo builds a FailureInfo proto from pod status and category labels.
-// It extracts the exit code and termination message from the first failed container.
-func ExtractFailureInfo(pod *v1.Pod, categories []string) *armadaevents.FailureInfo {
-	info := &armadaevents.FailureInfo{
-		Categories: categories,
-	}
-
-	if pod != nil {
-		for _, cs := range GetPodContainerStatuses(pod) {
-			if cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
-				info.ExitCode = cs.State.Terminated.ExitCode
-				info.TerminationMessage = cs.State.Terminated.Message
-				info.ContainerName = cs.Name
-				break
-			}
-		}
-	}
-
-	return info
 }
 
 func isOom(containerStatus v1.ContainerStatus) bool {

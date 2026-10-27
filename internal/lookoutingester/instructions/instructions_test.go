@@ -1,10 +1,14 @@
 package instructions
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
+	"unicode/utf8"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,6 +18,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
@@ -71,6 +76,7 @@ var expectedLeasedRun = model.CreateJobRunInstruction{
 
 var expectedPendingRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunId,
+	PodName:     pointer.String(testfixtures.PodName),
 	Pending:     &testfixtures.BaseTime,
 	JobRunState: pointer.Int32(lookout.JobRunPendingOrdinal),
 }
@@ -113,8 +119,9 @@ var expectedJobCancelled = model.UpdateJobInstruction{
 }
 
 var expectedJobReprioritised = model.UpdateJobInstruction{
-	JobId:    testfixtures.JobId,
-	Priority: pointer.Int64(testfixtures.NewPriority),
+	JobId:            testfixtures.JobId,
+	Priority:         pointer.Int64(testfixtures.NewPriority),
+	ReprioritizeUser: pointer.String(testfixtures.UserId),
 }
 
 var expectedFailed = model.UpdateJobInstruction{
@@ -151,21 +158,19 @@ var expectedPreempted = model.UpdateJobInstruction{
 	State:                     pointer.Int32(lookout.JobPreemptedOrdinal),
 	LastTransitionTime:        &testfixtures.BaseTime,
 	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+	PreemptUser:               pointer.String(testfixtures.UserId),
 }
 
-var expectedFailedRunWithFailureInfo = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunId,
-	Node:        pointer.String(testfixtures.NodeName),
-	Finished:    &testfixtures.BaseTime,
-	JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
-	Error:       []byte(testfixtures.ErrMsg),
-	Debug:       []byte(testfixtures.DebugMsg),
-	ExitCode:    pointer.Int32(testfixtures.ExitCode),
-	FailureInfo: map[string]any{
-		"exitCode":           int32(testfixtures.ExitCode),
-		"terminationMessage": "OOM killed by kernel",
-		"categories":         []string{"RESOURCE_LIMIT", "MEMORY"},
-	},
+var expectedFailedRunWithCategory = model.UpdateJobRunInstruction{
+	RunId:              testfixtures.RunId,
+	Node:               pointer.String(testfixtures.NodeName),
+	Finished:           &testfixtures.BaseTime,
+	JobRunState:        pointer.Int32(lookout.JobRunFailedOrdinal),
+	Error:              []byte(testfixtures.ErrMsg),
+	Debug:              []byte(testfixtures.DebugMsg),
+	ExitCode:           pointer.Int32(testfixtures.ExitCode),
+	FailureCategory:    pointer.String("infrastructure"),
+	FailureSubcategory: pointer.String("oom"),
 }
 
 var expectedReconciliationErrRun = model.UpdateJobRunInstruction{
@@ -176,16 +181,40 @@ var expectedReconciliationErrRun = model.UpdateJobRunInstruction{
 }
 
 var expectedPreemptedRun = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunId,
-	Finished:    &testfixtures.BaseTime,
-	JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
-	Error:       []byte(testfixtures.PreemptionReason),
+	RunId:                      testfixtures.RunId,
+	Finished:                   &testfixtures.BaseTime,
+	JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
+	Error:                      []byte(testfixtures.PreemptionReason),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"requestor": testfixtures.UserId}),
+}
+
+var expectedFairSharePreemptedRun = model.UpdateJobRunInstruction{
+	RunId:                      testfixtures.RunId,
+	Finished:                   &testfixtures.BaseTime,
+	JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
+	Error:                      []byte(testfixtures.PreemptionReason),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.PreemptionReason, map[string]any{"preemptingJobId": testfixtures.PreemptingJobId, "requestor": testfixtures.UserId}),
 }
 
 var expectedCancelledRun = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunId,
-	Finished:    &testfixtures.BaseTime,
-	JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
+	RunId:                      testfixtures.RunId,
+	Finished:                   &testfixtures.BaseTime,
+	JobRunState:                pointer.Int32(lookout.JobRunCancelledOrdinal),
+	SchedulerTerminationReason: BuildTerminationReason("no reason provided", nil),
+}
+
+var expectedCancelledRunWithReason = model.UpdateJobRunInstruction{
+	RunId:                      testfixtures.RunId,
+	Finished:                   &testfixtures.BaseTime,
+	JobRunState:                pointer.Int32(lookout.JobRunCancelledOrdinal),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.CancelReason, map[string]any{"requestor": testfixtures.CancelUser}),
+}
+
+var expectedCancelledRunWithReasonOnly = model.UpdateJobRunInstruction{
+	RunId:                      testfixtures.RunId,
+	Finished:                   &testfixtures.BaseTime,
+	JobRunState:                pointer.Int32(lookout.JobRunCancelledOrdinal),
+	SchedulerTerminationReason: BuildTerminationReason(testfixtures.CancelReason, nil),
 }
 
 var standaloneIngressAddresses = map[int32]string{
@@ -208,6 +237,74 @@ var expectedStandaloneIngressRun = model.UpdateJobRunInstruction{
 	IngressAddresses: standaloneIngressAddresses,
 }
 
+func TestConvert_PodNameOfRun(t *testing.T) {
+	podResource := func(name string) []*armadaevents.KubernetesResourceInfo {
+		return []*armadaevents.KubernetesResourceInfo{{
+			ObjectMeta: &armadaevents.ObjectMeta{Name: name},
+			Info:       &armadaevents.KubernetesResourceInfo_PodInfo{PodInfo: &armadaevents.PodInfo{}},
+		}}
+	}
+	tests := map[string]struct {
+		event       *armadaevents.EventSequence_Event
+		wantPodName *string
+	}{
+		"the running event stores the pod name": {
+			event: &armadaevents.EventSequence_Event{Event: &armadaevents.EventSequence_Event_JobRunRunning{
+				JobRunRunning: &armadaevents.JobRunRunning{JobId: testfixtures.JobId, RunId: testfixtures.RunId, ResourceInfos: podResource("pod-running")},
+			}},
+			wantPodName: pointer.String("pod-running"),
+		},
+		"the succeeded event stores the pod name": {
+			event: &armadaevents.EventSequence_Event{Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
+				JobRunSucceeded: &armadaevents.JobRunSucceeded{JobId: testfixtures.JobId, RunId: testfixtures.RunId, ResourceInfos: podResource("pod-succeeded")},
+			}},
+			wantPodName: pointer.String("pod-succeeded"),
+		},
+		"the pod error stores the pod name": {
+			event: &armadaevents.EventSequence_Event{Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{JobId: testfixtures.JobId, RunId: testfixtures.RunId, Errors: []*armadaevents.Error{{
+					Terminal: true,
+					Reason: &armadaevents.Error_PodError{PodError: &armadaevents.PodError{
+						ObjectMeta: &armadaevents.ObjectMeta{Name: "pod-failed"},
+					}},
+				}}},
+			}},
+			wantPodName: pointer.String("pod-failed"),
+		},
+		"a pod error without a pod stores no pod name": {
+			event: &armadaevents.EventSequence_Event{Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{JobId: testfixtures.JobId, RunId: testfixtures.RunId, Errors: []*armadaevents.Error{{
+					Terminal: true,
+					Reason:   &armadaevents.Error_PodError{PodError: &armadaevents.PodError{ObjectMeta: &armadaevents.ObjectMeta{ExecutorId: "cluster-1"}}},
+				}}},
+			}},
+		},
+		"a resource that is not a pod stores no pod name": {
+			event: &armadaevents.EventSequence_Event{Event: &armadaevents.EventSequence_Event_JobRunAssigned{
+				JobRunAssigned: &armadaevents.JobRunAssigned{JobId: testfixtures.JobId, RunId: testfixtures.RunId, ResourceInfos: []*armadaevents.KubernetesResourceInfo{{
+					ObjectMeta: &armadaevents.ObjectMeta{Name: "an-ingress"},
+					Info:       &armadaevents.KubernetesResourceInfo_IngressInfo{IngressInfo: &armadaevents.IngressInfo{}},
+				}}},
+			}},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tc.event.Created = testfixtures.BaseTimeProto
+			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
+			events := &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(tc.event)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			}
+
+			instructions := converter.Convert(armadacontext.TODO(), events)
+
+			require.Len(t, instructions.JobRunsToUpdate, 1)
+			assert.Equal(t, tc.wantPodName, instructions.JobRunsToUpdate[0].PodName)
+		})
+	}
+}
+
 func TestConvert(t *testing.T) {
 	submit, err := testfixtures.DeepCopy(testfixtures.Submit)
 	assert.NoError(t, err)
@@ -223,9 +320,9 @@ func TestConvert(t *testing.T) {
 	}
 	submit.GetSubmitJob().GetMainObject().GetPodSpec().GetPodSpec().PriorityClassName = priorityClass
 	submit.GetSubmitJob().GetObjectMeta().Annotations = map[string]string{
-		userAnnotationPrefix + "a":        "0",
-		"b":                               "1",
-		"armadaproject.io/externalJobUri": "external-job-uri",
+		userAnnotationPrefix + "a":         "0",
+		"b":                                "1",
+		constants.ExternalJobUriAnnotation: "external-job-uri",
 	}
 	job, err := eventutil.ApiJobFromLogSubmitJob(testfixtures.UserId, []string{}, testfixtures.Queue, testfixtures.JobsetName, testfixtures.BaseTime, submit.GetSubmitJob())
 	assert.NoError(t, err)
@@ -249,16 +346,19 @@ func TestConvert(t *testing.T) {
 		JobProto:                  jobProto,
 		PriorityClass:             pointer.String(priorityClass),
 		Annotations: map[string]string{
-			"a":                               "0",
-			"b":                               "1",
-			"armadaproject.io/externalJobUri": "external-job-uri",
+			"a":                                "0",
+			"b":                                "1",
+			constants.ExternalJobUriAnnotation: "external-job-uri",
 		},
 		ExternalJobUri: "external-job-uri",
 	}
 
 	cancelledWithReason, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
 	assert.NoError(t, err)
-	cancelledWithReason.GetCancelledJob().Reason = "some reason"
+	cancelledWithReason.GetCancelledJob().Reason = testfixtures.CancelReason
+	cancelledWithoutLegacyActorField, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
+	assert.NoError(t, err)
+	cancelledWithoutLegacyActorField.GetCancelledJob().Requestor = ""
 
 	tests := map[string]struct {
 		events   *utils.EventsWithIds[*armadaevents.EventSequence]
@@ -348,6 +448,27 @@ func TestConvert(t *testing.T) {
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
+		"job cancelled without cancel user keeps actor empty": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events: []*armadaevents.EventSequence{{
+					Queue:      testfixtures.Queue,
+					JobSetName: testfixtures.JobsetName,
+					Events:     []*armadaevents.EventSequence_Event{cancelledWithoutLegacyActorField},
+					Groups:     testfixtures.Groups,
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:                     testfixtures.JobId,
+					State:                     pointer.Int32(lookout.JobCancelledOrdinal),
+					Cancelled:                 &testfixtures.BaseTime,
+					LastTransitionTime:        &testfixtures.BaseTime,
+					LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
 		"job cancelled with reason": {
 			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
 				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(cancelledWithReason)},
@@ -357,7 +478,7 @@ func TestConvert(t *testing.T) {
 				JobsToUpdate: []*model.UpdateJobInstruction{{
 					JobId:                     testfixtures.JobId,
 					State:                     pointer.Int32(lookout.JobCancelledOrdinal),
-					CancelReason:              pointer.String("some reason"),
+					CancelReason:              pointer.String(testfixtures.CancelReason),
 					CancelUser:                pointer.String(testfixtures.CancelUser),
 					Cancelled:                 &testfixtures.BaseTime,
 					LastTransitionTime:        &testfixtures.BaseTime,
@@ -376,6 +497,26 @@ func TestConvert(t *testing.T) {
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
+		"job run cancelled with reason and requestor": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunCancelledWithReason)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedCancelledRunWithReason},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run cancelled with reason only": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunCancelledWithReasonOnly)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedCancelledRunWithReasonOnly},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
 		"reprioritized": {
 			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
 				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobReprioritised)},
@@ -384,6 +525,35 @@ func TestConvert(t *testing.T) {
 			expected: &model.InstructionSet{
 				JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"reprioritized without sequence user keeps actor from event requestor": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				// Scheduler-generated sequences carry no UserId; the actor is only in the event requestor.
+				Events: []*armadaevents.EventSequence{{
+					Queue:      testfixtures.Queue,
+					JobSetName: testfixtures.JobsetName,
+					Events:     []*armadaevents.EventSequence_Event{testfixtures.JobReprioritised},
+					Groups:     testfixtures.Groups,
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
+				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job preemption requested": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobPreemptionRequested)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:       testfixtures.JobId,
+					PreemptUser: pointer.String(testfixtures.UserId),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"job run failed": {
@@ -396,13 +566,13 @@ func TestConvert(t *testing.T) {
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
-		"job run failed with failure info": {
+		"job run failed with category": {
 			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
-				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunFailedWithFailureInfo)},
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunFailedWithCategory)},
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFailedRunWithFailureInfo},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFailedRunWithCategory},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
@@ -463,7 +633,57 @@ func TestConvert(t *testing.T) {
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:       testfixtures.JobId,
+					PreemptUser: pointer.String(testfixtures.UserId),
+				}},
 				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPreemptedRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run preempted error carries failure classification": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events: []*armadaevents.EventSequence{testfixtures.NewEventSequence(&armadaevents.EventSequence_Event{
+					Created: testfixtures.BaseTimeProto,
+					Event: &armadaevents.EventSequence_Event_JobRunErrors{
+						JobRunErrors: &armadaevents.JobRunErrors{
+							JobId: testfixtures.JobId,
+							RunId: testfixtures.RunId,
+							Errors: []*armadaevents.Error{
+								{
+									Terminal:           true,
+									FailureCategory:    "preemption",
+									FailureSubcategory: "api",
+									Reason: &armadaevents.Error_JobRunPreemptedError{
+										JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+									},
+								},
+							},
+						},
+					},
+				})},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
+					RunId:              testfixtures.RunId,
+					FailureCategory:    pointer.String("preemption"),
+					FailureSubcategory: pointer.String("api"),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run preempted (fair-share)": {
+			events: &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events:     []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunPreemptedFairShare)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:       testfixtures.JobId,
+					PreemptUser: pointer.String(testfixtures.UserId),
+				}},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFairSharePreemptedRun},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
@@ -538,6 +758,55 @@ func TestConvert(t *testing.T) {
 	}
 }
 
+func TestExternalJobUriProtoFieldPreferred(t *testing.T) {
+	tests := map[string]struct {
+		protoField  string
+		annotations map[string]string
+		expected    string
+	}{
+		"Proto field takes priority over annotation": {
+			protoField: "airflow://dag/task/run/0",
+			annotations: map[string]string{
+				constants.ExternalJobUriAnnotation: "old-value",
+			},
+			expected: "airflow://dag/task/run/0",
+		},
+		"Falls back to annotation when proto field empty": {
+			protoField: "",
+			annotations: map[string]string{
+				constants.ExternalJobUriAnnotation: "airflow://dag/task/run/0",
+			},
+			expected: "airflow://dag/task/run/0",
+		},
+		"Empty when neither set": {
+			protoField:  "",
+			annotations: map[string]string{},
+			expected:    "",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			submit, err := testfixtures.DeepCopy(testfixtures.Submit)
+			require.NoError(t, err)
+			submit.GetSubmitJob().ExternalJobUri = tc.protoField
+			submit.GetSubmitJob().GetObjectMeta().Annotations = tc.annotations
+
+			events := &utils.EventsWithIds[*armadaevents.EventSequence]{
+				Events: []*armadaevents.EventSequence{
+					testfixtures.NewEventSequence(submit),
+				},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			}
+
+			converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
+			instructionSet := converter.Convert(armadacontext.TODO(), events)
+			require.Len(t, instructionSet.JobsToCreate, 1)
+			assert.Equal(t, tc.expected, instructionSet.JobsToCreate[0].ExternalJobUri)
+		})
+	}
+}
+
 func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 	longString := strings.Repeat("x", 4000)
 
@@ -545,7 +814,7 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 	assert.NoError(t, err)
 	submit.GetSubmitJob().GetMainObject().GetPodSpec().GetPodSpec().PriorityClassName = longString
 	submit.GetSubmitJob().GetObjectMeta().Annotations = map[string]string{
-		"armadaproject.io/externalJobUri": longString,
+		constants.ExternalJobUriAnnotation: longString,
 	}
 
 	leased, err := testfixtures.DeepCopy(testfixtures.Leased)
@@ -591,6 +860,64 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 	assert.Len(t, *actual.JobRunsToUpdate[1].Node, 512)
 }
 
+func TestHandleJobRunTerminatedDebugInfo_PersistsOnlyDebug(t *testing.T) {
+	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
+
+	event := &armadaevents.JobRunTerminatedDebugInfo{
+		JobId:        testfixtures.JobId,
+		RunId:        testfixtures.RunId,
+		DebugMessage: testfixtures.DebugMsg,
+	}
+
+	update := &model.InstructionSet{}
+	err := converter.handleJobRunTerminatedDebugInfo(event, update)
+	require.NoError(t, err)
+
+	require.Len(t, update.JobRunsToUpdate, 1)
+	got := update.JobRunsToUpdate[0]
+	assert.Equal(t, testfixtures.RunId, got.RunId)
+	assert.Equal(t, []byte(testfixtures.DebugMsg), got.Debug)
+	// JobRunTerminatedDebugInfo is purely diagnostic - it must not change the run's state; the
+	// JobRunCancelled event owns the state and Lookout coalesces the two updates.
+	assert.Nil(t, got.JobRunState, "debug info must not set run state")
+	assert.Nil(t, got.Finished, "debug info must not mark the run finished")
+	assert.Nil(t, got.Error, "debug info must not set error text")
+	assert.Nil(t, got.ExitCode)
+	assert.Nil(t, got.Node)
+}
+
+func TestHandleJobRunErrors_TerminalPodError_SetsFailedState(t *testing.T) {
+	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
+
+	event := &armadaevents.JobRunErrors{
+		JobId: testfixtures.JobId,
+		RunId: testfixtures.RunId,
+		Errors: []*armadaevents.Error{
+			{
+				Terminal: true,
+				Reason: &armadaevents.Error_PodError{
+					PodError: &armadaevents.PodError{
+						Message:      testfixtures.ErrMsg,
+						DebugMessage: testfixtures.DebugMsg,
+					},
+				},
+			},
+		},
+	}
+
+	update := &model.InstructionSet{}
+	err := converter.handleJobRunErrors(testfixtures.BaseTime, event, update)
+	require.NoError(t, err)
+
+	require.Len(t, update.JobRunsToUpdate, 1)
+	got := update.JobRunsToUpdate[0]
+	require.NotNil(t, got.JobRunState)
+	assert.Equal(t, lookout.JobRunFailedOrdinal, int(*got.JobRunState))
+	assert.Equal(t, []byte(testfixtures.DebugMsg), got.Debug)
+	assert.Equal(t, []byte(testfixtures.ErrMsg), got.Error)
+	assert.NotNil(t, got.Finished)
+}
+
 func TestExtractNodeName(t *testing.T) {
 	podError := armadaevents.PodError{}
 	assert.Nil(t, extractNodeName(&podError))
@@ -600,26 +927,238 @@ func TestExtractNodeName(t *testing.T) {
 
 func TestExtractUserAnnotations_NoPrefixNoBlocklist_SomeAnnotations(t *testing.T) {
 	annotations := map[string]string{"a": "1", "b": "2"}
-	result := extractUserAnnotations("", map[string]struct{}{}, annotations)
+	result := extractUserAnnotations("test-job", "", map[string]struct{}{}, annotations)
 	assert.Equal(t, annotations, result)
 }
 
 func TestExtractUserAnnotations_NoPrefixNoBlocklist_EmptyAnnotations(t *testing.T) {
-	result := extractUserAnnotations("", map[string]struct{}{}, map[string]string{})
+	result := extractUserAnnotations("test-job", "", map[string]struct{}{}, map[string]string{})
 	assert.Empty(t, result)
 }
 
 func TestExtractUserAnnotations_PrefixTrimming(t *testing.T) {
 	annotations := map[string]string{"prefix/key": "value", "other": "v2"}
 	expected := map[string]string{"key": "value", "other": "v2"}
-	result := extractUserAnnotations("prefix/", map[string]struct{}{}, annotations)
+	result := extractUserAnnotations("test-job", "prefix/", map[string]struct{}{}, annotations)
 	assert.Equal(t, expected, result)
 }
 
 func TestExtractUserAnnotations_Blocklist(t *testing.T) {
 	annotations := map[string]string{"Block": "v1", "block": "v2", "keep": "v3"}
 	blocklist := map[string]struct{}{"block": {}}
-	result := extractUserAnnotations("", blocklist, annotations)
+	result := extractUserAnnotations("test-job", "", blocklist, annotations)
 	expected := map[string]string{"keep": "v3"}
 	assert.Equal(t, expected, result)
+}
+
+func TestExtractUserAnnotations_SanitizesNullBytes(t *testing.T) {
+	annotations := map[string]string{
+		"clean":            "no nulls here",
+		"dirty\x00key":     "value",
+		"key":              "dirty\x00value",
+		"both\x00k":        "both\x00v",
+		"\x00\x00multiple": "\x00",
+	}
+	result := extractUserAnnotations("test-job", "", map[string]struct{}{}, annotations)
+	expected := map[string]string{
+		"clean":    "no nulls here",
+		"dirtykey": "value",
+		"key":      "dirtyvalue",
+		"bothk":    "bothv",
+		"multiple": "",
+	}
+	assert.Equal(t, expected, result)
+}
+
+func TestSanitizeForJsonb(t *testing.T) {
+	assert.Equal(t, "hello", sanitizeForJsonb("hello"))
+	assert.Equal(t, "ab", sanitizeForJsonb("a\x00b"))
+	assert.Equal(t, "", sanitizeForJsonb("\x00"))
+	assert.Equal(t, "", sanitizeForJsonb(""))
+}
+
+// TestBuildTerminationReason_WireFormat pins the exact JSON shape written to the
+// scheduler_termination_reason column. This is a contract test: if the output
+// format changes, this test breaks and the author knows they are changing the
+// wire format stored in the database.
+//
+//	Preemption (no preempting job):  {"reason": "..."}
+//	Preemption (fair-share):         {"args": {"preemptingJobId": "..."}, "reason": "..."}
+//	Cancellation (reason+requestor): {"args": {"requestor": "..."}, "reason": "..."}
+//	Cancellation (reason only):      {"reason": "..."}
+func TestBuildTerminationReason_WireFormat(t *testing.T) {
+	tests := []struct {
+		name         string
+		reason       string
+		args         map[string]any
+		expectedJSON string
+	}{
+		{
+			name:         "preemption without preempting run",
+			reason:       testfixtures.PreemptionReason,
+			args:         nil,
+			expectedJSON: `{"reason":"` + testfixtures.PreemptionReason + `"}`,
+		},
+		{
+			name:         "preemption with preempting job (fair-share)",
+			reason:       testfixtures.PreemptionReason,
+			args:         map[string]any{"preemptingJobId": testfixtures.PreemptingJobId},
+			expectedJSON: `{"args":{"preemptingJobId":"` + testfixtures.PreemptingJobId + `"},"reason":"` + testfixtures.PreemptionReason + `"}`,
+		},
+		{
+			name:         "cancellation with reason and requestor",
+			reason:       testfixtures.CancelReason,
+			args:         map[string]any{"requestor": testfixtures.CancelUser},
+			expectedJSON: `{"args":{"requestor":"` + testfixtures.CancelUser + `"},"reason":"` + testfixtures.CancelReason + `"}`,
+		},
+		{
+			name:         "cancellation with reason only",
+			reason:       testfixtures.CancelReason,
+			args:         nil,
+			expectedJSON: `{"reason":"` + testfixtures.CancelReason + `"}`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := BuildTerminationReason(tc.reason, tc.args)
+			b, err := json.Marshal(result)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedJSON, string(b))
+		})
+	}
+}
+
+func TestGetJobResources(t *testing.T) {
+	requests := func(cpu, memory string) v1.ResourceRequirements {
+		return v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				v1.ResourceCPU:    resource.MustParse(cpu),
+				v1.ResourceMemory: resource.MustParse(memory),
+			},
+		}
+	}
+	alwaysRestart := v1.ContainerRestartPolicyAlways
+
+	tests := map[string]struct {
+		podSpec  *v1.PodSpec
+		expected jobResources
+	}{
+		"main containers are summed": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{Name: "a", Resources: requests("1", "1Gi")},
+					{Name: "b", Resources: requests("2", "2Gi")},
+				},
+			},
+			expected: jobResources{Cpu: 3000, Memory: 3 * 1024 * 1024 * 1024},
+		},
+		"native sidecar is summed with main containers": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main", Resources: requests("15", "1Gi")}},
+				InitContainers: []v1.Container{{
+					Name:          "solver",
+					RestartPolicy: &alwaysRestart,
+					Resources:     requests("14900m", "1Gi"),
+				}},
+			},
+			expected: jobResources{Cpu: 29900, Memory: 2 * 1024 * 1024 * 1024},
+		},
+		"classic init container uses max, not sum": {
+			podSpec: &v1.PodSpec{
+				Containers:     []v1.Container{{Name: "main", Resources: requests("1", "1Gi")}},
+				InitContainers: []v1.Container{{Name: "setup", Resources: requests("4", "4Gi")}},
+			},
+			expected: jobResources{Cpu: 4000, Memory: 4 * 1024 * 1024 * 1024},
+		},
+		"pod-level block above the container sum wins": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main", Resources: requests("500m", "256Mi")}},
+				Resources:  &v1.ResourceRequirements{Requests: requests("2", "2Gi").Requests},
+			},
+			expected: jobResources{Cpu: 2000, Memory: 2 * 1024 * 1024 * 1024},
+		},
+		"pod-level block below the container sum is ignored": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main", Resources: requests("2", "2Gi")}},
+				Resources:  &v1.ResourceRequirements{Requests: requests("500m", "256Mi").Requests},
+			},
+			expected: jobResources{Cpu: 2000, Memory: 2 * 1024 * 1024 * 1024},
+		},
+		"ephemeral storage and gpu are container-only": {
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{Name: "main", Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						v1.ResourceEphemeralStorage: resource.MustParse("3Gi"),
+						"nvidia.com/gpu":            resource.MustParse("8"),
+					},
+				}}},
+			},
+			expected: jobResources{EphemeralStorage: 3 * 1024 * 1024 * 1024, Gpu: 8},
+		},
+		"no resources declared": {
+			podSpec:  &v1.PodSpec{Containers: []v1.Container{{Name: "main"}}},
+			expected: jobResources{},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, getJobResources(&api.Job{PodSpec: tc.podSpec}))
+		})
+	}
+}
+
+func TestHandleJobRunRunning_StartUpInfoStoredAsJson(t *testing.T) {
+	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
+	event := &armadaevents.JobRunRunning{
+		JobId: testfixtures.JobId,
+		RunId: testfixtures.RunId,
+		StartUpInfo: &armadaevents.PodStartUpInfo{
+			CreatedAt: protoutil.ToTimestamp(testfixtures.BaseTime),
+			StartedAt: protoutil.ToTimestamp(testfixtures.BaseTime.Add(time.Minute)),
+			Containers: []*armadaevents.ContainerStartUpInfo{
+				{
+					Name:      "main",
+					ImagePull: &armadaevents.ImagePullInfo{Duration: types.DurationProto(1500 * time.Millisecond)},
+				},
+			},
+		},
+	}
+
+	update := &model.InstructionSet{}
+	err := converter.handleJobRunRunning(testfixtures.BaseTime, event, update)
+	require.NoError(t, err)
+
+	require.Len(t, update.JobRunInfosToCreate, 1)
+	got := update.JobRunInfosToCreate[0]
+	assert.Equal(t, testfixtures.RunId, got.RunId)
+	assert.JSONEq(t, `{
+		"createdAt": "2022-03-01T15:04:05Z",
+		"startedAt": "2022-03-01T15:05:05Z",
+		"containers": [{"name": "main", "imagePull": {"duration": "1.500s"}}]
+	}`, string(got.StartUpInfo))
+}
+
+func TestHandleJobRunRunning_StartUpInfoSanitizesStringsJsonbWouldReject(t *testing.T) {
+	converter := NewInstructionConverter(metrics.Get().Metrics, userAnnotationPrefix, []string{}, &compress.NoOpCompressor{})
+	event := &armadaevents.JobRunRunning{
+		JobId: testfixtures.JobId,
+		RunId: testfixtures.RunId,
+		StartUpInfo: &armadaevents.PodStartUpInfo{
+			Containers: []*armadaevents.ContainerStartUpInfo{{Name: "ma\x00in"}},
+			ExtraSteps: []*armadaevents.StartUpStep{{Name: "bad-\xff-utf8\x00"}},
+		},
+	}
+
+	update := &model.InstructionSet{}
+	err := converter.handleJobRunRunning(testfixtures.BaseTime, event, update)
+	require.NoError(t, err)
+
+	require.Len(t, update.JobRunInfosToCreate, 1)
+	got := update.JobRunInfosToCreate[0].StartUpInfo
+	assert.NotContains(t, string(got), `\u0000`)
+	assert.True(t, utf8.Valid(got))
+	assert.JSONEq(t, `{
+		"containers": [{"name": "main"}],
+		"extraSteps": [{"name": "bad-\ufffd-utf8"}]
+	}`, string(got))
 }

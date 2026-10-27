@@ -36,6 +36,11 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 		ExpectedBillableResource map[string]internaltypes.ResourceList
 		// The expected spot price that should be set on the scheduling context
 		ExpectedSpotPrice float64
+		// For each queue, expected billable price override (second-price mechanics)
+		ExpectedBillablePriceOverride map[string]*float64
+		// When set, asserts exactly one queue has a non-nil override with this value.
+		// Use when the price-setting queue is non-deterministic (e.g. round-robin tie-breaking).
+		ExpectedExactlyOneOverrideWithValue *float64
 	}
 	type SchedulingRound struct {
 		// Map from queue name to pod requirements for that queue.
@@ -126,15 +131,9 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(
-							testfixtures.N1Cpu4GiJobsWithPriceBand("A", bidstore.PriceBand_PRICE_BAND_A, 21),
-						),
-						"B": append(
-							testfixtures.N1Cpu4GiJobsWithPriceBand("B", bidstore.PriceBand_PRICE_BAND_A, 21),
-						),
-						"C": append(
-							testfixtures.N1Cpu4GiJobsWithPriceBand("C", bidstore.PriceBand_PRICE_BAND_A, 21),
-						),
+						"A": testfixtures.N1Cpu4GiJobsWithPriceBand("A", bidstore.PriceBand_PRICE_BAND_A, 21),
+						"B": testfixtures.N1Cpu4GiJobsWithPriceBand("B", bidstore.PriceBand_PRICE_BAND_A, 21),
+						"C": testfixtures.N1Cpu4GiJobsWithPriceBand("C", bidstore.PriceBand_PRICE_BAND_A, 21),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 10),
@@ -385,7 +384,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					// Schedule a gang filling the remaining space on both node
-					// Queue A is preeempted despite having a higher price, because the jobs are scheduled as away jobs
+					// Queue A is preempted despite having a higher price, because the jobs are scheduled as away jobs
 					JobsByQueue: map[string][]*jobdb.Job{
 						"B": testfixtures.N1GpuJobsWithPriceBandAndPriorityClass("B", bidstore.PriceBand_PRICE_BAND_A, testfixtures.PriorityClass6Preemptible, 16),
 					},
@@ -554,6 +553,89 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 			},
 			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
 		},
+		"second price - price setter gets override from different queue": {
+			SchedulingConfig: testfixtures.WithMarketBasedSchedulingEnabled(testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					// C (price 3) fills most, B (price 2) sets the spot price at the 90% cutoff.
+					// A (price 1) is below the cutoff. Second price for B should be 1 (from A).
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobsWithPriceBand("A", bidstore.PriceBand_PRICE_BAND_A, 10),
+						"B": testfixtures.N1Cpu4GiJobsWithPriceBand("B", bidstore.PriceBand_PRICE_BAND_B, 10),
+						"C": testfixtures.N1Cpu4GiJobsWithPriceBand("C", bidstore.PriceBand_PRICE_BAND_C, 20),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 1),
+						"B": testfixtures.IntRange(0, 9),
+						"C": testfixtures.IntRange(0, 19),
+					},
+					ExpectedMarketData: &MarketData{
+						ExpectedSpotPrice: 2,
+						ExpectedBillableResource: map[string]internaltypes.ResourceList{
+							"A": testfixtures.TestResourceListFactory.MakeAllZero(),
+							"B": testfixtures.CpuMem("9", "36Gi"),
+							"C": testfixtures.CpuMem("20", "80Gi"),
+						},
+						ExpectedBillablePriceOverride: map[string]*float64{
+							// B is the price setter; second price comes from A (price 1)
+							"B": floatPtr(1),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1, "C": 1},
+		},
+		"second price - single queue in market gets no override": {
+			SchedulingConfig: testfixtures.WithMarketBasedSchedulingEnabled(testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobsWithPriceBand("A", bidstore.PriceBand_PRICE_BAND_B, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 31),
+					},
+					ExpectedMarketData: &MarketData{
+						ExpectedSpotPrice: 2,
+						ExpectedBillableResource: map[string]internaltypes.ResourceList{
+							"A": testfixtures.CpuMem("29", "116Gi"),
+						},
+						ExpectedBillablePriceOverride: map[string]*float64{
+							// A is the only queue — no competing bid, second price is 0
+							"A": floatPtr(0),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1},
+		},
+		"second price - multiple queues at same price": {
+			SchedulingConfig: testfixtures.WithMarketBasedSchedulingEnabled(testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					// All queues bid the same price (band A = 1). The price setter
+					// should get a second price from a different queue at the same price.
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobsWithPriceBand("A", bidstore.PriceBand_PRICE_BAND_A, 21),
+						"B": testfixtures.N1Cpu4GiJobsWithPriceBand("B", bidstore.PriceBand_PRICE_BAND_A, 21),
+						"C": testfixtures.N1Cpu4GiJobsWithPriceBand("C", bidstore.PriceBand_PRICE_BAND_A, 21),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 10),
+						"B": testfixtures.IntRange(0, 10),
+						"C": testfixtures.IntRange(0, 9),
+					},
+					ExpectedMarketData: &MarketData{
+						ExpectedSpotPrice:                   1,
+						ExpectedExactlyOneOverrideWithValue: floatPtr(1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1, "C": 1},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -640,6 +722,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					testfixtures.TestPool,
 					fairnessCostProvider,
 					limiter,
+					nil,
 					totalResources,
 				)
 				sctx.Started = schedulingStarted.Add(time.Duration(i) * schedulingInterval)
@@ -786,6 +869,22 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 						assert.True(t, exists, fmt.Sprintf("queue context for %s expected to exist as it has an expected billable resource set", queue))
 						assert.Equal(t, expectedBillableResource, qctx.GetBillableResource())
 					}
+					for queue, expectedOverride := range round.ExpectedMarketData.ExpectedBillablePriceOverride {
+						qctx, exists := sctx.QueueSchedulingContexts[queue]
+						assert.True(t, exists, fmt.Sprintf("queue context for %s expected to exist as it has an expected billable price override", queue))
+						assert.Equal(t, expectedOverride, qctx.GetBillablePriceOverride(), "billable price override for queue %s", queue)
+					}
+					if round.ExpectedMarketData.ExpectedExactlyOneOverrideWithValue != nil {
+						overrideCount := 0
+						for queue, qctx := range sctx.QueueSchedulingContexts {
+							if override := qctx.GetBillablePriceOverride(); override != nil {
+								overrideCount++
+								assert.Equal(t, *round.ExpectedMarketData.ExpectedExactlyOneOverrideWithValue, *override,
+									"billable price override value for queue %s", queue)
+							}
+						}
+						assert.Equal(t, 1, overrideCount, "expected exactly one queue to have a billable price override")
+					}
 				}
 
 				// We expect there to be no oversubscribed nodes.
@@ -793,7 +892,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 				require.NoError(t, err)
 				for node := it.NextNode(); node != nil; node = it.NextNode() {
 					for _, p := range priorities {
-						for _, r := range node.AllocatableByPriority[p].GetAll() {
+						for _, r := range node.AllocatableAtPriority(p).GetAll() {
 							assert.False(t, r.IsNegative(), "resource oversubscribed by %s on node %s", r.String(), node.GetId())
 						}
 					}
@@ -860,4 +959,8 @@ func makeIntArray(maxValue int) []int {
 		result = append(result, i)
 	}
 	return result
+}
+
+func floatPtr(f float64) *float64 {
+	return &f
 }

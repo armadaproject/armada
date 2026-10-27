@@ -8,6 +8,21 @@ application:
   deleteConcurrencyLimit: 2
   jobLeaseRequestTimeout: "30s"
   maxLeasedJobs: 100
+  errorCategories:
+    enabled: true
+    defaultCategory: unknown
+    defaultSubcategory: unknown
+  debugEvents:
+    enabled: false
+    minAppContainerRuntimeForFailureDebug: 60s
+    pod:
+      maxEvents: 10
+    node:
+      maxEvents: 10
+      labels:
+        - armadaproject.io/pool
+        - armadaproject.io/node-type
+      annotations: []
 task:
   utilisationReportingInterval: 1s
   missingJobEventReconciliationInterval: 15s
@@ -60,6 +75,7 @@ kubernetes:
   pendingPodChecks:
     deadlineForUpdates: 5m
     deadlineForNodeAssignment: 5m
+    deadlineForInitContainers: 5m
     events:
       - regexp: "Failed to pull image.* failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.
         type: Warning

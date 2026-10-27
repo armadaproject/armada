@@ -46,6 +46,8 @@ type Job struct {
 	Submitted          time.Time
 	CancelReason       *string
 	CancelUser         *string
+	PreemptUser        *string
+	ReprioritizeUser   *string
 	Node               *string
 	Cluster            string
 	Pool               *string
@@ -90,18 +92,20 @@ func (t *PostgreSQLTime) UnmarshalJSON(b []byte) error {
 }
 
 type Run struct {
-	Cluster          string
-	ExitCode         *int32
-	Finished         *PostgreSQLTime
-	JobRunState      int
-	Node             *string
-	Leased           *PostgreSQLTime
-	Pending          *PostgreSQLTime
-	Pool             *string
-	RunId            string
-	Started          *PostgreSQLTime
-	IngressAddresses map[int32]string
-	FailureInfo      map[string]any
+	Cluster            string
+	ExitCode           *int32
+	Finished           *PostgreSQLTime
+	JobRunState        int
+	Node               *string
+	PodName            *string
+	Leased             *PostgreSQLTime
+	Pending            *PostgreSQLTime
+	Pool               *string
+	RunId              string
+	Started            *PostgreSQLTime
+	IngressAddresses   map[int32]string
+	FailureCategory    string
+	FailureSubcategory string
 }
 
 type JobGroup struct {

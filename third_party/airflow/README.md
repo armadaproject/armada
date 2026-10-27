@@ -127,9 +127,9 @@ For documentation by example, see [hello_armada.py](./examples/hello_armada.py) 
 The operator is available on [PyPi](https://pypi.org/project/armada-airflow/)
 
 ```
-python3.8 -m venv armada38
-source armada38/bin/activate
-python3.8 -m pip install armada-airflow
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install armada-airflow
 ```
 
 ## Development

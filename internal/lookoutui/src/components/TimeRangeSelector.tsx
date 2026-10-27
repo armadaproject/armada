@@ -153,8 +153,8 @@ export const TimeRangeSelector = ({ value: { startIsoString, endIsoString }, onC
   })()
 
   const nowDayjs = dayjs.tz(new Date(), timezone)
-  const startDateDayJs = dayjs.tz(startDate, timezone)
-  const endDateDayJs = dayjs.tz(endDate, timezone)
+  const startDateDayJs = startDate ? dayjs.tz(startDate, timezone) : undefined
+  const endDateDayJs = endDate ? dayjs.tz(endDate, timezone) : undefined
 
   return (
     <>
@@ -187,11 +187,11 @@ export const TimeRangeSelector = ({ value: { startIsoString, endIsoString }, onC
                     actionBar: { actions: ["cancel", "clear", "accept"] },
                     textField: { size: "small", margin: "dense", fullWidth: true },
                   }}
-                  defaultValue={startDate ? startDateDayJs : undefined}
+                  defaultValue={startDateDayJs}
                   onAccept={(value: Dayjs | null) =>
-                    onChange({ startIsoString: value?.toISOString() ?? null, endIsoString })
+                    onChange({ startIsoString: value?.isValid() ? value.toISOString() : null, endIsoString })
                   }
-                  maxDateTime={endDate ? endDateDayJs : nowDayjs}
+                  maxDateTime={endDateDayJs ?? nowDayjs}
                 />
               </div>
               <div>
@@ -204,11 +204,11 @@ export const TimeRangeSelector = ({ value: { startIsoString, endIsoString }, onC
                     actionBar: { actions: ["cancel", "today", "clear", "accept"] },
                     textField: { size: "small", margin: "dense", fullWidth: true },
                   }}
-                  defaultValue={endDate ? endDateDayJs : undefined}
+                  defaultValue={endDateDayJs}
                   onAccept={(value: Dayjs | null) =>
-                    onChange({ startIsoString, endIsoString: value?.toISOString() ?? null })
+                    onChange({ startIsoString, endIsoString: value?.isValid() ? value.toISOString() : null })
                   }
-                  minDateTime={startDate ? startDateDayJs : undefined}
+                  minDateTime={startDateDayJs}
                   maxDateTime={nowDayjs}
                 />
               </div>

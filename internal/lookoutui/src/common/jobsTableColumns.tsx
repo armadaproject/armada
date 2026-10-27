@@ -70,7 +70,8 @@ export enum StandardColumnId {
   Pool = "pool",
   ExitCode = "exitCode",
   RuntimeSeconds = "runtimeSeconds",
-  ErrorCategories = "errorCategories",
+  FailureCategory = "failureCategory",
+  FailureSubcategory = "failureSubcategory",
 }
 
 export type LookoutColumnOrder = {
@@ -97,33 +98,26 @@ export const isStandardColId = (columnId: string): columnId is StandardColumnId 
 export const getColumnMetadata = (column: JobTableColumn) => (column.meta ?? {}) as JobTableColumnMetadata
 
 // Some standard columns may only be filtered on if there are active filters on other columns.
-// PREREQUISITE_FILTER_COLUMNS defines these relationships.
-export const PREREQUISITE_FILTER_COLUMNS: Record<StandardColumnId, StandardColumnId[]> = {
+// PREREQUISITE_FILTER_COLUMNS defines these relationships. Columns absent from this record have no
+// prerequisites.
+export const PREREQUISITE_FILTER_COLUMNS: Partial<Record<StandardColumnId, StandardColumnId[]>> = {
   [StandardColumnId.JobSet]: [StandardColumnId.Queue],
-  [StandardColumnId.JobID]: [],
-  [StandardColumnId.Queue]: [],
-  [StandardColumnId.State]: [],
-  [StandardColumnId.Priority]: [],
-  [StandardColumnId.Owner]: [],
   [StandardColumnId.Namespace]: [StandardColumnId.Queue],
-  [StandardColumnId.CPU]: [],
-  [StandardColumnId.Memory]: [],
-  [StandardColumnId.EphemeralStorage]: [],
-  [StandardColumnId.GPU]: [],
-  [StandardColumnId.PriorityClass]: [],
-  [StandardColumnId.TimeSubmittedUtc]: [],
-  [StandardColumnId.TimeSubmittedAgo]: [],
-  [StandardColumnId.LastTransitionTimeUtc]: [],
-  [StandardColumnId.TimeInState]: [],
-  [StandardColumnId.SelectorCol]: [],
-  [StandardColumnId.Count]: [],
-  [StandardColumnId.Node]: [],
-  [StandardColumnId.Cluster]: [],
-  [StandardColumnId.Pool]: [],
-  [StandardColumnId.ExitCode]: [],
-  [StandardColumnId.RuntimeSeconds]: [],
-  [StandardColumnId.ErrorCategories]: [],
 }
+
+// Some standard columns may only be grouped by if other columns are also grouped by. This is kept
+// separate from PREREQUISITE_FILTER_COLUMNS so that the filtering and grouping relationships may
+// diverge.
+export const PREREQUISITE_GROUPING_COLUMNS: Partial<Record<StandardColumnId, StandardColumnId[]>> = {
+  [StandardColumnId.JobSet]: [StandardColumnId.Queue],
+  [StandardColumnId.Namespace]: [StandardColumnId.Queue],
+}
+
+export const prerequisiteFilterColumns = (columnId: string): StandardColumnId[] =>
+  (isStandardColId(columnId) ? PREREQUISITE_FILTER_COLUMNS[columnId] : undefined) ?? []
+
+export const prerequisiteGroupingColumns = (columnId: string): StandardColumnId[] =>
+  (isStandardColId(columnId) ? PREREQUISITE_GROUPING_COLUMNS[columnId] : undefined) ?? []
 
 export const STANDARD_COLUMN_DISPLAY_NAMES: Record<StandardColumnId, string> = {
   [StandardColumnId.JobID]: "Job ID",
@@ -149,7 +143,8 @@ export const STANDARD_COLUMN_DISPLAY_NAMES: Record<StandardColumnId, string> = {
   [StandardColumnId.Pool]: "Pool",
   [StandardColumnId.ExitCode]: "Exit Code",
   [StandardColumnId.RuntimeSeconds]: "Runtime",
-  [StandardColumnId.ErrorCategories]: "Error Categories",
+  [StandardColumnId.FailureCategory]: "Failure Category",
+  [StandardColumnId.FailureSubcategory]: "Failure Subcategory",
 }
 
 const columnHelper = createColumnHelper<JobTableRow>()
@@ -190,7 +185,8 @@ export interface JobColumnsOptions {
   formatNumber: (n: number) => string
 }
 
-export const getLastRunCategories = (row: JobTableRow): string[] => row.runs?.at(-1)?.failureInfo?.categories ?? []
+export const getLastRunFailureCategory = (row: JobTableRow): string => row.runs?.at(-1)?.failureCategory ?? ""
+export const getLastRunFailureSubcategory = (row: JobTableRow): string => row.runs?.at(-1)?.failureSubcategory ?? ""
 
 // Columns will appear in this order by default
 export const GET_JOB_COLUMNS = ({
@@ -578,12 +574,18 @@ export const GET_JOB_COLUMNS = ({
     },
   }),
   accessorColumn({
-    id: StandardColumnId.ErrorCategories,
-    accessor: (jobTableRow) => {
-      const cats = getLastRunCategories(jobTableRow)
-      return cats.length === 0 ? "" : cats.join(", ")
+    id: StandardColumnId.FailureCategory,
+    accessor: (jobTableRow) => getLastRunFailureCategory(jobTableRow),
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.FailureCategory],
+    additionalOptions: {
+      size: 200,
+      enableColumnFilter: false,
     },
-    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.ErrorCategories],
+  }),
+  accessorColumn({
+    id: StandardColumnId.FailureSubcategory,
+    accessor: (jobTableRow) => getLastRunFailureSubcategory(jobTableRow),
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.FailureSubcategory],
     additionalOptions: {
       size: 200,
       enableColumnFilter: false,

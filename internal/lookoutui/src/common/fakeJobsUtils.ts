@@ -53,7 +53,7 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
 
   const jobs: Job[] = []
   for (let i = 0; i < nJobs; i++) {
-    const jobId = "01gkv9cj53h0rk9407mds" + i
+    const jobId = "01gkv9cj53h0rk9407mds" + i.toString().padStart(5, "0")
     const runs = createJobRuns(randomInt(0, 3, rand), jobId, rand, uuid)
 
     jobs.push({
@@ -89,8 +89,10 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
   for (let i = 0; i < n; i++) {
     const runState = randomProperty(JobRunState, rand)
     let node = undefined
+    let podName = undefined
     if (runState !== JobRunState.RunPending && runState !== JobRunState.RunLeased) {
       node = uuid()
+      podName = `armada-${jobId}-0`
     }
 
     const startedDateSeconds = 14 + 117 * i
@@ -106,6 +108,7 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
       jobId: jobId,
       jobRunState: runState,
       node: node,
+      podName,
       started,
       leased,
       pending,
@@ -244,6 +247,37 @@ export function makeManyTestJobs(numJobs: number, numFinishedJobs: number): Job[
     jobs.push(makeTestJob(`queue-0`, `job-set-${i}`, `job-id-${i}`, state))
   }
   return jobs
+}
+
+export function makeFakeJobSpec(jobId: string): Record<string, any> {
+  return {
+    id: jobId,
+    // eslint-disable-next-line @cspell/spellchecker
+    clientId: "01gvgjbr0jrzvschp2f8jhk6n5",
+    jobSetId: "demo-project-0",
+    queue: "demo",
+    namespace: "default",
+    owner: "anonymous",
+    podSpec: {
+      containers: [
+        {
+          name: "cpu-burner",
+          image: "alpine-stress:latest",
+          command: ["sh"],
+          args: ["-c", "echo STARTED && sleep 60"],
+          resources: {
+            limits: { cpu: "200m", "ephemeral-storage": "8Gi", memory: "128Mi", "nvidia.com/gpu": "8" },
+            requests: { cpu: "200m", "ephemeral-storage": "8Gi", memory: "128Mi", "nvidia.com/gpu": "8" },
+          },
+          imagePullPolicy: "IfNotPresent",
+        },
+      ],
+      restartPolicy: "Never",
+      terminationGracePeriodSeconds: 1,
+      priorityClassName: "armada-default",
+    },
+    created: "2023-03-14T17:23:21.29874Z",
+  }
 }
 
 export function getActiveJobSets(jobs: Job[]): Record<string, string[]> {

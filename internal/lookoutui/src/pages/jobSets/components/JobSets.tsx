@@ -6,7 +6,7 @@ import { RequestStatus } from "../../../common/utils"
 import { AlertErrorFallback } from "../../../components/AlertErrorFallback"
 import AutoRefreshToggle from "../../../components/AutoRefreshToggle"
 import RefreshButton from "../../../components/RefreshButton"
-import { JobSet, JobSetsOrderByColumn } from "../../../services/JobService"
+import { JobSet, JobSetsOrderByColumn } from "../../../models/lookoutModels"
 
 import JobSetTable from "./JobSetTable"
 import "./JobSets.css"

@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -18,12 +19,14 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/pricing"
 	"github.com/armadaproject/armada/pkg/bidstore"
 )
 
 func NewTestJobDb() *JobDb {
-	return NewJobDb(
+	jobDb := NewJobDb(
 		map[string]types.PriorityClass{
 			"foo": {},
 			"bar": {},
@@ -32,6 +35,8 @@ func NewTestJobDb() *JobDb {
 		stringinterner.New(1024),
 		testResourceListFactory,
 	)
+	jobDb.SetAggregateEnabled(true)
+	return jobDb
 }
 
 func TestJobDb_TestUpsert(t *testing.T) {
@@ -57,7 +62,7 @@ func TestJobDb_TestUpsert(t *testing.T) {
 	assert.Equal(t, job1Updated, retrieved)
 
 	// Can't insert with read only transaction
-	err = (jobDb.ReadTxn()).Upsert([]*Job{job1})
+	err = jobDb.ReadTxn().Upsert([]*Job{job1})
 	require.Error(t, err)
 }
 
@@ -72,6 +77,76 @@ func TestJobDb_TestGetById(t *testing.T) {
 	assert.Equal(t, job1, txn.GetById(job1.Id()))
 	assert.Equal(t, job2, txn.GetById(job2.Id()))
 	assert.Nil(t, txn.GetById(util.NewULID()))
+}
+
+func TestJobDb_TestGetLeased(t *testing.T) {
+	jobDb := NewTestJobDb()
+	job1 := newJob().WithQueued(false).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	job2 := newJob().WithQueued(true)
+	job3 := newJob().WithQueued(false).WithSucceeded(true)
+	job4 := newJob().WithQueued(false).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	txn := jobDb.WriteTxn()
+
+	err := txn.Upsert([]*Job{job1, job2, job3, job4})
+	require.NoError(t, err)
+
+	expected := []*Job{job1, job4}
+	actual := txn.GetAllLeasedJobs()
+	sort.SliceStable(actual, func(i, j int) bool { return actual[i].id < actual[j].id })
+	sort.SliceStable(expected, func(i, j int) bool { return expected[i].id < expected[j].id })
+	assert.Equal(t, expected, actual)
+}
+
+func TestJobDb_LeasedJobs_Lifecycle(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	upsert := func(jobDb *JobDb, job *Job) {
+		txn := jobDb.WriteTxn()
+		err := txn.Upsert([]*Job{job})
+		require.NoError(t, err)
+		txn.Commit()
+	}
+
+	job1 := newJob().WithQueued(true)
+	upsert(jobDb, job1)
+	assert.Empty(t, jobDb.ReadTxn().GetAllLeasedJobs())
+
+	// leased
+	job1 = job1.WithQueued(false).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	upsert(jobDb, job1)
+	assert.NotEmpty(t, jobDb.ReadTxn().GetAllLeasedJobs())
+
+	// requeued
+	job1 = job1.WithQueued(true)
+	upsert(jobDb, job1)
+	assert.Empty(t, jobDb.ReadTxn().GetAllLeasedJobs())
+
+	// leased
+	job1 = job1.WithQueued(false).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	upsert(jobDb, job1)
+	assert.NotEmpty(t, jobDb.ReadTxn().GetAllLeasedJobs())
+
+	// finished
+	job1 = job1.WithSucceeded(true)
+	upsert(jobDb, job1)
+	assert.Empty(t, jobDb.ReadTxn().GetAllLeasedJobs())
+}
+
+func TestJobDb_LeasedJobs_Deleted(t *testing.T) {
+	jobDb := NewTestJobDb()
+	job1 := newJob().WithQueued(false).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	txn := jobDb.WriteTxn()
+
+	err := txn.Upsert([]*Job{job1})
+	require.NoError(t, err)
+
+	expected := []*Job{job1}
+	actual := txn.GetAllLeasedJobs()
+	assert.Equal(t, expected, actual)
+
+	err = txn.BatchDelete([]string{job1.Id()})
+	require.NoError(t, err)
+	assert.Empty(t, txn.GetAllLeasedJobs())
 }
 
 func TestJobDb_TestGetUnvalidated(t *testing.T) {
@@ -161,6 +236,28 @@ func TestJobDb_TestGetByRunId(t *testing.T) {
 	err = txn.BatchDelete([]string{job1.Id()})
 	require.NoError(t, err)
 	assert.Nil(t, txn.GetByRunId(job1.LatestRun().id))
+}
+
+func TestJobDb_TestGetQueuedJobsByPool(t *testing.T) {
+	jobDb := NewTestJobDb()
+	job1 := newJob().WithQueued(true).WithPools([]string{"pool-1", "pool-2", "pool-3"})
+	job2 := newJob().WithQueued(true).WithPools([]string{"pool-1", "pool-2"})
+	job3 := newJob().WithQueued(true).WithPools([]string{"pool-1"})
+	txn := jobDb.WriteTxn()
+
+	err := txn.Upsert([]*Job{job1, job2, job3})
+	require.NoError(t, err)
+
+	assertEqual := func(expected []*Job, actual []*Job) {
+		sort.SliceStable(actual, func(i, j int) bool { return actual[i].id < actual[j].id })
+		sort.SliceStable(expected, func(i, j int) bool { return expected[i].id < expected[j].id })
+		assert.Equal(t, expected, actual)
+	}
+
+	assertEqual([]*Job{job1, job2, job3}, txn.GetQueuedJobsByPool("pool-1"))
+	assertEqual([]*Job{job1, job2}, txn.GetQueuedJobsByPool("pool-2"))
+	assertEqual([]*Job{job1}, txn.GetQueuedJobsByPool("pool-3"))
+	assertEqual([]*Job{}, txn.GetQueuedJobsByPool("pool-4"))
 }
 
 func TestJobDb_TestHasQueuedJobs(t *testing.T) {
@@ -285,6 +382,82 @@ func TestJobDb_TestTransactions(t *testing.T) {
 	assert.Error(t, txn1.Upsert([]*Job{job})) // should be error as you can't insert after committing
 }
 
+func TestDryRunTxn_LocalChangesVisible(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	// Seed the real db with one job.
+	job := newJob().WithQueued(true)
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.Upsert([]*Job{job}))
+	writeTxn.Commit()
+
+	dryRunTxn := jobDb.DryRunTxn()
+
+	// The original job should be visible in the txn.
+	assert.NotNil(t, dryRunTxn.GetById(job.Id()))
+
+	// Upsert a new job into the txn — it should be visible within the txn.
+	newSnapJob := newJob().WithQueued(true)
+	require.NoError(t, dryRunTxn.Upsert([]*Job{newSnapJob}))
+	assert.NotNil(t, dryRunTxn.GetById(newSnapJob.Id()))
+
+	// Delete the original job from the txn — it should be gone within the txn.
+	require.NoError(t, dryRunTxn.BatchDelete([]string{job.Id()}))
+	assert.Nil(t, dryRunTxn.GetById(job.Id()))
+}
+
+func TestDryRunTxn_CommitDoesNotModifyDb(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	// Seed the real db with one job.
+	job := newJob().WithQueued(true)
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.Upsert([]*Job{job}))
+	writeTxn.Commit()
+
+	dryRunTxn := jobDb.DryRunTxn()
+
+	// Mutate the txn: add a new job and delete the original one.
+	newJob := newJob().WithQueued(true)
+	require.NoError(t, dryRunTxn.Upsert([]*Job{newJob}))
+	require.NoError(t, dryRunTxn.BatchDelete([]string{job.Id()}))
+	dryRunTxn.Commit()
+
+	// The real db must be unchanged after committing the txn.
+	realTxn := jobDb.ReadTxn()
+	assert.NotNil(t, realTxn.GetById(job.Id()),
+		"original job should still exist in the real db after dry run commit")
+	assert.Nil(t, realTxn.GetById(newJob.Id()),
+		"dry run only job must not appear in the real db after dry run commit")
+
+	// A subsequent WriteTxn must not be blocked (writerMutex was never held).
+	secondWrite := jobDb.WriteTxn()
+	secondWrite.Abort()
+}
+
+func TestDryRunTxn_AbortDoesNotModifyDb(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	job := newJob().WithQueued(true)
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.Upsert([]*Job{job}))
+	writeTxn.Commit()
+
+	dryRunTxn := jobDb.DryRunTxn()
+	newJob := newJob().WithQueued(true)
+	require.NoError(t, dryRunTxn.Upsert([]*Job{newJob}))
+	dryRunTxn.Abort() // must not panic (writerMutex was never acquired)
+
+	// Real db must be unchanged after abort.
+	realTxn := jobDb.ReadTxn()
+	assert.NotNil(t, realTxn.GetById(job.Id()))
+	assert.Nil(t, realTxn.GetById(newJob.Id()))
+
+	// writerMutex must not be held.
+	secondWrite := jobDb.WriteTxn()
+	secondWrite.Abort()
+}
+
 func TestJobDb_TestBatchDelete(t *testing.T) {
 	jobDb := NewTestJobDb()
 	job1 := newJob().WithQueued(true).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
@@ -300,7 +473,7 @@ func TestJobDb_TestBatchDelete(t *testing.T) {
 	assert.Nil(t, txn.GetById(job2.Id()))
 
 	// Can't delete with read only transaction
-	err = (jobDb.ReadTxn()).BatchDelete([]string{job1.Id()})
+	err = jobDb.ReadTxn().BatchDelete([]string{job1.Id()})
 	require.Error(t, err)
 }
 
@@ -450,6 +623,63 @@ func TestJobDb_GangInfoIsPopulated(t *testing.T) {
 				assert.Nil(t, err)
 				assert.Equal(t, tc.expectedGangInfo, job.GetGangInfo())
 			}
+		})
+	}
+}
+
+func TestJobDb_RespectNodePodLimits_InjectsPodsResource(t *testing.T) {
+	cpuMem := []schedulerconfiguration.ResourceType{
+		{Name: "cpu", Resolution: resource.MustParse("1m")},
+		{Name: "memory", Resolution: resource.MustParse("1")},
+	}
+	cpuMemPods := []schedulerconfiguration.ResourceType{
+		{Name: "cpu", Resolution: resource.MustParse("1m")},
+		{Name: "memory", Resolution: resource.MustParse("1")},
+		{Name: "pods", Resolution: resource.MustParse("1")},
+	}
+
+	withCpuMem := &internaltypes.JobSchedulingInfo{
+		PriorityClass: "foo",
+		PodRequirements: &internaltypes.PodRequirements{
+			ResourceRequirements: v1.ResourceRequirements{
+				Requests: map[v1.ResourceName]resource.Quantity{
+					"cpu":    resource.MustParse("1"),
+					"memory": resource.MustParse("1Gi"),
+				},
+			},
+		},
+	}
+	withNoRequests := &internaltypes.JobSchedulingInfo{
+		PriorityClass:   "foo",
+		PodRequirements: &internaltypes.PodRequirements{},
+	}
+
+	tests := map[string]struct {
+		resourceTypes  []schedulerconfiguration.ResourceType
+		respect        bool
+		schedulingInfo *internaltypes.JobSchedulingInfo
+		expectedPods   int64
+	}{
+		"flag off": {resourceTypes: cpuMemPods, respect: false, schedulingInfo: withCpuMem, expectedPods: 0},
+		"flag on":  {resourceTypes: cpuMemPods, respect: true, schedulingInfo: withCpuMem, expectedPods: 1},
+		"flag on but factory lacks pods resource": {resourceTypes: cpuMem, respect: true, schedulingInfo: withCpuMem, expectedPods: 0},
+		// A job with no resource requests must still get pods=1 so it occupies a slot.
+		"flag on with no requests still injects pods": {resourceTypes: cpuMemPods, respect: true, schedulingInfo: withNoRequests, expectedPods: 1},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			factory, err := internaltypes.NewResourceListFactory(tc.resourceTypes, nil)
+			require.NoError(t, err)
+
+			jobDb := NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1024), factory)
+			jobDb.SetRespectNodePodLimits(tc.respect)
+
+			job, err := jobDb.NewJob("jobId", "jobSet", "queue", 1, tc.schedulingInfo, false, 0, false, false, false, 2, false, []string{}, 0)
+			require.NoError(t, err)
+
+			podsQty := job.KubernetesResourceRequirements().GetByNameZeroIfMissing("pods")
+			assert.Equal(t, tc.expectedPods, podsQty.Value())
 		})
 	}
 }
@@ -1422,5 +1652,139 @@ func newGangJob() *Job {
 		jobSchedulingInfo: gangJobSchedulingInfo,
 		pools:             []string{"pool"},
 		gangInfo:          *gangInfo,
+	}
+}
+
+func TestJobDb_SetBidPriceSnapshot_UpdatedOnCommit(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	initialReadTxn := jobDb.ReadTxn()
+	assert.Nil(t, initialReadTxn.GetBidPriceSnapshot())
+
+	snapshot := &pricing.BidPriceSnapshot{
+		Timestamp: time.Unix(0, 0),
+		Bids: map[pricing.PriceKey]map[string]pricing.Bid{
+			{Queue: "queue", Band: bidstore.PriceBand_PRICE_BAND_UNSPECIFIED}: {
+				"pool": {QueuedBid: 1, RunningBid: 2},
+			},
+		},
+	}
+
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.SetBidPriceSnapshot(snapshot))
+	writeTxn.Commit()
+
+	readTxn := jobDb.ReadTxn()
+	assert.Equal(t, snapshot, readTxn.GetBidPriceSnapshot())
+}
+
+func TestJobDb_SetBidPriceSnapshot_NotUpdatedOnAbort(t *testing.T) {
+	jobDb := NewTestJobDb()
+
+	snapshot := &pricing.BidPriceSnapshot{
+		Bids: map[pricing.PriceKey]map[string]pricing.Bid{
+			{Queue: "queue", Band: bidstore.PriceBand_PRICE_BAND_UNSPECIFIED}: {
+				"pool": {QueuedBid: 1, RunningBid: 2},
+			},
+		},
+	}
+
+	writeTxn := jobDb.WriteTxn()
+	require.NoError(t, writeTxn.SetBidPriceSnapshot(snapshot))
+	writeTxn.Abort()
+
+	readTxn := jobDb.ReadTxn()
+	assert.Nil(t, readTxn.GetBidPriceSnapshot())
+}
+
+func TestJobDb_SetBidPriceSnapshot_ErrOnReadTxn(t *testing.T) {
+	jobDb := NewTestJobDb()
+	readTxn := jobDb.ReadTxn()
+	err := readTxn.SetBidPriceSnapshot(&pricing.BidPriceSnapshot{})
+	assert.Error(t, err)
+}
+
+func TestJobDb_NewJob_PriceProviderPopulatesBidPrices(t *testing.T) {
+	bidsForA := map[string]pricing.Bid{
+		"pool-1": {RunningBid: 10, QueuedBid: 5},
+		"pool-2": {RunningBid: 20, QueuedBid: 8},
+	}
+	bidsForB := map[string]pricing.Bid{
+		"pool-1": {RunningBid: 100, QueuedBid: 50},
+	}
+	snapshot := &pricing.BidPriceSnapshot{
+		Bids: map[pricing.PriceKey]map[string]pricing.Bid{
+			{Queue: "queue-a", Band: bidstore.PriceBand_PRICE_BAND_A}: bidsForA,
+			{Queue: "queue-b", Band: bidstore.PriceBand_PRICE_BAND_B}: bidsForB,
+		},
+	}
+
+	tests := map[string]struct {
+		queue     string
+		priceBand bidstore.PriceBand
+		snapshot  *pricing.BidPriceSnapshot
+		expected  map[string]pricing.Bid
+	}{
+		"matching queue + band A": {
+			queue:     "queue-a",
+			priceBand: bidstore.PriceBand_PRICE_BAND_A,
+			snapshot:  snapshot,
+			expected:  bidsForA,
+		},
+		"matching queue + band B": {
+			queue:     "queue-b",
+			priceBand: bidstore.PriceBand_PRICE_BAND_B,
+			snapshot:  snapshot,
+			expected:  bidsForB,
+		},
+		"unknown queue": {
+			queue:     "queue-other",
+			priceBand: bidstore.PriceBand_PRICE_BAND_A,
+			snapshot:  snapshot,
+			expected:  map[string]pricing.Bid{},
+		},
+		"unknown band for known queue": {
+			queue:     "queue-a",
+			priceBand: bidstore.PriceBand_PRICE_BAND_C,
+			snapshot:  snapshot,
+			expected:  map[string]pricing.Bid{},
+		},
+		"no snapshot set": {
+			queue:     "queue-a",
+			priceBand: bidstore.PriceBand_PRICE_BAND_A,
+			snapshot:  nil,
+			expected:  map[string]pricing.Bid{},
+		},
+		"empty snapshot set": {
+			queue:     "queue-a",
+			priceBand: bidstore.PriceBand_PRICE_BAND_A,
+			snapshot:  &pricing.BidPriceSnapshot{},
+			expected:  map[string]pricing.Bid{},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			jobDb := NewJobDb(
+				map[string]types.PriorityClass{"foo": {}},
+				"foo",
+				stringinterner.New(1024),
+				testResourceListFactory,
+			)
+
+			if tc.snapshot != nil {
+				writeTxn := jobDb.WriteTxn()
+				require.NoError(t, writeTxn.SetBidPriceSnapshot(tc.snapshot))
+				writeTxn.Commit()
+			}
+
+			job, err := jobDb.NewJob(
+				util.NewULID(), "jobSet", tc.queue, 1, jobSchedulingInfo,
+				false, 0, false, false, false, 0, false, []string{"pool-1"},
+				int32(tc.priceBand),
+			)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, job.GetAllBidPrices())
+		})
 	}
 }

@@ -38,6 +38,10 @@ type QueueSchedulingContext struct {
 	Allocated internaltypes.ResourceList
 	// Resource which should be charged for when using market driven scheduling
 	BillableResource internaltypes.ResourceList
+	// Override price for the price-setting queue (second-price mechanics).
+	// When present, billing components should use this price instead of
+	// the pool spot price for billing this queue.
+	BillablePriceOverride *float64
 	// Used to penalize short jobs by pretending they are still running
 	// if they started recently but then exited.
 	ShortJobPenalty internaltypes.ResourceList
@@ -116,6 +120,10 @@ func (qctx *QueueSchedulingContext) SetBillableResource() {
 
 func (qctx *QueueSchedulingContext) GetBillableResource() internaltypes.ResourceList {
 	return qctx.BillableResource.FloorAtZero()
+}
+
+func (qctx *QueueSchedulingContext) GetBillablePriceOverride() *float64 {
+	return qctx.BillablePriceOverride
 }
 
 // GetWeight is necessary to implement the fairness.Queue interface.
@@ -254,6 +262,61 @@ func (qctx *QueueSchedulingContext) addJobSchedulingContext(jctx *JobSchedulingC
 		qctx.UnsuccessfulJobSchedulingContexts[jctx.JobId] = jctx
 	}
 	return evictedInThisRound, nil
+}
+
+func (qctx *QueueSchedulingContext) UnscheduleJob(jctx *JobSchedulingContext) bool {
+	jobId := jctx.Job.Id()
+
+	pcName := jctx.Job.PriorityClassName()
+	rl := jctx.Job.AllResourceRequirements()
+
+	existingJctx, scheduledInThisRound := qctx.SuccessfulJobSchedulingContexts[jobId]
+	if scheduledInThisRound {
+		qctx.ScheduledResourcesByPriorityClass[pcName] = qctx.ScheduledResourcesByPriorityClass[pcName].Subtract(rl)
+		delete(qctx.SuccessfulJobSchedulingContexts, jobId)
+		qctx.AllocatedByPriorityClass[pcName] = qctx.AllocatedByPriorityClass[pcName].Subtract(rl)
+		qctx.Allocated = qctx.Allocated.Subtract(rl)
+		if existingJctx.Billable {
+			qctx.BillableResource = qctx.BillableResource.Subtract(rl)
+		}
+	}
+
+	return scheduledInThisRound
+}
+
+func (qctx *QueueSchedulingContext) RemoveJob(jctx *JobSchedulingContext) (bool, bool, bool) {
+	jobId := jctx.Job.Id()
+
+	pcName := jctx.Job.PriorityClassName()
+	rl := jctx.Job.AllResourceRequirements()
+
+	scheduledInRound := qctx.UnscheduleJob(jctx)
+
+	existingJctx, rescheduledThisRound := qctx.RescheduledJobSchedulingContexts[jobId]
+	if rescheduledThisRound {
+		delete(qctx.RescheduledJobSchedulingContexts, jobId)
+		qctx.AllocatedByPriorityClass[pcName] = qctx.AllocatedByPriorityClass[pcName].Subtract(rl)
+		qctx.Allocated = qctx.Allocated.Subtract(rl)
+		if existingJctx.Billable {
+			qctx.BillableResource = qctx.BillableResource.Subtract(rl)
+		}
+	}
+
+	_, preemptedByOptimiserThisRound := qctx.PreemptedByOptimiserJobSchedulingContexts[jobId]
+	if preemptedByOptimiserThisRound {
+		delete(qctx.PreemptedByOptimiserJobSchedulingContexts, jobId)
+		qctx.PreemptedByOptimiserResourceByPriorityClass[pcName] = qctx.PreemptedByOptimiserResourceByPriorityClass[pcName].Subtract(rl)
+	}
+
+	evictedThisRound := qctx.EvictedJobsById[jobId]
+	if evictedThisRound {
+		delete(qctx.EvictedJobsById, jobId)
+		qctx.EvictedResourcesByPriorityClass[pcName] = qctx.EvictedResourcesByPriorityClass[pcName].Subtract(rl)
+	}
+
+	qctx.Demand = qctx.Demand.Subtract(rl)
+
+	return scheduledInRound, rescheduledThisRound, evictedThisRound
 }
 
 func (qctx *QueueSchedulingContext) preemptJob(jctx *JobSchedulingContext) (bool, error) {

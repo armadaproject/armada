@@ -8,7 +8,7 @@ import (
 
 func TestMultiHealthMonitor_OneChild(t *testing.T) {
 	hm := NewManualHealthMonitor()
-	mhm := NewMultiHealthMonitor("mhm", map[string]HealthMonitor{"hm": hm})
+	mhm := NewMultiHealthMonitor("mhm", "test_mhm_", map[string]HealthMonitor{"hm": hm})
 	ok, reason, err := mhm.IsHealthy()
 	require.False(t, ok)
 	require.NotEmpty(t, reason)
@@ -24,7 +24,7 @@ func TestMultiHealthMonitor_OneChild(t *testing.T) {
 func TestMultiHealthMonitor_TwoChildren(t *testing.T) {
 	hm1 := NewManualHealthMonitor()
 	hm2 := NewManualHealthMonitor()
-	mhm := NewMultiHealthMonitor("mhm", map[string]HealthMonitor{"hm1": hm1, "hm2": hm2})
+	mhm := NewMultiHealthMonitor("mhm", "test_mhm_", map[string]HealthMonitor{"hm1": hm1, "hm2": hm2})
 
 	ok, reason, err := mhm.IsHealthy()
 	require.False(t, ok)
@@ -55,7 +55,7 @@ func TestMultiHealthMonitor_TwoChildrenTimeouts(t *testing.T) {
 	hm1 := NewManualHealthMonitor()
 	hm1 = hm1.WithReason(UnavailableReason)
 	hm2 := NewManualHealthMonitor()
-	mhm := NewMultiHealthMonitor("mhm", map[string]HealthMonitor{"hm1": hm1, "hm2": hm2})
+	mhm := NewMultiHealthMonitor("mhm", "test_mhm_", map[string]HealthMonitor{"hm1": hm1, "hm2": hm2})
 	mhm = mhm.WithMinimumReplicasAvailable(1)
 
 	hm1.SetHealthStatus(false)

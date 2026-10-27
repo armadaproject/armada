@@ -4,15 +4,24 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
+)
+
+// Retry to account for recently created queues returning not found errors on SubmitJobs
+const (
+	submitRetryInterval = 500 * time.Millisecond
+	submitRetryTimeout  = 15 * time.Second
 )
 
 var submissionSerializer sync.Mutex
@@ -144,9 +153,33 @@ func (srv *Submitter) Run(ctx context.Context) error {
 
 func (srv *Submitter) submit(c api.SubmitClient, ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	start := time.Now()
-	res, err := c.SubmitJobs(ctx, req)
-	srv.logSubmitStatus(req, err, time.Now().Sub(start))
+	deadline := start.Add(submitRetryTimeout)
+	var res *api.JobSubmitResponse
+	var err error
+retryLoop:
+	for {
+		res, err = c.SubmitJobs(ctx, req)
+		if err == nil || !isQueueNotFoundErr(err) || time.Now().After(deadline) {
+			break
+		}
+		fmt.Fprintf(srv.out, "queue %s not yet visible to server, retrying: %v\n", req.Queue, err)
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+			break retryLoop
+		case <-time.After(submitRetryInterval):
+		}
+	}
+	srv.logSubmitStatus(req, err, time.Since(start))
 	return res, err
+}
+
+func isQueueNotFoundErr(err error) bool {
+	s, ok := status.FromError(err)
+	if !ok {
+		return false
+	}
+	return s.Code() == codes.PermissionDenied && strings.Contains(s.Message(), "could not find queue")
 }
 
 func (srv *Submitter) logSubmitStatus(req *api.JobSubmitRequest, err error, elapsed time.Duration) {

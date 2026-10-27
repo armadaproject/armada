@@ -1,10 +1,14 @@
 package logging
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
 // Logger wraps a zerolog.Logger so that the rest of the code doesn't depend directly on zerolog
@@ -146,6 +150,37 @@ func (l *Logger) WithFields(args map[string]any) *Logger {
 	return &Logger{
 		underlying: event.CallerWithSkipFrameCount(StdSkipFrames - 1).Logger(),
 	}
+}
+
+// WithContext returns a new Logger that extracts and adds trace context fields (trace_id, span_id)
+// from the provided context. It also preserves the x-request-id if present.
+// If no trace context is available or the span is invalid, returns the logger unchanged.
+func (l *Logger) WithContext(ctx context.Context) *Logger {
+	if ctx == nil {
+		return l
+	}
+
+	fields := make(map[string]any)
+
+	// Extract trace context from OTel
+	span := trace.SpanFromContext(ctx)
+	spanCtx := span.SpanContext()
+	if spanCtx.IsValid() {
+		fields["trace_id"] = spanCtx.TraceID().String()
+		fields["span_id"] = spanCtx.SpanID().String()
+	}
+
+	// Preserve existing x-request-id if present
+	if reqID, ok := requestid.FromContext(ctx); ok {
+		fields["x-request-id"] = reqID
+	}
+
+	// If no fields were extracted, return the logger unchanged
+	if len(fields) == 0 {
+		return l
+	}
+
+	return l.WithFields(fields)
 }
 
 // WithCallerSkip returns a new Logger with the number of callers skipped increased by the skip amount.

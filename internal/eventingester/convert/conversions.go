@@ -1,6 +1,8 @@
 package convert
 
 import (
+	"math"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 
@@ -17,16 +19,18 @@ import (
 
 // EventConverter converts event sequences into events that we can store in Redis
 type EventConverter struct {
-	Compressor          compress.Compressor
-	MaxMessageBatchSize uint
-	metrics             *metrics.Metrics
+	Compressor              compress.Compressor
+	MaxMessageBatchSize     uint
+	metrics                 *metrics.Metrics
+	eventSizeMetricsEnabled bool
 }
 
-func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize uint, metrics *metrics.Metrics) ingest.InstructionConverter[*model.BatchUpdate, *armadaevents.EventSequence] {
+func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize uint, metrics *metrics.Metrics, eventSizeMetricsEnabled bool) ingest.InstructionConverter[*model.BatchUpdate, *armadaevents.EventSequence] {
 	return &EventConverter{
-		Compressor:          compressor,
-		MaxMessageBatchSize: maxMessageBatchSize,
-		metrics:             metrics,
+		Compressor:              compressor,
+		MaxMessageBatchSize:     maxMessageBatchSize,
+		metrics:                 metrics,
+		eventSizeMetricsEnabled: eventSizeMetricsEnabled,
 	}
 }
 
@@ -51,7 +55,11 @@ func (ec *EventConverter) Convert(ctx *armadacontext.Context, eventsWithIds *uti
 		es.Queue = ""
 
 		// Remove cancellation reason as it's not needed for public event store
-		clearCancellationReason(es)
+		clearEventFieldsNotForRedis(es)
+		removeEventsNotForRedis(es)
+		if len(es.Events) == 0 {
+			continue
+		}
 
 		bytes, err := proto.Marshal(es)
 		if err != nil {
@@ -64,6 +72,21 @@ func (ec *EventConverter) Convert(ctx *armadacontext.Context, eventsWithIds *uti
 			ec.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 			log.WithError(err).Warnf("Could not compress event")
 			continue
+		}
+
+		if ec.eventSizeMetricsEnabled {
+			// Record per-event byte counters
+			ratio := 1.0
+			if len(bytes) > 0 {
+				ratio = float64(len(compressedBytes)) / float64(len(bytes))
+			}
+			for _, e := range es.Events {
+				eventType := e.GetEventName()
+				uncompressed := proto.Size(e)
+				estimatedCompressed := int(math.Round(float64(uncompressed) * ratio))
+				ec.metrics.RecordEventUncompressedBytes(queue, eventType, uncompressed)
+				ec.metrics.RecordEventEstimatedCompressedBytes(queue, eventType, estimatedCompressed)
+			}
 		}
 
 		events = append(events, &model.Event{
@@ -80,7 +103,7 @@ func (ec *EventConverter) Convert(ctx *armadacontext.Context, eventsWithIds *uti
 }
 
 // For each cancel event, remove the cancellation reason
-func clearCancellationReason(es *armadaevents.EventSequence) {
+func clearEventFieldsNotForRedis(es *armadaevents.EventSequence) {
 	for _, e := range es.Events {
 		switch event := e.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_CancelJob:
@@ -89,7 +112,65 @@ func clearCancellationReason(es *armadaevents.EventSequence) {
 			event.CancelJobSet.Reason = ""
 		case *armadaevents.EventSequence_Event_CancelledJob:
 			event.CancelledJob.Reason = ""
+		case *armadaevents.EventSequence_Event_JobRunRunning:
+			event.JobRunRunning.StartUpInfo = nil
+		case *armadaevents.EventSequence_Event_JobErrors:
+			for _, jobError := range event.JobErrors.Errors {
+				if jobError == nil {
+					continue
+				}
+				switch reason := jobError.GetReason().(type) {
+				case *armadaevents.Error_PodError:
+					reason.PodError.DebugMessage = ""
+				case *armadaevents.Error_PodLeaseReturned:
+					reason.PodLeaseReturned.DebugMessage = ""
+				}
+			}
 		default:
 		}
 	}
+}
+
+// removeEventsNotForRedis drops event data that has no value for Redis consumers.
+// Lookout consumes the dropped data directly from Pulsar.
+func removeEventsNotForRedis(es *armadaevents.EventSequence) {
+	filtered := es.Events[:0]
+	for _, e := range es.Events {
+		switch event := e.GetEvent().(type) {
+		// Do not filter JobRunErrors with LeaseExpired or PodLeaseReturned reasons, as those are consumed
+		case *armadaevents.EventSequence_Event_JobRunErrors:
+			jobRunErrors := event.JobRunErrors
+			if jobRunErrors == nil {
+				continue
+			}
+
+			errors := jobRunErrors.Errors[:0]
+			for _, err := range jobRunErrors.Errors {
+				if err == nil {
+					continue
+				}
+				switch reason := err.Reason.(type) {
+				case *armadaevents.Error_LeaseExpired:
+					errors = append(errors, err)
+				// Clear debug message to further optimize redis memory usage
+				case *armadaevents.Error_PodLeaseReturned:
+					if reason.PodLeaseReturned == nil {
+						continue
+					}
+					reason.PodLeaseReturned.DebugMessage = ""
+					errors = append(errors, err)
+				}
+			}
+			jobRunErrors.Errors = errors
+			if len(errors) == 0 {
+				continue
+			}
+		case *armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo,
+			*armadaevents.EventSequence_Event_JobRunSucceeded,
+			*armadaevents.EventSequence_Event_JobValidated:
+			continue
+		}
+		filtered = append(filtered, e)
+	}
+	es.Events = filtered
 }

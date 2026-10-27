@@ -144,7 +144,8 @@ func TestConvertCancelled(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_CancelledJob{
 			CancelledJob: &armadaevents.CancelledJob{
-				JobId: jobId,
+				JobId:     jobId,
+				Requestor: "cancel-requestor",
 			},
 		},
 	}
@@ -157,7 +158,7 @@ func TestConvertCancelled(t *testing.T) {
 					JobSetId:  jobSetName,
 					Queue:     queue,
 					Created:   protoutil.ToTimestamp(baseTime),
-					Requestor: userId,
+					Requestor: "cancel-requestor",
 				},
 			},
 		},
@@ -197,12 +198,30 @@ func TestConvertReprioritising(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
+func TestConvertJobRunCancelled(t *testing.T) {
+	runCancel := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+			JobRunCancelled: &armadaevents.JobRunCancelled{
+				JobId:     jobId,
+				Reason:    "user requested",
+				Requestor: "alice",
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(runCancel))
+	assert.NoError(t, err)
+	assert.Empty(t, apiEvents)
+}
+
 func TestConvertReprioritised(t *testing.T) {
 	reprioritised := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 			ReprioritisedJob: &armadaevents.ReprioritisedJob{
-				JobId: jobId,
+				JobId:     jobId,
+				Requestor: "reprioritise-requestor",
 			},
 		},
 	}
@@ -215,7 +234,7 @@ func TestConvertReprioritised(t *testing.T) {
 					JobSetId:  jobSetName,
 					Queue:     queue,
 					Created:   protoutil.ToTimestamp(baseTime),
-					Requestor: userId,
+					Requestor: "reprioritise-requestor",
 				},
 			},
 		},
@@ -304,6 +323,23 @@ func TestConvertLeaseExpired(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
+func TestConvertNilJobRunError(t *testing.T) {
+	jobRunErrors := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId:  jobId,
+				RunId:  runId,
+				Errors: []*armadaevents.Error{nil},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(jobRunErrors))
+	assert.NoError(t, err)
+	assert.Empty(t, apiEvents)
+}
+
 func TestConvertJobReconciliationError(t *testing.T) {
 	reconciliationError := &armadaevents.Error{
 		Terminal: true,
@@ -357,6 +393,41 @@ func TestConvertJobReconciliationError(t *testing.T) {
 	apiEvents, err = FromEventSequence(toEventSeq(jobRunReconciliationError))
 	assert.NoError(t, err)
 	assert.Empty(t, apiEvents)
+}
+
+func TestConvertRetryableJobError(t *testing.T) {
+	retryableError := &armadaevents.Error{
+		Terminal:           false,
+		FailureCategory:    "oom",
+		FailureSubcategory: "kernel",
+		RetryPolicyName:    "oom-grow",
+		Reason: &armadaevents.Error_PodError{
+			PodError: &armadaevents.PodError{
+				Message:          "out of memory",
+				KubernetesReason: armadaevents.KubernetesReason_OOM,
+			},
+		},
+	}
+
+	retryableJobError := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobErrors{
+			JobErrors: &armadaevents.JobErrors{
+				JobId:  jobId,
+				Errors: []*armadaevents.Error{retryableError},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(retryableJobError))
+	assert.NoError(t, err)
+	assert.Len(t, apiEvents, 1)
+	failed := apiEvents[0].GetFailed()
+	assert.NotNil(t, failed)
+	assert.True(t, failed.Retryable, "a non-terminal error must convert to a retryable failed event")
+	assert.Equal(t, "oom", failed.FailureCategory)
+	assert.Equal(t, "kernel", failed.FailureSubcategory)
+	assert.Equal(t, "out of memory", failed.Reason)
 }
 
 func TestConvertPodLeaseReturned(t *testing.T) {
@@ -459,6 +530,11 @@ func TestConvertJobError(t *testing.T) {
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
+						// A policy-terminated job's terminal MaxRunsExceeded error
+						// carries the category of the failure that tripped the
+						// policy, and it must survive conversion.
+						FailureCategory:    "user_error",
+						FailureSubcategory: "exit_1",
 						Reason: &armadaevents.Error_MaxRunsExceeded{
 							MaxRunsExceeded: &armadaevents.MaxRunsExceeded{
 								Message: "Max runs",
@@ -501,12 +577,14 @@ func TestConvertJobError(t *testing.T) {
 		{
 			Events: &api.EventMessage_Failed{
 				Failed: &api.JobFailedEvent{
-					JobId:    jobId,
-					Reason:   "Max runs",
-					JobSetId: jobSetName,
-					Queue:    queue,
-					Created:  protoutil.ToTimestamp(baseTime),
-					Cause:    api.Cause_Error,
+					JobId:              jobId,
+					Reason:             "Max runs",
+					JobSetId:           jobSetName,
+					Queue:              queue,
+					Created:            protoutil.ToTimestamp(baseTime),
+					Cause:              api.Cause_Error,
+					FailureCategory:    "user_error",
+					FailureSubcategory: "exit_1",
 				},
 			},
 		},
@@ -620,7 +698,7 @@ func TestConvertJobRunning(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
-func TestIgnoredEventDoesntDuplicate(t *testing.T) {
+func TestConvertedAndIgnoredEventsDontDuplicate(t *testing.T) {
 	leaseExpired := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
@@ -645,6 +723,15 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 			CancelJobSet: &armadaevents.CancelJobSet{},
 		},
 	}
+	preempted := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: &armadaevents.JobRunPreempted{
+				PreemptedJobId: jobId,
+				PreemptedRunId: runId,
+			},
+		},
+	}
 
 	expected := []*api.EventMessage{
 		{
@@ -657,9 +744,21 @@ func TestIgnoredEventDoesntDuplicate(t *testing.T) {
 				},
 			},
 		},
+		{
+			Events: &api.EventMessage_Preempted{
+				Preempted: &api.JobPreemptedEvent{
+					JobId:     jobId,
+					JobSetId:  jobSetName,
+					Queue:     queue,
+					Created:   protoutil.ToTimestamp(baseTime),
+					RunId:     runId,
+					Requestor: "testUser",
+				},
+			},
+		},
 	}
 
-	apiEvents, err := FromEventSequence(toEventSeq(leaseExpired, cancel))
+	apiEvents, err := FromEventSequence(toEventSeq(leaseExpired, preempted, cancel))
 	assert.NoError(t, err)
 	assert.Equal(t, expected, apiEvents)
 }
@@ -867,39 +966,6 @@ func TestConvertJobPreemptionRequested(t *testing.T) {
 	}
 
 	apiEvents, err := FromEventSequence(toEventSeq(preemptRequest))
-	assert.NoError(t, err)
-	assert.Equal(t, expected, apiEvents)
-}
-
-func TestConvertJobRunPreempted(t *testing.T) {
-	preempted := &armadaevents.EventSequence_Event{
-		Created: baseTimeProto,
-		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
-			JobRunPreempted: &armadaevents.JobRunPreempted{
-				PreemptedJobId: jobId,
-				PreemptedRunId: runId,
-				Reason:         "Preempted reason",
-			},
-		},
-	}
-
-	expected := []*api.EventMessage{
-		{
-			Events: &api.EventMessage_Preempted{
-				Preempted: &api.JobPreemptedEvent{
-					JobId:    jobId,
-					JobSetId: jobSetName,
-					Queue:    queue,
-					Created:  protoutil.ToTimestamp(baseTime),
-					RunId:    runId,
-					Reason:   "Preempted reason",
-				},
-			},
-		},
-	}
-
-	// both PreemptiveJobId and PreemptiveRunId not nil
-	apiEvents, err := FromEventSequence(toEventSeq(preempted))
 	assert.NoError(t, err)
 	assert.Equal(t, expected, apiEvents)
 }

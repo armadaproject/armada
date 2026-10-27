@@ -12,7 +12,7 @@ import (
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	clock "k8s.io/utils/clock/testing"
+	testclock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/pointer"
@@ -33,6 +33,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	smallJob2 := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1)
 	smallGpuJob := testfixtures.Test1GpuJob("queue", testfixtures.PriorityClass4PreemptibleAway)
 	smallAwayJob := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass4PreemptibleAway)
+	gpuTolerantCpuJob := testfixtures.Test1Cpu4GiJobWithGpuToleration("queue", testfixtures.PriorityClass4PreemptibleAway)
 	largeJob1 := testfixtures.Test32Cpu256GiJobWithLargeJobToleration("queue", testfixtures.PriorityClass1)
 
 	// This Gang job will fit
@@ -43,23 +44,31 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	largeGangJob := testfixtures.
 		WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("queue", testfixtures.PriorityClass1, 4))
 
+	batchJobs := testfixtures.N1Cpu4GiJobs("queue", testfixtures.PriorityClass1, 20)
+
 	schedulingConfig := testfixtures.TestSchedulingConfig()
 	schedulingConfig.Pools = []configuration.PoolConfig{
 		{Name: "cpu"},
 		{Name: "cpu2"},
 		{Name: "cpu-disallowed-resources", ExperimentalUnscheduledResources: []string{"cpu"}},
 		{Name: "gpu"},
-		{Name: "cpu-away", AwayPools: []string{"gpu"}},
+		{
+			Name:                             "cpu-away",
+			AwayPools:                        []configuration.AwayPoolConfig{{Name: "gpu"}},
+			ExperimentalUnscheduledResources: []string{"nvidia.com/gpu"},
+		},
 		{Name: "cpu-grouped-1", ExperimentalSubmissionGroup: "group-1"},
 		{Name: "cpu-grouped-2", ExperimentalSubmissionGroup: "group-1"},
 	}
 
 	tests := map[string]struct {
-		executorTimeout time.Duration
-		executors       []*schedulerobjects.Executor
-		jobs            []*jobdb.Job
-		expectedResult  map[string]schedulingResult
-		queue           *api.Queue
+		executorTimeout   time.Duration
+		executors         []*schedulerobjects.Executor
+		jobs              []*jobdb.Job
+		expectedResult    map[string]schedulingResult
+		queue             *api.Queue
+		submitCheckConfig *configuration.SubmitCheckConfig
+		clockStep         time.Duration
 	}{
 		"One job schedulable": {
 			executorTimeout: defaultTimeout,
@@ -88,6 +97,22 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
 			},
 		},
+		"Job schedulable when its only node is cordoned": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(cordon(SmallNode("cpu")))},
+			jobs:            []*jobdb.Job{smallJob1},
+			expectedResult: map[string]schedulingResult{
+				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
+		"GPU job schedulable when all GPU nodes are cordoned": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(cordon(GpuNode("gpu")))},
+			jobs:            []*jobdb.Job{smallGpuJob},
+			expectedResult: map[string]schedulingResult{
+				smallGpuJob.Id(): {isSchedulable: true, pools: []string{"gpu"}},
+			},
+		},
 		"One job schedulable, jobs not assigned to pools with matching disallowed resources": {
 			executorTimeout: defaultTimeout,
 			executors: []*schedulerobjects.Executor{
@@ -110,8 +135,22 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				// The job can theoretically schedule:
 				// - On the "gpu" pool as a home job
 				// - On the "cpu-away" pool, which has "gpu" as an away pool
-				// Jobs shouldn't get assigned to pools with away pools they are already home jobs on
+				// It is kept off "cpu-away" by that pool banning nvidia.com/gpu, not by
+				// anything in the pool sweep itself.
 				smallGpuJob.Id(): {isSchedulable: true, pools: []string{"gpu"}},
+			},
+		},
+		"One job schedulable, home job on an away pool, borrowing pool also viable": {
+			executorTimeout: defaultTimeout,
+			executors: []*schedulerobjects.Executor{
+				Executor(GpuNode("gpu")),
+			},
+			jobs: []*jobdb.Job{gpuTolerantCpuJob},
+			expectedResult: map[string]schedulingResult{
+				// This job requests no GPU but tolerates the gpu taint, so it is a home
+				// job on the "gpu" pool and is not excluded from "cpu-away" by that
+				// pool's nvidia.com/gpu ban. It is therefore eligible for both.
+				gpuTolerantCpuJob.Id(): {isSchedulable: true, pools: []string{"cpu-away", "gpu"}},
 			},
 		},
 		"One job schedulable, away pools": {
@@ -220,6 +259,17 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				largeGangJob[3].Id(): {isSchedulable: true, pools: []string{"cpu"}},
 			},
 		},
+		"Gang Schedules - multiple cluster": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu")), Executor(SmallNode("cpu"))},
+			jobs:            largeGangJob,
+			expectedResult: map[string]schedulingResult{
+				largeGangJob[0].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				largeGangJob[1].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				largeGangJob[2].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				largeGangJob[3].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
 		"Individual jobs fit but gang doesn't": {
 			executorTimeout: defaultTimeout,
 			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
@@ -287,22 +337,95 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				smallJob1.Id(): {isSchedulable: false},
 			},
 		},
+		"Per-queue time limit stops checking jobs": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            batchJobs,
+			submitCheckConfig: &configuration.SubmitCheckConfig{
+				MaxDurationPerQueue: 5 * time.Second,
+			},
+			clockStep: time.Second,
+			expectedResult: map[string]schedulingResult{
+				batchJobs[0].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				batchJobs[1].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				batchJobs[2].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
+		"Global time limit stops checking jobs": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            batchJobs,
+			submitCheckConfig: &configuration.SubmitCheckConfig{
+				MaxDuration: 8 * time.Second,
+			},
+			clockStep: time.Second,
+			expectedResult: map[string]schedulingResult{
+				batchJobs[0].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				batchJobs[1].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				batchJobs[2].Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
+		"Generous time limit checks all jobs": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            append([]*jobdb.Job{smallJob1, smallJob2}, largeGangJob...),
+			submitCheckConfig: &configuration.SubmitCheckConfig{
+				MaxDuration:         9 * time.Second,
+				MaxDurationPerQueue: 9 * time.Second,
+			},
+			expectedResult: map[string]schedulingResult{
+				smallJob1.Id():       {isSchedulable: true, pools: []string{"cpu"}},
+				smallJob2.Id():       {isSchedulable: true, pools: []string{"cpu"}},
+				largeGangJob[0].Id(): {isSchedulable: false, pools: []string(nil), reason: ""},
+				largeGangJob[1].Id(): {isSchedulable: false, pools: []string(nil), reason: ""},
+				largeGangJob[2].Id(): {isSchedulable: false, pools: []string(nil), reason: ""},
+				largeGangJob[3].Id(): {isSchedulable: false, pools: []string(nil), reason: ""},
+			},
+		},
+		"Zero limits mean no limit": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            []*jobdb.Job{smallJob1, smallJob2},
+			submitCheckConfig: &configuration.SubmitCheckConfig{
+				MaxDuration:         0,
+				MaxDurationPerQueue: 0,
+			},
+			expectedResult: map[string]schedulingResult{
+				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				smallJob2.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
+		"Partial gang deferred when time limit splits members": {
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:            append([]*jobdb.Job{smallJob1, smallJob2}, largeGangJob...),
+			submitCheckConfig: &configuration.SubmitCheckConfig{
+				MaxDurationPerQueue: 3 * time.Second,
+			},
+			clockStep: time.Second,
+			expectedResult: map[string]schedulingResult{
+				smallJob1.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+				smallJob2.Id(): {isSchedulable: true, pools: []string{"cpu"}},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
-			queue := tc.queue
-			if queue == nil {
-				queue = &api.Queue{Name: "queue"}
+			var allQueues []*api.Queue
+			if tc.queue != nil {
+				allQueues = []*api.Queue{tc.queue}
+			} else {
+				allQueues = []*api.Queue{{Name: "queue"}}
 			}
 
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
 			mockQueueCache := schedulermocks.NewMockQueueCache(ctrl)
-			mockQueueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{queue}, nil).AnyTimes()
+			mockQueueCache.EXPECT().GetAll(ctx).Return(allQueues, nil).AnyTimes()
 			floatingResources, _ := floatingresources.NewFloatingResourceTypes(
 				[]configuration.FloatingResourceConfig{
 					{
@@ -316,24 +439,33 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 					},
 				},
 				testfixtures.TestResourceListFactory)
-			fakeClock := clock.NewFakeClock(baseTime)
+			testSubmitCheckConfig := configuration.SubmitCheckConfig{}
+			if tc.submitCheckConfig != nil {
+				testSubmitCheckConfig = *tc.submitCheckConfig
+			}
+			fakeClock := testclock.NewFakeClock(baseTime)
 			submitCheck := NewSubmitChecker(schedulingConfig,
+				testSubmitCheckConfig,
 				mockExecutorRepo,
 				mockQueueCache,
 				floatingResources,
 				testfixtures.TestResourceListFactory)
-			submitCheck.clock = fakeClock
+			if tc.clockStep > 0 {
+				submitCheck.clock = testfixtures.NewSteppingClock(baseTime, tc.clockStep)
+			} else {
+				submitCheck.clock = fakeClock
+			}
 			err := submitCheck.Initialise(ctx)
 			assert.NoError(t, err)
-			results, err := submitCheck.Check(ctx, tc.jobs)
+			results, _, err := submitCheck.Check(ctx, tc.jobs)
 			require.NoError(t, err)
+
 			require.Equal(t, len(tc.expectedResult), len(results))
 			for id, expected := range tc.expectedResult {
 				actualResult, ok := results[id]
 				require.True(t, ok)
-				actualResult.reason = "" // clear reason as we don't test this
+				actualResult.reason = ""
 
-				// sort pools as we don't care about order
 				slices.Sort(actualResult.pools)
 				slices.Sort(expected.pools)
 				assert.Equal(t, expected, actualResult)
@@ -384,6 +516,7 @@ func TestSubmitChecker_Initialise(t *testing.T) {
 			}
 
 			submitCheck := NewSubmitChecker(testfixtures.TestSchedulingConfig(),
+				configuration.SubmitCheckConfig{},
 				mockExecutorRepo,
 				mockQueueCache,
 				testfixtures.TestFloatingResources,
@@ -427,6 +560,19 @@ func GpuNode(pool string) *schedulerobjects.Node {
 		},
 	}
 	node.Pool = pool
+	return node
+}
+
+// cordon simulates `kubectl cordon` on a node: it sets the unschedulable flag (which the scheduler
+// turns into the armadaproject.io/unschedulable taint) and adds the Kubernetes-native unschedulable
+// taint that kubectl applies. armadactl executor-level cordoning is unaffected as the submit checker
+// does not read executor settings.
+func cordon(node *schedulerobjects.Node) *schedulerobjects.Node {
+	node.Unschedulable = true
+	node.Taints = append(node.Taints, &v1.Taint{
+		Key:    v1.TaintNodeUnschedulable,
+		Effect: v1.TaintEffectNoSchedule,
+	})
 	return node
 }
 

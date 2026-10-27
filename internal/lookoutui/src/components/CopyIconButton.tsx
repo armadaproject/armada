@@ -3,6 +3,8 @@ import { useState } from "react"
 import { ContentCopy } from "@mui/icons-material"
 import { IconButton, IconButtonProps, styled, SvgIcon, Tooltip } from "@mui/material"
 
+import { useCustomSnackbar } from "./hooks/useCustomSnackbar"
+
 const LEAVE_DELAY_MS = 1_000
 
 const StyledIconButton = styled(IconButton)<IconButtonProps & { hidden: boolean }>(({ hidden }) => ({
@@ -27,6 +29,7 @@ export const CopyIconButton = ({
   copiedTooltipTitle = "Copied!",
 }: CopyIconButtonProps) => {
   const [tooltipOpen, setTooltipOpen] = useState(false)
+  const openSnackbar = useCustomSnackbar()
 
   return (
     <Tooltip
@@ -38,10 +41,17 @@ export const CopyIconButton = ({
     >
       <StyledIconButton
         size={size}
-        onClick={(e) => {
+        onClick={async (e) => {
           onClick?.(e)
-          navigator.clipboard.writeText(content)
-          setTooltipOpen(true)
+          try {
+            await navigator.clipboard.writeText(content)
+            setTooltipOpen(true)
+          } catch (error) {
+            openSnackbar(
+              `Failed to copy to clipboard: ${error instanceof Error ? error.message : String(error)}`,
+              "error",
+            )
+          }
         }}
         aria-label="copy"
         hidden={hidden && !tooltipOpen}

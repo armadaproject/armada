@@ -1,7 +1,20 @@
+# A short refresh keeps the e2e setup fast: the queue and policy caches see
+# a new policy after one period.
+queueRefreshPeriod: 3s
 grpc:
   port: 50052
   tls:
     enabled: false
+observability:
+  enabled: true
+  exporter:
+    endpoint: "http://localhost:4318"
+    protocol: "http/protobuf"
+  traces:
+    sampler: "parent_based_trace_id_ratio"
+    samplerArg: 1.0
+http:
+  port: 8080
 auth:
   anonymousAuth: true
   permissionGroupMapping:
@@ -22,5 +35,8 @@ postgres:
 scheduling:
   indexedNodeLabels:
     - "kubernetes.io/hostname"
+  retryPolicy:
+    enabled: true
+    globalMaxRetries: 5
 metrics:
   port: 9001

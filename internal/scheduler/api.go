@@ -2,7 +2,10 @@ package scheduler
 
 import (
 	"context"
+	"math"
+	"math/big"
 	"strconv"
+	"sync"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
@@ -10,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -47,6 +51,8 @@ type ExecutorApi struct {
 	// This is needed to ensure floating resources are not passed to k8s.
 	allowedResources map[string]bool
 	nodeIdLabel      string
+	// Executors already warned about nodes missing the node id label.
+	nodeIdLabelWarnings sync.Map
 	// See scheduling schedulingConfig.
 	priorityClassNameOverride *string
 	clock                     clock.Clock
@@ -150,6 +156,9 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 			}
 			addTolerations(submitMsg, PodRequirementsOverlay.Tolerations)
 			addAnnotations(submitMsg, PodRequirementsOverlay.Annotations)
+			if err := applyResourceMutations(submitMsg, PodRequirementsOverlay.ResourceMutations); err != nil {
+				return err
+			}
 		}
 
 		srv.addPreemptibleLabel(submitMsg)
@@ -231,6 +240,12 @@ func (srv *ExecutorApi) dropDisallowedResources(pod *v1.PodSpec) {
 	}
 	srv.dropDisallowedResourcesFromContainers(pod.InitContainers)
 	srv.dropDisallowedResourcesFromContainers(pod.Containers)
+	// Pod-level resources (KEP-2837) must be filtered by the same allow-list, else
+	// a disallowed resource could bypass it via the pod-level block.
+	if pod.Resources != nil {
+		removeDisallowedKeys(pod.Resources.Limits, srv.allowedResources)
+		removeDisallowedKeys(pod.Resources.Requests, srv.allowedResources)
+	}
 }
 
 func (srv *ExecutorApi) dropDisallowedResourcesFromContainers(containers []v1.Container) {
@@ -313,6 +328,87 @@ func addTolerations(job *armadaevents.SubmitJob, tolerations []*v1.Toleration) {
 	}
 }
 
+// applyResourceMutations grows the pod's memory by the cumulative retry-policy
+// bump the scheduler attached to the run. The factor multiplies every
+// container's memory. The static amount is shared across the main containers
+// in proportion to their current requests. The pod total then grows by
+// exactly the static amount and stays consistent with the scheduler's
+// reservation. Each init container receives the full static amount, because
+// init containers run alone and each must fit the reserved total on its own.
+// With pod-level memory, the block receives the full static amount and each
+// container's share is proportional to its request within that budget. This
+// keeps concurrent sidecars and init containers within the enlarged pod budget.
+// Requests and limits move together. Containers without a memory value stay
+// unchanged.
+func applyResourceMutations(job *armadaevents.SubmitJob, mutations *schedulerobjects.RetryResourceMutations) error {
+	if job == nil || mutations == nil {
+		return nil
+	}
+	factor := mutations.MemoryFactor
+	if factor == 0 {
+		factor = 1
+	}
+	static := int64(0)
+	if mutations.MemoryStatic != "" {
+		parsed, err := resource.ParseQuantity(mutations.MemoryStatic)
+		if err != nil {
+			return errors.Errorf("invalid memory_static %q on run lease: %s", mutations.MemoryStatic, err)
+		}
+		static = parsed.Value()
+	}
+	podSpec := job.MainObject.GetPodSpec().GetPodSpec()
+	if podSpec == nil {
+		return nil
+	}
+
+	totalRequests := int64(0)
+	for _, container := range podSpec.Containers {
+		if request, ok := container.Resources.Requests[v1.ResourceMemory]; ok {
+			totalRequests += request.Value()
+		}
+	}
+	pooledMemory := false
+	if podSpec.Resources != nil {
+		if request, ok := podSpec.Resources.Requests[v1.ResourceMemory]; ok {
+			pooledMemory = true
+			totalRequests = request.Value()
+		}
+	}
+	staticShare := func(resources v1.ResourceList) int64 {
+		if request, ok := resources[v1.ResourceMemory]; ok && totalRequests > 0 {
+			// Multiplying byte quantities can overflow int64 even for ordinary GiB-sized requests.
+			share := new(big.Int).Mul(big.NewInt(static), big.NewInt(request.Value()))
+			return share.Quo(share, big.NewInt(totalRequests)).Int64()
+		}
+		return 0
+	}
+	bump := func(resources v1.ResourceList, staticShare int64, round func(float64) float64) {
+		if current, ok := resources[v1.ResourceMemory]; ok {
+			grown := int64(round(float64(current.Value())*factor)) + staticShare
+			resources[v1.ResourceMemory] = *resource.NewQuantity(grown, current.Format)
+		}
+	}
+	for i := range podSpec.Containers {
+		share := staticShare(podSpec.Containers[i].Resources.Requests)
+		bump(podSpec.Containers[i].Resources.Requests, share, math.Floor)
+		bump(podSpec.Containers[i].Resources.Limits, share, math.Floor)
+	}
+	for i := range podSpec.InitContainers {
+		share := static
+		if pooledMemory {
+			share = staticShare(podSpec.InitContainers[i].Resources.Requests)
+		}
+		bump(podSpec.InitContainers[i].Resources.Requests, share, math.Floor)
+		bump(podSpec.InitContainers[i].Resources.Limits, share, math.Floor)
+	}
+	// Round up, like the scheduler's reservation, so the budget covers the rounded-down container requests.
+	if podSpec.Resources != nil {
+		bump(podSpec.Resources.Requests, static, math.Ceil)
+		bump(podSpec.Resources.Limits, static, math.Ceil)
+	}
+	return nil
+}
+
 func addLabels(job *armadaevents.SubmitJob, labels map[string]string) {
 	if job == nil || len(labels) == 0 {
 		return
@@ -371,13 +467,28 @@ func (srv *ExecutorApi) authorize(ctx *armadacontext.Context) error {
 func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
 	now := srv.clock.Now().UTC()
+	nodeIdLabelMissing := false
 	for _, nodeInfo := range req.Nodes {
 		if node, err := executorapi.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, now); err != nil {
 			ctx.Logger().WithStacktrace(err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetExecutorId(),
 			)
 		} else {
+			if _, ok := node.Labels[srv.nodeIdLabel]; !ok {
+				nodeIdLabelMissing = true
+			}
 			nodes = append(nodes, node)
+		}
+	}
+	// Node anti-affinity on retries matches against the node id label. A node
+	// without it satisfies every avoidance vacuously, so warn loudly. Once per
+	// executor: the executor must add the label to trackedNodeLabels.
+	if nodeIdLabelMissing {
+		if _, warned := srv.nodeIdLabelWarnings.LoadOrStore(req.ExecutorId, true); !warned {
+			ctx.Warnf(
+				"executor %s reports nodes without the node id label %q: retry node anti-affinity cannot work; add the label to the executor's trackedNodeLabels",
+				req.ExecutorId, srv.nodeIdLabel,
+			)
 		}
 	}
 	return &schedulerobjects.Executor{

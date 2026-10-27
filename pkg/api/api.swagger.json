@@ -680,6 +680,148 @@
         }
       }
     },
+    "/v1/retry-policies": {
+      "get": {
+        "tags": [
+          "RetryPolicyService"
+        ],
+        "operationId": "GetRetryPolicies",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiRetryPolicyList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/retry-policy": {
+      "post": {
+        "tags": [
+          "RetryPolicyService"
+        ],
+        "operationId": "CreateRetryPolicy",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiRetryPolicy"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/retry-policy/{name}": {
+      "get": {
+        "tags": [
+          "RetryPolicyService"
+        ],
+        "operationId": "GetRetryPolicy",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiRetryPolicy"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "RetryPolicyService"
+        ],
+        "operationId": "UpdateRetryPolicy",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiRetryPolicy"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "RetryPolicyService"
+        ],
+        "operationId": "DeleteRetryPolicy",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/run/details": {
       "post": {
         "tags": [
@@ -1220,12 +1362,6 @@
     "apiJobFailedEvent": {
       "type": "object",
       "properties": {
-        "categories": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
         "cause": {
           "$ref": "#/definitions/apiCause"
         },
@@ -1249,6 +1385,12 @@
             "format": "int32"
           }
         },
+        "failureCategory": {
+          "type": "string"
+        },
+        "failureSubcategory": {
+          "type": "string"
+        },
         "jobId": {
           "type": "string"
         },
@@ -1268,6 +1410,7 @@
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run. Use pod_name.",
           "type": "integer",
           "format": "int32"
         },
@@ -1276,6 +1419,10 @@
         },
         "reason": {
           "type": "string"
+        },
+        "retryable": {
+          "description": "retryable indicates the scheduler emitted this failure for an\nintermediate (non-terminal) run that will be retried. When true,\na subsequent leased/succeeded/failed event for the same job is\nexpected. Default false preserves the prior behavior where every\nemitted JobFailedEvent was terminal.",
+          "type": "boolean"
         }
       }
     },
@@ -1314,6 +1461,7 @@
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run. Use pod_name.",
           "type": "integer",
           "format": "int32"
         },
@@ -1360,6 +1508,7 @@
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run.",
           "type": "integer",
           "format": "int32"
         },
@@ -1424,6 +1573,7 @@
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run. Use pod_name.",
           "type": "integer",
           "format": "int32"
         },
@@ -1472,7 +1622,7 @@
         "jobSetId": {
           "type": "string"
         },
-        "preemptiveJobId": {
+        "preemptingJobId": {
           "type": "string"
         },
         "preemptiveRunId": {
@@ -1482,6 +1632,9 @@
           "type": "string"
         },
         "reason": {
+          "type": "string"
+        },
+        "requestor": {
           "type": "string"
         },
         "runId": {
@@ -1645,6 +1798,10 @@
           "type": "string",
           "format": "date-time"
         },
+        "podName": {
+          "description": "pod_name is the name of the pod of the run, as the executor reports it. It is empty while the run has no pod.",
+          "type": "string"
+        },
         "runId": {
           "type": "string"
         },
@@ -1724,6 +1881,7 @@
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run. Use pod_name.",
           "type": "integer",
           "format": "int32"
         },
@@ -1870,6 +2028,10 @@
         "clientId": {
           "type": "string"
         },
+        "externalJobUri": {
+          "description": "URI identifying this job in an external system (e.g. Airflow).\nIf not set, the server falls back to the \"armadaproject.io/externalJobUri\" annotation.",
+          "type": "string"
+        },
         "ingress": {
           "type": "array",
           "items": {
@@ -1989,6 +2151,7 @@
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run. Use pod_name.",
           "type": "integer",
           "format": "int32"
         },
@@ -2038,6 +2201,7 @@
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run. Use pod_name.",
           "type": "integer",
           "format": "int32"
         },
@@ -2199,6 +2363,13 @@
             "$ref": "#/definitions/apiPriorityClassResourceLimits"
           }
         },
+        "retryPolicies": {
+          "description": "retry_policies are the names of the retry policies attached to this queue,\nin precedence order. The scheduler evaluates the first policy in the list.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "userOwners": {
           "type": "array",
           "items": {
@@ -2238,6 +2409,116 @@
         },
         "queue": {
           "$ref": "#/definitions/apiQueue"
+        }
+      }
+    },
+    "apiRetryAction": {
+      "type": "string",
+      "default": "RETRY_ACTION_UNSPECIFIED",
+      "enum": [
+        "RETRY_ACTION_UNSPECIFIED",
+        "RETRY_ACTION_FAIL",
+        "RETRY_ACTION_RETRY"
+      ]
+    },
+    "apiRetryAffinityMutation": {
+      "description": "RetryAffinityMutation groups placement changes applied to a retried job.",
+      "type": "object",
+      "properties": {
+        "avoidSameNode": {
+          "description": "avoid_same_node, when true, steers the retry away from every node a\nprevious run attempted. This matches the lease-return retry behaviour:\nthe job fails if the anti-affinity makes it unschedulable. Default\nfalse: the retry requeues without the per-job scheduling probe.",
+          "type": "boolean"
+        }
+      }
+    },
+    "apiRetryMutation": {
+      "description": "RetryMutation groups the changes applied to a job on a policy-driven retry.\nFields are additive: new mutation kinds get new fields over time.",
+      "type": "object",
+      "properties": {
+        "affinity": {
+          "description": "affinity changes where the retry is allowed to run.",
+          "$ref": "#/definitions/apiRetryAffinityMutation"
+        },
+        "resources": {
+          "description": "resources bumps the retried job's resource requirements. If the bumped\njob no longer fits any node, the job fails terminally.",
+          "$ref": "#/definitions/apiRetryResourceMutation"
+        }
+      }
+    },
+    "apiRetryPolicy": {
+      "description": "RetryPolicy defines rules that determine whether failed jobs should be retried.\nOperators create policies and assign them to queues by name.",
+      "type": "object",
+      "properties": {
+        "defaultAction": {
+          "$ref": "#/definitions/apiRetryAction"
+        },
+        "name": {
+          "type": "string"
+        },
+        "retryLimit": {
+          "description": "retry_limit is the maximum number of retries after the initial failure.\nA retry_limit of 0 means the policy never retries.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiRetryRule"
+          }
+        }
+      }
+    },
+    "apiRetryPolicyList": {
+      "type": "object",
+      "properties": {
+        "retryPolicies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiRetryPolicy"
+          }
+        }
+      }
+    },
+    "apiRetryResourceBump": {
+      "description": "RetryResourceBump grows one resource on retry. Set exactly one field.\nThe bump changes requests and limits together, and it compounds across\nretries: each retry grows the amount the previous retry produced.",
+      "type": "object",
+      "properties": {
+        "factor": {
+          "description": "factor multiplies the current amount. 1.1 means a 10% increase.\nMust be greater than 1.0 when set.",
+          "type": "number",
+          "format": "double"
+        },
+        "static": {
+          "description": "static adds a fixed amount, as a Kubernetes quantity, e.g. \"512Mi\".",
+          "type": "string"
+        }
+      }
+    },
+    "apiRetryResourceMutation": {
+      "description": "RetryResourceMutation groups per-resource bumps applied to a retried job.\nNew resources get new fields over time.",
+      "type": "object",
+      "properties": {
+        "memory": {
+          "$ref": "#/definitions/apiRetryResourceBump"
+        }
+      }
+    },
+    "apiRetryRule": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/definitions/apiRetryAction"
+        },
+        "mutate": {
+          "description": "mutate describes changes applied to the job when this rule retries it.\nOnly meaningful when action is Retry.",
+          "$ref": "#/definitions/apiRetryMutation"
+        },
+        "onCategory": {
+          "description": "on_category matches against Error.failure_category. When set with on_subcategory,\nboth must match.",
+          "type": "string"
+        },
+        "onSubcategory": {
+          "type": "string"
         }
       }
     },

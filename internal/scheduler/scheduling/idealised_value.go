@@ -47,6 +47,7 @@ func CalculateIdealisedValue(
 		sctx.Pool,
 		sctx.FairnessCostProvider,
 		noOpRateLimiter,
+		nil, // no fairshare preemption rate limit for idealised (dry-run) scheduling
 		sctx.TotalResources)
 
 	for _, qctx := range sctx.QueueSchedulingContexts {

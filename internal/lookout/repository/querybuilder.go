@@ -119,6 +119,8 @@ func (qb *QueryBuilder) GetJobs(
 	selected_jobs.latest_run_id,
 	selected_jobs.cancel_reason,
 	selected_jobs.cancel_user,
+	selected_jobs.preempt_user,
+	selected_jobs.reprioritize_user,
 	selected_jobs.annotations,
 	selected_runs.runs
 FROM (
@@ -143,6 +145,8 @@ FROM (
 		j.latest_run_id,
 		j.cancel_reason,
 		j.cancel_user,
+		j.preempt_user,
+		j.reprioritize_user,
 		j.annotations
 	FROM %s AS %s
 	%s
@@ -160,6 +164,7 @@ CROSS JOIN LATERAL (
 						'runId', run_id,
 						'cluster', cluster,
 						'node', node,
+						'podName', pod_name,
 						'leased', leased AT TIME ZONE 'UTC',
 						'pending', pending AT TIME ZONE 'UTC',
 						'started', started AT TIME ZONE 'UTC',
@@ -169,7 +174,8 @@ CROSS JOIN LATERAL (
 						'pool', pool,
 						-- 'pool', NULLIF(pool, ''),
 						'ingressAddresses', ingress_addresses,
-						'failureInfo', failure_info
+						'failureCategory', failure_category,
+						'failureSubcategory', failure_subcategory
 					)
 				)
 				ORDER BY COALESCE(leased, pending)

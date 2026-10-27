@@ -16,8 +16,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
+	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
@@ -118,10 +120,19 @@ func (c *FakeClusterContext) GetNodes() ([]*v1.Node, error) {
 }
 
 func (c *FakeClusterContext) GetNode(nodeName string) (*v1.Node, error) {
-	return c.nodes[0], nil
+	for _, node := range c.nodes {
+		if node.Name == nodeName {
+			return node, nil
+		}
+	}
+	return nil, k8s_errors.NewNotFound(schema.GroupResource{Resource: "nodes"}, nodeName)
 }
 
 func (c *FakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
+	return []*v1.Event{}, nil
+}
+
+func (c *FakeClusterContext) GetNodeEvents(nodeName string) ([]*v1.Event, error) {
 	return []*v1.Event{}, nil
 }
 

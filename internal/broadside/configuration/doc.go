@@ -11,7 +11,7 @@ job submissions, state transitions, and query patterns.
 The main configuration type is TestConfig, which defines:
 
   - Test duration and warmup period
-  - Database configuration (Postgres or ClickHouse connection parameters, optional Postgres tuning and revert SQL)
+  - Database configuration (Postgres or ClickHouse connection parameters, optional Postgres tuning and revert SQL, optional partition-by-submitted toggle)
   - Queue configuration (queue/jobset distribution and historical job setup)
   - Ingestion configuration (job submission rates and state transitions)
   - Query configuration (rates for different query types)

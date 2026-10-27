@@ -119,6 +119,12 @@ definitions:
       cancelUser:
         type: string
         x-nullable: true
+      preemptUser:
+        type: string
+        x-nullable: true
+      reprioritizeUser:
+        type: string
+        x-nullable: true
       node:
         type: string
         x-nullable: true
@@ -152,6 +158,9 @@ definitions:
         minLength: 1
         x-nullable: false
       node:
+        type: string
+        x-nullable: true
+      podName:
         type: string
         x-nullable: true
       leased:
@@ -199,22 +208,12 @@ definitions:
         type: object
         additionalProperties:
           type: string
-      failureInfo:
-        type: object
-        x-nullable: true
-        properties:
-          exitCode:
-            type: integer
-            format: int32
-          categories:
-            type: array
-            x-omitempty: true
-            items:
-              type: string
-          terminationMessage:
-            type: string
-          containerName:
-            type: string
+      failureCategory:
+        type: string
+        x-omitempty: true
+      failureSubcategory:
+        type: string
+        x-omitempty: true
   group:
     type: object
     required:
@@ -288,6 +287,25 @@ definitions:
         type: string
         minLength: 1
         x-nullable: false
+  versionInfo:
+    type: object
+    required:
+      - version
+      - commit
+      - buildTime
+    properties:
+      version:
+        type: string
+        minLength: 1
+        x-nullable: false
+      commit:
+        type: string
+        minLength: 1
+        x-nullable: false
+      buildTime:
+        type: string
+        minLength: 1
+        x-nullable: false
 
 parameters:
   backend:
@@ -313,6 +331,21 @@ paths:
           description: Error response
           schema:
             type: string
+
+  /api/v1/version:
+    get:
+      operationId: getVersion
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Returns the Lookout backend's release version, commit, and build time.
+          schema:
+            $ref: "#/definitions/versionInfo"
+        default:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
 
   /api/v1/jobs:
     post:
@@ -602,6 +635,44 @@ paths:
                 description: List of Job groups
                 items:
                   $ref: "#/definitions/group"
+        400:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+        default:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+
+  /api/v1/jobRunSchedulerTerminationReason:
+    post:
+      operationId: getJobRunSchedulerTerminationReason
+      consumes:
+        - application/json
+      parameters:
+        - name: getJobRunSchedulerTerminationReasonRequest
+          required: true
+          in: body
+          schema:
+            type: object
+            required:
+              - runId
+            properties:
+              runId:
+                type: string
+                x-nullable: false
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Returns scheduler termination reason for specific job run (if present)
+          schema:
+            type: object
+            properties:
+              schedulerTerminationReason:
+                type: string
+                description: Scheduler termination reason for individual job run
+                x-nullable: false
         400:
           description: Error response
           schema:

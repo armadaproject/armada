@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"regexp"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
@@ -20,6 +21,9 @@ const (
 
 	AccountingRolePrimary   = "primary"
 	AccountingRoleSecondary = "secondary"
+
+	QueueStateValidated   = "validated"
+	QueueStateUnvalidated = "unvalidated"
 )
 
 var PoolInfoDesc = prometheus.NewDesc(
@@ -32,7 +36,7 @@ var PoolInfoDesc = prometheus.NewDesc(
 var QueueSizeDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_size",
 	"Number of jobs in a queue",
-	[]string{"queueName", "queue"},
+	[]string{"queueName", "queue", "state"},
 	nil,
 )
 
@@ -295,6 +299,13 @@ var JobDBCumulativeInternedStrings = prometheus.NewDesc(
 	nil,
 )
 
+var BidPriceCacheLastRefreshDesc = prometheus.NewDesc(
+	MetricPrefix+"scheduler_bid_price_cache_last_refresh_timestamp_seconds",
+	"Unix timestamp of the most recent bid price snapshot held by the scheduler",
+	nil,
+	nil,
+)
+
 var (
 	queueLabelMetricName        = MetricPrefix + "queue_labels"
 	queueLabelMetricDescription = "Queue labels"
@@ -342,6 +353,7 @@ var AllDescs = []*prometheus.Desc{
 	QueueLabelDesc,
 	QueuePriceBandPhaseBidDesc,
 	JobDBCumulativeInternedStrings,
+	BidPriceCacheLastRefreshDesc,
 }
 
 func Describe(out chan<- *prometheus.Desc) {
@@ -350,14 +362,20 @@ func Describe(out chan<- *prometheus.Desc) {
 	}
 }
 
-func CollectQueueMetrics(pools []configuration.PoolConfig, queueCounts map[string]int, bidPriceSnapshot pricing.BidPriceSnapshot, queueDistinctSchedulingKeyCounts map[string]int, metricsProvider QueueMetricProvider) []prometheus.Metric {
+type QueueSizeCounts struct {
+	Validated   int
+	Unvalidated int
+}
+
+func CollectQueueMetrics(pools []configuration.PoolConfig, queueCounts map[string]QueueSizeCounts, bidPriceSnapshot pricing.BidPriceSnapshot, queueDistinctSchedulingKeyCounts map[string]int, metricsProvider QueueMetricProvider) []prometheus.Metric {
 	metrics := make([]prometheus.Metric, 0, len(AllDescs))
 	poolNames := armadaslices.Map(pools, func(pool configuration.PoolConfig) string {
 		return pool.Name
 	})
 
-	for q, count := range queueCounts {
-		metrics = append(metrics, NewQueueSizeMetric(count, q))
+	for q, counts := range queueCounts {
+		metrics = append(metrics, NewQueueSizeMetric(counts.Validated, q, QueueStateValidated))
+		metrics = append(metrics, NewQueueSizeMetric(counts.Unvalidated, q, QueueStateUnvalidated))
 		metrics = append(metrics, NewQueueDistinctSchedulingKeyMetric(queueDistinctSchedulingKeyCounts[q], q))
 		queuedJobMetrics := metricsProvider.GetQueuedJobMetrics(q)
 		runningJobMetrics := metricsProvider.GetRunningJobMetrics(q)
@@ -457,8 +475,12 @@ func NewPoolInfoMetric(pool string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(PoolInfoDesc, prometheus.GaugeValue, float64(1), pool)
 }
 
-func NewQueueSizeMetric(value int, queue string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(QueueSizeDesc, prometheus.GaugeValue, float64(value), queue, queue)
+func NewBidPriceCacheLastRefreshMetric(t time.Time) prometheus.Metric {
+	return prometheus.MustNewConstMetric(BidPriceCacheLastRefreshDesc, prometheus.GaugeValue, float64(t.Unix()))
+}
+
+func NewQueueSizeMetric(value int, queue string, state string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(QueueSizeDesc, prometheus.GaugeValue, float64(value), queue, queue, state)
 }
 
 func NewQueueDistinctSchedulingKeyMetric(value int, queue string) prometheus.Metric {

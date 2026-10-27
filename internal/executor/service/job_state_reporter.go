@@ -10,8 +10,11 @@ import (
 	"github.com/armadaproject/armada/internal/executor/categorizer"
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	domain2 "github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/reporter/startup"
 	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type JobStateReporter struct {
@@ -19,6 +22,11 @@ type JobStateReporter struct {
 	clusterContext  clusterContext.ClusterContext
 	podIssueHandler IssueHandler
 	classifier      *categorizer.Classifier
+	debugRenderer   *reporter.DebugMessageRenderer
+	// Nil when start-up timing capture is disabled, so no pod events are fetched for running pods.
+	startUpTimings *startup.Timings
+	// Runtime above which a failed pod's debug data is captured. See shouldCaptureFailureDebug.
+	minAppContainerRuntimeForFailureDebug time.Duration
 }
 
 func NewJobStateReporter(
@@ -26,12 +34,18 @@ func NewJobStateReporter(
 	eventReporter reporter.EventReporter,
 	podIssueHandler IssueHandler,
 	classifier *categorizer.Classifier,
+	debugRenderer *reporter.DebugMessageRenderer,
+	startUpTimings *startup.Timings,
+	minAppContainerRuntimeForFailureDebug time.Duration,
 ) (*JobStateReporter, error) {
 	stateReporter := &JobStateReporter{
-		eventReporter:   eventReporter,
-		clusterContext:  clusterContext,
-		podIssueHandler: podIssueHandler,
-		classifier:      classifier,
+		eventReporter:                         eventReporter,
+		clusterContext:                        clusterContext,
+		podIssueHandler:                       podIssueHandler,
+		classifier:                            classifier,
+		debugRenderer:                         debugRenderer,
+		startUpTimings:                        startUpTimings,
+		minAppContainerRuntimeForFailureDebug: minAppContainerRuntimeForFailureDebug,
 	}
 
 	_, err := clusterContext.AddPodEventHandler(stateReporter.podEventHandler())
@@ -82,6 +96,17 @@ func (stateReporter *JobStateReporter) reportStatusUpdate(old *v1.Pod, new *v1.P
 	stateReporter.reportCurrentStatus(new)
 }
 
+// Two kinds of failure are worth the debug data: a pod whose app container never started, where the
+// reason the workload never ran is otherwise lost, and a pod that failed after running for a while,
+// where the exit code alone does not explain what happened. A container that failed quickly in
+// between is an ordinary application error.
+func (stateReporter *JobStateReporter) shouldCaptureFailureDebug(pod *v1.Pod) bool {
+	if !util.HasAppContainerStarted(pod) {
+		return true
+	}
+	return util.LongestAppContainerRunDuration(pod) >= stateReporter.minAppContainerRuntimeForFailureDebug
+}
+
 func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 	if !util.IsManagedPod(pod) {
 		return
@@ -90,19 +115,32 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 		return
 	}
 
-	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId(), stateReporter.classifier)
-	if err != nil {
-		log.Errorf("Failed to report event: %v", err)
-		return
+	var classifyResult categorizer.ClassifyResult
+	var debugMessage string
+	var startUpInfo *armadaevents.PodStartUpInfo
+	if pod.Status.Phase == v1.PodRunning && stateReporter.startUpTimings != nil {
+		podEvents, err := stateReporter.clusterContext.GetPodEvents(pod)
+		if err != nil {
+			log.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
+		}
+		startUpInfo = stateReporter.startUpTimings.Measure(pod, podEvents)
 	}
-
 	if pod.Status.Phase == v1.PodFailed {
+		podEvents, err := stateReporter.clusterContext.GetPodEvents(pod)
+		if err != nil {
+			// The pod's own state is still worth classifying and describing without them.
+			log.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
+		}
+		// Classify with the same inputs as the delete action check of the issue handler, so that both give the same
+		// category for the pod, whatever the action of the category.
+		classifyResult = stateReporter.classifier.Classify(pod, util.ExtractPodFailedReason(pod), podEvents)
+
 		hasIssue := stateReporter.podIssueHandler.HasIssue(util.ExtractJobRunId(pod))
 		if hasIssue {
 			// Pod already being handled by issue handler
 			return
 		}
-		issueAdded, err := stateReporter.podIssueHandler.DetectAndRegisterFailedPodIssue(pod)
+		issueAdded, err := stateReporter.podIssueHandler.DetectAndRegisterIssuesForFailedPod(pod)
 		if issueAdded {
 			// Pod already being handled by issue handler
 			return
@@ -111,6 +149,16 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 			log.Errorf("Failed detecting issue on failed pod %s(%s) - %v", pod.Name, util.ExtractJobRunId(pod), err)
 			// Don't return here, as it is very important we don't block reporting a terminal event (failed)
 		}
+
+		if stateReporter.shouldCaptureFailureDebug(pod) {
+			debugMessage = stateReporter.debugRenderer.Render(pod, podEvents, reporter.TriggerPodFailed)
+		}
+	}
+
+	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId(), classifyResult, debugMessage, startUpInfo)
+	if err != nil {
+		log.Errorf("Failed to report event: %v", err)
+		return
 	}
 
 	stateReporter.eventReporter.QueueEvent(reporter.EventMessage{Event: event, JobRunId: util.ExtractJobRunId(pod)}, func(err error) {
@@ -118,6 +166,9 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 			log.Errorf("Failed to report event: %s", err)
 			return
 		}
+		// Increment only after successful emission so failed sends do not inflate the counter.
+		// RecordJobFailure is a no-op for non-failure phases and for nil classifiers (empty category).
+		metrics.RecordJobFailure(classifyResult.Category, classifyResult.Subcategory)
 
 		if util.IsReportingPhaseRequired(pod.Status.Phase) {
 			err = stateReporter.addAnnotationToMarkStateReported(pod)

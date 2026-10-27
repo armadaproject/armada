@@ -1,9 +1,9 @@
 import queryString, { ParseOptions, StringifyOptions } from "query-string"
 
 import { Router } from "../common/utils"
-import { JobSetsContainerState } from "../pages/jobSets/components/JobSetsContainer"
+import { JobSetsOrderByColumn } from "../models/lookoutModels"
 
-import { JobSetsOrderByColumn } from "./JobService"
+import { type JobSetsPrefs } from "./JobSetsLocalStorageService"
 
 const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
   arrayFormat: "comma",
@@ -21,7 +21,7 @@ type JobSetsQueryParams = {
 export default class JobSetsQueryParamsService {
   constructor(private router: Router) {}
 
-  saveState(state: JobSetsContainerState) {
+  saveState(state: JobSetsPrefs) {
     const params = queryString.parse(this.router.location.search, QUERY_STRING_OPTIONS) as Record<any, any>
 
     if (state.queue) {
@@ -37,7 +37,7 @@ export default class JobSetsQueryParamsService {
     })
   }
 
-  updateState(state: JobSetsContainerState) {
+  updateState(state: JobSetsPrefs) {
     const params = queryString.parse(this.router.location.search, QUERY_STRING_OPTIONS) as JobSetsQueryParams
 
     if (params.queue) state.queue = params.queue

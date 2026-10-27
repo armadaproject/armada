@@ -3,39 +3,107 @@ package categorizer
 import (
 	"fmt"
 	"regexp"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/errormatch"
+	"github.com/armadaproject/armada/internal/executor/metrics"
 )
 
+// maxCategoryNameLen is the maximum length for category and subcategory strings.
+// Matches the varchar(63) constraint on the failure_category and failure_subcategory
+// columns in the lookout job_run table (migration 032). Validating at config load
+// time prevents the ingester from failing batch UPDATEs at runtime.
+const maxCategoryNameLen = 63
+
+// reservedCategoryNames are the categories that Armada sets itself on the
+// errors it creates. A retry policy rule for one of them must match only those
+// errors, so an operator category cannot use the name.
+var reservedCategoryNames = map[string]bool{
+	errormatch.CategoryInternal:   true,
+	errormatch.CategoryPreemption: true,
+}
+
 type category struct {
-	name  string
-	rules []rule
+	name   string
+	action PodFailureAction
+	rules  []rule
 }
 
 type rule struct {
 	containerName        string
 	onExitCodes          *errormatch.ExitCodeMatcher
 	onTerminationMessage *regexp.Regexp
+	onPodError           *regexp.Regexp
+	onPodEvents          *podEventRule
 	onConditions         []string
+	subcategory          string
+	hint                 string
+}
+
+// podEventRule is a compiled OnPodEvents matcher.
+type podEventRule struct {
+	message   *regexp.Regexp
+	reason    string
+	eventType string
+}
+
+// ClassifyResult holds the classification output for a failed pod.
+type ClassifyResult struct {
+	Category    string
+	Subcategory string
+	// Hint is operator-supplied user-facing copy attached to the matching rule.
+	// Use AppendHint to attach it to the failure message before emitting events.
+	Hint string
+	// Action is the pod disposition: Delete only when the matched category
+	// explicitly configures it, otherwise Retain.
+	Action PodFailureAction
+}
+
+// AppendHint returns the message with this result's hint appended after a blank
+// line. Returns the message unchanged when no hint is set. Centralizing the
+// format here keeps both event-reporting call sites consistent.
+func (r ClassifyResult) AppendHint(message string) string {
+	if r.Hint == "" {
+		return message
+	}
+	return fmt.Sprintf("%s\n\n%s", message, r.Hint)
 }
 
 // Classifier evaluates pods against a set of category rules and returns
-// the names of all matching categories.
+// the first matching category and subcategory.
 type Classifier struct {
-	categories []category
+	defaultCategory    string
+	defaultSubcategory string
+	categories         []category
 }
 
 // NewClassifier validates config and compiles regex patterns.
 // Returns an error if any regex is invalid, a condition is unknown,
-// or an exit code matcher has an invalid operator.
-func NewClassifier(configs []CategoryConfig) (*Classifier, error) {
-	categories := make([]category, 0, len(configs))
-	seen := make(map[string]bool, len(configs))
-	for _, cfg := range configs {
+// an exit code matcher has an invalid operator, or a category uses a name
+// that Armada reserves.
+func NewClassifier(config ErrorCategoriesConfig) (*Classifier, error) {
+	if len(config.DefaultCategory) > maxCategoryNameLen {
+		return nil, fmt.Errorf("defaultCategory %q exceeds maximum length %d", config.DefaultCategory, maxCategoryNameLen)
+	}
+	if reservedCategoryNames[config.DefaultCategory] {
+		return nil, fmt.Errorf("defaultCategory %q is reserved for categories that Armada sets", config.DefaultCategory)
+	}
+	if len(config.DefaultSubcategory) > maxCategoryNameLen {
+		return nil, fmt.Errorf("defaultSubcategory %q exceeds maximum length %d", config.DefaultSubcategory, maxCategoryNameLen)
+	}
+	categories := make([]category, 0, len(config.Categories))
+	seen := make(map[string]bool, len(config.Categories))
+	for _, cfg := range config.Categories {
 		if cfg.Name == "" {
 			return nil, fmt.Errorf("category config must have a name")
+		}
+		if len(cfg.Name) > maxCategoryNameLen {
+			return nil, fmt.Errorf("category name %q exceeds maximum length %d", cfg.Name, maxCategoryNameLen)
+		}
+		if reservedCategoryNames[cfg.Name] {
+			return nil, fmt.Errorf("category name %q is reserved for categories that Armada sets", cfg.Name)
 		}
 		if seen[cfg.Name] {
 			return nil, fmt.Errorf("duplicate category name %q", cfg.Name)
@@ -44,20 +112,44 @@ func NewClassifier(configs []CategoryConfig) (*Classifier, error) {
 		if len(cfg.Rules) == 0 {
 			return nil, fmt.Errorf("category %q must have at least one rule", cfg.Name)
 		}
-		cat := category{name: cfg.Name}
-		for i, rule := range cfg.Rules {
-			r, err := buildRule(rule)
+		action := cfg.Action
+		if action == "" {
+			action = PodFailureActionRetain
+		}
+		if err := validateAction(action); err != nil {
+			return nil, fmt.Errorf("category %q: %w", cfg.Name, err)
+		}
+		cat := category{name: cfg.Name, action: action}
+		for i, r := range cfg.Rules {
+			built, err := buildRule(r)
 			if err != nil {
 				return nil, fmt.Errorf("category %q rule %d: %w", cfg.Name, i, err)
 			}
-			cat.rules = append(cat.rules, r)
+			cat.rules = append(cat.rules, built)
 		}
 		categories = append(categories, cat)
 	}
-	return &Classifier{categories: categories}, nil
+	return &Classifier{
+		defaultCategory:    config.DefaultCategory,
+		defaultSubcategory: config.DefaultSubcategory,
+		categories:         categories,
+	}, nil
+}
+
+// validateAction rejects a category action that is neither Retain nor Delete.
+func validateAction(a PodFailureAction) error {
+	switch a {
+	case PodFailureActionRetain, PodFailureActionDelete:
+		return nil
+	default:
+		return fmt.Errorf("invalid action %q: must be %q or %q", a, PodFailureActionDelete, PodFailureActionRetain)
+	}
 }
 
 func buildRule(cfg CategoryRule) (rule, error) {
+	if len(cfg.Subcategory) > maxCategoryNameLen {
+		return rule{}, fmt.Errorf("subcategory %q exceeds maximum length %d", cfg.Subcategory, maxCategoryNameLen)
+	}
 	matcherCount := 0
 	if len(cfg.OnConditions) > 0 {
 		matcherCount++
@@ -68,11 +160,17 @@ func buildRule(cfg CategoryRule) (rule, error) {
 	if cfg.OnTerminationMessage != nil {
 		matcherCount++
 	}
+	if cfg.OnPodError != nil {
+		matcherCount++
+	}
+	if cfg.OnPodEvents != nil {
+		matcherCount++
+	}
 	if matcherCount == 0 {
-		return rule{}, fmt.Errorf("rule must specify one of onConditions, onExitCodes, or onTerminationMessage")
+		return rule{}, fmt.Errorf("rule must specify one of onConditions, onExitCodes, onTerminationMessage, onPodError, or onPodEvents")
 	}
 	if matcherCount > 1 {
-		return rule{}, fmt.Errorf("rule must specify only one of onConditions, onExitCodes, or onTerminationMessage")
+		return rule{}, fmt.Errorf("rule must specify only one of onConditions, onExitCodes, onTerminationMessage, onPodError, or onPodEvents")
 	}
 
 	for _, cond := range cfg.OnConditions {
@@ -95,54 +193,80 @@ func buildRule(cfg CategoryRule) (rule, error) {
 		}
 	}
 
-	var compiledRegex *regexp.Regexp
+	var terminationRegex *regexp.Regexp
 	if cfg.OnTerminationMessage != nil {
 		re, err := regexp.Compile(cfg.OnTerminationMessage.Pattern)
 		if err != nil {
-			return rule{}, fmt.Errorf("invalid regex %q: %w", cfg.OnTerminationMessage.Pattern, err)
+			return rule{}, fmt.Errorf("invalid onTerminationMessage regex %q: %w", cfg.OnTerminationMessage.Pattern, err)
 		}
-		compiledRegex = re
+		terminationRegex = re
+	}
+
+	var podErrorRegex *regexp.Regexp
+	if cfg.OnPodError != nil {
+		re, err := regexp.Compile(cfg.OnPodError.Pattern)
+		if err != nil {
+			return rule{}, fmt.Errorf("invalid onPodError regex %q: %w", cfg.OnPodError.Pattern, err)
+		}
+		podErrorRegex = re
+	}
+
+	var podEvents *podEventRule
+	if cfg.OnPodEvents != nil {
+		re, err := regexp.Compile(cfg.OnPodEvents.Regexp)
+		if err != nil {
+			return rule{}, fmt.Errorf("invalid onPodEvents regexp %q: %w", cfg.OnPodEvents.Regexp, err)
+		}
+		if cfg.OnPodEvents.Type != v1.EventTypeNormal && cfg.OnPodEvents.Type != v1.EventTypeWarning {
+			return rule{}, fmt.Errorf("invalid onPodEvents type %q, must be %q or %q",
+				cfg.OnPodEvents.Type, v1.EventTypeNormal, v1.EventTypeWarning)
+		}
+		podEvents = &podEventRule{message: re, reason: cfg.OnPodEvents.Reason, eventType: cfg.OnPodEvents.Type}
 	}
 
 	return rule{
 		containerName:        cfg.ContainerName,
 		onExitCodes:          cfg.OnExitCodes,
 		onConditions:         cfg.OnConditions,
-		onTerminationMessage: compiledRegex,
+		onTerminationMessage: terminationRegex,
+		onPodError:           podErrorRegex,
+		onPodEvents:          podEvents,
+		subcategory:          cfg.Subcategory,
+		hint:                 cfg.Hint,
 	}, nil
 }
 
-// Classify returns the names of all categories that match the given pod.
-// Returns nil if the receiver is nil, the pod is nil, or no categories match.
-func (c *Classifier) Classify(pod *v1.Pod) []string {
+// Classify returns the category, the subcategory, the hint and the action for a failure of the pod. message is the
+// failure message that the executor reports for the run, and onPodError rules match it. events are the Kubernetes
+// events of the pod, and onPodEvents rules match them. The other rules match the state of the pod and its containers.
+// The first rule in config order that matches wins.
+// Returns a result with only the action Retain if the receiver is nil or the pod is nil.
+// Returns (defaultCategory, defaultSubcategory) if no rule matches.
+func (c *Classifier) Classify(pod *v1.Pod, message string, events []*v1.Event) ClassifyResult {
 	if c == nil || pod == nil {
-		return nil
+		return ClassifyResult{Action: PodFailureActionRetain}
 	}
 	containers := failedContainers(pod)
 	podReason := pod.Status.Reason
 
-	var matched []string
 	for _, cat := range c.categories {
-		if categoryMatches(cat, containers, podReason) {
-			matched = append(matched, cat.name)
+		for _, r := range cat.rules {
+			start := time.Now()
+			matched := ruleMatches(r, containers, podReason, message, events)
+			metrics.RecordRuleEvaluationDuration(cat.name, r.subcategory, time.Since(start))
+			if matched {
+				return ClassifyResult{Category: cat.name, Subcategory: r.subcategory, Hint: r.hint, Action: cat.action}
+			}
 		}
 	}
-	return matched
+	return ClassifyResult{Category: c.defaultCategory, Subcategory: c.defaultSubcategory, Action: PodFailureActionRetain}
 }
 
-func categoryMatches(cat category, containers []containerInfo, podReason string) bool {
-	for _, rule := range cat.rules {
-		if ruleMatches(rule, containers, podReason) {
-			return true
-		}
-	}
-	return false
-}
-
-// ruleMatches evaluates a single rule. When containerName is set, only that
-// container is considered. It checks the first non-nil matcher:
-// conditions > exit codes > termination message.
-func ruleMatches(r rule, containers []containerInfo, podReason string) bool {
+// ruleMatches evaluates a single rule. Container-level matchers honor the
+// rule's containerName scope (when set). onPodError and onPodEvents ignore it
+// because pod-level failures have no container attribution. Exactly one
+// matcher is set per rule (validated at NewClassifier).
+func ruleMatches(r rule, containers []containerInfo, podReason, message string, events []*v1.Event) bool {
 	filtered := containers
 	if r.containerName != "" {
 		filtered = filterByName(containers, r.containerName)
@@ -155,6 +279,30 @@ func ruleMatches(r rule, containers []containerInfo, podReason string) bool {
 	}
 	if r.onTerminationMessage != nil {
 		return matchesTerminationMessage(r.onTerminationMessage, filtered)
+	}
+	if r.onPodError != nil {
+		return message != "" && errormatch.MatchPattern(r.onPodError, message)
+	}
+	if r.onPodEvents != nil {
+		return matchesPodEvents(r.onPodEvents, events)
+	}
+	return false
+}
+
+// matchesPodEvents mirrors the legacy failedPodChecks event checker. An event
+// matches when its type equals the rule's, its reason equals the rule's (when
+// set), and its message matches the regex.
+func matchesPodEvents(matcher *podEventRule, podEvents []*v1.Event) bool {
+	for _, event := range podEvents {
+		if matcher.reason != "" && matcher.reason != event.Reason {
+			continue
+		}
+		if matcher.eventType != event.Type {
+			continue
+		}
+		if errormatch.MatchPattern(matcher.message, event.Message) {
+			return true
+		}
 	}
 	return false
 }
@@ -173,14 +321,12 @@ func matchesCondition(conditions []string, containers []containerInfo, podReason
 	for _, cond := range conditions {
 		switch cond {
 		case errormatch.ConditionOOMKilled:
-			// Container-level: check the terminated reason on each failed container.
 			for _, c := range containers {
 				if c.reason == cond {
 					return true
 				}
 			}
 		case errormatch.ConditionEvicted, errormatch.ConditionDeadlineExceeded:
-			// Pod-level: these conditions appear on pod.Status.Reason, not on containers.
 			if podReason == cond {
 				return true
 			}

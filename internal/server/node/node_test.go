@@ -14,6 +14,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	commonMocks "github.com/armadaproject/armada/internal/common/mocks"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -154,6 +155,7 @@ func TestPreemptOnNode_SuccessPublishesExpectedEvent(t *testing.T) {
 	assert.Equal(t, req.Executor, wrapped.PreemptOnNode.Executor)
 	assert.Equal(t, req.Queues, wrapped.PreemptOnNode.Queues)
 	assert.Equal(t, req.PriorityClasses, wrapped.PreemptOnNode.PriorityClasses)
+	assert.Equal(t, auth.GetPrincipal(ctx).GetName(), wrapped.PreemptOnNode.Requestor)
 }
 
 func TestCancelOnNode_PermissionDenied(t *testing.T) {
@@ -264,4 +266,5 @@ func TestCancelOnNode_SuccessPublishesExpectedEvent(t *testing.T) {
 	assert.Equal(t, req.Executor, wrapped.CancelOnNode.Executor)
 	assert.Equal(t, req.Queues, wrapped.CancelOnNode.Queues)
 	assert.Equal(t, req.PriorityClasses, wrapped.CancelOnNode.PriorityClasses)
+	assert.Equal(t, auth.GetPrincipal(ctx).GetName(), wrapped.CancelOnNode.Requestor)
 }

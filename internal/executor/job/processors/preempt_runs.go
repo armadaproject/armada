@@ -20,17 +20,20 @@ type RunPreemptedProcessor struct {
 	clusterContext   executorContext.ClusterContext
 	jobRunStateStore job.RunStateStore
 	eventReporter    reporter.EventReporter
+	debugRenderer    *reporter.DebugMessageRenderer
 }
 
 func NewRunPreemptedProcessor(
 	clusterContext executorContext.ClusterContext,
 	jobRunStateStore job.RunStateStore,
 	eventReporter reporter.EventReporter,
+	debugRenderer *reporter.DebugMessageRenderer,
 ) *RunPreemptedProcessor {
 	return &RunPreemptedProcessor{
 		clusterContext:   clusterContext,
 		jobRunStateStore: jobRunStateStore,
 		eventReporter:    eventReporter,
+		debugRenderer:    debugRenderer,
 	}
 }
 
@@ -78,7 +81,12 @@ func (j *RunPreemptedProcessor) reportPodPreempted(run *job.RunState, pod *v1.Po
 	if err != nil {
 		return fmt.Errorf("failed creating preempted event because - %s", err)
 	}
-	failedEvent, err := reporter.CreateSimpleJobFailedEvent(pod, "Run preempted", "", j.clusterContext.GetClusterId(), armadaevents.KubernetesReason_AppError, nil)
+
+	// If the run is preempted before its main container ever started, record the k8s events
+	// as debug data so the reason the workload never ran isn't lost.
+	debugMessage := j.debugMessageIfMainContainerNeverStarted(pod)
+	failedEvent, err := reporter.CreateJobFailedEvent(pod, "Run preempted", armadaevents.KubernetesReason_AppError,
+		debugMessage, []*armadaevents.ContainerError{}, j.clusterContext.GetClusterId(), "", "")
 	if err != nil {
 		return fmt.Errorf("failed creating failed event because - %s", err)
 	}
@@ -100,4 +108,18 @@ func (j *RunPreemptedProcessor) reportPodPreempted(run *job.RunState, pod *v1.Po
 		return fmt.Errorf("failed to annotate pod as preempted - %s", err)
 	}
 	return nil
+}
+
+// Returns the debug payload when the pod's main container never started, otherwise an empty string.
+// A pod with no events of its own is still worth describing: preemption commonly produces none, and
+// the pod's own state and its node's conditions are what explain it.
+func (j *RunPreemptedProcessor) debugMessageIfMainContainerNeverStarted(pod *v1.Pod) string {
+	if util.HasAppContainerStarted(pod) {
+		return ""
+	}
+	podEvents, err := j.clusterContext.GetPodEvents(pod)
+	if err != nil {
+		log.Errorf("Failed retrieving pod events for preempted pod %s: %v", pod.Name, err)
+	}
+	return j.debugRenderer.Render(pod, podEvents, reporter.TriggerPreempted)
 }

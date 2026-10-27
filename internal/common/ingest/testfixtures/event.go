@@ -21,6 +21,7 @@ import (
 const (
 	JobId                      = "01f3j0g1md4qx7z5qb148qnh4r"
 	RunId                      = "123e4567-e89b-12d3-a456-426614174000"
+	PreemptingJobId            = "456e7890-e89b-12d3-a456-426614174001"
 	PartitionMarkerGroupId     = "223e4567-e89b-12d3-a456-426614174000"
 	JobsetName                 = "testJobset"
 	ExecutorId                 = "testCluster"
@@ -43,6 +44,7 @@ const (
 	LeaseReturnedMsg           = "lease returned error message"
 	UnschedulableMsg           = "test pod is unschedulable"
 	PreemptionReason           = "job preempted"
+	CancelReason               = "sample cancel reason"
 	PartitionMarkerPartitionId = 456
 
 	ExecutorCordonReason = "bad executor"
@@ -290,6 +292,29 @@ var JobRunCancelled = &armadaevents.EventSequence_Event{
 	},
 }
 
+var JobRunCancelledWithReason = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BasetimeProto,
+	Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+		JobRunCancelled: &armadaevents.JobRunCancelled{
+			RunId:     RunId,
+			JobId:     JobId,
+			Reason:    CancelReason,
+			Requestor: CancelUser,
+		},
+	},
+}
+
+var JobRunCancelledWithReasonOnly = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BasetimeProto,
+	Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+		JobRunCancelled: &armadaevents.JobRunCancelled{
+			RunId:  RunId,
+			JobId:  JobId,
+			Reason: CancelReason,
+		},
+	},
+}
+
 var LeaseReturned = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
@@ -331,8 +356,8 @@ var JobCancelled = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_CancelledJob{
 		CancelledJob: &armadaevents.CancelledJob{
-			JobId:      JobId,
-			CancelUser: CancelUser,
+			JobId:     JobId,
+			Requestor: CancelUser,
 		},
 	},
 }
@@ -421,8 +446,9 @@ var JobReprioritised = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 		ReprioritisedJob: &armadaevents.ReprioritisedJob{
-			JobId:    JobId,
-			Priority: NewPriority,
+			JobId:     JobId,
+			Priority:  NewPriority,
+			Requestor: UserId,
 		},
 	},
 }
@@ -463,6 +489,21 @@ var JobRunPreempted = &armadaevents.EventSequence_Event{
 			PreemptedJobId: JobId,
 			PreemptedRunId: RunId,
 			Reason:         PreemptionReason,
+			Requestor:      UserId,
+		},
+	},
+}
+
+// JobRunPreemptedFairShare represents a fair-share preemption where the preempting job is known.
+var JobRunPreemptedFairShare = &armadaevents.EventSequence_Event{
+	Created: testfixtures.BasetimeProto,
+	Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+		JobRunPreempted: &armadaevents.JobRunPreempted{
+			PreemptedJobId:  JobId,
+			PreemptedRunId:  RunId,
+			PreemptingJobId: PreemptingJobId,
+			Reason:          PreemptionReason,
+			Requestor:       UserId,
 		},
 	},
 }
@@ -492,7 +533,7 @@ var JobRunFailed = &armadaevents.EventSequence_Event{
 	},
 }
 
-var JobRunFailedWithFailureInfo = &armadaevents.EventSequence_Event{
+var JobRunFailedWithCategory = &armadaevents.EventSequence_Event{
 	Created: testfixtures.BasetimeProto,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
 		JobRunErrors: &armadaevents.JobRunErrors{
@@ -511,11 +552,8 @@ var JobRunFailedWithFailureInfo = &armadaevents.EventSequence_Event{
 							},
 						},
 					},
-					FailureInfo: &armadaevents.FailureInfo{
-						ExitCode:           ExitCode,
-						TerminationMessage: "OOM killed by kernel",
-						Categories:         []string{"RESOURCE_LIMIT", "MEMORY"},
-					},
+					FailureCategory:    "infrastructure",
+					FailureSubcategory: "oom",
 				},
 			},
 		},
@@ -618,12 +656,22 @@ var DeleteExecutorSettings = &controlplaneevents.Event{
 	},
 }
 
+var DeleteExecutor = &controlplaneevents.Event{
+	Event: &controlplaneevents.Event_ExecutorDelete{
+		ExecutorDelete: &controlplaneevents.ExecutorDelete{
+			Name:      ExecutorId,
+			Requestor: UserId,
+		},
+	},
+}
+
 var PreemptOnExecutor = &controlplaneevents.Event{
 	Event: &controlplaneevents.Event_PreemptOnExecutor{
 		PreemptOnExecutor: &controlplaneevents.PreemptOnExecutor{
 			Name:            ExecutorId,
 			Queues:          []string{Queue},
 			PriorityClasses: []string{PriorityClassName},
+			Requestor:       UserId,
 		},
 	},
 }
@@ -635,6 +683,7 @@ var PreemptOnExecutorWithPools = &controlplaneevents.Event{
 			Queues:          []string{Queue},
 			PriorityClasses: []string{PriorityClassName},
 			Pools:           []string{Pool},
+			Requestor:       UserId,
 		},
 	},
 }
@@ -645,6 +694,7 @@ var CancelOnExecutor = &controlplaneevents.Event{
 			Name:            ExecutorId,
 			Queues:          []string{Queue},
 			PriorityClasses: []string{PriorityClassName},
+			Requestor:       UserId,
 		},
 	},
 }
@@ -656,6 +706,7 @@ var PreemptOnNode = &controlplaneevents.Event{
 			Executor:        ExecutorId,
 			Queues:          []string{Queue},
 			PriorityClasses: []string{PriorityClassName},
+			Requestor:       UserId,
 		},
 	},
 }
@@ -667,6 +718,7 @@ var CancelOnNode = &controlplaneevents.Event{
 			Executor:        ExecutorId,
 			Queues:          []string{Queue},
 			PriorityClasses: []string{PriorityClassName},
+			Requestor:       UserId,
 		},
 	},
 }
@@ -678,6 +730,7 @@ var CancelOnExecutorWithPools = &controlplaneevents.Event{
 			Queues:          []string{Queue},
 			PriorityClasses: []string{PriorityClassName},
 			Pools:           []string{Pool},
+			Requestor:       UserId,
 		},
 	},
 }
@@ -687,6 +740,7 @@ var PreemptOnQueue = &controlplaneevents.Event{
 		PreemptOnQueue: &controlplaneevents.PreemptOnQueue{
 			Name:            Queue,
 			PriorityClasses: []string{PriorityClassName},
+			Requestor:       UserId,
 		},
 	},
 }
@@ -697,6 +751,7 @@ var PreemptOnQueueWithPools = &controlplaneevents.Event{
 			Name:            Queue,
 			PriorityClasses: []string{PriorityClassName},
 			Pools:           []string{Pool},
+			Requestor:       UserId,
 		},
 	},
 }
@@ -707,6 +762,7 @@ var CancelQueuedOnQueue = &controlplaneevents.Event{
 			Name:            Queue,
 			PriorityClasses: []string{PriorityClassName},
 			JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_QUEUED},
+			Requestor:       UserId,
 		},
 	},
 }
@@ -718,6 +774,7 @@ var CancelQueuedOnQueueWithPools = &controlplaneevents.Event{
 			PriorityClasses: []string{PriorityClassName},
 			JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_QUEUED},
 			Pools:           []string{Pool},
+			Requestor:       UserId,
 		},
 	},
 }
@@ -728,6 +785,7 @@ var CancelRunningOnQueue = &controlplaneevents.Event{
 			Name:            Queue,
 			PriorityClasses: []string{PriorityClassName},
 			JobStates:       []controlplaneevents.ActiveJobState{controlplaneevents.ActiveJobState_RUNNING},
+			Requestor:       UserId,
 		},
 	},
 }

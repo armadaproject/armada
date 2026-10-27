@@ -322,6 +322,87 @@ func TestUnique(t *testing.T) {
 	}
 }
 
+func TestUniqueBy(t *testing.T) {
+	type item struct {
+		Id   string
+		Name string
+	}
+
+	tests := map[string]struct {
+		input    []item
+		keyFunc  func(i item) string
+		expected []item
+	}{
+		"nil": {
+			input:    nil,
+			keyFunc:  func(i item) string { return i.Id },
+			expected: nil,
+		},
+		"empty": {
+			input:    []item{},
+			keyFunc:  func(i item) string { return i.Name },
+			expected: []item{},
+		},
+		"no duplicates": {
+			input: []item{
+				{Id: "1", Name: "Alice"},
+				{Id: "2", Name: "Bob"},
+				{Id: "3", Name: "Charlie"},
+			},
+			keyFunc: func(i item) string { return i.Id },
+			expected: []item{
+				{Id: "1", Name: "Alice"},
+				{Id: "2", Name: "Bob"},
+				{Id: "3", Name: "Charlie"},
+			},
+		},
+		"consecutive duplicates": {
+			input: []item{
+				{Id: "1", Name: "Alice"},
+				{Id: "2", Name: "Bob"},
+				{Id: "2", Name: "Bobby"},
+			},
+			keyFunc: func(i item) string { return i.Id },
+			expected: []item{
+				{Id: "1", Name: "Alice"},
+				{Id: "2", Name: "Bob"},
+			},
+		},
+		"non-consecutive duplicates": {
+			input: []item{
+				{Id: "2", Name: "Bob"},
+				{Id: "1", Name: "Alice"},
+				{Id: "2", Name: "Bobby"},
+			},
+			keyFunc: func(i item) string { return i.Id },
+			expected: []item{
+				{Id: "2", Name: "Bob"},
+				{Id: "1", Name: "Alice"},
+			},
+		},
+		"duplicate based on custom key function Name": {
+			input: []item{
+				{Id: "1", Name: "Alice"},
+				{Id: "2", Name: "Bob"},
+				{Id: "2", Name: "Bobby"},
+			},
+			keyFunc: func(i item) string { return i.Name },
+			expected: []item{
+				{Id: "1", Name: "Alice"},
+				{Id: "2", Name: "Bob"},
+				{Id: "2", Name: "Bobby"},
+			},
+		},
+	}
+
+	// Run all test cases
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, UniqueBy(tc.input, tc.keyFunc))
+		})
+	}
+}
+
 func TestFilter(t *testing.T) {
 	includeOver5 := func(val int) bool { return val > 5 }
 	input := []int{1, 3, 5, 7, 9}

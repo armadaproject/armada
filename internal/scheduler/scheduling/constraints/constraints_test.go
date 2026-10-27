@@ -448,3 +448,122 @@ func makeResourceList(rlFactory *internaltypes.ResourceListFactory, cpu string, 
 		},
 	)
 }
+
+func TestCheckJobConstraints_RateLimit(t *testing.T) {
+	// limiterWithTokens returns a limiter holding (approximately) the requested number of tokens
+	// at time `at`. It works by draining the bucket to empty `at` and then rewinding `at` so that
+	// the bucket has had time to refill to `tokens` at the rate of 1 token/second.
+	limiterWithTokens := func(burst int, tokens float64, at time.Time) *rate.Limiter {
+		l := rate.NewLimiter(rate.Limit(1), burst)
+		// Drain the full bucket so it is empty `tokens` seconds before `at`.
+		l.ReserveN(at.Add(-time.Duration(tokens*float64(time.Second))), burst)
+		return l
+	}
+
+	tests := map[string]struct {
+		cardinality    int
+		globalBurst    int
+		globalTokens   float64
+		queueBurst     int
+		queueTokens    float64
+		expectedReason string
+	}{
+		"single job, plenty of tokens - schedulable": {
+			cardinality:    1,
+			globalBurst:    10,
+			globalTokens:   10,
+			queueBurst:     10,
+			queueTokens:    10,
+			expectedReason: "",
+		},
+		"single job, exactly one global token - schedulable": {
+			cardinality:    1,
+			globalBurst:    1,
+			globalTokens:   1,
+			queueBurst:     10,
+			queueTokens:    10,
+			expectedReason: "",
+		},
+		"single job, fractional global tokens - global rate limited": {
+			cardinality:    1,
+			globalBurst:    10,
+			globalTokens:   0.5,
+			queueBurst:     10,
+			queueTokens:    10,
+			expectedReason: GlobalRateLimitExceededUnschedulableReason,
+		},
+		"single job, no global tokens - global rate limited": {
+			cardinality:    1,
+			globalBurst:    10,
+			globalTokens:   0,
+			queueBurst:     10,
+			queueTokens:    10,
+			expectedReason: GlobalRateLimitExceededUnschedulableReason,
+		},
+		"single job, fractional queue tokens - queue rate limited": {
+			cardinality:    1,
+			globalBurst:    10,
+			globalTokens:   10,
+			queueBurst:     10,
+			queueTokens:    0.5,
+			expectedReason: QueueRateLimitExceededUnschedulableReason,
+		},
+		"gang larger than global burst - exceeds global burst size": {
+			cardinality:    5,
+			globalBurst:    2,
+			globalTokens:   2,
+			queueBurst:     10,
+			queueTokens:    10,
+			expectedReason: GangExceedsGlobalBurstSizeUnschedulableReason,
+		},
+		"gang within burst but not enough global tokens - global rate limited by gang": {
+			cardinality:    5,
+			globalBurst:    10,
+			globalTokens:   3,
+			queueBurst:     10,
+			queueTokens:    10,
+			expectedReason: GlobalRateLimitExceededByGangUnschedulableReason,
+		},
+		"gang within global limits but not enough queue tokens - queue rate limited by gang": {
+			cardinality:    5,
+			globalBurst:    10,
+			globalTokens:   10,
+			queueBurst:     10,
+			queueTokens:    3,
+			expectedReason: QueueRateLimitExceededByGangUnschedulableReason,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			started := time.Now()
+			jctxs := make([]*context.JobSchedulingContext, tc.cardinality)
+			for i := range jctxs {
+				jctxs[i] = &context.JobSchedulingContext{}
+			}
+			sctx := &context.SchedulingContext{
+				Pool:    "pool-1",
+				Limiter: limiterWithTokens(tc.globalBurst, tc.globalTokens, started),
+				QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
+					"queue-1": {
+						Queue:   "queue-1",
+						Limiter: limiterWithTokens(tc.queueBurst, tc.queueTokens, started),
+					},
+				},
+				Started: started,
+			}
+			gctx := &context.GangSchedulingContext{
+				PriorityClass:         "priority-class-1",
+				Queue:                 "queue-1",
+				TotalResourceRequests: testfixtures.CpuMem("1", "1Gi"),
+				JobSchedulingContexts: jctxs,
+			}
+			constraints := NewSchedulingConstraints("pool-1", testfixtures.CpuMem("1000", "1000Gi"), makeSchedulingConfig(), []*api.Queue{{Name: "queue-1"}})
+
+			ok, reason, err := constraints.CheckJobConstraints(sctx, gctx)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedReason == "", ok)
+			assert.Equal(t, tc.expectedReason, reason)
+		})
+	}
+}

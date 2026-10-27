@@ -4,6 +4,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+	"k8s.io/utils/ptr"
 
 	armadamath "github.com/armadaproject/armada/internal/common/math"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -82,7 +83,12 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 	)
 
 	jsts := make(map[string]JobStateTransitions, len(jobRepoJobsById))
-	jobIdsToMarkAsPreemptionRequested := []string{}
+
+	type gangPreemptionRequest struct {
+		jobIds []string
+		reason *string
+	}
+	var gangPreemptionRequests []gangPreemptionRequest
 
 	for jobId, jobRepoJob := range jobRepoJobsById {
 		job := txn.GetById(jobId)
@@ -96,7 +102,11 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 		}
 		if jst.PreemptionRequested && job.IsInGang() {
 			jobsInGang := txn.GetGangJobsIdsByGangId(job.Queue(), job.GetGangInfo().Id())
-			jobIdsToMarkAsPreemptionRequested = append(jobIdsToMarkAsPreemptionRequested, jobsInGang...)
+			var reason *string
+			if run := jst.Job.LatestRun(); run != nil {
+				reason = run.PreemptReason()
+			}
+			gangPreemptionRequests = append(gangPreemptionRequests, gangPreemptionRequest{jobIds: jobsInGang, reason: reason})
 		}
 
 		// We receive nil jobs from jobDb.ReconcileDifferences if a run is updated after the associated job is deleted.
@@ -106,11 +116,13 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 			jsts[jobId] = jst
 		}
 	}
-	markJobsAsPreemptionRequested(txn, jobIdsToMarkAsPreemptionRequested, jsts)
+	for _, req := range gangPreemptionRequests {
+		markJobsAsPreemptionRequested(txn, req.jobIds, req.reason, jsts)
+	}
 	return maps.Values(jsts), nil
 }
 
-func markJobsAsPreemptionRequested(txn *Txn, jobIds []string, jsts map[string]JobStateTransitions) {
+func markJobsAsPreemptionRequested(txn *Txn, jobIds []string, reason *string, jsts map[string]JobStateTransitions) {
 	for _, jobId := range jobIds {
 		jst, exists := jsts[jobId]
 		if !exists {
@@ -127,7 +139,7 @@ func markJobsAsPreemptionRequested(txn *Txn, jobIds []string, jsts map[string]Jo
 		} else {
 			jobRun := jst.Job.LatestRun()
 			if jobRun != nil {
-				jobRun = jobRun.WithPreemptRequested(true)
+				jobRun = jobRun.WithPreemptRequested(true).WithPreemptReason(reason)
 			}
 			jst.Job = jst.Job.WithUpdatedRun(jobRun)
 			jst.PreemptionRequested = true
@@ -165,8 +177,14 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 		if jobRepoJob.CancelByJobsetRequested && !job.CancelByJobsetRequested() {
 			job = job.WithCancelByJobsetRequested(true)
 		}
-		if jobRepoJob.CancelUser != nil && jobRepoJob.CancelUser != job.CancelUser() {
+		if !ptr.Equal(jobRepoJob.CancelUser, job.CancelUser()) {
 			job = job.WithCancelUser(jobRepoJob.CancelUser)
+		}
+		if !ptr.Equal(jobRepoJob.CancelReason, job.CancelReason()) {
+			job = job.WithCancelReason(jobRepoJob.CancelReason)
+		}
+		if !ptr.Equal(jobRepoJob.ReprioritiseUser, job.ReprioritiseUser()) {
+			job = job.WithReprioritiseUser(jobRepoJob.ReprioritiseUser)
 		}
 		if jobRepoJob.Cancelled && !job.Cancelled() {
 			job = job.WithCancelled(true)
@@ -243,7 +261,7 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 			rst.Running = true
 		}
 		if jobRepoRun.PreemptRequested && !jobRun.PreemptRequested() {
-			jobRun = jobRun.WithPreemptRequested(true).WithPreemptReason(jobRepoRun.PreemptReason)
+			jobRun = jobRun.WithPreemptRequested(true).WithPreemptUser(jobRepoRun.PreemptUser).WithPreemptReason(jobRepoRun.PreemptReason)
 			rst.PreemptionRequested = true
 		}
 		if jobRepoRun.Preempted && !jobRun.Preempted() {
@@ -340,6 +358,15 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		// TODO(albin): Same comment as the above.
 		job = job.WithRequestedPriority(uint32(dbJob.Priority))
 	}
+	if dbJob.CancelUser != nil {
+		job = job.WithCancelUser(dbJob.CancelUser)
+	}
+	if dbJob.CancelReason != nil {
+		job = job.WithCancelReason(dbJob.CancelReason)
+	}
+	if dbJob.ReprioritiseUser != nil {
+		job = job.WithReprioritiseUser(dbJob.ReprioritiseUser)
+	}
 	return job, nil
 }
 
@@ -371,5 +398,5 @@ func (jobDb *JobDb) schedulerRunFromDatabaseRun(dbRun *database.Run) *JobRun {
 		dbRun.TerminatedTimestamp,
 		dbRun.Returned,
 		dbRun.RunAttempted,
-	)
+	).WithPreemptUser(dbRun.PreemptUser)
 }

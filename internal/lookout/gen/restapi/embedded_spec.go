@@ -323,6 +323,63 @@ func init() {
         }
       }
     },
+    "/api/v1/jobRunSchedulerTerminationReason": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getJobRunSchedulerTerminationReason",
+        "parameters": [
+          {
+            "name": "getJobRunSchedulerTerminationReasonRequest",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "runId"
+              ],
+              "properties": {
+                "runId": {
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns scheduler termination reason for specific job run (if present)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "schedulerTerminationReason": {
+                  "description": "Scheduler termination reason for individual job run",
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobSpec": {
       "post": {
         "consumes": [
@@ -453,6 +510,28 @@ func init() {
             "description": "Error response",
             "schema": {
               "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/version": {
+      "get": {
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getVersion",
+        "responses": {
+          "200": {
+            "description": "Returns the Lookout backend's release version, commit, and build time.",
+            "schema": {
+              "$ref": "#/definitions/versionInfo"
             }
           },
           "default": {
@@ -675,6 +754,10 @@ func init() {
           "type": "string",
           "x-nullable": true
         },
+        "preemptUser": {
+          "type": "string",
+          "x-nullable": true
+        },
         "priority": {
           "type": "integer",
           "format": "int64",
@@ -688,6 +771,10 @@ func init() {
           "type": "string",
           "minLength": 1,
           "x-nullable": false
+        },
+        "reprioritizeUser": {
+          "type": "string",
+          "x-nullable": true
         },
         "runs": {
           "type": "array",
@@ -764,28 +851,13 @@ func init() {
           "format": "int32",
           "x-nullable": true
         },
-        "failureInfo": {
-          "type": "object",
-          "properties": {
-            "categories": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "x-omitempty": true
-            },
-            "containerName": {
-              "type": "string"
-            },
-            "exitCode": {
-              "type": "integer",
-              "format": "int32"
-            },
-            "terminationMessage": {
-              "type": "string"
-            }
-          },
-          "x-nullable": true
+        "failureCategory": {
+          "type": "string",
+          "x-omitempty": true
+        },
+        "failureSubcategory": {
+          "type": "string",
+          "x-omitempty": true
         },
         "finished": {
           "type": "string",
@@ -832,6 +904,10 @@ func init() {
           "minLength": 1,
           "x-nullable": true
         },
+        "podName": {
+          "type": "string",
+          "x-nullable": true
+        },
         "pool": {
           "type": "string",
           "x-nullable": true
@@ -845,6 +921,31 @@ func init() {
           "type": "string",
           "format": "date-time",
           "x-nullable": true
+        }
+      }
+    },
+    "versionInfo": {
+      "type": "object",
+      "required": [
+        "version",
+        "commit",
+        "buildTime"
+      ],
+      "properties": {
+        "buildTime": {
+          "type": "string",
+          "minLength": 1,
+          "x-nullable": false
+        },
+        "commit": {
+          "type": "string",
+          "minLength": 1,
+          "x-nullable": false
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "x-nullable": false
         }
       }
     }
@@ -1173,6 +1274,63 @@ func init() {
         }
       }
     },
+    "/api/v1/jobRunSchedulerTerminationReason": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getJobRunSchedulerTerminationReason",
+        "parameters": [
+          {
+            "name": "getJobRunSchedulerTerminationReasonRequest",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "runId"
+              ],
+              "properties": {
+                "runId": {
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns scheduler termination reason for specific job run (if present)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "schedulerTerminationReason": {
+                  "description": "Scheduler termination reason for individual job run",
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobSpec": {
       "post": {
         "consumes": [
@@ -1320,6 +1478,28 @@ func init() {
         }
       }
     },
+    "/api/v1/version": {
+      "get": {
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getVersion",
+        "responses": {
+          "200": {
+            "description": "Returns the Lookout backend's release version, commit, and build time.",
+            "schema": {
+              "$ref": "#/definitions/versionInfo"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "produces": [
@@ -1369,29 +1549,6 @@ func init() {
           "x-nullable": true
         }
       }
-    },
-    "RunFailureInfo": {
-      "type": "object",
-      "properties": {
-        "categories": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "x-omitempty": true
-        },
-        "containerName": {
-          "type": "string"
-        },
-        "exitCode": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "terminationMessage": {
-          "type": "string"
-        }
-      },
-      "x-nullable": true
     },
     "error": {
       "type": "object",
@@ -1581,6 +1738,10 @@ func init() {
           "type": "string",
           "x-nullable": true
         },
+        "preemptUser": {
+          "type": "string",
+          "x-nullable": true
+        },
         "priority": {
           "type": "integer",
           "format": "int64",
@@ -1594,6 +1755,10 @@ func init() {
           "type": "string",
           "minLength": 1,
           "x-nullable": false
+        },
+        "reprioritizeUser": {
+          "type": "string",
+          "x-nullable": true
         },
         "runs": {
           "type": "array",
@@ -1670,28 +1835,13 @@ func init() {
           "format": "int32",
           "x-nullable": true
         },
-        "failureInfo": {
-          "type": "object",
-          "properties": {
-            "categories": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "x-omitempty": true
-            },
-            "containerName": {
-              "type": "string"
-            },
-            "exitCode": {
-              "type": "integer",
-              "format": "int32"
-            },
-            "terminationMessage": {
-              "type": "string"
-            }
-          },
-          "x-nullable": true
+        "failureCategory": {
+          "type": "string",
+          "x-omitempty": true
+        },
+        "failureSubcategory": {
+          "type": "string",
+          "x-omitempty": true
         },
         "finished": {
           "type": "string",
@@ -1738,6 +1888,10 @@ func init() {
           "minLength": 1,
           "x-nullable": true
         },
+        "podName": {
+          "type": "string",
+          "x-nullable": true
+        },
         "pool": {
           "type": "string",
           "x-nullable": true
@@ -1751,6 +1905,31 @@ func init() {
           "type": "string",
           "format": "date-time",
           "x-nullable": true
+        }
+      }
+    },
+    "versionInfo": {
+      "type": "object",
+      "required": [
+        "version",
+        "commit",
+        "buildTime"
+      ],
+      "properties": {
+        "buildTime": {
+          "type": "string",
+          "minLength": 1,
+          "x-nullable": false
+        },
+        "commit": {
+          "type": "string",
+          "minLength": 1,
+          "x-nullable": false
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "x-nullable": false
         }
       }
     }

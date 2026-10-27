@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/podname"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
@@ -32,13 +33,8 @@ func (a *App) Watch(queue string, jobSetId string, raw bool, exitOnInactive bool
 				case *api.JobFailedEvent:
 					a.printSummary(state, event)
 					fmt.Fprintf(a.Out, "Job failed: %s\n", event2.Reason)
-
-					jobInfo := state.GetJobInfo(event2.JobId)
-					if jobInfo != nil && jobInfo.ClusterId != "" && jobInfo.Job != nil {
-						fmt.Fprintf(
-							a.Out, "Found no logs for job; try '%s --tail=50\n",
-							client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, event2.JobId, int(event2.PodNumber), "logs"),
-						)
+					if hint := kubectlLogsHint(event2, state.GetJobInfo(event2.JobId)); hint != "" {
+						fmt.Fprintf(a.Out, "To see the logs, try '%s --tail=50'\n", hint)
 					}
 				default:
 					a.printSummary(state, event)
@@ -58,9 +54,44 @@ func (a *App) printSummary(state *domain.WatchContext, e api.Event) {
 	summary := fmt.Sprintf("%s | ", ts.Format(time.Stamp))
 	summary += state.GetCurrentStateSummary()
 	summary += fmt.Sprintf(" | %s, job id: %s", reflect.TypeOf(e).String()[5:], e.GetJobId())
+	if requestor := requestorFromEvent(e); requestor != "" {
+		summary += fmt.Sprintf(", user: %s", requestor)
+	}
 
 	if kubernetesEvent, ok := e.(api.KubernetesEvent); ok {
 		summary += fmt.Sprintf(" pod: %d", kubernetesEvent.GetPodNumber())
 	}
 	fmt.Fprintf(a.Out, "%s\n", summary)
+}
+
+func requestorFromEvent(e api.Event) string {
+	switch event := e.(type) {
+	case *api.JobCancellingEvent:
+		return event.GetRequestor()
+	case *api.JobCancelledEvent:
+		return event.GetRequestor()
+	case *api.JobReprioritizingEvent:
+		return event.GetRequestor()
+	case *api.JobReprioritizedEvent:
+		return event.GetRequestor()
+	case *api.JobPreemptingEvent:
+		return event.GetRequestor()
+	case *api.JobPreemptedEvent:
+		return event.GetRequestor()
+	default:
+		return ""
+	}
+}
+
+// kubectlLogsHint returns a kubectl logs command for the pod of a failed run. A failed event without a pod name gets
+// the command for the job-scoped pod name, so that the hint stays the same for a server that does not send the name.
+// It returns "" when the watch does not know the cluster of the job.
+func kubectlLogsHint(event *api.JobFailedEvent, jobInfo *domain.JobInfo) string {
+	if event.PodName != "" {
+		return client.GetKubectlCommandForPod(event.ClusterId, event.PodNamespace, event.PodName, "logs")
+	}
+	if jobInfo != nil && jobInfo.ClusterId != "" && jobInfo.Job != nil {
+		return client.GetKubectlCommandForPod(jobInfo.ClusterId, jobInfo.Job.Namespace, podname.Default(event.JobId), "logs")
+	}
+	return ""
 }

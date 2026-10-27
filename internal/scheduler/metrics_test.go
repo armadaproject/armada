@@ -69,7 +69,8 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			initialJobs: queuedJobs,
 			queues:      []*api.Queue{queue},
 			expected: []prometheus.Metric{
-				commonmetrics.NewQueueSizeMetric(3.0, testfixtures.TestQueue),
+				commonmetrics.NewQueueSizeMetric(3.0, testfixtures.TestQueue, commonmetrics.QueueStateValidated),
+				commonmetrics.NewQueueSizeMetric(0.0, testfixtures.TestQueue, commonmetrics.QueueStateUnvalidated),
 				commonmetrics.NewQueueDistinctSchedulingKeyMetric(1.0, testfixtures.TestQueue),
 				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "A"),
 				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "A"),
@@ -118,7 +119,8 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			initialJobs: []*jobdb.Job{jobWithTerminatedRun},
 			queues:      []*api.Queue{queue},
 			expected: []prometheus.Metric{
-				commonmetrics.NewQueueSizeMetric(1.0, testfixtures.TestQueue),
+				commonmetrics.NewQueueSizeMetric(1.0, testfixtures.TestQueue, commonmetrics.QueueStateValidated),
+				commonmetrics.NewQueueSizeMetric(0.0, testfixtures.TestQueue, commonmetrics.QueueStateUnvalidated),
 				commonmetrics.NewQueueDistinctSchedulingKeyMetric(1.0, testfixtures.TestQueue),
 				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "A"),
 				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "A"),
@@ -165,7 +167,8 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 			initialJobs: []*jobdb.Job{queuedJobMultiplePools},
 			queues:      []*api.Queue{queue},
 			expected: []prometheus.Metric{
-				commonmetrics.NewQueueSizeMetric(1.0, testfixtures.TestQueue),
+				commonmetrics.NewQueueSizeMetric(1.0, testfixtures.TestQueue, commonmetrics.QueueStateValidated),
+				commonmetrics.NewQueueSizeMetric(0.0, testfixtures.TestQueue, commonmetrics.QueueStateUnvalidated),
 				commonmetrics.NewQueueDistinctSchedulingKeyMetric(1.0, testfixtures.TestQueue),
 				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "A"),
 				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "A"),
@@ -225,11 +228,23 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 				commonmetrics.NewCountQueueResources(1, testfixtures.TestPool2, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "None", "memory", commonmetrics.AccountingRoleSecondary),
 			},
 		},
+		"queued metrics for validated and unvalidated jobs": {
+			initialJobs: []*jobdb.Job{
+				testfixtures.TestQueuedJobDbJob().WithValidated(true),
+				testfixtures.TestQueuedJobDbJob().WithValidated(false),
+			},
+			queues: []*api.Queue{queue},
+			expected: []prometheus.Metric{
+				commonmetrics.NewQueueSizeMetric(1.0, testfixtures.TestQueue, commonmetrics.QueueStateValidated),
+				commonmetrics.NewQueueSizeMetric(1.0, testfixtures.TestQueue, commonmetrics.QueueStateUnvalidated),
+			},
+		},
 		"running metrics": {
 			initialJobs: runningJobs,
 			queues:      []*api.Queue{queue},
 			expected: []prometheus.Metric{
-				commonmetrics.NewQueueSizeMetric(0.0, testfixtures.TestQueue),
+				commonmetrics.NewQueueSizeMetric(0.0, testfixtures.TestQueue, commonmetrics.QueueStateValidated),
+				commonmetrics.NewQueueSizeMetric(0.0, testfixtures.TestQueue, commonmetrics.QueueStateUnvalidated),
 				commonmetrics.NewQueueDistinctSchedulingKeyMetric(0.0, testfixtures.TestQueue),
 				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.QueuedPhase, "A"),
 				commonmetrics.NewQueuePriceBandBidMetric(0, testfixtures.TestPool, testfixtures.TestQueue, commonmetrics.RunningPhase, "A"),
@@ -597,7 +612,7 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 				},
 				{
 					Name:      testfixtures.TestPool2,
-					AwayPools: []string{testfixtures.TestPool},
+					AwayPools: []configuration.AwayPoolConfig{{Name: testfixtures.TestPool}},
 				},
 			},
 			runningJobs:      []*jobdb.Job{job},
@@ -617,7 +632,7 @@ func TestMetricsCollector_TestCollect_ClusterMetricsAvailableCapacity(t *testing
 				},
 				{
 					Name:      testfixtures.TestPool2,
-					AwayPools: []string{testfixtures.TestPool},
+					AwayPools: []configuration.AwayPoolConfig{{Name: testfixtures.TestPool}},
 				},
 			},
 			runningJobs:      []*jobdb.Job{job},
@@ -822,6 +837,51 @@ func createNodeWithLabels(nodeType string, reservation string, labels map[string
 		node.Labels[k] = v
 	}
 	return node
+}
+
+type stubBidPriceProvider struct {
+	snapshot pricing.BidPriceSnapshot
+}
+
+func (s stubBidPriceProvider) GetBidPrices(_ *armadacontext.Context) (pricing.BidPriceSnapshot, error) {
+	return s.snapshot, nil
+}
+
+func TestMetricsCollector_BidPriceCacheLastRefresh(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+
+	queueCache := schedulermocks.NewMockQueueCache(ctrl)
+	queueCache.EXPECT().GetAll(ctx).Return([]*api.Queue{}, nil).Times(1)
+
+	executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+	executorRepository.EXPECT().GetExecutors(ctx).Return([]*schedulerobjects.Executor{}, nil)
+	executorRepository.EXPECT().GetExecutorSettings(ctx).Return([]*schedulerobjects.ExecutorSettings{}, nil)
+
+	snapshotTime := testfixtures.BaseTime
+	collector := NewMetricsCollector(
+		testfixtures.NewJobDb(testfixtures.TestResourceListFactory),
+		queueCache,
+		stubBidPriceProvider{snapshot: pricing.BidPriceSnapshot{Timestamp: snapshotTime}},
+		executorRepository,
+		testfixtures.TestSchedulingConfig().Pools,
+		[]string{testfixtures.TestPool},
+		2*time.Second,
+		testfixtures.TestEmptyFloatingResources,
+		"",
+	)
+	require.NoError(t, collector.refresh(ctx))
+
+	metricChan := make(chan prometheus.Metric, 1000)
+	collector.Collect(metricChan)
+	close(metricChan)
+	var actual []prometheus.Metric
+	for m := range metricChan {
+		actual = append(actual, m)
+	}
+
+	assert.Contains(t, actual, commonmetrics.NewBidPriceCacheLastRefreshMetric(snapshotTime))
 }
 
 func createNode(nodeType string, reservation string) *schedulerobjects.Node {

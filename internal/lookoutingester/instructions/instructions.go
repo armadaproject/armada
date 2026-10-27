@@ -1,15 +1,18 @@
 package instructions
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -23,15 +26,15 @@ import (
 )
 
 const (
-	maxQueueLen              = 512
-	maxOwnerLen              = 512
-	maxJobSetLen             = 1024
-	maxAnnotationKeyLen      = 1024
-	maxAnnotationValLen      = 1024
-	maxPriorityClassLen      = 63
-	maxClusterLen            = 512
-	maxNodeLen               = 512
-	maxTerminationMessageLen = 4096
+	maxQueueLen          = 512
+	maxOwnerLen          = 512
+	maxJobSetLen         = 1024
+	maxAnnotationKeyLen  = 1024
+	maxAnnotationValLen  = 1024
+	maxPriorityClassLen  = 63
+	maxClusterLen        = 512
+	maxNodeLen           = 512
+	cancelReasonFallback = "no reason provided"
 )
 
 type HasNodeName interface {
@@ -83,7 +86,7 @@ func (c *InstructionConverter) convertSequence(
 ) {
 	queue := util.Truncate(sequence.Queue, maxQueueLen)
 	jobset := util.Truncate(sequence.JobSetName, maxJobSetLen)
-	owner := util.Truncate(sequence.UserId, maxOwnerLen)
+	owner := strings.TrimSpace(util.Truncate(sequence.UserId, maxOwnerLen))
 	for idx, event := range sequence.Events {
 		var err error
 		if event.Created == nil {
@@ -96,25 +99,29 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_SubmitJob:
 			err = c.handleSubmitJob(queue, owner, jobset, ts, event.GetSubmitJob(), update)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
-			err = c.handleReprioritiseJob(ts, event.GetReprioritisedJob(), update)
+			err = c.handleReprioritiseJob(ts, owner, event.GetReprioritisedJob(), update)
 		case *armadaevents.EventSequence_Event_CancelledJob:
-			err = c.handleCancelledJob(ts, event.GetCancelledJob(), update)
+			err = c.handleCancelledJob(ts, owner, event.GetCancelledJob(), update)
+		case *armadaevents.EventSequence_Event_JobPreemptionRequested:
+			err = c.handleJobPreemptionRequested(owner, event.GetJobPreemptionRequested(), update)
 		case *armadaevents.EventSequence_Event_JobSucceeded:
 			err = c.handleJobSucceeded(ts, event.GetJobSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobErrors:
-			err = c.handleJobErrors(ts, event.GetJobErrors(), update)
+			err = c.handleJobErrors(ts, owner, event.GetJobErrors(), update)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
 			err = c.handleJobRunAssigned(ts, event.GetJobRunAssigned(), update)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
 			err = c.handleJobRunRunning(ts, event.GetJobRunRunning(), update)
 		case *armadaevents.EventSequence_Event_JobRunCancelled:
 			err = c.handleJobRunCancelled(ts, event.GetJobRunCancelled(), update)
+		case *armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo:
+			err = c.handleJobRunTerminatedDebugInfo(event.GetJobRunTerminatedDebugInfo(), update)
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
 			err = c.handleJobRunSucceeded(ts, event.GetJobRunSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
 			err = c.handleJobRunErrors(ts, event.GetJobRunErrors(), update)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
-			err = c.handleJobRunPreempted(ts, event.GetJobRunPreempted(), update)
+			err = c.handleJobRunPreempted(ts, owner, event.GetJobRunPreempted(), update)
 		case *armadaevents.EventSequence_Event_JobRequeued:
 			err = c.handleJobRequeued(ts, event.GetJobRequeued(), update)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
@@ -175,8 +182,13 @@ func (c *InstructionConverter) handleSubmitJob(
 	}
 
 	annotations := event.GetObjectMeta().GetAnnotations()
-	userAnnotations := extractUserAnnotations(c.userAnnotationPrefix, c.blocklistAnnotations, annotations)
-	externalJobUri := util.Truncate(annotations["armadaproject.io/externalJobUri"], maxAnnotationValLen)
+	userAnnotations := extractUserAnnotations(event.JobId, c.userAnnotationPrefix, c.blocklistAnnotations, annotations)
+	// Prefer the proto field; fall back to annotation for events produced before the field existed.
+	externalJobUri := event.ExternalJobUri
+	if externalJobUri == "" {
+		externalJobUri = annotations[constants.ExternalJobUriAnnotation]
+	}
+	externalJobUri = util.Truncate(externalJobUri, maxAnnotationValLen)
 
 	job := model.CreateJobInstruction{
 		JobId:                     event.JobId,
@@ -209,7 +221,7 @@ filters out any keys in blocklistAnnotations (case-insensitive),
 and truncates keys and values to their maximal lengths as specified by
 maxAnnotationKeyLen and maxAnnotationValLen.
 */
-func extractUserAnnotations(userAnnotationPrefix string, blocklistAnnotations map[string]struct{}, jobAnnotations map[string]string) map[string]string {
+func extractUserAnnotations(jobId string, userAnnotationPrefix string, blocklistAnnotations map[string]struct{}, jobAnnotations map[string]string) map[string]string {
 	result := make(map[string]string, len(jobAnnotations))
 	n := len(userAnnotationPrefix)
 	for k, v := range jobAnnotations {
@@ -219,32 +231,94 @@ func extractUserAnnotations(userAnnotationPrefix string, blocklistAnnotations ma
 		if strings.HasPrefix(k, userAnnotationPrefix) {
 			k = k[n:]
 		}
-		key := util.Truncate(k, maxAnnotationKeyLen)
-		val := util.Truncate(v, maxAnnotationValLen)
+		key := sanitizeForJsonb(k)
+		val := sanitizeForJsonb(v)
+		if key != k || val != v {
+			log.Warnf("Sanitized annotation for job %s: key %q (was %q), value %q (was %q)", jobId, key, k, val, v)
+		}
+		key = util.Truncate(key, maxAnnotationKeyLen)
+		val = util.Truncate(val, maxAnnotationValLen)
 		result[key] = val
 	}
 	return result
 }
 
-func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
+func startUpInfoToJsonb(info *armadaevents.PodStartUpInfo) ([]byte, error) {
+	// jsonpb gives the proto json form (e.g. RFC3339 timestamps) and replaces invalid UTF-8; null bytes become \u0000
+	raw, err := (&jsonpb.Marshaler{}).MarshalToString(info)
+	if err != nil {
+		return nil, err
+	}
+	// Decoding turns \u0000 escapes back into real null bytes, which is the only place they can be safely removed
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	// UseNumber keeps numbers exactly as jsonpb wrote them, rather than converting them via float64
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
+	}
+	// Strip the null bytes from every string, then re-encode the now jsonb safe value
+	return json.Marshal(sanitizeJsonValue(value))
+}
+
+// sanitizeJsonValue recursively applies sanitizeForJsonb to every string, including object keys, in a decoded json value.
+func sanitizeJsonValue(value any) any {
+	switch v := value.(type) {
+	case string:
+		return sanitizeForJsonb(v)
+	case []any:
+		for i, elem := range v {
+			v[i] = sanitizeJsonValue(elem)
+		}
+		return v
+	case map[string]any:
+		sanitized := make(map[string]any, len(v))
+		for key, elem := range v {
+			sanitized[sanitizeForJsonb(key)] = sanitizeJsonValue(elem)
+		}
+		return sanitized
+	default:
+		return v
+	}
+}
+
+// sanitizeForJsonb removes null bytes (\x00) from s.
+// PostgreSQL jsonb rejects strings containing \u0000 with SQLSTATE 22P05.
+func sanitizeForJsonb(s string) string {
+	return strings.ReplaceAll(s, "\x00", "")
+}
+
+func (c *InstructionConverter) handleReprioritiseJob(_ time.Time, requestor string, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
+	if event.Requestor != "" {
+		requestor = event.Requestor
+	}
+	var reprioritizeUser *string
+	if requestor := strings.TrimSpace(requestor); requestor != "" {
+		reprioritizeUser = &requestor
+	}
 	jobUpdate := model.UpdateJobInstruction{
-		JobId:    event.JobId,
-		Priority: pointer.Int64(int64(event.Priority)),
+		JobId:            event.JobId,
+		Priority:         pointer.Int64(int64(event.Priority)),
+		ReprioritizeUser: reprioritizeUser,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
 }
 
-func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleCancelledJob(ts time.Time, requestor string, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
+	if event.Requestor != "" {
+		requestor = event.Requestor
+	}
 	var reason *string
 	if event.Reason != "" {
 		reason = &event.Reason
 	}
 
 	var cancelUser *string
-	if event.CancelUser != "" {
-		cancelUser = &event.CancelUser
+	if requestor := strings.TrimSpace(requestor); requestor != "" {
+		cancelUser = &requestor
 	}
+
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:                     event.GetJobId(),
 		State:                     pointer.Int32(int32(lookout.JobCancelledOrdinal)),
@@ -253,6 +327,20 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 		CancelUser:                cancelUser,
 		LastTransitionTime:        &ts,
 		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
+	}
+	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
+	return nil
+}
+
+func (c *InstructionConverter) handleJobPreemptionRequested(requestor string, event *armadaevents.JobPreemptionRequested, update *model.InstructionSet) error {
+	var preemptUser *string
+	if requestor := strings.TrimSpace(requestor); requestor != "" {
+		preemptUser = &requestor
+	}
+
+	jobUpdate := model.UpdateJobInstruction{
+		JobId:       event.JobId,
+		PreemptUser: preemptUser,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
@@ -269,17 +357,21 @@ func (c *InstructionConverter) handleJobSucceeded(ts time.Time, event *armadaeve
 	return nil
 }
 
-func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobErrors(ts time.Time, requestor string, event *armadaevents.JobErrors, update *model.InstructionSet) error {
 	for _, e := range event.GetErrors() {
 		if !e.Terminal {
 			continue
 		}
 
 		state := lookout.JobFailedOrdinal
+		var preemptUser *string
 		switch reason := e.Reason.(type) {
 		// Preempted and Rejected jobs are modelled as Reasons on a JobErrors msg
 		case *armadaevents.Error_JobRunPreemptedError:
 			state = lookout.JobPreemptedOrdinal
+			if requestor := strings.TrimSpace(requestor); requestor != "" {
+				preemptUser = &requestor
+			}
 		case *armadaevents.Error_JobRejected:
 			state = lookout.JobRejectedOrdinal
 			update.JobErrorsToCreate = append(update.JobErrorsToCreate, &model.CreateJobErrorInstruction{
@@ -293,6 +385,7 @@ func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents
 			State:                     pointer.Int32(int32(state)),
 			LastTransitionTime:        &ts,
 			LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
+			PreemptUser:               preemptUser,
 		}
 		update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 		break
@@ -318,10 +411,22 @@ func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaev
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       event.RunId,
 		Node:        node,
+		PodName:     getPodName(event.ResourceInfos),
 		Started:     &ts,
 		JobRunState: pointer.Int32(lookout.JobRunRunningOrdinal),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+
+	if event.StartUpInfo != nil {
+		startUpInfo, err := startUpInfoToJsonb(event.StartUpInfo)
+		if err != nil {
+			return err
+		}
+		update.JobRunInfosToCreate = append(update.JobRunInfosToCreate, &model.CreateJobRunInfoInstruction{
+			RunId:       event.RunId,
+			StartUpInfo: startUpInfo,
+		})
+	}
 	return nil
 }
 
@@ -374,6 +479,7 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 	update.JobsToUpdate = append(update.JobsToUpdate, &job)
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       event.RunId,
+		PodName:     getPodName(event.ResourceInfos),
 		Pending:     &ts,
 		JobRunState: pointer.Int32(lookout.JobRunPendingOrdinal),
 	}
@@ -382,10 +488,34 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 }
 
 func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armadaevents.JobRunCancelled, update *model.InstructionSet) error {
+	var args map[string]any
+	if event.Requestor != "" {
+		args = map[string]any{"requestor": event.Requestor}
+	}
+	// fallback for events that arrive without a reason; event should set one otherwise.
+	reason := event.Reason
+	if reason == "" {
+		reason = cancelReasonFallback
+	}
+	terminationReason := BuildTerminationReason(reason, args)
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:       event.RunId,
-		Finished:    &ts,
-		JobRunState: pointer.Int32(lookout.JobRunCancelledOrdinal),
+		RunId:                      event.RunId,
+		Finished:                   &ts,
+		JobRunState:                pointer.Int32(lookout.JobRunCancelledOrdinal),
+		SchedulerTerminationReason: terminationReason,
+	}
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+	return nil
+}
+
+// handleJobRunTerminatedDebugInfo persists only the debug message (rendered k8s events) for a run that
+// was cancelled before its main container started. It leaves the run's state untouched - the
+// JobRunCancelled event owns the state, and Lookout coalesces column updates so arrival order does
+// not matter.
+func (c *InstructionConverter) handleJobRunTerminatedDebugInfo(event *armadaevents.JobRunTerminatedDebugInfo, update *model.InstructionSet) error {
+	jobRun := model.UpdateJobRunInstruction{
+		RunId: event.RunId,
+		Debug: tryCompressError(event.JobId, event.DebugMessage, c.compressor),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
@@ -394,6 +524,7 @@ func (c *InstructionConverter) handleJobRunCancelled(ts time.Time, event *armada
 func (c *InstructionConverter) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       event.RunId,
+		PodName:     getPodName(event.ResourceInfos),
 		Finished:    &ts,
 		JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal),
 		ExitCode:    pointer.Int32(0),
@@ -414,6 +545,9 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 		switch reason := e.Reason.(type) {
 		case *armadaevents.Error_PodError:
 			jobRunUpdate.Node = extractNodeName(reason.PodError)
+			if name := reason.PodError.GetObjectMeta().GetName(); name != "" {
+				jobRunUpdate.PodName = pointer.String(name)
+			}
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
 			jobRunUpdate.Error = tryCompressError(event.JobId, reason.PodError.GetMessage(), c.compressor)
 			jobRunUpdate.Debug = tryCompressError(event.JobId, reason.PodError.DebugMessage, c.compressor)
@@ -426,8 +560,21 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 			}
 			jobRunUpdate.ExitCode = pointer.Int32(exitCode)
 		case *armadaevents.Error_JobRunPreemptedError:
-			// This case is already handled by the JobRunPreempted event
-			// When we formalise that as a terminal event, we'll remove this JobRunError getting produced
+			// The JobRunPreempted event sets the run state and the error text.
+			// This case persists only the failure classification.
+			category := e.GetFailureCategory()
+			subcategory := e.GetFailureSubcategory()
+			wasClassified := category != "" || subcategory != ""
+			if e.Terminal && wasClassified {
+				classification := &model.UpdateJobRunInstruction{RunId: event.RunId}
+				if category != "" {
+					classification.FailureCategory = pointer.String(category)
+				}
+				if subcategory != "" {
+					classification.FailureSubcategory = pointer.String(subcategory)
+				}
+				update.JobRunsToUpdate = append(update.JobRunsToUpdate, classification)
+			}
 			continue
 		case *armadaevents.Error_PodLeaseReturned:
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseReturnedOrdinal)
@@ -444,11 +591,13 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 			jobRunUpdate.Error = tryCompressError(event.JobId, "Unknown error", c.compressor)
 			log.Debugf("Ignoring event %T", reason)
 		}
-		// Only persist FailureInfo for terminal errors - transient failures
-		// may be retried and the final FailureInfo is the one that matters.
+		// Only persist failure classification for terminal errors.
 		if e.Terminal {
-			if fi := e.GetFailureInfo(); fi != nil {
-				jobRunUpdate.FailureInfo = failureInfoToMap(fi)
+			if cat := e.GetFailureCategory(); cat != "" {
+				jobRunUpdate.FailureCategory = pointer.String(cat)
+			}
+			if sub := e.GetFailureSubcategory(); sub != "" {
+				jobRunUpdate.FailureSubcategory = pointer.String(sub)
 			}
 		}
 		update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
@@ -457,14 +606,42 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 	return nil
 }
 
-func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, requestor string, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+	if event.Requestor != "" {
+		requestor = event.Requestor
+	}
+	var terminationReasonArgs map[string]any
+	if event.PreemptingJobId != "" {
+		terminationReasonArgs = map[string]any{"preemptingJobId": event.PreemptingJobId}
+	}
+	if requestor != "" {
+		if terminationReasonArgs == nil {
+			terminationReasonArgs = map[string]any{}
+		}
+		terminationReasonArgs["requestor"] = requestor
+	}
+	var terminationReason map[string]any
+	if event.Reason != "" || terminationReasonArgs != nil {
+		terminationReason = BuildTerminationReason(event.Reason, terminationReasonArgs)
+	}
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:       event.PreemptedRunId,
-		JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
-		Finished:    &ts,
-		Error:       tryCompressError(event.PreemptedJobId, event.Reason, c.compressor),
+		RunId:                      event.PreemptedRunId,
+		JobRunState:                pointer.Int32(lookout.JobRunPreemptedOrdinal),
+		Finished:                   &ts,
+		Error:                      tryCompressError(event.PreemptedJobId, event.Reason, c.compressor),
+		SchedulerTerminationReason: terminationReason,
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+
+	// The requestor of an API-driven preemption is carried on this event, not on
+	// the event sequence. Record it against the job so Lookout can show who
+	// requested the preemption.
+	if requestor := strings.TrimSpace(requestor); requestor != "" {
+		update.JobsToUpdate = append(update.JobsToUpdate, &model.UpdateJobInstruction{
+			JobId:       event.PreemptedJobId,
+			PreemptUser: &requestor,
+		})
+	}
 	return nil
 }
 
@@ -475,29 +652,6 @@ func (c *InstructionConverter) handleStandaloneIngressInfo(event *armadaevents.S
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
-}
-
-// failureInfoToMap converts a FailureInfo proto to a JSON-friendly map for JSONB storage.
-// Only non-zero fields are included. After a JSON round-trip through PostgreSQL,
-// numeric fields arrive as float64 - see failureInfoToSwagger for the read side.
-func failureInfoToMap(fi *armadaevents.FailureInfo) map[string]any {
-	m := make(map[string]any, 4)
-	if fi.GetExitCode() != 0 {
-		m["exitCode"] = fi.GetExitCode()
-	}
-	if fi.GetTerminationMessage() != "" {
-		m["terminationMessage"] = util.Truncate(fi.GetTerminationMessage(), maxTerminationMessageLen)
-	}
-	if len(fi.GetCategories()) > 0 {
-		m["categories"] = fi.GetCategories()
-	}
-	if fi.GetContainerName() != "" {
-		m["containerName"] = fi.GetContainerName()
-	}
-	if len(m) == 0 {
-		return nil
-	}
-	return m
 }
 
 func tryCompressError(jobId string, errorString string, compressor compress.Compressor) []byte {
@@ -518,6 +672,17 @@ func getNode(resources []*armadaevents.KubernetesResourceInfo) *string {
 	return pointer.String("UNKNOWN")
 }
 
+// getPodName returns the name of the pod in the resources of a run event. The executor reports only the current phase
+// of a pod, so a fast pod skips earlier events. The ingester therefore reads the name from every event that has it.
+func getPodName(resources []*armadaevents.KubernetesResourceInfo) *string {
+	for _, r := range resources {
+		if name := r.GetObjectMeta().GetName(); r.GetPodInfo() != nil && name != "" {
+			return pointer.String(name)
+		}
+	}
+	return nil
+}
+
 func extractNodeName(x HasNodeName) *string {
 	nodeName := x.GetNodeName()
 	if len(nodeName) > 0 {
@@ -531,18 +696,18 @@ func getJobResources(job *api.Job) jobResources {
 
 	podSpec := job.GetMainPodSpec()
 
-	for _, container := range podSpec.Containers {
-		resources.Cpu += getResource(container, v1.ResourceCPU, true)
-		resources.Memory += getResource(container, v1.ResourceMemory, false)
-		resources.EphemeralStorage += getResource(container, v1.ResourceEphemeralStorage, false)
-		resources.Gpu += getResource(container, "nvidia.com/gpu", false)
-	}
+	// Lookout reports the same request that the scheduler reserves.
+	requests := api.SchedulingResourceRequirementsFromPodSpec(podSpec).Requests
+	resources.Cpu = getResourceFromList(requests, v1.ResourceCPU, true)
+	resources.Memory = getResourceFromList(requests, v1.ResourceMemory, false)
+	resources.EphemeralStorage = getResourceFromList(requests, v1.ResourceEphemeralStorage, false)
+	resources.Gpu = getResourceFromList(requests, "nvidia.com/gpu", false)
 
 	return resources
 }
 
-func getResource(container v1.Container, resourceName v1.ResourceName, useMillis bool) int64 {
-	resource, ok := container.Resources.Requests[resourceName]
+func getResourceFromList(rl v1.ResourceList, resourceName v1.ResourceName, useMillis bool) int64 {
+	resource, ok := rl[resourceName]
 	if !ok {
 		return 0
 	}
@@ -558,4 +723,14 @@ func getJobPriorityClass(job *api.Job) *string {
 		return pointer.String(podSpec.PriorityClassName)
 	}
 	return nil
+}
+
+func BuildTerminationReason(reason string, args map[string]any) map[string]any {
+	result := map[string]any{
+		"reason": reason,
+	}
+	if len(args) > 0 {
+		result["args"] = args
+	}
+	return result
 }

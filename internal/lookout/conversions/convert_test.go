@@ -44,6 +44,7 @@ var (
 				Finished:    &baseTimeSwagger,
 				JobRunState: string(lookout.JobRunLeaseReturned),
 				Node:        pointer.String("node"),
+				PodName:     pointer.String("armada-pod"),
 				Leased:      &baseTimeSwagger,
 				Pending:     &baseTimeSwagger,
 				Pool:        pointer.String("default"),
@@ -54,8 +55,9 @@ var (
 				},
 			},
 		},
-		State:     string(lookout.JobFailed),
-		Submitted: baseTimeSwagger,
+		State:      string(lookout.JobFailed),
+		Submitted:  baseTimeSwagger,
+		CancelUser: pointer.String("cancel-user"),
 	}
 
 	job = &model.Job{
@@ -84,6 +86,7 @@ var (
 				Finished:    model.NewPostgreSQLTime(&baseTime),
 				JobRunState: lookout.JobRunStateOrdinalMap[lookout.JobRunLeaseReturned],
 				Node:        pointer.String("node"),
+				PodName:     pointer.String("armada-pod"),
 				Leased:      model.NewPostgreSQLTime(&baseTime),
 				Pending:     model.NewPostgreSQLTime(&baseTime),
 				Pool:        pointer.String("default"),
@@ -94,8 +97,9 @@ var (
 				},
 			},
 		},
-		State:     string(lookout.JobFailed),
-		Submitted: baseTime,
+		State:      string(lookout.JobFailed),
+		Submitted:  baseTime,
+		CancelUser: pointer.String("cancel-user"),
 	}
 
 	swaggerGroup = &models.Group{

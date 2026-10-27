@@ -36,10 +36,22 @@ func TestMerge_MarkRunsForJobPreemptRequested(t *testing.T) {
 	jobId2 := util.NewULID()
 	jobId3 := util.NewULID()
 	jobId4 := util.NewULID()
-	markPreemptRequested1 := MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: map[string]string{jobId1: "test-preempt-reason"}}
-	markPreemptRequested2 := MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: map[string]string{jobId2: "test-preempt-reason"}}
-	markPreemptRequested3 := MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set2"}: map[string]string{jobId3: "test-preempt-reason"}}
-	markPreemptRequested4 := MarkRunsForJobPreemptRequested{JobSetKey{queue: "test-queue-2", jobSet: "set1"}: map[string]string{jobId4: "test-preempt-reason"}}
+	markPreemptRequested1 := MarkRunsForJobPreemptRequested{
+		preemptUser: "user1",
+		jobSets:     map[JobSetKey]map[string]string{{queue: testQueueName, jobSet: "set1"}: {jobId1: "test-preempt-reason"}},
+	}
+	markPreemptRequested2 := MarkRunsForJobPreemptRequested{
+		preemptUser: "user1",
+		jobSets:     map[JobSetKey]map[string]string{{queue: testQueueName, jobSet: "set1"}: {jobId2: "test-preempt-reason"}},
+	}
+	markPreemptRequested3 := MarkRunsForJobPreemptRequested{
+		preemptUser: "user1",
+		jobSets:     map[JobSetKey]map[string]string{{queue: testQueueName, jobSet: "set2"}: {jobId3: "test-preempt-reason"}},
+	}
+	markPreemptRequested4 := MarkRunsForJobPreemptRequested{
+		preemptUser: "user1",
+		jobSets:     map[JobSetKey]map[string]string{{queue: "test-queue-2", jobSet: "set1"}: {jobId4: "test-preempt-reason"}},
+	}
 
 	ok := markPreemptRequested1.Merge(markPreemptRequested2)
 	assert.True(t, ok)
@@ -50,12 +62,84 @@ func TestMerge_MarkRunsForJobPreemptRequested(t *testing.T) {
 
 	assert.Equal(t,
 		MarkRunsForJobPreemptRequested{
-			// When jobset key matches, values are merged
-			JobSetKey{queue: testQueueName, jobSet: "set1"}: map[string]string{jobId1: "test-preempt-reason", jobId2: "test-preempt-reason"},
-			// Does not merge values when different jobset in key
-			JobSetKey{queue: testQueueName, jobSet: "set2"}: map[string]string{jobId3: "test-preempt-reason"},
-			// Does not merge values when different queue in key
-			JobSetKey{queue: "test-queue-2", jobSet: "set1"}: map[string]string{jobId4: "test-preempt-reason"},
+			preemptUser: "user1",
+			jobSets: map[JobSetKey]map[string]string{
+				{queue: testQueueName, jobSet: "set1"}:  {jobId1: "test-preempt-reason", jobId2: "test-preempt-reason"},
+				{queue: testQueueName, jobSet: "set2"}:  {jobId3: "test-preempt-reason"},
+				{queue: "test-queue-2", jobSet: "set1"}: {jobId4: "test-preempt-reason"},
+			},
+		},
+		markPreemptRequested1)
+}
+
+func TestMerge_MarkRunsForJobPreemptRequested_DifferentUsersDoNotMerge(t *testing.T) {
+	jobId1 := util.NewULID()
+	jobId2 := util.NewULID()
+	markPreemptRequested1 := MarkRunsForJobPreemptRequested{
+		preemptUser: "alice",
+		jobSets:     map[JobSetKey]map[string]string{{queue: testQueueName, jobSet: "set1"}: {jobId1: "test-preempt-reason"}},
+	}
+	markPreemptRequested2 := MarkRunsForJobPreemptRequested{
+		preemptUser: "bob",
+		jobSets:     map[JobSetKey]map[string]string{{queue: testQueueName, jobSet: "set1"}: {jobId2: "test-preempt-reason"}},
+	}
+
+	ok := markPreemptRequested1.Merge(markPreemptRequested2)
+	assert.False(t, ok)
+	assert.Equal(t,
+		MarkRunsForJobPreemptRequested{
+			preemptUser: "alice",
+			jobSets: map[JobSetKey]map[string]string{
+				{queue: testQueueName, jobSet: "set1"}: {jobId1: "test-preempt-reason"},
+			},
+		},
+		markPreemptRequested1)
+}
+
+func TestMerge_MarkRunsForJobPreemptRequested_EmptyAndNonEmptyUsersDoNotMerge(t *testing.T) {
+	jobId1 := util.NewULID()
+	jobId2 := util.NewULID()
+	markPreemptRequested1 := MarkRunsForJobPreemptRequested{
+		preemptUser: "",
+		jobSets:     map[JobSetKey]map[string]string{{queue: testQueueName, jobSet: "set1"}: {jobId1: "test-preempt-reason"}},
+	}
+	markPreemptRequested2 := MarkRunsForJobPreemptRequested{
+		preemptUser: "alice",
+		jobSets:     map[JobSetKey]map[string]string{{queue: testQueueName, jobSet: "set1"}: {jobId2: "test-preempt-reason"}},
+	}
+
+	ok := markPreemptRequested1.Merge(markPreemptRequested2)
+	assert.False(t, ok)
+	assert.Equal(t,
+		MarkRunsForJobPreemptRequested{
+			preemptUser: "",
+			jobSets: map[JobSetKey]map[string]string{
+				{queue: testQueueName, jobSet: "set1"}: {jobId1: "test-preempt-reason"},
+			},
+		},
+		markPreemptRequested1)
+}
+
+func TestMerge_MarkRunsForJobPreemptRequested_NonEmptyAndEmptyUsersDoNotMerge(t *testing.T) {
+	jobId1 := util.NewULID()
+	jobId2 := util.NewULID()
+	markPreemptRequested1 := MarkRunsForJobPreemptRequested{
+		preemptUser: "alice",
+		jobSets:     map[JobSetKey]map[string]string{{queue: testQueueName, jobSet: "set1"}: {jobId1: "test-preempt-reason"}},
+	}
+	markPreemptRequested2 := MarkRunsForJobPreemptRequested{
+		preemptUser: "",
+		jobSets:     map[JobSetKey]map[string]string{{queue: testQueueName, jobSet: "set1"}: {jobId2: "test-preempt-reason"}},
+	}
+
+	ok := markPreemptRequested1.Merge(markPreemptRequested2)
+	assert.False(t, ok)
+	assert.Equal(t,
+		MarkRunsForJobPreemptRequested{
+			preemptUser: "alice",
+			jobSets: map[JobSetKey]map[string]string{
+				{queue: testQueueName, jobSet: "set1"}: {jobId1: "test-preempt-reason"},
+			},
 		},
 		markPreemptRequested1)
 }
@@ -63,11 +147,11 @@ func TestMerge_MarkRunsForJobPreemptRequested(t *testing.T) {
 func TestMerge_UpdateJobPriorities(t *testing.T) {
 	jobId1 := util.NewULID()
 	jobId2 := util.NewULID()
-	updateJobPriorities := &UpdateJobPriorities{JobReprioritiseKey{JobSetKey{queue: testQueueName, jobSet: "set1"}, 1}, []string{jobId1}}
-	updateJobPriorities2 := &UpdateJobPriorities{JobReprioritiseKey{JobSetKey{queue: testQueueName, jobSet: "set1"}, 1}, []string{jobId2}}
+	updateJobPriorities := &UpdateJobPriorities{key: JobReprioritiseKey{JobSetKey: JobSetKey{queue: testQueueName, jobSet: "set1"}, Priority: 1}, jobIds: []string{jobId1}, Requestor: "reprioritize-user"}
+	updateJobPriorities2 := &UpdateJobPriorities{key: JobReprioritiseKey{JobSetKey: JobSetKey{queue: testQueueName, jobSet: "set1"}, Priority: 1}, jobIds: []string{jobId2}, Requestor: "reprioritize-user"}
 	ok := updateJobPriorities.Merge(updateJobPriorities2)
 	assert.True(t, ok)
-	assert.Equal(t, updateJobPriorities, &UpdateJobPriorities{JobReprioritiseKey{JobSetKey{queue: testQueueName, jobSet: "set1"}, 1}, []string{jobId1, jobId2}})
+	assert.Equal(t, updateJobPriorities, &UpdateJobPriorities{key: JobReprioritiseKey{JobSetKey: JobSetKey{queue: testQueueName, jobSet: "set1"}, Priority: 1}, jobIds: []string{jobId1, jobId2}, Requestor: "reprioritize-user"})
 }
 
 func TestMerge_UpdateJobSchedulingInfo(t *testing.T) {
@@ -104,6 +188,40 @@ func TestMerge_UpdateJobQueuedState(t *testing.T) {
 	ok := updatedJobQueuedState1.Merge(updateJobQueuedState2)
 	assert.True(t, ok)
 	assert.Equal(t, expectedResult, updatedJobQueuedState1)
+}
+
+func TestCanBeAppliedBefore_UpdateJobSetPriorities(t *testing.T) {
+	first := UpdateJobSetPriorities{
+		jobSets:   map[JobSetKey]int64{{queue: testQueueName, jobSet: "set1"}: 1},
+		Requestor: "alice",
+	}
+	second := UpdateJobSetPriorities{
+		jobSets:   map[JobSetKey]int64{{queue: testQueueName, jobSet: "set1"}: 2},
+		Requestor: "bob",
+	}
+
+	assert.False(t, second.CanBeAppliedBefore(first))
+}
+
+func TestAppendDbOperation_PreservesJobSetReprioritisationOrder(t *testing.T) {
+	jobSet := JobSetKey{queue: testQueueName, jobSet: "set1"}
+	first := UpdateJobSetPriorities{jobSets: map[JobSetKey]int64{jobSet: 1}, Requestor: "alice"}
+	second := UpdateJobSetPriorities{jobSets: map[JobSetKey]int64{jobSet: 2}, Requestor: "bob"}
+
+	var ops []DbOperation
+	ops = AppendDbOperation(ops, first)
+	ops = AppendDbOperation(ops, second)
+
+	if assert.Len(t, ops, 2) {
+		op0, ok0 := ops[0].(UpdateJobSetPriorities)
+		op1, ok1 := ops[1].(UpdateJobSetPriorities)
+		if assert.True(t, ok0) && assert.True(t, ok1) {
+			assert.Equal(t, "alice", op0.Requestor)
+			assert.Equal(t, int64(1), op0.jobSets[jobSet])
+			assert.Equal(t, "bob", op1.Requestor)
+			assert.Equal(t, int64(2), op1.jobSets[jobSet])
+		}
+	}
 }
 
 func TestMerge_InsertPartitionMarker(t *testing.T) {
@@ -148,56 +266,56 @@ func TestDbOperationOptimisation(t *testing.T) {
 		Ops []DbOperation // Ops sequence to optimise.
 	}{
 		"InsertJobs": {N: 1, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}, // 1
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"}}, // 1
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}}, // 1
-			InsertJobs{jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"}}, // 1
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}}, // 1
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set2"}}}, // 1
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}}}, // 1
+			InsertJobs{jobIds[3]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"}}}, // 1
 		}},
 		"InsertJobs, InsertRuns": {N: 2, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                                                                // 1
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0]}}},                                            // 1
 			InsertRuns{runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}}, // 2
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                                                                // 2
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1]}}},                                            // 2
 			InsertRuns{runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[1]}}}, // 2
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                                                                // 2
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2]}}},                                            // 2
 			InsertRuns{runIds[2]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]}}}, // 2
 		}},
 		"UpdateJobSetPriorities": {N: 3, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}, // 1
-			UpdateJobSetPriorities{JobSetKey{queue: testQueueName, jobSet: "set1"}: 1},                      // 2
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}}, // 3
-			UpdateJobSetPriorities{JobSetKey{queue: testQueueName, jobSet: "set2"}: 2},                      // 3
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}}, // 3
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}},             // 1
+			UpdateJobSetPriorities{jobSets: map[JobSetKey]int64{{queue: testQueueName, jobSet: "set1"}: 1}, Requestor: "reprioritize-user"}, // 2
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}}},             // 3
+			UpdateJobSetPriorities{jobSets: map[JobSetKey]int64{{queue: testQueueName, jobSet: "set2"}: 2}, Requestor: "reprioritize-user"}, // 3
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}}},             // 3
 		}},
 		"UpdateJobSetPriorities, UpdateJobPriorities": {N: 5, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},                   // 1
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}},                   // 1
-			&UpdateJobPriorities{JobReprioritiseKey{JobSetKey{queue: testQueueName, jobSet: "set1"}, 1}, []string{jobIds[0]}}, // 2                                                            // 2
-			UpdateJobSetPriorities{JobSetKey{queue: testQueueName, jobSet: "set1"}: 2},                                        // 3
-			&UpdateJobPriorities{JobReprioritiseKey{JobSetKey{queue: testQueueName, jobSet: "set1"}, 3}, []string{jobIds[1]}}, // 4
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set2"}},                   // 1
-			&UpdateJobPriorities{JobReprioritiseKey{JobSetKey{queue: testQueueName, jobSet: "set1"}, 4}, []string{jobIds[1]}}, // 5
-			&UpdateJobPriorities{JobReprioritiseKey{JobSetKey{queue: testQueueName, jobSet: "set1"}, 4}, []string{jobIds[2]}}, // 5
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}},                                                                 // 1
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}}},                                                                 // 1
+			&UpdateJobPriorities{key: JobReprioritiseKey{JobSetKey: JobSetKey{queue: testQueueName, jobSet: "set1"}, Priority: 1}, jobIds: []string{jobIds[0]}, Requestor: "reprioritize-user"}, // 2
+			UpdateJobSetPriorities{jobSets: map[JobSetKey]int64{{queue: testQueueName, jobSet: "set1"}: 2}, Requestor: "reprioritize-user"},                                                     // 3
+			&UpdateJobPriorities{key: JobReprioritiseKey{JobSetKey: JobSetKey{queue: testQueueName, jobSet: "set1"}, Priority: 3}, jobIds: []string{jobIds[1]}, Requestor: "reprioritize-user"}, // 4
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set2"}}},                                                                 // 1
+			&UpdateJobPriorities{key: JobReprioritiseKey{JobSetKey: JobSetKey{queue: testQueueName, jobSet: "set1"}, Priority: 4}, jobIds: []string{jobIds[1]}, Requestor: "reprioritize-user"}, // 5
+			&UpdateJobPriorities{key: JobReprioritiseKey{JobSetKey: JobSetKey{queue: testQueueName, jobSet: "set1"}, Priority: 4}, jobIds: []string{jobIds[2]}, Requestor: "reprioritize-user"}, // 5
 		}},
 		"MarkJobSetsCancelRequested": {N: 3, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}, // 1
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}}, // 1
 			MarkJobSetsCancelRequested{
 				cancelUser: f.CancelUser,
 				jobSets: map[JobSetKey]*JobSetCancelAction{
 					{queue: testQueueName, jobSet: "set1"}: {cancelQueued: true, cancelLeased: true},
 				},
 			}, // 2
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}}, // 3
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}}}, // 3
 			MarkJobSetsCancelRequested{
 				cancelUser: f.CancelUser,
 				jobSets: map[JobSetKey]*JobSetCancelAction{
 					{queue: testQueueName, jobSet: "set2"}: {cancelQueued: true, cancelLeased: true},
 				},
 			}, // 3
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}}, // 3
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}}}, // 3
 		}},
 		"MarkJobSetsCancelRequested, MarkJobsCancelRequested": {N: 4, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}, // 1
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}}, // 1
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}}, // 1
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}}}, // 1
 			MarkJobsCancelRequested{
 				cancelUser: f.CancelUser,
 				jobIds: map[JobSetKey][]string{
@@ -210,7 +328,7 @@ func TestDbOperationOptimisation(t *testing.T) {
 					{queue: testQueueName, jobSet: "set1"}: {cancelQueued: true, cancelLeased: true},
 				},
 			}, // 3
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}}, // 4
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}}}, // 4
 			MarkJobsCancelRequested{
 				cancelUser: f.CancelUser,
 				jobIds: map[JobSetKey][]string{
@@ -225,80 +343,102 @@ func TestDbOperationOptimisation(t *testing.T) {
 			}, // 4
 		}},
 		"MarkRunsForJobPreemptRequested": {N: 2, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},                              // 1
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}},                              // 1
-			MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: map[string]string{jobIds[0]: "test-reason"}}, // 2                                                            // 2
-			MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: map[string]string{jobIds[1]: "test-reason"}}, // 2                                                            // 2
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},                              // 1
-			MarkRunsForJobPreemptRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: map[string]string{jobIds[2]: "test-reason"}}, // 2
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}},
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}}},
+			MarkRunsForJobPreemptRequested{
+				preemptUser: "test-user",
+				jobSets:     map[JobSetKey]map[string]string{{queue: testQueueName, jobSet: "set1"}: {jobIds[0]: "test-reason"}},
+			},
+			MarkRunsForJobPreemptRequested{
+				preemptUser: "test-user",
+				jobSets:     map[JobSetKey]map[string]string{{queue: testQueueName, jobSet: "set1"}: {jobIds[1]: "test-reason"}},
+			},
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}}},
+			MarkRunsForJobPreemptRequested{
+				preemptUser: "test-user",
+				jobSets:     map[JobSetKey]map[string]string{{queue: testQueueName, jobSet: "set1"}: {jobIds[2]: "test-reason"}},
+			},
+		}},
+		"MarkRunsForJobPreemptRequested different users": {N: 3, Ops: []DbOperation{
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}}},
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}}},
+			MarkRunsForJobPreemptRequested{
+				preemptUser: "alice",
+				jobSets:     map[JobSetKey]map[string]string{{queue: testQueueName, jobSet: "set1"}: {jobIds[0]: "test-reason"}},
+			},
+			MarkRunsForJobPreemptRequested{
+				preemptUser: "bob",
+				jobSets:     map[JobSetKey]map[string]string{{queue: testQueueName, jobSet: "set1"}: {jobIds[1]: "test-reason"}},
+			},
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}}},
 		}},
 		"MarkJobsSucceeded": {N: 2, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
-			MarkJobsSucceeded{jobIds[0]: true},                        // 2
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}}, // 2
-			MarkJobsSucceeded{jobIds[1]: true},                        // 2
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 2
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0]}}}, // 1
+			MarkJobsSucceeded{jobIds[0]: true},                                            // 2
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1]}}}, // 2
+			MarkJobsSucceeded{jobIds[1]: true},                                            // 2
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2]}}}, // 2
 		}},
 		"MarkJobsFailed": {N: 2, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
-			MarkJobsFailed{jobIds[0]: true},                           // 2
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}}, // 2
-			MarkJobsFailed{jobIds[1]: true},                           // 2
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 2
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0]}}}, // 1
+			MarkJobsFailed{jobIds[0]: true},                                               // 2
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1]}}}, // 2
+			MarkJobsFailed{jobIds[1]: true},                                               // 2
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2]}}}, // 2
 		}},
 		"MarkJobsCancelled": {N: 2, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
-			MarkJobsCancelled{jobIds[0]: time.Time{}},                 // 2
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}}, // 2
-			MarkJobsCancelled{jobIds[1]: time.Time{}},                 // 2
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 2
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0]}}}, // 1
+			MarkJobsCancelled{jobIds[0]: time.Time{}},                                     // 2
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1]}}}, // 2
+			MarkJobsCancelled{jobIds[1]: time.Time{}},                                     // 2
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2]}}}, // 2
 		}},
 		"MarkRunsSucceeded": {N: 3, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                                                                // 1
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0]}}},                                            // 1
 			InsertRuns{runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}}, // 2
 			MarkRunsSucceeded{runIds[0]: time.Time{}},                                                                                // 3
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                                                                // 3
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1]}}},                                            // 3
 			InsertRuns{runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[1]}}}, // 3
 			MarkRunsSucceeded{runIds[1]: time.Time{}},                                                                                // 3
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                                                                // 3
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2]}}},                                            // 3
 		}},
 		"MarkRunsFailed": {N: 3, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                                                                // 1
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0]}}},                                            // 1
 			InsertRuns{runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}}, // 2
 			MarkRunsFailed{runIds[0]: &JobRunFailed{true, true, time.Time{}}},                                                        // 3
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                                                                // 3
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1]}}},                                            // 3
 			InsertRuns{runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[1]}}}, // 3
 			MarkRunsFailed{runIds[1]: &JobRunFailed{true, true, time.Time{}}},                                                        // 3
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                                                                // 3
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2]}}},                                            // 3
 		}},
 		"MarkRunsRunning": {N: 3, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                                                                // 1
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0]}}},                                            // 1
 			InsertRuns{runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}}, // 2
 			MarkRunsRunning{runIds[0]: time.Time{}},                                                                                  // 3
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                                                                // 3
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1]}}},                                            // 3
 			InsertRuns{runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[1]}}}, // 3
 			MarkRunsRunning{runIds[1]: time.Time{}},                                                                                  // 3
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                                                                // 3
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2]}}},                                            // 3
 		}},
 		"InsertPartitionMarker": {N: 2, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
-			&InsertPartitionMarker{markers: []*schedulerdb.Marker{}},  // 2
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}}, // 1
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 1
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0]}}}, // 1
+			&InsertPartitionMarker{markers: []*schedulerdb.Marker{}},                      // 2
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1]}}}, // 1
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2]}}}, // 1
 		}},
 		"UpdateJobSchedulingInfo": {N: 2, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                        // 1
+			InsertJobs{jobIds[0]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[0]}}},    // 1
 			UpdateJobSchedulingInfo{jobIds[0]: &JobSchedulingInfoUpdate{[]byte("job 1"), 1}}, // 2
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                        // 1
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1]}}},    // 1
 			UpdateJobSchedulingInfo{jobIds[1]: &JobSchedulingInfoUpdate{[]byte("job 2"), 1}}, // 2
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                        // 1
+			InsertJobs{jobIds[2]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[2]}}},    // 1
 			UpdateJobSchedulingInfo{jobIds[2]: &JobSchedulingInfoUpdate{[]byte("job 3"), 1}}, // 2
 		}},
 		"UpdateJobQueuedState": {N: 2, Ops: []DbOperation{
-			UpdateJobQueuedState{jobIds[0]: &JobQueuedStateUpdate{true, 1}},  // 2
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},        // 1
-			UpdateJobQueuedState{jobIds[1]: &JobQueuedStateUpdate{false, 1}}, // 2
-			UpdateJobQueuedState{jobIds[2]: &JobQueuedStateUpdate{true, 3}},  // 2
+			UpdateJobQueuedState{jobIds[0]: &JobQueuedStateUpdate{true, 1}},               // 2
+			InsertJobs{jobIds[1]: &JobInsertion{Job: &schedulerdb.Job{JobID: jobIds[1]}}}, // 1
+			UpdateJobQueuedState{jobIds[1]: &JobQueuedStateUpdate{false, 1}},              // 2
+			UpdateJobQueuedState{jobIds[2]: &JobQueuedStateUpdate{true, 3}},               // 2
 		}},
 		// No merging will occur for the below operations, so len(Ops) == N
 		"UpsertExecutorSettings": {N: 1, Ops: []DbOperation{
@@ -319,6 +459,14 @@ func TestDbOperationOptimisation(t *testing.T) {
 			UpsertExecutorSettings{f.ExecutorId: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId, Cordoned: true, CordonReason: f.ExecutorCordonReason}},
 			UpsertExecutorSettings{f.ExecutorId2: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId2, Cordoned: true, CordonReason: f.ExecutorCordonReason}},
 			UpsertExecutorSettings{f.ExecutorId3: &ExecutorSettingsUpsert{ExecutorID: f.ExecutorId3, Cordoned: false, CordonReason: ""}},
+		}},
+		"DeleteExecutor": {N: 1, Ops: []DbOperation{
+			DeleteExecutor{f.ExecutorId: &ExecutorDelete{ExecutorID: f.ExecutorId}},
+		}},
+		"DeleteExecutor x3, different executors": {N: 3, Ops: []DbOperation{
+			DeleteExecutor{f.ExecutorId: &ExecutorDelete{ExecutorID: f.ExecutorId}},
+			DeleteExecutor{f.ExecutorId2: &ExecutorDelete{ExecutorID: f.ExecutorId2}},
+			DeleteExecutor{f.ExecutorId3: &ExecutorDelete{ExecutorID: f.ExecutorId3}},
 		}},
 	}
 	for name, tc := range tests {
@@ -363,11 +511,11 @@ func TestInsertJobRequestCancel(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		job := &schedulerdb.Job{JobID: util.NewULID(), Queue: testQueueName, JobSet: "set1"}
 		expectedCancelledIds[job.JobID] = true
-		ops = append(ops, InsertJobs{job.JobID: job})
+		ops = append(ops, InsertJobs{job.JobID: &JobInsertion{Job: job}})
 	}
 	for i := 0; i < 2; i++ {
 		job := &schedulerdb.Job{JobID: util.NewULID(), Queue: testQueueName, JobSet: "set2"}
-		ops = append(ops, InsertJobs{job.JobID: job})
+		ops = append(ops, InsertJobs{job.JobID: &JobInsertion{Job: job}})
 	}
 
 	// Cancel one job set.
@@ -381,11 +529,11 @@ func TestInsertJobRequestCancel(t *testing.T) {
 	// Submit some more jobs to both job sets.
 	for i := 0; i < 2; i++ {
 		job := &schedulerdb.Job{JobID: util.NewULID(), Queue: testQueueName, JobSet: "set2"}
-		ops = append(ops, InsertJobs{job.JobID: job})
+		ops = append(ops, InsertJobs{job.JobID: &JobInsertion{Job: job}})
 	}
 	for i := 0; i < 2; i++ {
 		job := &schedulerdb.Job{JobID: util.NewULID(), Queue: testQueueName, JobSet: "set1"}
-		ops = append(ops, InsertJobs{job.JobID: job})
+		ops = append(ops, InsertJobs{job.JobID: &JobInsertion{Job: job}})
 	}
 
 	// Apply ops to a database.
@@ -453,8 +601,8 @@ func (db *mockDb) apply(op DbOperation) error {
 	case InsertJobs:
 		n := len(db.Jobs)
 		for _, job := range o {
-			job := *job // Copy primitive types
-			db.Jobs[job.JobID] = &job
+			j := *job.Job // Copy primitive types
+			db.Jobs[j.JobID] = &j
 		}
 		if len(db.Jobs) != n+len(o) {
 			return errors.New("duplicate job id")
@@ -469,7 +617,7 @@ func (db *mockDb) apply(op DbOperation) error {
 			return errors.New("duplicate run id")
 		}
 	case UpdateJobSetPriorities:
-		for jobSetKey, priority := range o {
+		for jobSetKey, priority := range o.jobSets {
 			for _, job := range db.Jobs {
 				if job.JobSet == jobSetKey.jobSet && job.Queue == jobSetKey.queue {
 					job.Priority = priority

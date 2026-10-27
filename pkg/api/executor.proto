@@ -31,6 +31,12 @@ service Executor {
       body: "*"
     };
   }
+  rpc DeleteExecutor (ExecutorDeleteRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/v1/executors/{name}"
+      body: "*"
+    };
+  }
 }
 
 message ExecutorSettingsUpsertRequest {
@@ -40,6 +46,10 @@ message ExecutorSettingsUpsertRequest {
 }
 
 message ExecutorSettingsDeleteRequest {
+  string name = 1;
+}
+
+message ExecutorDeleteRequest {
   string name = 1;
 }
 

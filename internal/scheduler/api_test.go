@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	resourcehelper "k8s.io/component-helpers/resource"
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -461,6 +462,227 @@ func TestAddNodeSelector(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			addNodeSelector(tc.input, tc.key, tc.value)
 			assert.Equal(t, tc.expected, tc.input)
+		})
+	}
+}
+
+func TestApplyResourceMutations(t *testing.T) {
+	container := func(name, memory string) v1.Container {
+		q := resource.MustParse(memory)
+		return v1.Container{
+			Name: name,
+			Resources: v1.ResourceRequirements{
+				Requests: v1.ResourceList{v1.ResourceMemory: q},
+				Limits:   v1.ResourceList{v1.ResourceMemory: q.DeepCopy()},
+			},
+		}
+	}
+	tests := map[string]struct {
+		mutations      *schedulerobjects.RetryResourceMutations
+		containers     []v1.Container
+		initContainers []v1.Container
+		// container name -> memory it must end up with; a container absent
+		// from the map must end up with no memory value at all.
+		expected  map[string]string
+		expectErr bool
+	}{
+		"factor multiplies every container": {
+			mutations:  &schedulerobjects.RetryResourceMutations{MemoryFactor: 1.5},
+			containers: []v1.Container{container("a", "1Gi"), container("b", "2Gi")},
+			expected:   map[string]string{"a": "1536Mi", "b": "3Gi"},
+		},
+		"static distributes proportionally across main containers": {
+			// 300Mi split over a 1Gi and a 2Gi container: 100Mi and 200Mi.
+			mutations:  &schedulerobjects.RetryResourceMutations{MemoryStatic: "300Mi"},
+			containers: []v1.Container{container("a", "1Gi"), container("b", "2Gi")},
+			expected:   map[string]string{"a": "1124Mi", "b": "2248Mi"},
+		},
+		"init containers receive the full static amount": {
+			mutations:      &schedulerobjects.RetryResourceMutations{MemoryStatic: "100Mi"},
+			containers:     []v1.Container{container("a", "1Gi")},
+			initContainers: []v1.Container{container("init", "256Mi")},
+			expected:       map[string]string{"a": "1124Mi", "init": "356Mi"},
+		},
+		"container without memory stays unchanged": {
+			mutations:  &schedulerobjects.RetryResourceMutations{MemoryFactor: 2},
+			containers: []v1.Container{container("a", "1Gi"), {Name: "sidecar"}},
+			expected:   map[string]string{"a": "2Gi"},
+		},
+		"nil mutations change nothing": {
+			mutations:  nil,
+			containers: []v1.Container{container("a", "1Gi")},
+			expected:   map[string]string{"a": "1Gi"},
+		},
+		"invalid static quantity errors": {
+			mutations:  &schedulerobjects.RetryResourceMutations{MemoryStatic: "not-a-quantity"},
+			containers: []v1.Container{container("a", "1Gi")},
+			expectErr:  true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			job := &armadaevents.SubmitJob{
+				MainObject: &armadaevents.KubernetesMainObject{
+					Object: &armadaevents.KubernetesMainObject_PodSpec{
+						PodSpec: &armadaevents.PodSpecWithAvoidList{PodSpec: &v1.PodSpec{
+							Containers:     tc.containers,
+							InitContainers: tc.initContainers,
+						}},
+					},
+				},
+			}
+			err := applyResourceMutations(job, tc.mutations)
+			if tc.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			podSpec := job.MainObject.GetPodSpec().GetPodSpec()
+			all := append(append([]v1.Container{}, podSpec.Containers...), podSpec.InitContainers...)
+			for _, c := range all {
+				want, ok := tc.expected[c.Name]
+				if !ok {
+					assert.NotContains(t, c.Resources.Requests, v1.ResourceMemory, "container %s gained memory", c.Name)
+					continue
+				}
+				wantQuantity := resource.MustParse(want)
+				wantValue := wantQuantity.Value()
+				request := c.Resources.Requests[v1.ResourceMemory]
+				limit := c.Resources.Limits[v1.ResourceMemory]
+				assert.Equal(t, wantValue, request.Value(), "container %s requests", c.Name)
+				assert.Equal(t, wantValue, limit.Value(), "container %s limits", c.Name)
+			}
+		})
+	}
+}
+
+func TestApplyResourceMutations_PodLevelResources(t *testing.T) {
+	memory := func(s string) v1.ResourceList {
+		return v1.ResourceList{v1.ResourceMemory: resource.MustParse(s)}
+	}
+	container := func(name, m string) v1.Container {
+		q := resource.MustParse(m)
+		return v1.Container{Name: name, Resources: v1.ResourceRequirements{
+			Requests: v1.ResourceList{v1.ResourceMemory: q},
+			Limits:   v1.ResourceList{v1.ResourceMemory: q.DeepCopy()},
+		}}
+	}
+	sidecar := container("sidecar", "1Gi")
+	always := v1.ContainerRestartPolicyAlways
+	sidecar.RestartPolicy = &always
+
+	tests := map[string]struct {
+		mutations        *schedulerobjects.RetryResourceMutations
+		podLevel         v1.ResourceList
+		containers       []v1.Container
+		initContainers   []v1.Container
+		wantPodLevel     string
+		wantContainerSum string
+	}{
+		"factor scales the block and the containers together": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryFactor: 2},
+			podLevel:         memory("4Gi"),
+			containers:       []v1.Container{container("a", "1Gi"), container("b", "2Gi")},
+			wantPodLevel:     "8Gi",
+			wantContainerSum: "6Gi",
+		},
+		"inexact factor keeps the block at or above the rounded container requests": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryFactor: 1.15},
+			podLevel:         memory("25Gi"),
+			containers:       []v1.Container{container("a", "5Gi"), container("b", "20Gi")},
+			wantPodLevel:     "30870077440",
+			wantContainerSum: "30870077440",
+		},
+		"static grows the block by the full amount, not a share": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryStatic: "300Mi"},
+			podLevel:         memory("4Gi"),
+			containers:       []v1.Container{container("a", "1Gi"), container("b", "2Gi")},
+			wantPodLevel:     "4396Mi",
+			wantContainerSum: "3297Mi",
+		},
+		"static shares support multi-gigabyte memory budgets": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryStatic: "4Gi"},
+			podLevel:         memory("64Gi"),
+			containers:       []v1.Container{container("a", "32Gi"), container("b", "16Gi")},
+			wantPodLevel:     "68Gi",
+			wantContainerSum: "51Gi",
+		},
+		"pod-level-only spec is bumped even though no container carries memory": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryFactor: 2},
+			podLevel:         memory("4Gi"),
+			containers:       []v1.Container{{Name: "main"}},
+			wantPodLevel:     "8Gi",
+			wantContainerSum: "0",
+		},
+		"pod-level-only spec receives the static bump": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryStatic: "300Mi"},
+			podLevel:         memory("4Gi"),
+			containers:       []v1.Container{{Name: "main"}},
+			wantPodLevel:     "4396Mi",
+			wantContainerSum: "0",
+		},
+		"factor and static bump combine at both levels": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryFactor: 2, MemoryStatic: "300Mi"},
+			podLevel:         memory("4Gi"),
+			containers:       []v1.Container{container("a", "1Gi"), container("b", "2Gi")},
+			wantPodLevel:     "8492Mi",
+			wantContainerSum: "6369Mi",
+		},
+		"static bump keeps a native sidecar within the pod budget": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryStatic: "300Mi"},
+			podLevel:         memory("3Gi"),
+			containers:       []v1.Container{container("main", "2Gi")},
+			initContainers:   []v1.Container{*sidecar.DeepCopy()},
+			wantPodLevel:     "3372Mi",
+			wantContainerSum: "2248Mi",
+		},
+		"static bump keeps sequential init containers within the pod budget": {
+			mutations:        &schedulerobjects.RetryResourceMutations{MemoryStatic: "300Mi"},
+			podLevel:         memory("3Gi"),
+			containers:       []v1.Container{container("main", "1Gi")},
+			initContainers:   []v1.Container{*sidecar.DeepCopy(), container("init", "2Gi")},
+			wantPodLevel:     "3372Mi",
+			wantContainerSum: "1124Mi",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			job := &armadaevents.SubmitJob{
+				MainObject: &armadaevents.KubernetesMainObject{
+					Object: &armadaevents.KubernetesMainObject_PodSpec{
+						PodSpec: &armadaevents.PodSpecWithAvoidList{PodSpec: &v1.PodSpec{
+							Containers:     tc.containers,
+							InitContainers: tc.initContainers,
+							Resources: &v1.ResourceRequirements{
+								Requests: tc.podLevel,
+								Limits:   tc.podLevel.DeepCopy(),
+							},
+						}},
+					},
+				},
+			}
+			require.NoError(t, applyResourceMutations(job, tc.mutations))
+
+			podSpec := job.MainObject.GetPodSpec().GetPodSpec()
+			wantPodLevel := resource.MustParse(tc.wantPodLevel)
+			gotRequest := podSpec.Resources.Requests[v1.ResourceMemory]
+			gotLimit := podSpec.Resources.Limits[v1.ResourceMemory]
+			assert.Equal(t, wantPodLevel.Value(), gotRequest.Value(), "pod-level request")
+			assert.Equal(t, wantPodLevel.Value(), gotLimit.Value(), "pod-level limit")
+
+			containerSum := resource.Quantity{}
+			for _, c := range podSpec.Containers {
+				q := c.Resources.Requests[v1.ResourceMemory]
+				containerSum.Add(q)
+			}
+			wantSum := resource.MustParse(tc.wantContainerSum)
+			assert.Equal(t, wantSum.Value(), containerSum.Value(), "container sum")
+			aggregateRequests := resourcehelper.AggregateContainerRequests(&v1.Pod{Spec: *podSpec}, resourcehelper.PodResourcesOptions{})
+			aggregateMemory := aggregateRequests[v1.ResourceMemory]
+			assert.LessOrEqual(t, aggregateMemory.Value(), gotRequest.Value(),
+				"pod-level request must cover the aggregate container requests")
 		})
 	}
 }

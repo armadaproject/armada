@@ -63,6 +63,7 @@ type runPatch struct {
 	finished         *time.Time
 	jobRunState      lookout.JobRunState
 	node             *string
+	podName          *string
 	leased           *time.Time
 	pending          *time.Time
 	started          *time.Time
@@ -225,6 +226,7 @@ func (js *JobSimulator) Lease(runId string, cluster string, node string, pool st
 }
 
 func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Time) *JobSimulator {
+	const podName = "test-job"
 	ts := timestampOrNow(timestamp)
 	pending := protoutil.ToStdTime(ts)
 	assignedEvent := &armadaevents.EventSequence_Event{
@@ -237,7 +239,7 @@ func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Tim
 					{
 						ObjectMeta: &armadaevents.ObjectMeta{
 							KubernetesId: runId,
-							Name:         "test-job",
+							Name:         podName,
 							Namespace:    js.queue,
 							ExecutorId:   cluster,
 						},
@@ -261,6 +263,7 @@ func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Tim
 		runId:       runId,
 		cluster:     &cluster,
 		jobRunState: lookout.JobRunPending,
+		podName:     pointer.String(podName),
 		pending:     &pending,
 	}
 	js.updateRun(js.job, rp)
@@ -285,6 +288,10 @@ func (js *JobSimulator) Running(runId string, node string, timestamp time.Time) 
 							},
 						},
 					},
+				},
+				StartUpInfo: &armadaevents.PodStartUpInfo{
+					CreatedAt: ts,
+					StartedAt: ts,
 				},
 			},
 		},
@@ -406,8 +413,7 @@ func (js *JobSimulator) Cancelled(timestamp time.Time, cancelUser string) *JobSi
 		Created: ts,
 		Event: &armadaevents.EventSequence_Event_CancelledJob{
 			CancelledJob: &armadaevents.CancelledJob{
-				JobId:      js.jobId,
-				CancelUser: cancelUser,
+				JobId: js.jobId,
 			},
 		},
 	}
@@ -421,6 +427,10 @@ func (js *JobSimulator) Cancelled(timestamp time.Time, cancelUser string) *JobSi
 }
 
 func (js *JobSimulator) Reprioritized(newPriority uint32, timestamp time.Time) *JobSimulator {
+	return js.ReprioritizedBy(newPriority, js.owner, timestamp)
+}
+
+func (js *JobSimulator) ReprioritizedBy(newPriority uint32, reprioritizeUser string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	reprioritized := &armadaevents.EventSequence_Event{
 		Created: ts,
@@ -436,6 +446,7 @@ func (js *JobSimulator) Reprioritized(newPriority uint32, timestamp time.Time) *
 
 	js.apiJob.Priority = float64(newPriority)
 	js.job.Priority = int64(newPriority)
+	js.job.ReprioritizeUser = &reprioritizeUser
 	return js
 }
 
@@ -577,6 +588,45 @@ func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
 	return js
 }
 
+func (js *JobSimulator) PreemptedWithRunId(runId string, reason string, preemptingJobId string, timestamp time.Time) *JobSimulator {
+	ts := timestampOrNow(timestamp)
+	preemptedTime := protoutil.ToStdTime(ts)
+
+	preemptedJob := &armadaevents.EventSequence_Event{
+		Created: ts,
+		Event: &armadaevents.EventSequence_Event_JobErrors{
+			JobErrors: &armadaevents.JobErrors{
+				JobId: js.jobId,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal: true,
+						Reason: &armadaevents.Error_JobRunPreemptedError{
+							JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	preemptedRun := &armadaevents.EventSequence_Event{
+		Created: ts,
+		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: &armadaevents.JobRunPreempted{
+				PreemptedJobId:  js.jobId,
+				PreemptedRunId:  runId,
+				PreemptingJobId: preemptingJobId,
+				Reason:          reason,
+			},
+		},
+	}
+	js.events = append(js.events, preemptedJob, preemptedRun)
+
+	js.job.LastTransitionTime = preemptedTime
+	js.job.State = string(lookout.JobPreempted)
+	return js
+}
+
 func (js *JobSimulator) LeaseExpired(runId string, timestamp time.Time, _ clock.Clock) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	leaseExpiredTime := protoutil.ToStdTime(ts)
@@ -699,6 +749,7 @@ func (js *JobSimulator) updateRun(job *model.Job, patch *runPatch) {
 		Finished:         model.NewPostgreSQLTime(patch.finished),
 		JobRunState:      lookout.JobRunStateOrdinalMap[patch.jobRunState],
 		Node:             patch.node,
+		PodName:          patch.podName,
 		Leased:           model.NewPostgreSQLTime(patch.leased),
 		Pending:          model.NewPostgreSQLTime(patch.pending),
 		Pool:             patch.pool,
@@ -725,6 +776,9 @@ func patchRun(run *model.Run, patch *runPatch) {
 	run.JobRunState = lookout.JobRunStateOrdinalMap[patch.jobRunState]
 	if patch.node != nil {
 		run.Node = patch.node
+	}
+	if patch.podName != nil {
+		run.PodName = patch.podName
 	}
 	if patch.leased != nil {
 		run.Leased = model.NewPostgreSQLTime(patch.leased)

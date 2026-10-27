@@ -1,0 +1,1 @@
+ALTER TABLE jobs ADD COLUMN cancel_reason varchar(512) NULL;

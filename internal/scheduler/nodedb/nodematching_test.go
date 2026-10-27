@@ -4,10 +4,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -269,13 +272,8 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 		"sufficient cpu": {
 			node: makeTestNodeResources(
 				t,
-				map[int32]internaltypes.ResourceList{
-					0: rlFactory.FromJobResourceListIgnoreUnknown(
-						map[string]resource.Quantity{
-							"cpu": resource.MustParse("1"),
-						},
-					),
-				},
+				[]int32{0},
+				nil,
 				rlFactory.FromJobResourceListIgnoreUnknown(
 					map[string]resource.Quantity{
 						"cpu": resource.MustParse("1"),
@@ -295,13 +293,8 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 		"insufficient cpu": {
 			node: makeTestNodeResources(
 				t,
-				map[int32]internaltypes.ResourceList{
-					0: rlFactory.FromJobResourceListIgnoreUnknown(
-						map[string]resource.Quantity{
-							"cpu": resource.MustParse("0"),
-						},
-					),
-				},
+				[]int32{0},
+				nil,
 				rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{
 					"cpu": resource.MustParse("0"),
 				},
@@ -318,15 +311,13 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 			expectSuccess: false,
 		},
 		"sufficient cpu at priority": {
+			// 1 cpu total, all of it used at priority 0: nothing left at priority 0,
+			// but a priority 1 job can still preempt into it.
 			node: makeTestNodeResources(
 				t,
+				[]int32{0, 1},
 				map[int32]internaltypes.ResourceList{
 					0: rlFactory.FromJobResourceListIgnoreUnknown(
-						map[string]resource.Quantity{
-							"cpu": resource.MustParse("0"),
-						},
-					),
-					1: rlFactory.FromJobResourceListIgnoreUnknown(
 						map[string]resource.Quantity{
 							"cpu": resource.MustParse("1"),
 						},
@@ -349,15 +340,13 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 			expectSuccess: true,
 		},
 		"insufficient cpu at priority": {
+			// Same node as above, but the job is checked at the default priority 0,
+			// where nothing is left.
 			node: makeTestNodeResources(
 				t,
+				[]int32{0, 1},
 				map[int32]internaltypes.ResourceList{
 					0: rlFactory.FromJobResourceListIgnoreUnknown(
-						map[string]resource.Quantity{
-							"cpu": resource.MustParse("0"),
-						},
-					),
-					1: rlFactory.FromJobResourceListIgnoreUnknown(
 						map[string]resource.Quantity{
 							"cpu": resource.MustParse("1"),
 						},
@@ -650,17 +639,66 @@ func BenchmarkInsufficientResourcesSum64(b *testing.B) {
 	}
 }
 
-func TestResourceRequirementsMet(t *testing.T) {
+func TestResourceRequirementsMet_RespectNodePodLimits(t *testing.T) {
+	rlFactory, err := internaltypes.NewResourceListFactory(
+		[]schedulerconfig.ResourceType{
+			{Name: "cpu", Resolution: resource.MustParse("1m")},
+			{Name: "memory", Resolution: resource.MustParse("1")},
+			{Name: armadaresource.PodsResourceName, Resolution: resource.MustParse("1")},
+		},
+		nil,
+	)
+	require.NoError(t, err)
+
+	required := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{
+		"cpu":                           resource.MustParse("1"),
+		armadaresource.PodsResourceName: resource.MustParse("1"),
+	})
+
+	tests := map[string]struct {
+		availableCpu, availablePods string
+		expectOk                    bool
+		expectReason                string
+	}{
+		"saturated by pods": {
+			availableCpu: "10", availablePods: "0",
+			expectOk: false, expectReason: armadaresource.PodsResourceName,
+		},
+		"slot available": {
+			availableCpu: "10", availablePods: "1",
+			expectOk: true,
+		},
+		"saturated by both cpu and pods": {
+			// Factory iterates resources in declared order (cpu, memory, pods),
+			// so cpu wins the tiebreak. Pins down operator-facing reason ordering.
+			availableCpu: "0", availablePods: "0",
+			expectOk: false, expectReason: "cpu",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			available := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{
+				"cpu":                           resource.MustParse(tc.availableCpu),
+				"memory":                        resource.MustParse("64Gi"),
+				armadaresource.PodsResourceName: resource.MustParse(tc.availablePods),
+			})
+			ok, reason := resourceRequirementsMet(available, required)
+			assert.Equal(t, tc.expectOk, ok)
+			if tc.expectOk {
+				assert.Nil(t, reason)
+				return
+			}
+			insuff, isInsufficient := reason.(*InsufficientResources)
+			require.True(t, isInsufficient, "expected InsufficientResources, got %T", reason)
+			assert.Equal(t, tc.expectReason, insuff.ResourceName)
+		})
+	}
 }
 
 func makeTestNodeTaintsLabels(taints []v1.Taint, labels map[string]string) *internaltypes.Node {
 	return internaltypes.CreateNode(
 		"id",
-		internaltypes.NewNodeType(taints,
-			labels,
-			map[string]bool{},
-			map[string]bool{},
-		),
 		1,
 		"executor",
 		"name",
@@ -668,25 +706,29 @@ func makeTestNodeTaintsLabels(taints []v1.Taint, labels map[string]string) *inte
 		"type",
 		taints,
 		labels,
+		map[string]bool{},
+		map[string]bool{},
 		false,
 		internaltypes.ResourceList{},
 		internaltypes.ResourceList{},
-		map[int32]internaltypes.ResourceList{},
-		map[string]internaltypes.ResourceList{},
-		map[string]internaltypes.ResourceList{},
-		map[string]bool{},
+		[]int32{},
 		[][]byte{},
 	)
 }
 
-func makeTestNodeResources(t *testing.T, allocatableByPriority map[int32]internaltypes.ResourceList, totalResources internaltypes.ResourceList) *internaltypes.Node {
-	return internaltypes.CreateNode(
+// makeTestNodeResources builds a node with totalResources allocatable at every
+// priority in allowedPriorities, then deducts usedAtPriority from the buckets at or
+// below each of its priorities, so callers can set up nodes whose lower priorities
+// have less allocatable than their higher ones.
+func makeTestNodeResources(
+	t *testing.T,
+	allowedPriorities []int32,
+	usedAtPriority map[int32]internaltypes.ResourceList,
+	totalResources internaltypes.ResourceList,
+) *internaltypes.Node {
+	t.Helper()
+	node := internaltypes.CreateNode(
 		"id",
-		internaltypes.NewNodeType([]v1.Taint{},
-			map[string]string{},
-			map[string]bool{},
-			map[string]bool{},
-		),
 		1,
 		"executor",
 		"name",
@@ -694,13 +736,18 @@ func makeTestNodeResources(t *testing.T, allocatableByPriority map[int32]interna
 		"type",
 		[]v1.Taint{},
 		map[string]string{},
+		map[string]bool{},
+		map[string]bool{},
 		false,
 		totalResources,
 		totalResources,
-		allocatableByPriority,
-		map[string]internaltypes.ResourceList{},
-		map[string]internaltypes.ResourceList{},
-		map[string]bool{},
+		allowedPriorities,
 		[][]byte{},
 	)
+	for _, priority := range allowedPriorities {
+		if used, ok := usedAtPriority[priority]; ok {
+			node = node.WithResourcesUsedAtPriority(priority, used)
+		}
+	}
+	return node
 }

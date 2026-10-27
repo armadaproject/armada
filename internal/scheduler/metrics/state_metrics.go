@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"math"
-	"regexp"
 	"strings"
 	"time"
 
@@ -10,11 +9,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type jobStateMetrics struct {
-	errorRegexes           []*regexp.Regexp
 	resetInterval          time.Duration
 	jobCheckpointIntervals []time.Duration
 	lastResetTime          time.Time
@@ -31,18 +30,18 @@ type jobStateMetrics struct {
 	jobErrorsByQueue                          *prometheus.CounterVec
 	jobErrorsByNode                           *prometheus.CounterVec
 	jobResourceSecondsLostToPreemptionByQueue *prometheus.CounterVec
+	retryPolicyDecisionsByQueue               *prometheus.CounterVec
 	allMetrics                                []resettableMetric
 }
 
 func newJobStateMetrics(
-	errorRegexes []*regexp.Regexp,
 	trackedResourceNames []v1.ResourceName,
 	jobCheckpointIntervals []time.Duration,
 	resetInterval time.Duration,
 ) *jobStateMetrics {
 	completedRunDurations := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    prefix + "job_run_completed_duration_seconds",
+			Name:    ArmadaSchedulerMetricsPrefix + "job_run_completed_duration_seconds",
 			Help:    "Time",
 			Buckets: prometheus.ExponentialBuckets(2, 2, 20),
 		},
@@ -50,69 +49,75 @@ func newJobStateMetrics(
 	)
 	jobStateCounterByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_state_counter_by_queue",
+			Name: ArmadaSchedulerMetricsPrefix + "job_state_counter_by_queue",
 			Help: "Job states at queue level",
 		},
 		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel},
 	)
 	jobStateCounterByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_state_counter_by_node",
+			Name: ArmadaSchedulerMetricsPrefix + "job_state_counter_by_node",
 			Help: "Job states at node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel},
 	)
 	jobStateSecondsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_state_seconds_by_queue",
+			Name: ArmadaSchedulerMetricsPrefix + "job_state_seconds_by_queue",
 			Help: "time spent in different states at the queue level",
 		},
 		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel},
 	)
 	jobStateSecondsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_state_seconds_by_node",
+			Name: ArmadaSchedulerMetricsPrefix + "job_state_seconds_by_node",
 			Help: "time spent in different states at the node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel},
 	)
 	jobStateResourceSecondsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_state_resource_seconds_by_queue",
+			Name: ArmadaSchedulerMetricsPrefix + "job_state_resource_seconds_by_queue",
 			Help: "Resource-seconds spent in different states at the queue level",
 		},
 		[]string{queueLabel, poolLabel, stateLabel, priorStateLabel, resourceLabel},
 	)
 	jobStateResourceSecondsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_state_resource_seconds_by_node",
+			Name: ArmadaSchedulerMetricsPrefix + "job_state_resource_seconds_by_node",
 			Help: "Resource-seconds spent in different states at the node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, stateLabel, priorStateLabel, resourceLabel},
 	)
 	jobErrorsByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_error_classification_by_queue",
+			Name: ArmadaSchedulerMetricsPrefix + "job_error_classification_by_queue",
 			Help: "Failed jobs by error classification at the queue level",
 		},
 		[]string{queueLabel, poolLabel, errorCategoryLabel, errorSubcategoryLabel},
 	)
 	jobErrorsByNode := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_error_classification_by_node",
-			Help: "Failed jobs ey error classification at the node level",
+			Name: ArmadaSchedulerMetricsPrefix + "job_error_classification_by_node",
+			Help: "Failed jobs by error classification at the node level",
 		},
 		[]string{nodeLabel, poolLabel, clusterLabel, errorCategoryLabel, errorSubcategoryLabel},
 	)
 	jobResourceSecondsLostToPreemptionByQueue := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: prefix + "job_resource_seconds_lost_to_preemption",
+			Name: ArmadaSchedulerMetricsPrefix + "job_resource_seconds_lost_to_preemption",
 			Help: "Resource seconds lost to preemption",
 		},
-		[]string{queueLabel, poolLabel, checkpointLabel, resourceLabel},
+		[]string{queueLabel, poolLabel, checkpointLabel, resourceLabel, typeLabel},
+	)
+	retryPolicyDecisionsByQueue := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: ArmadaSchedulerMetricsPrefix + "retry_policy_decisions_total",
+			Help: "Retry policy engine decisions at the queue level",
+		},
+		[]string{queueLabel, poolLabel, retryPolicyLabel, retryDecisionLabel},
 	)
 	return &jobStateMetrics{
-		errorRegexes:                              errorRegexes,
 		trackedResourceNames:                      trackedResourceNames,
 		jobCheckpointIntervals:                    jobCheckpointIntervals,
 		resetInterval:                             resetInterval,
@@ -128,6 +133,7 @@ func newJobStateMetrics(
 		jobErrorsByQueue:                          jobErrorsByQueue,
 		jobErrorsByNode:                           jobErrorsByNode,
 		jobResourceSecondsLostToPreemptionByQueue: jobResourceSecondsLostToPreemptionByQueue,
+		retryPolicyDecisionsByQueue:               retryPolicyDecisionsByQueue,
 		allMetrics: []resettableMetric{
 			completedRunDurations,
 			jobStateCounterByQueue,
@@ -139,6 +145,7 @@ func newJobStateMetrics(
 			jobErrorsByQueue,
 			jobErrorsByNode,
 			jobResourceSecondsLostToPreemptionByQueue,
+			retryPolicyDecisionsByQueue,
 		},
 	}
 }
@@ -163,28 +170,36 @@ func (m *jobStateMetrics) collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-// ReportJobLeased reports the job as being leased. This has to be reported separately because the state transition
-// logic does work for job leased!
-func (m *jobStateMetrics) ReportJobLeased(job *jobdb.Job) {
+// ReportJobLeasedStateTransition reports the job as being leased. This has to be reported separately because the state transition
+// logic does not work for job leased!
+func (m *jobStateMetrics) ReportJobLeasedStateTransition(job *jobdb.Job) {
 	run := job.LatestRun()
 	duration, priorState := stateDuration(job, run, run.LeaseTime())
 	m.updateStateDuration(job, leased, priorState, duration)
 }
 
-// ReportJobPreempted reports the job as being preempted. This has to be reported separately because the state transition
-// logic does work for job preempted!
-func (m *jobStateMetrics) ReportJobPreempted(job *jobdb.Job) {
+// ReportJobPreemptedStateTransition reports the job as being preempted. This has to be reported separately because the state transition
+// logic does not work for job preempted!
+func (m *jobStateMetrics) ReportJobPreemptedStateTransition(job *jobdb.Job, preemptionType context.PreemptionType) {
 	run := job.LatestRun()
 	duration, priorState := stateDuration(job, run, run.PreemptedTime())
 	m.updateStateDuration(job, preempted, priorState, duration)
-	m.recordPreemptedSecondsLost(job, duration, noCheckpointLabelValue)
+	m.recordPreemptedSecondsLost(job, duration, preemptionType, noCheckpointLabelValue)
 	for _, checkpointDuration := range m.jobCheckpointIntervals {
 		timeSinceCheckpoint := math.Min(duration, checkpointDuration.Seconds())
-		m.recordPreemptedSecondsLost(job, timeSinceCheckpoint, durationToShortString(checkpointDuration))
+		m.recordPreemptedSecondsLost(job, timeSinceCheckpoint, preemptionType, durationToShortString(checkpointDuration))
 	}
 }
 
-func (m *jobStateMetrics) recordPreemptedSecondsLost(job *jobdb.Job, duration float64, checkpointLabel string) {
+// ReportRetryPolicyDecision records the final outcome of a retry engine
+// decision. The scheduler reports after the mutation gates, so a granted retry
+// it abandoned counts as what actually happened, not as a retry.
+func (m *jobStateMetrics) ReportRetryPolicyDecision(job *jobdb.Job, policyName string, decision string) {
+	run := job.LatestRun()
+	m.retryPolicyDecisionsByQueue.WithLabelValues(job.Queue(), run.Pool(), policyName, decision).Inc()
+}
+
+func (m *jobStateMetrics) recordPreemptedSecondsLost(job *jobdb.Job, duration float64, preemptionType context.PreemptionType, checkpointLabel string) {
 	run := job.LatestRun()
 	requests := job.AllResourceRequirements()
 
@@ -192,7 +207,7 @@ func (m *jobStateMetrics) recordPreemptedSecondsLost(job *jobdb.Job, duration fl
 		resQty := requests.GetByNameZeroIfMissing(string(res))
 		resSeconds := duration * float64(resQty.MilliValue()) / 1000
 		m.jobResourceSecondsLostToPreemptionByQueue.
-			WithLabelValues(job.Queue(), run.Pool(), checkpointLabel, res.String()).Add(resSeconds)
+			WithLabelValues(job.Queue(), run.Pool(), checkpointLabel, res.String(), string(preemptionType)).Add(resSeconds)
 	}
 }
 
@@ -234,7 +249,7 @@ func (m *jobStateMetrics) ReportStateTransitions(
 			m.updateStateDuration(job, failed, priorState, duration)
 			m.completedRunDurations.WithLabelValues(job.Queue(), run.Pool()).Observe(duration)
 			jobRunError := jobRunErrorsByRunId[run.Id()]
-			category, subCategory := m.failedCategoryAndSubCategoryFromJob(jobRunError)
+			category, subCategory := jobRunError.GetFailureCategory(), jobRunError.GetFailureSubcategory()
 			m.jobErrorsByQueue.WithLabelValues(job.Queue(), run.Pool(), category, subCategory).Inc()
 			m.jobErrorsByNode.WithLabelValues(run.NodeName(), run.Pool(), run.Executor(), category, subCategory).Inc()
 		}
@@ -294,16 +309,6 @@ func (m *jobStateMetrics) updateStateDuration(job *jobdb.Job, state string, prio
 	}
 }
 
-func (m *jobStateMetrics) failedCategoryAndSubCategoryFromJob(err *armadaevents.Error) (string, string) {
-	category, message := errorTypeAndMessageFromError(err)
-	for _, r := range m.errorRegexes {
-		if r.MatchString(message) {
-			return category, r.String()
-		}
-	}
-	return category, ""
-}
-
 func (m *jobStateMetrics) reset() {
 	m.jobStateCounterByNode.Reset()
 	for _, metric := range m.allMetrics {
@@ -356,24 +361,4 @@ func stateDuration(job *jobdb.Job, run *jobdb.JobRun, stateTime *time.Time) (flo
 	}
 	// succeeded, failed, cancelled, preempted are not prior states
 	return stateTime.Sub(*priorTime).Seconds(), prior
-}
-
-func errorTypeAndMessageFromError(err *armadaevents.Error) (string, string) {
-	if err == nil {
-		return "", ""
-	}
-	// The following errors relate to job run failures.
-	// We do not process JobRunPreemptedError as there is separate metric for preemption.
-	switch reason := err.Reason.(type) {
-	case *armadaevents.Error_LeaseExpired:
-		return "leaseExpired", ""
-	case *armadaevents.Error_PodError:
-		return "podError", reason.PodError.Message
-	case *armadaevents.Error_PodLeaseReturned:
-		return "podLeaseReturned", reason.PodLeaseReturned.Message
-	case *armadaevents.Error_JobRunPreemptedError:
-		return "jobRunPreempted", ""
-	default:
-		return "", ""
-	}
 }

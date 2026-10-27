@@ -64,7 +64,6 @@ func (f *NodeFactory) CreateNodeAndType(
 	labels map[string]string,
 	totalResources ResourceList,
 	allocatableResources ResourceList,
-	allocatableByPriority map[int32]ResourceList,
 ) *Node {
 	return CreateNodeAndType(
 		id,
@@ -80,7 +79,7 @@ func (f *NodeFactory) CreateNodeAndType(
 		f.indexedNodeLabels,
 		totalResources,
 		allocatableResources,
-		allocatableByPriority,
+		f.allowedPriorities,
 	)
 }
 
@@ -115,22 +114,7 @@ func (f *NodeFactory) ResourceListFactory() *ResourceListFactory {
 func (f *NodeFactory) AddLabels(nodes []*Node, extraLabels map[string]string) []*Node {
 	result := make([]*Node, len(nodes))
 	for i, node := range nodes {
-		newLabels := util.MergeMaps(node.GetLabels(), extraLabels)
-		result[i] = CreateNodeAndType(node.GetId(),
-			node.GetIndex(),
-			node.GetExecutor(),
-			node.GetName(),
-			node.GetPool(),
-			node.GetReportingNodeType(),
-			false,
-			node.GetTaints(),
-			newLabels,
-			f.indexedTaints,
-			f.indexedNodeLabels,
-			node.GetTotalResources(),
-			node.GetAllocatableResources(),
-			node.AllocatableByPriority,
-		)
+		result[i] = node.WithLabels(util.MergeMaps(node.GetLabels(), extraLabels))
 	}
 	return result
 }
@@ -138,21 +122,38 @@ func (f *NodeFactory) AddLabels(nodes []*Node, extraLabels map[string]string) []
 func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 	result := make([]*Node, len(nodes))
 	for i, node := range nodes {
-		result[i] = CreateNodeAndType(node.GetId(),
-			node.GetIndex(),
-			node.GetExecutor(),
-			node.GetName(),
-			node.GetPool(),
-			node.GetReportingNodeType(),
-			false,
-			append(node.GetTaints(), extraTaints...),
-			node.GetLabels(),
-			f.indexedTaints,
-			f.indexedNodeLabels,
-			node.GetTotalResources(),
-			node.GetAllocatableResources(),
-			node.AllocatableByPriority,
-		)
+		result[i] = node.WithTaints(append(node.GetTaints(), extraTaints...))
+	}
+	return result
+}
+
+// RemoveCordonTaint returns copies of nodes with cordon taints stripped (see IsCordonTaint) and the
+// unschedulable flag cleared. The submit checker uses it so that jobs targeting a node type whose
+// nodes are all cordoned (via `kubectl cordon`, or otherwise reported unschedulable by the executor)
+// stay queued rather than being rejected. See issue #4946.
+//
+// A cordoned node always has the unschedulable flag set (Kubernetes only adds
+// node.kubernetes.io/unschedulable when the node is unschedulable, and the Armada taint is only
+// synthesized for unschedulable nodes), so the flag alone identifies the nodes to fix.
+//
+// WithSchedulable only strips the Armada taint, so we strip the whole cordon taint set here
+// and let WithSchedulable clear the flag.
+func (f *NodeFactory) RemoveCordonTaint(nodes []*Node) []*Node {
+	result := make([]*Node, len(nodes))
+	for i, node := range nodes {
+		if !node.IsUnschedulable() {
+			// Not cordoned. Freshly built node, not yet inserted into a NodeDb, so reuse it as-is.
+			result[i] = node
+			continue
+		}
+		taints := node.GetTaints()
+		nonCordonTaints := make([]v1.Taint, 0, len(taints))
+		for _, taint := range taints {
+			if !IsCordonTaint(taint) {
+				nonCordonTaints = append(nonCordonTaints, taint)
+			}
+		}
+		result[i] = node.WithTaints(nonCordonTaints).WithSchedulable(true)
 	}
 	return result
 }

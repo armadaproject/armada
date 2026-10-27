@@ -9,11 +9,6 @@ import { vi } from "vitest"
 import { Job, JobState, JobStateCategory, jobStateCategoryDisplayNames } from "../../../models/lookoutModels"
 import { JOBS, V2_REDIRECT } from "../../../pathnames"
 import { ApiClientsProvider } from "../../../services/apiClients"
-import { FakeServicesProvider } from "../../../services/fakeContext"
-import { IGetJobInfoService } from "../../../services/lookout/GetJobInfoService"
-import { IGroupJobsService } from "../../../services/lookout/GroupJobsService"
-import { UpdateJobSetsService } from "../../../services/lookout/UpdateJobSetsService"
-import FakeGroupJobsService from "../../../services/lookout/mocks/FakeGroupJobsService"
 import { MockServer } from "../../../services/lookout/mocks/mockServer"
 import {
   FORMAT_NUMBER_SHOULD_FORMAT_KEY,
@@ -78,8 +73,6 @@ function makeTestJobs(
 }
 
 describe("JobsTableContainer", () => {
-  let groupJobsService: IGroupJobsService
-
   beforeAll(() => {
     mockServer.listen()
     vi.stubGlobal("IntersectionObserver", IntersectionObserverMock)
@@ -101,17 +94,7 @@ describe("JobsTableContainer", () => {
     vi.unstubAllGlobals()
   })
 
-  const renderComponent = (
-    fakeJobs: Job[] = [],
-    search?: string,
-    fakeServices: {
-      v2GroupJobsService?: IGroupJobsService
-      v2JobSpecService?: IGetJobInfoService
-      v2UpdateJobSetsService?: UpdateJobSetsService
-    } = {},
-  ) => {
-    groupJobsService = new FakeGroupJobsService(fakeJobs, false)
-
+  const renderComponent = (search?: string) => {
     // Create a fresh query client for each test to avoid cache pollution
     const testQueryClient = new QueryClient({
       defaultOptions: {
@@ -129,14 +112,7 @@ describe("JobsTableContainer", () => {
       <SnackbarProvider>
         <QueryClientProvider client={testQueryClient}>
           <ApiClientsProvider>
-            <FakeServicesProvider fakeJobs={fakeJobs} simulateApiWait={false} {...fakeServices}>
-              <JobsTableContainer
-                groupJobsService={fakeServices.v2GroupJobsService ?? groupJobsService}
-                debug={false}
-                autoRefreshMs={30000}
-                commandSpecs={[]}
-              />
-            </FakeServicesProvider>
+            <JobsTableContainer debug={false} autoRefreshMs={30000} commandSpecs={[]} />
           </ApiClientsProvider>
         </QueryClientProvider>
       </SnackbarProvider>
@@ -169,7 +145,7 @@ describe("JobsTableContainer", () => {
   it("should render a spinner while loading initially", async () => {
     // Mock the jobs endpoint to never resolve to test loading state
     mockServer.setPostJobsResponse([])
-    const { findAllByRole } = renderComponent([])
+    const { findAllByRole } = renderComponent()
     await findAllByRole("progressbar")
   })
 
@@ -187,7 +163,7 @@ describe("JobsTableContainer", () => {
 
     mockServer.setPostJobsResponse(jobs)
 
-    const { findByText } = renderComponent(jobs, `?page=0&sort[id]=jobId&sort[desc]=false`)
+    const { findByText } = renderComponent(`?page=0&sort[id]=jobId&sort[desc]=false`)
     await waitForFinishedLoading()
     await findByText("1–50 of more than 50")
   })
@@ -197,7 +173,7 @@ describe("JobsTableContainer", () => {
 
     mockServer.setPostJobsResponse(jobs)
 
-    const { findByText } = renderComponent(jobs, `?page=1&sort[id]=jobId&sort[desc]=false`)
+    const { findByText } = renderComponent(`?page=1&sort[id]=jobId&sort[desc]=false`)
     await waitForFinishedLoading()
     await findByText("51–60 of 60")
   })
@@ -217,7 +193,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      renderComponent(jobs)
+      renderComponent()
       await waitForFinishedLoading()
 
       await groupByColumn(displayString)
@@ -244,7 +220,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      renderComponent(jobs)
+      renderComponent()
 
       // Group to 3 levels
       await groupByColumn("Queue")
@@ -276,7 +252,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { getByRole, queryAllByRole } = renderComponent(jobs)
+      const { getByRole, queryAllByRole } = renderComponent()
       await waitForFinishedLoading()
 
       await groupByColumn("Queue")
@@ -309,7 +285,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { findByRole } = renderComponent(jobs)
+      const { findByRole } = renderComponent()
       await waitForFinishedLoading()
       await groupByColumn("Queue")
 
@@ -344,7 +320,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { findByRole } = renderComponent(jobs)
+      const { findByRole } = renderComponent()
       await waitForFinishedLoading()
 
       await toggleSelectedRow("jobId", jobs[0].jobId)
@@ -362,7 +338,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { findByRole } = renderComponent(jobs)
+      const { findByRole } = renderComponent()
       await waitForFinishedLoading()
       await groupByColumn("Queue")
 
@@ -392,7 +368,7 @@ describe("JobsTableContainer", () => {
       mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
       mockServer.setPostJobsResponse(jobs)
 
-      const { baseElement } = renderComponent(jobs)
+      const { baseElement } = renderComponent()
       await waitForFinishedLoading()
       await assertNumDataRowsShown(30)
 
@@ -404,6 +380,148 @@ describe("JobsTableContainer", () => {
       await assertNumDataRowsShown(30)
     })
 
+    it("should clear a dependent filter when its prerequisite filter is cleared", async () => {
+      const jobs = [
+        ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
+        ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
+        ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
+      ]
+
+      mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
+      mockServer.setPostJobsResponse(jobs)
+
+      const { baseElement, router } = renderComponent()
+      await waitForFinishedLoading()
+
+      await filterAutocompleteTextColumnTo("Queue", "queue-1", baseElement)
+      await assertNumDataRowsShown(20)
+
+      await filterTextColumnTo("Job Set", "job-set-2")
+      await assertNumDataRowsShown(15)
+
+      // Clearing the Queue filter removes the Job Set filter's input, so the Job Set filter must be
+      // dropped rather than remain applied with no way to remove it
+      await filterAutocompleteTextColumnTo("Queue", "", baseElement)
+
+      await assertNumDataRowsShown(30)
+      await waitFor(() => {
+        expect(router.state.location.search).not.toContain("jobSet")
+      })
+    })
+
+    it("should not offer the cell filter action when prerequisite filters are not applied", async () => {
+      const jobs = makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued)
+
+      mockServer.setGetQueuesResponse(["queue-1"])
+      mockServer.setPostJobsResponse(jobs)
+
+      const { baseElement } = renderComponent()
+      await clearAllGroupings()
+      await waitForFinishedLoading()
+
+      // Filtering by Job Set requires a Queue filter, so the cell's filter action would be
+      // discarded as soon as it was applied. The button is queried by label rather than by role,
+      // since it carries the HTML hidden attribute until the cell is hovered.
+      const jobSetCell = await findCellByText("job-set-1")
+      expect(within(jobSetCell).queryByLabelText("Filter by this value")).toBeNull()
+
+      // Once a Queue filter is applied, the Job Set cell's filter action becomes available
+      await filterAutocompleteTextColumnTo("Queue", "queue-1", baseElement)
+      await waitForFinishedLoading()
+
+      const jobSetCellAfter = await findCellByText("job-set-1")
+      await within(jobSetCellAfter).findByLabelText("Filter by this value")
+    })
+
+    it("should restore a cascade-cleared filter when the change is undone", async () => {
+      const jobs = [
+        ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
+        ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
+        ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
+      ]
+
+      mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
+      mockServer.setPostJobsResponse(jobs)
+
+      const { baseElement } = renderComponent()
+      await waitForFinishedLoading()
+
+      await filterAutocompleteTextColumnTo("Queue", "queue-1", baseElement)
+      await filterTextColumnTo("Job Set", "job-set-2")
+      await assertNumDataRowsShown(15)
+
+      await filterAutocompleteTextColumnTo("Queue", "", baseElement)
+      await assertNumDataRowsShown(30)
+
+      await userEvent.click(await screen.findByRole("button", { name: "Undo" }))
+
+      await assertNumDataRowsShown(15)
+    })
+
+    it("should keep filter changes made after a cascade when the change is undone", async () => {
+      const jobs = [
+        ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
+        ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
+        ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
+        ...makeTestJobs(7, "queue-1", "job-set-2", JobState.Queued),
+      ]
+
+      mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
+      mockServer.setPostJobsResponse(jobs)
+
+      const { baseElement } = renderComponent()
+      await waitForFinishedLoading()
+
+      await filterAutocompleteTextColumnTo("Queue", "queue-1", baseElement)
+      await filterTextColumnTo("Job Set", "job-set-2")
+      await assertNumDataRowsShown(22)
+
+      // Clearing the Queue filter cascades, clearing the Job Set filter and offering an undo
+      await filterAutocompleteTextColumnTo("Queue", "", baseElement)
+      await assertNumDataRowsShown(37)
+
+      // A filter added while the undo action is still available must survive the undo
+      await toggleEnumFilterOptions("State", ["Running"])
+      await assertNumDataRowsShown(15)
+
+      await userEvent.click(await screen.findByRole("button", { name: "Undo" }))
+
+      // The restored Queue and Job Set filters apply together with the newer State filter. Were the
+      // State filter discarded, all 22 jobs in queue-1 and job-set-2 would be shown instead.
+      await assertNumDataRowsShown(15)
+    })
+
+    it("should withdraw the undo action once one of the filters it would restore is edited", async () => {
+      const jobs = [
+        ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
+        ...makeTestJobs(10, "queue-2", "job-set-1", JobState.Pending),
+        ...makeTestJobs(15, "queue-1", "job-set-2", JobState.Running),
+      ]
+
+      mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
+      mockServer.setPostJobsResponse(jobs)
+
+      const { baseElement } = renderComponent()
+      await waitForFinishedLoading()
+
+      await filterAutocompleteTextColumnTo("Queue", "queue-1", baseElement)
+      await filterTextColumnTo("Job Set", "job-set-2")
+      await assertNumDataRowsShown(15)
+
+      // Clearing the Queue filter cascades, clearing the Job Set filter and offering an undo
+      await filterAutocompleteTextColumnTo("Queue", "", baseElement)
+      await assertNumDataRowsShown(30)
+      await screen.findByRole("button", { name: "Undo" })
+
+      // Setting a Queue filter again would be overwritten by the undo, so the offer is withdrawn
+      await filterAutocompleteTextColumnTo("Queue", "queue-2", baseElement)
+      await assertNumDataRowsShown(10)
+
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: "Undo" })).toBeNull()
+      })
+    })
+
     it("should allow enum filtering", async () => {
       const jobs = [
         ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
@@ -412,7 +530,7 @@ describe("JobsTableContainer", () => {
       ]
 
       mockServer.setPostJobsResponse(jobs)
-      renderComponent(jobs)
+      renderComponent()
       await clearAllGroupings()
       await waitForFinishedLoading()
 
@@ -432,7 +550,7 @@ describe("JobsTableContainer", () => {
         ...makeTestJobs(5, "queue-3", "job-set-2", JobState.Cancelled),
       ]
       mockServer.setPostJobsResponse(jobs)
-      renderComponent(jobs)
+      renderComponent()
       await clearAllGroupings()
       await waitForFinishedLoading()
 
@@ -456,7 +574,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { findAllByRole } = renderComponent(jobs)
+      const { findAllByRole } = renderComponent()
       await clearAllGroupings()
       await waitForFinishedLoading()
 
@@ -487,7 +605,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { getAllByRole } = renderComponent(jobs)
+      const { getAllByRole } = renderComponent()
       await waitForFinishedLoading()
 
       await toggleSorting("Job ID")
@@ -518,7 +636,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { findByRole } = renderComponent(jobs)
+      const { findByRole } = renderComponent()
       await waitForFinishedLoading()
       await assertNumDataRowsShown(30)
 
@@ -548,7 +666,7 @@ describe("JobsTableContainer", () => {
       mockServer.setGetQueuesResponse(["queue-1", "queue-2", "queue-3"])
       mockServer.setPostJobsResponse(jobs)
 
-      const { findByText, baseElement } = renderComponent(jobs)
+      const { findByText, baseElement } = renderComponent()
       await waitForFinishedLoading()
 
       // Applying grouping and filtering
@@ -579,7 +697,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { getByRole } = renderComponent(jobs)
+      const { getByRole } = renderComponent()
       await waitForFinishedLoading()
 
       const firstJob = jobs[0]
@@ -599,7 +717,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { findByRole, queryByRole } = renderComponent(jobs)
+      const { findByRole, queryByRole } = renderComponent()
       await waitForFinishedLoading()
 
       await groupByColumn("Queue")
@@ -634,7 +752,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { router, baseElement, findByText } = renderComponent(jobs)
+      const { router, baseElement, findByText } = renderComponent()
       await waitForFinishedLoading()
 
       await findByText(targetJobId, undefined, { timeout: 3_000 })
@@ -679,15 +797,38 @@ describe("JobsTableContainer", () => {
       mockServer.setPostJobsResponse(jobs)
 
       renderComponent(
-        jobs,
+        // The Job Set filter requires a Queue filter, so both are included here
         // eslint-disable-next-line @cspell/spellchecker
-        `?page=0&g[0]=jobSet&sort[id]=jobId&sort[desc]=true&pS=50&f[0][id]=jobSet&f[0][value]=job-set-1&f[0][match]=startsWith&e[0]=jobSet%3Ajob-set-1`,
+        `?page=0&g[0]=jobSet&sort[id]=jobId&sort[desc]=true&pS=50&f[0][id]=queue&f[0][value]=queue-1&f[0][match]=anyOf&f[1][id]=jobSet&f[1][value]=job-set-1&f[1][match]=startsWith&e[0]=jobSet%3Ajob-set-1`,
       )
 
       await waitForFinishedLoading()
 
       // 1 job set + jobs for expanded job set
       await assertNumDataRowsShown(1 + 5)
+    })
+
+    it("should drop filters from query params whose prerequisite filters are absent", async () => {
+      const jobs = [
+        ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
+        ...makeTestJobs(10, "queue-2", "job-set-2", JobState.Pending),
+      ]
+
+      mockServer.setPostJobsResponse(jobs)
+
+      // A Job Set filter with no Queue filter is unreachable through the UI, so it must not be
+      // applied, and must not appear in the query params
+      const { router } = renderComponent(
+        `?page=0&sort[id]=jobId&sort[desc]=true&pS=50&f[0][id]=jobSet&f[0][value]=job-set-1&f[0][match]=startsWith`,
+      )
+
+      await waitForFinishedLoading()
+
+      // All jobs are shown, rather than only those in job-set-1
+      await assertNumDataRowsShown(15)
+      await waitFor(() => {
+        expect(router.state.location.search).not.toContain("jobSet")
+      })
     })
 
     it("should populate page index from query params", async () => {
@@ -698,7 +839,7 @@ describe("JobsTableContainer", () => {
 
       mockServer.setPostJobsResponse(jobs)
 
-      const { getAllByRole } = renderComponent(jobs, `?page=1&sort[id]=jobId&sort[desc]=false`)
+      const { getAllByRole } = renderComponent(`?page=1&sort[id]=jobId&sort[desc]=false`)
       await waitForFinishedLoading()
       await waitFor(() => {
         const rows = getAllByRole("row")
@@ -757,6 +898,15 @@ describe("JobsTableContainer", () => {
 
   async function getHeaderCell(columnDisplayName: string) {
     return await screen.findByRole("columnheader", { name: columnDisplayName })
+  }
+
+  async function findCellByText(text: string) {
+    const cells = await screen.findAllByRole("cell")
+    const matchingCell = cells.find((cell) => cell.textContent === text)
+    if (!matchingCell) {
+      throw new Error(`no cell found with text content "${text}"`)
+    }
+    return matchingCell
   }
 
   async function filterTextColumnTo(columnDisplayName: string, filterText: string) {

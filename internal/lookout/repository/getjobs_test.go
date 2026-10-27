@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -100,6 +101,112 @@ func TestGetJobsSingle(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGetJobsIncludesCancelUserOnCancelled(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		opts := *basicJobOpts
+		opts.JobId = jobId
+		job := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, baseTime, &opts).
+			Cancelled(baseTime.Add(time.Minute), cancelUser).
+			Build().
+			Job()
+
+		result, err := repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{{
+				Field:        "jobId",
+				Match:        "exact",
+				Value:        jobId,
+				IsAnnotation: false,
+			}},
+			false,
+			&model.Order{Field: "jobId", Direction: "ASC"},
+			0,
+			1,
+		)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+		require.NotNil(t, result.Jobs[0].CancelUser)
+		assert.Equal(t, cancelUser, *result.Jobs[0].CancelUser)
+		assert.Equal(t, job.CancelUser, result.Jobs[0].CancelUser)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestGetJobsIncludesReprioritizeUser(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		opts := *basicJobOpts
+		opts.JobId = jobId
+		job := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, baseTime, &opts).
+			ReprioritizedBy(42, owner, baseTime.Add(time.Minute)).
+			Build().
+			Job()
+
+		result, err := repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{{
+				Field:        "jobId",
+				Match:        "exact",
+				Value:        jobId,
+				IsAnnotation: false,
+			}},
+			false,
+			&model.Order{Field: "jobId", Direction: "ASC"},
+			0,
+			1,
+		)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+		require.NotNil(t, result.Jobs[0].ReprioritizeUser)
+		assert.Equal(t, owner, *result.Jobs[0].ReprioritizeUser)
+		assert.Equal(t, job.ReprioritizeUser, result.Jobs[0].ReprioritizeUser)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestGetJobsIncludesPreemptUser(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		opts := *basicJobOpts
+		opts.JobId = jobId
+		preemptUser := "preempt-user"
+		job := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, baseTime, &opts).
+			Build().
+			Job()
+
+		_, err := repo.db.Exec(armadacontext.TODO(), "UPDATE job SET preempt_user = $1 WHERE job_id = $2", preemptUser, jobId)
+		require.NoError(t, err)
+
+		result, err := repo.GetJobs(
+			armadacontext.TODO(),
+			[]*model.Filter{{
+				Field:        "jobId",
+				Match:        model.MatchExact,
+				Value:        jobId,
+				IsAnnotation: false,
+			}},
+			false,
+			&model.Order{Field: "jobId", Direction: model.DirectionAsc},
+			0,
+			1,
+		)
+		require.NoError(t, err)
+		require.Len(t, result.Jobs, 1)
+		require.NotNil(t, result.Jobs[0].PreemptUser)
+		assert.Equal(t, preemptUser, *result.Jobs[0].PreemptUser)
+		assert.Equal(t, owner, result.Jobs[0].Owner)
+
+		expected := preemptUser
+		job.PreemptUser = &expected
+		assert.Equal(t, job.PreemptUser, result.Jobs[0].PreemptUser)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestGetJobsMultipleRuns(t *testing.T) {
 	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		firstRunId := uuid.NewString()
@@ -127,6 +234,63 @@ func TestGetJobsMultipleRuns(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+}
+
+func TestGetJobsPodNameOfRunFromBeforeLookoutStoredPodNames(t *testing.T) {
+	jobScopedName := pointer.String("armada-" + jobId + "-0")
+	tests := map[string]struct {
+		run      func(js *JobSimulator) *JobSimulator
+		wantName bool
+	}{
+		"a run that reached pending gets the job-scoped name": {
+			run:      func(js *JobSimulator) *JobSimulator { return js.Pending(runId, cluster, baseTime) },
+			wantName: true,
+		},
+		"a run that the executor first saw running gets the job-scoped name": {
+			run:      func(js *JobSimulator) *JobSimulator { return js.Running(runId, node, baseTime) },
+			wantName: true,
+		},
+		"a run that the executor first saw succeeded gets no name": {
+			run: func(js *JobSimulator) *JobSimulator { return js.RunSucceeded(runId, baseTime) },
+		},
+		"a run that the executor first saw failed gets no name": {
+			run: func(js *JobSimulator) *JobSimulator { return js.RunFailed(runId, node, 1, "failed", "", baseTime) },
+		},
+		"a leased run gets no name": {
+			run: func(js *JobSimulator) *JobSimulator { return js },
+		},
+		"a run with a returned lease gets no name": {
+			run: func(js *JobSimulator) *JobSimulator { return js.LeaseReturned(runId, "returned", baseTime) },
+		},
+		"a run with an expired lease gets no name": {
+			run: func(js *JobSimulator) *JobSimulator { return js.LeaseExpired(runId, baseTime, nil) },
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+				tc.run(NewJobSimulatorWithClock(converter, store, testClock).
+					Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{JobId: jobId}).
+					Lease(runId, cluster, node, pool, baseTime)).
+					Build()
+				_, err := repo.db.Exec(armadacontext.TODO(), "UPDATE job_run SET pod_name = NULL")
+				require.NoError(t, err)
+
+				result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 1)
+
+				require.NoError(t, err)
+				require.Len(t, result.Jobs, 1)
+				require.Len(t, result.Jobs[0].Runs, 1)
+				var want *string
+				if tc.wantName {
+					want = jobScopedName
+				}
+				assert.Equal(t, want, result.Jobs[0].Runs[0].PodName)
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestOrderByUnsupportedField(t *testing.T) {
