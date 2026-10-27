@@ -53,6 +53,7 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 		Jobs []*jobdb.Job
 		// Indicies of jobs that should will be marked as already successfully scheduled in the sctx
 		AlreadyScheduledThisRoundIndicies []int
+		AlreadyPreemptedThisRoundIndices  []int
 		// Indices of jobs expected to be scheduled.
 		ExpectedScheduledIndices []int
 		// Indicies of jobs that should have their key in unfeasibleSchedulingKeys
@@ -180,6 +181,27 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 			// The stub always returns both, we scheduled 2 jobs so should get repeated values
 			ExpectedPreemptedJctx: []*context.JobSchedulingContext{preemptedJctx1, preemptedJctx2, preemptedJctx1, preemptedJctx2},
 		},
+		"should not reschedule a gang containing a job preempted this round": {
+			SchedulingConfig:        schedulerConfig,
+			GangScheduler:           alwaysSucceedGangScheduler,
+			TotalSchedulingCapacity: testfixtures.CpuMem("10", "200Gi"),
+			Queues:                  armadaslices.Concatenate(testfixtures.SingleQueuePriorityOne("A"), testfixtures.SingleQueuePriorityOne("B")),
+			Jobs: armadaslices.Concatenate(
+				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 2)),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 2),
+			),
+			AlreadyPreemptedThisRoundIndices: []int{0},
+			ExpectedScheduledIndices:         []int{2, 3},
+		},
+		"should not cache insufficient fairness improvement by job requirements": {
+			SchedulingConfig: schedulerConfig,
+			GangScheduler: &StubGangScheduler{
+				t: t, scheduleFailedReason: schedulerconstraints.OptimiserNoFairnessImprovementUnschedulableReason,
+			},
+			TotalSchedulingCapacity: testfixtures.CpuMem("10", "200Gi"),
+			Queues:                  armadaslices.Concatenate(testfixtures.SingleQueuePriorityOne("A"), testfixtures.SingleQueuePriorityOne("B")),
+			Jobs:                    testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 2),
+		},
 		"should utilise unfeasibleSchedulingKeys": {
 			SchedulingConfig:        schedulerConfig,
 			GangScheduler:           alwaysFailsGangScheduler,
@@ -267,6 +289,9 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 				// This is a hack for testing
 				sctx.QueueSchedulingContexts[job.Queue()].SuccessfulJobSchedulingContexts[job.Id()] = jctx
 			}
+			for _, index := range tc.AlreadyPreemptedThisRoundIndices {
+				sctx.MarkJobPreempted(tc.Jobs[index].Id())
+			}
 
 			ctx := armadacontext.Background()
 			result, err := queueScheduler.Schedule(ctx, sctx)
@@ -292,6 +317,7 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 				slices.Sort(scheduledIds)
 				assert.Equal(t, expectedScheduledIds, scheduledIds)
 
+				assert.Len(t, sctx.UnfeasibleSchedulingKeys, len(tc.ExpectedUnfeasibleSchedulingKeyIndicies))
 				for _, index := range tc.ExpectedUnfeasibleSchedulingKeyIndicies {
 					key := tc.Jobs[index].SchedulingKey()
 					_, exists := sctx.UnfeasibleSchedulingKeys[key]
