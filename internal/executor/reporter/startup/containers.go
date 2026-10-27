@@ -13,8 +13,9 @@ type containerStartUpDetails struct {
 	containers     []*armadaevents.ContainerStartUpInfo
 }
 
-func getContainerStartUpDetails(pod *v1.Pod, podEvents []*v1.Event) containerStartUpDetails {
+func getContainerStartUpDetails(pod *v1.Pod, node *v1.Node, podEvents []*v1.Event) containerStartUpDetails {
 	eventsByContainer := groupEventsByContainer(podEvents)
+	imageSizes := newNodeImageSizes(node)
 
 	var details containerStartUpDetails
 	for _, status := range pod.Status.InitContainerStatuses {
@@ -22,6 +23,7 @@ func getContainerStartUpDetails(pod *v1.Pod, podEvents []*v1.Event) containerSta
 			status,
 			eventsByContainer[initContainerKey(status.Name)],
 			isSidecarInitContainer(pod, status.Name),
+			imageSizes,
 		))
 	}
 	for _, status := range pod.Status.ContainerStatuses {
@@ -29,6 +31,7 @@ func getContainerStartUpDetails(pod *v1.Pod, podEvents []*v1.Event) containerSta
 			status,
 			eventsByContainer[appContainerFieldKey(status.Name)],
 			false,
+			imageSizes,
 		))
 	}
 	return details
@@ -38,7 +41,13 @@ func getContainerStartupInfo(
 	status v1.ContainerStatus,
 	events containerEvents,
 	isSidecar bool,
+	imageSizes nodeImageSizes,
 ) *armadaevents.ContainerStartUpInfo {
+	imagePull := events.getImagePullInfo()
+	// The Pulled event has no size when the image was already present on the node, so fall back to the node's view
+	if imagePull != nil && imagePull.SizeBytes == nil {
+		imagePull.SizeBytes = imageSizes.sizeOf(status)
+	}
 	return &armadaevents.ContainerStartUpInfo{
 		Name:      status.Name,
 		CreatedAt: toTimestamp(events.timeOf(createdReason)),
@@ -47,7 +56,7 @@ func getContainerStartupInfo(
 		//  - The event is the fallback for a container whose status has not reported a start time.
 		StartedAt:  toTimestamp(firstKnown(GetContainerStartedTime(status), events.timeOf(startedReason))),
 		FinishedAt: toTimestamp(GetContainerFinishedTime(status)),
-		ImagePull:  events.getImagePullInfo(),
+		ImagePull:  imagePull,
 		// This is so downstream systems can determine which containers really needed to run before the pod could start
 		// Sidecar containers run alongside the main containers so aren't involved in the pod's startup
 		Sidecar: isSidecar,

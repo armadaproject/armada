@@ -85,6 +85,12 @@ func TestNewTimings_RejectsUnworkableConfig(t *testing.T) {
 			},
 			expectedInText: "more than once",
 		},
+		// An extra step shares the metric label with the internal steps, so reusing an internal
+		// name would fold two different measurements together.
+		"name clashes with internal step": {
+			steps:          []configuration.StartUpStepConfig{stepConfig("scheduling", marker("A"), marker("B"))},
+			expectedInText: "internal step",
+		},
 	}
 
 	for name, tc := range tests {
@@ -232,7 +238,7 @@ func TestMeasure_ExtraSteps(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			info := timingsWithSteps(t, tc.step).Measure(podWithConditions(), tc.events)
+			info := timingsWithSteps(t, tc.step).Measure(podWithConditions(), nil, tc.events)
 
 			require.NotNil(t, info)
 			if tc.expectedStart == nil {
@@ -330,7 +336,7 @@ func TestMeasure_ExtraStepsWithAggregatedEvents(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			info := timingsWithSteps(t, tc.step).Measure(podWithConditions(), tc.events)
+			info := timingsWithSteps(t, tc.step).Measure(podWithConditions(), nil, tc.events)
 
 			require.NotNil(t, info)
 			require.Len(t, info.ExtraSteps, 1)
