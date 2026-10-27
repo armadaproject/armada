@@ -514,6 +514,8 @@ func TestReconcile_PreemptedJob_PreservesCurrentJobUpdates(t *testing.T) {
 	assert.True(t, resultPreemptedJob.Failed())
 	require.NotNil(t, resultPreemptedJob.LatestRun())
 	assert.True(t, resultPreemptedJob.LatestRun().Failed())
+	assert.False(t, resultPreemptedJob.LatestRun().Running())
+	assert.True(t, resultPreemptedJob.LatestRun().RunAttempted())
 	assert.NotNil(t, resultPreemptedJob.LatestRun().PreemptedTime())
 }
 
@@ -547,6 +549,8 @@ func TestReconcile_ReconciliationJob_PreservesCurrentJobUpdates(t *testing.T) {
 		assert.True(t, returnedJob.Failed())
 		require.NotNil(t, returnedJob.LatestRun())
 		assert.True(t, returnedJob.LatestRun().Failed())
+		assert.False(t, returnedJob.LatestRun().Running())
+		assert.True(t, returnedJob.LatestRun().RunAttempted())
 		if returnedJob.Id() == preemptedJob.Id() {
 			assert.NotNil(t, returnedJob.LatestRun().PreemptedTime())
 		}

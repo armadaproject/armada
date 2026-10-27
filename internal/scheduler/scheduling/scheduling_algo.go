@@ -416,13 +416,11 @@ func (l *FairSchedulingAlgo) reconcilePoolJobs(config configuration.PoolConfig, 
 
 func markAsFailedReconciliation(clock clock.Clock, job *jobdb.Job) *jobdb.Job {
 	now := clock.Now()
-	job = job.WithQueued(false).WithFailed(true)
-	run := job.LatestRun()
-	job = job.WithUpdatedRun(run.WithFailed(true))
+	run := job.LatestRun().WithFailedEnd()
 	if job.PriorityClass().Preemptible {
 		run = run.WithPreemptedTime(&now)
 	}
-	return job
+	return job.WithQueued(false).WithFailed(true).WithUpdatedRun(run)
 }
 
 func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn, executors []*schedulerobjects.Executor, currentPool configuration.PoolConfig, shortJobPenalty *ShortJobPenaltySnapshot) (*FairSchedulingAlgoContext, error) {
@@ -1059,7 +1057,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		jobDbJob := jctx.Job
 		now := l.clock.Now()
 		if run := jobDbJob.LatestRun(); run != nil {
-			jobDbJob = jobDbJob.WithUpdatedRun(run.WithFailed(true).WithPreemptedTime(&now))
+			jobDbJob = jobDbJob.WithUpdatedRun(run.WithFailedEnd().WithPreemptedTime(&now))
 		} else {
 			return nil, nil, errors.Errorf("attempting to preempt job %s with no associated runs", jobDbJob.Id())
 		}

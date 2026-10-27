@@ -4258,7 +4258,7 @@ func TestAppendEventSequencesFromPreemptedJobs_PopulatesPreemptingJobId(t *testi
 		PreemptionDescription: "preempted by fair-share",
 	}
 
-	sequences, err := AppendEventSequencesFromPreemptedJobs(nil, []*schedulercontext.JobSchedulingContext{jctx}, time.Now())
+	sequences, err := AppendEventSequencesFromPreemptedJobs(nil, []*schedulercontext.JobSchedulingContext{jctx}, nil, time.Now())
 	assert.NoError(t, err)
 	assert.Len(t, sequences, 1)
 	assert.Equal(t, requestor, sequences[0].UserId)
@@ -4296,7 +4296,7 @@ func TestAppendEventSequencesFromPreemptedJobs_NilPreemptingJob(t *testing.T) {
 		PreemptionDescription: "preempted due to node resource change",
 	}
 
-	sequences, err := AppendEventSequencesFromPreemptedJobs(nil, []*schedulercontext.JobSchedulingContext{jctx}, time.Now())
+	sequences, err := AppendEventSequencesFromPreemptedJobs(nil, []*schedulercontext.JobSchedulingContext{jctx}, nil, time.Now())
 	assert.NoError(t, err)
 	assert.Len(t, sequences, 1)
 

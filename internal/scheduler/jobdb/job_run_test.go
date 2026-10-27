@@ -118,6 +118,14 @@ func TestJobRun_TestReturned(t *testing.T) {
 	assert.True(t, returnedRun.Returned())
 }
 
+func TestJobRun_WithFailedEnd(t *testing.T) {
+	run := baseJobRun.WithRunning(true).WithFailedEnd()
+	assert.True(t, run.Failed())
+	assert.False(t, run.Running())
+	assert.True(t, run.RunAttempted())
+	assert.NoError(t, run.Assert())
+}
+
 func TestJobRun_TestRunAttempted(t *testing.T) {
 	attemptedRun := baseJobRun.WithAttempted(true)
 	assert.False(t, baseJobRun.RunAttempted())

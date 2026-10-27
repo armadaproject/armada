@@ -506,7 +506,7 @@ func markJobPreempted(currentJob *jobdb.Job, now time.Time) (*jobdb.Job, error) 
 	if currentRun == nil {
 		return nil, errors.Errorf("attempting to preempt job %s with no associated runs", currentJob.Id())
 	}
-	currentRun = currentRun.WithFailed(true).WithPreemptedTime(&now)
+	currentRun = currentRun.WithFailedEnd().WithPreemptedTime(&now)
 	currentJob = currentJob.WithUpdatedRun(currentRun).WithQueued(false).WithFailed(true)
 	return currentJob, nil
 }
@@ -521,7 +521,7 @@ func markJobFailedReconciliation(currentJob *jobdb.Job, now time.Time) (*jobdb.J
 		currentRun = currentRun.WithPreemptedTime(&now)
 	}
 	currentJob = currentJob.WithQueued(false).WithFailed(true)
-	currentJob = currentJob.WithUpdatedRun(currentRun.WithFailed(true))
+	currentJob = currentJob.WithUpdatedRun(currentRun.WithFailedEnd())
 	return currentJob, nil
 }
 
