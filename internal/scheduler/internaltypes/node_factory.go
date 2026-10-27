@@ -136,7 +136,7 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 }
 
 // RemoveCordonTaints returns copies of nodes with the cordon taint stripped (see IsCordonTaint),
-// taints that have been categorized stripped, user facing taints stripped, and the
+// taints that have been non-user-facing stripped, and the
 // unschedulable flag cleared. The submit checker uses it so that jobs targeting a node type whose
 // nodes are all cordoned (via `kubectl cordon`, or otherwise reported unschedulable by the executor)
 // stay queued rather than being rejected. See issue #4946. This behavior also gets applied to
@@ -151,25 +151,6 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 func (f *NodeFactory) RemoveCordonTaints(nodes []*Node) []*Node {
 	result := make([]*Node, len(nodes))
 	for i, node := range nodes {
-		if !node.IsUnschedulable() {
-			// Check for not cordoned nodes that have configured admin taints
-			hasAdminTaints := false
-			if node.hasCompleteNodeTaintMetadata {
-				for _, nodeTaint := range node.nodeTaints {
-					if !nodeTaint.UserFacing && nodeTaint.Category != "" {
-						hasAdminTaints = true
-						break
-					}
-				}
-			}
-			if hasAdminTaints {
-				result[i] = removeCordonTaintsWithMetadata(node)
-			} else {
-				// Not cordoned. Freshly built node, not yet inserted into a NodeDb, so reuse it as-is.
-				result[i] = node
-			}
-			continue
-		}
 		if node.hasCompleteNodeTaintMetadata {
 			result[i] = removeCordonTaintsWithMetadata(node)
 		} else {
@@ -195,7 +176,8 @@ func removeCordonTaintsWithMetadata(node *Node) *Node {
 	nodeTaints := node.GetNodeTaints()
 	nonCordonNodeTaints := make([]NodeTaint, 0, len(nodeTaints))
 	for _, nodeTaint := range nodeTaints {
-		if !IsCordonTaint(nodeTaint.Taint) && nodeTaint.Category == "" && !nodeTaint.UserFacing {
+		if !IsCordonTaint(nodeTaint.Taint) &&
+			(!nodeTaint.IsAdminTaint() || nodeTaint.IsUserFacing()) {
 			nonCordonNodeTaints = append(nonCordonNodeTaints, nodeTaint)
 			nonCordonTaints = append(nonCordonTaints, nodeTaint.Taint)
 		}

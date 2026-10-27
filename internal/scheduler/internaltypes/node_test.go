@@ -136,6 +136,22 @@ func TestGetNodeTaintsReturnsCopy(t *testing.T) {
 	assert.Equal(t, "platform", node.GetNodeTaints()[0].Category)
 }
 
+func TestNodeTaintIsUserFacing(t *testing.T) {
+	for name, tc := range map[string]struct {
+		nodeTaint NodeTaint
+		expected  bool
+	}{
+		"user flag and default category": {nodeTaint: NodeTaint{Category: UserFacingNodeTaintCategory, UserFacing: true}, expected: true},
+		"user flag without category":     {nodeTaint: NodeTaint{UserFacing: true}, expected: false},
+		"default category without flag":  {nodeTaint: NodeTaint{Category: UserFacingNodeTaintCategory}, expected: false},
+		"admin category":                 {nodeTaint: NodeTaint{Category: "platform", UserFacing: true}, expected: false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.nodeTaint.IsUserFacing())
+		})
+	}
+}
+
 func TestNodeTaintMetadataTimestampIsolation(t *testing.T) {
 	originalTime := metav1.NewTime(time.Unix(1, 0))
 	metadata := []NodeTaint{{Taint: v1.Taint{Key: "example.com/dedicated", TimeAdded: &originalTime}}}
