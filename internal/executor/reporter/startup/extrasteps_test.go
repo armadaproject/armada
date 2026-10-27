@@ -232,7 +232,7 @@ func TestMeasure_ExtraSteps(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			info := timingsWithSteps(t, tc.step).Measure(podWithConditions(), tc.events)
+			info := timingsWithSteps(t, tc.step).Measure(podWithConditions(), nil, tc.events)
 
 			require.NotNil(t, info)
 			if tc.expectedStart == nil {
@@ -330,7 +330,7 @@ func TestMeasure_ExtraStepsWithAggregatedEvents(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			info := timingsWithSteps(t, tc.step).Measure(podWithConditions(), tc.events)
+			info := timingsWithSteps(t, tc.step).Measure(podWithConditions(), nil, tc.events)
 
 			require.NotNil(t, info)
 			require.Len(t, info.ExtraSteps, 1)

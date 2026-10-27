@@ -20,7 +20,7 @@ func NewTimings(config configuration.StartUpTimingsConfig) (*Timings, error) {
 	return &Timings{extraSteps: steps}, nil
 }
 
-func (t *Timings) Measure(pod *v1.Pod, podEvents []*v1.Event) *armadaevents.PodStartUpInfo {
+func (t *Timings) Measure(pod *v1.Pod, node *v1.Node, podEvents []*v1.Event) *armadaevents.PodStartUpInfo {
 	if t == nil {
 		return nil
 	}
@@ -28,7 +28,7 @@ func (t *Timings) Measure(pod *v1.Pod, podEvents []*v1.Event) *armadaevents.PodS
 	created := GetPodCreationTime(pod)
 	startedAt := GetLatestAppContainerStartTime(pod)
 
-	containerDetails := getContainerStartUpDetails(pod, podEvents)
+	containerDetails := getContainerStartUpDetails(pod, node, podEvents)
 	info := &armadaevents.PodStartUpInfo{
 		CreatedAt:             toTimestamp(created),
 		ScheduledAt:           toTimestamp(GetPodScheduledTime(pod, podEvents)),

@@ -56,6 +56,9 @@ A helm chart for Armada Scheduler component
 | scheduler.ingress.nameOverride | string | `""` |  |
 | scheduler.prometheus.enabled | bool | `false` |  |
 | scheduler.prometheus.labels | object | `{}` |  |
+| scheduler.prometheus.preemption.loss.interval | string | `"1m"` |  |
+| scheduler.prometheus.preemption.loss.windows[0] | string | `"30m"` |  |
+| scheduler.prometheus.preemption.loss.windows[1] | string | `"1d"` |  |
 | scheduler.prometheus.scrapeInterval | string | `"15s"` |  |
 | scheduler.prometheus.scrapeTimeout | string | `"10s"` |  |
 | scheduler.replicas | int | `1` |  |

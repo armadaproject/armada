@@ -128,7 +128,13 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 		if err != nil {
 			log.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
 		}
-		startUpInfo = stateReporter.startUpTimings.Measure(pod, podEvents)
+		node, err := stateReporter.clusterContext.GetNode(pod.Spec.NodeName)
+		if err != nil {
+			// Only used to fill in image sizes, so the rest of the start up info is still worth reporting without it.
+			log.Warnf("Failed retrieving node %s for pod %s: %v", pod.Spec.NodeName, pod.Name, err)
+			node = nil
+		}
+		startUpInfo = stateReporter.startUpTimings.Measure(pod, node, podEvents)
 	}
 	if pod.Status.Phase == v1.PodFailed {
 		podEvents, err := stateReporter.clusterContext.GetPodEvents(pod)

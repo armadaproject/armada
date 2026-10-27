@@ -553,3 +553,41 @@ func copyWithUpdatedPhase(pod *v1.Pod, newPhase v1.PodPhase) *v1.Pod {
 	result.Status.Phase = newPhase
 	return result
 }
+
+func TestJobStateReporter_PodRunning_FillsCachedImageSizeFromNode(t *testing.T) {
+	stateReporter, _, eventReporter, fakeClusterContext := setUpJobStateReporterTest(t)
+
+	pod := makeTestPod(v1.PodStatus{
+		Phase: v1.PodRunning,
+		ContainerStatuses: []v1.ContainerStatus{
+			{Name: "main", Image: "docker.io/repo/main:1.0", ImageID: "docker.io/repo/main@sha256:aaaa"},
+		},
+	})
+	fakeClusterContext.Nodes[pod.Spec.NodeName] = &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: pod.Spec.NodeName},
+		Status: v1.NodeStatus{Images: []v1.ContainerImage{
+			{Names: []string{"docker.io/repo/main@sha256:aaaa", "docker.io/repo/main:1.0"}, SizeBytes: 1234},
+		}},
+	}
+	addPod(t, fakeClusterContext, pod)
+	addPodEvents(fakeClusterContext, pod, []*v1.Event{{
+		InvolvedObject: v1.ObjectReference{Kind: "Pod", FieldPath: "spec.containers{main}"},
+		Reason:         "Pulled",
+		Message:        `Container image "docker.io/repo/main:1.0" already present on machine`,
+	}})
+
+	stateReporter.reportCurrentStatus(pod)
+
+	messages := eventReporter.GetReceivedEvents()
+	require.Len(t, messages, 1)
+	running, ok := messages[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunRunning)
+	require.True(t, ok, "expected JobRunRunning event")
+	startUpInfo := running.JobRunRunning.StartUpInfo
+	require.NotNil(t, startUpInfo)
+	require.Len(t, startUpInfo.Containers, 1)
+	pull := startUpInfo.Containers[0].ImagePull
+	require.NotNil(t, pull)
+	assert.True(t, pull.Cached)
+	require.NotNil(t, pull.SizeBytes)
+	assert.Equal(t, uint64(1234), pull.SizeBytes.Value)
+}
