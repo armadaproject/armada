@@ -28,7 +28,6 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-
 // Metrics Recorders associated with a queue
 type queueState struct {
 	queuedJobRecorder  *commonmetrics.JobMetricsRecorder
