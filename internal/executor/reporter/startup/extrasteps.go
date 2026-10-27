@@ -11,6 +11,7 @@ import (
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/executor/metrics/startupmetrics"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -60,6 +61,11 @@ func compileSteps(configured []configuration.StartUpStepConfig) ([]compiledStep,
 			return nil, fmt.Errorf("startUpTimings extraStep %q is defined more than once", step.Name)
 		}
 		seen[step.Name] = true
+		// An extra step shares the metric label with the internal steps, so reusing an internal
+		// name would silently fold the two measurements together.
+		if startupmetrics.IsInternalStep(step.Name) {
+			return nil, fmt.Errorf("startUpTimings extraStep %q clashes with an internal step name", step.Name)
+		}
 
 		start, err := compileEventMarker(step.Name, "start", step.Start)
 		if err != nil {

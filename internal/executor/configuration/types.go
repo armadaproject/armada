@@ -48,7 +48,13 @@ type StartUpTimingsConfig struct {
 	// ExtraSteps are site-specific phases measured between two Kubernetes events on the pod, for
 	// setup Armada has no built-in knowledge of - such as CNI plugins, device plugins configuration.
 	// Each step's name becomes a label, so keep the list short and the names stable.
-	ExtraSteps []StartUpStepConfig `yaml:"extraSteps"`
+	ExtraSteps []StartUpStepConfig  `yaml:"extraSteps"`
+	Metrics    StartUpMetricsConfig `yaml:"metrics"`
+}
+
+type StartUpMetricsConfig struct {
+	Enabled               bool     `yaml:"enabled"`
+	TrackedInitContainers []string `yaml:"trackedInitContainers"`
 }
 
 // StartUpStepConfig measures the interval between two Kubernetes events on the pod. Both markers
