@@ -7,11 +7,22 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/executor/configuration"
+	clusterContext "github.com/armadaproject/armada/internal/executor/context"
+	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
+// newTestRecorder has an empty cluster, as the clean up sweep is exercised on its own with a
+// cluster of its own.
+func newTestRecorder(trackedInitContainers ...string) *Recorder {
+	return NewRecorder(
+		configuration.StartUpMetricsConfig{TrackedInitContainers: trackedInitContainers},
+		fakecontext.NewSyncFakeClusterContext(),
+	)
+}
+
 func TestRecord_PodMetrics(t *testing.T) {
-	recorder := NewRecorder(configuration.StartUpMetricsConfig{})
+	recorder := newTestRecorder()
 	queue, pool := "pod-metrics-queue", "pod-metrics-pool"
 
 	recorder.Record(testPod(queue, pool, "node-1"), fullyMeasuredInfo())
@@ -57,7 +68,7 @@ func TestRecord_PodMetrics(t *testing.T) {
 }
 
 func TestRecord_NodeMetrics(t *testing.T) {
-	recorder := NewRecorder(configuration.StartUpMetricsConfig{})
+	recorder := newTestRecorder()
 	pool, node := "node-metrics-pool", "node-metrics-node"
 
 	recorder.Record(testPod("node-metrics-queue", pool, node), fullyMeasuredInfo())
@@ -82,9 +93,7 @@ func TestRecord_NodeMetrics(t *testing.T) {
 // An init container is labelled by name only when the administrator configured that name, as a
 // container's name otherwise comes from whatever the job asked for.
 func TestRecord_InitContainerLabelledByNameOnlyWhenTracked(t *testing.T) {
-	recorder := NewRecorder(configuration.StartUpMetricsConfig{
-		TrackedInitContainers: []string{"fetch-dataset"},
-	})
+	recorder := newTestRecorder("fetch-dataset")
 	queue, pool := "tracked-queue", "tracked-pool"
 
 	info := fullyMeasuredInfo()
@@ -117,7 +126,7 @@ func TestRecord_InitContainerLabelledByNameOnlyWhenTracked(t *testing.T) {
 // the pod reaches Running, and an app container with a finish time has restarted rather than
 // completed, so its last run is not part of start up at all.
 func TestRecord_OnlyFinishedInitContainersHaveRunDuration(t *testing.T) {
-	recorder := NewRecorder(configuration.StartUpMetricsConfig{})
+	recorder := newTestRecorder()
 	queue, pool := "unfinished-queue", "unfinished-pool"
 
 	info := fullyMeasuredInfo()
@@ -132,7 +141,7 @@ func TestRecord_OnlyFinishedInitContainersHaveRunDuration(t *testing.T) {
 }
 
 func TestRecord_CollectionCounters(t *testing.T) {
-	recorder := NewRecorder(configuration.StartUpMetricsConfig{})
+	recorder := newTestRecorder()
 	pool := "counters-pool"
 
 	// A complete breakdown counts as collected and complete, with nothing against any field.
@@ -158,7 +167,7 @@ func TestRecord_CollectionCounters(t *testing.T) {
 // One pod whose containers are each missing several things counts once per field, as the metric
 // answers whether collection is working rather than how many containers it fell down on.
 func TestRecord_CollectionErrorCountedOncePerFieldPerPod(t *testing.T) {
-	recorder := NewRecorder(configuration.StartUpMetricsConfig{})
+	recorder := newTestRecorder()
 	pool := "combined-pool"
 
 	info := fullyMeasuredInfo()
@@ -173,7 +182,7 @@ func TestRecord_CollectionErrorCountedOncePerFieldPerPod(t *testing.T) {
 }
 
 func TestRecord_ImagePullInfoCountedPerImage(t *testing.T) {
-	recorder := NewRecorder(configuration.StartUpMetricsConfig{})
+	recorder := newTestRecorder()
 	queue, pool := "image-info-queue", "image-info-pool"
 
 	info := fullyMeasuredInfo()
@@ -218,7 +227,7 @@ func TestRecord_ImagePullInfoCountedPerImage(t *testing.T) {
 
 func TestRecord_NoOps(t *testing.T) {
 	var nilRecorder *Recorder
-	enabledRecorder := NewRecorder(configuration.StartUpMetricsConfig{})
+	enabledRecorder := newTestRecorder()
 
 	tests := map[string]struct {
 		recorder *Recorder
@@ -242,7 +251,71 @@ func TestRecord_NoOps(t *testing.T) {
 
 // A breakdown with no pod to read labels from is dropped rather than recorded under empty labels.
 func TestRecord_NoPod(t *testing.T) {
-	NewRecorder(configuration.StartUpMetricsConfig{}).Record(nil, fullyMeasuredInfo())
+	newTestRecorder().Record(nil, fullyMeasuredInfo())
 
 	assert.Equal(t, float64(0), testutil.ToFloat64(podStartUpInfoCollectedTotal.WithLabelValues("", "true")))
+}
+
+func TestCleanUpStaleNodeMetrics(t *testing.T) {
+	// Recorded against in every case and always in the cluster, so that removing one node's series
+	// is seen not to remove another's.
+	const untouched = "clean-up-untouched-node"
+
+	tests := map[string]struct {
+		node string
+		// Built from the node under test, as whether it is in the cluster is what decides its fate.
+		cluster func(node string) clusterContext.ClusterContext
+		kept    bool
+	}{
+		"removes series - when node leaves the cluster": {
+			node:    "clean-up-departed-node",
+			cluster: func(string) clusterContext.ClusterContext { return clusterWithNodes(untouched) },
+			kept:    false,
+		},
+		"maintains series - when a node still in the cluster": {
+			node:    "clean-up-live-node",
+			cluster: func(node string) clusterContext.ClusterContext { return clusterWithNodes(untouched, node) },
+			kept:    true,
+		},
+		"maintains series - when node cannot be listed": {
+			node: "clean-up-unlistable-node",
+			cluster: func(string) clusterContext.ClusterContext {
+				return clusterWhoseNodeListingFails{fakecontext.NewSyncFakeClusterContext()}
+			},
+			kept: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			pool := "clean-up-pool"
+			recorder := NewRecorder(configuration.StartUpMetricsConfig{}, tc.cluster(tc.node))
+			recorder.Record(testPod("clean-up-queue", pool, tc.node), fullyMeasuredInfo())
+			recorder.Record(testPod("clean-up-queue", pool, untouched), fullyMeasuredInfo())
+			assertNodeObservations(t, tc.node, pool, 1)
+
+			recorder.CleanUpStaleNodeMetrics()
+
+			if tc.kept {
+				assert.Contains(t, recorder.getSeenNodes(), tc.node)
+				assertNodeObservations(t, tc.node, pool, 1)
+			} else {
+				assert.NotContains(t, recorder.getSeenNodes(), tc.node)
+				assertNodeObservations(t, tc.node, pool, 0)
+			}
+
+			assert.Contains(t, recorder.getSeenNodes(), untouched)
+			assert.NotZero(t, observationCount(t, nodeStartUpDurationSeconds, untouched, pool))
+		})
+	}
+}
+
+// assertNodeObservations covers every metric keyed by node, so that the sweep acting on one of them
+// is not taken for it having acted on all four.
+func assertNodeObservations(t *testing.T, node, pool string, expected uint64) {
+	t.Helper()
+	assert.Equal(t, expected, observationCount(t, nodeStartUpDurationSeconds, node, pool))
+	assert.Equal(t, expected, observationCount(t, nodeStartUpStepDurationSeconds, node, pool, schedulingStep))
+	assert.Equal(t, expected, observationCount(t, nodeInitContainerRunDurationSeconds, node, pool, untrackedContainer))
+	assert.Equal(t, expected, observationCount(t, nodeImagePullWaitingDurationSeconds, node, pool))
 }
