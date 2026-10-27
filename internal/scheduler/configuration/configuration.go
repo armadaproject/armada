@@ -539,6 +539,8 @@ type RunReconciliationConfig struct {
 
 type OptimiserConfig struct {
 	Enabled bool
+	// Allow gang preemption and retain preempted jobs where possible by moving the incoming gang.
+	AllowGangPreemption bool
 	// How often the optimiser should run, likely desirable to not run every scheduling round
 	Interval time.Duration
 	// How long the optimiser can run for before giving up
