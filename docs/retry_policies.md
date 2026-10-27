@@ -8,6 +8,7 @@
     - [Match fields](#match-fields)
     - [Mutating the job on retry](#mutating-the-job-on-retry)
   - [Retry budgets](#retry-budgets)
+  - [Preemptions](#preemptions)
   - [Gang jobs](#gang-jobs)
   - [Pod naming and collision avoidance](#pod-naming-and-collision-avoidance)
   - [Per-job policies](#per-job-policies)
@@ -128,7 +129,7 @@ rules:
 * `avoidSameNode` needs one node-label config entry. The scheduler expresses the avoidance through its `nodeIdLabel`, so that label must be in the executor's `trackedNodeLabels`. An untracked label is invisible to the scheduler, the avoidance matches every node without effect, and the scheduler warns once per executor about it.
 * `resources.memory`: grows the job's memory on retry. Set exactly one of `factor` (multiply, must exceed 1.0) or `static` (add a fixed quantity, for example `"512Mi"`). Requests and limits grow together, and the retried pod runs with the grown memory. The bump compounds across retries. If the grown job fits no node, it fails terminally. A job accumulates one bump kind: when a later retry matches a rule with the other kind, the scheduler skips that bump.
 
-Mutations apply on the failed-run retry path only. A lease-expiry retry (a lost executor) requeues the job unchanged: the lost node is not a node to avoid, and growing the job does not cure a lost executor.
+Mutations apply when a policy retries a failed run or a preempted run. A lease-expiry retry (a lost executor) requeues the job unchanged: the lost node is not a node to avoid, and growing the job does not cure a lost executor.
 
 ## Retry budgets
 
@@ -137,10 +138,40 @@ Two limits bound how often a job is retried: the per-policy `retryLimit` and the
 * `retryLimit` counts retries, not attempts. `retryLimit: 3` allows 3 retries after the initial failure, so 4 total attempts before the job fails terminally. `retryLimit: 0` allows no retries, so a job under that policy fails terminally on its first failure.
 * A job has one retry count, not one count per policy. The policy whose rule decides a failure compares that count with its own `retryLimit` (see [Matching semantics](#matching-semantics)).
 * Lease returns and lease expiries differ. A returned lease (node drain, recoverable submit error) never ran and consumes no budget. An expired lease (a lost executor) is treated as a genuine failure: it consumes both `retryLimit` and `globalMaxRetries`.
-* Preemptions never consume the failure budget. A preempted run does not count against `retryLimit` or `globalMaxRetries`, so a job that was preempted earlier can still use its full failure budget when it later fails on its own. This version does not retry preempted runs themselves: a preemption is not treated as a job failure, and preemption-driven retries are planned for a later version.
-* `globalMaxRetries` is a scheduler-wide cap on top of every policy. It counts the same genuine-failure retries `retryLimit` counts, with one ceiling for the whole scheduler, so no policy can grant more retries than the cap allows. The legacy attempt limit bounds lease returns separately.
+* A preempted run counts against `retryLimit` and `globalMaxRetries` like a failed run (see [Preemptions](#preemptions)).
+* `globalMaxRetries` is a scheduler-wide cap on top of every policy. It counts the same retries that `retryLimit` counts, with one ceiling for the whole scheduler, so no policy can grant more retries than the cap allows. The legacy attempt limit bounds lease returns separately.
 * `globalMaxRetries: 0` disables all engine retries. This is the kill switch: with the cap at zero the engine never grants a retry, whatever the policies say. It differs from disabling the feature flag: the engine still decides and attributes failures, with categorized terminal events, but grants nothing. Use it to stop retries during an incident without changing event behaviour. The scheduler warns at startup when this state is configured.
 * There is no unlimited setting for the global cap. Every deployment with the engine enabled has a finite scheduler-wide bound on retries per job.
+
+## Preemptions
+
+The scheduler evaluates the retry policies of a preempted job with the same rules as for a failed run. A preemption has the category `preemption`, and the subcategory gives the cause:
+
+| Subcategory | Cause |
+|-------------|-------|
+| `api` | A user preempted the job, for example with `armadactl preempt job`. |
+| `fairshare` | The scheduler preempted the job to give capacity to a queue below its fair share. |
+| `urgency` | The scheduler preempted the job for a job with a higher priority class. |
+| `optimiser` | The scheduling optimiser preempted the job to place another job. |
+| `reconciler` | Run reconciliation found that the job no longer fits its node. |
+| `unknown` | The scheduler did not record the cause. |
+
+A rule matches a preemption like any other category:
+
+```yaml
+rules:
+  - action: Retry
+    onCategory: preemption
+    onSubcategory: fairshare
+```
+
+The `defaultAction` applies to a preemption too. A policy with `defaultAction: Retry` thus retries every preemption within its budget. A retried preemption appears on the event stream as a `JobPreemptedEvent`, then a `JobFailedEvent` with `retryable: true`, then the events of the new run. A preemption that no rule retries fails the job with the category `preemption`.
+
+A `mutate` block applies to a retried preemption as to a retried failure. A mass preemption can preempt many jobs in one cycle, and `avoidSameNode` and `resources.memory` cost one scheduling probe for each retried job. Keep these mutations off a preemption rule unless the queue needs them.
+
+A preemption request applies to the run that is active when the scheduler handles the request. When that run already ended for another reason, the request has no effect, and the policy decides about that other end.
+
+Use retry on preemption with run-scoped pod names (`submission.runScopedPodNames: true`), so each attempt has its own pod. With job-scoped pod names, the new run can collide with the preempted pod while that pod terminates (see [Pod naming and collision avoidance](#pod-naming-and-collision-avoidance)).
 
 ## Gang jobs
 
@@ -228,6 +259,8 @@ Managing policies requires the `create_retry_policy`, `update_retry_policy`, and
 ## Rollout guide for operators
 
 **Configure `action: Delete` on retried categories before enabling the flag.** Every failure category a retry rule matches on must set `action: Delete` in the executor's categorizer config. A missing Delete action leads to a pod-name collision and a misleading terminal failure. [Pod naming and collision avoidance](#pod-naming-and-collision-avoidance) describes the full failure mode. Audit the categorizer config against your retry rules before you turn the flag on.
+
+**Check the policies with `defaultAction: Retry` before you enable the flag.** These policies also retry preemptions. When a queue must not retry preemptions, put a `Fail` rule with `onCategory: preemption` before the other rules.
 
 **Disabling the flag mid-flight is safe.** Jobs that were already retried keep running. New failures fall back to legacy behaviour: the legacy attempt limit applies instead of policy budgets. No job state is lost.
 

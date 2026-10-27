@@ -1,0 +1,43 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-retry-queue
+jobs:
+  - priority: 0
+    namespace: default
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      priorityClassName: armada-preemptible
+      containers:
+        - name: sleeper
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          command: ["sh", "-c", "sleep 30"]
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+triggerEvent: running
+preempt:
+  request:
+    reason: "Test retry of a preempted job"
+timeout: "300s"
+expectedEvents:
+  - submitted:
+  - queued:
+  - leased:
+  - pending:
+  - running:
+  - preempted:
+  - failed:
+      failureCategory: "preemption"
+      failureSubcategory: "api"
+      retryable: true
+  - leased:
+  - pending:
+  - running:
+  - succeeded:
