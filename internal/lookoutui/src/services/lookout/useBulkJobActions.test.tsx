@@ -364,9 +364,9 @@ describe.each(actions)("$name configuration timing", (action) => {
         </QueryClientProvider>
       ),
     })
-    // Changing the URL after rendering must not change the captured configuration.
-    window.history.replaceState(null, "", fakeData ? "/?fakeData" : "/")
     const usesFakeData = action.name === "cancel" ? !fakeData : fakeData
+    // Mutation-time config must differ from the value captured at import/render.
+    window.history.replaceState(null, "", usesFakeData ? "/" : "/?fakeData")
     const api = vi.spyOn(FreshSubmitApi.prototype, action.method).mockResolvedValue(action.success(["real"]))
     const jobs = [job("z", "queue-b"), job("a", "queue-a"), job("z", "queue-b")]
     vi.useFakeTimers()
