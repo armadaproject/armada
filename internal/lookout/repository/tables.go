@@ -40,6 +40,8 @@ const (
 	priorityClassCol      = "priority_class"
 	preemptUserCol        = "preempt_user"
 	reprioritizeUserCol   = "reprioritize_user"
+	// runIdCol is a pseudo-column on the job table: filtering on it matches any of a job's runs
+	runIdCol = "run_id"
 
 	// Job Run table columns
 	clusterCol = "cluster"
@@ -105,6 +107,7 @@ func newTablesWithJobTable(table string) *LookoutTables {
 			"priorityClass":      priorityClassCol,
 			"preemptUser":        preemptUserCol,
 			"reprioritizeUser":   reprioritizeUserCol,
+			"runId":              runIdCol,
 
 			"cluster": clusterCol,
 			"node":    nodeCol,
