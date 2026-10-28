@@ -76,69 +76,69 @@ func Test_ValidateConfig_When_DeleteThreadCount_LessThanOrEqualToZero(t *testing
 	assert.Error(t, validateConfig(config))
 }
 
-func TestValidateConfig_WhenQueueableTaintPatternIsInvalid_Fails(t *testing.T) {
+func TestValidateConfig_WhenRecognizedTaintPatternIsInvalid_Fails(t *testing.T) {
 	config := createBasicValidExecutorConfiguration()
-	config.Kubernetes.QueueableTaints.Keys = []string{"["}
+	config.Kubernetes.RecognizedTaints.Keys = []string{"["}
 	assert.Error(t, validateConfig(config))
 
-	config.Kubernetes.QueueableTaints.Keys = nil
-	config.Kubernetes.QueueableTaints.Admin = []configuration.QueueableTaintAdminConfiguration{
+	config.Kubernetes.RecognizedTaints.Keys = nil
+	config.Kubernetes.RecognizedTaints.Admin = []configuration.RecognizedTaintAdminConfiguration{
 		{Category: "platform", Keys: []string{"["}},
 	}
 	assert.Error(t, validateConfig(config))
 
-	config.Kubernetes.QueueableTaints.Admin = []configuration.QueueableTaintAdminConfiguration{
+	config.Kubernetes.RecognizedTaints.Admin = []configuration.RecognizedTaintAdminConfiguration{
 		{Keys: []string{"admin.example.com/maintenance"}},
 	}
 	assert.Error(t, validateConfig(config))
 
-	config.Kubernetes.QueueableTaints.Admin = []configuration.QueueableTaintAdminConfiguration{
-		{Category: configuration.UserQueueableTaintCategory, Keys: []string{"admin.example.com/maintenance"}},
+	config.Kubernetes.RecognizedTaints.Admin = []configuration.RecognizedTaintAdminConfiguration{
+		{Category: configuration.UserRecognizedTaintCategory, Keys: []string{"admin.example.com/maintenance"}},
 	}
 	assert.Error(t, validateConfig(config))
 }
 
-func TestKubernetesConfigurationNewQueueableTaints(t *testing.T) {
+func TestKubernetesConfigurationNewRecognizedTaints(t *testing.T) {
 	kubernetesConfig := configuration.KubernetesConfiguration{
 		ToleratedTaints: []string{"legacy.example.com/dedicated"},
-		QueueableTaints: configuration.QueueableTaintsConfiguration{
+		RecognizedTaints: configuration.RecognizedTaintsConfiguration{
 			Keys: []string{"user.example.com/dedicated"},
-			Admin: []configuration.QueueableTaintAdminConfiguration{
+			Admin: []configuration.RecognizedTaintAdminConfiguration{
 				{Category: "platform", Keys: []string{"platform.example.com/.*", "legacy\\.example\\.com/.*"}},
 			},
 		},
 	}
 
-	queueableTaints, err := kubernetesConfig.NewQueueableTaints()
+	recognizedTaints, err := kubernetesConfig.NewRecognizedTaints()
 	require.NoError(t, err)
 
-	taint, ok := queueableTaints.MatchQueueableTaint("user.example.com/dedicated")
+	taint, ok := recognizedTaints.MatchRecognizedTaint("user.example.com/dedicated")
 	assert.True(t, ok)
-	assert.Equal(t, configuration.UserQueueableTaintCategory, taint.Category)
+	assert.Equal(t, configuration.UserRecognizedTaintCategory, taint.Category)
 	assert.True(t, taint.UserFacing)
 
-	taint, ok = queueableTaints.MatchQueueableTaint("legacy.example.com/dedicated")
+	taint, ok = recognizedTaints.MatchRecognizedTaint("legacy.example.com/dedicated")
 	assert.True(t, ok)
 	assert.Empty(t, taint.Category)
 	assert.True(t, taint.UserFacing)
 
 	// A longer key must use the configured admin regex, not the legacy literal.
-	taint, ok = queueableTaints.MatchQueueableTaint("legacy.example.com/dedicated-extra")
+	taint, ok = recognizedTaints.MatchRecognizedTaint("legacy.example.com/dedicated-extra")
 	assert.True(t, ok)
 	assert.Equal(t, "platform", taint.Category)
 	assert.False(t, taint.UserFacing)
 
-	taint, ok = queueableTaints.MatchQueueableTaint(constants.ReservationTaintKey)
+	taint, ok = recognizedTaints.MatchRecognizedTaint(constants.ReservationTaintKey)
 	assert.True(t, ok)
 	assert.Empty(t, taint.Category)
 	assert.True(t, taint.UserFacing)
 
-	taint, ok = queueableTaints.MatchQueueableTaint("platform.example.com/gpu")
+	taint, ok = recognizedTaints.MatchRecognizedTaint("platform.example.com/gpu")
 	assert.True(t, ok)
 	assert.Equal(t, "platform", taint.Category)
 	assert.False(t, taint.UserFacing)
 
-	_, ok = queueableTaints.MatchQueueableTaint("other.example.com/taint")
+	_, ok = recognizedTaints.MatchRecognizedTaint("other.example.com/taint")
 	assert.False(t, ok)
 }
 

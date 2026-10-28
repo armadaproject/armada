@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestQueueableTaintsLiteralAndRegexMatching(t *testing.T) {
+func TestRecognizedTaintsLiteralAndRegexMatching(t *testing.T) {
 	for _, scope := range []string{"user", "admin"} {
 		t.Run(scope, func(t *testing.T) {
 			for _, tc := range []struct {
@@ -70,17 +70,17 @@ func TestQueueableTaintsLiteralAndRegexMatching(t *testing.T) {
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					config := KubernetesConfiguration{}
-					category := UserQueueableTaintCategory
+					category := UserRecognizedTaintCategory
 					if scope == "user" {
-						config.QueueableTaints.Keys = []string{tc.pattern}
+						config.RecognizedTaints.Keys = []string{tc.pattern}
 					} else {
 						category = "platform"
-						config.QueueableTaints.Admin = []QueueableTaintAdminConfiguration{{Category: category, Keys: []string{tc.pattern}}}
+						config.RecognizedTaints.Admin = []RecognizedTaintAdminConfiguration{{Category: category, Keys: []string{tc.pattern}}}
 					}
-					matcher, err := config.NewQueueableTaints()
+					matcher, err := config.NewRecognizedTaints()
 					require.NoError(t, err)
 					for key, expectedMatch := range tc.matches {
-						taint, ok := matcher.MatchQueueableTaint(key)
+						taint, ok := matcher.MatchRecognizedTaint(key)
 						assert.Equal(t, expectedMatch, ok, "unexpected match result for %q", key)
 						if expectedMatch {
 							assert.Equal(t, category, taint.Category)

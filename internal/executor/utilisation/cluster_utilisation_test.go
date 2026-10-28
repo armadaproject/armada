@@ -22,15 +22,15 @@ import (
 const nodeIdLabel = "node-id"
 
 func TestGetAvailableClusterCapacity_ReportsAllNodeTaints(t *testing.T) {
-	queueableTaints, err := (configuration.KubernetesConfiguration{
+	recognizedTaints, err := (configuration.KubernetesConfiguration{
 		ToleratedTaints: []string{"legacy"},
-		QueueableTaints: configuration.QueueableTaintsConfiguration{
+		RecognizedTaints: configuration.RecognizedTaintsConfiguration{
 			Keys: []string{"user"},
-			Admin: []configuration.QueueableTaintAdminConfiguration{
+			Admin: []configuration.RecognizedTaintAdminConfiguration{
 				{Category: "platform", Keys: []string{"admin"}},
 			},
 		},
-	}).NewQueueableTaints()
+	}).NewRecognizedTaints()
 	require.NoError(t, err)
 	legacy := &v1.Taint{Key: "legacy", Value: "true", Effect: v1.TaintEffectNoSchedule}
 	user := &v1.Taint{Key: "user", Value: "gpu", Effect: v1.TaintEffectNoSchedule}
@@ -45,9 +45,9 @@ func TestGetAvailableClusterCapacity_ReportsAllNodeTaints(t *testing.T) {
 			Allocatable: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")},
 		}},
 	)
-	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, "node-type", "node-pool", "", queueableTaints)
+	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, "node-type", "node-pool", "", recognizedTaints)
 	// No pods are present, so this report does not need a pod utilisation service.
-	service := NewClusterUtilisationService(clusterContext, nil, nodeInfoService, queueableTaints, nil, nodeIdLabel, nil, 0)
+	service := NewClusterUtilisationService(clusterContext, nil, nodeInfoService, recognizedTaints, nil, nodeIdLabel, nil, 0)
 
 	report, err := service.GetAvailableClusterCapacity()
 
@@ -61,7 +61,7 @@ func TestGetAvailableClusterCapacity_ReportsAllNodeTaints(t *testing.T) {
 	assert.Empty(t, actual[0].Category)
 	assert.True(t, actual[0].UserFacing)
 	assert.Equal(t, user, actual[1].Taint)
-	assert.Equal(t, configuration.UserQueueableTaintCategory, actual[1].Category)
+	assert.Equal(t, configuration.UserRecognizedTaintCategory, actual[1].Category)
 	assert.True(t, actual[1].UserFacing)
 	assert.Equal(t, admin, actual[2].Taint)
 	assert.Equal(t, "platform", actual[2].Category)

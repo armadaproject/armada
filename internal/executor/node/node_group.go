@@ -28,7 +28,7 @@ type KubernetesNodeInfoService struct {
 	nodeTypeLabel          string
 	nodePoolLabel          string
 	reservedNodePoolSuffix string
-	queueableTaints        *configuration.QueueableTaints
+	recognizedTaints       *configuration.RecognizedTaints
 }
 
 func NewKubernetesNodeInfoService(
@@ -36,14 +36,14 @@ func NewKubernetesNodeInfoService(
 	nodeTypeLabel string,
 	nodePoolLabel string,
 	reservedNodePoolSuffix string,
-	queueableTaints *configuration.QueueableTaints,
+	recognizedTaints *configuration.RecognizedTaints,
 ) *KubernetesNodeInfoService {
 	return &KubernetesNodeInfoService{
 		clusterContext:         clusterContext,
 		nodePoolLabel:          nodePoolLabel,
 		nodeTypeLabel:          nodeTypeLabel,
 		reservedNodePoolSuffix: reservedNodePoolSuffix,
-		queueableTaints:        queueableTaints,
+		recognizedTaints:       recognizedTaints,
 	}
 }
 
@@ -97,7 +97,7 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetType(node *v1.Nod
 	if labelValue, ok := node.Labels[kubernetesNodeInfoService.nodeTypeLabel]; ok {
 		nodeType = labelValue
 	} else {
-		relevantTaints := kubernetesNodeInfoService.filterQueueableTaints(node.Spec.Taints)
+		relevantTaints := kubernetesNodeInfoService.filterRecognizedTaints(node.Spec.Taints)
 		if len(relevantTaints) > 0 {
 			nodeType = nodeGroupId(relevantTaints)
 		}
@@ -106,11 +106,11 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetType(node *v1.Nod
 	return nodeType
 }
 
-func (kubernetesNodeInfoService *KubernetesNodeInfoService) filterQueueableTaints(taints []v1.Taint) []v1.Taint {
+func (kubernetesNodeInfoService *KubernetesNodeInfoService) filterRecognizedTaints(taints []v1.Taint) []v1.Taint {
 	result := []v1.Taint{}
 
 	for _, taint := range taints {
-		if _, isQueueable := kubernetesNodeInfoService.queueableTaints.MatchQueueableTaint(taint.Key); isQueueable {
+		if _, isRecognized := kubernetesNodeInfoService.recognizedTaints.MatchRecognizedTaint(taint.Key); isRecognized {
 			result = append(result, taint)
 		}
 	}
@@ -146,8 +146,8 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) IsAvailableProcessin
 	}
 
 	for _, taint := range node.Spec.Taints {
-		_, isQueueable := kubernetesNodeInfoService.queueableTaints.MatchQueueableTaint(taint.Key)
-		if taint.Effect == v1.TaintEffectNoSchedule && !isQueueable {
+		_, isRecognized := kubernetesNodeInfoService.recognizedTaints.MatchRecognizedTaint(taint.Key)
+		if taint.Effect == v1.TaintEffectNoSchedule && !isRecognized {
 			return false
 		}
 	}

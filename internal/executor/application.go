@@ -126,16 +126,16 @@ func StartUpWithContext(
 	taskManager *task.BackgroundTaskManager,
 	wg *sync.WaitGroup,
 ) (func(), *sync.WaitGroup) {
-	queueableTaints, err := config.Kubernetes.NewQueueableTaints()
+	recognizedTaints, err := config.Kubernetes.NewRecognizedTaints()
 	if err != nil {
-		ctx.Fatalf("Config error in queueable taints: %s", err)
+		ctx.Fatalf("Config error in recognized taints: %s", err)
 	}
 	nodeInfoService := node.NewKubernetesNodeInfoService(
 		clusterContext,
 		config.Kubernetes.NodeTypeLabel,
 		config.Kubernetes.NodePoolLabel,
 		config.Application.ReservedNodePoolSuffix,
-		queueableTaints)
+		recognizedTaints)
 	podUtilisationService := utilisation.NewPodUtilisationService(
 		clusterContext,
 		nodeInfoService,
@@ -151,7 +151,7 @@ func StartUpWithContext(
 		ctx.Fatalf("Config error in pending pod checks: %s", err)
 	}
 
-	stopExecutorApiComponents := setupExecutorApiComponents(ctx, config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService, queueableTaints)
+	stopExecutorApiComponents := setupExecutorApiComponents(ctx, config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService, recognizedTaints)
 
 	resourceCleanupService, err := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
 	if err != nil {
@@ -183,7 +183,7 @@ func setupExecutorApiComponents(
 	pendingPodChecker *podchecks.PodChecks,
 	nodeInfoService node.NodeInfoService,
 	podUtilisationService utilisation.PodUtilisationService,
-	queueableTaints *configuration.QueueableTaints,
+	recognizedTaints *configuration.RecognizedTaints,
 ) func() {
 	conn, err := createConnectionToApi(config.ExecutorApiConnection, config.Client.MaxMessageSizeBytes, config.GRPC)
 	if err != nil {
@@ -198,7 +198,7 @@ func setupExecutorApiComponents(
 		clusterContext,
 		podUtilisationService,
 		nodeInfoService,
-		queueableTaints,
+		recognizedTaints,
 		config.Kubernetes.TrackedNodeLabels,
 		config.Kubernetes.NodeIdLabel,
 		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
@@ -361,8 +361,8 @@ func validateConfig(config configuration.ExecutorConfiguration) error {
 	if config.Application.DeleteConcurrencyLimit <= 0 {
 		return fmt.Errorf("DeleteConcurrencyLimit was %d, must be greater or equal to 1", config.Application.DeleteConcurrencyLimit)
 	}
-	if _, err := config.Kubernetes.NewQueueableTaints(); err != nil {
-		return fmt.Errorf("invalid kubernetes.queueableTaints configuration: %w", err)
+	if _, err := config.Kubernetes.NewRecognizedTaints(); err != nil {
+		return fmt.Errorf("invalid kubernetes.recognizedTaints configuration: %w", err)
 	}
 	return nil
 }

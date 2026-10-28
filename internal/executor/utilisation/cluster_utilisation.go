@@ -28,7 +28,7 @@ type ClusterUtilisationService struct {
 	clusterContext                                                context.ClusterContext
 	queueUtilisationService                                       PodUtilisationService
 	nodeInfoService                                               node.NodeInfoService
-	queueableTaints                                               *configuration.QueueableTaints
+	recognizedTaints                                              *configuration.RecognizedTaints
 	trackedNodeLabels                                             []string
 	nodeIdLabel                                                   string
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode         armadaresource.ComputeResources
@@ -39,7 +39,7 @@ func NewClusterUtilisationService(
 	clusterContext context.ClusterContext,
 	queueUtilisationService PodUtilisationService,
 	nodeInfoService node.NodeInfoService,
-	queueableTaints *configuration.QueueableTaints,
+	recognizedTaints *configuration.RecognizedTaints,
 	trackedNodeLabels []string,
 	nodeIdLabel string,
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode armadaresource.ComputeResources,
@@ -49,7 +49,7 @@ func NewClusterUtilisationService(
 		clusterContext:          clusterContext,
 		queueUtilisationService: queueUtilisationService,
 		nodeInfoService:         nodeInfoService,
-		queueableTaints:         queueableTaints,
+		recognizedTaints:        recognizedTaints,
 		trackedNodeLabels:       trackedNodeLabels,
 		nodeIdLabel:             nodeIdLabel,
 		minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode:         minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
@@ -144,9 +144,9 @@ func (cls *ClusterUtilisationService) queueableNodeTaints(taints []*v1.Taint) []
 	result := make([]*executorapi.NodeTaint, 0)
 	for _, taint := range taints {
 		nodeTaint := &executorapi.NodeTaint{Taint: taint}
-		if queueableTaint, ok := cls.queueableTaints.MatchQueueableTaint(taint.Key); ok {
-			nodeTaint.Category = queueableTaint.Category
-			nodeTaint.UserFacing = queueableTaint.UserFacing
+		if recognizedTaint, ok := cls.recognizedTaints.MatchRecognizedTaint(taint.Key); ok {
+			nodeTaint.Category = recognizedTaint.Category
+			nodeTaint.UserFacing = recognizedTaint.UserFacing
 		}
 		result = append(result, nodeTaint)
 	}
