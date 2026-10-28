@@ -206,8 +206,9 @@ type SchedulingConfig struct {
 	// When exceeded, the scheduler stops considering new jobs and only
 	// attempts to reschedule evicted jobs for the remainder of the cycle.
 	//
-	// This ensures evicted jobs (which were preempted mid-simulation) get
-	// rescheduled before the cycle commits, while still bounding total cycle time.
+	// Evicted jobs are running jobs tentatively removed from their nodes; they
+	// become preempted only if not rescheduled. This timeout lets them be
+	// reconsidered before the cycle commits, while still bounding total cycle time.
 	//
 	// Set to 0 to disable (scheduler will schedule new jobs until hard timeout).
 	// Must be less than MaxSchedulingDuration when non-zero.
@@ -216,8 +217,9 @@ type SchedulingConfig struct {
 	// When exceeded, the scheduler stops considering new jobs for that queue and only
 	// attempts to reschedule evicted jobs for the remainder of the cycle.
 	//
-	// This ensures evicted jobs (which were preempted mid-simulation) get
-	// rescheduled before the cycle commits, while still bounding total cycle time.
+	// Evicted jobs are running jobs tentatively removed from their nodes; they
+	// become preempted only if not rescheduled. This timeout lets them be
+	// reconsidered before the cycle commits, while still bounding total cycle time.
 	//
 	// Set to 0 to disable (scheduler will schedule new jobs until hard timeout).
 	// Must be less than MaxSchedulingDuration when non-zero.
