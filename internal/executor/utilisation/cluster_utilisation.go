@@ -116,7 +116,7 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 		taints := armadaslices.Map(node.Spec.Taints, func(taint v1.Taint) *v1.Taint {
 			return &taint
 		})
-		nodeTaints := cls.queueableNodeTaints(taints)
+		nodeTaints := cls.recognizedNodeTaints(taints)
 		nodes = append(nodes, executorapi.NodeInfo{
 			Name:                        node.Name,
 			Labels:                      cls.filterTrackedLabels(node.Labels),
@@ -140,7 +140,7 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 	}, nil
 }
 
-func (cls *ClusterUtilisationService) queueableNodeTaints(taints []*v1.Taint) []*executorapi.NodeTaint {
+func (cls *ClusterUtilisationService) recognizedNodeTaints(taints []*v1.Taint) []*executorapi.NodeTaint {
 	result := make([]*executorapi.NodeTaint, 0)
 	for _, taint := range taints {
 		nodeTaint := &executorapi.NodeTaint{Taint: taint}
