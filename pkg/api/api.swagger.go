@@ -1421,6 +1421,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run. Use pod_name.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
@@ -1471,6 +1472,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run. Use pod_name.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
@@ -1517,6 +1519,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
@@ -1581,6 +1584,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run. Use pod_name.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
@@ -1805,6 +1809,10 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
+		"        \"podName\": {\n" +
+		"          \"description\": \"pod_name is the name of the pod of the run, as the executor reports it. It is empty while the run has no pod.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"runId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -1884,6 +1892,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run. Use pod_name.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
@@ -2153,6 +2162,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run. Use pod_name.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
@@ -2202,6 +2212,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"podNumber\": {\n" +
+		"          \"description\": \"pod_number is always 0, because the executor creates one pod for each run. Use pod_name.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +

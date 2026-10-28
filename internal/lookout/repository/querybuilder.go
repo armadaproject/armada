@@ -164,6 +164,7 @@ CROSS JOIN LATERAL (
 						'runId', run_id,
 						'cluster', cluster,
 						'node', node,
+						'podName', pod_name,
 						'leased', leased AT TIME ZONE 'UTC',
 						'pending', pending AT TIME ZONE 'UTC',
 						'started', started AT TIME ZONE 'UTC',

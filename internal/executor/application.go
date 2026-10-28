@@ -30,10 +30,12 @@ import (
 	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/metrics/pod_metrics"
 	"github.com/armadaproject/armada/internal/executor/metrics/runstate"
+	"github.com/armadaproject/armada/internal/executor/metrics/startupmetrics"
 	"github.com/armadaproject/armada/internal/executor/node"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
 	"github.com/armadaproject/armada/internal/executor/podchecks/failedpodchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/reporter/startup"
 	"github.com/armadaproject/armada/internal/executor/service"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
 	"github.com/armadaproject/armada/pkg/client"
@@ -221,6 +223,19 @@ func setupExecutorApiComponents(
 
 	debugConfig := config.Application.DebugEvents
 	debugRenderer := reporter.NewDebugMessageRenderer(clusterContext, debugConfig)
+	// Left nil when capture is disabled, which is how the state reporter knows not to measure.
+	var startUpTimings *startup.Timings
+	// Left nil when the metrics are disabled, or when there is no breakdown to summarise.
+	var startUpMetrics *startupmetrics.Recorder
+	if config.Application.StartUpTimings.Enabled {
+		startUpTimings, err = startup.NewTimings(config.Application.StartUpTimings)
+		if err != nil {
+			ctx.Fatalf("Config error in start up timings: %s", err)
+		}
+		if config.Application.StartUpTimings.Metrics.Enabled {
+			startUpMetrics = startupmetrics.NewRecorder(config.Application.StartUpTimings.Metrics)
+		}
+	}
 
 	leaseRequester := service.NewJobLeaseRequester(executorApiClient, clusterContext)
 	preemptRunProcessor := processors.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter, debugRenderer)
@@ -265,6 +280,8 @@ func setupExecutorApiComponents(
 		podIssueService,
 		classifier,
 		debugRenderer,
+		startUpTimings,
+		startUpMetrics,
 		debugConfig.MinAppContainerRuntimeForFailureDebug,
 	)
 	if err != nil {

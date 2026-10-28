@@ -32,6 +32,7 @@ const (
 	gpu              = 8
 	executorId       = "testCluster"
 	nodeName         = "testNode"
+	podName          = "testPod"
 	queue            = "test-queue"
 	userId           = "testUser"
 	priority         = 3
@@ -108,6 +109,7 @@ type JobRunRow struct {
 	JobId                      string
 	Cluster                    string
 	Node                       *string
+	PodName                    *string
 	Pending                    time.Time
 	Started                    *time.Time
 	Finished                   *time.Time
@@ -149,6 +151,7 @@ func defaultInstructionSet() *model.InstructionSet {
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
 			RunId:                      RunId,
 			Node:                       pointer.String(nodeName),
+			PodName:                    pointer.String(podName),
 			Started:                    &startTime,
 			Finished:                   &finishedTime,
 			Debug:                      []byte(testfixtures.DebugMsg),
@@ -229,6 +232,7 @@ var expectedJobRunAfterUpdate = JobRunRow{
 	JobId:                      JobId,
 	Cluster:                    executorId,
 	Node:                       pointer.String(nodeName),
+	PodName:                    pointer.String(podName),
 	Pending:                    updateTime,
 	Started:                    &startTime,
 	Finished:                   &finishedTime,
@@ -969,12 +973,12 @@ func TestConflateJobRunUpdates(t *testing.T) {
 	// Non-Empty
 	updates = conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
 		{RunId: RunId, Started: &baseTime},
-		{RunId: RunId, Node: pointer.String(nodeName), Debug: []byte("some \000 debug \000")},
+		{RunId: RunId, Node: pointer.String(nodeName), PodName: pointer.String(podName), Debug: []byte("some \000 debug \000")},
 		{RunId: "someOtherJobRun", Started: &baseTime},
 	})
 
 	expected := []*model.UpdateJobRunInstruction{
-		{RunId: RunId, Started: &baseTime, Node: pointer.String(nodeName), Debug: []byte("some \000 debug \000")},
+		{RunId: RunId, Started: &baseTime, Node: pointer.String(nodeName), PodName: pointer.String(podName), Debug: []byte("some \000 debug \000")},
 		{RunId: "someOtherJobRun", Started: &baseTime},
 	}
 
@@ -1354,6 +1358,7 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 			job_id,
 			cluster,
 			node,
+			pod_name,
 			pending,
 			started,
 			finished,
@@ -1374,6 +1379,7 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 		&run.JobId,
 		&run.Cluster,
 		&run.Node,
+		&run.PodName,
 		&run.Pending,
 		&run.Started,
 		&run.Finished,
@@ -1419,4 +1425,112 @@ func assertNoRows(t *testing.T, db *pgxpool.Pool, table string) {
 	err := r.Scan(&count)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, count)
+}
+
+const testStartUpInfo = `{"createdAt": "2022-03-01T15:04:05Z", "containers": [{"name": "main"}]}`
+
+func jobRunInfosToCreate() []*model.CreateJobRunInfoInstruction {
+	return []*model.CreateJobRunInfoInstruction{{RunId: RunId, StartUpInfo: []byte(testStartUpInfo)}}
+}
+
+func TestCreateJobRunInfosBatch(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+
+		// Insert
+		err := ldb.CreateJobRunInfosBatch(armadacontext.Background(), jobRunInfosToCreate())
+		assert.NoError(t, err)
+		assert.JSONEq(t, testStartUpInfo, getJobRunStartUpInfo(t, db, RunId))
+
+		// Insert again with a different value and check the latest value wins
+		changed := jobRunInfosToCreate()
+		changed[0].StartUpInfo = []byte(`{}`)
+		err = ldb.CreateJobRunInfosBatch(armadacontext.Background(), changed)
+		assert.NoError(t, err)
+		assert.JSONEq(t, `{}`, getJobRunStartUpInfo(t, db, RunId))
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestCreateJobRunInfosScalar(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+
+		// Insert
+		err := ldb.CreateJobRunInfosScalar(armadacontext.Background(), jobRunInfosToCreate())
+		assert.NoError(t, err)
+		assert.JSONEq(t, testStartUpInfo, getJobRunStartUpInfo(t, db, RunId))
+
+		// Insert again with a different value and check the latest value wins
+		changed := jobRunInfosToCreate()
+		changed[0].StartUpInfo = []byte(`{}`)
+		err = ldb.CreateJobRunInfosScalar(armadacontext.Background(), changed)
+		assert.NoError(t, err)
+		assert.JSONEq(t, `{}`, getJobRunStartUpInfo(t, db, RunId))
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestCreateJobRunInfosScalarSameRunTwice(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		latest := `{"createdAt": "2022-03-01T15:05:05Z"}`
+		err := ldb.CreateJobRunInfosScalar(armadacontext.Background(), []*model.CreateJobRunInfoInstruction{
+			{RunId: RunId, StartUpInfo: []byte(testStartUpInfo)},
+			{RunId: RunId, StartUpInfo: []byte(latest)},
+		})
+		assert.NoError(t, err)
+		assert.JSONEq(t, latest, getJobRunStartUpInfo(t, db, RunId))
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestStoreJobRunInfoSameRunTwiceInOneBatch(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := NewLookoutDb(db, fatalErrors, m, 10, 10)
+		latest := `{"createdAt": "2022-03-01T15:05:05Z"}`
+		instructions := &model.InstructionSet{
+			JobRunInfosToCreate: []*model.CreateJobRunInfoInstruction{
+				{RunId: RunId, StartUpInfo: []byte(testStartUpInfo)},
+				{RunId: "someOtherJobRun", StartUpInfo: []byte(testStartUpInfo)},
+				{RunId: RunId, StartUpInfo: []byte(latest)},
+			},
+		}
+		assert.NoError(t, ldb.Store(armadacontext.Background(), instructions))
+		assert.JSONEq(t, latest, getJobRunStartUpInfo(t, db, RunId))
+		assert.JSONEq(t, testStartUpInfo, getJobRunStartUpInfo(t, db, "someOtherJobRun"))
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestConflateJobRunInfos(t *testing.T) {
+	// Empty
+	assert.Equal(t, []*model.CreateJobRunInfoInstruction{}, conflateJobRunInfos([]*model.CreateJobRunInfoInstruction{}))
+
+	// Latest instruction for each run is kept, in the order of the latest instructions
+	infos := conflateJobRunInfos([]*model.CreateJobRunInfoInstruction{
+		{RunId: RunId, StartUpInfo: []byte("first")},
+		{RunId: "someOtherJobRun", StartUpInfo: []byte("other")},
+		{RunId: RunId, StartUpInfo: []byte("second")},
+	})
+	expected := []*model.CreateJobRunInfoInstruction{
+		{RunId: "someOtherJobRun", StartUpInfo: []byte("other")},
+		{RunId: RunId, StartUpInfo: []byte("second")},
+	}
+	assert.Equal(t, expected, infos)
+}
+
+func getJobRunStartUpInfo(t *testing.T, db *pgxpool.Pool, runId string) string {
+	t.Helper()
+	var startUpInfo string
+	err := db.QueryRow(
+		armadacontext.Background(),
+		"SELECT start_up_info::text FROM job_run_info WHERE run_id = $1",
+		runId).Scan(&startUpInfo)
+	assert.NoError(t, err)
+	return startUpInfo
 }

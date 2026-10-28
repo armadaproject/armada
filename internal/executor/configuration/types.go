@@ -32,6 +32,46 @@ type ApplicationConfiguration struct {
 	// Set ErrorCategories.Enabled to true to turn classification on.
 	ErrorCategories categorizer.ErrorCategoriesConfig `yaml:"errorCategories"`
 	DebugEvents     DebugEventsConfig                 `yaml:"debugEvents"`
+	StartUpTimings  StartUpTimingsConfig              `yaml:"startUpTimings"`
+}
+
+// StartUpTimingsConfig controls capture of the pod start-up breakdown attached to JobRunRunning.
+// Experimental - shape subject to change.
+type StartUpTimingsConfig struct {
+	Enabled bool `yaml:"enabled"`
+	// ExtraSteps are site-specific phases measured between two Kubernetes events on the pod, for
+	// setup Armada has no built-in knowledge of - such as CNI plugins, device plugins configuration.
+	// Each step's name becomes a label, so keep the list short and the names stable.
+	ExtraSteps []StartUpStepConfig  `yaml:"extraSteps"`
+	Metrics    StartUpMetricsConfig `yaml:"metrics"`
+}
+
+type StartUpMetricsConfig struct {
+	Enabled               bool     `yaml:"enabled"`
+	TrackedInitContainers []string `yaml:"trackedInitContainers"`
+}
+
+// StartUpStepConfig measures the interval between two Kubernetes events on the pod. Both markers
+// must match or the step is left out of the event entirely
+type StartUpStepConfig struct {
+	Name  string               `yaml:"name"`
+	Start *StartUpMarkerConfig `yaml:"start"`
+	End   *StartUpMarkerConfig `yaml:"end"`
+}
+
+// StartUpMarkerConfig identifies one Kubernetes event on the pod.
+// At least one of Reason or Message must be configured, if both provided then both must match.
+type StartUpMarkerConfig struct {
+	// Reason is matched against the event's reason, e.g. "^IBConfigured$".
+	// Regex - must compile or executor will fail to start up
+	Reason string `yaml:"reason"`
+	// Message is matched against the event's message, e.g. "^bound \\d+ devices".
+	// Regex - must compile or executor will fail to start up
+	Message string `yaml:"message"`
+	// Match selects which matching event to take when several match, valid options
+	// - "first" (the default)
+	// - "last"
+	Match string `yaml:"match"`
 }
 
 // DebugEventsConfig controls capture of pod diagnostics. Experimental - shape subject to change.
