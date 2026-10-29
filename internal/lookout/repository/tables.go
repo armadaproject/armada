@@ -40,6 +40,8 @@ const (
 	priorityClassCol      = "priority_class"
 	preemptUserCol        = "preempt_user"
 	reprioritizeUserCol   = "reprioritize_user"
+	// runIdCol is a pseudo-column on the job table: filtering on it matches any of a job's runs
+	runIdCol = "run_id"
 
 	// Job Run table columns
 	clusterCol = "cluster"
@@ -105,6 +107,7 @@ func newTablesWithJobTable(table string) *LookoutTables {
 			"priorityClass":      priorityClassCol,
 			"preemptUser":        preemptUserCol,
 			"reprioritizeUser":   reprioritizeUserCol,
+			"runId":              runIdCol,
 
 			"cluster": clusterCol,
 			"node":    nodeCol,
@@ -127,6 +130,7 @@ func newTablesWithJobTable(table string) *LookoutTables {
 			priorityClassCol:      table,
 			preemptUserCol:        table,
 			reprioritizeUserCol:   table,
+			runIdCol:              table,
 
 			clusterCol: jobRunTable,
 			nodeCol:    jobRunTable,
@@ -142,6 +146,7 @@ func newTablesWithJobTable(table string) *LookoutTables {
 		}),
 		filterableColumns: map[string]map[string]bool{
 			jobIdCol:            util.StringListToSet([]string{model.MatchExact}),
+			runIdCol:            util.StringListToSet([]string{model.MatchExact}),
 			queueCol:            util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains, model.MatchAnyOf}),
 			jobSetCol:           util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
 			ownerCol:            util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
