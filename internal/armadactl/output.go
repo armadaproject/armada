@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 	"sigs.k8s.io/yaml"
@@ -23,9 +24,12 @@ const (
 	OutputJson OutputFormat = "json"
 )
 
-// ParseOutputFormat converts the value of the --output flag into an OutputFormat.
+// OutputFormats are the values accepted by the --output flag, for help text and completion.
+var OutputFormats = []string{string(OutputYaml), string(OutputJson)}
+
+// ParseOutputFormat converts the value of the --output flag into an OutputFormat. It is case-insensitive.
 func ParseOutputFormat(s string) (OutputFormat, error) {
-	switch f := OutputFormat(s); f {
+	switch f := OutputFormat(strings.ToLower(strings.TrimSpace(s))); f {
 	case OutputText, OutputYaml, OutputJson:
 		return f, nil
 	default:
