@@ -263,15 +263,17 @@ type SchedulingConfig struct {
 	// These are separate from Kubernetes PriorityClass resources. Armada handles all preemption
 	// in its scheduler before pods reach Kubernetes.
 	//
-	// Each class has two key fields:
-	//   - priority: Higher values are scheduled first and can preempt lower-priority jobs
-	//   - preemptible: If true, jobs can be evicted to rebalance resources across queues
+	// In pools without market-driven scheduling, each class has two key fields:
+	//   - priority: Higher values are scheduled first and can preempt lower-priority preemptible jobs
+	//   - preemptible: If false, jobs are protected from fair-share, urgency and manual preemption
 	//
-	// Example:
+	// Deprecated market-driven pools use separate bid-price rules.
+	//
+	// Example for pools without market-driven scheduling:
 	//   priorityClasses:
 	//     low:    { priority: 100,  preemptible: true }   # Can be preempted
 	//     medium: { priority: 500,  preemptible: true }   # Can be preempted, preempts "low"
-	//     high:   { priority: 1000, preemptible: false }  # Protected from fair-share preemption
+	//     high:   { priority: 1000, preemptible: false }  # Protected from preemption
 	PriorityClasses map[string]types.PriorityClass `validate:"dive"`
 	// DefaultPriorityClassName is assigned to jobs submitted without a priority class.
 	// Must match a key in PriorityClasses.
