@@ -2,6 +2,8 @@ package armadactl
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 func newTestAppWithFormat(f OutputFormat) (*App, func() string) {
@@ -82,5 +85,61 @@ func TestGetRetryPolicies_StructuredIsOneDocument(t *testing.T) {
 		require.NoError(t, yaml.Unmarshal([]byte(out()), &doc), string(f))
 		assert.Equal(t, "RetryPolicy", doc.Kind)
 		assert.Len(t, doc.RetryPolicies, 2)
+	}
+}
+
+// get output, in any format, must be usable as create -f input.
+func TestGetOutput_RoundTripsThroughCreate(t *testing.T) {
+	for _, f := range []OutputFormat{OutputText, OutputYaml, OutputJson} {
+		t.Run("queue/"+string(f), func(t *testing.T) {
+			want := &api.Queue{
+				Name:           "q1",
+				PriorityFactor: 2,
+				Permissions: []*api.Queue_Permissions{{
+					Subjects: []*api.Queue_Permissions_Subject{{Kind: "User", Name: "anonymous"}},
+					Verbs:    []string{"submit", "cancel"},
+				}},
+			}
+			a, out := newTestAppWithFormat(f)
+			a.Params.QueueAPI.Get = func(string) (*api.Queue, error) { return want, nil }
+			require.NoError(t, a.GetQueue("q1"))
+			path := filepath.Join(t.TempDir(), "queue")
+			require.NoError(t, os.WriteFile(path, []byte(out()), 0o644))
+
+			var created *queue.Queue
+			a.Params.QueueAPI.Create = func(q queue.Queue) error { created = &q; return nil }
+			require.NoError(t, a.CreateResource(path, false))
+
+			require.NotNil(t, created)
+			assert.Equal(t, want.Name, created.Name)
+			assert.Equal(t, want.PriorityFactor, float64(created.PriorityFactor))
+			require.Len(t, created.Permissions, 1)
+			assert.Equal(t, queue.PermissionVerbs{"submit", "cancel"}, created.Permissions[0].Verbs)
+			require.Len(t, created.Permissions[0].Subjects, 1)
+			assert.Equal(t, "anonymous", created.Permissions[0].Subjects[0].Name)
+		})
+
+		t.Run("retry-policy/"+string(f), func(t *testing.T) {
+			a, out := newTestAppWithFormat(f)
+			a.Params.RetryPolicyAPI.Get = func(name string) (*api.RetryPolicy, error) {
+				return &api.RetryPolicy{
+					Name:          name,
+					RetryLimit:    3,
+					DefaultAction: api.RetryAction_RETRY_ACTION_RETRY,
+					Rules:         []*api.RetryRule{{Action: api.RetryAction_RETRY_ACTION_FAIL, OnCategory: "UserError"}},
+				}, nil
+			}
+			require.NoError(t, a.GetRetryPolicy("p1"))
+			path := filepath.Join(t.TempDir(), "policy")
+			require.NoError(t, os.WriteFile(path, []byte(out()), 0o644))
+
+			policy, err := retryPolicyFromFile(path)
+			require.NoError(t, err)
+			assert.Equal(t, "p1", policy.Name)
+			assert.Equal(t, uint32(3), policy.RetryLimit)
+			assert.Equal(t, api.RetryAction_RETRY_ACTION_RETRY, policy.DefaultAction)
+			require.Len(t, policy.Rules, 1)
+			assert.Equal(t, api.RetryAction_RETRY_ACTION_FAIL, policy.Rules[0].Action)
+		})
 	}
 }
