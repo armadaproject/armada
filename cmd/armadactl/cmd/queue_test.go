@@ -168,3 +168,19 @@ func TestUpdate(t *testing.T) {
 		})
 	}
 }
+
+func TestGetCommands_OutputFlag(t *testing.T) {
+	for name, cmd := range map[string]*cobra.Command{
+		"get queue":          queueGetCmd(),
+		"get queues":         queuesGetCmd(),
+		"get retry-policy":   retryPolicyGetCmd(),
+		"get retry-policies": retryPolicyGetAllCmd(),
+	} {
+		require.NotNil(t, cmd.Flags().Lookup("output"), name)
+		require.Equal(t, "o", cmd.Flags().Lookup("output").Shorthand, name)
+	}
+	// Commands that only report what they did have no document to format.
+	require.Nil(t, RootCmd().PersistentFlags().Lookup("output"))
+	require.Nil(t, queueCreateCmd().Flags().Lookup("output"))
+	require.Nil(t, retryPolicyDeleteCmd().Flags().Lookup("output"))
+}

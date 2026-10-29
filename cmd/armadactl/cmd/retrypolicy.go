@@ -24,10 +24,10 @@ func retryPolicyUpdateCmd() *cobra.Command {
 
 func retryPolicyGetCmd() *cobra.Command {
 	a := armadactl.New()
-	return retryPolicyNameCmd(a,
+	return withOutputFlag(retryPolicyNameCmd(a,
 		"Get a retry policy by name",
 		"Get the definition of a retry policy by its name.",
-		a.GetRetryPolicy)
+		a.GetRetryPolicy), a)
 }
 
 func retryPolicyDeleteCmd() *cobra.Command {
@@ -40,7 +40,7 @@ func retryPolicyDeleteCmd() *cobra.Command {
 
 func retryPolicyGetAllCmd() *cobra.Command {
 	a := armadactl.New()
-	return &cobra.Command{
+	return withOutputFlag(&cobra.Command{
 		Use:   "retry-policies",
 		Short: "List all retry policies",
 		Long:  "List all retry policies defined in the system.",
@@ -51,7 +51,7 @@ func retryPolicyGetAllCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.GetAllRetryPolicies()
 		},
-	}
+	}, a)
 }
 
 // retryPolicyFileCmd builds a command that reads a retry policy from a

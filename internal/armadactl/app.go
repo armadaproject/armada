@@ -41,10 +41,12 @@ type App struct {
 // statically in a config file that's reused between command runs.
 type Params struct {
 	ApiConnectionDetails *client.ApiConnectionDetails
-	QueueAPI             *QueueAPI
-	RetryPolicyAPI       *RetryPolicyAPI
-	ExecutorAPI          *ExecutorAPI
-	NodeAPI              *NodeAPI
+	// Output selects the output format. The zero value is the default human-oriented text.
+	Output         OutputFormat
+	QueueAPI       *QueueAPI
+	RetryPolicyAPI *RetryPolicyAPI
+	ExecutorAPI    *ExecutorAPI
+	NodeAPI        *NodeAPI
 }
 
 // QueueAPI struct holds pointers to functions that are called by armadactl.
