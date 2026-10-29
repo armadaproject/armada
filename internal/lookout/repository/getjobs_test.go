@@ -236,6 +236,34 @@ func TestGetJobsMultipleRuns(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGetJobsFilterByAnyRunId(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		firstRunId := uuid.NewString()
+
+		job := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
+			Lease(firstRunId, cluster, node, pool, baseTime).
+			Pending(firstRunId, cluster, baseTime).
+			Lease(runId, cluster, node, pool, baseTime.Add(time.Second)).
+			Pending(runId, cluster, baseTime.Add(time.Second)).
+			Build().
+			Job()
+
+		for _, id := range []string{firstRunId, runId} {
+			result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{{Field: "runId", Match: model.MatchExact, Value: id}}, false, &model.Order{}, 0, 10)
+			require.NoError(t, err)
+			require.Len(t, result.Jobs, 1)
+			assert.Equal(t, job, result.Jobs[0])
+		}
+
+		result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{{Field: "runId", Match: model.MatchExact, Value: uuid.NewString()}}, false, &model.Order{}, 0, 10)
+		require.NoError(t, err)
+		assert.Empty(t, result.Jobs)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestGetJobsPodNameOfRunFromBeforeLookoutStoredPodNames(t *testing.T) {
 	jobScopedName := pointer.String("armada-" + jobId + "-0")
 	tests := map[string]struct {

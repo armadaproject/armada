@@ -569,6 +569,15 @@ func (qb *QueryBuilder) makeWhereClause(filter *model.Filter, tableAbbrev string
 		}
 	}
 
+	if column == runIdCol {
+		// Match any of the job's runs; job_run.run_id is the primary key, so this is an index lookup.
+		placeholder := qb.recordValue(filter.Value)
+		return fmt.Sprintf(
+			"%s.%s IN (SELECT %s FROM %s WHERE %s = %s)",
+			tableAbbrev, jobIdCol, jobIdCol, jobRunTable, runIdCol, placeholder,
+		), nil
+	}
+
 	operator, err := operatorForMatch(filter.Match)
 	if err != nil {
 		return "", err
