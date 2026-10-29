@@ -336,7 +336,7 @@ func (m *EventList) GetEvents() []*armadaevents.EventSequence {
 
 type NodeTaint struct {
 	Taint *v1.Taint `protobuf:"bytes,1,opt,name=taint,proto3" json:"taint,omitempty"`
-	// Arbitrary categorization label of taints configured in executor field recognizedTaints
+	// Arbitrary categorization label of taints configured in executor field wellKnownTaints
 	Category string `protobuf:"bytes,2,opt,name=category,proto3" json:"category,omitempty"`
 	// Whether taint is documented for end users
 	UserFacing bool `protobuf:"varint,3,opt,name=user_facing,json=userFacing,proto3" json:"userFacing,omitempty"`

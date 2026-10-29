@@ -76,69 +76,69 @@ func Test_ValidateConfig_When_DeleteThreadCount_LessThanOrEqualToZero(t *testing
 	assert.Error(t, validateConfig(config))
 }
 
-func TestValidateConfig_WhenRecognizedTaintPatternIsInvalid_Fails(t *testing.T) {
+func TestValidateConfig_WhenWellKnownTaintPatternIsInvalid_Fails(t *testing.T) {
 	config := createBasicValidExecutorConfiguration()
-	config.Kubernetes.RecognizedTaints.Keys = []string{"["}
+	config.Kubernetes.WellKnownTaints.Keys = []string{"["}
 	assert.Error(t, validateConfig(config))
 
-	config.Kubernetes.RecognizedTaints.Keys = nil
-	config.Kubernetes.RecognizedTaints.Admin = []configuration.RecognizedTaintAdminConfiguration{
+	config.Kubernetes.WellKnownTaints.Keys = nil
+	config.Kubernetes.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
 		{Category: "platform", Keys: []string{"["}},
 	}
 	assert.Error(t, validateConfig(config))
 
-	config.Kubernetes.RecognizedTaints.Admin = []configuration.RecognizedTaintAdminConfiguration{
+	config.Kubernetes.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
 		{Keys: []string{"admin.example.com/maintenance"}},
 	}
 	assert.Error(t, validateConfig(config))
 
-	config.Kubernetes.RecognizedTaints.Admin = []configuration.RecognizedTaintAdminConfiguration{
-		{Category: configuration.UserRecognizedTaintCategory, Keys: []string{"admin.example.com/maintenance"}},
+	config.Kubernetes.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
+		{Category: configuration.UserWellKnownTaintCategory, Keys: []string{"admin.example.com/maintenance"}},
 	}
 	assert.Error(t, validateConfig(config))
 }
 
-func TestKubernetesConfigurationNewRecognizedTaints(t *testing.T) {
+func TestKubernetesConfigurationNewWellKnownTaints(t *testing.T) {
 	kubernetesConfig := configuration.KubernetesConfiguration{
 		ToleratedTaints: []string{"legacy.example.com/dedicated"},
-		RecognizedTaints: configuration.RecognizedTaintsConfiguration{
+		WellKnownTaints: configuration.WellKnownTaintsConfiguration{
 			Keys: []string{"user.example.com/dedicated"},
-			Admin: []configuration.RecognizedTaintAdminConfiguration{
+			Admin: []configuration.WellKnownTaintAdminConfiguration{
 				{Category: "platform", Keys: []string{"platform.example.com/.*", "legacy\\.example\\.com/.*"}},
 			},
 		},
 	}
 
-	recognizedTaints, err := kubernetesConfig.NewRecognizedTaints()
+	wellKnownTaints, err := kubernetesConfig.NewWellKnownTaints()
 	require.NoError(t, err)
 
-	taint, ok := recognizedTaints.MatchRecognizedTaint("user.example.com/dedicated")
+	taint, ok := wellKnownTaints.MatchWellKnownTaint("user.example.com/dedicated")
 	assert.True(t, ok)
-	assert.Equal(t, configuration.UserRecognizedTaintCategory, taint.Category)
+	assert.Equal(t, configuration.UserWellKnownTaintCategory, taint.Category)
 	assert.True(t, taint.UserFacing)
 
-	taint, ok = recognizedTaints.MatchRecognizedTaint("legacy.example.com/dedicated")
+	taint, ok = wellKnownTaints.MatchWellKnownTaint("legacy.example.com/dedicated")
 	assert.True(t, ok)
 	assert.Empty(t, taint.Category)
 	assert.True(t, taint.UserFacing)
 
 	// A longer key must use the configured admin regex, not the legacy literal.
-	taint, ok = recognizedTaints.MatchRecognizedTaint("legacy.example.com/dedicated-extra")
+	taint, ok = wellKnownTaints.MatchWellKnownTaint("legacy.example.com/dedicated-extra")
 	assert.True(t, ok)
 	assert.Equal(t, "platform", taint.Category)
 	assert.False(t, taint.UserFacing)
 
-	taint, ok = recognizedTaints.MatchRecognizedTaint(constants.ReservationTaintKey)
+	taint, ok = wellKnownTaints.MatchWellKnownTaint(constants.ReservationTaintKey)
 	assert.True(t, ok)
 	assert.Empty(t, taint.Category)
 	assert.True(t, taint.UserFacing)
 
-	taint, ok = recognizedTaints.MatchRecognizedTaint("platform.example.com/gpu")
+	taint, ok = wellKnownTaints.MatchWellKnownTaint("platform.example.com/gpu")
 	assert.True(t, ok)
 	assert.Equal(t, "platform", taint.Category)
 	assert.False(t, taint.UserFacing)
 
-	_, ok = recognizedTaints.MatchRecognizedTaint("other.example.com/taint")
+	_, ok = wellKnownTaints.MatchWellKnownTaint("other.example.com/taint")
 	assert.False(t, ok)
 }
 

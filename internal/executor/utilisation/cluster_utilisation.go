@@ -28,7 +28,7 @@ type ClusterUtilisationService struct {
 	clusterContext                                                context.ClusterContext
 	queueUtilisationService                                       PodUtilisationService
 	nodeInfoService                                               node.NodeInfoService
-	recognizedTaints                                              *configuration.RecognizedTaints
+	wellKnownTaints                                               *configuration.WellKnownTaints
 	trackedNodeLabels                                             []string
 	nodeIdLabel                                                   string
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode         armadaresource.ComputeResources
@@ -39,7 +39,7 @@ func NewClusterUtilisationService(
 	clusterContext context.ClusterContext,
 	queueUtilisationService PodUtilisationService,
 	nodeInfoService node.NodeInfoService,
-	recognizedTaints *configuration.RecognizedTaints,
+	wellKnownTaints *configuration.WellKnownTaints,
 	trackedNodeLabels []string,
 	nodeIdLabel string,
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode armadaresource.ComputeResources,
@@ -49,7 +49,7 @@ func NewClusterUtilisationService(
 		clusterContext:          clusterContext,
 		queueUtilisationService: queueUtilisationService,
 		nodeInfoService:         nodeInfoService,
-		recognizedTaints:        recognizedTaints,
+		wellKnownTaints:         wellKnownTaints,
 		trackedNodeLabels:       trackedNodeLabels,
 		nodeIdLabel:             nodeIdLabel,
 		minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode:         minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
@@ -116,7 +116,7 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 		taints := armadaslices.Map(node.Spec.Taints, func(taint v1.Taint) *v1.Taint {
 			return &taint
 		})
-		nodeTaints := cls.recognizedNodeTaints(taints)
+		nodeTaints := cls.wellKnownNodeTaints(taints)
 		nodes = append(nodes, executorapi.NodeInfo{
 			Name:                        node.Name,
 			Labels:                      cls.filterTrackedLabels(node.Labels),
@@ -140,13 +140,13 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 	}, nil
 }
 
-func (cls *ClusterUtilisationService) recognizedNodeTaints(taints []*v1.Taint) []*executorapi.NodeTaint {
+func (cls *ClusterUtilisationService) wellKnownNodeTaints(taints []*v1.Taint) []*executorapi.NodeTaint {
 	result := make([]*executorapi.NodeTaint, 0)
 	for _, taint := range taints {
 		nodeTaint := &executorapi.NodeTaint{Taint: taint}
-		if recognizedTaint, ok := cls.recognizedTaints.MatchRecognizedTaint(taint.Key); ok {
-			nodeTaint.Category = recognizedTaint.Category
-			nodeTaint.UserFacing = recognizedTaint.UserFacing
+		if wellKnownTaint, ok := cls.wellKnownTaints.MatchWellKnownTaint(taint.Key); ok {
+			nodeTaint.Category = wellKnownTaint.Category
+			nodeTaint.UserFacing = wellKnownTaint.UserFacing
 		}
 		result = append(result, nodeTaint)
 	}
