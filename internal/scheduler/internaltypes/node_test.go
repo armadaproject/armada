@@ -141,10 +141,11 @@ func TestNodeTaintIsUserFacing(t *testing.T) {
 		nodeTaint NodeTaint
 		expected  bool
 	}{
-		"user flag and default category": {nodeTaint: NodeTaint{Category: UserFacingNodeTaintCategory, UserFacing: true}, expected: true},
-		"user flag without category":     {nodeTaint: NodeTaint{UserFacing: true}, expected: false},
-		"default category without flag":  {nodeTaint: NodeTaint{Category: UserFacingNodeTaintCategory}, expected: false},
-		"admin category":                 {nodeTaint: NodeTaint{Category: "platform", UserFacing: true}, expected: false},
+		"user flag and user category":      {nodeTaint: NodeTaint{Category: "user", UserFacing: true}, expected: true},
+		"user flag without category":       {nodeTaint: NodeTaint{UserFacing: true}, expected: false},
+		"user category without flag":       {nodeTaint: NodeTaint{Category: "user"}, expected: false},
+		"user flag and other category":     {nodeTaint: NodeTaint{Category: "platform", UserFacing: true}, expected: true},
+		"other category without user flag": {nodeTaint: NodeTaint{Category: "platform"}, expected: false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, tc.nodeTaint.IsUserFacing())

@@ -182,7 +182,7 @@ func removeCordonTaintsWithMetadata(node *Node) *Node {
 	nonCordonNodeTaints := make([]NodeTaint, 0, len(nodeTaints))
 	for _, nodeTaint := range nodeTaints {
 		if !IsCordonTaint(nodeTaint.Taint) &&
-			(!nodeTaint.IsAdminTaint() || nodeTaint.IsUserFacing()) {
+			(nodeTaint.IsUserFacing() || nodeTaint.Category == "") {
 			nonCordonNodeTaints = append(nonCordonNodeTaints, nodeTaint)
 			nonCordonTaints = append(nonCordonTaints, nodeTaint.Taint)
 		}

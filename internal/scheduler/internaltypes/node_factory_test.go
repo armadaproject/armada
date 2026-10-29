@@ -49,7 +49,7 @@ func TestAddTaintsPreservesMetadataAndAddsNeutralEntries(t *testing.T) {
 	filtered := factory.RemoveCordonTaints(result)
 	assert.Equal(t, []v1.Taint{existing, added}, filtered[0].GetTaints())
 	assert.Equal(t, []NodeTaint{
-		{Taint: existing, Category: UserFacingNodeTaintCategory, UserFacing: true},
+		{Taint: existing, Category: "user", UserFacing: true},
 		{Taint: added},
 	}, filtered[0].GetNodeTaints())
 
@@ -85,30 +85,30 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			taints: []*v1.Taint{&cordon, &restricted, &user, &admin},
 			metadata: []*schedulerobjects.NodeTaint{
 				{Taint: &admin, Category: "platform"},
-				{Taint: &user, Category: UserFacingNodeTaintCategory, UserFacing: true},
+				{Taint: &user, Category: "user", UserFacing: true},
 				{Taint: &restricted},
 				{Taint: &cordon},
 			},
 			wantTaints: []v1.Taint{restricted, user},
 			wantMetadata: []NodeTaint{
 				{Taint: restricted},
-				{Taint: user, Category: UserFacingNodeTaintCategory, UserFacing: true},
+				{Taint: user, Category: "user", UserFacing: true},
 			},
 		},
 		{
 			name:         "partial metadata uses legacy flow",
 			taints:       []*v1.Taint{&cordon, &restricted, &user},
-			metadata:     []*schedulerobjects.NodeTaint{{Taint: &user, Category: UserFacingNodeTaintCategory, UserFacing: true}},
+			metadata:     []*schedulerobjects.NodeTaint{{Taint: &user, Category: "user", UserFacing: true}},
 			wantTaints:   []v1.Taint{restricted, user},
-			wantMetadata: []NodeTaint{{Taint: user, Category: UserFacingNodeTaintCategory, UserFacing: true}},
+			wantMetadata: []NodeTaint{{Taint: user, Category: "user", UserFacing: true}},
 		},
 		{
 			name:         "schedulable user-facing taint is kept",
 			taints:       []*v1.Taint{&user},
-			metadata:     []*schedulerobjects.NodeTaint{{Taint: &user, Category: UserFacingNodeTaintCategory, UserFacing: true}},
+			metadata:     []*schedulerobjects.NodeTaint{{Taint: &user, Category: "user", UserFacing: true}},
 			schedulable:  true,
 			wantTaints:   []v1.Taint{user},
-			wantMetadata: []NodeTaint{{Taint: user, Category: UserFacingNodeTaintCategory, UserFacing: true}},
+			wantMetadata: []NodeTaint{{Taint: user, Category: "user", UserFacing: true}},
 		},
 		{
 			name:         "schedulable admin taint is removed",
@@ -120,10 +120,10 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 		{
 			name:         "schedulable admin taint keeps user-facing taints",
 			taints:       []*v1.Taint{&admin, &user},
-			metadata:     []*schedulerobjects.NodeTaint{{Taint: &admin, Category: "platform"}, {Taint: &user, Category: UserFacingNodeTaintCategory, UserFacing: true}},
+			metadata:     []*schedulerobjects.NodeTaint{{Taint: &admin, Category: "platform"}, {Taint: &user, Category: "user", UserFacing: true}},
 			schedulable:  true,
 			wantTaints:   []v1.Taint{user},
-			wantMetadata: []NodeTaint{{Taint: user, Category: UserFacingNodeTaintCategory, UserFacing: true}},
+			wantMetadata: []NodeTaint{{Taint: user, Category: "user", UserFacing: true}},
 		},
 		{
 			name:         "schedulable neutral taint is kept",
@@ -151,7 +151,7 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 		{
 			name:         "cordon taint is removed even when marked user-facing",
 			taints:       []*v1.Taint{&cordon},
-			metadata:     []*schedulerobjects.NodeTaint{{Taint: &cordon, Category: UserFacingNodeTaintCategory, UserFacing: true}},
+			metadata:     []*schedulerobjects.NodeTaint{{Taint: &cordon, Category: "user", UserFacing: true}},
 			schedulable:  true,
 			wantMetadata: []NodeTaint{},
 		},

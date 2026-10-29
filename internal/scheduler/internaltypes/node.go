@@ -100,8 +100,6 @@ type Node struct {
 	knownPriorities []int32
 }
 
-const UserFacingNodeTaintCategory = "user"
-
 type NodeTaint struct {
 	Taint      v1.Taint
 	Category   string
@@ -109,13 +107,7 @@ type NodeTaint struct {
 }
 
 func (nodeTaint NodeTaint) IsUserFacing() bool {
-	return nodeTaint.UserFacing && nodeTaint.Category == UserFacingNodeTaintCategory
-}
-
-func (nodeTaint NodeTaint) IsAdminTaint() bool {
-	return !nodeTaint.UserFacing &&
-		nodeTaint.Category != "" &&
-		nodeTaint.Category != UserFacingNodeTaintCategory
+	return nodeTaint.UserFacing && nodeTaint.Category != ""
 }
 
 func deepCopyNodeTaints(nodeTaints []NodeTaint) []NodeTaint {
