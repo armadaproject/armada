@@ -101,13 +101,29 @@ type Node struct {
 }
 
 type NodeTaint struct {
-	Taint      v1.Taint
-	Category   string
-	UserFacing bool
+	taint      v1.Taint
+	category   string
+	userFacing bool
+}
+
+func NewNodeTaint(taint v1.Taint, category string, userFacing bool) NodeTaint {
+	return NodeTaint{taint: *taint.DeepCopy(), category: category, userFacing: userFacing}
+}
+
+func (nodeTaint NodeTaint) GetTaint() v1.Taint {
+	return *nodeTaint.taint.DeepCopy()
+}
+
+func (nodeTaint NodeTaint) GetCategory() string {
+	return nodeTaint.category
+}
+
+func (nodeTaint NodeTaint) GetUserFacing() bool {
+	return nodeTaint.userFacing
 }
 
 func (nodeTaint NodeTaint) IsUserFacing() bool {
-	return nodeTaint.UserFacing && nodeTaint.Category != ""
+	return nodeTaint.userFacing && nodeTaint.category != ""
 }
 
 func deepCopyNodeTaints(nodeTaints []NodeTaint) []NodeTaint {
@@ -117,7 +133,7 @@ func deepCopyNodeTaints(nodeTaints []NodeTaint) []NodeTaint {
 	result := make([]NodeTaint, len(nodeTaints))
 	for i, nodeTaint := range nodeTaints {
 		result[i] = nodeTaint
-		result[i].Taint = *nodeTaint.Taint.DeepCopy()
+		result[i].taint = *nodeTaint.taint.DeepCopy()
 	}
 	return result
 }
@@ -142,9 +158,9 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 	for _, nodeTaint := range node.NodeTaints {
 		if nodeTaint != nil && nodeTaint.Taint != nil {
 			nodeTaints = append(nodeTaints, NodeTaint{
-				Taint:      *nodeTaint.Taint,
-				Category:   nodeTaint.Category,
-				UserFacing: nodeTaint.UserFacing,
+				taint:      *nodeTaint.Taint,
+				category:   nodeTaint.Category,
+				userFacing: nodeTaint.UserFacing,
 			})
 		}
 	}
@@ -537,13 +553,13 @@ func (node *Node) WithSchedulable(schedulable bool) *Node {
 			}
 		}
 		for _, nodeTaint := range node.nodeTaints {
-			if !nodeTaint.Taint.MatchTaint(&unschedulableTaint) {
+			if !nodeTaint.taint.MatchTaint(&unschedulableTaint) {
 				nodeTaints = append(nodeTaints, nodeTaint)
 			}
 		}
 	} else {
 		taints = append(node.GetTaints(), unschedulableTaint)
-		nodeTaints = append(node.GetNodeTaints(), NodeTaint{Taint: unschedulableTaint})
+		nodeTaints = append(node.GetNodeTaints(), NodeTaint{taint: unschedulableTaint})
 	}
 
 	result := node.WithTaints(taints).WithNodeTaints(nodeTaints)

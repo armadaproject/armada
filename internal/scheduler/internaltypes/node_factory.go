@@ -128,7 +128,7 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 	for i, node := range nodes {
 		nodeTaints := node.GetNodeTaints()
 		for _, taint := range extraTaints {
-			nodeTaints = append(nodeTaints, NodeTaint{Taint: *taint.DeepCopy()})
+			nodeTaints = append(nodeTaints, NewNodeTaint(taint, "", false))
 		}
 		result[i] = node.WithTaints(append(node.GetTaints(), extraTaints...)).WithNodeTaints(nodeTaints)
 	}
@@ -181,10 +181,10 @@ func removeCordonTaintsWithMetadata(node *Node) *Node {
 	nodeTaints := node.GetNodeTaints()
 	nonCordonNodeTaints := make([]NodeTaint, 0, len(nodeTaints))
 	for _, nodeTaint := range nodeTaints {
-		if !IsCordonTaint(nodeTaint.Taint) &&
-			(nodeTaint.IsUserFacing() || nodeTaint.Category == "") {
+		if !IsCordonTaint(nodeTaint.taint) &&
+			(nodeTaint.IsUserFacing() || nodeTaint.category == "") {
 			nonCordonNodeTaints = append(nonCordonNodeTaints, nodeTaint)
-			nonCordonTaints = append(nonCordonTaints, nodeTaint.Taint)
+			nonCordonTaints = append(nonCordonTaints, nodeTaint.taint)
 		}
 	}
 	return node.WithTaints(nonCordonTaints).WithNodeTaints(nonCordonNodeTaints).WithSchedulable(true)

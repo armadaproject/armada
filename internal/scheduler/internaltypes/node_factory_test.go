@@ -38,8 +38,8 @@ func TestAddTaintsPreservesMetadataAndAddsNeutralEntries(t *testing.T) {
 	require.Len(t, result, 1)
 	assert.Equal(t, []v1.Taint{existing, UnschedulableTaint(), added}, result[0].GetTaints())
 	assert.Equal(t, []NodeTaint{
-		{Taint: existing, Category: "user", UserFacing: true},
-		{Taint: added},
+		{taint: existing, category: "user", userFacing: true},
+		{taint: added},
 	}, result[0].GetNodeTaints())
 	assert.True(t, result[0].hasCompleteNodeTaintMetadata)
 	assert.Equal(t, originalTaints, node.GetTaints())
@@ -49,15 +49,15 @@ func TestAddTaintsPreservesMetadataAndAddsNeutralEntries(t *testing.T) {
 	filtered := factory.RemoveCordonTaints(result)
 	assert.Equal(t, []v1.Taint{existing, added}, filtered[0].GetTaints())
 	assert.Equal(t, []NodeTaint{
-		{Taint: existing, Category: "user", UserFacing: true},
-		{Taint: added},
+		{taint: existing, category: "user", userFacing: true},
+		{taint: added},
 	}, filtered[0].GetNodeTaints())
 
 	// Neither representation may retain mutable timestamps owned by the caller.
 	extraTaints[0].TimeAdded.Time = time.Unix(2, 0)
 	assert.Equal(t, added, result[0].GetTaints()[2])
 	require.Len(t, result[0].GetNodeTaints(), 2)
-	assert.Equal(t, added, result[0].GetNodeTaints()[1].Taint)
+	assert.Equal(t, added, result[0].GetNodeTaints()[1].GetTaint())
 }
 
 func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
@@ -91,8 +91,8 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			},
 			wantTaints: []v1.Taint{restricted, user},
 			wantMetadata: []NodeTaint{
-				{Taint: restricted},
-				{Taint: user, Category: "user", UserFacing: true},
+				{taint: restricted},
+				{taint: user, category: "user", userFacing: true},
 			},
 		},
 		{
@@ -100,7 +100,7 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			taints:       []*v1.Taint{&cordon, &restricted, &user},
 			metadata:     []*schedulerobjects.NodeTaint{{Taint: &user, Category: "user", UserFacing: true}},
 			wantTaints:   []v1.Taint{restricted, user},
-			wantMetadata: []NodeTaint{{Taint: user, Category: "user", UserFacing: true}},
+			wantMetadata: []NodeTaint{{taint: user, category: "user", userFacing: true}},
 		},
 		{
 			name:         "schedulable user-facing taint is kept",
@@ -108,7 +108,7 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			metadata:     []*schedulerobjects.NodeTaint{{Taint: &user, Category: "user", UserFacing: true}},
 			schedulable:  true,
 			wantTaints:   []v1.Taint{user},
-			wantMetadata: []NodeTaint{{Taint: user, Category: "user", UserFacing: true}},
+			wantMetadata: []NodeTaint{{taint: user, category: "user", userFacing: true}},
 		},
 		{
 			name:         "schedulable admin taint is removed",
@@ -123,7 +123,7 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			metadata:     []*schedulerobjects.NodeTaint{{Taint: &admin, Category: "platform"}, {Taint: &user, Category: "user", UserFacing: true}},
 			schedulable:  true,
 			wantTaints:   []v1.Taint{user},
-			wantMetadata: []NodeTaint{{Taint: user, Category: "user", UserFacing: true}},
+			wantMetadata: []NodeTaint{{taint: user, category: "user", userFacing: true}},
 		},
 		{
 			name:         "schedulable neutral taint is kept",
@@ -131,7 +131,7 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			metadata:     []*schedulerobjects.NodeTaint{{Taint: &restricted}},
 			schedulable:  true,
 			wantTaints:   []v1.Taint{restricted},
-			wantMetadata: []NodeTaint{{Taint: restricted}},
+			wantMetadata: []NodeTaint{{taint: restricted}},
 		},
 		{
 			name:           "schedulable incomplete metadata is kept",
@@ -146,7 +146,7 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			metadata:     []*schedulerobjects.NodeTaint{{Taint: &legacyUserFacing, UserFacing: true}},
 			schedulable:  true,
 			wantTaints:   []v1.Taint{legacyUserFacing},
-			wantMetadata: []NodeTaint{{Taint: legacyUserFacing, UserFacing: true}},
+			wantMetadata: []NodeTaint{{taint: legacyUserFacing, userFacing: true}},
 		},
 		{
 			name:         "cordon taint is removed even when marked user-facing",

@@ -128,12 +128,29 @@ func TestNode(t *testing.T) {
 }
 
 func TestGetNodeTaintsReturnsCopy(t *testing.T) {
-	node := &Node{nodeTaints: []NodeTaint{{Taint: v1.Taint{Key: "example.com/dedicated"}, Category: "platform"}}}
+	node := &Node{nodeTaints: []NodeTaint{{taint: v1.Taint{Key: "example.com/dedicated"}, category: "platform"}}}
 
 	actual := node.GetNodeTaints()
-	actual[0].Category = "changed"
+	actual[0].category = "changed"
 
-	assert.Equal(t, "platform", node.GetNodeTaints()[0].Category)
+	assert.Equal(t, "platform", node.GetNodeTaints()[0].GetCategory())
+}
+
+func TestNodeTaintConstructorAndGetters(t *testing.T) {
+	originalTime := metav1.NewTime(time.Unix(1, 0))
+	taint := v1.Taint{Key: "example.com/dedicated", Value: "gpu", Effect: v1.TaintEffectNoSchedule, TimeAdded: &originalTime}
+	nodeTaint := NewNodeTaint(taint, "platform", true)
+
+	assert.Equal(t, "platform", nodeTaint.GetCategory())
+	assert.True(t, nodeTaint.GetUserFacing())
+	assert.Equal(t, taint, nodeTaint.GetTaint())
+
+	taint.TimeAdded.Time = time.Unix(2, 0)
+	assert.Equal(t, time.Unix(1, 0), nodeTaint.GetTaint().TimeAdded.Time)
+
+	returnedTaint := nodeTaint.GetTaint()
+	returnedTaint.TimeAdded.Time = time.Unix(3, 0)
+	assert.Equal(t, time.Unix(1, 0), nodeTaint.GetTaint().TimeAdded.Time)
 }
 
 func TestNodeTaintIsUserFacing(t *testing.T) {
@@ -141,11 +158,11 @@ func TestNodeTaintIsUserFacing(t *testing.T) {
 		nodeTaint NodeTaint
 		expected  bool
 	}{
-		"user flag and user category":      {nodeTaint: NodeTaint{Category: "user", UserFacing: true}, expected: true},
-		"user flag without category":       {nodeTaint: NodeTaint{UserFacing: true}, expected: false},
-		"user category without flag":       {nodeTaint: NodeTaint{Category: "user"}, expected: false},
-		"user flag and other category":     {nodeTaint: NodeTaint{Category: "platform", UserFacing: true}, expected: true},
-		"other category without user flag": {nodeTaint: NodeTaint{Category: "platform"}, expected: false},
+		"user flag and user category":      {nodeTaint: NodeTaint{category: "user", userFacing: true}, expected: true},
+		"user flag without category":       {nodeTaint: NodeTaint{userFacing: true}, expected: false},
+		"user category without flag":       {nodeTaint: NodeTaint{category: "user"}, expected: false},
+		"user flag and other category":     {nodeTaint: NodeTaint{category: "platform", userFacing: true}, expected: true},
+		"other category without user flag": {nodeTaint: NodeTaint{category: "platform"}, expected: false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, tc.nodeTaint.IsUserFacing())
@@ -155,29 +172,29 @@ func TestNodeTaintIsUserFacing(t *testing.T) {
 
 func TestNodeTaintMetadataTimestampIsolation(t *testing.T) {
 	originalTime := metav1.NewTime(time.Unix(1, 0))
-	metadata := []NodeTaint{{Taint: v1.Taint{Key: "example.com/dedicated", TimeAdded: &originalTime}}}
+	metadata := []NodeTaint{{taint: v1.Taint{Key: "example.com/dedicated", TimeAdded: &originalTime}}}
 	node := CreateNode(
 		"id", 1, "executor", "name", "pool", "type",
 		nil, metadata, true, nil, map[string]bool{}, map[string]bool{},
 		false, ResourceList{}, ResourceList{}, nil, nil,
 	)
 
-	metadata[0].Taint.TimeAdded.Time = time.Unix(2, 0)
-	assert.Equal(t, time.Unix(1, 0), node.nodeTaints[0].Taint.TimeAdded.Time)
+	metadata[0].taint.TimeAdded.Time = time.Unix(2, 0)
+	assert.Equal(t, time.Unix(1, 0), node.nodeTaints[0].GetTaint().TimeAdded.Time)
 
 	returnedMetadata := node.GetNodeTaints()
-	returnedMetadata[0].Taint.TimeAdded.Time = time.Unix(3, 0)
-	assert.Equal(t, time.Unix(1, 0), node.nodeTaints[0].Taint.TimeAdded.Time)
+	returnedMetadata[0].taint.TimeAdded.Time = time.Unix(3, 0)
+	assert.Equal(t, time.Unix(1, 0), node.nodeTaints[0].GetTaint().TimeAdded.Time)
 
 	replacementTime := metav1.NewTime(time.Unix(4, 0))
-	replacement := []NodeTaint{{Taint: v1.Taint{Key: "example.com/replacement", TimeAdded: &replacementTime}}}
+	replacement := []NodeTaint{{taint: v1.Taint{Key: "example.com/replacement", TimeAdded: &replacementTime}}}
 	updated := node.WithNodeTaints(replacement)
-	replacement[0].Taint.TimeAdded.Time = time.Unix(5, 0)
-	assert.Equal(t, time.Unix(4, 0), updated.nodeTaints[0].Taint.TimeAdded.Time)
+	replacement[0].taint.TimeAdded.Time = time.Unix(5, 0)
+	assert.Equal(t, time.Unix(4, 0), updated.nodeTaints[0].GetTaint().TimeAdded.Time)
 
 	copy := updated.DeepCopyNilKeys()
-	copy.nodeTaints[0].Taint.TimeAdded.Time = time.Unix(6, 0)
-	assert.Equal(t, time.Unix(4, 0), updated.nodeTaints[0].Taint.TimeAdded.Time)
+	copy.nodeTaints[0].taint.TimeAdded.Time = time.Unix(6, 0)
+	assert.Equal(t, time.Unix(4, 0), updated.nodeTaints[0].GetTaint().TimeAdded.Time)
 }
 
 func TestFromSchedulerObjectsNodeTaintMetadataCompleteness(t *testing.T) {
@@ -234,21 +251,21 @@ func TestWithNodeTaintsReplacesMetadataWithoutChangingTaints(t *testing.T) {
 	rawTaints := []v1.Taint{{Key: "example.com/dedicated", Value: "gpu", Effect: v1.TaintEffectNoSchedule}}
 	node := &Node{
 		taints:     rawTaints,
-		nodeTaints: []NodeTaint{{Taint: rawTaints[0], Category: "old"}},
+		nodeTaints: []NodeTaint{{taint: rawTaints[0], category: "old"}},
 	}
 	updatedNodeTaints := []NodeTaint{{
-		Taint:    v1.Taint{Key: "example.com/maintenance", Effect: v1.TaintEffectNoSchedule},
-		Category: "platform", UserFacing: true,
+		taint:    v1.Taint{Key: "example.com/maintenance", Effect: v1.TaintEffectNoSchedule},
+		category: "platform", userFacing: true,
 	}}
 
 	updated := node.WithNodeTaints(updatedNodeTaints)
 
 	assert.Equal(t, rawTaints, updated.GetTaints())
 	assert.Equal(t, updatedNodeTaints, updated.GetNodeTaints())
-	assert.Equal(t, []NodeTaint{{Taint: rawTaints[0], Category: "old"}}, node.GetNodeTaints())
+	assert.Equal(t, []NodeTaint{{taint: rawTaints[0], category: "old"}}, node.GetNodeTaints())
 
-	updatedNodeTaints[0].Category = "changed by caller"
-	assert.Equal(t, "platform", updated.GetNodeTaints()[0].Category)
+	updatedNodeTaints[0].category = "changed by caller"
+	assert.Equal(t, "platform", updated.GetNodeTaints()[0].GetCategory())
 }
 
 func createNodeWithIndexedLabelsAndTaints(taints []v1.Taint, labels map[string]string) *Node {
