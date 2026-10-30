@@ -57,9 +57,9 @@ type PriorityClass struct {
 	// Priority controls scheduling order. Higher values get scheduled first and can
 	// preempt running jobs with lower priority values (urgency-based preemption).
 	Priority int32 `validate:"gte=0"`
-	// Preemptible determines if jobs can be evicted to rebalance resources across queues.
-	// When false, jobs are protected from fair-share preemption but can still be preempted
-	// by higher-priority jobs.
+	// Preemptible determines whether Armada may preempt running jobs in this class.
+	// In pools without market-driven scheduling, false protects jobs from fair-share,
+	// urgency and manual preemption. Deprecated market-driven pools use separate bid-price rules.
 	Preemptible bool
 	// Limits resources assigned to jobs of this priority class.
 	// Specifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.
