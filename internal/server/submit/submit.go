@@ -185,6 +185,9 @@ func (s *Server) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) 
 	if err != nil {
 		return nil, err
 	}
+	if err := validateJobIds(jobIds); err != nil {
+		return nil, err
+	}
 
 	userId, groups, err := s.authorize(ctx, req.Queue, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
 	if err != nil {
@@ -213,6 +216,9 @@ func (s *Server) PreemptJobs(grpcCtx context.Context, req *api.JobPreemptRequest
 
 	err := validation.ValidateQueueAndJobSet(req)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateJobIds(req.JobIds); err != nil {
 		return nil, err
 	}
 
@@ -279,6 +285,9 @@ func (s *Server) ReprioritizeJobs(grpcCtx context.Context, req *api.JobRepriorit
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := validation.ValidateQueueAndJobSet(req)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateJobIds(req.JobIds); err != nil {
 		return nil, err
 	}
 
@@ -398,6 +407,16 @@ func (s *Server) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequ
 	}
 
 	return &types.Empty{}, err
+}
+
+// validateJobIds rejects job ids that the scheduler DB cannot store as text.
+func validateJobIds(jobIds []string) error {
+	for _, jobId := range jobIds {
+		if err := validation.ValidateStorableText("JobId", jobId); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Returns event sequence along with all valid job ids in the sequence
