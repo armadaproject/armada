@@ -1,81 +1,178 @@
 ---
-title: 'API Reference'
+title: 'API reference'
+description: "Call Armada's REST and gRPC APIs directly: base address, a worked example, and the main endpoints."
 ---
 
-## Overview
+{/* Tested 2026-10-08 on a laptop install (Armada 0.22.12): Steps 1 to 4 as written, and every endpoint in the table called once (all exist; responses in armada-docs-sprint/09-remaining-docs/07-api/endpoints.txt). Logins: basicAuth over REST tested 2026-10-06 (curl -u, 401 without credentials, 403 without a right); Bearer tokens tested live 2026-10-08 with a Keycloak token on the developer setup (create/get/delete a queue, HTTP 200; lowercase 'bearer' also works); source: internal/common/grpc/gateway.go, internal/common/auth/oidc.go. Updated 2026-10-13 from a source review: SchedulerReporting path, extra endpoints. */}
 
-Armada exposes both REST and gRPC APIs for programmatic access to all system functionality. These APIs are designed to be used programmatically, and the REST API is primarily intended for use with the Lookout UI.
+Armada has two APIs: **gRPC**, which `armadactl` and the client libraries use, and **REST** (HTTP with JSON), for the same operations from scripts or languages without a gRPC client. This page shows you how to call the REST API, and where to find the definitions for both.
 
-For most users, we recommend using `armadactl` (the CLI) or one of the available client libraries, which provide a more convenient and type-safe interface built on top of these APIs.
+Most people don't need to call the APIs directly: use [`armadactl`](/docs/cli) or a [client library](/docs/clients). Use the APIs to build your own tools, or when no client exists for your language.
 
-## REST API
+## Before you start
 
-The Armada REST API provides HTTP endpoints for interacting with the system. It's primarily designed for use with the Lookout UI, but can be used directly for custom integrations when needed.
+You need an Armada installation. On a laptop: [Getting started](/getting-started). You also need its API addresses:
 
-### OpenAPI Specification
+| API  | Laptop install           | Team installation                           |
+| ---- | ------------------------ | ------------------------------------------- |
+| REST | `http://localhost:30001` | Ask your platform team                      |
+| gRPC | `localhost:30002`        | The `armadaUrl` in your `~/.armadactl.yaml` |
 
-The REST API is fully documented with an auto-generated OpenAPI specification. This specification can be used to:
+## Call the REST API
 
-- Generate client libraries in your preferred language
-- Explore available endpoints
-- Understand request and response formats
-- Test API endpoints
+Every REST path starts with `/v1`. (Lookout's own API, at `localhost:30000/api/v1`, is a different API used by the web UI.)
 
-### Base URL
+### Step 1. Create a queue
 
-The REST API is typically available at:
-
+```bash
+curl -X POST http://localhost:30001/v1/queue \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "api-demo", "priorityFactor": 1}'
 ```
-http://<armada-server-host>:<port>/api/v1
+
+Check it:
+
+```bash
+curl http://localhost:30001/v1/queue/api-demo
 ```
 
-### Authentication
+**Success:** creating returns `{}`, and the check returns the queue as JSON, starting `{"name":"api-demo","priorityFactor":1,...`.
 
-The REST API supports various authentication methods including:
+Wait about 15 seconds before the next step: Armada checks for new queues every 10 seconds.
 
-- Basic authentication
-- OIDC-based authentication
-- Exec-based authentication (via configuration)
+### Step 2. Submit a job
 
-## gRPC API
+```bash
+curl -X POST http://localhost:30001/v1/job/submit \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "queue": "api-demo",
+    "jobSetId": "rest-1",
+    "jobRequestItems": [{
+      "namespace": "default",
+      "podSpec": {
+        "restartPolicy": "Never",
+        "containers": [{
+          "name": "hello",
+          "image": "alpine:3.21",
+          "command": ["sh", "-c", "echo hello from REST"],
+          "resources": {
+            "requests": {"cpu": "100m", "memory": "64Mi"},
+            "limits": {"cpu": "100m", "memory": "64Mi"}
+          }
+        }]
+      }
+    }]
+  }'
+```
 
-Armada's gRPC API provides a high-performance interface for programmatic access. The gRPC API is the foundation for all client libraries and offers:
+**Success:** it returns the new job's ID:
 
-- **Type safety** - Strongly typed request and response messages
-- **Performance** - Efficient binary protocol with streaming support
-- **Language support** - Generate clients in any language that supports gRPC
+```text title="Output"
+{"jobResponseItems":[{"jobId":"<job-id>"}]}
+```
 
-### Protocol Buffers
+The job follows the same rules as any Armada job: by default, each container's `limits` must equal its `requests`, but your platform team can allow higher limits (the server's `submission.maxOversubscriptionByResourceRequest`).
+{/* See [Submitting jobs](/docs/submitting-jobs). */}
 
-The gRPC API is defined using Protocol Buffers (protobuf). The API definitions can be found in the Armada repository and include:
+### Step 3. Check the job's state
 
-- Job submission and management
-- Queue operations
-- Event streaming
-- Resource management
+```bash
+curl -X POST http://localhost:30001/v1/job/status \
+  -H 'Content-Type: application/json' \
+  -d '{"jobIds": ["<job-id>"]}'
+```
 
-### Key Services
+**Success:** after about 30 seconds:
 
-- **Submit** - Submit jobs to queues
-- **Event** - Stream job events
-- **Queue** - Manage queues and queue operations
+```text title="Output"
+{"jobStates":{"<job-id>":3}}
+```
 
-## When to Use the APIs Directly
+Run it a few times to see the job move along. In testing it went `5` (straight after submitting, before Armada had recorded it), then `0`, `7`, `2` and `3`.
 
-Consider using the APIs directly when:
+States are returned as numbers. `3` means the job succeeded:
 
-- No client library is available for your language
-- You need fine-grained control over API interactions
-- You're building custom tooling or integrations
-- You're contributing to Armada client libraries
+| Number | State     | Number | State     |
+| ------ | --------- | ------ | --------- |
+| `0`    | QUEUED    | `6`    | SUBMITTED |
+| `1`    | PENDING   | `7`    | LEASED    |
+| `2`    | RUNNING   | `8`    | PREEMPTED |
+| `3`    | SUCCEEDED | `9`    | CANCELLED |
+| `4`    | FAILED    | `10`   | REJECTED  |
+| `5`    | UNKNOWN   |        |           |
 
-For most use cases, we recommend using:
+### Step 4. Clean up
 
-- `armadactl` for command-line interactions
-- Client libraries for programmatic access in applications
+```bash
+curl -X DELETE http://localhost:30001/v1/queue/api-demo
+```
 
-## Resources
+**Success:** it returns `{}`.
 
-- [OpenAPI Specification](https://github.com/armadaproject/armada/blob/master/pkg/api/api.swagger.json) - Full REST API documentation
-- [gRPC API Definitions](https://github.com/armadaproject/armada/tree/master/pkg/api) - Protocol buffer definitions
-- [Client Libraries](/docs/clients) - Pre-built libraries for popular languages
+## Logging in
+
+A laptop install has no login. On a team installation, send your login in the `Authorization` header with every request, the same way the gRPC API receives it:
+
+```bash
+# A token from your login provider
+curl -H "Authorization: Bearer <token>" https://<your-armada-rest-address>/v1/queue/<queue>
+
+# Or a username and password, if your installation uses them
+curl -u <user>:<password> https://<your-armada-rest-address>/v1/queue/<queue>
+```
+
+Without credentials you get HTTP 401 (`Request could not be authenticated ...`); without the right permission, HTTP 403 with the same message `armadactl` shows. `/health` needs no login.
+{/* See [Authentication](/docs/authentication) for getting a token. */}
+
+## REST endpoints
+
+| Method and path                                                                                     | What it does                                                                                                         |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/job/submit`                                                                               | Submit jobs                                                                                                          |
+| `POST /v1/job/status`                                                                               | Get jobs' current states                                                                                             |
+| `POST /v1/job/details`, `POST /v1/job/errors`                                                       | Get jobs' details, or their error messages                                                                           |
+| `POST /v1/run/details`                                                                              | Get details of jobs' runs                                                                                            |
+| `POST /v1/job/cancel`, `POST /v1/jobset/cancel`                                                     | Cancel jobs, or a whole job set                                                                                      |
+| `POST /v1/job/reprioritize`                                                                         | Change waiting jobs' priority                                                                                        |
+| `POST /v1/job/preempt`                                                                              | Preempt jobs                                                                                                         |
+| `POST /v1/job-set/{queue}/{id}`                                                                     | Stream a job set's events. The body can be `{}`; the response is one JSON object per line, each `{"result": {...}}`. |
+| `POST /v1/queue`, `GET /v1/queue/{name}`, `PUT /v1/queue/{name}`, `DELETE /v1/queue/{name}`         | Create, read, replace or delete a queue                                                                              |
+| `GET /v1/batched/queues`                                                                            | List queues, one JSON object per line. (There's no `GET /v1/queues`.)                                                |
+| `POST /v1/queues/active`                                                                            | List queues with active jobs                                                                                         |
+| `POST /v1/batched/create_queues`, `PUT /v1/batched/update_queues`                                   | Create or replace several queues at once                                                                             |
+| `POST /v1/job/statusUsingExternalJobUri`                                                            | Get a job's state by the external URI a tool such as Airflow gave it                                                 |
+| `POST /v1/retry-policy`, `GET /v1/retry-policies`, `GET`, `PUT` or `DELETE /v1/retry-policy/{name}` | Manage retry policies                                                                                                |
+
+Every endpoint and field is described in the [OpenAPI specification](https://github.com/armadaproject/armada/blob/master/pkg/api/api.swagger.json).
+
+Cancelling or preempting the jobs on one node is only in the gRPC API (the `Node` service, or `armadactl cancel node` and `armadactl preempt node`). The `/v1/node/...` paths in the API definitions return HTTP 404, because the REST API doesn't serve them.
+
+## The gRPC API
+
+The gRPC API is defined in Protocol Buffers files in [`pkg/api`](https://github.com/armadaproject/armada/tree/master/pkg/api). The services you're most likely to use:
+
+| Service              | What it covers                                                                                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Submit`             | Submitting, cancelling, reprioritizing and preempting jobs                                                                                                                |
+| `QueueService`       | Creating, reading, updating and deleting queues                                                                                                                           |
+| `Event`              | Streaming job set events                                                                                                                                                  |
+| `Jobs`               | Looking up jobs' status, details and errors                                                                                                                               |
+| `RetryPolicyService` | Managing retry policies                                                                                                                                                   |
+| `Node`               | Cancelling or preempting the jobs on one node (needs `cancel_any_jobs` or `preempt_any_jobs`)                                                                             |
+| `SchedulerReporting` | The scheduler's job, queue and scheduling reports (defined in [`pkg/api/schedulerobjects`](https://github.com/armadaproject/armada/tree/master/pkg/api/schedulerobjects)) |
+
+You can generate a client for any language that supports gRPC from these files. For Python, Go, Java, Scala, .NET and Rust, use the ready-made [client libraries](/docs/clients) instead.
+
+## Troubleshooting
+
+| What you see                                              | Cause                                                                                              | Fix                                                                                                                                                                                                                                                                                                                     |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Not Found` (HTTP 404)                                    | The path doesn't start with `/v1`, uses `/api/v1`, or doesn't exist (for example `GET /v1/queues`) | Use `http://<host>:<port>/v1/...` and a path from the table.                                                                                                                                                                                                                                                            |
+| HTTP 401, `Request could not be authenticated ...`        | No login, or a wrong one                                                                           | Add the `Authorization` header (see [Logging in](#logging-in)).                                                                                                                                                                                                                                                         |
+| HTTP 403, `... lacks permission <right> ...`              | You're logged in, but don't have the right                                                         | Ask your platform team.                                                                                                                                                                                                                                                                                                 |
+| State `5` (UNKNOWN) straight after submitting             | Armada hasn't recorded the job yet                                                                 | Ask again after a few seconds.                                                                                                                                                                                                                                                                                          |
+| `Connection refused`                                      | Wrong address or port, or Armada isn't running                                                     | A laptop install's REST API is on port 30001. gRPC is on 30002.                                                                                                                                                                                                                                                         |
+| Submission errors such as `namespace is a required field` | The job breaks a submission rule                                                                   | Check the job: it needs a `namespace`, exactly one pod, and `resources` with `requests` and `limits` for the same resources. By default `limits` must equal `requests`; your platform team can allow higher limits (the server's `submission.maxOversubscriptionByResourceRequest`). The error names the rule it broke. |
+| States are numbers, not names                             | REST returns states as numbers                                                                     | See the table in [Step 3](#step-3-check-the-jobs-state).                                                                                                                                                                                                                                                                |
+| Submission errors such as `namespace is a required field` | The job breaks a submission rule                                                                   | Check the job: it needs a `namespace`, exactly one pod, and `resources` with `requests` equal to `limits`. The error names the rule it broke.                                                                                                                                                                           |
