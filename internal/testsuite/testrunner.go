@@ -11,6 +11,8 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -26,12 +28,63 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
+// Check a call's outcome is reconciled against testSpec.ExpectErrorCode for negative tests.
+func checkExpectedError(testSpec *api.TestSpec, err error) error {
+	if err == nil || testSpec.GetExpectedError().GetCode() == 0 {
+		return err
+	}
+	wantCode := codes.Code(testSpec.GetExpectedError().GetCode())
+	// A plain error (e.g. failing to reach the auth provider) maps to codes.Unknown, so only
+	// accept errors that are a real gRPC status returned by the server.
+	if _, ok := status.FromError(err); !ok {
+		return errors.Wrapf(err, "expected call to fail with a gRPC status of %s, got a non-gRPC error", wantCode)
+	}
+	if status.Code(err) != wantCode {
+		return errors.Wrapf(err, "expected call to fail with code %s", wantCode)
+	}
+	return nil
+}
+
+// validateExpectedError requires the phase to be stated whenever an error is expected.
+func validateExpectedError(testSpec *api.TestSpec) error {
+	expected := testSpec.GetExpectedError()
+	if expected.GetCode() != 0 && expected.GetPhase() == api.ExpectedErrorConfig_UNSPECIFIED {
+		return errors.New("expectedError.phase must be set (QUEUE, SUBMIT or ACTION) when expectedError.code is set")
+	}
+	return nil
+}
+
+// reconcileError checks the outcome of a call made during the given phase. The expected error code
+// is only accepted from the phase under test, so a permission failure in an earlier setup step can't
+// satisfy a test that targets a later action. observed is true if the expected error was seen.
+func reconcileError(testSpec *api.TestSpec, under, current api.ExpectedErrorConfig_Phase, err error) (observed bool, outErr error) {
+	if err == nil {
+		return false, nil
+	}
+	if under != current {
+		return false, err
+	}
+	if outErr = checkExpectedError(testSpec, err); outErr != nil || testSpec.GetExpectedError().GetCode() == 0 {
+		return false, outErr
+	}
+	return true, nil
+}
+
 type TestRunner struct {
 	Out                  io.Writer
 	apiConnectionDetails *client.ApiConnectionDetails
-	testSpec             *api.TestSpec
-	eventLogger          *eventlogger.EventLogger
-	TestCaseReport       *TestCaseReport
+	// used to authenticate cleanup actions at the end of the test run.
+	cleanupConnectionDetails *client.ApiConnectionDetails
+	testSpec                 *api.TestSpec
+	eventLogger              *eventlogger.EventLogger
+	TestCaseReport           *TestCaseReport
+}
+
+func (srv *TestRunner) cleanupConn() *client.ApiConnectionDetails {
+	if srv.cleanupConnectionDetails != nil {
+		return srv.cleanupConnectionDetails
+	}
+	return srv.apiConnectionDetails
 }
 
 // Convert to Junit TestCase according to spec: https://llg.cubic.org/docs/junit/
@@ -70,6 +123,21 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		}
 	}()
 
+	// Track whether an expected error has been observed during the test run.
+	var expectedErrorObserved bool
+	defer func() {
+		if err == nil && srv.testSpec.GetExpectedError().GetCode() != 0 && !expectedErrorObserved {
+			err = errors.Errorf(
+				"expected a call to fail with code %s, but the test completed successfully",
+				codes.Code(srv.testSpec.GetExpectedError().GetCode()),
+			)
+		}
+	}()
+
+	if err = validateExpectedError(srv.testSpec); err != nil {
+		return err
+	}
+
 	// Optional timeout
 	var cancel context.CancelFunc
 	timeout := protoutil.ToStdDuration(srv.testSpec.Timeout)
@@ -81,21 +149,46 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	defer cancel()
 
 	// Create and (optionally) update the queue(s) under test.
-	queueNames, err := queue.RunSetup(ctx, srv.testSpec, srv.apiConnectionDetails, out)
+	// Queues are fixtures unless the queue calls themselves are under test, so create and delete
+	// them as the privileged principal rather than the (possibly restricted) principal under test.
+	phaseUnderTest := srv.testSpec.GetExpectedError().GetPhase()
+	queueConn := srv.apiConnectionDetails
+	if phaseUnderTest == api.ExpectedErrorConfig_SUBMIT || phaseUnderTest == api.ExpectedErrorConfig_ACTION {
+		queueConn = srv.cleanupConn()
+	}
+
+	queueNames, setupErr := queue.RunSetup(ctx, srv.testSpec, queueConn, out)
+	observed, err := reconcileError(srv.testSpec, phaseUnderTest, api.ExpectedErrorConfig_QUEUE, setupErr)
 	if err != nil {
 		return err
 	}
-	if err = queue.RunUpdate(ctx, queueNames, srv.testSpec, srv.apiConnectionDetails, out); err != nil {
+	if observed {
+		expectedErrorObserved = true
+		return nil
+	}
+	updateErr := queue.RunUpdate(ctx, queueNames, srv.testSpec, queueConn, out)
+	observed, err = reconcileError(srv.testSpec, phaseUnderTest, api.ExpectedErrorConfig_QUEUE, updateErr)
+	if err != nil {
 		return err
+	}
+	if observed {
+		expectedErrorObserved = true
+		return nil
 	}
 
 	// (deferred): always delete the queue(s) once the test finishes.
 	defer func() {
-		if teardownErr := queue.RunTeardown(queueNames, srv.testSpec, srv.apiConnectionDetails, out); teardownErr != nil {
-			fmt.Fprintf(out, "warning: queue teardown failed: %s\n", teardownErr)
+		teardownErr := queue.RunTeardown(queueNames, srv.testSpec, queueConn, out)
+		observed, checkedErr := reconcileError(srv.testSpec, phaseUnderTest, api.ExpectedErrorConfig_QUEUE, teardownErr)
+		if checkedErr != nil {
+			fmt.Fprintf(out, "warning: queue teardown failed: %s\n", checkedErr)
 			if err == nil {
-				err = teardownErr
+				err = checkedErr
 			}
+			return
+		}
+		if observed {
+			expectedErrorObserved = true
 		}
 	}()
 
@@ -110,8 +203,28 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 
 	// Submit jobs. All jobs must be submitted before proceeding since we need the job ids.
 	sbmtr := submitter.NewSubmitterFromTestSpec(srv.apiConnectionDetails, srv.testSpec, out)
-	if err = sbmtr.Run(ctx); err != nil {
+	submitErr := sbmtr.Run(ctx)
+	observed, err = reconcileError(srv.testSpec, phaseUnderTest, api.ExpectedErrorConfig_SUBMIT, submitErr)
+	if err != nil {
 		return err
+	}
+	if observed {
+		expectedErrorObserved = true
+		return nil
+	}
+	// Before returning, cancel the job set to ensure there are no lingering jobs, including when
+	// a negative submit test unexpectedly succeeds.
+	defer func() {
+		if err := cancelJobSet(srv.cleanupConn(), srv.testSpec.Queue, srv.testSpec.JobSetId); err != nil {
+			fmt.Fprintf(out, "failed to cancel job set %s: %s\n", srv.testSpec.JobSetId, err)
+		}
+	}()
+
+	if phaseUnderTest == api.ExpectedErrorConfig_SUBMIT {
+		return errors.Errorf(
+			"expected job submission to fail with code %s, but it succeeded",
+			codes.Code(srv.testSpec.GetExpectedError().GetCode()),
+		)
 	}
 	jobIds := sbmtr.JobIds()
 	jobIdMap := make(map[string]bool)
@@ -124,30 +237,34 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 		return err
 	}
 
-	// Before returning, cancel the job set to ensure there are no lingering jobs.
-	defer func() {
-		if err := cancelJobSet(srv.apiConnectionDetails, srv.testSpec.Queue, srv.testSpec.JobSetId); err != nil {
-			fmt.Fprintf(out, "failed to cancel job set %s: %s\n", srv.testSpec.JobSetId, err)
-		}
-	}()
-
 	// One channel for each system listening to events.
 	benchmarkCh := make(chan *api.EventMessage)
 	noActiveCh := make(chan *api.EventMessage)
 	assertCh := make(chan *api.EventMessage)
 	ingressCh := make(chan *api.EventMessage)
 
+	// actionUnderTestErr holds the result of whichever RPC a negative RBAC test is checking
+	var actionUnderTestErr error
+	actionConfigured := hasConfiguredAction(srv.testSpec)
+
 	// Goroutine forwarding API events on a channel.
 	watcher := eventwatcher.New(srv.testSpec.Queue, srv.testSpec.JobSetId, srv.apiConnectionDetails)
 	watcher.Out = out
-	g.Go(func() error { return watcher.Run(ctx) })
+	g.Go(func() error {
+		err := watcher.Run(ctx)
+		// Only the RPC under test writes actionUnderTestErr; when an action is configured
+		if !actionConfigured {
+			actionUnderTestErr = err
+		}
+		return err
+	})
 
 	// Build list of event channels based on test configuration.
 	eventChannels := []chan *api.EventMessage{assertCh, ingressCh, noActiveCh, benchmarkCh, srv.eventLogger.In}
 
 	// Add action channel if cancel or preempt is configured and waits for all jobs to reach a trigger state before acting.
 	var actionCh chan *api.EventMessage
-	if hasConfiguredAction(srv.testSpec) {
+	if actionConfigured {
 		actionCh = make(chan *api.EventMessage)
 		eventChannels = append(eventChannels, actionCh)
 	}
@@ -160,13 +277,15 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	g.Go(func() error { return splitter.Run(ctx) })
 
 	// If configured, cancel or preempt jobs once all reach the configured trigger event.
-	if hasConfiguredAction(srv.testSpec) {
+	if actionConfigured {
 		extractor, err := triggerEventExtractor(srv.testSpec)
 		if err != nil {
 			return err
 		}
 		g.Go(func() error {
-			return runActionOnState(ctx, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName, extractor)
+			err := runActionOnState(ctx, out, actionCh, srv.testSpec, srv.apiConnectionDetails, jobIds, nodeName, extractor)
+			actionUnderTestErr = err
+			return err
 		})
 	}
 
@@ -184,16 +303,27 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Watch for ingress events and try to download from any ingresses found.
 	g.Go(func() error { return eventwatcher.GetFromIngresses(ctx, ingressCh) })
 
+	if srv.testSpec.GetExpectedError().GetCode() != 0 {
+		_ = eventwatcher.AssertEvents(ctx, assertCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents)
+		cancel()
+		_ = g.Wait()
+		observed, checkedErr := reconcileError(srv.testSpec, phaseUnderTest, api.ExpectedErrorConfig_ACTION, actionUnderTestErr)
+		if checkedErr != nil {
+			return checkedErr
+		}
+		expectedErrorObserved = observed
+		return nil
+	}
+
 	// Assert that we get the right events for each job.
 	// Returns once we've received all events or when ctx is cancelled.
-	if err = eventwatcher.AssertEvents(ctx, assertCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents); err != nil {
+	if assertErr := eventwatcher.AssertEvents(ctx, assertCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents); assertErr != nil {
 		cancel()
 		groupErr := g.Wait()
 		if groupErr != nil {
-			return errors.Errorf("%s: %s", err, groupErr)
-		} else {
-			return err
+			return errors.Errorf("%s: %s", assertErr, groupErr)
 		}
+		return assertErr
 	}
 
 	// If configured, cancel the job set once it has no active jobs (all jobs terminal) and
@@ -303,10 +433,32 @@ func cancelJobSet(conn *client.ApiConnectionDetails, queue, jobSetId string) err
 	})
 }
 
+// actionName returns a human-readable label for testSpec's configured action, for logging
+// alongside its outcome (see runActionOnState) -- mirrors dispatchAction's own switch so the
+// label always matches the RPC actually issued.
+func actionName(testSpec *api.TestSpec) string {
+	switch {
+	case testSpec.CancelJobSet != nil:
+		return "CancelJobSet"
+	case testSpec.CancelOnNode != nil:
+		return "CancelOnNode"
+	case testSpec.PreemptOnNode != nil:
+		return "PreemptOnNode"
+	case testSpec.Cancel != nil:
+		return "CancelJobs"
+	case testSpec.Preempt != nil:
+		return "PreemptJobs"
+	case testSpec.Reprioritize != nil:
+		return "ReprioritizeJobs"
+	default:
+		return "action"
+	}
+}
+
 // runActionOnState waits for all jobs to be reported by jobIdFromEvent, then issues the configured action.
 // jobIdFromEvent should return the job ID when the event matches the desired trigger state, or "" to ignore the event.
-// nodeName is only relevant for node-scoped actions (CancelOnNode/PreemptOnNode).
-func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string, jobIdFromEvent func(*api.EventMessage) string) error {
+// nodeName is only relevant for node-scoped actions (CancelOnNode/PreemptOnNode)
+func runActionOnState(ctx context.Context, out io.Writer, eventCh chan *api.EventMessage, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string, nodeName string, jobIdFromEvent func(*api.EventMessage) string) error {
 	jobIdSet := make(map[string]bool, len(jobIds))
 	for _, id := range jobIds {
 		jobIdSet[id] = true
@@ -321,9 +473,12 @@ func runActionOnState(ctx context.Context, eventCh chan *api.EventMessage, testS
 				triggeredJobs[jobId] = true
 				if len(triggeredJobs) == len(jobIds) {
 					time.Sleep(1 * time.Second)
-					if err := dispatchAction(ctx, testSpec, conn, jobIds, nodeName); err != nil {
+					err := dispatchAction(ctx, testSpec, conn, jobIds, nodeName)
+					if err != nil {
+						fmt.Fprintf(out, "%s %d job(s) in job set %s: FAIL (%v)\n", actionName(testSpec), len(jobIds), testSpec.JobSetId, err)
 						return err
 					}
+					fmt.Fprintf(out, "%s %d job(s) in job set %s: SUCCESS\n", actionName(testSpec), len(jobIds), testSpec.JobSetId)
 					// Drain the channel to avoid blocking the splitter.
 					for {
 						select {
