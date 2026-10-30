@@ -411,7 +411,10 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			},
 		},
 	}
-	for _, key := range []string{"node-role.kubernetes.io/master", "node-role.kubernetes.io/control-plane"} {
+	for _, key := range map[string]string{
+		"legacy master": "node-role.kubernetes.io/master",
+		"control plane": "node-role.kubernetes.io/control-plane",
+	} {
 		masterTaint := &v1.Taint{Key: key, Effect: v1.TaintEffectNoSchedule}
 		workerTaint := &v1.Taint{Key: "example.com/user", Effect: v1.TaintEffectNoSchedule}
 		master := SmallNode("cpu")
