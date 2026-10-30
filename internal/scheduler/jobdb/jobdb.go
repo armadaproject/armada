@@ -842,11 +842,9 @@ func (txn *Txn) Upsert(jobs []*Job) error {
 		defer wg.Done()
 		// Skipped entirely when the aggregate is disabled (both Compare and
 		// Use flags off), so that path pays no per-job aggregate cost.
-		if txn.aggregate.enabled() {
-			for _, job := range jobs {
-				txn.aggregate.add(job)
-			}
-		}
+		// Adds are batched per bucket so that bulk upserts (e.g. the initial
+		// JobDb population) do not copy the immutable aggregate per job.
+		txn.aggregate.addAll(jobs)
 	}()
 
 	wg.Wait()
@@ -993,6 +991,105 @@ func (txn *Txn) GetQueueDemand(pool string, queue string) map[string]internaltyp
 		return map[string]internaltypes.ResourceList{}
 	}
 	return txn.aggregate.getQueueDemand(pool, queue)
+}
+
+// CalculateSchedulingInfo derives the running scheduling information for the
+// pool described by currentPool, awayAllocationPools and allPools from the
+// aggregate instead of scanning every leased job. The leased jobs themselves
+// come from the JobDb's leased set; running demand, allocation and in-use
+// priority classes come from the running aggregate.
+//
+// knownQueues is used to discard jobs whose queue no longer exists, matching the
+// legacy calculation.
+func (txn *Txn) CalculateSchedulingInfo(
+	activeExecutorsSet map[string]bool,
+	currentPool string,
+	awayAllocationPools []string,
+	allPools []string,
+	knownQueues map[string]bool,
+) *SchedulingInfo {
+	info := &SchedulingInfo{
+		JobsByExecutorId:                     map[string][]*Job{},
+		JobsByPool:                           map[string][]*Job{},
+		DemandByQueueAndPriorityClass:        map[string]map[string]internaltypes.ResourceList{},
+		AllocatedByQueueAndPriorityClass:     map[string]map[string]internaltypes.ResourceList{},
+		AwayAllocatedByQueueAndPriorityClass: map[string]map[string]internaltypes.ResourceList{},
+		InUsePriorityClasses:                 map[string]bool{},
+	}
+	if !txn.aggregate.runningEnabled {
+		return info
+	}
+
+	allPoolsSet := make(map[string]bool, len(allPools))
+	for _, pool := range allPools {
+		allPoolsSet[pool] = true
+	}
+	awayPoolsSet := make(map[string]bool, len(awayAllocationPools))
+	for _, pool := range awayAllocationPools {
+		awayPoolsSet[pool] = true
+	}
+
+	// Leased jobs, grouped by their run's pool, and by executor for pools in allPools.
+	if txn.leasedJobs != nil {
+		for _, job := range txn.leasedJobs.Items() {
+			run := job.LatestRun()
+			if run == nil || !queueKnown(knownQueues, job.Queue()) {
+				continue
+			}
+			pool := run.Pool()
+			info.JobsByPool[pool] = append(info.JobsByPool[pool], job)
+			if allPoolsSet[pool] {
+				executor := run.Executor()
+				info.JobsByExecutorId[executor] = append(info.JobsByExecutorId[executor], job)
+			}
+		}
+	}
+
+	// Running demand, allocation and in-use priority classes come from the
+	// allocation aggregate. Demand counts every executor, allocation only active
+	// ones.
+	poolIt := txn.aggregate.allocatedByExecutor.Iterator()
+	for !poolIt.Done() {
+		pool, executorMap, _ := poolIt.Next()
+		if executorMap == nil {
+			continue
+		}
+		homePool := pool == currentPool
+		awayPool := awayPoolsSet[pool]
+		executorIt := executorMap.Iterator()
+		for !executorIt.Done() {
+			executor, queueMap, _ := executorIt.Next()
+			if queueMap == nil {
+				continue
+			}
+			active := activeExecutorsSet[executor]
+			queueIt := queueMap.Iterator()
+			for !queueIt.Done() {
+				queue, pcMap, _ := queueIt.Next()
+				if pcMap == nil || !queueKnown(knownQueues, queue) {
+					continue
+				}
+				pcIt := pcMap.Iterator()
+				for !pcIt.Done() {
+					pc, bucket, _ := pcIt.Next()
+					rl := bucket.resources
+					info.InUsePriorityClasses[pc] = true
+					if homePool {
+						addResource(info.DemandByQueueAndPriorityClass, queue, pc, rl)
+					}
+					if active {
+						if homePool {
+							addResource(info.AllocatedByQueueAndPriorityClass, queue, pc, rl)
+						} else if awayPool {
+							addResource(info.AwayAllocatedByQueueAndPriorityClass, queue, pc, rl)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return info
 }
 
 // GetAll returns all jobs in the database.
