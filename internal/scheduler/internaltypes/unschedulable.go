@@ -28,3 +28,10 @@ func UnschedulableTaint() v1.Taint {
 func IsCordonTaint(taint v1.Taint) bool {
 	return taint.Key == unschedulableTaintKey || taint.Key == v1.TaintNodeUnschedulable
 }
+
+// IsMasterTaint reports whether taint identifies a Kubernetes control-plane node.
+// Match by key to cover both the legacy master and current control-plane taints,
+// regardless of their value or effect.
+func IsMasterTaint(taint v1.Taint) bool {
+	return taint.Key == "node-role.kubernetes.io/master" || taint.Key == "node-role.kubernetes.io/control-plane"
+}

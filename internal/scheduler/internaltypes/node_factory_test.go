@@ -137,6 +137,32 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			wantMetadata: []NodeTaint{},
 		},
 		{
+			name: "legacy master taint is kept with complete metadata",
+			taints: []*v1.Taint{
+				{Key: "node-role.kubernetes.io/master", Effect: v1.TaintEffectNoSchedule},
+			},
+			metadata: []*schedulerobjects.NodeTaint{
+				{Taint: &v1.Taint{Key: "node-role.kubernetes.io/master", Effect: v1.TaintEffectNoSchedule}},
+			},
+			wantTaints: []v1.Taint{{Key: "node-role.kubernetes.io/master", Effect: v1.TaintEffectNoSchedule}},
+			wantMetadata: []NodeTaint{{
+				taint: v1.Taint{Key: "node-role.kubernetes.io/master", Effect: v1.TaintEffectNoSchedule},
+			}},
+		},
+		{
+			name: "control-plane taint is kept with complete metadata",
+			taints: []*v1.Taint{
+				{Key: "node-role.kubernetes.io/control-plane", Effect: v1.TaintEffectNoSchedule},
+			},
+			metadata: []*schedulerobjects.NodeTaint{
+				{Taint: &v1.Taint{Key: "node-role.kubernetes.io/control-plane", Effect: v1.TaintEffectNoSchedule}},
+			},
+			wantTaints: []v1.Taint{{Key: "node-role.kubernetes.io/control-plane", Effect: v1.TaintEffectNoSchedule}},
+			wantMetadata: []NodeTaint{{
+				taint: v1.Taint{Key: "node-role.kubernetes.io/control-plane", Effect: v1.TaintEffectNoSchedule},
+			}},
+		},
+		{
 			name:           "schedulable incomplete metadata is kept",
 			taints:         []*v1.Taint{&admin},
 			schedulable:    true,
