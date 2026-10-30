@@ -135,9 +135,9 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 	return result
 }
 
-// RemoveCordonTaints returns nodes with the cordon taint stripped (see IsCordonTaint), taints that
-// have been categorized stripped, and the unschedulable flag cleared. Schedulable nodes without
-// complete metadata are returned unchanged.
+// RemoveCordonTaints strips cordon taints (see IsCordonTaint) and clears the unschedulable flag.
+// With complete metadata, it also strips non-user-facing taints, including uncategorized taints.
+// Without complete metadata, it preserves non-cordon taints and leaves schedulable nodes unchanged.
 //
 // The submit checker uses it so that jobs targeting a node type whose
 // nodes are all cordoned (via `kubectl cordon`, or otherwise reported unschedulable by the executor)
@@ -181,8 +181,7 @@ func removeCordonTaintsWithMetadata(node *Node) *Node {
 	nodeTaints := node.GetNodeTaints()
 	nonCordonNodeTaints := make([]NodeTaint, 0, len(nodeTaints))
 	for _, nodeTaint := range nodeTaints {
-		if !IsCordonTaint(nodeTaint.taint) &&
-			(nodeTaint.IsUserFacing() || nodeTaint.category == "") {
+		if !IsCordonTaint(nodeTaint.taint) && nodeTaint.GetUserFacing() {
 			nonCordonNodeTaints = append(nonCordonNodeTaints, nodeTaint)
 			nonCordonTaints = append(nonCordonTaints, nodeTaint.taint)
 		}

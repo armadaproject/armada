@@ -45,12 +45,11 @@ func TestAddTaintsPreservesMetadataAndAddsNeutralEntries(t *testing.T) {
 	assert.Equal(t, originalTaints, node.GetTaints())
 	assert.Equal(t, originalMetadata, node.GetNodeTaints())
 
-	// Added restrictions and user-facing taints must survive metadata-aware filtering.
+	// Metadata-aware filtering removes the neutral taint but keeps the user-facing taint.
 	filtered := factory.RemoveCordonTaints(result)
-	assert.Equal(t, []v1.Taint{existing, added}, filtered[0].GetTaints())
+	assert.Equal(t, []v1.Taint{existing}, filtered[0].GetTaints())
 	assert.Equal(t, []NodeTaint{
 		{taint: existing, category: "user", userFacing: true},
-		{taint: added},
 	}, filtered[0].GetNodeTaints())
 
 	// Neither representation may retain mutable timestamps owned by the caller.
@@ -89,9 +88,8 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 				{Taint: &restricted},
 				{Taint: &cordon},
 			},
-			wantTaints: []v1.Taint{restricted, user},
+			wantTaints: []v1.Taint{user},
 			wantMetadata: []NodeTaint{
-				{taint: restricted},
 				{taint: user, category: "user", userFacing: true},
 			},
 		},
@@ -126,12 +124,17 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			wantMetadata: []NodeTaint{{taint: user, category: "user", userFacing: true}},
 		},
 		{
-			name:         "schedulable neutral taint is kept",
+			name:         "schedulable neutral taint is removed",
 			taints:       []*v1.Taint{&restricted},
 			metadata:     []*schedulerobjects.NodeTaint{{Taint: &restricted}},
 			schedulable:  true,
-			wantTaints:   []v1.Taint{restricted},
-			wantMetadata: []NodeTaint{{taint: restricted}},
+			wantMetadata: []NodeTaint{},
+		},
+		{
+			name:         "unschedulable neutral taint is removed",
+			taints:       []*v1.Taint{&restricted},
+			metadata:     []*schedulerobjects.NodeTaint{{Taint: &restricted}},
+			wantMetadata: []NodeTaint{},
 		},
 		{
 			name:           "schedulable incomplete metadata is kept",
