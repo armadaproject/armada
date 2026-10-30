@@ -89,13 +89,13 @@ Armada runs locally via [Goreman](https://github.com/mattn/goreman) — dependen
 mage kind                  # one-time: create local Kubernetes cluster
 export KUBECONFIG=.kube/external/config
 
-mage dev:up                # default — no auth
+mage dev:up no-auth        # standard profile — no auth
 mage dev:up auth           # with OIDC via Keycloak
 mage dev:up fake-executor  # no Kubernetes cluster needed
 mage dev:down              # stop dependency containers
 ```
 
-→ **[Full local development guide](https://armadaproject.io/docs/developer-guide)** — profiles, procfiles, service ports, authentication, and debugging.
+→ **[Local development entrypoint](https://armadaproject.io/docs/developer-guide)** and **[full local development reference](docs/developer_guide.md)** — profiles, procfiles, service ports, authentication, and debugging.
 
 ---
 
@@ -136,6 +136,7 @@ Everyone is welcome — come and say hi! 👋
 We'd love your contributions — code, docs, bug reports, or ideas. All are welcome.
 
 - Read [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines
+- For website and published documentation changes, follow [website/README.md](website/README.md)
 - Check [good first issues](https://github.com/armadaproject/armada/labels/good%20first%20issue) for a starting point
 - All commits require a [DCO sign-off](https://developercertificate.org/): `git commit -s`
 - Please review [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) before contributing

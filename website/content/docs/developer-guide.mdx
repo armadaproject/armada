@@ -8,6 +8,8 @@ import { Step, Steps } from 'fumadocs-ui/components/steps';
 
 This guide walks you through setting up a local Armada development environment using Goreman, our recommended approach for contributing to Armada.
 
+For the full local-development reference, including profiles, service ports, tests and editor configurations, see [docs/developer_guide.md](https://github.com/armadaproject/armada/blob/master/docs/developer_guide.md). This published entrypoint is maintained in [website/content/docs/developer-guide.mdx](https://github.com/armadaproject/armada/blob/master/website/content/docs/developer-guide.mdx); follow [website/README.md](https://github.com/armadaproject/armada/blob/master/website/README.md) to edit and check website content.
+
 ## Prerequisites
 
 Before you begin, make sure you have the following installed:
@@ -69,12 +71,14 @@ This is a one-time setup step.
 **Start all Armada services**
 
 ```bash
-mage dev:up
+mage dev:up no-auth
 ```
 
 This starts Redis, PostgreSQL, and Pulsar in containers, then runs the Armada
 server, scheduler, executor, Lookout, and all ingesters as local processes via
 Goreman.
+
+The profile argument is required. Keep `KUBECONFIG=.kube/external/config` set for the `no-auth` and `auth` profiles so the real executor uses your local Kind cluster. Skip the Kind step when using the [fake executor](#running-without-a-kubernetes-cluster).
 
 </Step>
 
@@ -82,8 +86,10 @@ Goreman.
 
 **Verify everything is running**
 
+In a second terminal, from the repository root:
+
 ```bash
-goreman run status
+./bin/goreman -f _local/procfiles/no-auth.Procfile run status
 ```
 
 Running processes are prefixed with `*`:
@@ -105,7 +111,7 @@ Running processes are prefixed with `*`:
   Restart individual processes without stopping everything:
 
 ```bash
-  goreman restart server
+  ./bin/goreman -f _local/procfiles/no-auth.Procfile run restart server
 ```
 
 </Callout>
@@ -113,15 +119,17 @@ Running processes are prefixed with `*`:
 **Useful mage commands**
 
 ```bash
-mage dev:up        # start dependencies + Armada components via Goreman
-mage dev:full      # run the entire stack in containers against Kind (what CI uses)
-mage dev:down      # stop dependency containers (after mage dev:up)
-mage dev:fullDown  # stop containerised stack and tear down Kind (after mage dev:full)
+mage dev:up no-auth # start dependencies + Armada components via Goreman
+mage dev:full       # run the entire stack in containers against Kind (what CI uses)
+mage dev:down       # stop dependency containers (after mage dev:up)
+mage dev:fullDown   # stop containerised stack and tear down Kind (after mage dev:full)
 mage -l            # list all available mage commands
 ```
 
+Stop the foreground Goreman process with Ctrl+C before running `mage dev:down`.
+
 <Callout type='info'>
-  Use `mage dev:full` to replicate what CI runs. Use `mage dev:up` for
+  Use `mage dev:full` to replicate what CI runs. Use `mage dev:up no-auth` for
   day-to-day development. It&apos;s faster since components run as host
   processes.
 </Callout>
@@ -132,56 +140,24 @@ mage -l            # list all available mage commands
 
 ## Running with authentication
 
-<Steps>
-
-<Step>
-
-**Start dependencies with the auth profile**
+After creating the local Kind cluster, start the auth profile through Mage:
 
 ```bash
-docker compose -f _local/compose/stack.yaml --profile auth up -d
+KUBECONFIG=.kube/external/config mage dev:up auth
 ```
 
-This starts Redis, PostgreSQL, Pulsar, and Keycloak with a pre-configured realm.
-
-</Step>
-
-<Step>
-
-**Initialise databases and Kubernetes resources**
-
-```bash
-_local/scripts/init.sh
-```
-
-</Step>
-
-<Step>
-
-**Start Armada components with auth configuration**
-
-```bash
-goreman -f _local/procfiles/auth.Procfile start
-```
+Mage starts the dependencies, initializes databases and Kubernetes resources, waits for Keycloak, and runs the components with auth configuration.
 
 <Callout type='warn'>
   The first run compiles all Armada components from source which can take
   several minutes. Subsequent runs are faster as Go caches build artifacts.
 </Callout>
 
-</Step>
-
-<Step>
-
 **Use armadactl with OIDC authentication**
 
 ```bash
 armadactl --config _local/.armadactl.yaml --context auth-oidc get queues
 ```
-
-</Step>
-
-</Steps>
 
 <Callout type='info'>
   Default Keycloak credentials — Admin: `admin` / `admin` · User: `user` /
@@ -198,8 +174,10 @@ For testing Armada without a real Kubernetes cluster, use the fake executor
 which simulates a Kubernetes environment:
 
 ```bash
-goreman -f _local/procfiles/fake-executor.Procfile start
+mage dev:up fake-executor
 ```
+
+Mage starts dependencies and initializes databases before running the fake-executor profile. Use `mage dev:up auth-fake-executor` for authentication without Kubernetes.
 
 The fake executor simulates:
 
@@ -256,15 +234,13 @@ go tool pprof http://localhost:6060/debug/pprof/profile
 
 ## Debug port mappings
 
-| Component         | Debug host       |
-| ----------------- | ---------------- |
-| `server`          | `localhost:4000` |
-| `executor`        | `localhost:4001` |
-| `binoculars`      | `localhost:4002` |
-| `eventingester`   | `localhost:4003` |
-| `lookoutui`       | `localhost:4004` |
-| `lookout`         | `localhost:4005` |
-| `lookoutingester` | `localhost:4007` |
+Components run as host processes built with debug flags, so you can attach a debugger directly. To start the standard profile with Delve DAP servers instead:
+
+```bash
+KUBECONFIG=.kube/external/config mage dev:up no-auth -dap
+```
+
+See the [detailed local-development reference](https://github.com/armadaproject/armada/blob/master/docs/developer_guide.md) for debugging, GoLand and VS Code configurations, and current debug ports.
 
 {/* divider */}
 
@@ -274,13 +250,7 @@ go tool pprof http://localhost:6060/debug/pprof/profile
 
 **Port 6443 already in use**
 
-Modify `_local/kind/cluster.yaml` to use a different port:
-
-```yaml
-- containerPort: 6443
-  hostPort: 6444
-  protocol: TCP
-```
+See the troubleshooting sections in the [detailed local-development reference](https://github.com/armadaproject/armada/blob/master/docs/developer_guide.md) before changing the Kind configuration.
 
 **Arm/M1 Mac issues**
 
