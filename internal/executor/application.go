@@ -233,7 +233,12 @@ func setupExecutorApiComponents(
 			ctx.Fatalf("Config error in start up timings: %s", err)
 		}
 		if config.Application.StartUpTimings.Metrics.Enabled {
-			startUpMetrics = startupmetrics.NewRecorder(config.Application.StartUpTimings.Metrics)
+			startUpMetrics = startupmetrics.NewRecorder(config.Application.StartUpTimings.Metrics, clusterContext)
+			taskManager.Register(
+				startUpMetrics.CleanUpStaleNodeMetrics,
+				startupmetrics.NodeCleanUpInterval,
+				"start_up_metrics_node_clean_up",
+			)
 		}
 	}
 
