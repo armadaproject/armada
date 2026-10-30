@@ -86,7 +86,7 @@ Two smaller targets support these: `mage dev:deps` runs only the dependency cont
 
 The `no-auth` and `auth` profiles run a real executor, which needs a Kubernetes cluster. Create one with `mage kind:singleCluster`, which writes its kubeconfig to `.kube/external/config`, and start the stack with `KUBECONFIG=.kube/external/config mage dev:up no-auth`. Without `KUBECONFIG` set, the executor falls back to your default kubeconfig and connects to whatever cluster that selects. Use the `fake-executor` profile if you do not want a cluster at all.
 
-The profile argument is required and is a comma-separated list of tokens: `no-auth`, `auth`, `fake-executor`, `auth-fake-executor`, and `hot-cold` pick the procfile, and any other token (for example `prometheus`) is passed to docker compose as a `--profile` flag. Use `auth-fake-executor` to run the OIDC-enabled server without a Kubernetes cluster. The optional `-dap` flag starts every component under a headless [Delve](https://github.com/go-delve/delve) DAP server so your editor can attach a debugger, e.g. `mage dev:up auth,prometheus -dap`.
+The profile argument is required and is a comma-separated list of tokens: `no-auth`, `auth`, `fake-executor`, `auth-fake-executor`, `hot-cold`, and `two-cluster` pick the procfile, and any other token (for example `prometheus`) is passed to docker compose as a `--profile` flag. Use `auth-fake-executor` to run the OIDC-enabled server without a Kubernetes cluster. Use `two-cluster` to run one executor per cluster against two Kind clusters: create them with `mage kind:multiCluster _local/kind/two-cluster` (kubeconfigs are written to `.kube/external/multicluster/cluster-1` and `cluster-2`; tear down with `mage kindTeardown:multiCluster _local/kind/two-cluster`), then run `mage dev:up two-cluster`. It starts one binoculars per cluster (`binoculars-1` on 8084, `binoculars-2` on 8094), but Lookout is configured with the single URL `http://localhost:8084`, so logs and cordon in Lookout only work for cluster 1. The optional `-dap` flag starts every component under a headless [Delve](https://github.com/go-delve/delve) DAP server so your editor can attach a debugger, e.g. `mage dev:up auth,prometheus -dap`.
 
 If `mage dev:up no-auth` reports `Unknown target`, your mage binary is too old for optional flags (`mage checkDeps` verifies this). Upgrade it, or use `go run github.com/magefile/mage@v1.17.2 <target>`, which also works without installing mage at all.
 
@@ -289,6 +289,7 @@ The following compound configurations are provided, each launching all relevant 
 | `Armada (auth with prometheus)`          | Same as `auth`, but also starts Prometheus                                  |
 | `Armada (fake-executor with prometheus)` | Same as `fake-executor`, but also starts Prometheus                         |
 | `Armada (hot-cold)`                      | Same as `no-auth` but also starts a parallel hot/cold Lookout stack         |
+| `Armada (two-cluster)`                   | Same as `no-auth` but with one executor and binoculars per Kind cluster (creates both) |
 
 Each compound configuration attaches to already-running processes via Delve remote debugging. The individual service configurations and their debug ports are:
 
@@ -305,6 +306,8 @@ Each compound configuration attaches to already-running processes via Delve remo
 | `fakeexecutor`      | `2353`     |
 | `lookouthc`         | `2354`     |
 | `lookouthcingester` | `2355`     |
+| `executor-2`        | `2356`     |
+| `binoculars-2`      | `2357`     |
 
 Each compound configuration has a `preLaunchTask` that sets up and starts the relevant services via Goreman before attaching the debuggers. For example, `Armada (no-auth)` uses the task `Set up and start (no-auth)`.
 
