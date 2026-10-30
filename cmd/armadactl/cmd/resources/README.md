@@ -123,4 +123,14 @@ armadactl watch <queue> <job-set> [flags]
   armadactl get scheduling-report
   ```
 
+### Output format
+The `get queue`, `get queues`, `get retry-policy` and `get retry-policies` subcommands accept `-o`/`--output` with
+`yaml` or `json` (case-insensitive). Without the flag, the output is the same YAML as before. The `json` output is
+useful for scripting:
+```bash
+armadactl get retry-policies -o json | jq '.retryPolicies[].name'
+```
+With `--output yaml` or `--output json`, `armadactl get queues` wraps the list under a `queues` key. The default
+output remains a bare list.
+
 For a full list of subcommands and options, you can run **armadactl --help**.

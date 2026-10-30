@@ -9,7 +9,6 @@ import (
 
 	"github.com/pkg/errors"
 	goslices "golang.org/x/exp/slices"
-	"sigs.k8s.io/yaml"
 
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -86,11 +85,9 @@ func (a *App) GetQueue(name string) error {
 	if err != nil {
 		return errors.Errorf("[armadactl.GetQueue] error getting queue %s: %s", name, err)
 	}
-	b, err := yaml.Marshal(queue)
-	if err != nil {
-		return errors.Errorf("[armadactl.GetQueue] error unmarshalling queue %s: %s", name, err)
+	if err := a.emitDocument(client.ResourceKindQueue, queue); err != nil {
+		return errors.Errorf("[armadactl.GetQueue] error writing queue %s: %s", name, err)
 	}
-	fmt.Fprint(a.Out, headerYaml()+string(b))
 	return nil
 }
 
@@ -132,23 +129,21 @@ func (a *App) GetAllQueues(args *QueueQueryArgs) error {
 		return errors.Errorf("error getting all queues: %s", err)
 	}
 
-	b, err := yaml.Marshal(queues)
-	if err != nil {
-		return errors.Errorf("error unmarshalling queues: %s", err)
+	// The default output has always been a bare list after the header. Structured output wraps it in
+	// a mapping so that the header and the list form one valid document.
+	var body any = queues
+	if a.structured() {
+		body = queueListBody{Queues: queues}
 	}
-	fmt.Fprint(a.Out, headerYaml()+string(b))
+	if err := a.emitDocument(client.ResourceKindQueue, body); err != nil {
+		return errors.Errorf("error writing queues: %s", err)
+	}
 	return nil
 }
 
-func headerYaml() string {
-	b, err := yaml.Marshal(client.Resource{
-		Version: client.APIVersionV1,
-		Kind:    client.ResourceKindQueue,
-	})
-	if err != nil {
-		panic(err)
-	}
-	return string(b)
+// queueListBody is the body of a queue list document in structured output.
+type queueListBody struct {
+	Queues []*api.Queue `json:"queues"`
 }
 
 // UpdateQueue calls app.QueueAPI.Update with the provided parameters.
