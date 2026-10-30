@@ -59,29 +59,29 @@ func TestWellKnownTaintsLiteralAndRegexMatching(t *testing.T) {
 				matches map[string]bool
 			}{
 				{
-					name: "literal dotted key", pattern: "nmc2.ai/cpe-test",
+					name: "literal dotted key", pattern: "example.com/maintenance",
 					matches: map[string]bool{
-						"nmc2.ai/cpe-test":        true,
-						"nmc2.ai/cpe-testx":       false,
-						"prefix-nmc2.ai/cpe-test": false,
-						"nmc2Xai/cpe-test":        false,
+						"example.com/maintenance":        true,
+						"example.com/maintenancex":       false,
+						"prefix-example.com/maintenance": false,
+						"exampleXcom/maintenance":        false,
 					},
 				},
 				{
-					name: "explicit suffix regex", pattern: `nmc2\.ai/cpe-test.*`,
+					name: "explicit suffix regex", pattern: `example\.com/maintenance.*`,
 					matches: map[string]bool{
-						"nmc2.ai/cpe-test":        true,
-						"nmc2.ai/cpe-testx":       true,
-						"prefix-nmc2.ai/cpe-test": false,
-						"nmc2Xai/cpe-test":        false,
+						"example.com/maintenance":        true,
+						"example.com/maintenancex":       true,
+						"prefix-example.com/maintenance": false,
+						"exampleXcom/maintenance":        false,
 					},
 				},
 				{
-					name: "numeric suffix regex", pattern: `nmc2\.ai/cpe-test[0-9]+`,
+					name: "numeric suffix regex", pattern: `example\.com/maintenance[0-9]+`,
 					matches: map[string]bool{
-						"nmc2.ai/cpe-test12":  true,
-						"nmc2.ai/cpe-test":    false,
-						"nmc2.ai/cpe-test12x": false,
+						"example.com/maintenance12":  true,
+						"example.com/maintenance":    false,
+						"example.com/maintenance12x": false,
 					},
 				},
 				{
@@ -95,19 +95,19 @@ func TestWellKnownTaintsLiteralAndRegexMatching(t *testing.T) {
 					},
 				},
 				{
-					name: "anchors explicitly select regex semantics", pattern: "^nmc2.ai/cpe-test$",
+					name: "anchors explicitly select regex semantics", pattern: "^example.com/maintenance$",
 					matches: map[string]bool{
-						"nmc2.ai/cpe-test":  true,
-						"nmc2Xai/cpe-test":  true,
-						"nmc2.ai/cpe-testx": false,
+						"example.com/maintenance":  true,
+						"exampleXcom/maintenance":  true,
+						"example.com/maintenancex": false,
 					},
 				},
 				{
-					name: "escaped dot selects regex semantics", pattern: `nmc2\.ai/cpe-test`,
+					name: "escaped dot selects regex semantics", pattern: `example\.com/maintenance`,
 					matches: map[string]bool{
-						"nmc2.ai/cpe-test":  true,
-						"nmc2Xai/cpe-test":  false,
-						"nmc2.ai/cpe-testx": false,
+						"example.com/maintenance":  true,
+						"exampleXcom/maintenance":  false,
+						"example.com/maintenancex": false,
 					},
 				},
 			} {
