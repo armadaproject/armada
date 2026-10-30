@@ -355,11 +355,13 @@ func TestReconcile_UpdateScheduledJobs(t *testing.T) {
 
 func TestReconcile_Reconciliation_PreemptedJobs(t *testing.T) {
 	tests := map[string]struct {
-		currentState         jobState
+		current              func(job *jobdb.Job) *jobdb.Job
 		expectStillPreempted bool
 	}{
-		"still leased is kept":    {currentState: jobStateLeased, expectStillPreempted: true},
-		"now terminal is dropped": {currentState: jobStateTerminal, expectStillPreempted: false},
+		"still running the preempted run is kept": {current: sameJob, expectStillPreempted: true},
+		"now terminal is dropped":                 {current: terminalJob, expectStillPreempted: false},
+		"requeued after the run ended is dropped": {current: requeuedJob, expectStillPreempted: false},
+		"leased again with a new run is dropped":  {current: leasedAgainJob, expectStillPreempted: false},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -378,7 +380,7 @@ func TestReconcile_Reconciliation_PreemptedJobs(t *testing.T) {
 					},
 				},
 			}
-			txn := txnWithJobs(inState(preemptedJob, tc.currentState))
+			txn := txnWithJobs(tc.current(preemptedJob))
 
 			result := getSchedulerResultFromAsyncRunner(t, poolResult, txn)
 
@@ -398,26 +400,27 @@ func TestReconcile_Reconciliation_PreemptedJobs(t *testing.T) {
 
 func TestGetSchedulerResult_Reconciliation_ReconciliationResult(t *testing.T) {
 	tests := map[string]struct {
-		currentState jobState
-		expectKept   bool
+		current    func(job *jobdb.Job) *jobdb.Job
+		expectKept bool
 	}{
-		"actionable job is kept":  {currentState: jobStateLeased, expectKept: true},
-		"terminal job is dropped": {currentState: jobStateTerminal, expectKept: false},
+		"a job that still runs the run is kept":        {current: sameJob, expectKept: true},
+		"a terminal job is dropped":                    {current: terminalJob, expectKept: false},
+		"a job requeued after the run is dropped":      {current: requeuedJob, expectKept: false},
+		"a job leased again with a new run is dropped": {current: leasedAgainJob, expectKept: false},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			failedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass)
-			preemptedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass)
+			failedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass).
+				WithQueued(false).WithNewRun("executor", "node", "node", reconcileTestPool, 0)
+			preemptedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass).
+				WithQueued(false).WithNewRun("executor", "node", "node", reconcileTestPool, 0)
 			poolResult := &scheduling.PoolSchedulingResult{
 				ReconciliationResult: &scheduling.ReconciliationResult{
 					FailedJobs:    []*scheduling.FailedReconciliationResult{{Job: failedJob, Reason: "failed"}},
 					PreemptedJobs: []*scheduling.FailedReconciliationResult{{Job: preemptedJob, Reason: "preempted"}},
 				},
 			}
-			txn := txnWithJobs(
-				inState(failedJob, tc.currentState),
-				inState(preemptedJob, tc.currentState),
-			)
+			txn := txnWithJobs(tc.current(failedJob), tc.current(preemptedJob))
 
 			result := getSchedulerResultFromAsyncRunner(t, poolResult, txn)
 
@@ -619,6 +622,18 @@ func inState(job *jobdb.Job, state jobState) *jobdb.Job {
 	default:
 		panic("unknown job state")
 	}
+}
+
+func sameJob(job *jobdb.Job) *jobdb.Job { return job }
+
+func terminalJob(job *jobdb.Job) *jobdb.Job { return inState(job, jobStateTerminal) }
+
+func requeuedJob(job *jobdb.Job) *jobdb.Job {
+	return job.WithUpdatedRun(job.LatestRun().WithFailed(true)).WithQueued(true)
+}
+
+func leasedAgainJob(job *jobdb.Job) *jobdb.Job {
+	return job.WithNewRun("executor", "node", "node", reconcileTestPool, 0)
 }
 
 // createSctx builds a SchedulingContext for the test queue with the
