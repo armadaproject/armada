@@ -14,6 +14,7 @@ import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 message NodeInfo {
   reserved 7, 11;
   string name = 1;
+  // To be deprecated in favour of node_taints
   repeated k8s.io.api.core.v1.Taint taints = 2;
   map<string,string> labels = 3;
   // To be deprecated in favour of total_resources + allocated_resources.
@@ -35,6 +36,8 @@ message NodeInfo {
   string pool = 13;
   // Replaces resource_usage_by_queue
   repeated PoolQueueResource resource_usage_by_queue_and_pool = 14;
+  // Replaces taints
+  repeated NodeTaint node_taints = 15;
 }
 
 message ComputeResource {
@@ -49,6 +52,14 @@ message PoolQueueResource {
 
 message EventList {
   repeated armadaevents.EventSequence events = 1;
+}
+
+message NodeTaint {
+  k8s.io.api.core.v1.Taint taint = 1;
+  // Arbitrary categorization label of taints configured in executor field wellKnownTaints
+  string category = 2;
+  // Whether taint is documented for end users
+  bool user_facing = 3;
 }
 
 message LeaseRequest{

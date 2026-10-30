@@ -16,6 +16,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/pointer"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -61,7 +62,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		{Name: "cpu-grouped-2", ExperimentalSubmissionGroup: "group-1"},
 	}
 
-	tests := map[string]struct {
+	type submitCheckCase struct {
 		executorTimeout   time.Duration
 		executors         []*schedulerobjects.Executor
 		jobs              []*jobdb.Job
@@ -69,7 +70,8 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		queue             *api.Queue
 		submitCheckConfig *configuration.SubmitCheckConfig
 		clockStep         time.Duration
-	}{
+	}
+	tests := map[string]submitCheckCase{
 		"One job schedulable": {
 			executorTimeout: defaultTimeout,
 			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
@@ -408,6 +410,40 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				smallJob2.Id(): {isSchedulable: true, pools: []string{"cpu"}},
 			},
 		},
+	}
+	for _, key := range map[string]string{
+		"legacy master": "node-role.kubernetes.io/master",
+		"control plane": "node-role.kubernetes.io/control-plane",
+	} {
+		masterTaint := &v1.Taint{Key: key, Effect: v1.TaintEffectNoSchedule}
+		workerTaint := &v1.Taint{Key: "example.com/user", Effect: v1.TaintEffectNoSchedule}
+		master := SmallNode("cpu")
+		master.Unschedulable = true
+		master.Taints = []*v1.Taint{masterTaint}
+		master.NodeTaints = []*schedulerobjects.NodeTaint{{Taint: masterTaint}}
+		worker := SmallNode("cpu")
+		worker.Taints = []*v1.Taint{workerTaint}
+		worker.NodeTaints = []*schedulerobjects.NodeTaint{{Taint: workerTaint, Category: "user", UserFacing: true}}
+		tests["untolerated user and "+key+" taints reject job"] = submitCheckCase{
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(master, worker)},
+			jobs:            []*jobdb.Job{smallJob1},
+			expectedResult:  map[string]schedulingResult{smallJob1.Id(): {isSchedulable: false}},
+		}
+
+		requirements := testfixtures.Test1Cpu4GiPodReqs()
+		requirements.Tolerations = []v1.Toleration{{Key: key, Operator: v1.TolerationOpExists, Effect: v1.TaintEffectNoSchedule}}
+		toleratingJob := testfixtures.TestJob("queue", util.ULID(), testfixtures.PriorityClass1, requirements)
+		masterOnly := SmallNode("cpu")
+		masterOnly.Unschedulable = true
+		masterOnly.Taints = []*v1.Taint{masterTaint}
+		masterOnly.NodeTaints = []*schedulerobjects.NodeTaint{{Taint: masterTaint}}
+		tests["job tolerating "+key+" can use control-plane node"] = submitCheckCase{
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(masterOnly)},
+			jobs:            []*jobdb.Job{toleratingJob},
+			expectedResult:  map[string]schedulingResult{toleratingJob.Id(): {isSchedulable: true, pools: []string{"cpu"}}},
+		}
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
