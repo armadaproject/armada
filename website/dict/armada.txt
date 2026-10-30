@@ -49,3 +49,12 @@ categorisation
 retryable
 organisations
 KUBECONFIG
+creds
+protoc
+GOPATH
+goreleaser
+buildx
+bitnamilegacy
+certgen
+GOPATH
+imagetools
