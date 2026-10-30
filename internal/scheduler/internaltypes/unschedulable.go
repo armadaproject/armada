@@ -3,6 +3,8 @@ package internaltypes
 import v1 "k8s.io/api/core/v1"
 
 const (
+	masterTaintKey           string         = "node-role.kubernetes.io/master"
+	controlPlaneTaintKey     string         = "node-role.kubernetes.io/control-plane"
 	unschedulableTaintKey    string         = "armadaproject.io/unschedulable"
 	unschedulableTaintValue  string         = "true"
 	unschedulableTaintEffect v1.TaintEffect = v1.TaintEffectNoSchedule
@@ -33,5 +35,5 @@ func IsCordonTaint(taint v1.Taint) bool {
 // Match by key to cover both the legacy master and current control-plane taints,
 // regardless of their value or effect.
 func IsMasterTaint(taint v1.Taint) bool {
-	return taint.Key == "node-role.kubernetes.io/master" || taint.Key == "node-role.kubernetes.io/control-plane"
+	return taint.Key == masterTaintKey || taint.Key == controlPlaneTaintKey
 }
