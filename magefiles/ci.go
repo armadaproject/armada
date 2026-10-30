@@ -111,6 +111,7 @@ func TestSuite() error {
 			"--tests", strings.Join(tests, ","),
 			"--junit", fmt.Sprintf("junit-%s.xml", label),
 			"--config", "_local/.armadactl.yaml",
+			"--configHook", "_local/scripts/apply-test-config.sh",
 		)
 		fmt.Println(out)
 		if err != nil {
