@@ -49,3 +49,7 @@ categorisation
 retryable
 organisations
 KUBECONFIG
+uncategorized
+fairshare
+ingester
+kubelet
