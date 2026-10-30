@@ -545,8 +545,9 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 		switch reason := e.Reason.(type) {
 		case *armadaevents.Error_PodError:
 			jobRunUpdate.Node = extractNodeName(reason.PodError)
-			if name := reason.PodError.GetObjectMeta().GetName(); name != "" {
-				jobRunUpdate.PodName = pointer.String(name)
+			// A pod error without a Kubernetes UID comes from a pod that Kubernetes never created.
+			if meta := reason.PodError.GetObjectMeta(); meta.GetKubernetesId() != "" && meta.GetName() != "" {
+				jobRunUpdate.PodName = pointer.String(meta.GetName())
 			}
 			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
 			jobRunUpdate.Error = tryCompressError(event.JobId, reason.PodError.GetMessage(), c.compressor)
