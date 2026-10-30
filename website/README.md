@@ -2,6 +2,8 @@
 
 The Armada documentation site is built with [Next.js](https://nextjs.org) and [Fumadocs](https://fumadocs.dev). All content is written in MDX, Markdown that can include React components.
 
+This README owns website authoring, preview, checks and publication instructions. For contribution policy, see [CONTRIBUTING.md](../CONTRIBUTING.md). Published content lives in [`content/`](content/); repository `docs/` files are not automatically copied into the site. The published developer setup page is [`content/docs/developer-guide.mdx`](content/docs/developer-guide.mdx), a concise entrypoint that must agree with the [detailed local-development reference](../docs/developer_guide.md).
+
 ## Requirements
 
 Before you start, make sure you have the following installed:
@@ -33,13 +35,13 @@ Open [http://localhost:3000](http://localhost:3000) in your browser. The page wi
 
 ### GitHub Pages base path
 
-The live site is deployed to GitHub Pages under a base path. If your changes involve links, images, or assets and you want to make sure they resolve correctly in that environment, copy `.env.example` to `.env.local` and set the base path before running the preview:
+The normal armadaproject.io deployment and local development use an empty base path. The workflow sets `NEXT_PUBLIC_BASE_PATH=/<repository-name>` for forks and repositories outside the `armadaproject` organization. To check links, images and assets with that prefix, copy `.env.example` to `.env.local`:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Then open `.env.local` and follow the instructions inside. You do not need this for most content changes: only if you are working on routing, assets, or the Next.js config itself.
+Set `NEXT_PUBLIC_BASE_PATH` to the repository prefix (for example `/armada`, without a trailing slash). The example already sets `/armada`; remove it or set it to an empty string to return to the normal root-path preview. Use the same environment for the build and static preview, and open the prefixed URL, for example `http://localhost:3000/armada/`.
 
 ## How the site works
 
@@ -116,14 +118,25 @@ Markdown link syntax (`[text](url)`) does not render inside JSX elements. Use an
 
 ## Format, Lint Content, Lint Code and Spell Check
 
-Please make sure to format and lint your code before committing:
+Run the same checks as the website workflow before committing:
 
 ```bash
 yarn content:check
 yarn spell:check
-yarn format:fix
-yarn lint:fix
+yarn format:check
+yarn lint:check
+yarn build
 ```
+
+Use `yarn format:fix` or `yarn lint:fix` to apply fixes, then review the diff and rerun the checks. These commands cover the website directory; avoid including unrelated formatting changes.
+
+After `yarn build`, run `yarn preview` to serve the static export from `out/` on port 3000. Follow changed pages, navigation links and assets in the browser, including the contributor and developer entrypoints. Content checks do not validate route-shaped links or external URLs, so check those separately.
+
+## Publication
+
+The [website workflow](../.github/workflows/website.yml) validates website pull requests targeting `master`. For matching pushes to `master`, it builds the static export in `website/out/` and uploads and deploys it through GitHub Actions when GitHub Pages is enabled for the repository. The workflow can also be run manually.
+
+Edit sources on your contribution branch and submit a pull request; do not edit a `gh-pages` branch. To remove a published page, remove its source and update the relevant navigation and incoming links in the same change. Removing only its `meta.json` entry hides it from navigation but leaves its URL available.
 
 ## Learn More
 

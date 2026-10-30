@@ -24,6 +24,8 @@
 
 This document is intended for developers who want to contribute to the project. It contains information about the project structure, how to build the project and how to run the tests.
 
+This is the detailed local-development reference. The [published developer guide](https://armadaproject.io/docs/developer-guide) provides a concise setup entrypoint, maintained separately in [`website/content/docs/developer-guide.mdx`](../website/content/docs/developer-guide.mdx). Keep its setup examples consistent with this reference. For website authoring and checks, follow [`website/README.md`](../website/README.md).
+
 ## Quickstart
 
 Want to quickly get Armada running and test it? Install the [prerequisites](#pre-requisites) and then run:
@@ -143,11 +145,11 @@ All Procfiles are located in `_local/procfiles/`:
 | `auth-fake-executor.Procfile` | OIDC authentication with the fake executor, no Kubernetes |
 | `hot-cold.Procfile`      | Runs the parallel hot/cold Lookout stack          |
 
-Each profile also has a `-dap` variant, described under [Debugging](#debugging). Restart individual processes with `goreman restart <component>` (e.g., `goreman restart server`).
+Each profile also has a `-dap` variant, described under [Debugging](#debugging). In a second terminal, restart an individual process through the running Goreman instance with `./bin/goreman -f _local/procfiles/<profile>.Procfile run restart <component>` (for example, `./bin/goreman -f _local/procfiles/no-auth.Procfile run restart server`). Match the Procfile to the profile passed to `mage dev:up`.
 
 ### Service ports
 
-Run `goreman run status` to check the status of the processes (running processes are prefixed with `*`). Goreman exposes services on the following ports:
+For the standard profile, run `./bin/goreman -f _local/procfiles/no-auth.Procfile run status` in a second terminal to check the status of the processes (running processes are prefixed with `*`). Goreman exposes services on the following ports:
 
 | Service                    | Port  | Description                       |
 | -------------------------- | ----- | --------------------------------- |

@@ -12,9 +12,7 @@ The main project fork lives here in Github:
 
 * [https://github.com/armadaproject/armada](https://github.com/armadaproject/armada)
 
-To work with [Armada website](https://armadaproject.io/), please checkout this branch:
-
-* [https://github.com/armadaproject/armada/tree/gh-pages](https://github.com/armadaproject/armada/tree/gh-pages)
+This guide owns contribution policy and routes contributors to area-specific instructions. To work on the [Armada website](https://armadaproject.io/) or its published documentation, follow [website/README.md](website/README.md) for authoring, preview, checks and publication. Published page sources live in `website/content/` on the main development branch.
 
 If you want to brainstorm a potential new feature, hop on over to the Discussions page, listed [below](#discussions).
 
@@ -24,7 +22,8 @@ If you want to brainstorm a potential new feature, hop on over to the Discussion
 
 Setup everything you’ll need to get started running and developing Armada:
 
-* [Developer setup](https://armadaproject.io/developer)
+* [Developer setup](https://armadaproject.io/docs/developer-guide)
+* [Detailed local-development reference](docs/developer_guide.md)
 
 ### Issues
 
@@ -94,7 +93,7 @@ Armada maintains automated test suites for its Go and TypeScript code, run in CI
 
 **Pull requests that add or change significant functionality are expected to include tests** covering that functionality. Reviewers will request tests where they are missing. Bug fixes should, where practical, include a test that reproduces the issue being fixed.
 
-Tests live alongside the code they cover (Go `_test.go` files, TypeScript `.test.ts` files) and must pass in CI before a pull request can be merged. See the [development guide](https://armadaproject.io/developer-guide) for how to run the test suites locally.
+Tests live alongside the code they cover (Go `_test.go` files, TypeScript `.test.ts` files) and must pass in CI before a pull request can be merged. See the [development guide](docs/developer_guide.md#testing-if-the-local-dev-stack-is-working) for how to run the test suites locally.
 
 
 ## Chat & Discussions
