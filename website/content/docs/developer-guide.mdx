@@ -89,7 +89,7 @@ The profile argument is required. Keep `KUBECONFIG=.kube/external/config` set fo
 In a second terminal, from the repository root:
 
 ```bash
-./bin/goreman -f _local/procfiles/no-auth.Procfile run status
+./bin/goreman run status
 ```
 
 Running processes are prefixed with `*`:
@@ -111,7 +111,7 @@ Running processes are prefixed with `*`:
   Restart individual processes without stopping everything:
 
 ```bash
-  ./bin/goreman -f _local/procfiles/no-auth.Procfile run restart server
+  ./bin/goreman run restart server
 ```
 
 </Callout>
