@@ -136,7 +136,7 @@ After `yarn build`, run `yarn preview` to serve the static export from `out/` on
 
 The [website workflow](../.github/workflows/website.yml) validates website pull requests targeting `master`. For matching pushes to `master`, it builds the static export in `website/out/` and uploads and deploys it through GitHub Actions when GitHub Pages is enabled for the repository. The workflow can also be run manually.
 
-Edit sources on your contribution branch and submit a pull request; do not edit a `gh-pages` branch. To remove a published page, remove its source and update the relevant navigation and incoming links in the same change. Removing only its `meta.json` entry hides it from navigation but leaves its URL available.
+Edit sources on your contribution branch and submit a pull request; do not edit a `gh-pages` branch. To remove a published page, remove its source and update the relevant navigation and incoming links in the same change.
 
 ## Learn More
 
