@@ -130,7 +130,7 @@ yarn build
 
 Use `yarn format:fix` or `yarn lint:fix` to apply fixes, then review the diff and rerun the checks. These commands cover the website directory; avoid including unrelated formatting changes.
 
-After `yarn build`, run `yarn preview` to serve the static export from `out/` on port 3000. Follow changed pages, navigation links and assets in the browser, including the contributor and developer entrypoints. Content checks do not validate route-shaped links or external URLs, so check those separately.
+After `yarn build`, run `yarn preview` to serve the static export from `out/` on port 3000. If `yarn preview` fails with an `EMFILE` error from Node's file watcher, run `node src/scripts/serve.mjs` instead, which serves the same export without watch mode. Follow changed pages, navigation links and assets in the browser, including the contributor and developer entrypoints. Content checks do not validate route-shaped links or external URLs, so check those separately.
 
 ## Publication
 
