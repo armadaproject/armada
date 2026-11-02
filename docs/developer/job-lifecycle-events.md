@@ -568,7 +568,7 @@ The per-pool `ExperimentalRunReconciliation` setting enables this mechanism. In 
 - No executor reports the node of the run, and the job is in a gang.
 - The pool of the node changed.
 - The job does not match the reservation of the node (`EnsureReservationMatch`).
-- The job runs on a node with a reservation that it does not match (`EnsureReservationDoesNotMatch`).
+- The job matches the reservation of the node (`EnsureReservationDoesNotMatch`).
 
 For a preemptible job, the reconciler emits the preemption events with the type `reconciler`. It also preempts the other preemptible members of the gang. For a non-preemptible job, it emits `JobRunErrors` and `JobErrors` with the `ReconciliationError` reason.
 
