@@ -145,11 +145,11 @@ All Procfiles are located in `_local/procfiles/`:
 | `auth-fake-executor.Procfile` | OIDC authentication with the fake executor, no Kubernetes |
 | `hot-cold.Procfile`      | Runs the parallel hot/cold Lookout stack          |
 
-Each profile also has a `-dap` variant, described under [Debugging](#debugging). In a second terminal, restart an individual process through the running Goreman instance with `./bin/goreman -f _local/procfiles/<profile>.Procfile run restart <component>` (for example, `./bin/goreman -f _local/procfiles/no-auth.Procfile run restart server`). Match the Procfile to the profile passed to `mage dev:up`.
+Each profile also has a `-dap` variant, described under [Debugging](#debugging). In a second terminal, restart an individual process through the running Goreman instance with `./bin/goreman run restart <component>` (for example, `./bin/goreman run restart server`).
 
 ### Service ports
 
-For the standard profile, run `./bin/goreman -f _local/procfiles/no-auth.Procfile run status` in a second terminal to check the status of the processes (running processes are prefixed with `*`). Goreman exposes services on the following ports:
+For the standard profile, run `./bin/goreman run status` in a second terminal to check the status of the processes (running processes are prefixed with `*`). Goreman exposes services on the following ports:
 
 | Service                    | Port  | Description                       |
 | -------------------------- | ----- | --------------------------------- |
