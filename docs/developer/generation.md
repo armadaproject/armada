@@ -6,9 +6,11 @@ Run Mage commands from the repository root. Follow the [developer prerequisites]
 
 | If you change | Run | Review or commit |
 | --- | --- | --- |
-| Armada `.proto` files, HTTP annotations or Go models used by Swagger | `mage proto`, then `mage dotnet` to match the proto CI check | Tracked `*.pb.go`, gateway `*.pb.gw.go`, and the three `api.swagger.json` / `api.swagger.go` pairs under `pkg/api/`, `pkg/api/binoculars/` and `pkg/api/schedulerobjects/` |
+| Armada `.proto` files or HTTP annotations | `mage proto` | Tracked `*.pb.go`, gateway `*.pb.gw.go`, and the three `api.swagger.json` / `api.swagger.go` pairs under `pkg/api/`, `pkg/api/binoculars/` and `pkg/api/schedulerobjects/` |
 | Scheduler or Query API SQL queries or schema inputs | `mage sql` | Tracked `db.go`, `models.go` and `query.sql.go` in both configured database packages |
 | API definitions consumed by Lookout UI | Run `mage proto` first for upstream API changes, then follow the [UI install and client-generation instructions](../../internal/lookoutui/README.md#installing-dependencies-and-generating-openapi-client-code) and [build instructions](../../internal/lookoutui/README.md#building-the-application-for-production) | The Swagger inputs are tracked; the generated TypeScript clients and UI build are ignored |
+
+The output lists identify files to inspect; a particular source change may affect only a subset.
 
 ## Protobuf and API changes
 
@@ -16,14 +18,13 @@ For example, `Submit.SubmitJobs`, its `JobSubmitRequest` and the `POST /v1/job/s
 
 ```bash
 mage proto
-mage dotnet
 ```
 
 Review `pkg/api/submit.pb.go`, `pkg/api/submit.pb.gw.go`, `pkg/api/api.swagger.json` and `pkg/api/api.swagger.go` for the corresponding Go, gateway, REST specification and embedded specification changes. The command regenerates all configured packages, so inspect the full diff. The [proto pipeline](../../magefiles/proto.go) owns the complete input list and Swagger merge/embedding steps; calling protoc alone does not reproduce it. See the [API guide](armada-api.md) for API ownership and usage.
 
 `mage proto` needs host protoc and the bootstrapped Go generators. Its imported dependency tree at root `proto/` is ignored and recreated from Go modules; edit Armada's source files rather than that copied tree.
 
-`mage dotnet` builds the protobuf/gRPC client in Docker using the [client project's selected protos](../../client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj). It requires a running Docker daemon, repository bind-mount access, SDK image access and NuGet restore access; a host .NET SDK is not required. Generated C# and build outputs under `obj/` and `bin/` are ignored. This build is part of the proto drift check, but does not run the separate [DotNet Client workflow's solution tests](../../.github/workflows/dotnet-client.yml). Other language clients have their own workflows, such as [Python client development](../../client/python/CONTRIBUTING.md).
+To reproduce the full proto CI check, also run `mage dotnet`. It builds the protobuf/gRPC client in Docker directly from the [client project's selected protos](../../client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj). It requires a running Docker daemon, repository bind-mount access, SDK image access and NuGet restore access; a host .NET SDK is not required. Generated C# and build outputs under `obj/` and `bin/` are ignored. This does not run the separate [DotNet Client workflow's solution tests](../../.github/workflows/dotnet-client.yml). Other language clients have their own workflows, such as [Python client development](../../client/python/CONTRIBUTING.md).
 
 ## SQL changes
 
@@ -50,4 +51,4 @@ After generation, inspect `git diff` and `git status --short`. On unchanged inpu
 
 The proto and SQLC jobs in the [test workflow](../../.github/workflows/test.yml) check tracked drift after generation; they do not check ignored output. UI CI installs dependencies, generates clients, builds and runs tests. `yarn build` alone does not generate clients. Root `mage ui` wraps UI install, generation and build, while `mage generate` only runs `go generate ./...`.
 
-Use an isolated checkout when checking for drift. Generation and builds also write caches and ignored intermediates. The .NET Docker helper leaves its stopped container behind; identify and remove only the container created by your run. Generation and client builds do not replace tests: choose checks for the affected code using the [developer guide](../developer_guide.md) and [UI README](../../internal/lookoutui/README.md#run-unit-tests).
+Use an isolated checkout when checking for drift. Generation and builds also write caches and ignored intermediates. The .NET Docker helper leaves its stopped container behind; identify and remove only the container created by your run. Successful generation does not establish API compatibility. Generation and client builds do not replace tests: choose checks for the affected code using the [developer guide](../developer_guide.md) and [UI README](../../internal/lookoutui/README.md#run-unit-tests).

@@ -54,7 +54,7 @@ The generated clients in `src/openapi/armada/`, `src/openapi/binoculars/` and
 tracked, handwritten `src/openapi/workarounds.d.ts`. No running Armada backend
 is needed for client generation or the production build.
 
-For upstream API changes, edit the proto/model sources and regenerate the
+For upstream API changes, edit the proto sources and regenerate the
 specifications first; see [Regenerating code and API clients](../../docs/developer/generation.md).
 The JSON specifications are generated outputs, not the editable API contract.
 Continue with the [production build](#building-the-application-for-production)
