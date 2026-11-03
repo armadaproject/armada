@@ -51,9 +51,21 @@ type PrunerConfig struct {
 	// If nil, defaults to 15 minutes. Set to 0 explicitly to disable zombie
 	// reconciliation entirely.
 	ZombieRepairThreshold *time.Duration
-	Timeout               time.Duration
-	BatchSize             int
-	Postgres              configuration.PostgresConfig
+	// LeaseReturnedZombieRepairThreshold is the minimum age of a lease-returned
+	// or lease-expired latest run before a zombie job in that state will be
+	// repaired by the pruner (to FAILED). Unlike the other zombie-causing run
+	// states, lease-returned/lease-expired are not unconditionally terminal for
+	// the job: the scheduler is normally expected to follow up with either a
+	// requeue or a failure, and that decision can legitimately take much
+	// longer than ordinary ingester lag. This threshold should therefore
+	// typically be set substantially longer than ZombieRepairThreshold.
+	//
+	// If nil, defaults to 3 hours. Set to 0 explicitly to disable repair of
+	// lease-returned/lease-expired zombies entirely.
+	LeaseReturnedZombieRepairThreshold *time.Duration
+	Timeout                            time.Duration
+	BatchSize                          int
+	Postgres                           configuration.PostgresConfig
 	// PushgatewayUrl is the URL of a Prometheus Pushgateway (or compatible
 	// endpoint) to push pruner metrics to after each run. If empty, no metrics
 	// are pushed.
