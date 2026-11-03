@@ -1,0 +1,4 @@
+uiConfig:
+  binocularsStaticBaseUrls:
+    cluster-1: "http://localhost:8084"
+    cluster-2: "http://localhost:8094"

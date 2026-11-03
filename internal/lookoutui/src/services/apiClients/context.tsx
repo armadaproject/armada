@@ -47,20 +47,33 @@ export const ApiClientsProvider = ({ children }: ApiClientsProviderProps) => {
 
   const binocularsApiCacheRef = useRef<{
     binocularsBaseUrlPattern: string
+    binocularsStaticBaseUrls: Record<string, string>
     binocularsApis: Record<string, BinocularsApi>
-  }>({ binocularsBaseUrlPattern: config.binocularsBaseUrlPattern ?? "", binocularsApis: {} })
+  }>({
+    binocularsBaseUrlPattern: config.binocularsBaseUrlPattern ?? "",
+    binocularsStaticBaseUrls: config.binocularsStaticBaseUrls,
+    binocularsApis: {},
+  })
   const getBinocularsApi = useCallback(
     (clusterId: string) => {
       const cache = binocularsApiCacheRef.current
-      if (cache.binocularsBaseUrlPattern !== (config.binocularsBaseUrlPattern ?? "")) {
+      if (
+        cache.binocularsBaseUrlPattern !== (config.binocularsBaseUrlPattern ?? "") ||
+        cache.binocularsStaticBaseUrls !== config.binocularsStaticBaseUrls
+      ) {
         cache.binocularsBaseUrlPattern = config.binocularsBaseUrlPattern ?? ""
+        cache.binocularsStaticBaseUrls = config.binocularsStaticBaseUrls
         cache.binocularsApis = {}
       }
 
       if (!cache.binocularsApis[clusterId]) {
         cache.binocularsApis[clusterId] = new BinocularsApi(
           new BinocularsConfiguration({
-            basePath: config.binocularsBaseUrlPattern.replace("{CLUSTER_ID}", clusterId),
+            basePath: resolveBinocularsBaseUrl(
+              clusterId,
+              config.binocularsStaticBaseUrls,
+              config.binocularsBaseUrlPattern,
+            ),
             credentials: "include",
             fetchApi: authenticatedFetch,
           }),
@@ -68,7 +81,7 @@ export const ApiClientsProvider = ({ children }: ApiClientsProviderProps) => {
       }
       return cache.binocularsApis[clusterId]
     },
-    [binocularsApiCacheRef, config.binocularsBaseUrlPattern],
+    [binocularsApiCacheRef, config.binocularsBaseUrlPattern, config.binocularsStaticBaseUrls],
   )
 
   const apiClients = useMemo(
@@ -85,4 +98,21 @@ export const useApiClients = () => {
     throw new Error("useApiClients() must be used within a ApiClientsProvider")
   }
   return context.apiClients
+}
+
+// resolveBinocularsBaseUrl returns the Binoculars base URL for a cluster: its entry in staticBaseUrls if it has one,
+// otherwise the pattern with {CLUSTER_ID} replaced. Cluster IDs are matched case-insensitively, because the Lookout
+// server's config loader lower-cases the keys of maps such as binocularsStaticBaseUrls.
+const resolveBinocularsBaseUrl = (
+  clusterId: string,
+  staticBaseUrls: Record<string, string>,
+  pattern: string,
+): string => {
+  const wanted = clusterId.toLowerCase()
+  for (const [id, url] of Object.entries(staticBaseUrls)) {
+    if (id.toLowerCase() === wanted) {
+      return url
+    }
+  }
+  return pattern.replace("{CLUSTER_ID}", clusterId)
 }
