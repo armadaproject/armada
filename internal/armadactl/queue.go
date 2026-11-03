@@ -141,7 +141,6 @@ func (a *App) GetAllQueues(args *QueueQueryArgs) error {
 	return nil
 }
 
-// queueListBody is the body of a queue list document in structured output.
 type queueListBody struct {
 	Queues []*api.Queue `json:"queues"`
 }
