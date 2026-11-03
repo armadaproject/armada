@@ -33,11 +33,6 @@ func ParseOutputFormat(s string) (OutputFormat, error) {
 	}
 }
 
-// structured reports whether a structured output format was requested.
-func (a *App) structured() bool {
-	return a.Params.Output != OutputText
-}
-
 // emitDocument writes a resource document: a YAML header (apiVersion and kind) followed by the YAML
 // for body. This is the single place the get commands marshal their output. For text and yaml output
 // the YAML is written as is, which is what they have always printed. For json it is converted.
