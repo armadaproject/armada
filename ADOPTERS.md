@@ -8,6 +8,9 @@ Want to add your organization to this list? [Create a pull request](https://gith
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [G-Research](https://www.gresearch.com/) | G-Research is a leading quantitative research company that uses Armada in production to process millions of jobs daily across tens of thousands of nodes. |
 | [NMC²](https://nmc2.com/) | NMC² (NorthMark Compute & Cloud) is a high-performance computing provider that uses Armada to schedule machine learning and simulation workloads across its GPU infrastructure. |
+| [Spectro Cloud](https://www.spectrocloud.com/) | Spectro Cloud PaletteAI is a platform for ML/AI infrastructure and applications that provides native integration with Armada for customers that want to schedule large batches of AI workloads across their AI environments. |
+| [StackAV](https://www.stackav.com/) | StackAV uses Armada to schedule high-throughput batch and machine learning workloads across Kubernetes clusters, supporting the compute needs of its autonomous driving development. |
+
 <!-- To add your organization: add a new row to the table above using the format:
 | [Organization Name](https://your-website.com) | Brief description of how you are using Armada. |
 -->
