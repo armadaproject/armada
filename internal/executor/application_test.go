@@ -96,6 +96,16 @@ func TestValidateConfig_WhenWellKnownTaintPatternIsInvalid_Fails(t *testing.T) {
 		{Category: configuration.UserWellKnownTaintCategory, Keys: []string{"admin.example.com/maintenance"}},
 	}
 	assert.Error(t, validateConfig(config))
+
+	config.Kubernetes.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
+		{Category: configuration.UnknownTaintCategory, Keys: []string{"admin.example.com/maintenance"}},
+	}
+	for name, enabled := range map[string]bool{"categorization disabled": false, "categorization enabled": true} {
+		t.Run(name, func(t *testing.T) {
+			config.Kubernetes.CategorizeUnknownTaints = enabled
+			assert.Error(t, validateConfig(config))
+		})
+	}
 }
 
 func TestKubernetesConfigurationNewWellKnownTaints(t *testing.T) {

@@ -45,11 +45,12 @@ func TestAddTaintsPreservesMetadataAndAddsNeutralEntries(t *testing.T) {
 	assert.Equal(t, originalTaints, node.GetTaints())
 	assert.Equal(t, originalMetadata, node.GetNodeTaints())
 
-	// Metadata-aware filtering removes the neutral taint but keeps the user-facing taint.
+	// Metadata-aware filtering preserves uncategorized and user-facing taints.
 	filtered := factory.RemoveCordonTaints(result)
-	assert.Equal(t, []v1.Taint{existing}, filtered[0].GetTaints())
+	assert.Equal(t, []v1.Taint{existing, added}, filtered[0].GetTaints())
 	assert.Equal(t, []NodeTaint{
 		{taint: existing, category: "user", userFacing: true},
+		{taint: added},
 	}, filtered[0].GetNodeTaints())
 
 	// Neither representation may retain mutable timestamps owned by the caller.
@@ -85,8 +86,9 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 				{Taint: &restricted},
 				{Taint: &cordon},
 			},
-			wantTaints: []v1.Taint{user},
+			wantTaints: []v1.Taint{restricted, user},
 			wantMetadata: []NodeTaint{
+				{taint: restricted},
 				{taint: user, category: "user", userFacing: true},
 			},
 		},
@@ -116,15 +118,23 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			wantTaints:   []v1.Taint{user},
 			wantMetadata: []NodeTaint{{taint: user, category: "user", userFacing: true}},
 		},
-		"schedulable neutral taint is removed": {
+		"schedulable uncategorized taint is kept": {
 			taints:       []*v1.Taint{&restricted},
 			metadata:     []*schedulerobjects.NodeTaint{{Taint: &restricted}},
 			schedulable:  true,
-			wantMetadata: []NodeTaint{},
+			wantTaints:   []v1.Taint{restricted},
+			wantMetadata: []NodeTaint{{taint: restricted}},
 		},
-		"unschedulable neutral taint is removed": {
+		"unschedulable uncategorized taint is kept": {
 			taints:       []*v1.Taint{&restricted},
 			metadata:     []*schedulerobjects.NodeTaint{{Taint: &restricted}},
+			wantTaints:   []v1.Taint{restricted},
+			wantMetadata: []NodeTaint{{taint: restricted}},
+		},
+		"categorized unknown taint is removed": {
+			taints:       []*v1.Taint{&restricted},
+			metadata:     []*schedulerobjects.NodeTaint{{Taint: &restricted, Category: "unknown"}},
+			schedulable:  true,
 			wantMetadata: []NodeTaint{},
 		},
 		"legacy master taint is kept with complete metadata": {

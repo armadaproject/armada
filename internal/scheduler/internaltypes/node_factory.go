@@ -136,7 +136,8 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 }
 
 // RemoveCordonTaints strips cordon taints (see IsCordonTaint) and clears the unschedulable flag.
-// With complete metadata, it also strips non-user-facing taints, except control-plane taints.
+// With complete metadata, it also strips categorized, non-user-facing taints, except control-plane
+// taints. Uncategorized and user-facing taints are preserved.
 // Without complete metadata, it preserves non-cordon taints and leaves schedulable nodes unchanged.
 //
 // The submit checker uses it so that jobs targeting a node type whose
@@ -181,7 +182,8 @@ func removeCordonTaintsWithMetadata(node *Node) *Node {
 	nodeTaints := node.GetNodeTaints()
 	nonCordonNodeTaints := make([]NodeTaint, 0, len(nodeTaints))
 	for _, nodeTaint := range nodeTaints {
-		if !IsCordonTaint(nodeTaint.taint) && (nodeTaint.GetUserFacing() || IsMasterTaint(nodeTaint.taint)) {
+		if !IsCordonTaint(nodeTaint.taint) &&
+			(nodeTaint.GetUserFacing() || IsMasterTaint(nodeTaint.taint) || nodeTaint.GetCategory() == "") {
 			nonCordonNodeTaints = append(nonCordonNodeTaints, nodeTaint)
 			nonCordonTaints = append(nonCordonTaints, nodeTaint.taint)
 		}

@@ -17,7 +17,10 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-const UserWellKnownTaintCategory = "user"
+const (
+	UserWellKnownTaintCategory = "user"
+	UnknownTaintCategory       = "unknown"
+)
 
 type ApplicationConfiguration struct {
 	// ClusterId is the unique identifier for the cluster that the executor is running on.
@@ -158,8 +161,11 @@ type KubernetesConfiguration struct {
 	AvoidNodeLabelsOnRetry []string
 	// ToleratedTaints specifies taints which are tolerated by the executor.
 	// If a node has a taint that is not in this list, the executor will consider it for scheduling Armada jobs.
-	ToleratedTaints           []string
-	WellKnownTaints           WellKnownTaintsConfiguration
+	ToleratedTaints []string
+	WellKnownTaints WellKnownTaintsConfiguration
+	// CategorizeUnknownTaints controls whether node taints not in wellKnownTaints or wellKnownTaints.admin
+	// should be given a default "unknown" category.
+	CategorizeUnknownTaints   bool
 	MinimumPodAge             time.Duration
 	StuckTerminatingPodExpiry time.Duration
 	FailedPodExpiry           time.Duration
@@ -246,6 +252,9 @@ func (c KubernetesConfiguration) NewWellKnownTaints() (*WellKnownTaints, error) 
 		}
 		if admin.Category == UserWellKnownTaintCategory {
 			return nil, fmt.Errorf("wellKnownTaints.admin[%d].category must not be %q, as that is the implied category for outer level wellKnownTaints", i, UserWellKnownTaintCategory)
+		}
+		if admin.Category == UnknownTaintCategory {
+			return nil, fmt.Errorf("wellKnownTaints.admin[%d].category must not be %q, as it is reserved for unknown taints", i, UnknownTaintCategory)
 		}
 		for _, pattern := range admin.Keys {
 			if err := appendTaint(pattern, admin.Category, false); err != nil {
