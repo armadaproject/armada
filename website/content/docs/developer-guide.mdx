@@ -205,7 +205,7 @@ mage -v testsuite
 mage dev:fullDown
 ```
 
-Stop your own Goreman/dependency stack before switching to this setup: the stacks share container names and ports. `testsuite` waits for the full-stack containers and real executor; it does not start them or provide a generic readiness check for the Goreman or fake-executor setup. See [Full-stack integration tests](https://github.com/armadaproject/armada/blob/master/docs/developer_guide.md#full-stack-integration-tests) for build tools, resources, ingress settings and cleanup details. The manual basic-case command in the repository reference runs only a subset of these suites.
+Stop your own Goreman/dependency stack before switching to this setup: the stacks share container names and ports. `testsuite` waits for the full-stack containers and real executor; it does not start them or provide a generic readiness check for the Goreman or fake-executor setup. See [Full-stack integration tests](https://github.com/armadaproject/armada/blob/master/docs/developer_guide.md#full-stack-integration-tests) for build tools, resources and cleanup details. The manual basic-case command in the repository reference runs only a subset of these suites.
 
 {/* divider */}
 

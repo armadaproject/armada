@@ -129,7 +129,7 @@ Use dedicated services: database tests create and drop databases, retain migrati
 
 ### Lookout UI checks
 
-For UI logic, start with the focused formatting-test example in the [Lookout UI README's unit-test section](../internal/lookoutui/README.md#run-unit-tests), then expand to the full UI tests, lint and build as appropriate. The UI README owns [setup and client generation](../internal/lookoutui/README.md#installing-dependencies-and-generating-openapi-client-code) and the commands for each check. A focused logic test needs no running Armada backend; a fresh application build also needs generated clients.
+For UI logic, start with a test relevant to your change, using the focused example in the [Lookout UI README's unit-test section](../internal/lookoutui/README.md#run-unit-tests), then expand to the full UI tests, lint and build as appropriate. The UI README owns [setup and client generation](../internal/lookoutui/README.md#installing-dependencies-and-generating-openapi-client-code) and the commands for each check. A focused logic test needs no running Armada backend; a fresh application build also needs generated clients.
 
 For visible or API-interaction changes, also follow the UI README's [browser development](../internal/lookoutui/README.md#live-development-server) or [production-preview](../internal/lookoutui/README.md#building-the-application-for-production) instructions. Tests and builds do not replace checking the affected browser paths against the intended backend.
 
