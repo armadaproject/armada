@@ -199,7 +199,7 @@ func setupExecutorApiComponents(
 		podUtilisationService,
 		nodeInfoService,
 		wellKnownTaints,
-		config.Kubernetes.CategorizeUnknownTaints,
+		config.Kubernetes.CategoriseUnknownTaints,
 		config.Kubernetes.TrackedNodeLabels,
 		config.Kubernetes.NodeIdLabel,
 		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,

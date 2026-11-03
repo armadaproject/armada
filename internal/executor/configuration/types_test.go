@@ -16,6 +16,7 @@ func TestWellKnownTaintsConfigDecoding(t *testing.T) {
 	v.SetConfigType("yaml")
 	err := v.ReadConfig(strings.NewReader(`
 kubernetes:
+  categoriseUnknownTaints: true
   wellKnownTaints:
     keys:
       - example.com/user
@@ -29,6 +30,7 @@ kubernetes:
 	require.NoError(t, err)
 	var config ExecutorConfiguration
 	require.NoError(t, v.Unmarshal(&config, commonconfig.CustomHooks...))
+	assert.True(t, config.Kubernetes.CategoriseUnknownTaints)
 	matcher, err := config.Kubernetes.NewWellKnownTaints()
 	require.NoError(t, err)
 

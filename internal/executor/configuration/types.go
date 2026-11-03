@@ -163,9 +163,9 @@ type KubernetesConfiguration struct {
 	// If a node has a taint that is not in this list, the executor will consider it for scheduling Armada jobs.
 	ToleratedTaints []string
 	WellKnownTaints WellKnownTaintsConfiguration
-	// CategorizeUnknownTaints controls whether node taints not in wellKnownTaints or wellKnownTaints.admin
+	// CategoriseUnknownTaints controls whether node taints not in wellKnownTaints or wellKnownTaints.admin
 	// should be given a default "unknown" category.
-	CategorizeUnknownTaints   bool
+	CategoriseUnknownTaints   bool
 	MinimumPodAge             time.Duration
 	StuckTerminatingPodExpiry time.Duration
 	FailedPodExpiry           time.Duration

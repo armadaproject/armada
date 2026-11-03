@@ -100,9 +100,9 @@ func TestValidateConfig_WhenWellKnownTaintPatternIsInvalid_Fails(t *testing.T) {
 	config.Kubernetes.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
 		{Category: configuration.UnknownTaintCategory, Keys: []string{"admin.example.com/maintenance"}},
 	}
-	for name, enabled := range map[string]bool{"categorization disabled": false, "categorization enabled": true} {
+	for name, enabled := range map[string]bool{"categorisation disabled": false, "categorisation enabled": true} {
 		t.Run(name, func(t *testing.T) {
-			config.Kubernetes.CategorizeUnknownTaints = enabled
+			config.Kubernetes.CategoriseUnknownTaints = enabled
 			assert.Error(t, validateConfig(config))
 		})
 	}

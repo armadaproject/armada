@@ -136,14 +136,14 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 }
 
 // RemoveCordonTaints strips cordon taints (see IsCordonTaint) and clears the unschedulable flag.
-// With complete metadata, it also strips categorized, non-user-facing taints, except control-plane
-// taints. Uncategorized and user-facing taints are preserved.
+// With complete metadata, it also strips categorised, non-user-facing taints, except control-plane
+// taints. Uncategorised and user-facing taints are preserved.
 // Without complete metadata, it preserves non-cordon taints and leaves schedulable nodes unchanged.
 //
 // The submit checker uses it so that jobs targeting a node type whose
 // nodes are all cordoned (via `kubectl cordon`, or otherwise reported unschedulable by the executor)
 // stay queued rather than being rejected. See issue #4946. This behavior also gets applied to
-// non-cordoned nodes with categorized taints.
+// non-cordoned nodes with categorised taints.
 //
 // A cordoned node always has the unschedulable flag set (Kubernetes only adds
 // node.kubernetes.io/unschedulable when the node is unschedulable, and the Armada taint is only

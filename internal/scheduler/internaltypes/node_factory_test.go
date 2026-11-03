@@ -45,7 +45,7 @@ func TestAddTaintsPreservesMetadataAndAddsNeutralEntries(t *testing.T) {
 	assert.Equal(t, originalTaints, node.GetTaints())
 	assert.Equal(t, originalMetadata, node.GetNodeTaints())
 
-	// Metadata-aware filtering preserves uncategorized and user-facing taints.
+	// Metadata-aware filtering preserves uncategorised and user-facing taints.
 	filtered := factory.RemoveCordonTaints(result)
 	assert.Equal(t, []v1.Taint{existing, added}, filtered[0].GetTaints())
 	assert.Equal(t, []NodeTaint{
@@ -118,20 +118,20 @@ func TestRemoveCordonTaintsSelectsPerNodeFlow(t *testing.T) {
 			wantTaints:   []v1.Taint{user},
 			wantMetadata: []NodeTaint{{taint: user, category: "user", userFacing: true}},
 		},
-		"schedulable uncategorized taint is kept": {
+		"schedulable uncategorised taint is kept": {
 			taints:       []*v1.Taint{&restricted},
 			metadata:     []*schedulerobjects.NodeTaint{{Taint: &restricted}},
 			schedulable:  true,
 			wantTaints:   []v1.Taint{restricted},
 			wantMetadata: []NodeTaint{{taint: restricted}},
 		},
-		"unschedulable uncategorized taint is kept": {
+		"unschedulable uncategorised taint is kept": {
 			taints:       []*v1.Taint{&restricted},
 			metadata:     []*schedulerobjects.NodeTaint{{Taint: &restricted}},
 			wantTaints:   []v1.Taint{restricted},
 			wantMetadata: []NodeTaint{{taint: restricted}},
 		},
-		"categorized unknown taint is removed": {
+		"categorised unknown taint is removed": {
 			taints:       []*v1.Taint{&restricted},
 			metadata:     []*schedulerobjects.NodeTaint{{Taint: &restricted, Category: "unknown"}},
 			schedulable:  true,
