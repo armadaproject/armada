@@ -1,0 +1,161 @@
+---
+title: 'Partitioning the Lookout job table'
+description: 'Plan and run the migration of the Lookout job table to its partitioned schema'
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+<Callout type='warn' title='Action needed before v0.24.0'>
+  From v0.23.0, Lookout partitions its `job` table into active and terminated
+  jobs. New installs get the partitioned table automatically. Existing installs
+  are never migrated automatically: you must run the migration yourself before
+  you upgrade to v0.24.0 (planned for 01 March 2027), which no longer supports
+  the unpartitioned table.
+</Callout>
+
+## Why the job table is partitioned
+
+`job` is the busiest table in the Lookout database. The Lookout ingester inserts a row for every job and updates it at every state change. Every update also rewrites the entries in each of the table's indexes, and on a large table those indexes are large and expensive to maintain.
+
+Most updates touch jobs that are still queued, leased, pending or running, while most rows belong to jobs that have finished and will not change again.
+
+The partitioned table splits the two:
+
+- `job_active` holds jobs in the queued, pending, running and leased states
+- `job_terminated` holds succeeded, failed, cancelled, preempted and rejected jobs
+
+Postgres moves a row from one partition to the other when its state changes. The active partition stays small, so its indexes are cheap to update, and the terminated partition, though large, is much less frequently written to.
+
+Our load tests simulating our production instances showed this would increase the maximum supported job throughtput by around 20 times. Nothing changes for users of the Lookout UI or the Armada API: they read the same `job` table as before.
+
+## Timeline
+
+| Release | Target date      | What it does                                                                                                                                      |
+| ------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| v0.23.0 | 01 December 2026 | New installs get the partitioned table. Existing installs can migrate with `lookout --partitionJobTable`. Lookout warns at startup until they do. |
+| v0.23.x |                  | No change to this feature. Release notes remind you to migrate.                                                                                   |
+| v0.24.0 | 01 March 2027    | Support for the unpartitioned table is removed. Lookout will not start until the table is migrated. The migration command is still included.      |
+
+You can migrate at any time from v0.23.0 onwards, and you do not need to install v0.23.0 first if you upgrade later: every later release, including v0.24.0, can run the migration.
+
+## Am I affected?
+
+Your `job` table still needs migrating if any of these are true:
+
+- **Startup logs.** The Lookout API logs `Job table shape: unpartitioned` or `Job table shape: partitioned` when it starts. While an unpartitioned table contains data, Lookout and `lookout --migrateDatabase` also log a warning that support for it will be removed in v0.24.0.
+- **Metrics.** The Lookout API exposes `lookout_job_table_partitioned`, which is `1` once the table is partitioned and `0` before. It is updated on every scrape, so it changes as soon as the migration finishes, which is useful if you run many installs.
+- **SQL.** Run `SELECT EXISTS (SELECT 1 FROM pg_partitioned_table WHERE partrelid = 'job'::regclass);` against the Lookout database. `true` means the table is already partitioned.
+- **Preflight.** `lookout --partitionJobTable --preflight` reports `The job table is already partitioned` if there is nothing to do.
+
+If you enabled the `experimentalHotColdSplit` Lookout setting, your table is already partitioned. Remove the setting from your configuration: it no longer has any effect, and Lookout logs it as an unused key.
+
+## Requirements
+
+- **Free disk.** The migration builds a complete copy of the table, including its TOAST data and indexes plus one new index, and frees the old table only when it commits. You need free database disk of at least the size of your `job` table, plus headroom. In our tests, the extra disk used was the size of the table again, for tables from 4 GiB to 154 GiB. The preflight reports the size of the table and the free disk to plan for. Postgres cannot see free filesystem space, so check it yourself.
+- **Postgres 14 or later.** Earlier versions are untested. The migration refuses to run on versions before 11.
+- **Time.** The migration rewrites the whole table in one transaction, so large tables take a while. As a rough guide, on a laptop (Apple M4 Pro, local SSD) running Postgres 17 with `shared_buffers = 8GB` and `maintenance_work_mem = 2GB` and no other load, migrating a 154 GiB `job` table (40 million jobs of about 4 KB each) took 33 minutes, about 13 seconds per GiB. Expect production databases, with network storage, other load and the default `maintenance_work_mem`, to take longer. Run the migration against a copy of your database to measure it.
+- **WAL.** The migration writes roughly as much WAL as the size of the new table and its indexes. Allow for this on replicas, which must replay it, and in WAL archiving and backup storage.
+- **Pulsar retention.** The Lookout ingester's Pulsar subscription (`lookout-ingester-v2` by default) builds a backlog while the migration runs. Make sure Pulsar retains it for longer than the migration takes: neither a message TTL nor a backlog quota with an eviction policy may be shorter than the migration, or events are discarded before the ingester can write them.
+- **Privileges.** The migration needs no extensions or superuser privileges, so it also works on managed Postgres services. It must run as the role that owns the `job` table, which is normally the role that `lookout --migrateDatabase` uses, and that role must be able to create tables in the schema.
+
+## What you'll see during the migration
+
+The migration holds an exclusive lock on the `job` table from start to finish. You do not need to stop any Armada components: everything that uses the table waits for the lock and then carries on.
+
+- **The Lookout UI and API**, and **job-status queries through the Armada server** (for example from `armadactl` and the client libraries), wait until the migration finishes. Requests may time out in the client or in your ingress before then. Other Armada operations, such as submitting jobs and managing queues, are not affected.
+- **Ingestion pauses.** The Lookout ingester's writes wait for the migration, and a backlog builds up in its Pulsar subscription. Once the migration commits, the ingester catches up on the backlog without losing or duplicating any events.
+- **A pruner run** that overlaps the migration waits until its configured timeout and then fails. The next scheduled run works as normal.
+
+To follow the migration:
+
+- the migration logs each step and, every minute, how long it has been running;
+- the ingester logs `Inserted N pulsar messages in Xms` as it writes, and these lines stop while it waits;
+- the backlog of the ingester's Pulsar subscription grows during the migration and shrinks afterwards;
+- the ingester's `armada_lookout_ingester_v2_pulsar_message_processing_delay` metric shows how far behind it is, if you enable its delay monitor (`pulsar.delayMonitor.enabled` in the ingester configuration);
+- the `pgxpool_*` metrics of the Lookout API show connections waiting.
+
+Run the migration in a quiet period and let your users know beforehand that Lookout and job-status queries will be unavailable while it runs.
+
+<Callout type='warn' title='When to stop the Lookout ingester'>
+  Stop the ingester for the duration of the migration if a `statement_timeout`
+  or `lock_timeout` applies to its database role and you have configured any
+  `fatalInsertionErrors` in the ingester. In that combination, the ingester
+  treats the timeout as fatal and drops the events it was writing. The preflight
+  lists every timeout setting that could apply. To stop the ingester, scale it
+  to zero (`replicas: 0` in the `lookout-ingester` Helm chart, or
+  `spec.replicas: 0` on the `LookoutIngester` resource if you use the Armada
+  Operator), then scale it back up once the migration has finished.
+</Callout>
+
+## Running the migration
+
+1. **Upgrade to v0.23.0 or later**, and let `lookout --migrateDatabase` run as part of the upgrade. The migration refuses to run until the database has been migrated by the same version of Lookout.
+2. **Run the preflight** with the same configuration as your Lookout API:
+
+   ```bash
+   lookout --partitionJobTable --preflight --config /config/application_config.yaml
+   ```
+
+   The preflight doesn't change anything. It reports the size of the table, the free disk the migration needs, the Postgres version, the sessions that would delay the migration, and the timeout settings that could affect the ingester. It exits with a non-zero status if anything would stop the migration.
+
+3. **Back up** the Lookout database (optional, but recommended).
+4. **Run the migration** in one of these ways.
+   - **On the command line**, with the same configuration as the Lookout API:
+
+     ```bash
+     lookout --partitionJobTable --execute --config /config/application_config.yaml
+     ```
+
+     It asks for confirmation on a terminal; pass `--yes` to skip the prompt.
+
+   - **With Helm**, enable the partition Job in the `lookout-migration` chart, in a separate `helm upgrade` after the upgrade to v0.23.0 has finished:
+
+     ```bash
+     helm upgrade <release> <lookout-migration chart> --reuse-values --set partitionJobTable.enabled=true
+     kubectl logs -f job/armada-lookout-migration-partition-job-table-<revision>
+     ```
+
+     Helm does not wait for the Job. Its `partitionJobTable.activeDeadlineSeconds` value (24 hours by default) limits how long it may run.
+
+   - **With the Armada Operator** (`{{OPERATOR_VERSION - TODO}} ` or later), set `spec.partitionJobTable.enabled: true` on your `Lookout` resource. Once the Lookout migration Job has succeeded, the operator starts a `<name>-partition-job-table` Job, without holding up the rest of the installation. The `JobTablePartitioned` condition in the resource's status shows whether it is running, has succeeded or has failed.
+   - **As SQL**, if your database administrators prefer to run it themselves. This prints the exact statements, as a single transaction, without running them:
+
+     ```bash
+     lookout --partitionJobTable --printSql --config /config/application_config.yaml > partition-job-table.sql
+     psql --set ON_ERROR_STOP=1 --file partition-job-table.sql
+     ```
+
+5. **Check that it worked**: `lookout_job_table_partitioned` is `1` and the preflight reports that the table is already partitioned. The Lookout API logs `Job table shape: partitioned` the next time it starts; it does not need restarting.
+6. **Helm and Armada Operator users**: set `partitionJobTable.enabled` back to `false`.
+
+Running the migration again is harmless: if the table is already partitioned, it does nothing and exits successfully. Two runs of `lookout --partitionJobTable --execute` cannot overlap: a second run fails straight away.
+
+## If the migration fails
+
+The migration runs in a single transaction, so if it fails or is stopped part-way, Postgres rolls it back and leaves the `job` table exactly as it was. Find the cause in the migration's logs, fix it, and run it again. The usual causes are:
+
+- **The lock could not be taken.** The migration waits a few seconds at a time for the lock on `job`, so that it does not hold up other queries while waiting behind a long-running one, and gives up after several attempts. The preflight lists the sessions holding locks on `job`; run the migration again once they have finished.
+- **The database ran out of disk.** Free more space using the figure from the preflight.
+- **The Job's deadline passed.** Increase `partitionJobTable.activeDeadlineSeconds`.
+
+If you are stuck, ask in the migration thread (`{{DISCUSSION_URL - TODO}}`) in [Armada's GitHub Discussions](https://github.com/armadaproject/armada/discussions).
+
+## Rolling back
+
+- Lookout v0.22.0 and later work with the partitioned table, so you can roll back to any of them after migrating. Leave `experimentalHotColdSplit` unset or `false` when you do: with it enabled, `lookout --migrateDatabase` in v0.22.0 to v0.22.10 fails, because their check of the partitioned table predates columns added in v0.22.11.
+- **Do not run any Lookout component older than v0.22.0** against the partitioned table. Its ingester writes duplicate rows for some jobs, after which ingestion stops.
+- There are no down migrations. The only way back to an unpartitioned table is to restore the backup you took before migrating.
+
+## FAQ
+
+**Do I need to install v0.23.0 before upgrading to a later version?**
+No. Every release from v0.23.0 onwards includes the migration, so you can upgrade straight to a later version, run `lookout --migrateDatabase`, and then run the migration.
+
+**Can I migrate without any downtime?**
+No. Lookout and job-status queries wait for the whole migration, so it should be scheduled.
+
+**Does it work on managed Postgres, such as Amazon RDS, Google Cloud SQL or Azure Database for PostgreSQL?**
+Yes. It needs no extensions or superuser privileges, only the role that owns the `job` table.
+
+**How much disk do I need exactly?**
+Run the preflight: it calculates the figure from your table.
