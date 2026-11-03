@@ -1,0 +1,205 @@
+---
+title: 'Airflow'
+description: 'Run Airflow tasks as Armada jobs with the ArmadaOperator.'
+---
+
+The `armada-airflow` package lets each Airflow task run as an Armada job: Airflow decides **what** runs and in what order, and Armada decides **where and when**. This page sets up Airflow, runs a DAG with one Armada task, and explains how the task behaves.
+
+## Before you start
+
+You need:
+
+- An Armada installation and a queue you can submit to (on a laptop: [Getting started](/getting-started) and the `my-team` queue. ) {/* from Submitting jobs LINK: restore "[Submitting jobs](/docs/submitting-jobs)" when that page merges */}.
+- Python 3.12.
+
+## Step 1. Install Airflow and the Armada provider
+
+Use a virtual environment so Airflow doesn't affect anything else on your machine:
+
+```bash
+mkdir -p ~/armada-guide/airflow
+cd ~/armada-guide/airflow
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install "apache-airflow==3.2.2" "armada-airflow==1.1.3"
+```
+
+Then pin five web libraries to the versions Airflow 3.2.2 was tested with:
+
+```bash
+pip install "cadwyn==6.2.2" "fastapi==0.136.1" "starlette==1.1.0" "svcs==25.1.0" "uvicorn==0.47.0"
+```
+
+Without this second command, every task fails inside Airflow with `AttributeError: 'State' object has no attribute 'svcs_registry'`. The pinned versions come from Airflow's published constraints file (`https://raw.githubusercontent.com/apache/airflow/constraints-3.2.2/constraints-3.12.txt`). To use a different Airflow version, change `3.2.2` in both commands, and take the matching versions from that version's constraints file.
+
+**Success:** `pip list` shows `apache-airflow` and `armada-airflow`.
+
+## Step 2. Set up Airflow's folder
+
+```bash
+export AIRFLOW_HOME=$PWD/airflow-home
+export AIRFLOW__CORE__LOAD_EXAMPLES=False
+mkdir -p airflow-home/dags
+airflow db migrate
+```
+
+`AIRFLOW_HOME` is where Airflow keeps its database and looks for DAGs. Run the `source` and `export` lines again in each new terminal.
+
+## Step 3. Write a DAG
+
+Each `ArmadaOperator` task wraps one Armada job: a `JobSubmitRequestItem` containing a Kubernetes pod spec.
+
+```bash
+cat > airflow-home/dags/hello_armada.py <<'EOF'
+import pendulum
+from airflow import DAG
+from armada.model import GrpcChannelArgs
+from armada.operators.armada import ArmadaOperator
+from armada_client.armada import submit_pb2
+from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
+from armada_client.k8s.io.apimachinery.pkg.api.resource import (
+    generated_pb2 as api_resource,
+)
+
+
+def sleep_job():
+    pod = core_v1.PodSpec(
+        containers=[
+            core_v1.Container(
+                name="sleep",
+                image="alpine:3.21",
+                args=["sleep", "10s"],
+                resources=core_v1.ResourceRequirements(
+                    requests={
+                        "cpu": api_resource.Quantity(string="200m"),
+                        "memory": api_resource.Quantity(string="128Mi"),
+                    },
+                    limits={
+                        "cpu": api_resource.Quantity(string="200m"),
+                        "memory": api_resource.Quantity(string="128Mi"),
+                    },
+                ),
+            )
+        ],
+    )
+    return submit_pb2.JobSubmitRequestItem(
+        priority=1, pod_spec=pod, namespace="default"
+    )
+
+
+with DAG(
+    dag_id="hello_armada",
+    start_date=pendulum.datetime(2026, 1, 1, tz="UTC"),
+    schedule="@daily",
+    catchup=False,
+    default_args={"retries": 2},
+) as dag:
+    # A laptop install. For a team installation, see "Connecting to a team installation".
+    channel_args = GrpcChannelArgs(target="localhost:30002")
+
+    step = ArmadaOperator(
+        task_id="train",
+        name="train",
+        armada_queue="my-team",
+        channel_args=channel_args,
+        job_request=sleep_job(),
+        # Logs each state change with a link to the job in Lookout.
+        lookout_url_template="http://localhost:30000/?f[0][id]=jobId&f[0][value]=<job_id>&f[0][match]=exact",
+    )
+EOF
+```
+
+The job follows the same rules as any Armada job (see Submitting jobs) {/* LINK: restore "[Submitting jobs](/docs/submitting-jobs)" when that page merges */}: one pod per job, and `requests` equal to `limits`. Chain `ArmadaOperator` tasks with `>>` as usual. `job_request` can also be a function, so each run can build its pod spec from Airflow's templated context.
+
+## Step 4. Run it
+
+```bash
+airflow dags test hello_armada
+```
+
+`dags test` runs the DAG once, now, in your terminal, without starting Airflow's servers.
+
+**Success:** after about a minute, the output includes:
+
+```text title="Output"
+Submitted job to Armada with job-id <job-id>. Job details available at http://localhost:30000/?f[0][id]=jobId&f[0][value]=<job-id>&f[0][match]=exact
+job <job-id> is in state: SUCCEEDED. Job details available at ...
+job <job-id> terminated with state: SUCCEEDED
+DagRun Finished: dag_id=hello_armada, ...
+```
+
+The operator checks the job every 30 seconds and logs an `is in state:` line when the state has changed since the last check, so this 10-second job usually shows only `SUCCEEDED`; longer jobs also show `LEASED` and `RUNNING`. These lines only appear when `lookout_url_template` is set. Each line is mixed in with Airflow's own logging, so search for `job-id` or `state:`. An `XCom not found ... key='job_request'` warning near the start is normal; ignore it.
+
+The job also appears in Lookout and `armadactl`. Its job set is named after the Airflow run, for example `manual__2026-10-02T19:00:22.608998+00:00`:
+
+```bash
+armadactl watch my-team "<run_id>"
+```
+
+## How the task behaves
+
+- **Success and failure:** the operator submits the job, then checks its state every 30 seconds (`poll_interval`). The task succeeds when the job succeeds. It fails, with `ArmadaOperatorJobFailedError` and the job's reason, if the job fails, is cancelled or is preempted:
+
+  ```text title="Output"
+  ArmadaOperator job '<job-id>' in queue 'my-team' terminated with state 'Failed'. Termination reason: Container main failed with exit code 3 ...
+  ```
+
+- **Retries:** an Airflow retry submits a **new** Armada job (with the default `reattach_policy`). The log shows `Found: job-id <job-id> in JobState.FAILED. Didn't reattach due to reattach policy.` and then a second `Submitted job` line. Armada doesn't retry jobs whose program fails, so Airflow's `retries` are the natural way to resubmit failed or preempted work.
+- **Deferrable mode:** off unless you turn it on. With `deferrable=True`, the task hands waiting over to Airflow's triggerer while the job is queued or running, freeing the worker slot. That's useful when jobs wait a long time in a busy queue. It needs Airflow's triggerer running (`airflow triggerer`) in a real deployment. `airflow dags test` runs the trigger itself, so you can try it without one: the log shows `Pausing task as DEFERRED` and `[DAG TEST] running trigger in line`, and the task finishes on the same job. You can also turn it on for all operators with Airflow's `operators.default_deferrable` setting.
+- **Stopping the task:** killing or timing out the Airflow task cancels its Armada job.
+
+## Useful options
+
+| Option                 | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lookout_url_template` | Adds a "Lookout" link to each task in the Airflow UI, and logs each state change with that link. Put `<job_id>` where the job ID goes. For Lookout, use `<lookout-address>/?f[0][id]=jobId&f[0][value]=<job_id>&f[0][match]=exact`; the `/jobs?job_id=<job_id>` form in older examples opens Lookout without the filter.                                                                                                                                                                                                                                                                 |
+| `job_set_prefix`       | Text added to the front of the job set name. The rest is the Airflow run ID.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `reattach_policy`      | What a retry does if the previous attempt's job is still around. `never` (default) always submits a new job. `running_or_succeeded` reconnects to a job that's still running or already succeeded, so worker restarts don't create duplicates. `always` always reconnects, which means **a failed job fails the task with no retry** (`ArmadaOperatorJobFailedFatalError`), because a retry would only reconnect to the same failed job. The first attempt never reconnects.                                                                                                             |
+| `container_logs`       | Copies the named container's output into the Airflow task log, as lines like `[main] hello`. It reads logs from the Kubernetes cluster directly, so it needs three things: a kubeconfig on the Airflow worker with a **context named exactly like the Armada executor cluster** (`Cluster1` on a laptop install, not `kind-armada`), a `k8s_token_retriever` (an object with a `get_token()` method; it's required, even if your kubeconfig already logs in), and network access to the cluster. If any of these is missing the task still succeeds, but logs `Error fetching logs ...`. |
+| `poll_interval`        | Seconds between state checks. Default `30`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `deferrable`           | See above.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `dry_run`              | Builds the request and logs it, without submitting.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+
+## Connecting to a team installation
+
+`GrpcChannelArgs` takes `target`, and optionally `options`, `compression` and `auth`.
+
+Without `auth`, the operator opens an **unencrypted** connection, which is fine for a laptop install only. For a team installation, pass a `grpc.AuthMetadataPlugin`; the operator then uses an encrypted connection with your token attached:
+
+```python
+import grpc
+
+class BearerAuth(grpc.AuthMetadataPlugin):
+    def __init__(self, get_token):
+        self._get_token = get_token  # a function returning a current token
+
+    def __call__(self, context, callback):
+        callback((('authorization', f'Bearer {self._get_token()}'),), None)
+
+channel_args = GrpcChannelArgs(
+    target='armada.example.com:443',
+    auth=BearerAuth(get_token=fetch_token_from_your_provider),
+)
+```
+
+This example works with `deferrable=False` (the default). With `deferrable=True`, Airflow saves `channel_args`, including `auth`, so the triggerer can use it. Your auth class must then be one Airflow can save: define it in a module the triggerer can import (not in the DAG file), give it a `__version__`, a `serialize()` method returning plain values, and a static `deserialize(data, version)`, and have it fetch tokens itself rather than hold a function.
+
+See Authentication {/* LINK: restore "[Authentication](/docs/authentication#connecting-from-your-own-code-python-and-airflow)" */} for getting a token.
+
+## Troubleshooting
+
+| What you see                                                                                            | Cause                                                                                       | Fix                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AttributeError: 'State' object has no attribute 'svcs_registry'`                                       | Airflow's web libraries are newer than it supports                                          | Run the pinned `pip install` in Step 1.                                                                                                                                                   |
+| The task fails at once with a submission error                                                          | The job breaks a submission rule (queue, resources, priority class)                         | The message matches what `armadactl submit` would say. {/* LINK: restore "[Submitting jobs](/docs/submitting-jobs#troubleshooting)" when that page merges */}                             |
+| `could not find queue`                                                                                  | The queue doesn't exist, or was just created                                                | Check with `armadactl get queues`. Wait 15 seconds after creating a queue.                                                                                                                |
+| The task waits a long time                                                                              | The job is queued in Armada                                                                 | Check it with `armadactl get job-report <job-id>`. See When jobs fail or don't start.                                                                                                     |
+| A worker restart created a duplicate job                                                                | Retries submit new jobs by default                                                          | Set `reattach_policy="running_or_succeeded"`.                                                                                                                                             |
+| No container logs in the Airflow UI                                                                     | `container_logs` isn't set, doesn't match a container name, or the cluster can't be reached | Check the container name. Use the Lookout link instead.                                                                                                                                   |
+| `Error fetching logs Invalid kube-config file. Expected object with name Cluster1 in .../contexts list` | `container_logs` looks for a kubeconfig context named after the executor cluster            | Add or rename a context to that name, in a copy of your kubeconfig if you like (`KUBECONFIG=<copy> kubectl config rename-context <current-name> Cluster1`), and point `KUBECONFIG` at it. |
+| `Error fetching logs 'NoneType' object has no attribute 'get_token'`                                    | `container_logs` is set without `k8s_token_retriever`                                       | Pass a `k8s_token_retriever`. On a laptop (kind uses a client certificate), one that returns any string works.                                                                            |
+| The task failed at once with `ArmadaOperatorJobFailedFatalError`, and didn't retry                      | `reattach_policy="always"` and the job failed                                               | Use `running_or_succeeded` if you want failed jobs retried.                                                                                                                               |
+| `XCom not found ... key='job_request'`                                                                  | Normal: the operator checks for a saved request first                                       | Ignore it.                                                                                                                                                                                |
+| No `is in state:` lines in the log                                                                      | `lookout_url_template` isn't set                                                            | Set it (see Step 3). The task still works without it.                                                                                                                                     |
+| `TypeError: cannot serialize object of type <class '...'>` with `deferrable=True`                       | `channel_args` has an `auth` plugin, which Airflow can't save for the triggerer             | Use `deferrable=False` with `auth`.                                                                                                                                                       |
