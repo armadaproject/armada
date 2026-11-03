@@ -39,13 +39,26 @@ directory, run:
 yarn
 ```
 
-Generate the OpenAPI client code from the OpenAPI specification. This step is
-required to be run before the first time the application is run, and any time
-the OpenAPI specification is updated.
+Generate the OpenAPI client code before the first application run or build,
+and whenever an input specification changes. With Docker running, this command
+reads the three specifications at `pkg/api/api.swagger.json`,
+`pkg/api/binoculars/api.swagger.json` and
+`pkg/api/schedulerobjects/api.swagger.json` from the repository root:
 
 ```bash
 yarn openapi
 ```
+
+The generated clients in `src/openapi/armada/`, `src/openapi/binoculars/` and
+`src/openapi/schedulerobjects/` are ignored and recreated locally. Preserve the
+tracked, handwritten `src/openapi/workarounds.d.ts`. No running Armada backend
+is needed for client generation or the production build.
+
+For upstream API changes, edit the proto/model sources and regenerate the
+specifications first; see [Regenerating code and API clients](../../docs/developer/generation.md).
+The JSON specifications are generated outputs, not the editable API contract.
+Continue with the [production build](#building-the-application-for-production)
+to check the generated clients against their UI consumers.
 
 ### Live development server
 
