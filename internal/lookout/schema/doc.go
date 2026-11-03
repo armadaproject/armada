@@ -30,4 +30,31 @@
 // provide a single ordered scan across partitions. Lookout's default job
 // view filters by queue and sorts by job_id, so this index keeps that query
 // an index scan instead of a full scan of the table.
+//
+// # Writing migrations
+//
+// UpdateDatabase applies the migration chain to either shape of the job
+// table. Before each migration it checks the live shape, and on a
+// partitioned job table it applies the migration's PartitionedVariant if it
+// has one: "NNN_name.partitioned.sql", or a "NNN_name.partitioned/"
+// directory whose files run as separate statements outside a transaction.
+// Otherwise it applies the default "NNN_name.sql". Every migration that
+// touches job must therefore:
+//
+//   - Work on both shapes. Most DDL, such as ALTER TABLE job ADD COLUMN,
+//     propagates from a partitioned parent to its partitions, so needs no
+//     variant.
+//   - Not block writes while it builds an index. CREATE INDEX CONCURRENTLY
+//     is not allowed on a partitioned table, so an index on job needs a
+//     partitioned variant directory following partitionedIndexMigration in
+//     migrations_test.go.
+//   - Be safe to re-run, because recording a migration is not atomic with
+//     applying it: use IF NOT EXISTS, and drop any INVALID index left by a
+//     failed concurrent build before rebuilding it.
+//   - Be matched by the conversion, which rebuilds job from
+//     target_schema.sql: add any new column or index there, to the rename
+//     list in convertUnpartitionedToPartitioned, and to findShapeMismatch.
+//     TestChainThenConvertMatchesConvertThenRestOfChain fails if a database
+//     partitioned before the migration ends up different from one
+//     partitioned after it.
 package schema
