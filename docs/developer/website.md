@@ -1,3 +1,3 @@
 # Armadaproject.io website
 
-For information on how to build and use the website, [see the Armada repo README](https://github.com/armadaproject/armada/blob/gh-pages/README.txt).
+For website authoring, preview, checks and publication, see [website/README.md](../../website/README.md). Published page sources live in [`website/content/`](../../website/content/); repository `docs/` files are not automatically published.
