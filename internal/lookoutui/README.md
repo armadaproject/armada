@@ -39,7 +39,7 @@ First, install all packages depended on by this web app using Yarn. In this
 directory, run:
 
 ```bash
-yarn install --frozen-lockfile
+yarn
 ```
 
 Generate the OpenAPI client code from the OpenAPI specification. This step is

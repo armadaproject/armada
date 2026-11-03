@@ -113,24 +113,19 @@ mage -v tests
 
 The [runner](../magefiles/tests.go) requires Docker and image access, starts Redis and Postgres, and installs test tooling if missing. It covers `cmd`, `pkg` and `internal` packages and writes reports under `test-reports/`. CI calls this “Golang Unit Tests”, but it uses services and does not run the YAML integration suites or UI tests.
 
-The runner uses container names `redis` and `postgres` and ports `6379` and `5432`, which overlap the development stacks. Stop your own stack first and check for existing containers or listeners; remove only containers you created. Allow the services to become ready before running focused tests.
+The runner uses container names `redis` and `postgres` and ports `6379` and `5432`, which overlap the development stacks. Stop your own stack first and check for existing containers or listeners; remove only containers you created.
 
-For a focused database test, provision a dedicated disposable Postgres instance. The [test helper](../internal/common/database/db_testutil.go) needs privileges to create/drop databases and terminate connections; schema tests also manage roles. For example, on a Unix shell with port 5432 free:
+For a focused database test, independently provision a ready, dedicated Postgres instance using the [test helper's connection settings](../internal/common/database/db_testutil.go). It needs privileges to create/drop databases and terminate connections; schema tests also manage roles. Then run:
 
 ```bash
-docker run -d --name armada-validation-postgres -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
-docker exec armada-validation-postgres pg_isready -U postgres
-# Repeat the readiness check until it succeeds, then:
 go test ./internal/common/database -run '^TestPrepareSchema_SingleRole_CreatesAndSetsSearchPath$' -count=1
 # Expand to the package when changing shared database behaviour:
 go test ./internal/common/database -count=1
-# Remove only the disposable container created above, including after a test failure:
-docker rm -f armada-validation-postgres
 ```
 
 Use dedicated services: database tests create and drop databases, retain migration templates, and may manage roles; Redis tests mutate data too. A test filter does not bypass package initialization or service fixtures.
 
-The broad runner removes its Redis/Postgres containers on normal return after both have started. A partial startup or interruption can leave containers behind: inspect and remove only those created by that run. `mage dev:down` cleans up the Compose dependency stack, not these directly started test containers.
+`mage tests` provisions services for the broad suite and removes its Redis/Postgres containers on normal return after both have started; it does not leave services running for a subsequent focused test. A partial startup or interruption can leave containers behind: inspect and remove only those created by that run. Clean up independently provisioned fixtures after focused tests too. `mage dev:down` cleans up the Compose dependency stack, not these directly started test containers.
 
 ### Lookout UI checks
 
