@@ -1,0 +1,16 @@
+{{- if .Values.partitionJobTable.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "lookout.name" . | trunc 40 | trimSuffix "-" }}-partition-job-table-{{ .Release.Revision }}
+  labels:
+    {{- include "lookout.labels.all" . | nindent 4 }}
+spec:
+  backoffLimit: 0
+  completions: 1
+  parallelism: 1
+  activeDeadlineSeconds: {{ .Values.partitionJobTable.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.partitionJobTable.ttlSecondsAfterFinished }}
+  template:
+    {{- include "lookout.migration.podTemplate" (dict "root" . "args" (list "--partitionJobTable" "--execute" "--yes") "resources" (.Values.partitionJobTable.resources | default .Values.resources)) | nindent 4 }}
+{{- end }}
