@@ -88,7 +88,7 @@ Two smaller targets support these: `mage dev:deps` runs only the dependency cont
 
 The `no-auth` and `auth` profiles run a real executor, which needs a Kubernetes cluster. Create one with `mage kind`, which writes its kubeconfig to `.kube/external/config`, and start the stack with `KUBECONFIG=.kube/external/config mage dev:up no-auth`. Without `KUBECONFIG` set, the executor falls back to your default kubeconfig and connects to whatever cluster that selects. Use the `fake-executor` profile if you do not want a cluster at all.
 
-The profile argument is required and is a comma-separated list of tokens: `no-auth`, `auth`, `fake-executor`, `auth-fake-executor`, and `hot-cold` pick the procfile, and any other token (for example `prometheus`) is passed to docker compose as a `--profile` flag. Use `auth-fake-executor` to run the OIDC-enabled server without a Kubernetes cluster. The optional `-dap` flag starts every component under a headless [Delve](https://github.com/go-delve/delve) DAP server so your editor can attach a debugger, e.g. `mage dev:up auth,prometheus -dap`.
+The profile argument is required and is a comma-separated list of tokens: `no-auth`, `auth`, `fake-executor`, and `auth-fake-executor` pick the procfile, and any other token (for example `prometheus`) is passed to docker compose as a `--profile` flag. Use `auth-fake-executor` to run the OIDC-enabled server without a Kubernetes cluster. The optional `-dap` flag starts every component under a headless [Delve](https://github.com/go-delve/delve) DAP server so your editor can attach a debugger, e.g. `mage dev:up auth,prometheus -dap`.
 
 If `mage dev:up no-auth` reports `Unknown target`, your mage binary is too old for optional flags (`mage checkDeps` verifies this). Upgrade it, or use `go run github.com/magefile/mage@v1.17.2 <target>`, which also works without installing mage at all.
 
@@ -143,7 +143,6 @@ All Procfiles are located in `_local/procfiles/`:
 | `auth.Procfile`          | Standard setup with OIDC authentication           |
 | `fake-executor.Procfile` | Uses fake executor for testing without Kubernetes |
 | `auth-fake-executor.Procfile` | OIDC authentication with the fake executor, no Kubernetes |
-| `hot-cold.Procfile`      | Runs the parallel hot/cold Lookout stack          |
 
 Each profile also has a `-dap` variant, described under [Debugging](#debugging). In a second terminal, restart an individual process through the running Goreman instance with `./bin/goreman run restart <component>` (for example, `./bin/goreman run restart server`).
 
@@ -267,8 +266,6 @@ The following high-level configurations are provided, each composed of sub-confi
 - `Start Dependencies` - creates the Kind cluster and brings up the dependency containers (redis, postgres, pulsar)
 - `Armada` - runs the full Armada stack (migrations and components)
 - `Lookout UI` - script that configures a local UI development setup
-- `Armada HC` - runs the full Armada stack plus a parallel Lookout Hot/Cold stack (for testing the Lookout Hot/Cold partitioned, to be removed once graduated)
-- `Lookout HC UI` - similarly, a script that configures a local UI with hot/cold configs
 
 A minimal local Armada setup using these configurations would be `Start Dependencies` and `Armada`. If you already have a Kind cluster running, use `Infrastructure Services` instead of `Start Dependencies` to bring up just the dependency containers. Running the `Lookout UI` script on top of this configuration enables you to develop the Lookout UI live from GoLand, and see the changes visible in your browser.
 
@@ -290,7 +287,6 @@ The following compound configurations are provided, each launching all relevant 
 | `Armada (no-auth with prometheus)`       | Same as `no-auth`, but also starts Prometheus                               |
 | `Armada (auth with prometheus)`          | Same as `auth`, but also starts Prometheus                                  |
 | `Armada (fake-executor with prometheus)` | Same as `fake-executor`, but also starts Prometheus                         |
-| `Armada (hot-cold)`                      | Same as `no-auth` but also starts a parallel hot/cold Lookout stack         |
 
 Each compound configuration attaches to already-running processes via Delve remote debugging. The individual service configurations and their debug ports are:
 
@@ -305,8 +301,6 @@ Each compound configuration attaches to already-running processes via Delve remo
 | `lookoutingester`   | `2351`     |
 | `binoculars`        | `2352`     |
 | `fakeexecutor`      | `2353`     |
-| `lookouthc`         | `2354`     |
-| `lookouthcingester` | `2355`     |
 
 Each compound configuration has a `preLaunchTask` that sets up and starts the relevant services via Goreman before attaching the debuggers. For example, `Armada (no-auth)` uses the task `Set up and start (no-auth)`.
 

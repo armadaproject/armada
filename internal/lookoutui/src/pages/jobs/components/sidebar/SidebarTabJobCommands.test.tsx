@@ -1,4 +1,3 @@
-// cspell:ignore lookouthc
 import { readFileSync } from "fs"
 import { resolve } from "path"
 
@@ -26,17 +25,14 @@ const job = {
 } as unknown as Job
 
 describe("getCommandText", () => {
-  it.each([{ configPath: "config/lookout/config.yaml" }, { configPath: "config/lookouthc/config.yaml" }])(
-    "renders the shipped commands of $configPath for the latest run",
-    ({ configPath }) => {
-      const commands = Object.fromEntries(
-        readCommandSpecs(configPath).map((spec) => [spec.name, getCommandText(job, spec)]),
-      )
+  it("renders the shipped commands of config/lookout/config.yaml for the latest run", () => {
+    const commands = Object.fromEntries(
+      readCommandSpecs("config/lookout/config.yaml").map((spec) => [spec.name, getCommandText(job, spec)]),
+    )
 
-      expect(commands).toEqual({
-        Logs: "kubectl --context cluster-1 -n team-a logs armada-run-1",
-        Exec: "kubectl --context cluster-1 -n team-a exec -it armada-run-1 -- /bin/sh",
-      })
-    },
-  )
+    expect(commands).toEqual({
+      Logs: "kubectl --context cluster-1 -n team-a logs armada-run-1",
+      Exec: "kubectl --context cluster-1 -n team-a exec -it armada-run-1 -- /bin/sh",
+    })
+  })
 })

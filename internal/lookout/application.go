@@ -8,6 +8,7 @@ import (
 	"github.com/IBM/pgxpoolprometheus"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jessevdk/go-flags"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -22,7 +23,9 @@ import (
 	"github.com/armadaproject/armada/internal/lookout/conversions"
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi"
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi/operations"
+	"github.com/armadaproject/armada/internal/lookout/metrics"
 	"github.com/armadaproject/armada/internal/lookout/repository"
+	"github.com/armadaproject/armada/internal/lookout/schema"
 	"github.com/armadaproject/armada/internal/lookout/version"
 )
 
@@ -40,6 +43,8 @@ func Serve(configuration configuration.LookoutConfig) error {
 
 	collector := pgxpoolprometheus.NewCollector(db, map[string]string{})
 	prometheus.MustRegister(collector)
+	metrics.RegisterJobTablePartitioned(db)
+	logJobTableShape(db)
 
 	getJobsRepo := repository.NewSqlGetJobsRepository(db)
 	groupJobsRepo := repository.NewSqlGroupJobsRepository(db)
@@ -207,4 +212,16 @@ func Serve(configuration configuration.LookoutConfig) error {
 	}
 
 	return err
+}
+
+func logJobTableShape(db *pgxpool.Pool) {
+	shape, detail, err := schema.DetectJobTableShape(armadacontext.Background(), db)
+	switch {
+	case err != nil:
+		logging.WithError(err).Warn("Failed to detect the shape of the job table")
+	case shape == schema.JobTableShapePartitioned || shape == schema.JobTableShapeUnpartitioned:
+		logging.Infof("Job table shape: %s", shape)
+	default:
+		logging.WithField("detail", detail).Warnf("Job table shape: %s", shape)
+	}
 }

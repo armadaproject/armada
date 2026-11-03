@@ -34,7 +34,6 @@ const (
 //   - "auth"                - enables OIDC (Keycloak); sets goreman profile to "auth" and uses the auth compose profile
 //   - "fake-executor"       - no Kubernetes needed; sets goreman profile to "fake-executor"
 //   - "auth-fake-executor"  - auth server/scheduler/lookout/binoculars plus the fake executor (no Kubernetes)
-//   - "hot-cold"            - runs the hot-cold scheduler setup
 //   - anything else         - forwarded as a docker-compose --profile flag for extra services
 //
 // The optional -dap flag selects the "-dap" procfile variant, which starts each component
@@ -50,7 +49,6 @@ const (
 //	mage dev:up auth                      # OIDC
 //	mage dev:up fake-executor -dap        # fake executor + dap procfile
 //	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
-//	mage dev:up hot-cold                  # hot-cold scheduler setup
 func (Dev) Up(profiles string, dap *bool) error {
 	var (
 		profile         = "no-auth"
@@ -63,9 +61,9 @@ func (Dev) Up(profiles string, dap *bool) error {
 			continue
 		}
 		switch token {
-		case "auth", "fake-executor", "hot-cold", "auth-fake-executor":
+		case "auth", "fake-executor", "auth-fake-executor":
 			if profile != "no-auth" {
-				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold/auth-fake-executor may be used\n", token, profile)
+				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/auth-fake-executor may be used\n", token, profile)
 			} else {
 				profile = token
 			}
@@ -93,11 +91,7 @@ func (Dev) Up(profiles string, dap *bool) error {
 	if err := devDepsUp(strings.Join(composeProfiles, ",")); err != nil {
 		return err
 	}
-	initArgs := []string{initScript}
-	if profile == "hot-cold" {
-		initArgs = append(initArgs, "--hotCold")
-	}
-	if err := sh.RunV(initArgs[0], initArgs[1:]...); err != nil {
+	if err := sh.RunV(initScript); err != nil {
 		return err
 	}
 	if profile == "auth" || profile == "auth-fake-executor" {
