@@ -86,7 +86,7 @@ https://github.com/armadaproject/armada/releases/latest
 Armada runs locally via [Goreman](https://github.com/mattn/goreman) — dependencies (Redis, Postgres, Pulsar) run in containers, Armada components run as host processes built from source. Iteration is fast and debuggers attach directly.
 
 ```bash
-mage kind                  # one-time: create local Kubernetes cluster
+mage kind:singleCluster    # one-time: create local Kubernetes cluster
 export KUBECONFIG=.kube/external/config
 
 mage dev:up                # default — no auth
@@ -242,7 +242,7 @@ Or download it from the [GitHub Release](https://github.com/armadaproject/armada
 Armada runs locally via [goreman](https://github.com/mattn/goreman): the dependencies (redis, postgres, pulsar) run in containers, and the Armada components run as host processes built from source, so iteration is fast and debuggers attach directly.
 
 ```shell
-mage kind                     # one-time: local Kubernetes cluster for the executor (skip for fake-executor)
+mage kind:singleCluster       # one-time: local Kubernetes cluster for the executor (skip for fake-executor)
 export KUBECONFIG=.kube/external/config
 
 mage dev:up no-auth           # default

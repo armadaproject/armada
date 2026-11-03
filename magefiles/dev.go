@@ -161,7 +161,10 @@ func (Dev) Down() error {
 // .kube/internal/config), then brings the stack up. Migrations run as compose services
 // ordered ahead of the components, so no separate init step is needed.
 func (Dev) Full() error {
-	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"), Kind)
+	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"))
+	if err := (Kind{}).SingleCluster(); err != nil {
+		return err
+	}
 	return sh.RunV("docker", "compose", "-f", fullComposeFile, "up", "-d", "--wait")
 }
 
@@ -170,7 +173,7 @@ func (Dev) FullDown() error {
 	if err := sh.RunV("docker", "compose", "-f", fullComposeFile, "down", "-v"); err != nil {
 		return err
 	}
-	return kindTeardown()
+	return KindTeardown{}.SingleCluster()
 }
 
 // devDepsUp brings the dependency stack up and waits for healthchecks. redis/postgres/pulsar

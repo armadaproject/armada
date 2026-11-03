@@ -12,12 +12,12 @@ name: armada-full
 #   - armada-bundle and armada-lookout-bundle images
 #       mage buildDockers bundle,lookout-bundle
 #   - a Kind cluster for the real executor, with its kubeconfig at .kube/internal/config
-#       mage kind
+#       mage kind:singleCluster
 #
 # Usage:
 #   docker compose -f _local/compose/full.yaml up -d
 #
-# The external "kind" network is created by `mage kind`; components join it so the
+# The external "kind" network is created by `mage kind:singleCluster`; components join it so the
 # executor can reach the Kind API server.
 
 networks:
