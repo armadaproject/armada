@@ -1,0 +1,3 @@
+httpPort: 8094
+grpcPort: 50054
+metricsPort: 9013

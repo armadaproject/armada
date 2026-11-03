@@ -35,6 +35,7 @@ const (
 //   - "fake-executor"       - no Kubernetes needed; sets goreman profile to "fake-executor"
 //   - "auth-fake-executor"  - auth server/scheduler/lookout/binoculars plus the fake executor (no Kubernetes)
 //   - "hot-cold"            - runs the hot-cold scheduler setup
+//   - "two-cluster"         - no-auth with two real executors, one per Kubernetes cluster
 //   - anything else         - forwarded as a docker-compose --profile flag for extra services
 //
 // The optional -dap flag selects the "-dap" procfile variant, which starts each component
@@ -51,6 +52,7 @@ const (
 //	mage dev:up fake-executor -dap        # fake executor + dap procfile
 //	mage dev:up auth,myservice            # auth + extra compose profile "myservice"
 //	mage dev:up hot-cold                  # hot-cold scheduler setup
+//	mage dev:up two-cluster               # no-auth with two executors, one per Kind cluster
 func (Dev) Up(profiles string, dap *bool) error {
 	var (
 		profile         = "no-auth"
@@ -63,9 +65,9 @@ func (Dev) Up(profiles string, dap *bool) error {
 			continue
 		}
 		switch token {
-		case "auth", "fake-executor", "hot-cold", "auth-fake-executor":
+		case "auth", "fake-executor", "hot-cold", "auth-fake-executor", "two-cluster":
 			if profile != "no-auth" {
-				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold/auth-fake-executor may be used\n", token, profile)
+				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold/auth-fake-executor/two-cluster may be used\n", token, profile)
 			} else {
 				profile = token
 			}
@@ -87,6 +89,10 @@ func (Dev) Up(profiles string, dap *bool) error {
 
 	if profile == "auth" || profile == "auth-fake-executor" {
 		composeProfiles = append([]string{"auth"}, composeProfiles...)
+	}
+
+	if err := setPrometheusConfig(profile); err != nil {
+		return err
 	}
 
 	mg.Deps(installGoreman)
@@ -174,6 +180,28 @@ func (Dev) FullDown() error {
 		return err
 	}
 	return KindTeardown{}.SingleCluster()
+}
+
+// setPrometheusConfig points the prometheus compose profile at the two-cluster scrape config for
+// profiles that run one executor per cluster, since the default _local/prometheus/config.yaml only
+// scrapes one.
+// Other profiles leave PROMETHEUS_CONFIG unset, so stack.yaml falls back to that default.
+//
+// Resolved to absolute: compose resolves relative bind-mount sources against the compose file's
+// own directory, not the caller's cwd.
+func setPrometheusConfig(profile string) error {
+	var relPath string
+	switch profile {
+	case "two-cluster":
+		relPath = "_local/prometheus/config-two-cluster.yaml"
+	default:
+		return nil
+	}
+	absPath, err := filepath.Abs(relPath)
+	if err != nil {
+		return fmt.Errorf("resolving prometheus config path %q: %w", relPath, err)
+	}
+	return os.Setenv("PROMETHEUS_CONFIG", absPath)
 }
 
 // devDepsUp brings the dependency stack up and waits for healthchecks. redis/postgres/pulsar

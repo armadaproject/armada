@@ -1,0 +1,5 @@
+httpPort: 8092
+metric:
+  port: 9012
+application:
+  clusterId: "cluster-2"
