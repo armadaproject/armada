@@ -211,7 +211,7 @@ armadactl --config _local/.armadactl.yaml --context auth-oidc get queues
 
 The auth profile configures:
 
-- **Keycloak**: OIDC provider running on <http://localhost:8180> with pre-configured realm, users, and clients
+- **Keycloak**: OIDC provider running on [http://localhost:8180](http://localhost:8180) with pre-configured realm, users, and clients
 - **Users**: `admin/admin` (admin group), `user/password` (users group) for both OIDC and basic auth
 - **Service accounts**: Executor and Scheduler use OIDC Client Credentials flow for service-to-service authentication
 - **APIs**: Server, Lookout, and Binoculars APIs are secured with OIDC and basic auth
