@@ -16,8 +16,10 @@ func captureStd(t *testing.T, f func()) (stdout, stderr string) {
 	origOut, origErr := os.Stdout, os.Stderr
 	outR, outW, err := os.Pipe()
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = outR.Close(); _ = outW.Close() })
 	errR, errW, err := os.Pipe()
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = errR.Close(); _ = errW.Close() })
 	os.Stdout, os.Stderr = outW, errW
 	defer func() { os.Stdout, os.Stderr = origOut, origErr }()
 
