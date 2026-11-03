@@ -11,7 +11,7 @@ and is built using [Vite](https://vitejs.dev/).
 Developing the Lookout UI requires the following to be installed on your
 machine:
 
-1. [Node.js](https://nodejs.org/en/download/package-manager)
+1. [Node.js](https://nodejs.org/en/download/package-manager) - CI uses 22.12.0
 1. [Yarn](https://yarnpkg.com/getting-started/install) - this should usually
    just involve running `corepack enable`
 1. [Docker](https://www.docker.com/)
@@ -36,7 +36,7 @@ First, install all packages depended on by this web app using Yarn. In this
 directory, run:
 
 ```bash
-yarn
+yarn install --frozen-lockfile
 ```
 
 Generate the OpenAPI client code from the OpenAPI specification. This step is
@@ -54,7 +54,7 @@ real-time. This serves the web app on
 [http://localhost:3000](http://localhost:3000). It proxies API requests to the
 target defined by your `PROXY_TARGET` environment variable, or otherwise your
 locally-running instance of the Lookout server at `http://localhost:10000`
-(please see [the main developer docs](https://armadaproject.io/developer-guide) for details
+(please see [the main developer docs](https://armadaproject.io/docs/developer-guide) for details
 of how to set this up).
 
 ```bash
@@ -78,10 +78,14 @@ you are proxying API requests:
 
 ### Run unit tests
 
-Unit tests are run using [Vitest](https://vitest.dev/).
+Unit tests are run using [Vitest](https://vitest.dev/) with jsdom and do not
+require a running Armada backend. For broader check selection, see
+[Validating changes](../../docs/developer_guide.md#validating-changes).
 
 ```bash
 yarn test --run
+# Focus on one test file:
+yarn test --run src/common/formatNumber.test.ts
 ```
 
 If you are actively changing unit tests or code covered by unit tests, you may

@@ -6,6 +6,12 @@
     - [Other developer docs](#other-developer-docs)
     - [Pre-requisites](#pre-requisites)
     - [Using `mage`](#using-mage)
+    - [Validating changes](#validating-changes)
+        - [Focused Go checks](#focused-go-checks)
+        - [Service-backed Go tests](#service-backed-go-tests)
+        - [Lookout UI checks](#lookout-ui-checks)
+        - [Full-stack integration tests](#full-stack-integration-tests)
+        - [Other CI checks](#other-ci-checks)
     - [Setting up the local dev stack](#setting-up-the-local-dev-stack)
         - [Authentication (auth profile)](#authentication-auth-profile)
         - [Fake executor](#fake-executor)
@@ -74,6 +80,103 @@ Before you can start using Armada, you first need to install the following items
 ## Using `mage`
 
 `mage` is a build tool that we use to build Armada. It is similar to Make, but written in Go. It is used to build Armada, run tests and run other useful commands. To see a list of available commands, run `mage -l`.
+
+## Validating changes
+
+Start with the check closest to your change, then expand to affected packages or components. A focused pass does not cover callers, lint, generated-file drift or integration behaviour. Run Go and Mage commands from the repository root; UI commands run from `internal/lookoutui/`.
+
+| Change | Start with | Expand to |
+| --- | --- | --- |
+| Go logic without service fixtures | A named test, then its package | Affected packages and the [service-backed Go suite](#service-backed-go-tests) |
+| Database or Redis behaviour | A selected test with dedicated service fixtures | The [service-backed Go suite](#service-backed-go-tests) |
+| Lookout UI logic or components | A selected Vitest file | UI tests, lint, build and browser checks; see [Lookout UI checks](#lookout-ui-checks) |
+| Cross-component or real-executor behaviour | Relevant package checks | [Full-stack integration tests](#full-stack-integration-tests) |
+
+### Focused Go checks
+
+Use Go matching [`go.mod`](../go.mod), module access and writable caches; some dependencies also require a C compiler. You do not need the full development stack for every package. For example, the [`math` package](../internal/common/math) has no service fixtures:
+
+```bash
+go test ./internal/common/math -run '^TestMax$' -count=1
+go test ./internal/common/math -count=1
+```
+
+For another package, inspect its tests, helpers and any `TestMain` before substituting the path and test name. `-run` still compiles the package and its tests and runs package initialization and `TestMain`. Neither `-short` nor `go test ./...` guarantees a service-free run.
+
+### Service-backed Go tests
+
+The broad Go check used by CI is:
+
+```bash
+go run github.com/magefile/mage@v1.17.2 -v tests
+```
+
+With a suitable Mage installed, `mage -v tests` is equivalent. The [runner](../magefiles/tests.go) requires Docker and image access, starts Redis and Postgres, and installs `gotestsum` if missing. It tests `cmd`, `pkg` and `internal` packages with atomic coverage and `-p 1` to limit concurrent packages. Its reports are `test-reports/unit-tests.xml`, `test-reports/unit-tests.json` and `test-reports/coverage.out`. CI calls this “Golang Unit Tests”, but it uses services and does not run the YAML integration suites or UI tests.
+
+The runner uses container names `redis` and `postgres`, ports `6379` and `5432`, and images `redis:6.2.6` and `postgres:14.2`. These names and ports overlap the development stacks: stop your own stack first and check for existing containers or listeners. Do not remove someone else's container to free them. On macOS the runner uses published ports; elsewhere its [network helper](../magefiles/cmd.go) adds host networking. It waits three seconds for startup, without a service health check.
+
+For a focused database test, provision a dedicated disposable Postgres instance first. The [test helper](../internal/common/database/db_testutil.go) connects to `localhost:5432` as `postgres`, password `psw`, with SSL disabled. It needs privileges to create/drop databases and terminate connections; schema tests also manage roles. For example, on a Unix shell with port 5432 free:
+
+```bash
+docker run -d --name armada-validation-postgres -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
+docker exec armada-validation-postgres pg_isready -U postgres
+# Repeat the readiness check until it succeeds, then:
+go test -p 1 ./internal/common/database -run '^TestPrepareSchema_SingleRole_CreatesAndSetsSearchPath$' -count=1
+# Expand to the package when changing shared database behaviour:
+go test -p 1 ./internal/common/database -count=1
+# Remove only the disposable container created above, including after a test failure:
+docker rm -f armada-validation-postgres
+```
+
+`-p 1` limits concurrent packages, not parallel tests within a package. Per-test databases are normally dropped, but migration template databases remain until the disposable service is removed. Redis tests also mutate data, including flushing logical databases 10 and 11. Use dedicated services rather than a shared database.
+
+The broad runner removes its Redis/Postgres containers on normal return after both have started. A failed second startup or an interruption can leave containers behind: inspect and remove only those created by that run. `mage dev:down` cleans up the Compose dependency stack, not these directly started test containers.
+
+### Lookout UI checks
+
+Follow the [Lookout UI README](../internal/lookoutui/README.md) for setup and browser development. CI uses Node 22.12.0 and the checked-in Yarn lockfile. From `internal/lookoutui/`:
+
+```bash
+yarn install --frozen-lockfile
+# Required on a fresh checkout or after OpenAPI input changes:
+yarn openapi
+yarn test --run src/common/formatNumber.test.ts
+# Broader checks:
+yarn test --run
+yarn lint
+yarn build
+```
+
+`yarn openapi` needs Docker and image access; the command uses a Unix shell (`USER`, `id` and `PWD`). The formatting test uses Vitest's jsdom setup and needs no running Armada backend. The broader application build needs generated clients and runs TypeScript checking before Vite bundling.
+
+Tests and builds do not replace browser checks for visible or API-interaction changes. Use the UI README's `yarn dev` or `yarn serve` instructions, including backend, OIDC and CORS configuration. Set `PROXY_TARGET` explicitly if your backend is not the default `http://localhost:10000`; the local development stack exposes Lookout on port `8089`.
+
+### Full-stack integration tests
+
+Use the containerized full stack for the existing Mage integration route. Install the [stack prerequisites](#pre-requisites) and tools in [`tools.yaml`](../tools.yaml), including Kind, Docker Compose, Buildx and GoReleaser; `mage checkDeps` checks tool availability. You also need a running Docker daemon, module/image access, free ports and enough disk and memory for image builds and a Kind cluster. See [full Compose](../_local/compose/full.yaml) and [Kind configuration](../_local/kind/cluster.yaml) for resources and ports.
+
+```bash
+go run github.com/magefile/mage@v1.17.2 -v dev:full
+go run github.com/magefile/mage@v1.17.2 -v testsuite
+# After validation, tear down your disposable full stack:
+go run github.com/magefile/mage@v1.17.2 -v dev:fullDown
+```
+
+`dev:full` builds bundle images, prepares the `armada-test` Kind cluster and starts the containerized stack. `testsuite` waits for that stack; it does not start it. Its [readiness check](../magefiles/ci.go) reads scheduler logs through the full-stack Compose file, so this command is not a generic check for the Goreman or fake-executor setup.
+
+The target creates queues and a retry policy, submits jobs, and runs the YAML suites selected in [`magefiles/ci.go`](../magefiles/ci.go), writing `junit-*.xml`. It defaults `ARMADA_EXECUTOR_INGRESS_URL` to `http://localhost` and `ARMADA_EXECUTOR_INGRESS_PORT` to `5001` when unset. CI additionally selects its Buildx builder with `DOCKER_BUILDX_BUILDER`; see the [test workflow](../.github/workflows/test.yml) for its setup.
+
+`dev:fullDown` removes the full stack's volumes and deletes `armada-test`. Use it only for your disposable environment. Built images, generated kubeconfigs under `.kube/` and test reports are separate artifacts; teardown is not general cache cleanup.
+
+### Other CI checks
+
+Focused checks are only part of validation. The [test workflow](../.github/workflows/test.yml) also checks module and generated-file drift, while the [lint workflow](../.github/workflows/lint.yml) covers Go and TypeScript lint:
+
+- Go lint uses `golangci-lint run --timeout=10m --issues-exit-code=1 ./...` with the version selected in the lint workflow.
+- UI CI runs `yarn install --frozen-lockfile && yarn openapi && yarn build && CI=true yarn test --reporter=junit` from `internal/lookoutui/`, producing `junit.xml`; `yarn lint` is separate.
+- Module checks run `go mod download` and `go mod tidy`, then inspect tracked changes. Generation checks run `mage sql`, or both `mage proto` and `mage dotnet`, then inspect tracked changes with CI's tool versions. These commands can modify files; use an isolated checkout and review the diff. Passing Go tests alone does not prove generated files are current.
+
+For website changes, use [website/README.md](../website/README.md). When reporting validation, name the exact commands, results and relevant environment, and state which broader checks or browser paths were not run.
 
 ## Setting up the local dev stack
 
@@ -179,19 +282,18 @@ For the standard profile, run `./bin/goreman run status` in a second terminal to
 
 ### Testing if the local dev stack is working
 
-Running `mage testsuite` runs the full test suite against the local dev stack. You should therefore use this to test changes to the core components of Armada.
+For the containerized full stack, follow [Full-stack integration tests](#full-stack-integration-tests). `mage testsuite` runs the configured YAML integration suites after `mage dev:full`; it does not cover all Go, UI or language-client tests. Use [Validating changes](#validating-changes) to select those checks.
 
-You can also run the same commands yourself:
+To run only the basic YAML cases against a suitably configured real-executor stack:
 
 ```bash
-go run cmd/armadactl/main.go create queue e2e-test-queue
-
-# To enable Ingress tests to pass
+go run cmd/armadactl/main.go --config _local/.armadactl.yaml create queue e2e-test-queue
 export ARMADA_EXECUTOR_INGRESS_URL="http://localhost"
 export ARMADA_EXECUTOR_INGRESS_PORT=5001
-
-go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
+go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml --config _local/.armadactl.yaml
 ```
+
+This is a subset of `mage testsuite`, with no Mage readiness check. It requires a running server and real executor with ingress configured for the selected endpoint.
 
 ### Running the UI
 
