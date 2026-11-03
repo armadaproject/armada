@@ -58,7 +58,7 @@ type PriorityClass struct {
 	// preempt running jobs with lower priority values (urgency-based preemption).
 	Priority int32 `validate:"gte=0"`
 	// Preemptible determines whether Armada may preempt running jobs in this class.
-	// false protects jobs preemption.
+	// false protects jobs from preemption.
 	Preemptible bool
 	// Limits resources assigned to jobs of this priority class.
 	// Specifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.
