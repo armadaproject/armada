@@ -196,7 +196,8 @@ func (l *FairSchedulingAlgo) Schedule(
 			if l.schedulingConfig.DisableIndependentPoolFailures {
 				return nil, observe.Error(span, outcome.Error())
 			} else {
-				ctx.Logger().WithStacktrace(err).Errorf("scheduling on pool %s failed but continuing as the error was non-fatal - error %s", pool.Name, outcome.Error())
+				//err is null here, outcome.Error() contains the actual error and corresponding stack trace
+				ctx.Logger().WithStacktrace(outcome.Error()).Errorf("scheduling on pool %s failed but continuing as the error was non-fatal - error %s", pool.Name, outcome.Error())
 			}
 		}
 
