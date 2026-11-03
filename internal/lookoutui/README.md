@@ -11,10 +11,13 @@ and is built using [Vite](https://vitejs.dev/).
 Developing the Lookout UI requires the following to be installed on your
 machine:
 
-1. [Node.js](https://nodejs.org/en/download/package-manager) - CI uses 22.12.0
+1. [Node.js](https://nodejs.org/en/download/package-manager)
 1. [Yarn](https://yarnpkg.com/getting-started/install) - this should usually
    just involve running `corepack enable`
 1. [Docker](https://www.docker.com/)
+
+Use the [UI test workflow](../../.github/workflows/test.yml) as the reference for
+the Node version used by CI.
 
 #### Yarn and registry mirrors
 
