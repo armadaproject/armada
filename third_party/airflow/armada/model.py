@@ -74,6 +74,7 @@ class RunningJobContext:
     cluster: Optional[str] = None
     last_log_time: Optional[DateTime] = None
     job_state: str = JobState.UNKNOWN.name
+    pod_name: Optional[str] = None
 
     @property
     def state(self) -> JobState:

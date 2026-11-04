@@ -3,17 +3,20 @@ package internaltypes
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestNode(t *testing.T) {
@@ -71,6 +74,8 @@ func TestNode(t *testing.T) {
 		pool,
 		reportingNodeType,
 		taints,
+		nil,
+		false,
 		labels,
 		indexedTaints,
 		indexedNodeLabels,
@@ -122,12 +127,153 @@ func TestNode(t *testing.T) {
 	assert.Equal(t, node, nodeCopy)
 }
 
+func TestGetNodeTaintsReturnsCopy(t *testing.T) {
+	node := &Node{nodeTaints: []NodeTaint{{taint: v1.Taint{Key: "example.com/dedicated"}, category: "platform"}}}
+
+	actual := node.GetNodeTaints()
+	actual[0].category = "changed"
+
+	assert.Equal(t, "platform", node.GetNodeTaints()[0].GetCategory())
+}
+
+func TestNodeTaintConstructorAndGetters(t *testing.T) {
+	originalTime := metav1.NewTime(time.Unix(1, 0))
+	taint := v1.Taint{Key: "example.com/dedicated", Value: "gpu", Effect: v1.TaintEffectNoSchedule, TimeAdded: &originalTime}
+	nodeTaint := NewNodeTaint(taint, "platform", true)
+
+	assert.Equal(t, "platform", nodeTaint.GetCategory())
+	assert.True(t, nodeTaint.GetUserFacing())
+	assert.Equal(t, taint, nodeTaint.GetTaint())
+
+	taint.TimeAdded.Time = time.Unix(2, 0)
+	assert.Equal(t, time.Unix(1, 0), nodeTaint.GetTaint().TimeAdded.Time)
+
+	returnedTaint := nodeTaint.GetTaint()
+	returnedTaint.TimeAdded.Time = time.Unix(3, 0)
+	assert.Equal(t, time.Unix(1, 0), nodeTaint.GetTaint().TimeAdded.Time)
+}
+
+func TestNodeTaintIsUserFacing(t *testing.T) {
+	for name, tc := range map[string]struct {
+		nodeTaint NodeTaint
+		expected  bool
+	}{
+		"user flag and user category":      {nodeTaint: NodeTaint{category: "user", userFacing: true}, expected: true},
+		"user flag without category":       {nodeTaint: NodeTaint{userFacing: true}, expected: false},
+		"user category without flag":       {nodeTaint: NodeTaint{category: "user"}, expected: false},
+		"user flag and other category":     {nodeTaint: NodeTaint{category: "platform", userFacing: true}, expected: true},
+		"other category without user flag": {nodeTaint: NodeTaint{category: "platform"}, expected: false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.nodeTaint.IsUserFacing())
+		})
+	}
+}
+
+func TestNodeTaintMetadataTimestampIsolation(t *testing.T) {
+	originalTime := metav1.NewTime(time.Unix(1, 0))
+	metadata := []NodeTaint{{taint: v1.Taint{Key: "example.com/dedicated", TimeAdded: &originalTime}}}
+	node := CreateNode(
+		"id", 1, "executor", "name", "pool", "type",
+		nil, metadata, true, nil, map[string]bool{}, map[string]bool{},
+		false, ResourceList{}, ResourceList{}, nil, nil,
+	)
+
+	metadata[0].taint.TimeAdded.Time = time.Unix(2, 0)
+	assert.Equal(t, time.Unix(1, 0), node.nodeTaints[0].GetTaint().TimeAdded.Time)
+
+	returnedMetadata := node.GetNodeTaints()
+	returnedMetadata[0].taint.TimeAdded.Time = time.Unix(3, 0)
+	assert.Equal(t, time.Unix(1, 0), node.nodeTaints[0].GetTaint().TimeAdded.Time)
+
+	replacementTime := metav1.NewTime(time.Unix(4, 0))
+	replacement := []NodeTaint{{taint: v1.Taint{Key: "example.com/replacement", TimeAdded: &replacementTime}}}
+	updated := node.WithNodeTaints(replacement)
+	replacement[0].taint.TimeAdded.Time = time.Unix(5, 0)
+	assert.Equal(t, time.Unix(4, 0), updated.nodeTaints[0].GetTaint().TimeAdded.Time)
+
+	copy := updated.DeepCopyNilKeys()
+	copy.nodeTaints[0].taint.TimeAdded.Time = time.Unix(6, 0)
+	assert.Equal(t, time.Unix(4, 0), updated.nodeTaints[0].GetTaint().TimeAdded.Time)
+}
+
+func TestFromSchedulerObjectsNodeTaintMetadataCompleteness(t *testing.T) {
+	a := &v1.Taint{Key: "dedicated", Value: "gpu", Effect: v1.TaintEffectNoSchedule}
+	b := &v1.Taint{Key: "maintenance", Effect: v1.TaintEffectNoSchedule}
+	withTime := a.DeepCopy()
+	withTime.TimeAdded = &metav1.Time{Time: time.Unix(1, 0)}
+	withDifferentTime := a.DeepCopy()
+	withDifferentTime.TimeAdded = &metav1.Time{Time: time.Unix(2, 0)}
+	resources, err := NewResourceListFactory([]schedulerconfiguration.ResourceType{{Name: "cpu", Resolution: resource.MustParse("1m")}}, nil)
+	require.NoError(t, err)
+	factory := NewNodeFactory(nil, nil, nil, resources)
+
+	for _, tc := range []struct {
+		name     string
+		taints   []*v1.Taint
+		metadata []*schedulerobjects.NodeTaint
+		complete bool
+	}{
+		{name: "empty inventories", complete: true},
+		{name: "legacy", taints: []*v1.Taint{a}},
+		{name: "metadata only", metadata: []*schedulerobjects.NodeTaint{{Taint: a}}},
+		{name: "matching", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: a, Category: "user", UserFacing: true}}, complete: true},
+		{name: "separate taint objects", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: a.DeepCopy()}}, complete: true},
+		{name: "metadata timestamp only", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: withTime}}, complete: true},
+		{name: "raw timestamp only", taints: []*v1.Taint{withTime}, metadata: []*schedulerobjects.NodeTaint{{Taint: a}}, complete: true},
+		{name: "different timestamps", taints: []*v1.Taint{withTime}, metadata: []*schedulerobjects.NodeTaint{{Taint: withDifferentTime}}, complete: true},
+		{name: "reordered", taints: []*v1.Taint{a, b}, metadata: []*schedulerobjects.NodeTaint{{Taint: b}, {Taint: a}}, complete: true},
+		{name: "partial", taints: []*v1.Taint{a, b}, metadata: []*schedulerobjects.NodeTaint{{Taint: a}}},
+		{name: "different key", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: b}}},
+		{name: "different value", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: &v1.Taint{Key: a.Key, Value: "cpu", Effect: a.Effect}}}},
+		{name: "different effect", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{Taint: &v1.Taint{Key: a.Key, Value: a.Value, Effect: v1.TaintEffectNoExecute}}}},
+		{name: "matching duplicates", taints: []*v1.Taint{a, a}, metadata: []*schedulerobjects.NodeTaint{{Taint: a}, {Taint: a}}, complete: true},
+		{name: "different duplicate counts", taints: []*v1.Taint{a, b}, metadata: []*schedulerobjects.NodeTaint{{Taint: a}, {Taint: a}}},
+		{name: "nil raw taint", taints: []*v1.Taint{nil}, metadata: []*schedulerobjects.NodeTaint{{Taint: a}}},
+		{name: "nil metadata entry", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{nil}},
+		{name: "nil metadata taint", taints: []*v1.Taint{a}, metadata: []*schedulerobjects.NodeTaint{{}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			node := factory.FromSchedulerObjectsNode(&schedulerobjects.Node{
+				Taints: tc.taints, NodeTaints: tc.metadata,
+				Unschedulable: true, TotalResources: &schedulerobjects.ResourceList{},
+			})
+			// The synthesized cordon taint must not affect report completeness.
+			assert.Contains(t, node.GetTaints(), UnschedulableTaint())
+			assert.Equal(t, tc.complete, node.hasCompleteNodeTaintMetadata)
+			assert.Equal(t, tc.complete, node.DeepCopyNilKeys().hasCompleteNodeTaintMetadata)
+			assert.Equal(t, tc.complete, node.WithSchedulable(true).hasCompleteNodeTaintMetadata)
+		})
+	}
+}
+
+func TestWithNodeTaintsReplacesMetadataWithoutChangingTaints(t *testing.T) {
+	rawTaints := []v1.Taint{{Key: "example.com/dedicated", Value: "gpu", Effect: v1.TaintEffectNoSchedule}}
+	node := &Node{
+		taints:     rawTaints,
+		nodeTaints: []NodeTaint{{taint: rawTaints[0], category: "old"}},
+	}
+	updatedNodeTaints := []NodeTaint{{
+		taint:    v1.Taint{Key: "example.com/maintenance", Effect: v1.TaintEffectNoSchedule},
+		category: "platform", userFacing: true,
+	}}
+
+	updated := node.WithNodeTaints(updatedNodeTaints)
+
+	assert.Equal(t, rawTaints, updated.GetTaints())
+	assert.Equal(t, updatedNodeTaints, updated.GetNodeTaints())
+	assert.Equal(t, []NodeTaint{{taint: rawTaints[0], category: "old"}}, node.GetNodeTaints())
+
+	updatedNodeTaints[0].category = "changed by caller"
+	assert.Equal(t, "platform", updated.GetNodeTaints()[0].GetCategory())
+}
+
 func createNodeWithIndexedLabelsAndTaints(taints []v1.Taint, labels map[string]string) *Node {
 	indexedTaints := map[string]bool{"foo": true, unschedulableTaintKey: true}
 	indexedNodeLabels := map[string]bool{"key": true}
 	return CreateNode(
 		"id", 1, "executor", "name", "pool", "type",
-		taints, labels, indexedTaints, indexedNodeLabels,
+		taints, nil, false, labels, indexedTaints, indexedNodeLabels,
 		false, ResourceList{}, ResourceList{},
 		[]int32{1, 2}, nil,
 	)
@@ -309,7 +455,7 @@ func testAccountingNode(t *testing.T, factory *ResourceListFactory) *Node {
 	total := testAccountingNodeTotal(factory)
 	return CreateNode(
 		"node-1", 1, "executor", "node-1", "pool", "type",
-		nil, nil, map[string]bool{}, map[string]bool{},
+		nil, nil, false, nil, map[string]bool{}, map[string]bool{},
 		false, total, total,
 		[]int32{1, 10},
 		nil,
@@ -706,6 +852,8 @@ func createNode(allocatableResource ResourceList, allowedPriorities []int32) *No
 		pool,
 		reportingNodeType,
 		nil,
+		nil,
+		false,
 		nil,
 		nil,
 		nil,

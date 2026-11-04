@@ -51,3 +51,5 @@ organisations
 KUBECONFIG
 preemptible
 uncordoned
+ingester
+EMFILE

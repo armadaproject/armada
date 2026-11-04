@@ -99,6 +99,15 @@ type SubmissionConfig struct {
 	AddGangIdLabel bool
 	// Controls whether custom service names are allowed
 	AllowCustomServiceNames bool
+	// ObjectNamePrefix is the prefix of the names of the pod, the services, the ingresses and the ingress hosts
+	// of a job. The server writes it to the job, and the executor reads it from there for the pod name. The
+	// default is armada. The server does not start when the prefix is empty or is not a DNS-1035 label of at
+	// most 20 characters.
+	ObjectNamePrefix string
+	// RunScopedPodNames names the pod of each run <prefix>-<runId>. When false, all runs of a job use the pod name
+	// <prefix>-<jobId>-0. The server writes the setting to each job, so all runs of a job use one name format.
+	// The default is false.
+	RunScopedPodNames bool
 	// PodLevelResources enables Kubernetes pod-level resources (KEP-2837, podSpec.resources).
 	// A container may then omit its resources when the pod-level block declares them.
 	// Every executor cluster must have the PodLevelResources feature gate enabled.
