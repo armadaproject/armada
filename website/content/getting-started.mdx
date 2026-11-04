@@ -261,7 +261,7 @@ kubectl logs -n default armada-$JOB_ID-0
   Run this within a few minutes of the job succeeding. Armada deletes finished
   pods about three minutes after the job ends, and their output goes with them.
   If you see `pods "armada-[job-id]-0" not found`, the pod is already gone.
-  Submit a new job and run `kubectl logs` straight after `watch` shows
+  Submit a new job and run `kubectl logs` immediately after `watch` shows
   `JobSucceededEvent`.
 </Callout>
 
