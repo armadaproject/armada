@@ -371,8 +371,8 @@ func createNodeWithTaints(nodeName string, taintNames ...string) *v1.Node {
 func mustWellKnownTaints(t *testing.T, toleratedTaints []string, wellKnownTaints configuration.WellKnownTaintsConfiguration) *configuration.WellKnownTaints {
 	t.Helper()
 	result, err := (configuration.KubernetesConfiguration{
-		ToleratedTaints: toleratedTaints,
-		WellKnownTaints: wellKnownTaints,
+		ToleratedTaints:     toleratedTaints,
+		TaintCategorisation: configuration.TaintCategorisationConfiguration{WellKnownTaints: wellKnownTaints},
 	}).NewWellKnownTaints()
 	require.NoError(t, err)
 	return result
