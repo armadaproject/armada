@@ -2,7 +2,12 @@
 
 Edit the source inputs below, regenerate, then review and commit the related tracked outputs with your source change. Generated files are not the place to edit an API contract or query.
 
-Run Mage commands from the repository root. Follow the [developer prerequisites](../developer_guide.md#pre-requisites) for Go and Mage setup. Use the tool pins in [`tools.yaml`](../../tools.yaml) and the [test workflow](../../.github/workflows/test.yml) for reproducible output, including CI's protoc version. The local minimum-version checks alone do not guarantee identical output. `mage proto` and `mage sql` bootstrap the whole Go tool list; put `GOBIN` (or `GOPATH/bin`) on `PATH`. Downloads need network access or populated caches and writable tool/cache directories.
+Run Mage commands from the repository root. Follow the [developer prerequisites](../developer_guide.md#pre-requisites) for Go and Mage setup.
+
+Generated output depends on tool versions, so use the versions CI uses or your diff may contain unrelated changes:
+
+* Go-based generators (sqlc, the gateway and swagger protoc plugins) are pinned in [`tools.yaml`](../../tools.yaml). `mage proto` and `mage sql` download and install them for you, so they need network access; make sure `GOBIN` (or `GOPATH/bin`) is on your `PATH`.
+* `protoc` itself must be installed on the host. Mage checks a minimum version, but it is not pinned in `tools.yaml`. CI uses version 23.3, so match that for identical output.
 
 | If you change | Run | Review or commit |
 | --- | --- | --- |
@@ -14,21 +19,40 @@ The output lists identify files to inspect; a particular source change may affec
 
 ## Protobuf and API changes
 
-For example, `Submit.SubmitJobs`, its `JobSubmitRequest` and the `POST /v1/job/submit` annotation are editable in [`pkg/api/submit.proto`](../../pkg/api/submit.proto). Run:
+Armada's API is defined in Protocol Buffers (`.proto`) files under [`pkg/api`](../../pkg/api). From these, `protoc` generates the Go message and [gRPC](https://grpc.io) code (`*.pb.go`; gRPC is the RPC framework Armada's services use), a gateway that exposes the gRPC services as a REST API over HTTP (`*.pb.gw.go`), and Swagger (OpenAPI) specifications used by clients such as Lookout UI. See the [API guide](armada-api.md) for how the API is organised.
+
+As an example, [`pkg/api/submit.proto`](../../pkg/api/submit.proto) defines:
+
+* the `SubmitJobs` rpc (a method) on the `Submit` service,
+* the `JobSubmitRequest` message (the request type, generated as a Go struct), and
+* an HTTP annotation on `SubmitJobs` (`option (google.api.http)`) which tells the gateway to serve the rpc as `POST /v1/job/submit`.
+
+After editing any of these, run:
 
 ```bash
 mage proto
 ```
 
-Review `pkg/api/submit.pb.go`, `pkg/api/submit.pb.gw.go`, `pkg/api/api.swagger.json` and `pkg/api/api.swagger.go` for the corresponding Go, gateway, REST specification and embedded specification changes. The command regenerates all configured packages, so inspect the full diff. The [proto pipeline](../../magefiles/proto.go) owns the complete input list and Swagger merge/embedding steps; calling protoc alone does not reproduce it. See the [API guide](armada-api.md) for API ownership and usage.
+Review the files this changes:
 
-`mage proto` needs host protoc and the bootstrapped Go generators. Its imported dependency tree at root `proto/` is ignored and recreated from Go modules; edit Armada's source files rather than that copied tree.
+* `pkg/api/submit.pb.go`: the Go messages and gRPC code
+* `pkg/api/submit.pb.gw.go`: the HTTP gateway
+* `pkg/api/api.swagger.json`: the OpenAPI specification
+* `pkg/api/api.swagger.go`: the specification embedded in the Go binary
 
-To reproduce the full proto CI check, also run `mage dotnet`. It builds the protobuf/gRPC client in Docker directly from the [client project's selected protos](../../client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj). It requires a running Docker daemon, repository bind-mount access, SDK image access and NuGet restore access; a host .NET SDK is not required. Generated C# and build outputs under `obj/` and `bin/` are ignored. This does not run the separate [DotNet Client workflow's solution tests](../../.github/workflows/dotnet-client.yml). Other language clients have their own workflows, such as [Python client development](../../client/python/CONTRIBUTING.md).
+The command regenerates all configured packages, so inspect the full diff. The [proto pipeline](../../magefiles/proto.go) lists every input and performs the Swagger merge and embedding steps, so running `protoc` alone will not reproduce it.
+
+The root `proto/` directory is a copy of imported dependencies, is ignored by git and is refilled on each run. Edit Armada's own `.proto` files, not that copy.
+
+### Other proto clients
+
+CI also checks that the .NET client builds from the protos. To reproduce that locally run `mage dotnet`, which builds the client inside Docker (so Docker must be running; a host .NET SDK is not needed). It also needs the same host `protoc` and Go setup as `mage proto`, and leaves a stopped container behind, which you can remove with `docker rm`. Other language clients have their own workflows, such as [Python client development](../../client/python/CONTRIBUTING.md).
 
 ## SQL changes
 
-`mage sql` runs both configurations:
+Armada uses [sqlc](https://sqlc.dev) to generate type-safe Go database code. You write SQL queries in a `query.sql` file and the schema in migration files (see the table below for paths); sqlc reads both and generates Go methods (`query.sql.go`) and table structs (`models.go`). To change database access, edit the SQL, not the Go.
+
+There are two sqlc configurations, one for the scheduler database and one for the Query API database. `mage sql` runs both:
 
 | Configuration | Editable queries | Editable schema | Tracked output directory |
 | --- | --- | --- | --- |
@@ -41,14 +65,19 @@ For example, edit `SelectNewJobs` in the scheduler query file and run:
 mage sql
 ```
 
-Review its generated method in `internal/scheduler/database/query.sql.go` and any other generated changes. The focused command `sqlc generate -f internal/scheduler/database/sql.yaml` runs only the scheduler configuration; it does not reproduce CI's aggregate check. Use the pinned SQLC from `tools.yaml`, including for focused generation.
+Review its generated method in `internal/scheduler/database/query.sql.go` and any other generated changes. The focused command `sqlc generate -f internal/scheduler/database/sql.yaml` runs only the scheduler configuration; it does not reproduce CI's aggregate check. Use the sqlc version installed by `mage sql` (pinned in `tools.yaml`), including for focused generation.
 
 These configurations read schema files without starting Postgres or applying migrations. Successful generation does not test queries against a database or verify migration compatibility.
 
 ## Inspecting results and choosing validation
 
-After generation, inspect `git diff` and `git status --short`. On unchanged inputs with matching tools, expect no tracked changes; investigate unexpected drift rather than hand-editing generated output. Commit required tracked outputs with intentional input changes. Do not add ignored dependency, client or build trees; the UI's handwritten `src/openapi/workarounds.d.ts` is a tracked exception and must be preserved.
+After generation, inspect `git diff` and `git status --short`:
+
+* On unchanged inputs with matching tool versions, expect no tracked changes. Investigate unexpected drift rather than hand-editing generated files.
+* Commit the tracked outputs together with your input changes.
+* Do not add ignored dependency, client or build directories.
+* The UI's handwritten `src/openapi/workarounds.d.ts` is tracked and must be preserved.
 
 The proto and SQLC jobs in the [test workflow](../../.github/workflows/test.yml) check tracked drift after generation; they do not check ignored output. UI CI installs dependencies, generates clients, builds and runs tests. `yarn build` alone does not generate clients. Root `mage ui` wraps UI install, generation and build, while `mage generate` only runs `go generate ./...`.
 
-Use an isolated checkout when checking for drift. Generation and builds also write caches and ignored intermediates. The .NET Docker helper leaves its stopped container behind; identify and remove only the container created by your run. Successful generation does not establish API compatibility. Generation and client builds do not replace tests: choose checks for the affected code using the [developer guide](../developer_guide.md) and [UI README](../../internal/lookoutui/README.md#run-unit-tests).
+Successful generation does not establish API compatibility, and it does not replace tests. Choose checks for the affected code using the [developer guide](../developer_guide.md) and [UI README](../../internal/lookoutui/README.md#run-unit-tests).
