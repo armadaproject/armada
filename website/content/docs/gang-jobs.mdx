@@ -3,7 +3,7 @@ title: 'Gang jobs'
 description: 'Run a group of jobs that must all start together, keep them on matching nodes, and let them find each other.'
 ---
 
-A **gang** is a group of jobs that Armada schedules all together or not at all. This does not guarantee that every member runs on the same Kubernetes cluster. Use a gang when part of the group is useless on its own: multi-node training (torchrun, MPI), Spark drivers and executors, or any leader-and-workers setup.
+A **gang** is a group of jobs that Armada schedules onto a set of nodes all together, or not at all. Those nodes can be in different Kubernetes clusters, unless you set a node uniformity label (Step 3) whose value is unique to each cluster. Use a gang when part of the group is useless on its own: multi-node training (torchrun, MPI), Spark drivers and executors, or any leader-and-workers setup.
 
 ## Before you start
 
@@ -65,7 +65,6 @@ jobs:
           resources:
             requests: { cpu: 500m, memory: 256Mi }
             limits: { cpu: 500m, memory: 256Mi }
-            # ...repeat two more identical entries with the same annotations...
 EOF
 ```
 
@@ -93,7 +92,7 @@ On a laptop install, the gang needs 1.5 CPUs free at once on the single worker. 
 Each member's output shows its gang. Use one of the job IDs from the `Submitted job` lines:
 
 ```bash
-kubectl logs -n default armada-<job-id>-0
+kubectl logs -n default -l armada_job_id=<job-id>
 ```
 
 ```
@@ -148,13 +147,14 @@ There's no member number and no list of the other members' addresses. Members ha
 
 ## Operator setup
 
-These settings decide what gangs can do on your installation. On an Operator install, they go in the `spec.applicationConfig` of the named resource. On a Helm install, use `scheduler.applicationConfig` in the scheduler chart and `applicationConfig` in the server chart.
+These settings decide what gangs can do on your installation. On an Operator install, they go in the `spec.applicationConfig` of the named resource. On a Helm install, use `scheduler.applicationConfig` in the scheduler chart and `applicationConfig` in the server and executor charts.
 
-| Setting                                                                             | In                      | Default     | What it controls                                                                                                                                                       |
-| ----------------------------------------------------------------------------------- | ----------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scheduling.indexedNodeLabels`                                                      | Scheduler               | None        | Labels gangs may use for node uniformity. A gang naming any other label never starts.                                                                                  |
-| `submission.defaultGangNodeUniformityLabel`                                         | Server (`ArmadaServer`) | Not set     | A uniformity label applied to every gang that doesn't set one. It must also be in `indexedNodeLabels`.                                                                 |
-| `scheduling.maximumSchedulingBurst` and `scheduling.maximumPerQueueSchedulingBurst` | Scheduler               | `1000` each | The most jobs Armada starts in one scheduling round, overall and per queue. A gang with more members than either value can never start. Raise them, or split the gang. |
+| Setting                                                                             | In                      | Default                  | What it controls                                                                                                                                                       |
+| ----------------------------------------------------------------------------------- | ----------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scheduling.indexedNodeLabels`                                                      | Scheduler               | None                     | Labels gangs may use for node uniformity. A gang naming any other label never starts.                                                                                  |
+| `submission.defaultGangNodeUniformityLabel`                                         | Server (`ArmadaServer`) | Not set                  | A uniformity label applied to every gang that doesn't set one. It must also be in `indexedNodeLabels`.                                                                 |
+| `scheduling.maximumSchedulingBurst` and `scheduling.maximumPerQueueSchedulingBurst` | Scheduler               | `1000` each              | The most jobs Armada starts in one scheduling round, overall and per queue. A gang with more members than either value can never start. Raise them, or split the gang. |
+| `kubernetes.trackedNodeLabels`                                                      | Executor                | `kubernetes.io/hostname` | Node labels the executor reports to the scheduler. A label used for node uniformity must be here as well as in `indexedNodeLabels`.                                    |
 
 ## Troubleshooting
 
