@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -22,53 +23,57 @@ import (
 const nodeIdLabel = "node-id"
 
 func TestGetAvailableClusterCapacity_ReportsAllNodeTaints(t *testing.T) {
-	wellKnownTaints, err := (configuration.KubernetesConfiguration{
+	kubernetesConfig := configuration.KubernetesConfiguration{
 		ToleratedTaints: []string{"legacy"},
-		WellKnownTaints: configuration.WellKnownTaintsConfiguration{
-			Keys: []string{"user"},
-			Admin: []configuration.WellKnownTaintAdminConfiguration{
-				{Category: "platform", Keys: []string{"admin"}},
+		TaintCategorisation: configuration.TaintCategorisationConfiguration{
+			WellKnownTaints: configuration.WellKnownTaintsConfiguration{
+				Keys: []string{"user"},
+				Admin: []configuration.WellKnownTaintAdminConfiguration{
+					{Category: "platform", Keys: []string{"admin"}},
+				},
 			},
 		},
-	}).NewWellKnownTaints()
+	}
+	wellKnownTaints, err := kubernetesConfig.NewWellKnownTaints()
 	require.NoError(t, err)
 	legacy := &v1.Taint{Key: "legacy", Value: "true", Effect: v1.TaintEffectNoSchedule}
 	user := &v1.Taint{Key: "user", Value: "gpu", Effect: v1.TaintEffectNoSchedule}
 	admin := &v1.Taint{Key: "admin", Value: "maintenance", Effect: v1.TaintEffectNoSchedule}
+	reservation := &v1.Taint{Key: constants.ReservationTaintKey, Value: "reserved", Effect: v1.TaintEffectNoSchedule}
 	other := &v1.Taint{Key: "other", Value: "restricted", Effect: v1.TaintEffectNoSchedule}
 	clusterContext := fakeContext.NewFakeClusterContext(
 		configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"},
 		nodeIdLabel,
 		[]*fakeContext.NodeSpec{{
 			Name: "worker", Count: 1,
-			Taints:      []v1.Taint{*legacy, *user, *admin, *other},
+			Taints:      []v1.Taint{*legacy, *user, *admin, *reservation, *other},
 			Allocatable: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")},
 		}},
 	)
 	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, "node-type", "node-pool", "", wellKnownTaints)
-	// No pods are present, so this report does not need a pod utilisation service.
-	service := NewClusterUtilisationService(clusterContext, nil, nodeInfoService, wellKnownTaints, nil, nodeIdLabel, nil, 0)
-
-	report, err := service.GetAvailableClusterCapacity()
-
-	require.NoError(t, err)
-	require.Len(t, report.Nodes, 1)
-	assert.Equal(t, []*v1.Taint{legacy, user, admin, other}, report.Nodes[0].Taints)
-	actual := report.Nodes[0].NodeTaints
-
-	require.Len(t, actual, 4)
-	assert.Equal(t, legacy, actual[0].Taint)
-	assert.Empty(t, actual[0].Category)
-	assert.True(t, actual[0].UserFacing)
-	assert.Equal(t, user, actual[1].Taint)
-	assert.Equal(t, configuration.UserWellKnownTaintCategory, actual[1].Category)
-	assert.True(t, actual[1].UserFacing)
-	assert.Equal(t, admin, actual[2].Taint)
-	assert.Equal(t, "platform", actual[2].Category)
-	assert.False(t, actual[2].UserFacing)
-	assert.Equal(t, other, actual[3].Taint)
-	assert.Empty(t, actual[3].Category)
-	assert.False(t, actual[3].UserFacing)
+	for name, tc := range map[string]struct {
+		categoriseUnknown bool
+		unknownCategory   string
+	}{
+		"unknown taints uncategorised": {},
+		"unknown taints categorised":   {categoriseUnknown: true, unknownCategory: "unknown"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// No pods are present, so this report does not need a pod utilisation service.
+			service := NewClusterUtilisationService(clusterContext, nil, nodeInfoService, wellKnownTaints, tc.categoriseUnknown, nil, nodeIdLabel, nil, 0)
+			report, err := service.GetAvailableClusterCapacity()
+			require.NoError(t, err)
+			require.Len(t, report.Nodes, 1)
+			assert.Equal(t, []*v1.Taint{legacy, user, admin, reservation, other}, report.Nodes[0].Taints)
+			assert.Equal(t, []*executorapi.NodeTaint{
+				{Taint: legacy, UserFacing: true},
+				{Taint: user, Category: configuration.UserWellKnownTaintCategory, UserFacing: true},
+				{Taint: admin, Category: "platform"},
+				{Taint: reservation, UserFacing: true},
+				{Taint: other, Category: tc.unknownCategory},
+			}, report.Nodes[0].NodeTaints)
+		})
+	}
 }
 
 func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludePodsNotOnGivenNodes(t *testing.T) {
