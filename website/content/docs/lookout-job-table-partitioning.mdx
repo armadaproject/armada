@@ -26,7 +26,7 @@ The partitioned table splits the two:
 
 Postgres moves a row from one partition to the other when its state changes. The active partition stays small, so its indexes are cheap to update, and the terminated partition, though large, is much less frequently written to.
 
-Our load tests simulating our production instances showed this would increase the maximum supported job throughtput by around 20 times. Nothing changes for users of the Lookout UI or the Armada API: they read the same `job` table as before.
+Our load tests simulating our production instances showed this would increase the maximum supported job throughput by around 20 times. Nothing changes for users of the Lookout UI or the Armada API: they read the same `job` table as before.
 
 ## Timeline
 
