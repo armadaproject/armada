@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 )
 
@@ -72,6 +74,72 @@ func Test_ValidateConfig_When_DeleteThreadCount_LessThanOrEqualToZero(t *testing
 	assert.Error(t, validateConfig(config))
 	config.Application.DeleteConcurrencyLimit = -5
 	assert.Error(t, validateConfig(config))
+}
+
+func TestValidateConfig_WhenWellKnownTaintPatternIsInvalid_Fails(t *testing.T) {
+	config := createBasicValidExecutorConfiguration()
+	config.Kubernetes.WellKnownTaints.Keys = []string{"["}
+	assert.Error(t, validateConfig(config))
+
+	config.Kubernetes.WellKnownTaints.Keys = nil
+	config.Kubernetes.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
+		{Category: "platform", Keys: []string{"["}},
+	}
+	assert.Error(t, validateConfig(config))
+
+	config.Kubernetes.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
+		{Keys: []string{"admin.example.com/maintenance"}},
+	}
+	assert.Error(t, validateConfig(config))
+
+	config.Kubernetes.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
+		{Category: configuration.UserWellKnownTaintCategory, Keys: []string{"admin.example.com/maintenance"}},
+	}
+	assert.Error(t, validateConfig(config))
+}
+
+func TestKubernetesConfigurationNewWellKnownTaints(t *testing.T) {
+	kubernetesConfig := configuration.KubernetesConfiguration{
+		ToleratedTaints: []string{"legacy.example.com/dedicated"},
+		WellKnownTaints: configuration.WellKnownTaintsConfiguration{
+			Keys: []string{"user.example.com/dedicated"},
+			Admin: []configuration.WellKnownTaintAdminConfiguration{
+				{Category: "platform", Keys: []string{"platform.example.com/.*", "legacy\\.example\\.com/.*"}},
+			},
+		},
+	}
+
+	wellKnownTaints, err := kubernetesConfig.NewWellKnownTaints()
+	require.NoError(t, err)
+
+	taint, ok := wellKnownTaints.MatchWellKnownTaint("user.example.com/dedicated")
+	assert.True(t, ok)
+	assert.Equal(t, configuration.UserWellKnownTaintCategory, taint.Category)
+	assert.True(t, taint.UserFacing)
+
+	taint, ok = wellKnownTaints.MatchWellKnownTaint("legacy.example.com/dedicated")
+	assert.True(t, ok)
+	assert.Empty(t, taint.Category)
+	assert.True(t, taint.UserFacing)
+
+	// A longer key must use the configured admin regex, not the legacy literal.
+	taint, ok = wellKnownTaints.MatchWellKnownTaint("legacy.example.com/dedicated-extra")
+	assert.True(t, ok)
+	assert.Equal(t, "platform", taint.Category)
+	assert.False(t, taint.UserFacing)
+
+	taint, ok = wellKnownTaints.MatchWellKnownTaint(constants.ReservationTaintKey)
+	assert.True(t, ok)
+	assert.Empty(t, taint.Category)
+	assert.True(t, taint.UserFacing)
+
+	taint, ok = wellKnownTaints.MatchWellKnownTaint("platform.example.com/gpu")
+	assert.True(t, ok)
+	assert.Equal(t, "platform", taint.Category)
+	assert.False(t, taint.UserFacing)
+
+	_, ok = wellKnownTaints.MatchWellKnownTaint("other.example.com/taint")
+	assert.False(t, ok)
 }
 
 func createBasicValidExecutorConfiguration() configuration.ExecutorConfiguration {
