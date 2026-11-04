@@ -54,11 +54,11 @@ armadactl watch my-team web-demo-1 --raw | grep ingressAddresses
 "ingressAddresses":{"80":"172.18.0.2:32563"}
 ```
 
-That's a map from your container's port to `<node-ip>:<node-port>`. Press Ctrl-C to stop `watch`.
+That's a map from your container's port to `<node-ip>:<node-port>`. Only NodePort services and ingresses get an address; headless services don't. Press Ctrl-C to stop `watch`.
 
 The address works from wherever the node's IP can be reached. On a team installation, that's often only inside the cluster's network or over a VPN.
 
-Armada sends the address in a `JobIngressInfoEvent` once the pod has been running briefly and all its services exist. The same address appears in Lookout: open the job, choose **Result**, then the run. From your own code, the Python client's `get_job_details([job_id])` includes each run's `ingress_addresses`.
+Armada sends the address in a `JobIngressInfoEvent` once the pod has been running briefly and all its services exist. For the events that `watch` receives, see [Job lifecycle](https://github.com/armadaproject/armada/blob/master/docs/developer/job-lifecycle-events.md#events-that-watchers-receive). The same address appears in Lookout: open the job, choose **Result**, then the run. From your own code, the Python client's `get_job_details([job_id])` includes each run's `ingress_addresses`.
 
 Clean up:
 
@@ -70,7 +70,19 @@ armadactl cancel job-set my-team web-demo-1
 
 For jobs that only need to be reached by other pods in the cluster, such as gang members or a driver and its executors, use a headless service. It gives the job a DNS name that other jobs can use, but no address outside the cluster.
 
-Headless names only work inside one cluster. If your installation has more than one cluster, Armada may put the two jobs in different clusters, and the name won't resolve. Ask your platform team how to keep jobs on the same cluster.
+Headless names only work inside one cluster. If your installation has more than one cluster, Armada may put the two jobs in different clusters, and the name won't resolve. There are two ways around this:
+
+- **Use an ingress**, which gives the job an address that works from outside its cluster. See [Pattern 3](#pattern-3-open-a-job-in-a-browser-ingress).
+- **Put the jobs in one gang**, with a uniformity label whose value is unique to each cluster, so every member lands in the same cluster. Add this to every job in the gang:
+
+  ```yaml
+  annotations:
+    armadaproject.io/gangId: my-gang
+    armadaproject.io/gangCardinality: '2'
+    armadaproject.io/gangNodeUniformityLabel: example.com/cluster
+  ```
+
+  The label must be on each cluster's nodes, and listed in the executor's `kubernetes.trackedNodeLabels` and the scheduler's `scheduling.indexedNodeLabels`. Otherwise the gang stays queued. Your platform team sets this up.
 
 The name follows a fixed pattern:
 
