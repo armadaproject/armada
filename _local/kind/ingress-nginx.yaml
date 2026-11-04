@@ -575,7 +575,6 @@ spec:
         runAsNonRoot: true
         runAsUser: 2000
       serviceAccountName: ingress-nginx-admission
-      tolerations:
 ---
 apiVersion: batch/v1
 kind: Job
