@@ -9,6 +9,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/podname"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/server/queryapi/database"
 	"github.com/armadaproject/armada/pkg/api"
@@ -299,6 +300,7 @@ func parseJobDetails(row database.JobRun) (*api.JobRunDetails, error) {
 		State:            runState,
 		Cluster:          row.Cluster,
 		Node:             NilStringToString(row.Node),
+		PodName:          podname.Resolve(row.JobID, row.PodName, row.Pending.Valid, row.Started.Valid),
 		LeasedTs:         DbTimeToTimestamp(row.Leased),
 		PendingTs:        DbTimeToTimestamp(row.Pending),
 		StartedTs:        DbTimeToTimestamp(row.Started),

@@ -61,6 +61,8 @@ func (f *NodeFactory) CreateNodeAndType(
 	reportingNodeType string,
 	unschedulable bool,
 	taints []v1.Taint,
+	nodeTaints []NodeTaint,
+	hasCompleteNodeTaintMetadata bool,
 	labels map[string]string,
 	totalResources ResourceList,
 	allocatableResources ResourceList,
@@ -74,6 +76,8 @@ func (f *NodeFactory) CreateNodeAndType(
 		reportingNodeType,
 		unschedulable,
 		taints,
+		nodeTaints,
+		hasCompleteNodeTaintMetadata,
 		labels,
 		f.indexedTaints,
 		f.indexedNodeLabels,
@@ -122,15 +126,23 @@ func (f *NodeFactory) AddLabels(nodes []*Node, extraLabels map[string]string) []
 func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 	result := make([]*Node, len(nodes))
 	for i, node := range nodes {
-		result[i] = node.WithTaints(append(node.GetTaints(), extraTaints...))
+		nodeTaints := node.GetNodeTaints()
+		for _, taint := range extraTaints {
+			nodeTaints = append(nodeTaints, NewNodeTaint(taint, "", false))
+		}
+		result[i] = node.WithTaints(append(node.GetTaints(), extraTaints...)).WithNodeTaints(nodeTaints)
 	}
 	return result
 }
 
-// RemoveCordonTaint returns copies of nodes with cordon taints stripped (see IsCordonTaint) and the
-// unschedulable flag cleared. The submit checker uses it so that jobs targeting a node type whose
+// RemoveCordonTaints strips cordon taints (see IsCordonTaint) and clears the unschedulable flag.
+// With complete metadata, it also strips non-user-facing taints, except control-plane taints.
+// Without complete metadata, it preserves non-cordon taints and leaves schedulable nodes unchanged.
+//
+// The submit checker uses it so that jobs targeting a node type whose
 // nodes are all cordoned (via `kubectl cordon`, or otherwise reported unschedulable by the executor)
-// stay queued rather than being rejected. See issue #4946.
+// stay queued rather than being rejected. See issue #4946. This behavior also gets applied to
+// non-cordoned nodes with categorized taints.
 //
 // A cordoned node always has the unschedulable flag set (Kubernetes only adds
 // node.kubernetes.io/unschedulable when the node is unschedulable, and the Armada taint is only
@@ -138,24 +150,43 @@ func (f *NodeFactory) AddTaints(nodes []*Node, extraTaints []v1.Taint) []*Node {
 //
 // WithSchedulable only strips the Armada taint, so we strip the whole cordon taint set here
 // and let WithSchedulable clear the flag.
-func (f *NodeFactory) RemoveCordonTaint(nodes []*Node) []*Node {
+func (f *NodeFactory) RemoveCordonTaints(nodes []*Node) []*Node {
 	result := make([]*Node, len(nodes))
 	for i, node := range nodes {
-		if !node.IsUnschedulable() {
+		if node.hasCompleteNodeTaintMetadata {
+			result[i] = removeCordonTaintsWithMetadata(node)
+		} else if node.IsUnschedulable() {
+			result[i] = removeLegacyCordonTaints(node)
+		} else {
 			// Not cordoned. Freshly built node, not yet inserted into a NodeDb, so reuse it as-is.
 			result[i] = node
-			continue
 		}
-		taints := node.GetTaints()
-		nonCordonTaints := make([]v1.Taint, 0, len(taints))
-		for _, taint := range taints {
-			if !IsCordonTaint(taint) {
-				nonCordonTaints = append(nonCordonTaints, taint)
-			}
-		}
-		result[i] = node.WithTaints(nonCordonTaints).WithSchedulable(true)
 	}
 	return result
+}
+
+func removeLegacyCordonTaints(node *Node) *Node {
+	taints := node.GetTaints()
+	nonCordonTaints := make([]v1.Taint, 0, len(taints))
+	for _, taint := range taints {
+		if !IsCordonTaint(taint) {
+			nonCordonTaints = append(nonCordonTaints, taint)
+		}
+	}
+	return node.WithTaints(nonCordonTaints).WithSchedulable(true)
+}
+
+func removeCordonTaintsWithMetadata(node *Node) *Node {
+	nonCordonTaints := make([]v1.Taint, 0, len(node.GetTaints()))
+	nodeTaints := node.GetNodeTaints()
+	nonCordonNodeTaints := make([]NodeTaint, 0, len(nodeTaints))
+	for _, nodeTaint := range nodeTaints {
+		if !IsCordonTaint(nodeTaint.taint) && (nodeTaint.GetUserFacing() || IsMasterTaint(nodeTaint.taint)) {
+			nonCordonNodeTaints = append(nonCordonNodeTaints, nodeTaint)
+			nonCordonTaints = append(nonCordonTaints, nodeTaint.taint)
+		}
+	}
+	return node.WithTaints(nonCordonTaints).WithNodeTaints(nonCordonNodeTaints).WithSchedulable(true)
 }
 
 func (f *NodeFactory) allocateNodeIndex() uint64 {
