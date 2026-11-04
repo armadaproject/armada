@@ -25,6 +25,7 @@ type UtilisationService interface {
 }
 
 type ClusterUtilisationService struct {
+	categoriseUnknownTaints                                       bool
 	clusterContext                                                context.ClusterContext
 	queueUtilisationService                                       PodUtilisationService
 	nodeInfoService                                               node.NodeInfoService
@@ -40,12 +41,14 @@ func NewClusterUtilisationService(
 	queueUtilisationService PodUtilisationService,
 	nodeInfoService node.NodeInfoService,
 	wellKnownTaints *configuration.WellKnownTaints,
+	categoriseUnknownTaints bool,
 	trackedNodeLabels []string,
 	nodeIdLabel string,
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode armadaresource.ComputeResources,
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority int32,
 ) *ClusterUtilisationService {
 	return &ClusterUtilisationService{
+		categoriseUnknownTaints: categoriseUnknownTaints,
 		clusterContext:          clusterContext,
 		queueUtilisationService: queueUtilisationService,
 		nodeInfoService:         nodeInfoService,
@@ -147,6 +150,8 @@ func (cls *ClusterUtilisationService) wellKnownNodeTaints(taints []*v1.Taint) []
 		if wellKnownTaint, ok := cls.wellKnownTaints.MatchWellKnownTaint(taint.Key); ok {
 			nodeTaint.Category = wellKnownTaint.Category
 			nodeTaint.UserFacing = wellKnownTaint.UserFacing
+		} else if cls.categoriseUnknownTaints {
+			nodeTaint.Category = configuration.UnknownTaintCategory
 		}
 		result = append(result, nodeTaint)
 	}
