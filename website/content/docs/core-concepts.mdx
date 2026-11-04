@@ -8,13 +8,13 @@ This page explains the fundamental concepts you need to effectively use Armada.
 
 ## What Armada does
 
-Armada is a **batch job scheduler** for Kubernetes. You give it **jobs**, programs that run and then finish, and it decides **when** and **where** each one runs.
+Armada is a **multi-cluster batch job scheduler** for Kubernetes. You give it **jobs**, programs that run and then finish, and it decides **when** and **where** each one runs. It places jobs to make good use of your compute resources.
 
 It's built for situations where Kubernetes on its own struggles:
 
-- **Many jobs:** millions of queued jobs, because Armada keeps its queue in its own databases instead of in Kubernetes.
+- **Many jobs:** millions of queued jobs, because Armada queues them in its own control plane instead of in Kubernetes.
 - **Many clusters:** one place to submit work that can run on any of several Kubernetes clusters.
-- **Many teams:** each team gets a fair share of the machines over time, so one busy team can't crowd everyone else out.
+- **Many teams:** each team gets a fair share of the compute resources over time, so one busy team can't crowd everyone else out.
 
 Armada doesn't replace Kubernetes. It sits on top, decides which jobs should run where, and then hands each one to the right cluster to run as a normal pod.
 
@@ -86,7 +86,7 @@ Job sets are only for grouping. They don't affect when jobs run.
 
 ## Fair share
 
-When there aren't enough machines for every waiting job, Armada decides which queue's jobs go next by **fair share**: each queue is entitled to a share of the cluster, weighted by its priority factor.
+When there aren't enough compute resources for every waiting job, Armada decides which queue's jobs go next by **fair share**: each queue is entitled to a share of those resources, weighted by its priority factor.
 
 - Only **active** queues count, meaning queues with jobs waiting or running. If a team has nothing to run, its share goes to the others.
 - So a queue's share changes as other queues become busy or quiet.
@@ -144,7 +144,7 @@ A preempted job gets a short time to shut down (its termination grace period), t
 
 ## Gangs
 
-A **gang** is a group of jobs that must all start together, or not at all. Distributed programs such as MPI, multi-node training and Spark need every worker running at once: half the workers is no use.
+A **gang** is a group of jobs that Armada schedules onto a set of nodes all together, or not at all. Distributed programs such as MPI, multi-node training and Spark need every worker running at once: half the workers is no use.
 
 You make a gang with annotations on each job:
 
@@ -166,7 +166,7 @@ When a run fails, Armada can label it with a **failure category**, a short name 
 
 An Armada installation has:
 
-- A **control plane**: the **server** (accepts jobs), the **scheduler** (decides what runs where), and **Lookout** (the web UI).
+- A **control plane**: the **server** (accepts jobs), the **scheduler** (decides what runs where), **Lookout** (the web UI), and the **ingesters** (save events to Armada's databases).
 - One **executor** per Kubernetes **worker cluster**: it asks the scheduler for jobs, creates their pods, and reports back.
 
 Jobs flow like this:
