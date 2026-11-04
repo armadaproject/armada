@@ -10,8 +10,8 @@
       <env name="ARMADA_UICONFIG_ARMADAAPIBASEURL" value="http://localhost:8080" />
       <env name="ARMADA_UICONFIG_BINOCULARSBASEURLPATTERN" value="http://localhost:8082" />
     </envs>
-    <kind value="FILE" />
-    <package value="$PROJECT_DIR$/cmd/lookout/main.go" />
+    <kind value="PACKAGE" />
+    <package value="github.com/armadaproject/armada/cmd/lookout" />
     <directory value="$PROJECT_DIR$" />
     <filePath value="$PROJECT_DIR$/cmd/lookout/main.go" />
     <method v="2" />
