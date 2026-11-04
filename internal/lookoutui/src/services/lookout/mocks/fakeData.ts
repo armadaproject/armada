@@ -40,7 +40,7 @@ const TOTAL_FAKE_LOG_LINES = 40
 export const createFakeLogs = (
   cluster: string,
   namespace: string,
-  jobId: string,
+  podName: string,
   container: string,
   sinceTime: string,
 ): BinocularsLogLine[] => {
@@ -55,7 +55,7 @@ export const createFakeLogs = (
 
   return [...Array(numLines)].map((_, i) => ({
     timestamp: new Date(startTime + (linesAlreadyReturned + i) * 100).toISOString(),
-    line: `${jobId} - ${container} - ${namespace} - ${cluster}`,
+    line: `${podName} - ${container} - ${namespace} - ${cluster}`,
   }))
 }
 
