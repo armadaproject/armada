@@ -166,7 +166,4 @@ useful for scripting:
 armadactl get retry-policies -o json | jq '.retryPolicies[].name'
 ```
 
-With `--output yaml` or `--output json`, `armadactl get queues` wraps the list under a `queues` key. The default
-output remains a bare list.
-
 For a full list of subcommands and options, you can run **armadactl --help**.
