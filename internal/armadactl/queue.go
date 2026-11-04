@@ -129,11 +129,13 @@ func (a *App) GetAllQueues(args *QueueQueryArgs) error {
 		return errors.Errorf("error getting all queues: %s", err)
 	}
 
-	if queues == nil {
-		queues = []*api.Queue{}
+	// The default output has always been a bare list after the header. Structured output wraps it in
+	// a mapping so that the header and the list form one valid document.
+	var body any = queues
+	if a.structured() {
+		body = queueListBody{Queues: queues}
 	}
-	// A mapping, so that it follows the mapping header the document opens with.
-	if err := a.emitDocument(client.ResourceKindQueue, queueListBody{Queues: queues}); err != nil {
+	if err := a.emitDocument(client.ResourceKindQueue, body); err != nil {
 		return errors.Errorf("error writing queues: %s", err)
 	}
 	return nil
