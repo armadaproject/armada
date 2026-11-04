@@ -51,3 +51,4 @@ organisations
 KUBECONFIG
 scriptable
 preemptible
+EMFILE

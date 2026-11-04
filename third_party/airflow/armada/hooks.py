@@ -167,15 +167,27 @@ class ArmadaHook(LoggingMixin):
             )
 
         cluster = job_context.cluster
-        if not cluster:
-            # Job is running / or completed already
-            if state == JobState.RUNNING or state.is_terminal():
-                job_id = job_context.job_id
-                job_details = self.client.get_job_details([job_id]).job_details[job_id]
-                run_details = self._get_latest_job_run_details(job_details)
-                if run_details:
-                    cluster = run_details.cluster
-        return dataclasses.replace(job_context, job_state=state.name, cluster=cluster)
+        pod_name = job_context.pod_name
+        # A retry starts a new run with a new pod, possibly on another cluster, so
+        # the hook reads the latest run on each poll.
+        if state == JobState.RUNNING or state.is_terminal():
+            job_id = job_context.job_id
+            job_details = self.client.get_job_details([job_id]).job_details[job_id]
+            run_details = self._get_latest_job_run_details(job_details)
+            if run_details:
+                cluster = run_details.cluster
+                pod_name = self._resolve_pod_name(job_id, run_details)
+        last_log_time = job_context.last_log_time
+        # The log cursor belongs to one pod, so a new pod starts without it.
+        if job_context.pod_name and pod_name != job_context.pod_name:
+            last_log_time = None
+        return dataclasses.replace(
+            job_context,
+            job_state=state.name,
+            cluster=cluster,
+            pod_name=pod_name,
+            last_log_time=last_log_time,
+        )
 
     @log_exceptions
     def context_from_xcom(self, ti: TaskInstance) -> RunningJobContext:
@@ -188,6 +200,7 @@ class ArmadaHook(LoggingMixin):
                 job_state=result.get("armada_job_state", "UNKNOWN"),
                 submit_time=(result.get("armada_job_submit_time", DateTime.utcnow())),
                 last_log_time=result.get("armada_job_last_log_time", None),
+                pod_name=result.get("armada_job_pod_name", None),
             )
 
         return None
@@ -208,8 +221,22 @@ class ArmadaHook(LoggingMixin):
                 "armada_job_submit_time": ctx.submit_time,
                 "armada_job_state": ctx.job_state,
                 "armada_job_last_log_time": ctx.last_log_time,
+                "armada_job_pod_name": ctx.pod_name,
             },
         )
+
+    @staticmethod
+    def _resolve_pod_name(job_id: str, run_details: JobRunDetails) -> str:
+        """Return the name of the pod of a run, or "" when the run has no pod."""
+        # An armada-client from before pod_name has no such field, and a server from
+        # before pod_name sends it empty. A run with a pending or start time had a pod.
+        # Without a reported name, that pod has the default job-scoped name.
+        name = getattr(run_details, "pod_name", "")
+        if name:
+            return name
+        if run_details.HasField("pending_ts") or run_details.HasField("started_ts"):
+            return f"armada-{job_id}-0"
+        return ""
 
     def _get_latest_job_run_details(
         self, job_details: Optional[JobDetailsResponse]

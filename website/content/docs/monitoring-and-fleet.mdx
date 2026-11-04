@@ -7,8 +7,8 @@ This page shows you how to follow what your jobs are doing, find out why jobs ar
 
 You have two tools:
 
-- **Lookout**, Armada's web UI, for looking around and clicking.
-- **`armadactl`**, for scripts, reports and bulk actions.
+- **Lookout**, Armada's web UI, for browsing, filtering and acting on jobs.
+- **`armadactl`**, Armada's command-line tool, for watching a job set, reading scheduling reports, and cancelling, reprioritizing or preempting many jobs at once. It also works in scripts.
 
 ## Before you start
 
@@ -18,12 +18,12 @@ Check that `armadactl` can reach Armada:
 armadactl get queues
 ```
 
-**Ready when:** the command finishes without an error.
+**Ready when:** it prints `apiVersion: armadaproject.io/v1beta1` and `kind: Queue`, then your queues, with no line containing `error`. On a new install, the list is empty.
 
 Find Lookout:
 
 - **Laptop install:** [http://localhost:30000](http://localhost:30000)
-- **Team installation:** ask your platform team for the address.
+- **Team installation** (an Armada that your platform team runs for many users): ask them for the address.
 
 **Ready when:** Lookout opens in your browser and shows a job list.
 
@@ -63,15 +63,23 @@ On a laptop install, the Logs tab shows `TypeError: Failed to fetch`. Read logs 
 kubectl logs -n default armada-<job-id>-0
 ```
 
-The Commands tab's commands include `--context <cluster>`, using Armada's name for the cluster. On a laptop install, that name (`Cluster1`) isn't a `kubectl` context, so leave `--context` out or use `--context kind-armada`.
+The Commands tab's commands, and the `kubectl` hint that `watch` prints, include `--context <cluster>`, using Armada's name for the cluster. On a laptop install, that name (`Cluster1`) isn't a `kubectl` context, so leave `--context` out or use `--context kind-armada`.
 
 ### States in Lookout
 
-Lookout shows two states that `armadactl watch` reports as failures:
+| State     | Meaning                                                                                            |
+| --------- | -------------------------------------------------------------------------------------------------- |
+| Queued    | Waiting for the scheduler                                                                          |
+| Leased    | The scheduler chose a cluster and node                                                             |
+| Pending   | The pod is starting                                                                                |
+| Running   | The pod is running                                                                                 |
+| Succeeded | Finished without an error                                                                          |
+| Failed    | Finished with an error                                                                             |
+| Cancelled | Someone cancelled it                                                                               |
+| Preempted | Armada stopped it to make room for other work                                                      |
+| Rejected  | The scheduler turned it down before it ran, for example because it asks for more than any node has |
 
-- **Preempted:** Armada stopped the job to make room for other work.
-  {/* See [Priority and preemption](/docs/priority-and-preemption). */}
-- **Rejected:** the scheduler refused the job, for example because it asks for more than any node has.
+A short job can skip Pending or Running. `armadactl watch` counts Preempted and Rejected jobs as failed, so use Lookout to tell them apart. For every transition, see [Job lifecycle](https://github.com/armadaproject/armada/blob/master/docs/developer/job-lifecycle-events.md).
 
 ### Act on jobs
 
@@ -88,17 +96,15 @@ armadactl watch my-team demo-1
 `watch` streams every change to the jobs in one job set.
 {/* See [Submitting jobs](/docs/submitting-jobs#step-5-watch-it-run) for what the output means. */}
 
-**`watch` doesn't stop by itself.** Once the jobs you're following have finished, press Ctrl-C. (The `--exit-if-inactive` flag is meant to stop it automatically, but it doesn't always.)
+`watch` keeps running until you press Ctrl-C. To stop it when every job in the job set has finished, add `--exit-if-inactive`. It counts only the jobs it has seen so far, so in a job set with older finished jobs it can stop before a newer job ends. If it's still running after the last job finishes, press Ctrl-C.
 
 `watch` covers one job set at a time. For everything in a queue, use Lookout.
 
-`armadactl watch` reports both of these as failures rather than showing them as separate states. To see which jobs were preempted or rejected specifically, use Lookout.
-
-For jobs with an ingress, the address to reach them appears in Lookout's per-run details once the job is running. The scriptable equivalent is the ingressInfo event in the event stream.
+For jobs with an ingress, the address to reach them appears in Lookout's per-run details once the job is running. From a script, read the `JobIngressInfoEvent` in the event stream. See Interactive jobs and services. {/* LINK: restore "[Interactive jobs and services](/docs/interactive-jobs-and-services)" when that page merges */}
 
 ### Find out why jobs are waiting
 
-Three reports explain what the scheduler is doing:
+`watch` shows what's happening to a job set, and the three reports explain what the scheduler is doing:
 
 | Command                              | Answers                                                             |
 | ------------------------------------ | ------------------------------------------------------------------- |
@@ -113,8 +119,11 @@ For `queue-report` and `scheduling-report`, add `-v`, `-vv` or `-vvv` for more d
 
 In Lookout, a queued job's **Scheduling** tab shows the same reports.
 
-These reports only cover scheduling attempts. A job that fails at once, such as with `exceeds the total limit`, was rejected before any attempt, so `job-report` shows `none`. Read its reason on the `Job failed:` line in `watch`, or in the job's **Result** tab in Lookout.
-The Python and Go clients can do the same things:
+These reports only cover scheduling attempts. A job rejected with a message such as `exceeds the total limit` never reached an attempt, so `job-report` shows `none`. Read its reason on the `Job failed:` line in `watch`, or in the job's **Result** tab in Lookout.
+
+### From your own code
+
+The Python and Go clients can perform the same requests:
 
 | Python method           | Returns                                           |
 | ----------------------- | ------------------------------------------------- |
@@ -149,7 +158,7 @@ Reprioritizing changes every unfinished job in the set, including running ones. 
 >
 > - **Leaving out `--priority-classes` means all priority classes.** Leaving out `--pools` means all pools. Name them to narrow the command.
 > - **`--inverse` selects every queue that does not match.** With a queue name, it means every _other_ queue.
-> - **The dry run looks like the real thing.** It prints the same "Requesting cancellation" message but changes nothing. It lists the affected queues, not individual jobs.
+> - **The dry run looks like the real thing.** It prints the same "Requesting cancellation" or "Requesting preemption" message but changes nothing. It lists the affected queues, not individual jobs.
 > - **Both need a global permission:** `cancel_any_jobs` or `preempt_any_jobs`. The queue's own `cancel` or `preempt` permission is not enough.
 
 To cancel jobs in a queue:
@@ -161,6 +170,14 @@ To cancel jobs in a queue:
      --job-states queued,running \
      --priority-classes armada-default \
      --dry-run
+   ```
+
+   It prints the same line and nothing more when it succeeds.
+
+   The output is one line for each queue that would be affected:
+
+   ```text title="Output"
+   Requesting cancellation of jobs matching queue: my-team, priorityClasses: armada-default, jobStates: queued,running, pools: all
    ```
 
 2. **Run it:**
@@ -230,6 +247,6 @@ On a laptop install, the executor is called `Cluster1`.
 | `PermissionDenied` on `cancel queues` or `preempt queues` | You don't have `cancel_any_jobs` or `preempt_any_jobs`                                            | Cancel job sets instead, or ask your platform team                               |
 | `preempt queues` succeeds, but jobs keep running          | They may be in a priority class that can't be preempted                                           | Check the jobs' priority class in Lookout                                        |
 | No logs in Lookout                                        | The pod was already cleaned up, or the installation has no log service (a laptop install doesn't) | Check logs soon after a job ends. On a laptop, use `kubectl logs`.               |
-| `job-report` shows `none` for a failed job                | The job was rejected before any scheduling attempt                                                | Read the reason on the `Job failed:` line in `watch`, or in Lookout's Result tab |
-| `watch` keeps running after the jobs end                  | `watch` doesn't always stop by itself                                                             | Press Ctrl-C                                                                     |
+| `job-report` shows `none` for a rejected job              | The job was rejected before any scheduling attempt                                                | Read the reason on the `Job failed:` line in `watch`, or in Lookout's Result tab |
+| `watch` keeps running after the jobs end                  | Without `--exit-if-inactive`, `watch` doesn't stop by itself                                      | Press Ctrl-C                                                                     |
 | `zsh: no such file or directory: job-id`                  | A placeholder was pasted with its angle brackets                                                  | Replace `<job-id>`, including `<` and `>`, with the real value                   |
