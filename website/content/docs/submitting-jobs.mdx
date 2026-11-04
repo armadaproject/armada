@@ -203,7 +203,7 @@ Apart from the rules in Step 2, the pod spec is plain Kubernetes: `imagePullSecr
 
 Init containers have one extra rule: by default, Armada rejects a whole-number CPU value such as `1`, so use a fractional value such as `900m`.
 
-Armada changes three things:
+Armada changes three things from a regular Kubernetes job launch:
 
 - It sets `restartPolicy: Never`, whatever you wrote. Armada handles retries, not Kubernetes.
 - It adds a node selector that pins the pod to the node the scheduler chose.
