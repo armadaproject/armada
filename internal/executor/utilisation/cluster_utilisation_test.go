@@ -25,10 +25,12 @@ const nodeIdLabel = "node-id"
 func TestGetAvailableClusterCapacity_ReportsAllNodeTaints(t *testing.T) {
 	kubernetesConfig := configuration.KubernetesConfiguration{
 		ToleratedTaints: []string{"legacy"},
-		WellKnownTaints: configuration.WellKnownTaintsConfiguration{
-			Keys: []string{"user"},
-			Admin: []configuration.WellKnownTaintAdminConfiguration{
-				{Category: "platform", Keys: []string{"admin"}},
+		TaintCategorisation: configuration.TaintCategorisationConfiguration{
+			WellKnownTaints: configuration.WellKnownTaintsConfiguration{
+				Keys: []string{"user"},
+				Admin: []configuration.WellKnownTaintAdminConfiguration{
+					{Category: "platform", Keys: []string{"admin"}},
+				},
 			},
 		},
 	}

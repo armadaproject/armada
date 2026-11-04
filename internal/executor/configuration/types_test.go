@@ -16,21 +16,22 @@ func TestWellKnownTaintsConfigDecoding(t *testing.T) {
 	v.SetConfigType("yaml")
 	err := v.ReadConfig(strings.NewReader(`
 kubernetes:
-  categoriseUnknownTaints: true
-  wellKnownTaints:
-    keys:
-      - example.com/user
-    admin:
-      - category: platform
-        keys:
-          - example.com/maintenance
+  taintCategorisation:
+    categoriseUnknownTaints: true
+    wellKnownTaints:
+      keys:
+        - example.com/user
+      admin:
+        - category: platform
+          keys:
+            - example.com/maintenance
   toleratedTaints:
     - example.com/legacy
 `))
 	require.NoError(t, err)
 	var config ExecutorConfiguration
 	require.NoError(t, v.Unmarshal(&config, commonconfig.CustomHooks...))
-	assert.True(t, config.Kubernetes.CategoriseUnknownTaints)
+	assert.True(t, config.Kubernetes.TaintCategorisation.CategoriseUnknownTaints)
 	matcher, err := config.Kubernetes.NewWellKnownTaints()
 	require.NoError(t, err)
 
@@ -117,10 +118,10 @@ func TestWellKnownTaintsLiteralAndRegexMatching(t *testing.T) {
 					config := KubernetesConfiguration{}
 					category := UserWellKnownTaintCategory
 					if scope == "user" {
-						config.WellKnownTaints.Keys = []string{tc.pattern}
+						config.TaintCategorisation.WellKnownTaints.Keys = []string{tc.pattern}
 					} else {
 						category = "platform"
-						config.WellKnownTaints.Admin = []WellKnownTaintAdminConfiguration{{Category: category, Keys: []string{tc.pattern}}}
+						config.TaintCategorisation.WellKnownTaints.Admin = []WellKnownTaintAdminConfiguration{{Category: category, Keys: []string{tc.pattern}}}
 					}
 					matcher, err := config.NewWellKnownTaints()
 					require.NoError(t, err)

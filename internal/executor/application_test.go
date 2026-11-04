@@ -78,31 +78,31 @@ func Test_ValidateConfig_When_DeleteThreadCount_LessThanOrEqualToZero(t *testing
 
 func TestValidateConfig_WhenWellKnownTaintPatternIsInvalid_Fails(t *testing.T) {
 	config := createBasicValidExecutorConfiguration()
-	config.Kubernetes.WellKnownTaints.Keys = []string{"["}
+	config.Kubernetes.TaintCategorisation.WellKnownTaints.Keys = []string{"["}
 	assert.Error(t, validateConfig(config))
 
-	config.Kubernetes.WellKnownTaints.Keys = nil
-	config.Kubernetes.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
+	config.Kubernetes.TaintCategorisation.WellKnownTaints.Keys = nil
+	config.Kubernetes.TaintCategorisation.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
 		{Category: "platform", Keys: []string{"["}},
 	}
 	assert.Error(t, validateConfig(config))
 
-	config.Kubernetes.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
+	config.Kubernetes.TaintCategorisation.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
 		{Keys: []string{"admin.example.com/maintenance"}},
 	}
 	assert.Error(t, validateConfig(config))
 
-	config.Kubernetes.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
+	config.Kubernetes.TaintCategorisation.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
 		{Category: configuration.UserWellKnownTaintCategory, Keys: []string{"admin.example.com/maintenance"}},
 	}
 	assert.Error(t, validateConfig(config))
 
-	config.Kubernetes.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
+	config.Kubernetes.TaintCategorisation.WellKnownTaints.Admin = []configuration.WellKnownTaintAdminConfiguration{
 		{Category: configuration.UnknownTaintCategory, Keys: []string{"admin.example.com/maintenance"}},
 	}
 	for name, enabled := range map[string]bool{"categorisation disabled": false, "categorisation enabled": true} {
 		t.Run(name, func(t *testing.T) {
-			config.Kubernetes.CategoriseUnknownTaints = enabled
+			config.Kubernetes.TaintCategorisation.CategoriseUnknownTaints = enabled
 			assert.Error(t, validateConfig(config))
 		})
 	}
@@ -111,10 +111,12 @@ func TestValidateConfig_WhenWellKnownTaintPatternIsInvalid_Fails(t *testing.T) {
 func TestKubernetesConfigurationNewWellKnownTaints(t *testing.T) {
 	kubernetesConfig := configuration.KubernetesConfiguration{
 		ToleratedTaints: []string{"legacy.example.com/dedicated"},
-		WellKnownTaints: configuration.WellKnownTaintsConfiguration{
-			Keys: []string{"user.example.com/dedicated"},
-			Admin: []configuration.WellKnownTaintAdminConfiguration{
-				{Category: "platform", Keys: []string{"platform.example.com/.*", "legacy\\.example\\.com/.*"}},
+		TaintCategorisation: configuration.TaintCategorisationConfiguration{
+			WellKnownTaints: configuration.WellKnownTaintsConfiguration{
+				Keys: []string{"user.example.com/dedicated"},
+				Admin: []configuration.WellKnownTaintAdminConfiguration{
+					{Category: "platform", Keys: []string{"platform.example.com/.*", "legacy\\.example\\.com/.*"}},
+				},
 			},
 		},
 	}
