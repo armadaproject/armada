@@ -16,6 +16,8 @@ type ResourceKind string
 const (
 	ResourceKindQueue       ResourceKind = "Queue"
 	ResourceKindRetryPolicy ResourceKind = "RetryPolicy"
+	// ResourceKindJob is only written by get commands. It is not a valid kind for create/update input.
+	ResourceKindJob ResourceKind = "Job"
 )
 
 func NewResourceKind(in string) (ResourceKind, error) {
