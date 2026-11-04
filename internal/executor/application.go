@@ -199,6 +199,7 @@ func setupExecutorApiComponents(
 		podUtilisationService,
 		nodeInfoService,
 		wellKnownTaints,
+		config.Kubernetes.TaintCategorisation.CategoriseUnknownTaints,
 		config.Kubernetes.TrackedNodeLabels,
 		config.Kubernetes.NodeIdLabel,
 		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
@@ -362,7 +363,7 @@ func validateConfig(config configuration.ExecutorConfiguration) error {
 		return fmt.Errorf("DeleteConcurrencyLimit was %d, must be greater or equal to 1", config.Application.DeleteConcurrencyLimit)
 	}
 	if _, err := config.Kubernetes.NewWellKnownTaints(); err != nil {
-		return fmt.Errorf("invalid kubernetes.wellKnownTaints configuration: %w", err)
+		return fmt.Errorf("invalid kubernetes.taintCategorisation.wellKnownTaints configuration: %w", err)
 	}
 	return nil
 }
