@@ -14,10 +14,9 @@ metric:
   port: 9002
 kubernetes:
   taintCategorisation:
-    categoriseUnknownTaints: true
+    categoriseUnknownTaints: false
     wellKnownTaints:
-      keys:
-        - example.com/armada-batch
+      keys: []
       admin:
         - category: platform
           keys:

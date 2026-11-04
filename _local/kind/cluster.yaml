@@ -8,12 +8,6 @@ networking:
 nodes:
 - role: worker
   image: kindest/node:v1.33.12
-  kubeadmConfigPatches:
-    - |
-      kind: JoinConfiguration
-      nodeRegistration:
-        kubeletExtraArgs:
-          register-with-taints: "example.com/armada-batch=true:NoSchedule"
 - role: worker
   image: kindest/node:v1.33.12
   labels:
@@ -23,7 +17,7 @@ nodes:
       kind: JoinConfiguration
       nodeRegistration:
         kubeletExtraArgs:
-          register-with-taints: "node-tests=true:NoSchedule,example.com/armada-batch=true:NoSchedule"
+          register-with-taints: "node-tests=true:NoSchedule"
 - role: control-plane
   image: kindest/node:v1.33.12
   labels:
