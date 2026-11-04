@@ -42,3 +42,4 @@ nodes:
   - containerPort: 6443 # control plane
     hostPort: 6443  # exposes control plane on localhost:6443
     protocol: TCP
+
