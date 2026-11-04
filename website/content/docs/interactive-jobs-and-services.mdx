@@ -90,6 +90,8 @@ The name follows a fixed pattern:
 armada-<job-id>-0-service-0.<namespace>.svc.cluster.local
 ```
 
+`armada` is the default prefix for these names. Your platform team can change it with `submission.objectNamePrefix`. If a name on this page isn't found, replace `armada` with your installation's prefix.
+
 The number after `service-` counts the job's services in order, starting at `0`: a job with two services gets `-service-0` and `-service-1`. Services with a custom name (see [Pattern 4](#pattern-4-driver-and-executors)) aren't counted. Services Armada creates for an ingress are numbered too, after the ones you declare.
 
 This example runs a web server with a headless service, then a second job that fetches its page by that name.
@@ -150,7 +152,7 @@ This example runs a web server with a headless service, then a second job that f
 4. **Read the client's output** once it has finished (about 30 seconds):
 
    ```bash
-   kubectl logs -n default armada-$CLIENT_ID-0
+   kubectl logs -n default -l armada_job_id=$CLIENT_ID
    ```
 
    **Success:** the first lines of nginx's welcome page, starting with `<!DOCTYPE html>`.
