@@ -96,6 +96,9 @@ loop:
 		if gctx.AllJobsEvicted {
 			continue
 		}
+		if gangContainsPreemptedJob(sctx, gctx.JobSchedulingContexts) {
+			continue
+		}
 
 		qctx, exists := sctx.QueueSchedulingContexts[gctx.Queue]
 		if !exists {
