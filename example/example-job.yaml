@@ -21,3 +21,7 @@ jobs:
             requests:
               memory: 128Mi
               cpu: 0.2
+      tolerations:
+        - key: example.com/armada-batch
+          operator: Exists
+          effect: NoSchedule

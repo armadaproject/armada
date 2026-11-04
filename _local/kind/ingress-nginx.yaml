@@ -575,6 +575,11 @@ spec:
         runAsNonRoot: true
         runAsUser: 2000
       serviceAccountName: ingress-nginx-admission
+      tolerations:
+      - effect: NoSchedule
+        key: example.com/armada-batch
+        operator: Equal
+        value: "true"
 ---
 apiVersion: batch/v1
 kind: Job
@@ -624,6 +629,11 @@ spec:
         runAsNonRoot: true
         runAsUser: 2000
       serviceAccountName: ingress-nginx-admission
+      tolerations:
+      - effect: NoSchedule
+        key: example.com/armada-batch
+        operator: Equal
+        value: "true"
 ---
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
