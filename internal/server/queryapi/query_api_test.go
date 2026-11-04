@@ -408,6 +408,37 @@ func TestGetJobErrors(t *testing.T) {
 	}
 }
 
+func TestGetJobRunDetailsPodNameOfRunFromBeforeLookoutStoredPodNames(t *testing.T) {
+	tests := map[string]struct {
+		pending     bool
+		started     bool
+		wantPodName string
+	}{
+		"a run with a pending time gets the job-scoped name": {pending: true, wantPodName: "armada-job1-0"},
+		"a run first seen running gets the job-scoped name":  {started: true, wantPodName: "armada-job1-0"},
+		"a run without a pending or start time gets no name": {wantPodName: ""},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
+			defer cancel()
+			run := newJobRun("job1", "run1", lookout.JobRunLeaseReturnedOrdinal, baseTime, "", nil)
+			run.PodName = nil
+			run.Pending.Valid = tc.pending
+			run.Started.Valid = tc.started
+			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+				require.NoError(t, dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job", []string{"job_id"}, []database.Job{newJob("job1", lookout.JobRunningOrdinal, "run1")}))
+				require.NoError(t, dbcommon.UpsertPartitionedWithTransaction(ctx, db, "job_run", []string{"run_id"}, []database.JobRun{run}))
+				resp, err := New(db, defaultMaxQueryItems, testDecompressor).GetJobRunDetails(ctx, &api.JobRunDetailsRequest{RunIds: []string{"run1"}})
+				require.NoError(t, err)
+				assert.Equal(t, tc.wantPodName, resp.JobRunDetails["run1"].PodName)
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
 func newJob(jobId string, state int16, latestRunId string) database.Job {
 	annotations, _ := json.Marshal(map[string]string{})
 	return database.Job{
@@ -459,6 +490,7 @@ func newJobRun(jobId, runId string, state int16, leased time.Time, error string,
 		JobID:   jobId,
 		Cluster: "testCluster",
 		Node:    pointer.String("testNode"),
+		PodName: pointer.String("testPod"),
 		Pending: pgtype.Timestamp{
 			Time:  baseTime,
 			Valid: true,
@@ -504,6 +536,7 @@ func newJobRunDetails(jobId string, runId string, state api.JobRunState, leased 
 		State:            state,
 		Cluster:          "testCluster",
 		Node:             "testNode",
+		PodName:          "testPod",
 		LeasedTs:         protoutil.ToTimestamp(leased),
 		PendingTs:        baseTimestamp,
 		StartedTs:        baseTimestamp,
