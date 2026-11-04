@@ -12,17 +12,17 @@ This guide installs Armada on your laptop and runs your first job. You'll use **
 
 By the end, you'll have Armada running, a job that has finished, and its output on your screen.
 
-**Time needed:** about 30 minutes, most of it waiting for the install.
+**Time needed:** about 10 minutes, most of it waiting for the install.
 
 ---
 
 ## What you'll be working with
 
-- **Armada** — a batch job scheduler that runs on top of Kubernetes. You give it jobs, and it decides when and where each one runs, sharing the machines fairly between teams.
-- **Job** — a container that runs to completion.
-- **Queue** — where jobs wait. Each team usually has one.
+- **Armada** — a batch job scheduler that runs jobs across many Kubernetes clusters. You give it jobs, and it decides which cluster and node each one runs on, and when, sharing the machines fairly between teams.
+- **Job** — a Kubernetes pod that runs to completion. The pod can have more than one container.
+- **Queue** — where jobs wait, and what controls each team's access to the cluster: Armada shares resources fairly between queues and can limit how much each one runs at once. Each team usually has one.
 - **`armadactl`** — the command-line tool you use to talk to Armada.
-- **Lookout** — Armada's web interface for following jobs.
+- **Lookout** — Armada's web interface for finding, following and managing jobs.
 
 ---
 
@@ -62,7 +62,7 @@ go version
 
 ### Make sure no old install is in the way
 
-The install creates a cluster called `armada`. If you've tried Armada before, an old one may still exist:
+The install creates a Kind cluster called `armada` (kubectl calls it `kind-armada`).
 
 ```bash
 kind get clusters
@@ -92,7 +92,7 @@ kind delete cluster --name armada
 
 <Step>
 
-**Download the installer**
+**Download the Armada Operator**
 
 ```bash
 mkdir -p ~/armada-guide
@@ -120,9 +120,10 @@ This one command:
 - Writes `~/.armadactl.yaml`, which points `armadactl` at your new install (`localhost:30002`)
 
 <Callout type='warn'>
-  This takes **7 to 20 minutes**. It’s finished when a line ends in `condition
-  met` and you get your prompt back. If you already have a `~/.armadactl.yaml`,
-  back it up first — the install replaces it.
+  This takes **about 10 minutes**, longer the first time while images download.
+  It’s finished when a line ends in `condition met` and you get your prompt
+  back. If you already have a `~/.armadactl.yaml`, back it up first — the
+  install replaces it.
 </Callout>
 
 </Step>
@@ -168,7 +169,7 @@ kind: Queue
 <Callout type='warn'>
   **Wait two minutes before Step 3.** After its pods start, Armada takes a
   little time to learn how much CPU and memory the cluster has. A job submitted
-  before then fails with `exceeds the total limit`.
+  before then is rejected with `exceeds the total limit`.
 </Callout>
 
 ---
@@ -189,7 +190,7 @@ armadactl create queue example
 `Created queue example`
 
 <Callout type='info'>
-  Wait about 15 seconds before submitting. Armada checks for new queues every 10
+  Wait about 10 seconds before submitting. Armada checks for new queues every 10
   seconds — submitting to a brand-new queue straight away fails with `could not
   find queue`.
 </Callout>
@@ -257,10 +258,11 @@ kubectl logs -n default armada-$JOB_ID-0
 `Hello Armada`
 
 <Callout type='warn'>
-  Run this immediately after the job succeeds. Finished pods are cleaned up
-  within a minute or two and their output goes with them. If you see `pods
-  "armada-[job-id]-0" not found`, the pod is already gone. Submit a new job and
-  run `kubectl logs` straight after `watch` shows `JobSucceededEvent`.
+  Run this within a few minutes of the job succeeding. Armada deletes finished
+  pods about three minutes after the job ends, and their output goes with them.
+  If you see `pods "armada-[job-id]-0" not found`, the pod is already gone.
+  Submit a new job and run `kubectl logs` straight after `watch` shows
+  `JobSucceededEvent`.
 </Callout>
 
 ---
@@ -334,7 +336,7 @@ make kind-delete-cluster
 </Accordion>
 
 <Accordion title='could not find queue "example"'>
-  The queue was created moments ago. Wait 15 seconds and submit again.
+  The queue was created moments ago. Wait 10 seconds and submit again.
 </Accordion>
 
 <Accordion title='watch says the job set does not exist'>
@@ -342,7 +344,7 @@ make kind-delete-cluster
   `watch` again.
 </Accordion>
 
-<Accordion title='Job fails with exceeds the total limit'>
+<Accordion title='Job is rejected with exceeds the total limit'>
   The job asks for more than its queue is allowed for its priority class. Right
   after an install, Armada doesn’t yet know the cluster’s resources, so every
   job gets this: wait two minutes and submit again. If it still fails, the job
@@ -350,13 +352,13 @@ make kind-delete-cluster
   and `limits` (keep them equal), or ask your platform team about the limit.
 </Accordion>
 
-<Accordion title='Job fails with insufficient resources available'>
-  The job asks for more CPU or memory than the cluster has free. The quickest
-  fix is to lower the job’s `requests` and `limits` (keep them equal) and submit
-  again. To give Armada more room instead, raise Docker’s CPU or memory in
-  Settings → Resources. Docker restarts when you apply it, and Armada doesn’t
-  recover from a restart, so reinstall afterwards: this deletes your queues and
-  job history.
+<Accordion title='Job is rejected with insufficient resources available'>
+  No node in the cluster is big enough for the job, even when empty. The
+  quickest fix is to lower the job’s `requests` and `limits` (keep them equal)
+  and submit again. To give Armada more room instead, raise Docker’s CPU or
+  memory in Settings → Resources. Docker restarts when you apply it, and Armada
+  doesn’t recover from a restart, so reinstall afterwards: this deletes your
+  queues and job history.
 </Accordion>
 
 <Accordion title='kubectl logs says the pod was NotFound'>
