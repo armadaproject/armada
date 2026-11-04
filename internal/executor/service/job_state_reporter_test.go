@@ -1,11 +1,13 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -13,10 +15,13 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/errormatch"
 	"github.com/armadaproject/armada/internal/executor/categorizer"
+	"github.com/armadaproject/armada/internal/executor/configuration"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/metrics/startupmetrics"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
+	"github.com/armadaproject/armada/internal/executor/reporter/startup"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -81,6 +86,43 @@ func TestJobStateReporter_HandlesPodAddEvents(t *testing.T) {
 			assert.Len(t, fakeClusterContext.GetAnnotationsAdded(), 0)
 		}
 	}
+}
+
+// The breakdown attached to JobRunRunning is also summarised into metrics, once the event has been
+// reported: a failed send leaves the pod to be reported again, which would otherwise count it twice.
+func TestJobStateReporter_SummarisesStartUpOfRunningPodIntoMetrics(t *testing.T) {
+	stateReporter, _, _, fakeClusterContext := setUpJobStateReporterTest(t)
+	pod := makeTestPod(v1.PodStatus{
+		Phase: v1.PodRunning,
+		ContainerStatuses: []v1.ContainerStatus{
+			{Name: "main", State: v1.ContainerState{Running: &v1.ContainerStateRunning{StartedAt: metav1.Now()}}},
+		},
+	})
+	before := collectedStartUpInfoTotal(t)
+
+	addPod(t, fakeClusterContext, pod)
+	stateReporter.reportCurrentStatus(pod)
+
+	assert.Equal(t, before+1, collectedStartUpInfoTotal(t))
+}
+
+// collectedStartUpInfoTotal sums armada_executor_pod_start_up_info_collected_total over its label
+// values. Gathered rather than read off the collector, which belongs to another package.
+func collectedStartUpInfoTotal(t *testing.T) float64 {
+	t.Helper()
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+
+	total := float64(0)
+	for _, family := range families {
+		if family.GetName() != "armada_executor_pod_start_up_info_collected_total" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			total += metric.GetCounter().GetValue()
+		}
+	}
+	return total
 }
 
 func TestJobStateReporter_HandlesPodUpdateEvents(t *testing.T) {
@@ -226,6 +268,52 @@ func TestJobStateReporter_FailedPod_DebugMessage(t *testing.T) {
 	}
 }
 
+func TestJobStateReporter_PodFailed_ClassifiesWithPodMatchersInRetainCategory(t *testing.T) {
+	const rejection = "Pod was rejected: Allocate failed due to requested number of devices unavailable for nvidia.com/gpu"
+	tests := map[string]struct {
+		rule      categorizer.CategoryRule
+		eventsErr error
+	}{
+		"an onPodError rule matches the failure message of the pod": {
+			rule: categorizer.CategoryRule{OnPodError: &errormatch.RegexMatcher{Pattern: "Pod was rejected"}},
+		},
+		"an onPodError rule matches when the events cannot be read": {
+			rule:      categorizer.CategoryRule{OnPodError: &errormatch.RegexMatcher{Pattern: "Pod was rejected"}},
+			eventsErr: errors.New("events are unavailable"),
+		},
+		"an onPodEvents rule matches an event of the pod": {
+			rule: categorizer.CategoryRule{OnPodEvents: &errormatch.PodEventMatcher{
+				Regexp: "nvidia.com/gpu", Reason: "UnexpectedAdmissionError", Type: "Warning",
+			}},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+				Enabled:         true,
+				DefaultCategory: "uncategorized",
+				Categories: []categorizer.CategoryConfig{
+					{Name: "admission", Action: categorizer.PodFailureActionRetain, Rules: []categorizer.CategoryRule{tc.rule}},
+				},
+			})
+			require.NoError(t, err)
+			_, _, eventReporter, fakeClusterContext := setUpJobStateReporterTestWithClassifier(t, classifier, &stubIssueHandler{})
+
+			pod := makeTestPod(v1.PodStatus{Phase: v1.PodFailed, Reason: "UnexpectedAdmissionError", Message: rejection})
+			addPod(t, fakeClusterContext, pod)
+			addPodEvents(fakeClusterContext, pod, []*v1.Event{{Message: rejection, Reason: "UnexpectedAdmissionError", Type: "Warning"}})
+			fakeClusterContext.GetPodEventsErr = tc.eventsErr
+
+			fakeClusterContext.SimulatePodAddEvent(pod)
+			require.Eventually(t, func() bool {
+				return len(eventReporter.GetReceivedEvents()) == 1
+			}, time.Second, 10*time.Millisecond, "the add handler goroutine must report the failed pod")
+
+			assert.Equal(t, "admission", extractRunError(t, eventReporter.GetReceivedEvents()[0]).FailureCategory)
+		})
+	}
+}
+
 // The reporter under test is configured with a one minute threshold.
 func failedAfterRunningFor(ran time.Duration) v1.PodStatus {
 	startedAt := time.Now().Add(-ran)
@@ -249,13 +337,18 @@ func failedAfterRunningFor(ran time.Duration) v1.PodStatus {
 
 func extractPodError(t *testing.T, message reporter.EventMessage) *armadaevents.PodError {
 	t.Helper()
+	podError, ok := extractRunError(t, message).Reason.(*armadaevents.Error_PodError)
+	require.True(t, ok, "expected PodError reason")
+	return podError.PodError
+}
+
+func extractRunError(t *testing.T, message reporter.EventMessage) *armadaevents.Error {
+	t.Helper()
 	require.Len(t, message.Event.Events, 1)
 	jobRunErrors, ok := message.Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
 	require.True(t, ok, "expected JobRunErrors event")
 	require.Len(t, jobRunErrors.JobRunErrors.Errors, 1)
-	podError, ok := jobRunErrors.JobRunErrors.Errors[0].Reason.(*armadaevents.Error_PodError)
-	require.True(t, ok, "expected PodError reason")
-	return podError.PodError
+	return jobRunErrors.JobRunErrors.Errors[0]
 }
 
 func setUpJobStateReporterTest(t *testing.T) (*JobStateReporter, *stubIssueHandler, *mocks.FakeEventReporter, *fakecontext.SyncFakeClusterContext) {
@@ -269,8 +362,15 @@ func setUpJobStateReporterTestWithClassifier(
 ) (*JobStateReporter, *stubIssueHandler, *mocks.FakeEventReporter, *fakecontext.SyncFakeClusterContext) {
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
 	eventReporter := mocks.NewFakeEventReporter()
+	startUpConfig := configuration.StartUpTimingsConfig{
+		Enabled: true,
+		Metrics: configuration.StartUpMetricsConfig{Enabled: true},
+	}
+	startUpTimings, err := startup.NewTimings(startUpConfig)
+	require.NoError(t, err)
 	jobStateReporter, err := NewJobStateReporter(fakeClusterContext, eventReporter, issueHandler, classifier,
-		reporter.NewDebugMessageRenderer(fakeClusterContext, testDebugConfig()), time.Minute)
+		reporter.NewDebugMessageRenderer(fakeClusterContext, testDebugConfig()),
+		startUpTimings, startupmetrics.NewRecorder(startUpConfig.Metrics), time.Minute)
 	require.NoError(t, err)
 	return jobStateReporter, issueHandler, eventReporter, fakeClusterContext
 }
@@ -452,4 +552,42 @@ func copyWithUpdatedPhase(pod *v1.Pod, newPhase v1.PodPhase) *v1.Pod {
 	result := pod.DeepCopy()
 	result.Status.Phase = newPhase
 	return result
+}
+
+func TestJobStateReporter_PodRunning_FillsCachedImageSizeFromNode(t *testing.T) {
+	stateReporter, _, eventReporter, fakeClusterContext := setUpJobStateReporterTest(t)
+
+	pod := makeTestPod(v1.PodStatus{
+		Phase: v1.PodRunning,
+		ContainerStatuses: []v1.ContainerStatus{
+			{Name: "main", Image: "docker.io/repo/main:1.0", ImageID: "docker.io/repo/main@sha256:aaaa"},
+		},
+	})
+	fakeClusterContext.Nodes[pod.Spec.NodeName] = &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: pod.Spec.NodeName},
+		Status: v1.NodeStatus{Images: []v1.ContainerImage{
+			{Names: []string{"docker.io/repo/main@sha256:aaaa", "docker.io/repo/main:1.0"}, SizeBytes: 1234},
+		}},
+	}
+	addPod(t, fakeClusterContext, pod)
+	addPodEvents(fakeClusterContext, pod, []*v1.Event{{
+		InvolvedObject: v1.ObjectReference{Kind: "Pod", FieldPath: "spec.containers{main}"},
+		Reason:         "Pulled",
+		Message:        `Container image "docker.io/repo/main:1.0" already present on machine`,
+	}})
+
+	stateReporter.reportCurrentStatus(pod)
+
+	messages := eventReporter.GetReceivedEvents()
+	require.Len(t, messages, 1)
+	running, ok := messages[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunRunning)
+	require.True(t, ok, "expected JobRunRunning event")
+	startUpInfo := running.JobRunRunning.StartUpInfo
+	require.NotNil(t, startUpInfo)
+	require.Len(t, startUpInfo.Containers, 1)
+	pull := startUpInfo.Containers[0].ImagePull
+	require.NotNil(t, pull)
+	assert.True(t, pull.Cached)
+	require.NotNil(t, pull.SizeBytes)
+	assert.Equal(t, uint64(1234), pull.SizeBytes.Value)
 }

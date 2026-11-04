@@ -31,6 +31,8 @@ submission:
     armada-preemptible: true
     armada-resilient: true
   defaultPriorityClassName: "armada-default"
+  objectNamePrefix: armada
+  runScopedPodNames: false
   defaultJobLimits:
     cpu: "1"
     memory: "1Gi"

@@ -326,6 +326,8 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/denisenkom/go-mssqldb v0.12.0/go.mod h1:iiK0YP1ZeepvmBQk/QpLEhhTNJgfzrpArPY/aFvc9yU=
 github.com/devigned/tab v0.1.1/go.mod h1:XG9mPq0dFghrYvoBF3xdRrJzSTX1b7IQrvaL9mzjeJY=
+github.com/digitalxero/go-msix v0.3.1 h1:MsfsPVGgQ1s7O7T7O7x2xR06UqJOUmAd3evrwQpmgfY=
+github.com/digitalxero/go-msix v0.3.1/go.mod h1:QbUpFs0AUd1zk7e9fy17suiqEAF90TR3jZY+LCI2K+c=
 github.com/dimchansky/utfbom v1.1.0/go.mod h1:rO41eb7gLfo8SF1jd9F8HplJm1Fewwi4mQvIirEdv+8=
 github.com/dimchansky/utfbom v1.1.1/go.mod h1:SxdoEBH5qIqFocHMyGOXVAybYJdr71b1Q/j0mACtrfE=
 github.com/dimfeld/httptreemux v5.0.1+incompatible h1:Qj3gVcDNoOthBAqftuD596rm4wg/adLLz5xh5CmpiCA=
@@ -1029,8 +1031,6 @@ github.com/zeebo/xxh3 v1.1.0/go.mod h1:IisAie1LELR4xhVinxWS5+zf1lA4p0MW4T+w+W07F
 github.com/zenazn/goji v0.9.0/go.mod h1:7S9M489iMyHBNxwZnk9/EHS098H4/F6TATF2mIxtB1Q=
 gitlab.com/digitalxero/go-conventional-commit v1.0.7 h1:8/dO6WWG+98PMhlZowt/YjuiKhqhGlOCwlIV8SqqGh8=
 gitlab.com/digitalxero/go-conventional-commit v1.0.7/go.mod h1:05Xc2BFsSyC5tKhK0y+P3bs0AwUtNuTp+mTpbCU/DZ0=
-go.digitalxero.dev/go-msix v0.3.1 h1:V5E8PuFkA3Fr3VFYX6pTUutriogYC9sgxIWhzf9sSKw=
-go.digitalxero.dev/go-msix v0.3.1/go.mod h1:QbUpFs0AUd1zk7e9fy17suiqEAF90TR3jZY+LCI2K+c=
 go.mozilla.org/pkcs7 v0.9.0 h1:yM4/HS9dYv7ri2biPtxt8ikvB37a980dg69/pKmS+eI=
 go.mozilla.org/pkcs7 v0.9.0/go.mod h1:SNgMg+EgDFwmvSmLRTNKC5fegJjB7v23qTQ0XLGUNHk=
 go.opencensus.io v0.15.0/go.mod h1:UffZAU+4sDEINUGP/B7UfBBkq4fqLu9zXAX7ke6CHW0=

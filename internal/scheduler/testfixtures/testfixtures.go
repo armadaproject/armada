@@ -156,6 +156,7 @@ func NewJobDb(resourceListFactory *internaltypes.ResourceListFactory) *jobdb.Job
 		stringinterner.New(1024),
 		resourceListFactory,
 	)
+	jobDb.SetAggregateEnabled(true)
 	// Mock out the clock and job run ID provider to ensure consistent IDs and timestamps are generated.
 	jobDb.SetClock(NewMockPassiveClock())
 	jobDb.SetJobRunIDProvider(NewMockIDProvider())
@@ -940,6 +941,8 @@ func TestSimpleNode(id string) *internaltypes.Node {
 		"",
 		nil,
 		nil,
+		false,
+		nil,
 		nil,
 		nil,
 		false,
@@ -959,6 +962,8 @@ func TestNode(priorities []int32, resources map[string]*resource.Quantity) *inte
 		"type",
 		false,
 		[]v1.Taint{},
+		nil,
+		false,
 		map[string]string{
 			TestHostnameLabel:                  id,
 			schedulerconfiguration.NodeIdLabel: id,
