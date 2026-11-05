@@ -45,8 +45,7 @@ type Job struct {
 	// True if the job has been validated by the scheduler.
 	// Any job that fails validation will be rejected.
 	validated bool
-	// True if the job is currently queued.
-	// If this is set then the job will not be considered for scheduling.
+	// True if the job is currently queued, waiting for the scheduler to give it a run.
 	queued bool
 	// The current version of the queued state.
 	queuedVersion int32

@@ -1,10 +1,16 @@
 package optimiser
 
-import "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+import (
+	"github.com/hashicorp/go-memdb"
+
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
+)
 
 type SchedulingContext struct {
-	Sctx   *context.SchedulingContext
-	Queues map[string]*QueueContext
+	Sctx      *context.SchedulingContext
+	Queues    map[string]*QueueContext
+	NodeDbTxn *memdb.Txn
 }
 
 func FromSchedulingContext(sctx *context.SchedulingContext) *SchedulingContext {
@@ -15,10 +21,11 @@ func FromSchedulingContext(sctx *context.SchedulingContext) *SchedulingContext {
 
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		queueContext := &QueueContext{
-			Name:        qctx.Queue,
-			CurrentCost: sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.GetAllocationInclShortJobPenalty()),
-			Fairshare:   qctx.DemandCappedAdjustedFairShare,
-			Weight:      qctx.Weight,
+			Name:                          qctx.Queue,
+			CurrentCost:                   sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.GetAllocationInclShortJobPenalty()),
+			Fairshare:                     qctx.DemandCappedAdjustedFairShare,
+			Weight:                        qctx.Weight,
+			AllocationInclShortJobPenalty: qctx.GetAllocationInclShortJobPenalty(),
 		}
 		schedulingContext.Queues[queueContext.Name] = queueContext
 	}
@@ -27,8 +34,9 @@ func FromSchedulingContext(sctx *context.SchedulingContext) *SchedulingContext {
 }
 
 type QueueContext struct {
-	Name        string
-	CurrentCost float64
-	Fairshare   float64
-	Weight      float64
+	Name                          string
+	CurrentCost                   float64
+	Fairshare                     float64
+	Weight                        float64
+	AllocationInclShortJobPenalty internaltypes.ResourceList
 }

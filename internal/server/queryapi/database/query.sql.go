@@ -261,9 +261,10 @@ func (q *Queries) GetJobErrorsByJobIds(ctx context.Context, jobIds []string) ([]
 }
 
 const getJobRunsByJobIds = `-- name: GetJobRunsByJobIds :many
-SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool, ingress_addresses, failure_category, failure_subcategory, scheduler_termination_reason FROM job_run WHERE job_id = ANY($1::text[]) order by leased  desc
+SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool, ingress_addresses, failure_category, failure_subcategory, scheduler_termination_reason, pod_name FROM job_run WHERE job_id = ANY($1::text[]) order by leased  desc
 `
 
+// The columns are explicit, for the same reason as in GetJobRunsByRunIds.
 func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]JobRun, error) {
 	rows, err := q.db.Query(ctx, getJobRunsByJobIds, jobIds)
 	if err != nil {
@@ -291,6 +292,7 @@ func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]Jo
 			&i.FailureCategory,
 			&i.FailureSubcategory,
 			&i.SchedulerTerminationReason,
+			&i.PodName,
 		); err != nil {
 			return nil, err
 		}
@@ -303,9 +305,10 @@ func (q *Queries) GetJobRunsByJobIds(ctx context.Context, jobIds []string) ([]Jo
 }
 
 const getJobRunsByRunIds = `-- name: GetJobRunsByRunIds :many
-SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool, ingress_addresses, failure_category, failure_subcategory, scheduler_termination_reason FROM job_run WHERE run_id = ANY($1::text[])
+SELECT run_id, job_id, cluster, node, pending, started, finished, job_run_state, error, exit_code, leased, debug, pool, ingress_addresses, failure_category, failure_subcategory, scheduler_termination_reason, pod_name FROM job_run WHERE run_id = ANY($1::text[])
 `
 
+// The columns are explicit, so a new column of job_run reaches the Query API only through a change to this query.
 func (q *Queries) GetJobRunsByRunIds(ctx context.Context, runIds []string) ([]JobRun, error) {
 	rows, err := q.db.Query(ctx, getJobRunsByRunIds, runIds)
 	if err != nil {
@@ -333,6 +336,7 @@ func (q *Queries) GetJobRunsByRunIds(ctx context.Context, runIds []string) ([]Jo
 			&i.FailureCategory,
 			&i.FailureSubcategory,
 			&i.SchedulerTerminationReason,
+			&i.PodName,
 		); err != nil {
 			return nil, err
 		}
