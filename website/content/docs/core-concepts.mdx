@@ -136,7 +136,7 @@ Armada's priority classes look like Kubernetes priority classes, but they're Arm
 - **Fair-share preemption:** a queue is using more than its fair share while other queues are waiting. On by default.
 - **Manual preemption:** a person runs `armadactl preempt job`.
 
-Under ordinary priority and fair-share scheduling, only **preemptible** jobs can be preempted, including by manual preemption. Running jobs in a non-preemptible class such as `armada-default` are protected. If your platform team enables **market-driven scheduling** for a pool, that protection does not apply: market-driven scheduling can preempt jobs in any priority class.
+Only **preemptible** jobs are ever preempted: running jobs in a non-preemptible class such as `armada-default` are left alone, whatever the reason.
 
 A preempted job gets a short time to shut down (its termination grace period), then ends as failed with the reason (shown as **Preempted** in Lookout). It isn't restarted, even by a retry policy. Jobs that can be preempted should save their progress and be safe to submit again.
 

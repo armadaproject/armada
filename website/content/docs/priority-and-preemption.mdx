@@ -5,8 +5,6 @@ description: 'Choose a priority class, see what happens when Armada stops your j
 
 Armada can stop a running job to make room for more urgent work, or to keep sharing fairly between queues. That's **preemption**. This page shows you how to choose a job's **priority class**, what preemption looks like, and how to write jobs that survive it.
 
-This guide describes ordinary priority and fair-share scheduling. Pools using market-driven scheduling can preempt jobs in any priority class; see [Core concepts](/docs/core-concepts#preemption).
-
 ## Before you start
 
 You need a working `armadactl` and the `my-team` queue from [Submitting jobs](/docs/submitting-jobs).
@@ -29,7 +27,7 @@ These classes are available by default:
 
 Your installation may allow others. A class that isn't allowed fails with `priority class <name> is not supported`.
 
-**Which to use:** choose `armada-preemptible` for work that can be interrupted and resubmitted. Both default classes can use spare capacity; choosing a preemptible class does not itself make a job start sooner. Choose `armada-default` for work that must not be interrupted. There's one exception: on a pool using experimental market-based scheduling, which is off by default, Armada can preempt running jobs in any class. Ask your platform team if you're not sure about your pool.
+**Which to use:** choose `armada-preemptible` for work that can be interrupted and resubmitted. Both default classes can use spare capacity; choosing a preemptible class does not itself make a job start sooner. Choose `armada-default` for work that must not be interrupted.
 
 ## Try it: preempt a job yourself
 
