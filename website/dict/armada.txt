@@ -49,5 +49,11 @@ categorisation
 retryable
 organisations
 KUBECONFIG
+rdzv
+torchrun
+certingress
+scriptable
+preemptible
+uncordoned
 ingester
 EMFILE
