@@ -51,6 +51,10 @@ organisations
 KUBECONFIG
 uncordoned
 triggerer
+rdzv
+torchrun
+certingress
+scriptable
 ingester
 preemptible
 reprioritizes
