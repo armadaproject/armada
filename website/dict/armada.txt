@@ -50,4 +50,7 @@ retryable
 organisations
 KUBECONFIG
 ingester
+bytearray
+uncategorized
+unmarshal
 EMFILE
