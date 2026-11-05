@@ -94,6 +94,13 @@ func TestDo_ReportsTheStatusAndTheStartOfTheResponseOfAFailedRequest(t *testing.
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "POST /api/thing returned 500")
 	assert.Contains(t, err.Error(), "auth error: bad credentials")
+	// Callers that know what a status means can find it.
+	var status *StatusError
+	require.ErrorAs(t, err, &status)
+	assert.Equal(t, http.StatusInternalServerError, status.Code)
+	assert.Equal(t, "auth error: bad credentials", status.Body)
+	assert.Equal(t, http.MethodPost, status.Method)
+	assert.Equal(t, "/api/thing", status.Path)
 }
 
 func TestNew_NeedsAUrl(t *testing.T) {

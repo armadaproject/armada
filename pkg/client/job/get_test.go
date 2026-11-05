@@ -12,51 +12,34 @@ import (
 	"github.com/armadaproject/armada/pkg/client/auth/basic"
 )
 
-func ids(jobs []*Job) []string {
-	out := make([]string, len(jobs))
-	for i, j := range jobs {
-		out[i] = j.JobID
-	}
-	return out
-}
-
-func TestGet_ReturnsKnownJobsInRequestOrder(t *testing.T) {
-	_, url := newFakeLookout(t, "a", "c")
-
-	jobs, err := Get(connectionTo(url))([]string{"c", "unknown", "a"}, false)
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{"c", "a"}, ids(jobs))
-	assert.Equal(t, "RUNNING", jobs[0].State)
-}
-
-func TestGet_FetchesTheJobSpecOnlyWhenAsked(t *testing.T) {
+func TestGet_ReturnsTheJobWithItsSpec(t *testing.T) {
 	f, url := newFakeLookout(t, "a")
+	f.runs["a"] = []map[string]any{run("r1", "RUN_RUNNING")} // a job that ran is not asked for an error of its own
 
-	jobs, err := Get(connectionTo(url))([]string{"a"}, false)
-	require.NoError(t, err)
-	assert.Nil(t, jobs[0].JobSpec)
-	assert.Equal(t, []string{"/api/v1/jobs"}, f.paths)
+	job, err := Get(connectionTo(url))("a")
 
-	jobs, err = Get(connectionTo(url))([]string{"a"}, true)
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"id": "a"}`, string(jobs[0].JobSpec))
+	assert.Equal(t, "a", job.JobID)
+	assert.Equal(t, "RUNNING", job.State)
+	assert.JSONEq(t, `{"id": "a"}`, string(job.JobSpec))
+	assert.Equal(t, []string{"/api/v1/jobs", "/api/v1/jobSpec"}, f.paths)
 }
 
-func TestGet_DoesNotFetchTheSpecOfUnknownJobs(t *testing.T) {
+func TestGet_AJobLookoutDoesNotKnowIsAnErrorAndItsSpecIsNotFetched(t *testing.T) {
 	f, url := newFakeLookout(t)
 
-	jobs, err := Get(connectionTo(url))([]string{"nope"}, true)
+	job, err := Get(connectionTo(url))("nope")
 
-	require.NoError(t, err)
-	assert.Empty(t, jobs)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+	assert.Nil(t, job)
 	assert.NotContains(t, f.paths, "/api/v1/jobSpec")
 }
 
 func TestGet_FiltersByAnExactJobId(t *testing.T) {
 	f, url := newFakeLookout(t, "a")
 
-	_, err := Get(connectionTo(url))([]string{"a"}, false)
+	_, err := Get(connectionTo(url))("a")
 
 	require.NoError(t, err)
 	assert.Equal(t, []any{map[string]any{"field": "jobId", "value": "a", "match": "exact"}}, f.requests[0]["filters"])
@@ -64,22 +47,23 @@ func TestGet_FiltersByAnExactJobId(t *testing.T) {
 }
 
 func TestGet_NeedsALookoutUrl(t *testing.T) {
-	_, err := Get(connectionTo(""))([]string{"a"}, false)
+	_, err := Get(connectionTo(""))("a")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no Lookout url configured")
 }
 
 func TestGet_SendsTheCredentialsOnEveryRequest(t *testing.T) {
-	f, url := newFakeLookout(t, "a", "b")
+	f, url := newFakeLookout(t, "a")
+	f.runs["a"] = []map[string]any{run("r1", "RUN_RUNNING")}
 	details := func() (*client.ApiConnectionDetails, error) {
 		return &client.ApiConnectionDetails{LookoutUrl: url, BasicAuth: basic.LoginCredentials{Username: "u", Password: "p"}}, nil
 	}
 
-	_, err := Get(details)([]string{"a", "b"}, true)
+	_, err := Get(details)("a")
 
 	require.NoError(t, err)
-	require.Len(t, f.auth, 4) // a job and a spec for each of the two jobs
+	require.Len(t, f.auth, 2) // the job and its spec
 	want := "basic " + base64.StdEncoding.EncodeToString([]byte("u:p"))
 	for _, got := range f.auth {
 		assert.Equal(t, want, got)
@@ -94,7 +78,7 @@ func TestGet_RefusesToSendCredentialsOverPlainHttpToARemoteHost(t *testing.T) {
 		}, nil
 	}
 
-	_, err := Get(details)([]string{"a"}, false)
+	_, err := Get(details)("a")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refusing to send credentials over plain http")
@@ -104,7 +88,7 @@ func TestGet_ReportsTheStatusAndBodyOfAFailedRequest(t *testing.T) {
 	f, url := newFakeLookout(t)
 	f.status, f.body = http.StatusInternalServerError, "auth error: bad credentials"
 
-	_, err := Get(connectionTo(url))([]string{"a"}, false)
+	_, err := Get(connectionTo(url))("a")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "500")

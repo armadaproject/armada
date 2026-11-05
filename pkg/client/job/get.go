@@ -11,18 +11,40 @@ import (
 	"github.com/armadaproject/armada/pkg/client/httpapi"
 )
 
-// Job is a job as Lookout reports it: its state, queue, resources, runs and so on, optionally with its job spec.
+// Job is a job as Lookout reports it: its state, queue, resources, runs and so on, with its job spec and, if it did not
+// succeed, why. Make one with NewJob: the runs are replaced by ones that can carry what is recorded about them, so a
+// Job made without it has no runs when it is written.
 type Job struct {
 	*models.Job
+	// Runs replaces the runs of the job, which this has the same JSON key as, to add to each what Lookout has recorded.
+	Runs    []*Run          `json:"runs"`
 	JobSpec json.RawMessage `json:"jobSpec,omitempty"`
+	// Error is why the job did not run, when Lookout has recorded one for the job itself. A job that ran has its
+	// reasons on its runs.
+	Error string `json:"error,omitempty"`
 }
 
-// GetAPI returns the given jobs from Lookout, in the order they were asked for. Jobs Lookout does not know about
-// are left out. With withSpec the job spec of each job is fetched as well, which costs a request per job.
-type GetAPI func(jobIds []string, withSpec bool) ([]*Job, error)
+// Run is a run of a job as Lookout reports it, with what Lookout has recorded about why it did not succeed.
+type Run struct {
+	*models.Run
+	RunDetails *RunDetails `json:"runDetails,omitempty"`
+}
+
+// NewJob makes a Job of a job Lookout reported.
+func NewJob(job *models.Job) *Job {
+	runs := make([]*Run, len(job.Runs))
+	for i, run := range job.Runs {
+		runs[i] = &Run{Run: run}
+	}
+	return &Job{Job: job, Runs: runs}
+}
+
+// GetAPI returns the job with the given id from Lookout, with its job spec and, if it did not succeed, why. It is an
+// error if Lookout does not know the job.
+type GetAPI func(jobId string) (*Job, error)
 
 func Get(getConnectionDetails client.ConnectionDetails) GetAPI {
-	return func(jobIds []string, withSpec bool) ([]*Job, error) {
+	return func(jobId string) (*Job, error) {
 		connectionDetails, err := getConnectionDetails()
 		if err != nil {
 			return nil, fmt.Errorf("failed to obtain api connection details: %s", err)
@@ -32,23 +54,20 @@ func Get(getConnectionDetails client.ConnectionDetails) GetAPI {
 			return nil, err
 		}
 
-		jobs := make([]*Job, 0, len(jobIds))
-		for _, id := range jobIds {
-			job, err := getJob(api, id)
-			if err != nil {
-				return nil, err
-			}
-			if job == nil {
-				continue
-			}
-			if withSpec {
-				if job.JobSpec, err = getJobSpec(api, id); err != nil {
-					return nil, err
-				}
-			}
-			jobs = append(jobs, job)
+		job, err := getJob(api, jobId)
+		if err != nil {
+			return nil, err
 		}
-		return jobs, nil
+		if job == nil {
+			return nil, errors.New("not found")
+		}
+		if job.JobSpec, err = getJobSpec(api, jobId); err != nil {
+			return nil, err
+		}
+		if err := addDiagnostics(api, job); err != nil {
+			return nil, err
+		}
+		return job, nil
 	}
 }
 
@@ -74,7 +93,7 @@ func getJob(api *httpapi.Client, jobId string) (*Job, error) {
 	if len(jobs) == 0 {
 		return nil, nil
 	}
-	return &Job{Job: jobs[0]}, nil
+	return NewJob(jobs[0]), nil
 }
 
 func getJobSpec(api *httpapi.Client, jobId string) (json.RawMessage, error) {

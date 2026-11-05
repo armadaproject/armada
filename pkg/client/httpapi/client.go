@@ -83,6 +83,22 @@ func checkRedirect(connectionDetails *client.ApiConnectionDetails, authenticated
 	}
 }
 
+// StatusError is the error of a request that was answered with a status other than 2xx. Callers that can make
+// sense of a particular status can find it with errors.As.
+type StatusError struct {
+	Method string
+	Path   string
+	// Code is the status code and Status the status line, for example 400 and "400 Bad Request".
+	Code   int
+	Status string
+	// Body is the start of the response.
+	Body string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("%s %s returned %s: %s", e.Method, e.Path, e.Status, e.Body)
+}
+
 // Get sends a GET request to path and decodes the JSON response into out.
 func (c *Client) Get(path string, out any) error {
 	return c.Do(http.MethodGet, path, nil, out)
@@ -126,7 +142,7 @@ func (c *Client) Do(method, path string, body, out any) error {
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return fmt.Errorf("%s %s returned %s: %s", method, path, resp.Status, strings.TrimSpace(string(b)))
+		return &StatusError{Method: method, Path: path, Code: resp.StatusCode, Status: resp.Status, Body: strings.TrimSpace(string(b))}
 	}
 	if out == nil {
 		return nil

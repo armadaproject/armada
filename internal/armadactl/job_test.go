@@ -16,8 +16,7 @@ import (
 // fakeJobs backs the job API with the given job ids and records what it was asked for.
 type fakeJobs struct {
 	known     map[string]bool
-	asked     [][]string
-	withSpec  []bool
+	asked     []string
 	listed    []job.ListArgs
 	listError error
 }
@@ -28,21 +27,14 @@ func newJobTestApp(f OutputFormat, known ...string) (*App, func() string, *fakeJ
 	for _, id := range known {
 		fake.known[id] = true
 	}
-	a.Params.JobAPI.Get = func(ids []string, withSpec bool) ([]*job.Job, error) {
-		fake.asked = append(fake.asked, ids)
-		fake.withSpec = append(fake.withSpec, withSpec)
-		var jobs []*job.Job
-		for _, id := range ids {
-			if !fake.known[id] {
-				continue
-			}
-			j := &job.Job{Job: &models.Job{JobID: id, Queue: "q", State: "RUNNING"}}
-			if withSpec {
-				j.JobSpec = json.RawMessage(`{"id": "` + id + `"}`)
-			}
-			jobs = append(jobs, j)
+	a.Params.JobAPI.Get = func(id string) (*job.Job, error) {
+		fake.asked = append(fake.asked, id)
+		if !fake.known[id] {
+			return nil, errors.New("not found")
 		}
-		return jobs, nil
+		j := job.NewJob(&models.Job{JobID: id, Queue: "q", State: "RUNNING"})
+		j.JobSpec = json.RawMessage(`{"id": "` + id + `"}`)
+		return j, nil
 	}
 	a.Params.JobAPI.List = func(args job.ListArgs) ([]*models.Job, error) {
 		fake.listed = append(fake.listed, args)
@@ -82,93 +74,88 @@ func jobIds(d document) []string {
 	return ids
 }
 
-func TestGetJobs_ASingleJobIsADocumentOfItsOwn(t *testing.T) {
+func TestGetJob_IsADocumentWithTheJobAndItsSpec(t *testing.T) {
 	for _, f := range []OutputFormat{OutputText, OutputYaml, OutputJson} {
 		a, out, fake := newJobTestApp(f, "a")
 
-		require.NoError(t, a.GetJobs([]string{"a"}), string(f))
+		require.NoError(t, a.GetJob("a"), string(f))
 
 		d := parse(t, out())
 		assert.Equal(t, "Job", d.Kind, string(f))
 		assert.NotEmpty(t, d.APIVersion, string(f))
 		assert.Equal(t, "a", d.JobId, string(f))
 		assert.Nil(t, d.Jobs, string(f))
-		// The details always include the spec.
 		assert.JSONEq(t, `{"id": "a"}`, string(d.JobSpec), string(f))
-		assert.Equal(t, []bool{true}, fake.withSpec, string(f))
+		assert.Equal(t, []string{"a"}, fake.asked, string(f))
 	}
 }
 
-func TestGetJobs_SeveralJobsAreAListInTheOrderGiven(t *testing.T) {
-	a, out, _ := newJobTestApp(OutputYaml, "a", "b", "c")
+func TestGetJob_ShowsWhyARunDidNotSucceedInsideTheRun(t *testing.T) {
+	for _, f := range []OutputFormat{OutputYaml, OutputJson} {
+		a, out, _ := newJobTestApp(f, "a")
+		a.Params.JobAPI.Get = func(id string) (*job.Job, error) {
+			j := job.NewJob(&models.Job{
+				JobID: id, Queue: "q", State: "FAILED",
+				Runs: []*models.Run{{RunID: "r1", JobRunState: "RUN_FAILED"}, {RunID: "r2", JobRunState: "RUN_SUCCEEDED"}},
+			})
+			j.Runs[0].RunDetails = &job.RunDetails{Error: "exit code 3", DebugMessage: "drained"}
+			return j, nil
+		}
 
-	require.NoError(t, a.GetJobs([]string{"c", "a", "b"}))
+		require.NoError(t, a.GetJob("a"), string(f))
 
-	d := parse(t, out())
-	assert.Equal(t, "Job", d.Kind)
-	assert.Empty(t, d.JobId)
-	assert.Equal(t, []string{"c", "a", "b"}, jobIds(d))
-	for _, j := range d.Jobs {
-		assert.Contains(t, j, "jobSpec")
+		var doc map[string]any
+		require.NoError(t, yaml.Unmarshal([]byte(out()), &doc), string(f))
+		assert.NotContains(t, doc, "runDetails", string(f))
+		runs := doc["runs"].([]any)
+		require.Len(t, runs, 2, string(f))
+		assert.Equal(t, "r1", runs[0].(map[string]any)["runId"], string(f))
+		assert.Equal(t, map[string]any{"error": "exit code 3", "debugMessage": "drained"}, runs[0].(map[string]any)["runDetails"], string(f))
+		assert.NotContains(t, runs[1], "runDetails", string(f))
 	}
 }
 
-func TestGetJobs_DefaultOutputIsTheSameAsYaml(t *testing.T) {
-	text, textOut, _ := newJobTestApp(OutputText, "a", "b")
-	yamlApp, yamlOut, _ := newJobTestApp(OutputYaml, "a", "b")
+func TestGetJob_ShowsWhyAJobThatNeverRanWasNotRun(t *testing.T) {
+	a, out, _ := newJobTestApp(OutputYaml, "a")
+	a.Params.JobAPI.Get = func(id string) (*job.Job, error) {
+		j := job.NewJob(&models.Job{JobID: id, Queue: "q", State: "REJECTED"})
+		j.Error = "requests resources which exceed the limit"
+		return j, nil
+	}
 
-	require.NoError(t, text.GetJobs([]string{"a", "b"}))
-	require.NoError(t, yamlApp.GetJobs([]string{"a", "b"}))
+	require.NoError(t, a.GetJob("a"))
+
+	var doc map[string]any
+	require.NoError(t, yaml.Unmarshal([]byte(out()), &doc))
+	assert.Equal(t, "requests resources which exceed the limit", doc["error"])
+	assert.Equal(t, []any{}, doc["runs"])
+}
+
+func TestGetJob_DefaultOutputIsTheSameAsYaml(t *testing.T) {
+	text, textOut, _ := newJobTestApp(OutputText, "a")
+	yamlApp, yamlOut, _ := newJobTestApp(OutputYaml, "a")
+
+	require.NoError(t, text.GetJob("a"))
+	require.NoError(t, yamlApp.GetJob("a"))
 
 	assert.Equal(t, yamlOut(), textOut())
 }
 
-func TestGetJobs_AskForEachJobOnce(t *testing.T) {
-	a, out, fake := newJobTestApp(OutputYaml, "a", "b")
-
-	require.NoError(t, a.GetJobs([]string{"a", "b", "a", "b", "a"}))
-
-	assert.Equal(t, [][]string{{"a", "b"}}, fake.asked)
-	assert.Equal(t, []string{"a", "b"}, jobIds(parse(t, out())))
-}
-
-func TestGetJobs_ASingleJobThatIsNotFoundIsAnErrorAndPrintsNothing(t *testing.T) {
+func TestGetJob_AJobThatIsNotFoundIsAnErrorAndPrintsNothing(t *testing.T) {
 	a, out, _ := newJobTestApp(OutputYaml)
 
-	err := a.GetJobs([]string{"nope"})
+	err := a.GetJob("nope")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "job nope not found")
+	assert.Contains(t, err.Error(), "error getting job nope: not found")
 	assert.Empty(t, out())
 }
 
-func TestGetJobs_SeveralJobsPrintTheOnesFoundThenReportTheOnesMissing(t *testing.T) {
-	a, out, _ := newJobTestApp(OutputJson, "a", "c")
-
-	err := a.GetJobs([]string{"a", "nope", "c", "gone"})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "jobs not found: nope, gone")
-	var d document
-	require.NoError(t, json.Unmarshal([]byte(out()), &d), "the output is still valid json")
-	assert.Equal(t, []string{"a", "c"}, jobIds(d))
-}
-
-func TestGetJobs_NoneFoundOfSeveralPrintsAnEmptyList(t *testing.T) {
-	a, out, _ := newJobTestApp(OutputYaml)
-
-	err := a.GetJobs([]string{"x", "y"})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "jobs not found: x, y")
-	assert.Contains(t, out(), "jobs: []")
-}
-
-func TestGetJobs_ReportsAFailureOfTheClient(t *testing.T) {
+func TestGetJob_ReportsAFailureOfTheClient(t *testing.T) {
 	a, out, _ := newJobTestApp(OutputYaml, "a")
-	a.Params.JobAPI.Get = func([]string, bool) ([]*job.Job, error) { return nil, errors.New("lookout is down") }
+	a.Params.JobAPI.Get = func(string) (*job.Job, error) { return nil, errors.New("lookout is down") }
 
-	err := a.GetJobs([]string{"a"})
+	err := a.GetJob("a")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "lookout is down")

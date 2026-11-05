@@ -21,12 +21,12 @@ func TestJobCommands_HaveOutputFlag(t *testing.T) {
 	}
 }
 
-func TestGetJobCmd_NeedsAtLeastOneJobId(t *testing.T) {
+func TestGetJobCmd_NeedsExactlyOneJobId(t *testing.T) {
 	cmd := jobGetCmd()
 
 	assert.Error(t, cmd.Args(cmd, nil))
 	assert.NoError(t, cmd.Args(cmd, []string{"a"}))
-	assert.NoError(t, cmd.Args(cmd, []string{"a", "b"}))
+	assert.Error(t, cmd.Args(cmd, []string{"a", "b"}))
 }
 
 func TestGetJobsCmd_TakesNoArguments(t *testing.T) {
