@@ -51,4 +51,5 @@ organisations
 KUBECONFIG
 scriptable
 preemptible
+ingester
 EMFILE
