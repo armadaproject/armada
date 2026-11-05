@@ -105,27 +105,20 @@ func (l *Logger) WithStacktrace(err error) *Logger {
 	return logger
 }
 
-// Will look through the Cause chain until it finds a stacktrace
-// Will not nest deeper than 10 layers, will return nil if the stacktrace isn't reached after that many iterations
+// Walks the error chain via Unwrap() and returns the deepest stacktrace found, i.e. the one
+// closest to where the error was originally created. Unwrap() is implemented by stdlib wrappers
+// (fmt.Errorf with %w), pkg/errors wrappers and armadaerrors types, so the walk is not stopped
+// by a mix of wrapping styles. Will not nest deeper than 10 layers.
 func getStackTrace(err error) errors.StackTrace {
-	var stackErr error
-	count := 0
-	for {
-		count++
-		if count > 10 {
-			break
+	var stackErr stackTracer
+	for i := 0; err != nil && i < 10; i++ {
+		if st, ok := err.(stackTracer); ok {
+			stackErr = st
 		}
-		if _, ok := err.(stackTracer); ok {
-			stackErr = err
-		}
-		if causerErr, ok := err.(causer); ok {
-			err = causerErr.Cause()
-		} else {
-			break
-		}
+		err = errors.Unwrap(err)
 	}
 	if stackErr != nil {
-		return stackErr.(stackTracer).StackTrace()
+		return stackErr.StackTrace()
 	}
 	return nil
 }
@@ -195,8 +188,4 @@ func (l *Logger) WithCallerSkip(skip int) *Logger {
 // Unexported but considered part of the stable interface of pkg/errors.
 type stackTracer interface {
 	StackTrace() errors.StackTrace
-}
-
-type causer interface {
-	Cause() error
 }
