@@ -49,11 +49,13 @@ categorisation
 retryable
 organisations
 KUBECONFIG
+uncordoned
+triggerer
 rdzv
 torchrun
 certingress
 scriptable
 preemptible
-uncordoned
 ingester
+reprioritizes
 EMFILE
