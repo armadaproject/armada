@@ -50,5 +50,6 @@ retryable
 organisations
 KUBECONFIG
 certingress
+preemptible
 ingester
 EMFILE
