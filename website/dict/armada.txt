@@ -51,5 +51,8 @@ organisations
 KUBECONFIG
 rdzv
 torchrun
+certingress
+scriptable
+preemptible
 ingester
 EMFILE
