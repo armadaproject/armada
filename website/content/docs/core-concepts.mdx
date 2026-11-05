@@ -14,7 +14,7 @@ It's built for situations where Kubernetes on its own struggles:
 
 - **Many jobs:** millions of queued jobs, because Armada queues them in its own control plane instead of in Kubernetes.
 - **Many clusters:** one place to submit work that can run on any of several Kubernetes clusters.
-- **Many teams:** each team gets a fair share of the compute resources over time, so one busy team can't crowd everyone else out.
+- **Many teams:** each team gets a fair share of the compute farm resources over time, so one busy team can't crowd everyone else out.
 
 Armada doesn't replace Kubernetes. It sits on top, decides which jobs should run where, and then hands each one to the right cluster to run as a normal pod.
 
