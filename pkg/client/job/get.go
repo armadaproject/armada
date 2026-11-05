@@ -32,10 +32,10 @@ func Get(getConnectionDetails client.ConnectionDetails) GetAPI {
 		if err != nil {
 			return nil, fmt.Errorf("failed to obtain api connection details: %s", err)
 		}
-		if connectionDetails.LookoutUrl == "" {
-			return nil, errors.New("no Lookout url configured: set lookoutUrl in the context or pass --lookoutUrl")
+		l, err := newLookout(connectionDetails, connectionDetails.AuthHeaders)
+		if err != nil {
+			return nil, err
 		}
-		l := &lookout{baseUrl: baseUrl(connectionDetails.LookoutUrl), connectionDetails: connectionDetails}
 
 		jobs := make([]*Job, 0, len(jobIds))
 		for _, id := range jobIds {
@@ -70,8 +70,30 @@ func baseUrl(url string) string {
 }
 
 type lookout struct {
-	baseUrl           string
-	connectionDetails *client.ApiConnectionDetails
+	baseUrl string
+	// authHeaders authenticate every request. They are resolved once, when the client is made, because resolving
+	// them can log in, which may be interactive, and a command makes several requests.
+	authHeaders map[string]string
+}
+
+// newLookout makes a client for the Lookout of the connection. resolveAuthHeaders returns the headers that
+// authenticate a request to a url, as ApiConnectionDetails.AuthHeaders does.
+func newLookout(
+	connectionDetails *client.ApiConnectionDetails,
+	resolveAuthHeaders func(ctx context.Context, url string) (map[string]string, error),
+) (*lookout, error) {
+	if connectionDetails.LookoutUrl == "" {
+		return nil, errors.New("no Lookout url configured: set lookoutUrl in the context or pass --lookoutUrl")
+	}
+	base := baseUrl(connectionDetails.LookoutUrl)
+
+	ctx, cancel := common.ContextWithDefaultTimeout()
+	defer cancel()
+	headers, err := resolveAuthHeaders(ctx, base)
+	if err != nil {
+		return nil, err
+	}
+	return &lookout{baseUrl: base, authHeaders: headers}, nil
 }
 
 // getJob returns the job with the given id, or nil if Lookout does not know it.
@@ -140,8 +162,8 @@ func (l *lookout) post(path string, body, out any) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if err := l.authenticate(ctx, req); err != nil {
-		return err
+	for k, v := range l.authHeaders {
+		req.Header.Set(k, v)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
@@ -155,17 +177,6 @@ func (l *lookout) post(path string, body, out any) error {
 		return fmt.Errorf("%s returned %s: %s", path, resp.Status, strings.TrimSpace(string(b)))
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
-}
-
-func (l *lookout) authenticate(ctx context.Context, req *http.Request) error {
-	headers, err := l.connectionDetails.AuthHeaders(ctx, req.URL.String())
-	if err != nil {
-		return err
-	}
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
-	return nil
 }
 
 // Filter is a Lookout job filter. Which matches a field supports is decided by Lookout, which rejects the rest.
@@ -206,10 +217,10 @@ func List(getConnectionDetails client.ConnectionDetails) ListAPI {
 		if err != nil {
 			return nil, fmt.Errorf("failed to obtain api connection details: %s", err)
 		}
-		if connectionDetails.LookoutUrl == "" {
-			return nil, errors.New("no Lookout url configured: set lookoutUrl in the context or pass --lookoutUrl")
+		l, err := newLookout(connectionDetails, connectionDetails.AuthHeaders)
+		if err != nil {
+			return nil, err
 		}
-		l := &lookout{baseUrl: baseUrl(connectionDetails.LookoutUrl), connectionDetails: connectionDetails}
 
 		jobs, err := l.getJobs(args)
 		if err != nil {

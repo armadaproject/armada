@@ -28,9 +28,13 @@ func (a *App) GetJobs(jobIds []string) error {
 	for _, j := range jobs {
 		byId[j.JobID] = j
 	}
+	// The jobs found, in the order they were asked for. This is an empty list, not nil, when none are found.
+	found := make([]*job.Job, 0, len(jobIds))
 	var missing []string
 	for _, id := range jobIds {
-		if _, ok := byId[id]; !ok {
+		if j, ok := byId[id]; ok {
+			found = append(found, j)
+		} else {
 			missing = append(missing, id)
 		}
 	}
@@ -39,13 +43,13 @@ func (a *App) GetJobs(jobIds []string) error {
 		if len(missing) > 0 {
 			return errors.Errorf("job %s not found", missing[0])
 		}
-		if err := a.emitDocument(client.ResourceKindJob, jobs[0]); err != nil {
+		if err := a.emitDocument(client.ResourceKindJob, found[0]); err != nil {
 			return errors.Errorf("error writing job %s: %s", jobIds[0], err)
 		}
 		return nil
 	}
 
-	if err := a.emitDocument(client.ResourceKindJob, jobListBody{Jobs: jobs}); err != nil {
+	if err := a.emitDocument(client.ResourceKindJob, jobListBody{Jobs: found}); err != nil {
 		return errors.Errorf("error writing jobs: %s", err)
 	}
 	if len(missing) > 0 {
