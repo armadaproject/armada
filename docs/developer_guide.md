@@ -59,6 +59,7 @@ For more information about Armada's design, see the following pages:
 ## Other developer docs
 
 - [Armada API](./developer/armada-api.md)
+- [Regenerating code and API clients](./developer/generation.md)
 - [Running Armada in an EC2 instance](https://armadaproject.io/developer/aws-ec2)
 - [Armada UI](https://armadaproject.io/developer/ui)
 - [Usage metrics](./developer/usage_metrics.md)
@@ -173,7 +174,7 @@ If `mage dev:up no-auth` reports `Unknown target`, your mage binary is too old f
 
 For the layout of the `_local` directory itself, see [_local/README.md](https://github.com/armadaproject/armada/blob/master/_local/README.md).
 
-**Note:** If you edit a proto file, you also need to run `mage proto` to regenerate the Go code.
+**Note:** API generation includes Go, gateway and Swagger outputs. Follow [Regenerating code and API clients](./developer/generation.md) for editable sources, commands and outputs, including SQL and downstream clients.
 
 We use `mage dev:full` to test the CI pipeline. You should therefore use it to test changes to the core components of Armada.
 
