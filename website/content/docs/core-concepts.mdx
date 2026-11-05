@@ -65,7 +65,7 @@ A queue has:
 
 - A **priority factor**: its weight when Armada shares resources. **Lower** means a **larger** share. It only matters relative to other queues.
 - **Permissions**: who may submit, cancel, preempt, reprioritize and watch jobs in it.
-- **Owners** may do all five. If no user owners are specified when creating a queue, the creator becomes an owner.
+  - **Owners** may do all five. If no user owners are specified when creating a queue, the creator becomes an owner.
 - Optional **labels**, so you can act on many queues at once.
 - Optional **retry policies**, which decide which failures Armada retries automatically for the queue's jobs.
 
