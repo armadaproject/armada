@@ -110,105 +110,127 @@ func TestRunUpdatePersistenceContract(t *testing.T) {
 				ctx := armadacontext.Background()
 				expected := seedRunContracts(t, l, 1)[0]
 				id := expected.RunId
-				apply := func(update *model.UpdateJobRunInstruction) {
+				// The steps build on one another: each expectation starts from the
+				// state the previous step left behind. A failed step stops the test
+				// rather than producing misleading follow-on failures.
+				step := func(name string, f func(t *testing.T)) {
+					t.Helper()
+					if !t.Run(name, f) {
+						t.FailNow()
+					}
+				}
+				apply := func(t *testing.T, update *model.UpdateJobRunInstruction) {
 					t.Helper()
 					require.NoError(t, path.update(l, ctx, []*model.UpdateJobRunInstruction{update}))
 				}
-				// Omitted values preserve existing SQL NULLs, including a NULL Pending.
-				apply(&model.UpdateJobRunInstruction{RunId: id})
-				require.Equal(t, expected, readRunContract(t, db, id))
-				var nullObjects bool
-				require.NoError(t, db.QueryRow(ctx, `SELECT ingress_addresses IS NULL AND
+
+				step("empty update retains NULLs", func(t *testing.T) {
+					// Omitted values preserve existing SQL NULLs, including a NULL Pending.
+					apply(t, &model.UpdateJobRunInstruction{RunId: id})
+					require.Equal(t, expected, readRunContract(t, db, id))
+					var nullObjects bool
+					require.NoError(t, db.QueryRow(ctx, `SELECT ingress_addresses IS NULL AND
                     scheduler_termination_reason IS NULL FROM job_run WHERE run_id = $1`, id).Scan(&nullObjects))
-				require.True(t, nullObjects, "initial JSON columns are SQL NULL, not JSON null or empty objects")
-
-				pending := baseTime.Add(time.Second)
-				started := baseTime.Add(2 * time.Second)
-				finished := baseTime.Add(3 * time.Second)
-				apply(&model.UpdateJobRunInstruction{
-					RunId: id, Node: pointer.String("updated-node"), PodName: pointer.String("updated-pod"),
-					Pending: &pending, Started: &started, Finished: &finished,
-					JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
-					Error:       []byte{1, 2, 3}, Debug: []byte{4, 5}, ExitCode: pointer.Int32(27),
-					IngressAddresses: map[int32]string{80: "first.example", 443: "second.example"},
-					FailureCategory:  pointer.String("category"), FailureSubcategory: pointer.String("subcategory"),
-					SchedulerTerminationReason: map[string]any{"message": "scheduler reason"},
+					require.True(t, nullObjects, "initial JSON columns are SQL NULL, not JSON null or empty objects")
 				})
-				// Expected values are specified independently of the instruction mapping.
-				expected.Node = pointer.String("updated-node")
-				expected.PodName = pointer.String("updated-pod")
-				expected.Pending = &pending
-				expected.Started = &started
-				expected.Finished = &finished
-				expected.State = lookout.JobRunFailedOrdinal
-				expected.Error = []byte{1, 2, 3}
-				expected.Debug = []byte{4, 5}
-				expected.ExitCode = pointer.Int32(27)
-				expected.Ingress = map[int32]string{80: "first.example", 443: "second.example"}
-				expected.Category = pointer.String("category")
-				expected.Subcategory = pointer.String("subcategory")
-				expected.Termination = map[string]any{"message": "scheduler reason"}
-				require.Equal(t, expected, readRunContract(t, db, id))
 
-				apply(&model.UpdateJobRunInstruction{RunId: id})
-				require.Equal(t, expected, readRunContract(t, db, id), "nil retains populated columns")
+				step("full update sets all fields", func(t *testing.T) {
+					pending := baseTime.Add(time.Second)
+					started := baseTime.Add(2 * time.Second)
+					finished := baseTime.Add(3 * time.Second)
+					apply(t, &model.UpdateJobRunInstruction{
+						RunId: id, Node: pointer.String("updated-node"), PodName: pointer.String("updated-pod"),
+						Pending: &pending, Started: &started, Finished: &finished,
+						JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
+						Error:       []byte{1, 2, 3}, Debug: []byte{4, 5}, ExitCode: pointer.Int32(27),
+						IngressAddresses: map[int32]string{80: "first.example", 443: "second.example"},
+						FailureCategory:  pointer.String("category"), FailureSubcategory: pointer.String("subcategory"),
+						SchedulerTerminationReason: map[string]any{"message": "scheduler reason"},
+					})
+					// Expected values are specified independently of the instruction mapping.
+					expected.Node = pointer.String("updated-node")
+					expected.PodName = pointer.String("updated-pod")
+					expected.Pending = &pending
+					expected.Started = &started
+					expected.Finished = &finished
+					expected.State = lookout.JobRunFailedOrdinal
+					expected.Error = []byte{1, 2, 3}
+					expected.Debug = []byte{4, 5}
+					expected.ExitCode = pointer.Int32(27)
+					expected.Ingress = map[int32]string{80: "first.example", 443: "second.example"}
+					expected.Category = pointer.String("category")
+					expected.Subcategory = pointer.String("subcategory")
+					expected.Termination = map[string]any{"message": "scheduler reason"}
+					require.Equal(t, expected, readRunContract(t, db, id))
+				})
 
-				// Current SQL accepts older incoming timestamps; it does not take a maximum.
-				olderPending := baseTime.Add(-3 * time.Second)
-				olderStarted := baseTime.Add(-2 * time.Second)
-				olderFinished := baseTime.Add(-time.Second)
-				sparse := &model.UpdateJobRunInstruction{
-					RunId: id, Pending: &olderPending, Started: &olderStarted, Finished: &olderFinished,
-					Node: pointer.String("later-node"),
-				}
-				expected.Pending = &olderPending
-				expected.Started = &olderStarted
-				expected.Finished = &olderFinished
-				expected.Node = pointer.String("later-node")
-				for i := 0; i < 2; i++ {
-					apply(sparse)
-					require.Equal(t, expected, readRunContract(t, db, id), "sequential overwrite and exact replay")
-				}
+				step("nil fields retain populated values", func(t *testing.T) {
+					apply(t, &model.UpdateJobRunInstruction{RunId: id})
+					require.Equal(t, expected, readRunContract(t, db, id), "nil retains populated columns")
+				})
 
-				zeroTime := time.Time{}
-				empty := &model.UpdateJobRunInstruction{
-					RunId: id, Node: pointer.String(""), PodName: pointer.String(""),
-					Pending: &zeroTime, Started: &zeroTime, Finished: &zeroTime,
-					JobRunState: pointer.Int32(0), Error: []byte{}, Debug: []byte{}, ExitCode: pointer.Int32(0),
-					IngressAddresses: map[int32]string{}, FailureCategory: pointer.String(""), FailureSubcategory: pointer.String(""),
-					SchedulerTerminationReason: map[string]any{},
-				}
-				expected.Node = pointer.String("")
-				expected.PodName = pointer.String("")
-				expected.Pending = &zeroTime
-				expected.Started = &zeroTime
-				expected.Finished = &zeroTime
-				expected.State = 0
-				expected.Error = []byte{}
-				expected.Debug = []byte{}
-				expected.ExitCode = pointer.Int32(0)
-				expected.Ingress = map[int32]string{}
-				expected.Category = pointer.String("")
-				expected.Subcategory = pointer.String("")
-				expected.Termination = map[string]any{}
-				apply(empty)
-				require.Equal(t, expected, readRunContract(t, db, id), "non-nil empty and zero values replace stored values")
-				var emptyBytes, emptyObjects bool
-				require.NoError(t, db.QueryRow(ctx, `SELECT error = ''::bytea AND debug = ''::bytea,
+				step("older timestamps overwrite and replay", func(t *testing.T) {
+					// Current SQL accepts older incoming timestamps; it does not take a maximum.
+					olderPending := baseTime.Add(-3 * time.Second)
+					olderStarted := baseTime.Add(-2 * time.Second)
+					olderFinished := baseTime.Add(-time.Second)
+					sparse := &model.UpdateJobRunInstruction{
+						RunId: id, Pending: &olderPending, Started: &olderStarted, Finished: &olderFinished,
+						Node: pointer.String("later-node"),
+					}
+					expected.Pending = &olderPending
+					expected.Started = &olderStarted
+					expected.Finished = &olderFinished
+					expected.Node = pointer.String("later-node")
+					for i := 0; i < 2; i++ {
+						apply(t, sparse)
+						require.Equal(t, expected, readRunContract(t, db, id), "sequential overwrite and exact replay")
+					}
+				})
+
+				step("empty and zero values replace", func(t *testing.T) {
+					zeroTime := time.Time{}
+					empty := &model.UpdateJobRunInstruction{
+						RunId: id, Node: pointer.String(""), PodName: pointer.String(""),
+						Pending: &zeroTime, Started: &zeroTime, Finished: &zeroTime,
+						JobRunState: pointer.Int32(0), Error: []byte{}, Debug: []byte{}, ExitCode: pointer.Int32(0),
+						IngressAddresses: map[int32]string{}, FailureCategory: pointer.String(""), FailureSubcategory: pointer.String(""),
+						SchedulerTerminationReason: map[string]any{},
+					}
+					expected.Node = pointer.String("")
+					expected.PodName = pointer.String("")
+					expected.Pending = &zeroTime
+					expected.Started = &zeroTime
+					expected.Finished = &zeroTime
+					expected.State = 0
+					expected.Error = []byte{}
+					expected.Debug = []byte{}
+					expected.ExitCode = pointer.Int32(0)
+					expected.Ingress = map[int32]string{}
+					expected.Category = pointer.String("")
+					expected.Subcategory = pointer.String("")
+					expected.Termination = map[string]any{}
+					apply(t, empty)
+					require.Equal(t, expected, readRunContract(t, db, id), "non-nil empty and zero values replace stored values")
+					var emptyBytes, emptyObjects bool
+					require.NoError(t, db.QueryRow(ctx, `SELECT error = ''::bytea AND debug = ''::bytea,
      ingress_addresses = '{}'::jsonb AND scheduler_termination_reason = '{}'::jsonb
      FROM job_run WHERE run_id = $1`, id).Scan(&emptyBytes, &emptyObjects))
-				require.True(t, emptyBytes)
-				require.True(t, emptyObjects)
-				apply(&model.UpdateJobRunInstruction{RunId: id})
-				require.Equal(t, expected, readRunContract(t, db, id))
+					require.True(t, emptyBytes)
+					require.True(t, emptyObjects)
+					apply(t, &model.UpdateJobRunInstruction{RunId: id})
+					require.Equal(t, expected, readRunContract(t, db, id))
+				})
 
-				require.NoError(t, path.update(l, ctx, nil))
-				require.NoError(t, path.update(l, ctx, []*model.UpdateJobRunInstruction{}))
-				apply(&model.UpdateJobRunInstruction{RunId: "123e4567-e89b-12d3-a456-999999999999", Node: pointer.String("missing")})
-				require.Equal(t, expected, readRunContract(t, db, id))
-				var count int
-				require.NoError(t, db.QueryRow(ctx, "SELECT count(*) FROM job_run").Scan(&count))
-				require.Equal(t, 1, count, "unmatched updates never create a run")
+				step("empty and unmatched input", func(t *testing.T) {
+					require.NoError(t, path.update(l, ctx, nil))
+					require.NoError(t, path.update(l, ctx, []*model.UpdateJobRunInstruction{}))
+					apply(t, &model.UpdateJobRunInstruction{RunId: "123e4567-e89b-12d3-a456-999999999999", Node: pointer.String("missing")})
+					require.Equal(t, expected, readRunContract(t, db, id))
+					var count int
+					require.NoError(t, db.QueryRow(ctx, "SELECT count(*) FROM job_run").Scan(&count))
+					require.Equal(t, 1, count, "unmatched updates never create a run")
+				})
 			})
 		})
 	}
