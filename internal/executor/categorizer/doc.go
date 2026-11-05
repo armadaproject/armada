@@ -14,10 +14,9 @@
 //   - [CategoryRule.OnConditions]: matches Kubernetes failure signals (OOMKilled, Evicted, DeadlineExceeded)
 //   - [CategoryRule.OnExitCodes]: matches non-zero container exit codes using In/NotIn set operators
 //   - [CategoryRule.OnTerminationMessage]: matches container termination messages against a regex
-//   - [CategoryRule.OnPodError]: matches a regex against the pod-level error
-//     message the executor captured. It covers failures with no useful
-//     container terminationMessage (image pull, missing volume, stuck
-//     terminating, etc.)
+//   - [CategoryRule.OnPodError]: matches a regex against the failure message
+//     that the executor reports for the run. It covers failures with no useful
+//     container terminationMessage (image pull, missing volume, etc.)
 //   - [CategoryRule.OnPodEvents]: matches the pod's Kubernetes events, where
 //     kubelet admission and device-plugin failures appear most reliably
 //
@@ -65,7 +64,8 @@
 //
 // [NewClassifier] validates all config upfront: unknown condition strings,
 // invalid exit code operators, empty value lists, and invalid regexes all
-// return errors at construction time.
+// return errors at construction time. The category names "internal" and
+// "preemption" are reserved, because Armada sets these categories itself.
 //
 // # Usage
 //
@@ -74,11 +74,8 @@
 //	    // handle invalid config
 //	}
 //
-//	// Failed pod, or a pod-level failure: the failure message and the pod's
-//	// Kubernetes events are matched against onPodError and onPodEvents rules
-//	// in addition to pod state. Pass nil events when they are unavailable.
-//	result := classifier.ClassifyPodError(pod, podErrorMessage, podEvents)
-//
-//	// Pod state only: onPodError and onPodEvents rules never match.
-//	result = classifier.ClassifyContainerError(pod)
+//	// The failure message that the executor reports and the Kubernetes events
+//	// of the pod are matched against onPodError and onPodEvents rules, in
+//	// addition to the state of the pod.
+//	result := classifier.Classify(pod, message, events)
 package categorizer

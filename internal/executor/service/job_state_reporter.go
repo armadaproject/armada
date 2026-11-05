@@ -11,8 +11,11 @@ import (
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	domain2 "github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/metrics"
+	"github.com/armadaproject/armada/internal/executor/metrics/startupmetrics"
 	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/reporter/startup"
 	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type JobStateReporter struct {
@@ -21,6 +24,10 @@ type JobStateReporter struct {
 	podIssueHandler IssueHandler
 	classifier      *categorizer.Classifier
 	debugRenderer   *reporter.DebugMessageRenderer
+	// Nil when start-up timing capture is disabled, so no pod events are fetched for running pods.
+	startUpTimings *startup.Timings
+	// Nil when the start-up metrics are disabled, in which case no breakdown is summarised.
+	startUpMetrics *startupmetrics.Recorder
 	// Runtime above which a failed pod's debug data is captured. See shouldCaptureFailureDebug.
 	minAppContainerRuntimeForFailureDebug time.Duration
 }
@@ -31,6 +38,8 @@ func NewJobStateReporter(
 	podIssueHandler IssueHandler,
 	classifier *categorizer.Classifier,
 	debugRenderer *reporter.DebugMessageRenderer,
+	startUpTimings *startup.Timings,
+	startUpMetrics *startupmetrics.Recorder,
 	minAppContainerRuntimeForFailureDebug time.Duration,
 ) (*JobStateReporter, error) {
 	stateReporter := &JobStateReporter{
@@ -39,6 +48,8 @@ func NewJobStateReporter(
 		podIssueHandler:                       podIssueHandler,
 		classifier:                            classifier,
 		debugRenderer:                         debugRenderer,
+		startUpTimings:                        startUpTimings,
+		startUpMetrics:                        startUpMetrics,
 		minAppContainerRuntimeForFailureDebug: minAppContainerRuntimeForFailureDebug,
 	}
 
@@ -111,6 +122,20 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 
 	var classifyResult categorizer.ClassifyResult
 	var debugMessage string
+	var startUpInfo *armadaevents.PodStartUpInfo
+	if pod.Status.Phase == v1.PodRunning && stateReporter.startUpTimings != nil {
+		podEvents, err := stateReporter.clusterContext.GetPodEvents(pod)
+		if err != nil {
+			log.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
+		}
+		node, err := stateReporter.clusterContext.GetNode(pod.Spec.NodeName)
+		if err != nil {
+			// Only used to fill in image sizes, so the rest of the start up info is still worth reporting without it.
+			log.Warnf("Failed retrieving node %s for pod %s: %v", pod.Spec.NodeName, pod.Name, err)
+			node = nil
+		}
+		startUpInfo = stateReporter.startUpTimings.Measure(pod, node, podEvents)
+	}
 	if pod.Status.Phase == v1.PodFailed {
 		podEvents, err := stateReporter.clusterContext.GetPodEvents(pod)
 		if err != nil {
@@ -119,7 +144,7 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 		}
 		// Classify with the same inputs as the delete action check of the issue handler, so that both give the same
 		// category for the pod, whatever the action of the category.
-		classifyResult = stateReporter.classifier.ClassifyPodError(pod, util.ExtractPodFailedReason(pod), podEvents)
+		classifyResult = stateReporter.classifier.Classify(pod, util.ExtractPodFailedReason(pod), podEvents)
 
 		hasIssue := stateReporter.podIssueHandler.HasIssue(util.ExtractJobRunId(pod))
 		if hasIssue {
@@ -141,7 +166,7 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 		}
 	}
 
-	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId(), classifyResult, debugMessage)
+	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId(), classifyResult, debugMessage, startUpInfo)
 	if err != nil {
 		log.Errorf("Failed to report event: %v", err)
 		return
@@ -155,6 +180,7 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 		// Increment only after successful emission so failed sends do not inflate the counter.
 		// RecordJobFailure is a no-op for non-failure phases and for nil classifiers (empty category).
 		metrics.RecordJobFailure(classifyResult.Category, classifyResult.Subcategory)
+		stateReporter.startUpMetrics.Record(pod, startUpInfo)
 
 		if util.IsReportingPhaseRequired(pod.Status.Phase) {
 			err = stateReporter.addAnnotationToMarkStateReported(pod)
