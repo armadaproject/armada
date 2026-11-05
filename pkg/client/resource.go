@@ -16,7 +16,7 @@ type ResourceKind string
 const (
 	ResourceKindQueue       ResourceKind = "Queue"
 	ResourceKindRetryPolicy ResourceKind = "RetryPolicy"
-	// ResourceKindJob is only written by get commands. It is not a valid kind for create/update input.
+	// ResourceKindJob is not a valid kind for create/update input. If we add more read only types might split the kinds into writable and read-only categories.
 	ResourceKindJob ResourceKind = "Job"
 )
 
