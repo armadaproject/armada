@@ -110,14 +110,12 @@ func TestRunUpdatePersistenceContract(t *testing.T) {
 				ctx := armadacontext.Background()
 				expected := seedRunContracts(t, l, 1)[0]
 				id := expected.RunId
-				// The steps build on one another: each expectation starts from the
-				// state the previous step left behind. A failed step stops the test
-				// rather than producing misleading follow-on failures.
+				// These steps share state and must run together. Log their names rather
+				// than creating selectable subtests that could skip earlier updates.
 				step := func(name string, f func(t *testing.T)) {
 					t.Helper()
-					if !t.Run(name, f) {
-						t.FailNow()
-					}
+					t.Logf("step: %s", name)
+					f(t)
 				}
 				apply := func(t *testing.T, update *model.UpdateJobRunInstruction) {
 					t.Helper()
