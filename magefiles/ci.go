@@ -14,14 +14,67 @@ import (
 )
 
 func createQueue() error {
-	out, err := runArmadaCtl("create", "queue", "e2e-test-queue")
-	// check if err text contains "already exists" and ignore if it does
-	if err != nil && !strings.Contains(out, "already exists") {
+	return runArmadaCtlIgnoreExists("create", "queue", "e2e-test-queue")
+}
+
+// createRetryPolicyAndQueue creates the retry policy and the queue that uses
+// it. The retry/ testcases submit to this queue. The executor config sets the
+// action Delete on the categories that this policy retries. The executor thus
+// removes the failed pod, and the retry reuses the name of the pod.
+func createRetryPolicyAndQueue() error {
+	policyPath, err := writeRetryPolicyFile()
+	if err != nil {
+		return fmt.Errorf("failed to stage retry policy file: %w", err)
+	}
+	defer os.Remove(policyPath)
+
+	out, err := runArmadaCtl("create", "retry-policy", "-f", policyPath)
+	if err != nil && strings.Contains(out, "already exists") {
+		// The policy can remain from an earlier run against a live server.
+		// The update makes sure the testcases see the current rules.
+		out, err = runArmadaCtl("update", "retry-policy", "-f", policyPath)
+	}
+	if err != nil {
 		fmt.Println(out)
 		return err
 	}
 
+	if err := runArmadaCtlIgnoreExists("create", "queue", "e2e-retry-queue", "--retry-policies", "e2e-retry-policy"); err != nil {
+		return err
+	}
+
+	// The scheduler's queue and policy caches poll on queueRefreshPeriod
+	// (3s in the local config) and do not observe creations. Wait one
+	// period, so the first testcase always finds the policy in the cache.
+	time.Sleep(4 * time.Second)
 	return nil
+}
+
+func writeRetryPolicyFile() (string, error) {
+	const policy = `apiVersion: armadaproject.io/v1beta1
+kind: RetryPolicy
+name: e2e-retry-policy
+retryLimit: 2
+defaultAction: Fail
+rules:
+  - action: Retry
+    onCategory: "user_error"
+  - action: Retry
+    onCategory: "oom"
+    mutate:
+      resources:
+        memory:
+          factor: 2.0
+`
+	f, err := os.CreateTemp("", "retry-policy-*.yaml")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	if _, err := f.WriteString(policy); err != nil {
+		return "", err
+	}
+	return f.Name(), nil
 }
 
 // Build images, spin up a test environment, and run the integration tests against it.
@@ -38,7 +91,7 @@ func TestSuite() error {
 	timeTakenTestSuite := time.Now()
 
 	suites := []string{
-		"basic", "categorization", "preemption", "reprioritization",
+		"basic", "categorization", "retry", "preemption", "reprioritization", "queue",
 		"testsuite/testcases/node/node_cancel_by_name_1x5.yaml",
 		"testsuite/testcases/node/node_preempt_by_name_1x5.yaml",
 	}
@@ -81,6 +134,7 @@ func CheckForArmadaRunning() error {
 	// TODO Make a good check to confirm the system is ready, such as seeing armadactl get executors return a value
 	mg.Deps(CheckSchedulerReady)
 	mg.Deps(createQueue)
+	mg.Deps(createRetryPolicyAndQueue)
 
 	// Set high to take compile time into account
 	timeout := time.After(2 * time.Minute)
@@ -149,6 +203,19 @@ func runArmadaCtl(args ...string) (string, error) {
 	outBytes, err := exec.Command(findOrBuildArmadaCtl(), armadaCtlArgs...).CombinedOutput()
 	out := string(outBytes)
 	return out, err
+}
+
+// runArmadaCtlIgnoreExists runs armadactl and accepts an "already exists"
+// error. A rerun against a live server thus keeps the resource from the
+// earlier run.
+func runArmadaCtlIgnoreExists(args ...string) error {
+	out, err := runArmadaCtl(args...)
+	if err != nil && !strings.Contains(out, "already exists") {
+		fmt.Println(out)
+		return err
+	}
+
+	return nil
 }
 
 // Builds armadactl binary using goreleaser and returns the path.

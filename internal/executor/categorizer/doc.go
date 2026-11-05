@@ -6,24 +6,28 @@
 // # Configuration
 //
 // Categories are defined in the executor config under application.errorCategories.
-// Each category has a name and one or more rules. Rules are evaluated in config
-// order across all categories; the first matching rule wins, setting both the
-// category name and the rule's optional subcategory.
+// Each category has a name and one or more rules. The classifier evaluates
+// rules in config order across all categories. The first matching rule wins
+// and sets both the category name and the rule's optional subcategory.
 //
 // Each rule uses exactly one matcher:
-//   - OnConditions: matches Kubernetes failure signals (OOMKilled, Evicted, DeadlineExceeded)
-//   - OnExitCodes: matches non-zero container exit codes using In/NotIn set operators
-//   - OnTerminationMessage: matches container termination messages against a regex
-//   - OnPodError: matches a pod-level error message captured by the executor
-//     against a regex; covers failures with no useful container terminationMessage
-//     (image pull, missing volume, stuck terminating, deadline exceeded, etc.)
+//   - [CategoryRule.OnConditions]: matches Kubernetes failure signals (OOMKilled, Evicted, DeadlineExceeded)
+//   - [CategoryRule.OnExitCodes]: matches non-zero container exit codes using In/NotIn set operators
+//   - [CategoryRule.OnTerminationMessage]: matches container termination messages against a regex
+//   - [CategoryRule.OnPodError]: matches a regex against the failure message
+//     that the executor reports for the run. It covers failures with no useful
+//     container terminationMessage (image pull, missing volume, etc.)
+//   - [CategoryRule.OnPodEvents]: matches the pod's Kubernetes events, where
+//     kubelet admission and device-plugin failures appear most reliably
 //
-// Container-level matchers honor ContainerName scoping when set. OnPodError
-// ignores it because pod-level error text has no container attribution.
+// Container-level matchers honor [CategoryRule.ContainerName] scoping when
+// set. OnPodError and OnPodEvents ignore it because pod-level failures have
+// no container attribution.
 //
-// Each rule may also set Hint, an optional user-facing string that the executor
-// appends to the failure message. Hints land in lookoutdb.job_run.error and
-// are surfaced to users in Lookout alongside the raw runtime error.
+// Each rule may also set [CategoryRule.Hint], an optional user-facing string
+// that the executor appends to the failure message. Hints go into
+// lookoutdb.job_run.error, and Lookout shows them to users alongside the raw
+// runtime error.
 //
 // Exit code 0 is always skipped. Both regular and init containers are checked.
 //
@@ -60,7 +64,8 @@
 //
 // [NewClassifier] validates all config upfront: unknown condition strings,
 // invalid exit code operators, empty value lists, and invalid regexes all
-// return errors at construction time.
+// return errors at construction time. The category names "internal" and
+// "preemption" are reserved, because Armada sets these categories itself.
 //
 // # Usage
 //
@@ -69,10 +74,8 @@
 //	    // handle invalid config
 //	}
 //
-//	// Terminated pod: container state carries the relevant termination signals.
-//	result := classifier.ClassifyContainerError(pod)
-//
-//	// Pre-terminal failure: an executor-captured error message is matched
-//	// against onPodError rules in addition to pod state.
-//	result = classifier.ClassifyPodError(pod, podErrorMessage)
+//	// The failure message that the executor reports and the Kubernetes events
+//	// of the pod are matched against onPodError and onPodEvents rules, in
+//	// addition to the state of the pod.
+//	result := classifier.Classify(pod, message, events)
 package categorizer

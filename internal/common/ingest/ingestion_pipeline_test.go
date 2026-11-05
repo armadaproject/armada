@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -402,6 +403,60 @@ func (s *simpleSink) assertDidProcess(messages []pulsar.Message) {
 func (s *simpleSink) assertProcessedMessageCount(count int) {
 	s.t.Helper()
 	assert.Len(s.t, s.simpleMessages, count)
+}
+
+// erroringSink always returns the configured error from Store, and records how many times it was called.
+type erroringSink struct {
+	err   error
+	calls int
+	mutex sync.Mutex
+}
+
+func (s *erroringSink) Store(_ *armadacontext.Context, _ *simpleMessages) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.calls++
+	return s.err
+}
+
+func (s *erroringSink) callCount() int {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	return s.calls
+}
+
+func TestRun_ContextCanceled_StopsProcessingWithoutAcking(t *testing.T) {
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	defer cancel()
+	messages := []pulsar.Message{
+		pulsarutils.NewPulsarMessage(1, baseTime, marshal(t, succeeded)),
+	}
+	// Since the sink always errors with context.Canceled, the mock consumer's AckID is never
+	// called, so nothing will cancel the context on our behalf. We do it ourselves once the sink
+	// has been invoked, mirroring what happens when the caller's context is cancelled during shutdown.
+	sink := &erroringSink{err: context.Canceled}
+	mockConsumer := newMockPulsarConsumer(t, messages, func() {})
+	converter := newSimpleEventSequenceConverter(t)
+
+	pipeline := testJobSetEventsPipeline(mockConsumer, converter, sink)
+	pipeline.pulsarBatchDuration = 10 * time.Millisecond
+
+	done := make(chan error, 1)
+	go func() {
+		done <- pipeline.Run(ctx)
+	}()
+
+	assert.Eventually(t, func() bool { return sink.callCount() > 0 }, 5*time.Second, 10*time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-done:
+		assert.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("pipeline did not stop processing after sink returned context.Canceled")
+	}
+
+	assert.Empty(t, mockConsumer.acked)
 }
 
 func TestRun_JobSetEvents_HappyPath_SingleMessage(t *testing.T) {

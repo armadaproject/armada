@@ -38,9 +38,11 @@ const (
 )
 
 type podIssue struct {
-	// Classification and DetectionTime are set for DeleteActionFailure issues.
+	// Classification is the category of the failure. The executor sets it when it detects the issue, because only the
+	// detection has the pod events. Armada-detected issue types get the built-in category internal.
 	Classification categorizer.ClassifyResult
-	DetectionTime  time.Time
+	// DetectionTime is set for DeleteActionFailure issues.
+	DetectionTime time.Time
 	// A copy of the pod when an issue was detected
 	OriginalPodState  *v1.Pod
 	Message           string
@@ -81,14 +83,20 @@ type PodIssueHandler struct {
 	failedPodChecker  failedpodchecks.RetryChecker
 	stateChecksConfig configuration.StateChecksConfiguration
 	classifier        *categorizer.Classifier
+	debugRenderer     *reporter.DebugMessageRenderer
 
 	stuckTerminatingPodExpiry time.Duration
+	podKillTimeout            time.Duration
 
 	// JobRunId -> PodIssue
 	knownPodIssues map[string]*runIssue
 	podIssueMutex  sync.Mutex
-	jobRunState    job.RunStateStore
-	clock          clock.Clock
+	// Run ids a terminated-run debug event has already been reported for. The event is diagnostic,
+	// so losing this across an executor restart is acceptable.
+	reportedTerminationDebugRunIds map[string]struct{}
+	reportedTerminationDebugLock   sync.Mutex
+	jobRunState                    job.RunStateStore
+	clock                          clock.Clock
 }
 
 func NewPodIssuerHandler(
@@ -99,7 +107,9 @@ func NewPodIssuerHandler(
 	pendingPodChecker podchecks.PodChecker,
 	failedPodChecker failedpodchecks.RetryChecker,
 	stuckTerminatingPodExpiry time.Duration,
+	podKillTimeout time.Duration,
 	classifier *categorizer.Classifier,
+	debugRenderer *reporter.DebugMessageRenderer,
 ) (*PodIssueHandler, error) {
 	issueHandler := &PodIssueHandler{
 		jobRunState:               jobRunState,
@@ -109,19 +119,34 @@ func NewPodIssuerHandler(
 		failedPodChecker:          failedPodChecker,
 		stateChecksConfig:         stateChecksConfig,
 		classifier:                classifier,
+		debugRenderer:             debugRenderer,
 		stuckTerminatingPodExpiry: stuckTerminatingPodExpiry,
+		podKillTimeout:            podKillTimeout,
 		knownPodIssues:            map[string]*runIssue{},
 		podIssueMutex:             sync.Mutex{},
 		clock:                     clock.RealClock{},
+
+		reportedTerminationDebugRunIds: map[string]struct{}{},
+		reportedTerminationDebugLock:   sync.Mutex{},
 	}
 
 	_, err := clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
 		DeleteFunc: func(obj interface{}) {
+			// A deletion the watch missed arrives as a tombstone holding the last observed pod
+			// state. That is good enough to measure termination, but too stale to judge whether the
+			// deletion was unexpected, so it does not reach the issue detection below.
+			if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+				if pod, ok := tombstone.Obj.(*v1.Pod); ok {
+					issueHandler.recordTerminationOverdue(pod)
+				}
+				return
+			}
 			pod, ok := obj.(*v1.Pod)
 			if !ok {
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
+			issueHandler.recordTerminationOverdue(pod)
 			issueHandler.handleDeletedPod(pod)
 		},
 	})
@@ -157,23 +182,23 @@ func (p *PodIssueHandler) DetectAndRegisterFailedPodIssue(pod *v1.Pod) (bool, er
 	}
 
 	isRetryable, message := p.failedPodChecker.IsRetryable(pod, podEvents)
-	if isRetryable {
-		return p.registerIssue(&runIssue{
-			JobId: jobId,
-			RunId: runId,
-			PodIssue: &podIssue{
-				OriginalPodState:  pod.DeepCopy(),
-				Message:           message,
-				DebugMessage:      reporter.CreateDebugMessage(podEvents),
-				Retryable:         true,
-				DeletionRequested: false,
-				Type:              FailedStartingUp,
-			},
-			Reported: false,
-		})
-	} else {
+	if !isRetryable {
 		return false, nil
 	}
+	issue := p.newPodIssue(podIssue{
+		OriginalPodState:  pod.DeepCopy(),
+		Message:           message,
+		DebugMessage:      p.debugRenderer.Render(pod, podEvents, reporter.TriggerPodFailed),
+		Retryable:         true,
+		DeletionRequested: false,
+		Type:              FailedStartingUp,
+	}, podEvents)
+	return p.registerIssue(&runIssue{
+		JobId:    jobId,
+		RunId:    runId,
+		PodIssue: issue,
+		Reported: false,
+	})
 }
 
 // DetectAndRegisterIssuesForFailedPod runs the failed pod detections in
@@ -194,25 +219,31 @@ func (p *PodIssueHandler) DetectAndRegisterDeleteActionIssue(pod *v1.Pod) (bool,
 	if !util.IsManagedPod(pod) || pod.Status.Phase != v1.PodFailed {
 		return false, nil
 	}
-	classification := p.classifier.ClassifyContainerError(pod)
-	if classification.Action != categorizer.PodFailureActionDelete {
-		return false, nil
-	}
 	podEvents, err := p.clusterContext.GetPodEvents(pod)
 	if err != nil {
-		// The debug message is best effort, the delete-first ordering is not.
-		// Register without the events rather than let the caller report the
-		// failure while the pod still holds its name.
+		// The events feed the debug message and the onPodEvents rules. Both
+		// are best effort. The delete-first ordering is not. If the fetch
+		// fails, classify and register without the events. The caller must
+		// not report the failure while the pod still holds its name.
 		log.Warnf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
 		podEvents = nil
+	}
+	// Classify with the extracted failure reason and the pod events. This
+	// lets onPodError and onPodEvents rules match pods that never started a
+	// container, for example kubelet admission rejections. Such pods have no
+	// exit codes and no termination messages.
+	failedReason := util.ExtractPodFailedReason(pod)
+	classification := p.classifier.Classify(pod, failedReason, podEvents)
+	if classification.Action != categorizer.PodFailureActionDelete {
+		return false, nil
 	}
 	return p.registerIssue(&runIssue{
 		JobId: util.ExtractJobId(pod),
 		RunId: util.ExtractJobRunId(pod),
 		PodIssue: &podIssue{
 			OriginalPodState: pod.DeepCopy(),
-			Message:          util.ExtractPodFailedReason(pod),
-			DebugMessage:     reporter.CreateDebugMessage(podEvents),
+			Message:          failedReason,
+			DebugMessage:     p.debugRenderer.Render(pod, podEvents, reporter.TriggerPodFailed),
 			Retryable:        false,
 			Type:             DeleteActionFailure,
 			Cause:            util.ExtractPodFailureCause(pod),
@@ -294,18 +325,20 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 			if util.IsMarkedForDeletion(pod) {
 				// If the executor marked the pod for deletion, make sure the deletion logic is handling the pod
 				// However don't handle it as a pod issue, as we don't want to send events about pods we're deleting
+				p.reportTerminationDebugIfOverdue(pod)
 				p.clusterContext.DeletePods([]*v1.Pod{pod})
 				continue
 			}
 
 			// pod is stuck in terminating phase, this sometimes happen on node failure
 			// it is safer to produce failed event than retrying as the job might have run already
-			issue := &podIssue{
+			issue := p.newPodIssue(podIssue{
 				OriginalPodState: pod.DeepCopy(),
 				Message:          "job couldn't shut down cleanly as pod stuck in terminating phase, this indicates a node issue",
+				DebugMessage:     p.renderTerminationDebugMessage(pod, reporter.TriggerStuckTerminating),
 				Retryable:        false,
 				Type:             StuckTerminating,
-			}
+			}, nil)
 
 			p.attemptToRegisterIssue(&runIssue{
 				JobId:    util.ExtractJobId(pod),
@@ -316,12 +349,13 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 			// Pod has past its active deadline seconds + some buffer.
 			// As the pod is still here it means the kubelet is unable to kill it for some reason.
 			// Start cleaning it up - which will eventually be force killed
-			issue := &podIssue{
+			issue := p.newPodIssue(podIssue{
 				OriginalPodState: pod.DeepCopy(),
 				Message:          "pod has exceeded active deadline seconds",
+				DebugMessage:     p.renderTerminationDebugMessage(pod, reporter.TriggerActiveDeadlineExceeded),
 				Retryable:        false,
 				Type:             ActiveDeadlineExceeded,
-			}
+			}, nil)
 
 			p.attemptToRegisterIssue(&runIssue{
 				JobId:    util.ExtractJobId(pod),
@@ -340,7 +374,7 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 			if action != podchecks.ActionWait {
 				retryable := action == podchecks.ActionRetry
 				message := createStuckPodMessage(retryable, podCheckMessage)
-				debugMessage := reporter.CreateDebugMessage(podEvents)
+				debugMessage := p.debugRenderer.Render(pod, podEvents, reporter.TriggerPodFailed)
 				podIssueType := StuckStartingUp
 				if cause == podchecks.NoNodeAssigned {
 					podIssueType = UnableToSchedule
@@ -348,13 +382,13 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 
 				log.Infof("Found issue with pod %s in namespace %s: %s", pod.Name, pod.Namespace, message)
 
-				issue := &podIssue{
+				issue := p.newPodIssue(podIssue{
 					OriginalPodState: pod.DeepCopy(),
 					Message:          message,
 					DebugMessage:     debugMessage,
 					Retryable:        retryable,
 					Type:             podIssueType,
-				}
+				}, podEvents)
 				p.attemptToRegisterIssue(&runIssue{
 					JobId:    util.ExtractJobId(pod),
 					RunId:    util.ExtractJobRunId(pod),
@@ -363,6 +397,75 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 			}
 		}
 	}
+}
+
+// This path is otherwise silent: the pod is being deleted deliberately, so nothing else reports on it.
+//
+// Triggered by the escalation deadline rather than by evidence of a force delete, which can lag the
+// deadline by the repeat-deletion debounce and often only lands as the pod disappears.
+func (p *PodIssueHandler) reportTerminationDebugIfOverdue(pod *v1.Pod) {
+	if pod.DeletionTimestamp == nil {
+		return
+	}
+	if !p.clock.Now().After(pod.DeletionTimestamp.Add(p.podKillTimeout)) {
+		return
+	}
+	runId := util.ExtractJobRunId(pod)
+	if runId == "" {
+		return
+	}
+	// This event exists only to carry the payload, so there is nothing to report without one - which
+	// is also how capture being disabled reaches here.
+	debugMessage := p.renderTerminationDebugMessage(pod, reporter.TriggerStuckTerminating)
+	if debugMessage == "" {
+		return
+	}
+	if !p.claimRunForTerminationDebug(runId) {
+		return
+	}
+
+	debugEvent, err := reporter.CreateJobRunTerminatedDebugEvent(pod, debugMessage)
+	if err != nil {
+		log.Errorf("Failed creating debug event for terminating pod %s: %v", pod.Name, err)
+		return
+	}
+	// Queued rather than reported synchronously: a node failure can strand hundreds of pods in this
+	// state at once, and detectPodIssues is a single loop that must not stall on a round trip per pod.
+	p.eventReporter.QueueEvent(reporter.EventMessage{Event: debugEvent, JobRunId: runId}, func(err error) {
+		if err != nil {
+			log.Errorf("Failed reporting debug event for terminating pod %s: %v", pod.Name, err)
+		}
+	})
+}
+
+// Returns true the first time it is called for a run id. A pod that will not terminate is
+// re-detected on every pod issue handling interval.
+func (p *PodIssueHandler) claimRunForTerminationDebug(runId string) bool {
+	p.reportedTerminationDebugLock.Lock()
+	defer p.reportedTerminationDebugLock.Unlock()
+
+	if _, reported := p.reportedTerminationDebugRunIds[runId]; reported {
+		return false
+	}
+	p.reportedTerminationDebugRunIds[runId] = struct{}{}
+	return true
+}
+
+func (p *PodIssueHandler) forgetTerminationDebug(runId string) {
+	p.reportedTerminationDebugLock.Lock()
+	defer p.reportedTerminationDebugLock.Unlock()
+	delete(p.reportedTerminationDebugRunIds, runId)
+}
+
+func (p *PodIssueHandler) renderTerminationDebugMessage(pod *v1.Pod, trigger reporter.DebugTrigger) string {
+	podEvents, err := p.clusterContext.GetPodEvents(pod)
+	if err != nil {
+		// The events are the richest part of the payload but the pod, node and termination state
+		// still diagnose a stuck teardown, so render without them.
+		log.Warnf("Failed retrieving pod events for terminating pod %s: %v", pod.Name, err)
+		podEvents = nil
+	}
+	return p.debugRenderer.Render(pod, podEvents, trigger)
 }
 
 // Returns true if the pod has been running longer than its activeDeadlineSeconds + grace period
@@ -460,25 +563,17 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 		podIssue := issue.RunIssue.PodIssue
 		clusterId := p.clusterContext.GetClusterId()
 
-		var failureCategory, failureSubcategory, message string
-		if sub := internalSubcategoryForPodIssueType(podIssue.Type); sub != "" {
-			failureCategory, failureSubcategory = errormatch.CategoryInternal, sub
-			message = podIssue.Message
-		} else {
-			result := p.classifier.ClassifyPodError(podIssue.OriginalPodState, podIssue.Message)
-			failureCategory, failureSubcategory = result.Category, result.Subcategory
-			message = result.AppendHint(podIssue.Message)
-		}
+		classification := podIssue.Classification
 
 		failedEvent, err := reporter.CreateJobFailedEvent(
 			podIssue.OriginalPodState,
-			message,
+			classification.AppendHint(podIssue.Message),
 			podIssue.Cause,
 			podIssue.DebugMessage,
 			util.ExtractFailedPodContainerStatuses(podIssue.OriginalPodState, clusterId),
 			clusterId,
-			failureCategory,
-			failureSubcategory,
+			classification.Category,
+			classification.Subcategory,
 		)
 		if err != nil {
 			log.Errorf("Failed to create failed event for job %s because %s", issue.RunIssue.JobId, err)
@@ -490,8 +585,8 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 			return
 		}
 		// Increment only after successful Report so failed sends do not inflate the counter.
-		// RecordJobFailure is a no-op when classification didn't run (empty category).
-		metrics.RecordJobFailure(failureCategory, failureSubcategory)
+		// RecordJobFailure is a no-op for an empty category.
+		metrics.RecordJobFailure(classification.Category, classification.Subcategory)
 		p.markIssueReported(issue.RunIssue)
 	}
 
@@ -501,6 +596,24 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 	} else {
 		p.markIssuesResolved(issue.RunIssue)
 	}
+}
+
+// newPodIssue returns the issue with its category, set when the executor detects the issue. Every detection creates
+// its issue here, except the Delete-action detection. That detection categorizes the pod before it creates an issue,
+// because the action decides whether an issue exists. So no issue reaches a handler without a category. Armada gives
+// the failures that it detects itself the built-in category internal. The classifier categorizes the other failures
+// from the pod, the message of the issue and the events that the detection read.
+func (p *PodIssueHandler) newPodIssue(issue podIssue, events []*v1.Event) *podIssue {
+	if sub := internalSubcategoryForPodIssueType(issue.Type); sub != "" {
+		issue.Classification = categorizer.ClassifyResult{
+			Category:    errormatch.CategoryInternal,
+			Subcategory: sub,
+			Action:      categorizer.PodFailureActionRetain,
+		}
+		return &issue
+	}
+	issue.Classification = p.classifier.Classify(issue.OriginalPodState, issue.Message, events)
+	return &issue
 }
 
 // internalSubcategoryForPodIssueType returns the internal failure subcategory
@@ -551,6 +664,9 @@ func (p *PodIssueHandler) handleDeleteActionFailure(issue *issue) {
 			deleteStartedAt = issue.CurrentPodState.DeletionTimestamp.Time
 		}
 		if deleteStartedAt.Add(p.stuckTerminatingPodExpiry).Before(p.clock.Now()) {
+			// Re-render against the pod as it is now, so the failure carries why the delete did not
+			// take effect. This is strictly richer than what was captured at detection time.
+			podIssue.DebugMessage = p.renderTerminationDebugMessage(issue.CurrentPodState, reporter.TriggerUndeletable)
 			p.reportDeleteActionFailure(issue, errormatch.CategoryInternal, errormatch.SubcategoryStuckTerminating,
 				podIssue.Message+"\n\nThe failed pod could not be deleted, so the job is failed rather than retried.")
 		}
@@ -602,18 +718,19 @@ func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 		if issue.RunIssue.PodIssue.OriginalPodState.Status.Phase == v1.PodPending && issue.CurrentPodState.Status.Phase != v1.PodPending {
 			p.markIssuesResolved(issue.RunIssue)
 			if issue.RunIssue.PodIssue.DeletionRequested {
+				handlingError := p.newPodIssue(podIssue{
+					OriginalPodState: issue.RunIssue.PodIssue.OriginalPodState,
+					Message: fmt.Sprintf("Pod unexpectedly started up after delete was called.\n\nDelete was originally called to handle issue:\n%s",
+						issue.RunIssue.PodIssue.Message),
+					Retryable:         false,
+					DeletionRequested: false,
+					Type:              ErrorDuringIssueHandling,
+					Cause:             armadaevents.KubernetesReason_AppError,
+				}, nil)
 				p.attemptToRegisterIssue(&runIssue{
-					JobId: issue.RunIssue.JobId,
-					RunId: issue.RunIssue.RunId,
-					PodIssue: &podIssue{
-						OriginalPodState: issue.RunIssue.PodIssue.OriginalPodState,
-						Message: fmt.Sprintf("Pod unexpectedly started up after delete was called.\n\nDelete was originally called to handle issue:\n%s",
-							issue.RunIssue.PodIssue.Message),
-						Retryable:         false,
-						DeletionRequested: false,
-						Type:              ErrorDuringIssueHandling,
-						Cause:             armadaevents.KubernetesReason_AppError,
-					},
+					JobId:    issue.RunIssue.JobId,
+					RunId:    issue.RunIssue.RunId,
+					PodIssue: handlingError,
 				})
 			}
 			return
@@ -633,16 +750,16 @@ func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 		// When we have our own internal state - we don't need to wait for the pod deletion to complete
 		// We can just mark is to delete in our state and return the lease
 		jobRunAttempted := issue.RunIssue.PodIssue.Type != UnableToSchedule
-		result := p.classifier.ClassifyPodError(issue.RunIssue.PodIssue.OriginalPodState, issue.RunIssue.PodIssue.Message)
+		classification := issue.RunIssue.PodIssue.Classification
 
 		returnLeaseEvent, err := reporter.CreateReturnLeaseEvent(
 			issue.RunIssue.PodIssue.OriginalPodState,
-			result.AppendHint(issue.RunIssue.PodIssue.Message),
+			classification.AppendHint(issue.RunIssue.PodIssue.Message),
 			issue.RunIssue.PodIssue.DebugMessage,
 			p.clusterContext.GetClusterId(),
 			jobRunAttempted,
-			result.Category,
-			result.Subcategory,
+			classification.Category,
+			classification.Subcategory,
 		)
 		if err != nil {
 			log.Errorf("Failed to create return lease event for job %s because %s", issue.RunIssue.JobId, err)
@@ -655,7 +772,7 @@ func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 			return
 		}
 		// Record only after a successful Report so failed sends do not inflate the counter.
-		metrics.RecordJobFailure(result.Category, result.Subcategory)
+		metrics.RecordJobFailure(classification.Category, classification.Subcategory)
 		p.markIssuesResolved(issue.RunIssue)
 	}
 }
@@ -689,20 +806,37 @@ func createStuckPodMessage(retryable bool, originalMessage string) string {
 	return fmt.Sprintf("Unable to start pod - encountered an unrecoverable problem.\n%s", originalMessage)
 }
 
+// Observed where the pod actually disappears rather than where Armada decides to force delete it, so
+// the value describes kubelet and node behaviour rather than Armada's own polling intervals, and
+// every terminating pod is counted - not just the pathological tail that gets force deleted.
+func (p *PodIssueHandler) recordTerminationOverdue(pod *v1.Pod) {
+	if !util.IsManagedPod(pod) || pod.DeletionTimestamp == nil {
+		return
+	}
+	metrics.RecordPodTerminationOverdue(util.ExtractPool(pod), p.clock.Now().Sub(pod.DeletionTimestamp.Time))
+}
+
 func (p *PodIssueHandler) handleDeletedPod(pod *v1.Pod) {
+	p.forgetTerminationDebug(util.ExtractJobRunId(pod))
+
 	jobId := util.ExtractJobId(pod)
 	if jobId != "" {
 		isUnexpectedDeletion := !util.IsMarkedForDeletion(pod) && !util.IsPodFinishedAndReported(pod)
 		if isUnexpectedDeletion {
+			issue := p.newPodIssue(podIssue{
+				OriginalPodState: pod.DeepCopy(),
+				Message:          "Pod was unexpectedly deleted",
+				// Who deleted the pod is answered by the node - a drain, an eviction or a
+				// foreign preemption. The pod is already gone, but its events and its node are
+				// still in the informer caches.
+				DebugMessage: p.renderTerminationDebugMessage(pod, reporter.TriggerExternallyDeleted),
+				Retryable:    false,
+				Type:         ExternallyDeleted,
+			}, nil)
 			p.attemptToRegisterIssue(&runIssue{
-				JobId: jobId,
-				RunId: util.ExtractJobRunId(pod),
-				PodIssue: &podIssue{
-					OriginalPodState: pod.DeepCopy(),
-					Message:          "Pod was unexpectedly deleted",
-					Retryable:        false,
-					Type:             ExternallyDeleted,
-				},
+				JobId:    jobId,
+				RunId:    util.ExtractJobRunId(pod),
+				PodIssue: issue,
 			})
 		}
 	}

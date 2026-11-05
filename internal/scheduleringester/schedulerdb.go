@@ -2,6 +2,7 @@ package scheduleringester
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -128,13 +129,15 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return err
 		}
 	case UpdateJobSetPriorities:
-		for jobSetInfo, priority := range o {
+		reprioritiseUser := nullableTrimmedString(o.Requestor)
+		for jobSetInfo, priority := range o.jobSets {
 			err := queries.UpdateJobPriorityByJobSet(
 				ctx,
 				schedulerdb.UpdateJobPriorityByJobSetParams{
-					JobSet:   jobSetInfo.jobSet,
-					Queue:    jobSetInfo.queue,
-					Priority: priority,
+					JobSet:           jobSetInfo.jobSet,
+					Queue:            jobSetInfo.queue,
+					Priority:         priority,
+					ReprioritiseUser: reprioritiseUser,
 				},
 			)
 			if err != nil {
@@ -166,6 +169,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case MarkJobSetsCancelRequested:
+		cancelUser := nullableTrimmedString(o.cancelUser)
 		for jobSetInfo, cancelDetails := range o.jobSets {
 			// If cancelling both queued and leased jobs, avoid ANY([true,false]) redundancy
 			if cancelDetails.cancelQueued && cancelDetails.cancelLeased {
@@ -175,7 +179,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 					schedulerdb.MarkJobsCancelRequestedBySetParams{
 						Queue:        jobSetInfo.queue,
 						JobSet:       jobSetInfo.jobSet,
-						CancelUser:   nilIfEmpty(o.cancelUser),
+						CancelUser:   cancelUser,
 						CancelReason: nilIfEmpty(o.cancelReason),
 					},
 				)
@@ -197,7 +201,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 						Queue:        jobSetInfo.queue,
 						JobSet:       jobSetInfo.jobSet,
 						QueuedStates: queuedStatesToCancel,
-						CancelUser:   nilIfEmpty(o.cancelUser),
+						CancelUser:   cancelUser,
 						CancelReason: nilIfEmpty(o.cancelReason),
 					},
 				)
@@ -207,12 +211,13 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			}
 		}
 	case MarkJobsCancelRequested:
+		cancelUser := nullableTrimmedString(o.cancelUser)
 		for key, value := range o.jobIds {
 			params := schedulerdb.MarkJobsCancelRequestedByIdParams{
 				Queue:        key.queue,
 				JobSet:       key.jobSet,
 				JobIds:       value,
-				CancelUser:   nilIfEmpty(o.cancelUser),
+				CancelUser:   cancelUser,
 				CancelReason: nilIfEmpty(o.cancelReason),
 			}
 			err := queries.MarkJobsCancelRequestedById(ctx, params)
@@ -238,9 +243,10 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		}
 	case MarkRunsForJobPreemptRequested:
 		const batchSize = 5000
-		markRunsPreemptRequestedSqlStatement := "UPDATE runs SET preempt_requested = true, preempt_reason = $1 WHERE queue = $2 and job_set = $3 and job_id = ANY($4::text[]) and terminated = false"
+		preemptUser := nullableTrimmedString(o.preemptUser)
+		markRunsPreemptRequestedSqlStatement := "UPDATE runs SET preempt_requested = true, preempt_reason = $1, preempt_user = $2 WHERE queue = $3 and job_set = $4 and job_id = ANY($5::text[]) and terminated = false"
 
-		for key, preemptReason := range o {
+		for key, preemptReason := range o.jobSets {
 			// group by reason
 			reasonToJobIds := make(map[string][]string)
 			for jobId, reason := range preemptReason {
@@ -253,7 +259,8 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				for i := 0; i < len(jobIds); i += batchSize {
 					end := min(i+batchSize, len(jobIds))
 					jobIdBatch := jobIds[i:end]
-					batch.Queue(markRunsPreemptRequestedSqlStatement, reason, key.queue, key.jobSet, jobIdBatch)
+					// Preemption is run-scoped and must only update runs.
+					batch.Queue(markRunsPreemptRequestedSqlStatement, reason, preemptUser, key.queue, key.jobSet, jobIdBatch)
 				}
 			}
 
@@ -275,11 +282,13 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			return errors.WithStack(err)
 		}
 	case *UpdateJobPriorities:
+		reprioritiseUser := nullableTrimmedString(o.Requestor)
 		err := queries.UpdateJobPriorityById(ctx, schedulerdb.UpdateJobPriorityByIdParams{
-			Queue:    o.key.queue,
-			JobSet:   o.key.jobSet,
-			Priority: o.key.Priority,
-			JobIds:   slices.Unique(o.jobIds),
+			Queue:            o.key.queue,
+			JobSet:           o.key.jobSet,
+			Priority:         o.key.Priority,
+			JobIds:           slices.Unique(o.jobIds),
+			ReprioritiseUser: reprioritiseUser,
 		})
 		if err != nil {
 			return errors.WithStack(err)
@@ -419,6 +428,18 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			}
 		}
 		return nil
+	case DeleteExecutor:
+		for _, executorDelete := range o {
+			err := queries.DeleteExecutor(ctx, executorDelete.ExecutorID)
+			if err != nil {
+				return errors.Wrapf(err, "error deleting executor %s", executorDelete.ExecutorID)
+			}
+			ctx.Logger().WithFields(map[string]any{
+				"requestor": executorDelete.Requestor,
+				"executor":  executorDelete.ExecutorID,
+			}).Info("ExecutorDelete applied executor delete; a live executor will re-register on its next lease request")
+		}
+		return nil
 	case CancelExecutor:
 		for executor, cancelRequest := range o {
 			jobs, err := queries.SelectJobsByExecutorAndQueues(ctx, schedulerdb.SelectJobsByExecutorAndQueuesParams{
@@ -439,7 +460,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 					return errors.Wrapf(err, "error cancelling jobs on executor %s by queue and priority class", executor)
 				}
 			}
-			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs, cancelReasonCancelOnExecutor) {
+			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs, cancelRequest.Requestor, cancelReasonCancelOnExecutor) {
 				err = queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams)
 				if err != nil {
 					return errors.Wrapf(err, "error cancelling jobs on executor %s by queue and priority class", executor)
@@ -467,7 +488,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				}
 			}
 
-			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobs) {
+			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobs, preemptRequest.Requestor) {
 				err = queries.MarkJobRunsPreemptRequestedByJobId(ctx, *requestPreemptParams)
 				if err != nil {
 					return errors.Wrapf(err, "error preempting jobs on executor %s by queue and priority class", executor)
@@ -485,22 +506,35 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 			}
 
-			if len(jobs) == 0 {
-				continue
-			}
-
-			if len(preemptRequest.PriorityClasses) > 0 {
+			if len(preemptRequest.PriorityClasses) > 0 && len(jobs) > 0 {
 				jobs, err = filterJobsByPriorityClasses(jobs, preemptRequest.PriorityClasses)
 				if err != nil {
 					return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 				}
 			}
-			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobs) {
+			logCtx := ctx.Logger().WithFields(map[string]any{
+				"requestor":       preemptRequest.Requestor,
+				"node":            nodeOnExecutor.Node,
+				"executor":        nodeOnExecutor.Executor,
+				"queueCount":      loggedQueueCount(preemptRequest.Queues),
+				"priorityClasses": preemptRequest.PriorityClasses,
+			})
+			if len(jobs) == 0 {
+				logCtx.Warn("PreemptOnNode matched no active jobs; nothing to preempt")
+				continue
+			}
+
+			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobs, preemptRequest.Requestor) {
 				err = queries.MarkJobRunsPreemptRequestedByJobId(ctx, *requestPreemptParams)
 				if err != nil {
 					return errors.Wrapf(err, "error preempting jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 				}
 			}
+
+			logCtx.WithFields(map[string]any{
+				"jobCount": len(jobs),
+				"jobIds":   slices.Map(jobs, func(job schedulerdb.Job) string { return job.JobID }),
+			}).Info("PreemptOnNode marked runs preempt-requested")
 		}
 	case CancelNode:
 		for nodeOnExecutor, cancelRequest := range o {
@@ -513,22 +547,35 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				return errors.Wrapf(err, "error cancelling jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 			}
 
-			if len(jobs) == 0 {
-				continue
-			}
-
-			if len(cancelRequest.PriorityClasses) > 0 {
+			if len(cancelRequest.PriorityClasses) > 0 && len(jobs) > 0 {
 				jobs, err = filterJobsByPriorityClasses(jobs, cancelRequest.PriorityClasses)
 				if err != nil {
 					return errors.Wrapf(err, "error cancelling jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 				}
 			}
-			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs, cancelReasonCancelOnNode) {
+			logCtx := ctx.Logger().WithFields(map[string]any{
+				"requestor":       cancelRequest.Requestor,
+				"node":            nodeOnExecutor.Node,
+				"executor":        nodeOnExecutor.Executor,
+				"queueCount":      loggedQueueCount(cancelRequest.Queues),
+				"priorityClasses": cancelRequest.PriorityClasses,
+			})
+			if len(jobs) == 0 {
+				logCtx.Warn("CancelOnNode matched no active jobs; nothing to cancel")
+				continue
+			}
+
+			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs, cancelRequest.Requestor, cancelReasonCancelOnNode) {
 				err = queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams)
 				if err != nil {
 					return errors.Wrapf(err, "error cancelling jobs on node %s on executor %s by queue and priority class", nodeOnExecutor.Node, nodeOnExecutor.Executor)
 				}
 			}
+
+			logCtx.WithFields(map[string]any{
+				"jobCount": len(jobs),
+				"jobIds":   slices.Map(jobs, func(job schedulerdb.Job) string { return job.JobID }),
+			}).Info("CancelOnNode marked jobs cancel-requested")
 		}
 
 	case CancelQueue:
@@ -543,7 +590,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 					return errors.Wrapf(err, "error cancelling jobs by queue, job state and priority class")
 				}
 			}
-			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs, cancelReasonCancelOnQueue) {
+			for _, requestCancelParams := range createMarkJobsCancelRequestedByIdParams(jobs, cancelRequest.Requestor, cancelReasonCancelOnQueue) {
 				err = queries.MarkJobsCancelRequestedById(ctx, *requestCancelParams)
 				if err != nil {
 					return errors.Wrapf(err, "error cancelling jobs by queue, job state and priority class")
@@ -564,7 +611,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 					return errors.Wrapf(err, "error preempting jobs by queue, job state and priority class")
 				}
 			}
-			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobs) {
+			for _, requestPreemptParams := range createMarkJobRunsPreemptRequestedByJobIdParams(jobs, preemptRequest.Requestor) {
 				err = queries.MarkJobRunsPreemptRequestedByJobId(ctx, *requestPreemptParams)
 				if err != nil {
 					return errors.Wrapf(err, "error preempting jobs by queue, job state and priority class")
@@ -618,11 +665,12 @@ func (s *SchedulerDb) selectAllJobsByQueueAndJobState(ctx *armadacontext.Context
 // createMarkJobCancelRequestedById returns []*schedulerdb.MarkJobsCancelRequestedByIdParams for the specified jobs such
 // that no two MarkJobsCancelRequestedByIdParams are for the same queue and jobset.
 // reason records which control-plane path initiated the cancellation (e.g. "cancelled by CancelOnQueue")
-// so the persisted cancel_reason reflects the origin. There is no requestor for these system initiated cancels.
-func createMarkJobsCancelRequestedByIdParams(jobs []schedulerdb.Job, reason string) []*schedulerdb.MarkJobsCancelRequestedByIdParams {
-	cancelReason := nilIfEmpty(reason)
+// so the persisted cancel_reason reflects the origin.
+func createMarkJobsCancelRequestedByIdParams(jobs []schedulerdb.Job, cancelUser string, reason string) []*schedulerdb.MarkJobsCancelRequestedByIdParams {
 	result := make([]*schedulerdb.MarkJobsCancelRequestedByIdParams, 0)
 	mapping := map[string]map[string]*schedulerdb.MarkJobsCancelRequestedByIdParams{}
+	normalizedCancelUser := nullableTrimmedString(cancelUser)
+	cancelReason := nilIfEmpty(reason)
 	for _, job := range jobs {
 		if _, ok := mapping[job.Queue]; !ok {
 			mapping[job.Queue] = map[string]*schedulerdb.MarkJobsCancelRequestedByIdParams{}
@@ -632,6 +680,7 @@ func createMarkJobsCancelRequestedByIdParams(jobs []schedulerdb.Job, reason stri
 				Queue:        job.Queue,
 				JobSet:       job.JobSet,
 				JobIds:       make([]string, 0),
+				CancelUser:   normalizedCancelUser,
 				CancelReason: cancelReason,
 			}
 			result = append(result, mapping[job.Queue][job.JobSet])
@@ -653,9 +702,17 @@ func nilIfEmpty(s string) *string {
 	return &s
 }
 
+func nullableTrimmedString(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
 // createMarkJobRunsPreemptRequestedByJobIdParams returns []schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams for the specified jobs such
-// that no two MarkJobRunsPreemptRequestedByJobIdParams are for the same queue and jobset
-func createMarkJobRunsPreemptRequestedByJobIdParams(jobs []schedulerdb.Job) []*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams {
+// that no two MarkJobRunsPreemptRequestedByJobIdParams are for the same queue and jobset.
+func createMarkJobRunsPreemptRequestedByJobIdParams(jobs []schedulerdb.Job, preemptUser string) []*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams {
 	result := make([]*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams, 0)
 	mapping := map[string]map[string]*schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{}
 	for _, job := range jobs {
@@ -664,9 +721,11 @@ func createMarkJobRunsPreemptRequestedByJobIdParams(jobs []schedulerdb.Job) []*s
 		}
 		if _, ok := mapping[job.Queue][job.JobSet]; !ok {
 			mapping[job.Queue][job.JobSet] = &schedulerdb.MarkJobRunsPreemptRequestedByJobIdParams{
-				Queue:  job.Queue,
-				JobSet: job.JobSet,
-				JobIds: make([]string, 0),
+				PreemptUser:   nullableTrimmedString(preemptUser),
+				PreemptReason: nil,
+				Queue:         job.Queue,
+				JobSet:        job.JobSet,
+				JobIds:        make([]string, 0),
 			}
 			result = append(result, mapping[job.Queue][job.JobSet])
 		}
@@ -699,7 +758,7 @@ func jobInPriorityClasses(priorityClasses []string) func(schedulerdb.Job) (bool,
 // on row sequence numbers being monotonically increasing.
 func getLockKey(operations []DbOperation) (int, error) {
 	for _, op := range operations {
-		if op.GetOperation() == JobSetOperation {
+		if op.GetOperation() == JobDataImpactingOperation {
 			return JobSetEventsLockKey, nil
 		}
 	}
@@ -724,6 +783,13 @@ func multiColumnRunsUpdateStmt(id, phaseColumn, timeStampColumn string) string {
 	as runs_temp(%[1]v, %[2]v, %[3]v)
 	where runs.%[1]v = runs_temp.%[1]v;`,
 		id, phaseColumn, timeStampColumn, "text")
+}
+
+func loggedQueueCount(queues []string) any {
+	if len(queues) == 0 {
+		return "all"
+	}
+	return len(queues)
 }
 
 func filterJobsByPriorityClasses(jobs []schedulerdb.Job, priorityClasses []string) ([]schedulerdb.Job, error) {

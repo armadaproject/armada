@@ -28,9 +28,10 @@ jobs:
               cpu: 100m
 ---
 ### Reprioritize the job upward
-action: ACTION_REPRIORITIZE
-selection: SELECTION_BY_IDS
-newPriority: 100
+triggerEvent: running
+reprioritize:
+  request:
+    newPriority: 100
 timeout: "100s"
 expectedEvents:
   - submitted:

@@ -8,214 +8,291 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/armadactl"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
-func TestPreemptQueue(t *testing.T) {
-	tests := map[string]struct {
-		Flags           []flag
-		selectors       []string
-		priorityClasses []string
-		inverse         bool
-		onlyCordoned    bool
-		dryRun          bool
-	}{
-		"default flags":            {nil, []string{}, []string{}, false, false, false},
-		"valid selectors":          {[]flag{{"selectors", "armadaproject.io/priority=high,armadaproject.io/category=critical"}}, []string{"armadaproject.io/priority=high", "armadaproject.io/category=critical"}, []string{}, false, false, false},
-		"valid priority-classes 1": {[]flag{{"priority-classes", "armada-default"}}, []string{}, []string{"armada-default"}, false, false, false},
-		"valid priority-classes 2": {[]flag{{"priority-classes", "armada-default,armada-preemptible"}}, []string{}, []string{"armada-default", "armada-preemptible"}, false, false, false},
-		"valid multiple flags": {
-			[]flag{{"selectors", "armadaproject.io/priority=high,armadaproject.io/category=critical"}, {"priority-classes", "armada-default,armada-preemptible"}},
-			[]string{"armadaproject.io/priority=high", "armadaproject.io/category=critical"},
-			[]string{"armada-default", "armada-preemptible"},
-			true, true, true,
-		},
-	}
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			a := armadactl.New()
-			cmd := preemptQueuesCmd()
+// executorCall records the arguments armadactl passes to the executor API.
+type executorCall struct {
+	executor        string
+	queues          []string
+	priorityClasses []string
+	pools           []string
+}
 
-			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-				a.Out = io.Discard
+// nodeCall records the arguments armadactl passes to the node API.
+type nodeCall struct {
+	node            string
+	executor        string
+	queues          []string
+	priorityClasses []string
+}
 
-				if len(test.selectors) > 0 {
-					selectorsFlag, err := cmd.Flags().GetString("selectors")
-					require.Error(t, err)
-					require.Equal(t, test.selectors, selectorsFlag)
-				}
-				if len(test.priorityClasses) > 0 {
-					priorityClassesFlag, err := cmd.Flags().GetString("priority-classes")
-					require.Error(t, err)
-					require.Equal(t, test.priorityClasses, priorityClassesFlag)
-				}
+// queueCall records the arguments armadactl passes to the queue API.
+type queueCall struct {
+	queue           string
+	priorityClasses []string
+	jobStates       []api.JobState
+	pools           []string
+}
 
-				inverseValue, err := cmd.Flags().GetBool("inverse")
-				require.NoError(t, err)
-				require.Equal(t, test, inverseValue)
+// testQueues is the set of queues the faked GetAll returns. Commands that are
+// not narrowed by queue expand to all of them.
+func testQueues() []*api.Queue {
+	return []*api.Queue{{Name: "queue-a"}, {Name: "queue-b"}}
+}
 
-				onlyCordonedValue, err := cmd.Flags().GetBool("only-cordoned")
-				require.NoError(t, err)
-				require.Equal(t, test, onlyCordonedValue)
-
-				dryRunValue, err := cmd.Flags().GetBool("dry-run")
-				require.NoError(t, err)
-				require.Equal(t, test, dryRunValue)
-
-				return nil
-			}
-		})
+// withFakeAPIs runs the command's real PreRunE and then replaces the API
+// functions that initParams just installed, so the command executes its real
+// RunE all the way to the API boundary without making network calls.
+//
+// installFakes must overwrite the APIs *after* initParams has run, since
+// initParams assigns every function pointer in Params.
+func withFakeAPIs(t *testing.T, a *armadactl.App, cmd *cobra.Command, installFakes func()) {
+	t.Helper()
+	a.Out = io.Discard
+	realPreRunE := cmd.PreRunE
+	require.NotNil(t, realPreRunE, "expected the command to define a PreRunE")
+	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		if err := realPreRunE(cmd, args); err != nil {
+			return err
+		}
+		installFakes()
+		return nil
 	}
 }
 
-func TestPreemptExecutorAllPriorityClasses(t *testing.T) {
+func TestPreemptExecutor(t *testing.T) {
 	tests := map[string]struct {
-		flags       []flag
-		expectError bool
+		flags []flag
+		want  executorCall
 	}{
-		"with all-priority-classes flag set": {
-			flags:       []flag{{"all-priority-classes", "true"}},
-			expectError: false,
+		// Omitting priority-classes means all priority classes, which the
+		// executor API represents as an empty slice. An unnarrowed queue
+		// selection expands to every queue.
+		"without priority-classes": {
+			flags: nil,
+			want: executorCall{
+				executor:        "test-executor",
+				queues:          []string{"queue-a", "queue-b"},
+				priorityClasses: []string{},
+				pools:           []string{},
+			},
 		},
-		"without all-priority-classes and without priority-classes": {
-			flags:       nil,
-			expectError: true,
+		"with a single priority class": {
+			flags: []flag{{"priority-classes", "armada-default"}},
+			want: executorCall{
+				executor:        "test-executor",
+				queues:          []string{"queue-a", "queue-b"},
+				priorityClasses: []string{"armada-default"},
+				pools:           []string{},
+			},
 		},
-		"without all-priority-classes but with priority-classes": {
-			flags:       []flag{{"priority-classes", "armada-default"}},
-			expectError: false,
+		"with multiple priority classes": {
+			flags: []flag{{"priority-classes", "armada-default,armada-preemptible"}},
+			want: executorCall{
+				executor:        "test-executor",
+				queues:          []string{"queue-a", "queue-b"},
+				priorityClasses: []string{"armada-default", "armada-preemptible"},
+				pools:           []string{},
+			},
+		},
+		"with queues and pools": {
+			flags: []flag{{"queues", "queue-a"}, {"pools", "pool-1,pool-2"}},
+			want: executorCall{
+				executor:        "test-executor",
+				queues:          []string{"queue-a"},
+				priorityClasses: []string{},
+				pools:           []string{"pool-1", "pool-2"},
+			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			cmd := preemptExecutorCmd()
-			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-				all, err := cmd.Flags().GetBool("all-priority-classes")
-				if err != nil {
-					return err
+			a := armadactl.New()
+			cmd := preemptExecutorCmd(a)
+
+			var got []executorCall
+			withFakeAPIs(t, a, cmd, func() {
+				a.Params.QueueAPI.GetAll = func() ([]*api.Queue, error) { return testQueues(), nil }
+				a.Params.ExecutorAPI.PreemptOnExecutor = func(executor string, queues, priorityClasses, pools []string) error {
+					got = append(got, executorCall{executor, queues, priorityClasses, pools})
+					return nil
 				}
-				if !all {
-					if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
-						return err
-					}
-				}
-				return nil
-			}
-			cmd.RunE = func(cmd *cobra.Command, args []string) error {
-				return nil
-			}
+			})
+
 			cmd.SetArgs([]string{"test-executor"})
 			for _, f := range tc.flags {
 				require.NoError(t, cmd.Flags().Set(f.name, f.value))
 			}
-			err := cmd.Execute()
-			if tc.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+
+			require.NoError(t, cmd.Execute())
+			require.Equal(t, []executorCall{tc.want}, got)
 		})
 	}
 }
 
-func TestPreemptNodeAllPriorityClasses(t *testing.T) {
+func TestPreemptNode(t *testing.T) {
 	tests := map[string]struct {
-		flags       []flag
-		expectError bool
+		flags []flag
+		want  nodeCall
 	}{
-		"with all-priority-classes flag set": {
-			flags:       []flag{{"all-priority-classes", "true"}, {"executor", "test-exec"}},
-			expectError: false,
+		// Omitting priority-classes means all priority classes, which the node
+		// API represents as an empty slice.
+		"without priority-classes": {
+			flags: []flag{{"executor", "test-executor"}},
+			want: nodeCall{
+				node:            "test-node",
+				executor:        "test-executor",
+				queues:          []string{"queue-a", "queue-b"},
+				priorityClasses: []string{},
+			},
 		},
-		"without all-priority-classes and without priority-classes": {
-			flags:       []flag{{"executor", "test-exec"}},
-			expectError: true,
+		"with a single priority class": {
+			flags: []flag{{"executor", "test-executor"}, {"priority-classes", "armada-default"}},
+			want: nodeCall{
+				node:            "test-node",
+				executor:        "test-executor",
+				queues:          []string{"queue-a", "queue-b"},
+				priorityClasses: []string{"armada-default"},
+			},
 		},
-		"without all-priority-classes but with priority-classes": {
-			flags:       []flag{{"priority-classes", "armada-default"}, {"executor", "test-exec"}},
-			expectError: false,
+		"with multiple priority classes": {
+			flags: []flag{{"executor", "test-executor"}, {"priority-classes", "armada-default,armada-preemptible"}},
+			want: nodeCall{
+				node:            "test-node",
+				executor:        "test-executor",
+				queues:          []string{"queue-a", "queue-b"},
+				priorityClasses: []string{"armada-default", "armada-preemptible"},
+			},
+		},
+		"with queues": {
+			flags: []flag{{"executor", "test-executor"}, {"queues", "queue-a"}},
+			want: nodeCall{
+				node:            "test-node",
+				executor:        "test-executor",
+				queues:          []string{"queue-a"},
+				priorityClasses: []string{},
+			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			cmd := preemptNodeCmd()
-			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-				all, err := cmd.Flags().GetBool("all-priority-classes")
-				if err != nil {
-					return err
+			a := armadactl.New()
+			cmd := preemptNodeCmd(a)
+
+			var got []nodeCall
+			withFakeAPIs(t, a, cmd, func() {
+				a.Params.QueueAPI.GetAll = func() ([]*api.Queue, error) { return testQueues(), nil }
+				a.Params.NodeAPI.PreemptOnNode = func(node, executor string, queues, priorityClasses []string) error {
+					got = append(got, nodeCall{node, executor, queues, priorityClasses})
+					return nil
 				}
-				if !all {
-					if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
-						return err
-					}
-				}
-				if err := cmd.MarkFlagRequired("executor"); err != nil {
-					return err
-				}
-				return nil
-			}
-			cmd.RunE = func(cmd *cobra.Command, args []string) error {
-				return nil
-			}
+			})
+
 			cmd.SetArgs([]string{"test-node"})
 			for _, f := range tc.flags {
 				require.NoError(t, cmd.Flags().Set(f.name, f.value))
 			}
-			err := cmd.Execute()
-			if tc.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+
+			require.NoError(t, cmd.Execute())
+			require.Equal(t, []nodeCall{tc.want}, got)
 		})
 	}
 }
 
-func TestPreemptQueuesAllPriorityClasses(t *testing.T) {
+func TestPreemptQueues(t *testing.T) {
 	tests := map[string]struct {
-		flags       []flag
-		expectError bool
+		args  []string
+		flags []flag
+		want  []queueCall
 	}{
-		"with all-priority-classes flag set": {
-			flags:       []flag{{"all-priority-classes", "true"}},
-			expectError: false,
+		// Omitting priority-classes means all priority classes, which the
+		// queue API represents as an empty slice.
+		"without priority-classes": {
+			args:  []string{"queue-a"},
+			flags: nil,
+			want: []queueCall{
+				{queue: "queue-a", priorityClasses: []string{}, pools: []string{}},
+			},
 		},
-		"without all-priority-classes and without priority-classes": {
-			flags:       nil,
-			expectError: true,
+		"with a single priority class": {
+			args:  []string{"queue-a"},
+			flags: []flag{{"priority-classes", "armada-default"}},
+			want: []queueCall{
+				{queue: "queue-a", priorityClasses: []string{"armada-default"}, pools: []string{}},
+			},
 		},
-		"without all-priority-classes but with priority-classes": {
-			flags:       []flag{{"priority-classes", "armada-default"}},
-			expectError: false,
+		"with multiple priority classes": {
+			args:  []string{"queue-a"},
+			flags: []flag{{"priority-classes", "armada-default,armada-preemptible"}},
+			want: []queueCall{
+				{queue: "queue-a", priorityClasses: []string{"armada-default", "armada-preemptible"}, pools: []string{}},
+			},
+		},
+		"with pools": {
+			args:  []string{"queue-a"},
+			flags: []flag{{"pools", "pool-1"}},
+			want: []queueCall{
+				{queue: "queue-a", priorityClasses: []string{}, pools: []string{"pool-1"}},
+			},
+		},
+		"preempts each selected queue": {
+			args:  []string{"queue-a", "queue-b"},
+			flags: nil,
+			want: []queueCall{
+				{queue: "queue-a", priorityClasses: []string{}, pools: []string{}},
+				{queue: "queue-b", priorityClasses: []string{}, pools: []string{}},
+			},
+		},
+		// dry-run reports what would happen without calling the API.
+		"dry-run calls nothing": {
+			args:  []string{"queue-a"},
+			flags: []flag{{"dry-run", "true"}},
+			want:  nil,
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			cmd := preemptQueuesCmd()
-			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-				all, err := cmd.Flags().GetBool("all-priority-classes")
-				if err != nil {
-					return err
+			a := armadactl.New()
+			cmd := preemptQueuesCmd(a)
+
+			var got []queueCall
+			withFakeAPIs(t, a, cmd, func() {
+				a.Params.QueueAPI.GetAll = func() ([]*api.Queue, error) { return testQueues(), nil }
+				a.Params.QueueAPI.Preempt = func(queue string, priorityClasses, pools []string) error {
+					got = append(got, queueCall{queue: queue, priorityClasses: priorityClasses, pools: pools})
+					return nil
 				}
-				if !all {
-					if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
-						return err
-					}
-				}
-				return nil
-			}
-			cmd.RunE = func(cmd *cobra.Command, args []string) error {
-				return nil
-			}
-			cmd.SetArgs([]string{"test-queue"})
+			})
+
+			cmd.SetArgs(tc.args)
 			for _, f := range tc.flags {
 				require.NoError(t, cmd.Flags().Set(f.name, f.value))
 			}
-			err := cmd.Execute()
-			if tc.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+
+			require.NoError(t, cmd.Execute())
+			require.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func TestPreemptQueuesRequiresQueueSelection(t *testing.T) {
+	a := armadactl.New()
+	cmd := preemptQueuesCmd(a)
+
+	called := false
+	withFakeAPIs(t, a, cmd, func() {
+		a.Params.QueueAPI.GetAll = func() ([]*api.Queue, error) { return testQueues(), nil }
+		a.Params.QueueAPI.Preempt = func(queue string, priorityClasses, pools []string) error {
+			called = true
+			return nil
+		}
+	})
+
+	// Must be non-nil: cobra falls back to os.Args[1:] when args are nil.
+	cmd.SetArgs([]string{})
+	cmd.SilenceUsage = true
+
+	require.Error(t, cmd.Execute())
+	require.False(t, called, "no queue should be preempted without a selection")
 }

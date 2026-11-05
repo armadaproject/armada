@@ -21,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/pkg/client/executor"
 	"github.com/armadaproject/armada/pkg/client/node"
 	"github.com/armadaproject/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/pkg/client/retrypolicy"
 )
 
 type App struct {
@@ -40,9 +41,12 @@ type App struct {
 // statically in a config file that's reused between command runs.
 type Params struct {
 	ApiConnectionDetails *client.ApiConnectionDetails
-	QueueAPI             *QueueAPI
-	ExecutorAPI          *ExecutorAPI
-	NodeAPI              *NodeAPI
+	// Output selects the output format. The zero value is the default human-oriented text.
+	Output         OutputFormat
+	QueueAPI       *QueueAPI
+	RetryPolicyAPI *RetryPolicyAPI
+	ExecutorAPI    *ExecutorAPI
+	NodeAPI        *NodeAPI
 }
 
 // QueueAPI struct holds pointers to functions that are called by armadactl.
@@ -67,6 +71,15 @@ type ExecutorAPI struct {
 	Uncordon          executor.UncordonAPI
 	CancelOnExecutor  executor.CancelAPI
 	PreemptOnExecutor executor.PreemptAPI
+	Delete            executor.DeleteAPI
+}
+
+type RetryPolicyAPI struct {
+	Create retrypolicy.CreateAPI
+	Delete retrypolicy.DeleteAPI
+	Get    retrypolicy.GetAPI
+	GetAll retrypolicy.GetAllAPI
+	Update retrypolicy.UpdateAPI
 }
 
 type NodeAPI struct {
@@ -79,9 +92,10 @@ type NodeAPI struct {
 func New() *App {
 	return &App{
 		Params: &Params{
-			QueueAPI:    &QueueAPI{},
-			ExecutorAPI: &ExecutorAPI{},
-			NodeAPI:     &NodeAPI{},
+			QueueAPI:       &QueueAPI{},
+			RetryPolicyAPI: &RetryPolicyAPI{},
+			ExecutorAPI:    &ExecutorAPI{},
+			NodeAPI:        &NodeAPI{},
 		},
 		Out:    os.Stdout,
 		Random: rand.Reader,

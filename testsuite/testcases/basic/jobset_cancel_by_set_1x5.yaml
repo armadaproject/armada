@@ -1,0 +1,34 @@
+## POST/v1/jobset/cancel
+## Submit a jobset, cancel it, verify all jobs receive cancelled 
+
+numBatches: 1
+batchSize: 5
+queue: e2e-test-queue
+jobSetId: jobset_cancel_by_filter
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: jobset-cancel
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          args: 
+            - "sleep"
+            - "600s"
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+cancelJobSet:
+  request:
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - cancelled:

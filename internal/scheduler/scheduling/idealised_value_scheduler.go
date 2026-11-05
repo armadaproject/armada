@@ -93,7 +93,8 @@ func (sch *IdealisedValueScheduler) Schedule(ctx *armadacontext.Context) (*Sched
 		sch.nodeDb,
 		jobIteratorsByQueue,
 		false,
-		true,
+		false,
+		false,
 		false,
 		sch.schedulingConfig.MaxQueueLookback,
 		true,
@@ -131,8 +132,6 @@ func createNodeDb(schedulingConfig configuration.SchedulingConfig, rlf *internal
 func createMegaNode(pool string, nodes []*internaltypes.Node, schedulingConfig configuration.SchedulingConfig, rlf *internaltypes.ResourceListFactory) *internaltypes.Node {
 	totalResources := rlf.MakeAllZero()
 	allocatableResources := rlf.MakeAllZero()
-	priorityClasses := make(map[int32]bool)
-	allocatableByPriority := make(map[int32]internaltypes.ResourceList)
 
 	nf := internaltypes.NewNodeFactory(
 		schedulingConfig.IndexedTaints,
@@ -145,14 +144,7 @@ func createMegaNode(pool string, nodes []*internaltypes.Node, schedulingConfig c
 		if !node.IsUnschedulable() {
 			totalResources = totalResources.Add(node.GetTotalResources())
 			allocatableResources = allocatableResources.Add(node.GetAllocatableResources())
-			for priority := range node.AllocatableByPriority {
-				priorityClasses[priority] = true
-			}
 		}
-	}
-
-	for priority := range priorityClasses {
-		allocatableByPriority[priority] = allocatableResources
 	}
 
 	node := nf.CreateNodeAndType(
@@ -163,10 +155,11 @@ func createMegaNode(pool string, nodes []*internaltypes.Node, schedulingConfig c
 		"mega-node",
 		false,
 		[]v1.Taint{},
+		[]internaltypes.NodeTaint{},
+		false,
 		map[string]string{gangUniformityLabel: gangUniformityValue},
 		totalResources,
-		allocatableResources,
-		allocatableByPriority)
+		allocatableResources)
 	return node
 }
 

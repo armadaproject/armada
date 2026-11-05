@@ -50,7 +50,7 @@ func (n *MinPriceNodeScheduler) Schedule(jctx *context.JobSchedulingContext, nod
 		}, nil
 	}
 
-	availableResource := node.AllocatableByPriority[internaltypes.EvictedPriority]
+	availableResource := node.AllocatableAtPriority(internaltypes.EvictedPriority)
 	if !jctx.Job.KubernetesResourceRequirements().Exceeds(availableResource) {
 		return &NodeSchedulingResult{
 			jctx:      jctx,
@@ -105,7 +105,7 @@ func (n *MinPriceNodeScheduler) getJobDetails(
 ) ([]*jobDetails, error) {
 	details := []*jobDetails{}
 	start := time.Now()
-	for jobId, jobResource := range node.AllocatedByJobId {
+	for jobId, jobResource := range node.AllocatedByJob() {
 		if excludedJobIds.Has(jobId) {
 			continue
 		}

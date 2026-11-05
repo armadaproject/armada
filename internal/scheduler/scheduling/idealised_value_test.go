@@ -192,7 +192,7 @@ func TestCalculateIdealisedValue(t *testing.T) {
 						},
 					})
 					allJobs = append(allJobs, job)
-					tc.nodes[0].AllocatedByJobId[job.Id()] = job.KubernetesResourceRequirements()
+					require.NoError(t, tc.nodes[0].AddJob(job, job.PriorityClass().Priority))
 				}
 			}
 

@@ -9,6 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -29,6 +30,7 @@ type jobStateMetrics struct {
 	jobErrorsByQueue                          *prometheus.CounterVec
 	jobErrorsByNode                           *prometheus.CounterVec
 	jobResourceSecondsLostToPreemptionByQueue *prometheus.CounterVec
+	retryPolicyDecisionsByQueue               *prometheus.CounterVec
 	allMetrics                                []resettableMetric
 }
 
@@ -106,7 +108,14 @@ func newJobStateMetrics(
 			Name: ArmadaSchedulerMetricsPrefix + "job_resource_seconds_lost_to_preemption",
 			Help: "Resource seconds lost to preemption",
 		},
-		[]string{queueLabel, poolLabel, checkpointLabel, resourceLabel},
+		[]string{queueLabel, poolLabel, checkpointLabel, resourceLabel, typeLabel},
+	)
+	retryPolicyDecisionsByQueue := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: ArmadaSchedulerMetricsPrefix + "retry_policy_decisions_total",
+			Help: "Retry policy engine decisions at the queue level",
+		},
+		[]string{queueLabel, poolLabel, retryPolicyLabel, retryDecisionLabel},
 	)
 	return &jobStateMetrics{
 		trackedResourceNames:                      trackedResourceNames,
@@ -124,6 +133,7 @@ func newJobStateMetrics(
 		jobErrorsByQueue:                          jobErrorsByQueue,
 		jobErrorsByNode:                           jobErrorsByNode,
 		jobResourceSecondsLostToPreemptionByQueue: jobResourceSecondsLostToPreemptionByQueue,
+		retryPolicyDecisionsByQueue:               retryPolicyDecisionsByQueue,
 		allMetrics: []resettableMetric{
 			completedRunDurations,
 			jobStateCounterByQueue,
@@ -135,6 +145,7 @@ func newJobStateMetrics(
 			jobErrorsByQueue,
 			jobErrorsByNode,
 			jobResourceSecondsLostToPreemptionByQueue,
+			retryPolicyDecisionsByQueue,
 		},
 	}
 }
@@ -159,28 +170,36 @@ func (m *jobStateMetrics) collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-// ReportJobLeased reports the job as being leased. This has to be reported separately because the state transition
-// logic does work for job leased!
-func (m *jobStateMetrics) ReportJobLeased(job *jobdb.Job) {
+// ReportJobLeasedStateTransition reports the job as being leased. This has to be reported separately because the state transition
+// logic does not work for job leased!
+func (m *jobStateMetrics) ReportJobLeasedStateTransition(job *jobdb.Job) {
 	run := job.LatestRun()
 	duration, priorState := stateDuration(job, run, run.LeaseTime())
 	m.updateStateDuration(job, leased, priorState, duration)
 }
 
-// ReportJobPreempted reports the job as being preempted. This has to be reported separately because the state transition
-// logic does work for job preempted!
-func (m *jobStateMetrics) ReportJobPreempted(job *jobdb.Job) {
+// ReportJobPreemptedStateTransition reports the job as being preempted. This has to be reported separately because the state transition
+// logic does not work for job preempted!
+func (m *jobStateMetrics) ReportJobPreemptedStateTransition(job *jobdb.Job, preemptionType context.PreemptionType) {
 	run := job.LatestRun()
 	duration, priorState := stateDuration(job, run, run.PreemptedTime())
 	m.updateStateDuration(job, preempted, priorState, duration)
-	m.recordPreemptedSecondsLost(job, duration, noCheckpointLabelValue)
+	m.recordPreemptedSecondsLost(job, duration, preemptionType, noCheckpointLabelValue)
 	for _, checkpointDuration := range m.jobCheckpointIntervals {
 		timeSinceCheckpoint := math.Min(duration, checkpointDuration.Seconds())
-		m.recordPreemptedSecondsLost(job, timeSinceCheckpoint, durationToShortString(checkpointDuration))
+		m.recordPreemptedSecondsLost(job, timeSinceCheckpoint, preemptionType, durationToShortString(checkpointDuration))
 	}
 }
 
-func (m *jobStateMetrics) recordPreemptedSecondsLost(job *jobdb.Job, duration float64, checkpointLabel string) {
+// ReportRetryPolicyDecision records the final outcome of a retry engine
+// decision. The scheduler reports after the mutation gates, so a granted retry
+// it abandoned counts as what actually happened, not as a retry.
+func (m *jobStateMetrics) ReportRetryPolicyDecision(job *jobdb.Job, policyName string, decision string) {
+	run := job.LatestRun()
+	m.retryPolicyDecisionsByQueue.WithLabelValues(job.Queue(), run.Pool(), policyName, decision).Inc()
+}
+
+func (m *jobStateMetrics) recordPreemptedSecondsLost(job *jobdb.Job, duration float64, preemptionType context.PreemptionType, checkpointLabel string) {
 	run := job.LatestRun()
 	requests := job.AllResourceRequirements()
 
@@ -188,7 +207,7 @@ func (m *jobStateMetrics) recordPreemptedSecondsLost(job *jobdb.Job, duration fl
 		resQty := requests.GetByNameZeroIfMissing(string(res))
 		resSeconds := duration * float64(resQty.MilliValue()) / 1000
 		m.jobResourceSecondsLostToPreemptionByQueue.
-			WithLabelValues(job.Queue(), run.Pool(), checkpointLabel, res.String()).Add(resSeconds)
+			WithLabelValues(job.Queue(), run.Pool(), checkpointLabel, res.String(), string(preemptionType)).Add(resSeconds)
 	}
 }
 

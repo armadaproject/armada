@@ -1,0 +1,34 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-retry-queue
+jobs:
+  - priority: 0
+    namespace: default
+    annotations:
+      # The policy retries the user_error category. This annotation opts the
+      # job out, so exit 1 fails the job at the first attempt.
+      armadaproject.io/failFast: "true"
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: fail-fast
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          command: ["sh", "-c", "exit 1"]
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+timeout: "300s"
+expectedEvents:
+  - submitted:
+  - queued:
+  - leased:
+  - pending:
+  - failed:
+      failureCategory: "user_error"

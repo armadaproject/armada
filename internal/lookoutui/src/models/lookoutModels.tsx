@@ -147,6 +147,8 @@ export type Job = {
   lastTransitionTime: string
   cancelReason?: string
   cancelUser?: string
+  preemptUser?: string
+  reprioritizeUser?: string
   node?: string
   cluster?: string
   pool?: string
@@ -161,6 +163,7 @@ export type JobRun = {
   jobId: string
   cluster: string
   node?: string
+  podName?: string
   leased?: string
   pending?: string
   started?: string

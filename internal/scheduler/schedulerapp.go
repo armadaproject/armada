@@ -43,6 +43,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/publisher"
 	"github.com/armadaproject/armada/internal/scheduler/queue"
 	"github.com/armadaproject/armada/internal/scheduler/reports"
+	"github.com/armadaproject/armada/internal/scheduler/retry"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/runner"
 	"github.com/armadaproject/armada/pkg/api"
@@ -148,6 +149,23 @@ func Run(config schedulerconfig.Configuration) error {
 		ctx.Errorf("error initialising queue cache - %v", err)
 	}
 	services = append(services, func() error { return queueCache.Run(ctx) })
+
+	// ////////////////////////////////////////////////////////////////////////
+	// Retry Policy Cache
+	// ////////////////////////////////////////////////////////////////////////
+	// We always wire the policy cache, but only run the refresher when the
+	// retry policy feature is enabled. With the flag off the scheduler
+	// receives a NoopPolicyCache so the failure path skips engine evaluation
+	// entirely.
+	var retryPolicyCache retry.PolicyCache = retry.NoopPolicyCache{}
+	if config.Scheduling.RetryPolicy.Enabled {
+		retryPolicyClient := api.NewRetryPolicyServiceClient(conn)
+		// Reuse the queue refresh cadence; both caches answer scheduler
+		// failure-handling questions and stale data has the same impact.
+		apiCache := retry.NewApiPolicyCache(retryPolicyClient, config.QueueRefreshPeriod)
+		services = append(services, func() error { return apiCache.Run(ctx) })
+		retryPolicyCache = apiCache
+	}
 
 	// ////////////////////////////////////////////////////////////////////////
 	// Priority override
@@ -391,6 +409,10 @@ func Run(config schedulerconfig.Configuration) error {
 		resourceListFactory,
 	)
 	jobDb.SetRespectNodePodLimits(config.Scheduling.RespectNodePodLimits)
+	// The aggregate is static-gated: both flags are command-line flags requiring
+	// a restart, so when neither Compare nor Use is set the JobDb skips all
+	// aggregate maintenance (no per-job add/remove cost on Upsert/BatchDelete).
+	jobDb.SetAggregateEnabled(config.Scheduling.ExperimentalAggregateDemand.Compare || config.Scheduling.ExperimentalAggregateDemand.Use)
 
 	err = populateInitialBidPrices(ctx, bidPriceProvider, jobDb)
 	if err != nil {
@@ -434,6 +456,8 @@ func Run(config schedulerconfig.Configuration) error {
 		bidPriceProvider,
 		marketDrivenPools,
 		queueCache,
+		config.Scheduling.RetryPolicy,
+		retryPolicyCache,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")

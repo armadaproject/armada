@@ -35,18 +35,29 @@ heavyweight:
 `.trim()
 
 const NUM_LOG_LINES = 4
+const TOTAL_FAKE_LOG_LINES = 40
 
 export const createFakeLogs = (
   cluster: string,
   namespace: string,
-  jobId: string,
+  podName: string,
   container: string,
   sinceTime: string,
-): BinocularsLogLine[] =>
-  [...Array(NUM_LOG_LINES)].map((_, i) => ({
-    timestamp: new Date(Date.parse(sinceTime || twoMinutesAgo.toISOString()) + i * 100).toISOString(),
-    line: `${jobId} - ${container} - ${namespace} - ${cluster}`,
+): BinocularsLogLine[] => {
+  const startTime = twoMinutesAgo.getTime()
+  const linesAlreadyReturned = sinceTime ? Math.round((Date.parse(sinceTime) - startTime) / 100) + 1 : 0
+
+  if (linesAlreadyReturned >= TOTAL_FAKE_LOG_LINES) {
+    return []
+  }
+
+  const numLines = Math.min(NUM_LOG_LINES, TOTAL_FAKE_LOG_LINES - linesAlreadyReturned)
+
+  return [...Array(numLines)].map((_, i) => ({
+    timestamp: new Date(startTime + (linesAlreadyReturned + i) * 100).toISOString(),
+    line: `${podName} - ${container} - ${namespace} - ${cluster}`,
   }))
+}
 
 export const fakeRunError =
   /* eslint-disable @cspell/spellchecker */

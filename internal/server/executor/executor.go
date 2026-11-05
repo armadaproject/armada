@@ -128,6 +128,7 @@ func (s *Server) PreemptOnExecutor(grpcCtx context.Context, req *api.ExecutorPre
 				Queues:          req.Queues,
 				PriorityClasses: req.PriorityClasses,
 				Pools:           req.Pools,
+				Requestor:       auth.GetPrincipal(ctx).GetName(),
 			},
 		},
 	}
@@ -162,6 +163,47 @@ func (s *Server) CancelOnExecutor(grpcCtx context.Context, req *api.ExecutorCanc
 				Queues:          req.Queues,
 				PriorityClasses: req.PriorityClasses,
 				Pools:           req.Pools,
+				Requestor:       auth.GetPrincipal(ctx).GetName(),
+			},
+		},
+	}
+
+	err = s.publisher.PublishMessages(ctx, es)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Failed to send events to Pulsar")
+	}
+
+	return &types.Empty{}, nil
+}
+
+func (s *Server) DeleteExecutor(grpcCtx context.Context, req *api.ExecutorDeleteRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+	err := s.authorizer.AuthorizeAction(ctx, permissions.UpdateExecutorSettings)
+	var ep *armadaerrors.ErrUnauthorized
+	if errors.As(err, &ep) {
+		return nil, status.Errorf(codes.PermissionDenied, "error deleting executor %s: %s", req.Name, ep)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+	}
+
+	if req.Name == "" {
+		return nil, fmt.Errorf("must provide non-empty executor name when deleting executor")
+	}
+
+	principal := auth.GetPrincipal(ctx)
+	requestor := principal.GetName()
+
+	ctx.Logger().WithFields(map[string]any{
+		"executor":   req.Name,
+		"authMethod": principal.GetAuthMethod(),
+	}).Info("ExecutorDelete request received")
+
+	es := &controlplaneevents.Event{
+		Created: protoutil.ToTimestamp(s.clock.Now().UTC()),
+		Event: &controlplaneevents.Event_ExecutorDelete{
+			ExecutorDelete: &controlplaneevents.ExecutorDelete{
+				Name:      req.Name,
+				Requestor: requestor,
 			},
 		},
 	}

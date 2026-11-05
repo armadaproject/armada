@@ -1,0 +1,15 @@
+{
+  "title": "Docs",
+  "pages": [
+    "core-concepts",
+    "submitting-jobs",
+    "developer-guide",
+    "architecture",
+    "cli",
+    "clients",
+    "integrations",
+    "user-guide",
+    "api",
+    "..."
+  ]
+}

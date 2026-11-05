@@ -22,6 +22,14 @@ var (
 	postgresImage = "postgres:14.2"
 )
 
+// testPackageParallelism caps how many packages go test runs at once. Many
+// tests spin up a fresh Postgres database and apply the full migration chain,
+// so running every package in parallel overwhelms the shared test postgres and
+// causes context deadline exceeded flakes. 1 runs the whole suite serially,
+// which is slow but reliable even on loaded dev machines; raise it on a lighter
+// machine to trade some reliability for speed. See Tests.
+const testPackageParallelism = "1"
+
 func makeLocalBin() error {
 	if _, err := os.Stat(LocalBin); os.IsNotExist(err) {
 		err = os.MkdirAll(LocalBin, os.ModePerm)
@@ -97,7 +105,11 @@ func Tests() error {
 		"--junitfile", "test-reports/unit-tests.xml",
 		"--jsonfile", "test-reports/unit-tests.json",
 		"--no-color=false",
-		"--", "-coverprofile=test-reports/coverage.out",
+		// Cap concurrent package execution so the many Postgres-backed tests
+		// (each spins up a fresh database and runs the full migration chain)
+		// don't overwhelm the shared test postgres container and blow their
+		// context timeouts.
+		"--", "-p", testPackageParallelism, "-coverprofile=test-reports/coverage.out",
 		"-covermode=atomic", "./cmd/...",
 		"./pkg/...",
 	}
@@ -125,7 +137,7 @@ func Tests() error {
 }
 
 func runTest(name, outputFileName string) error {
-	cmd := exec.Command(Gotestsum, "--", "-v", name, "-count=1")
+	cmd := exec.Command(Gotestsum, "--", "-v", name, "-count=1", "-p", testPackageParallelism)
 	file, err := os.Create(filepath.Join("test_reports", outputFileName))
 	if err != nil {
 		return err

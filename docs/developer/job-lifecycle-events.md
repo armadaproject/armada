@@ -1,29 +1,62 @@
 # Job lifecycle: states, transitions, and events
 
 - [Job lifecycle: states, transitions, and events](#job-lifecycle-states-transitions-and-events)
-  - [Topology](#topology)
-  - [Components](#components)
-  - [Transport and edge cases](#transport-and-edge-cases)
-  - [State machines](#state-machines)
+  - [Terms](#terms)
+  - [Architecture](#architecture)
+    - [Components](#components)
+    - [Executor API](#executor-api)
+  - [The normal path: from submission to success](#the-normal-path-from-submission-to-success)
+  - [States](#states)
     - [Job state](#job-state)
     - [Run state](#run-state)
-  - [Event vocabulary](#event-vocabulary)
-  - [Job succeeded](#job-succeeded)
+    - [Run state in the executor](#run-state-in-the-executor)
+  - [Event reference](#event-reference)
+    - [Request events](#request-events)
+    - [Run-level events](#run-level-events)
+    - [Job-level events](#job-level-events)
+    - [Error values](#error-values)
+    - [Events that watchers receive](#events-that-watchers-receive)
   - [Job failed](#job-failed)
-    - [Path A: pod reaches terminal phase](#path-a-pod-reaches-terminal-phase)
-    - [Path B: executor's issue handler detects a problem first](#path-b-executors-issue-handler-detects-a-problem-first)
+    - [The pod fails](#the-pod-fails)
+    - [The issue handler finds a problem](#the-issue-handler-finds-a-problem)
+    - [Other failure sources](#other-failure-sources)
+  - [Retry and requeue](#retry-and-requeue)
+  - [Lease expiry](#lease-expiry)
   - [Job preempted](#job-preempted)
-    - [Scheduler-initiated preemption](#scheduler-initiated-preemption)
-    - [Run reconciliation and the executor/scheduler double emission](#run-reconciliation-and-the-executorscheduler-double-emission)
+    - [Preemption by the scheduler](#preemption-by-the-scheduler)
+    - [Preemption on request](#preemption-on-request)
+    - [Run reconciliation](#run-reconciliation)
   - [Job cancelled](#job-cancelled)
+    - [Job-set and control-plane cancellation](#job-set-and-control-plane-cancellation)
+  - [Job reprioritised](#job-reprioritised)
+  - [Job rejected](#job-rejected)
+  - [Delivery, retries, and duplicates](#delivery-retries-and-duplicates)
+    - [Executor reports](#executor-reports)
+    - [Pulsar redelivery](#pulsar-redelivery)
+    - [Events that the scheduler generates again](#events-that-the-scheduler-generates-again)
+  - [Pod deletion and debug events](#pod-deletion-and-debug-events)
 
-Armada's job and run lifecycle is event-driven. This doc covers the architecture, the state machines, the events that drive transitions, and the four terminal flows: succeeded, failed, preempted, cancelled.
+This document describes how a job moves through Armada. It shows the states of a job and of a run, the events that change them, and the flows that start, end, or requeue a job. Use it to find which component emits an event, what the event carries, and what Lookout and API watchers see.
 
-For higher-level context on scheduling and preemption mechanics, see [scheduling_and_preempting_jobs.md](../scheduling_and_preempting_jobs.md).
+For scheduling and preemption decisions, see [scheduling_and_preempting_jobs.md](../scheduling_and_preempting_jobs.md). For retry policies, see [retry_policies.md](../retry_policies.md).
 
-## Topology
+## Terms
 
-Armada is a multi-cluster system. The control plane runs once, centrally. Each worker Kubernetes cluster runs its own executor process.
+| Term          | Meaning                                                                                                     |
+| ------------- | ----------------------------------------------------------------------------------------------------------- |
+| job           | The unit of work that a user submits. It has one pod spec.                                                  |
+| job set       | A group of jobs that a user submits together and can watch, cancel, or reprioritise together.               |
+| run           | One attempt to run the pod of a job on an executor. A job has a maximum of one active run at a time.        |
+| lease         | The assignment of a run to an executor and a node.                                                          |
+| executor      | The Armada component in a worker Kubernetes cluster. It creates and watches the pods.                       |
+| event         | A protobuf message in the `armadaevents` package. The components publish events to Pulsar.                  |
+| watcher       | A client of the event-stream API (`GetJobSetEvents` or `Watch`), for example `armadactl watch`.             |
+| Lookout       | The Armada web UI and its database. It shows the state of each job and each run.                            |
+| cycle         | One pass of the scheduler loop. A cycle reads the database, generates events, and can run a scheduling round. |
+
+## Architecture
+
+Armada runs one control plane and one executor in each worker Kubernetes cluster.
 
 ```mermaid
 flowchart LR
@@ -31,8 +64,23 @@ flowchart LR
         direction TB
         S[Server]
         Sc[Scheduler]
-        I[Ingesters]
-        P[(Pulsar<br/>internal)]
+        P[(Pulsar)]
+        SI[Scheduler ingester]
+        LI[Lookout ingester]
+        EI[Event ingester]
+        SD[(Scheduler<br/>Postgres)]
+        LD[(Lookout<br/>Postgres)]
+        R[(Redis)]
+        S --> P
+        Sc --> P
+        P --> SI
+        P --> LI
+        P --> EI
+        SI --> SD
+        SD <--> Sc
+        LI --> LD
+        EI --> R
+        R --> S
     end
     subgraph Workers["Worker clusters"]
         direction TB
@@ -45,380 +93,616 @@ flowchart LR
     Sc <-->|gRPC| E3
 ```
 
-Pulsar is the control plane's internal event bus. Server and scheduler publish to Pulsar. The ingesters consume from it. Executors do not interact with Pulsar directly.
+All state changes go through Pulsar. The server and the scheduler publish events, and three ingesters consume them. The scheduler reads its state from the scheduler database. It also writes executor heartbeats to that database.
 
-Executors reach the control plane through one gRPC service, `ExecutorApi`, served by the scheduler:
+### Components
 
-- **`LeaseJobRuns`**: a bidirectional stream initiated by the executor. The executor sends `LeaseRequest` messages with its current state and capacity. The scheduler sends back `LeaseStreamMessage` values containing new leases, cancel-runs instructions, preempt-runs instructions, or end markers.
-- **`ReportEvents`**: a unary call. The executor sends batches of run-level event sequences to the scheduler. The scheduler's handler authorises the caller and republishes the events to Pulsar.
+- **Server.** Accepts submissions and requests through its gRPC API. It validates each request and publishes the related events. It also serves the event-stream API from Redis.
+- **Scheduler.** Makes the scheduling decisions and publishes them as events. Only the leader instance makes decisions. It keeps an in-memory copy of the jobs (`jobdb`) and updates it from the scheduler database on each cycle.
+- **Scheduler ingester.** Writes events to the scheduler database. This database is the source of truth for the scheduler.
+- **Lookout ingester.** Writes events to the Lookout database.
+- **Event ingester.** Writes events to Redis for watchers. It removes the events and fields that watchers do not use. See [Events that watchers receive](#events-that-watchers-receive).
+- **Executor.** Creates pods from leases and reports what happens to them. The state reporter reports pod phases. The issue handler reports pods that fail to start, stay stuck, or disappear.
 
-This matters for the preempt flow below: a single logical action can trigger two separate Pulsar publications, one from the scheduler directly and one relayed from the executor via `ReportEvents`. The two paths converge at Pulsar but have no guaranteed ordering relative to each other. The typical-case ordering is driven by the gRPC round trip.
+### Executor API
 
-## Components
+Executors connect to the scheduler through the `ExecutorApi` gRPC service:
 
-A run is one attempt to actually start the pod. A job has at most one active run at a time.
+- **`LeaseJobRuns`** is a bidirectional stream. The executor sends one `LeaseRequest` with its nodes, its capacity, and its runs. The scheduler sends the runs to cancel, the new leases, and an end marker, and then closes the stream. The executor opens a new stream on its next lease cycle.
+- **`ReportEvents`** is a unary call. The executor sends batches of run-level events. The scheduler authorises the call and publishes the events to Pulsar.
 
-Control-plane components:
+Each `LeaseRequest` is also a heartbeat. The scheduler stores the time of the last heartbeat of each executor, and uses it to find [expired leases](#lease-expiry).
 
-- **Server.** Accepts job submissions and cancel requests over its gRPC API. Validates them and publishes the resulting events to Pulsar.
-- **Scheduler.** Owns scheduling decisions. Maintains an in-memory `jobdb`, reconciled from the scheduler Postgres database on each cycle. Emits its own run-level decision events (`JobRunLeased`, `JobRunPreempted`, `JobRunCancelled`, decision-time `JobRunErrors`) and all job-level events to Pulsar.
-- **Scheduler ingester.** Consumes events from Pulsar and writes to the scheduler Postgres database. The database is canonical. `jobdb` is a cached view of it.
-- **Lookout ingester.** Consumes the same events independently and writes to the Lookout Postgres database, which drives the Lookout UI.
-- **Event ingester.** Consumes events into Redis to back the external event-stream API.
+## The normal path: from submission to success
 
-Worker-cluster components:
-
-- **Executor.** One per worker cluster, running inside that cluster. Holds an open `LeaseJobRuns` stream and uses `ReportEvents` to send run events back. Creates and watches pods via the local Kubernetes API. Produces `JobRunAssigned`, `JobRunRunning`, `JobRunSucceeded`, and `JobRunErrors` from observed pod state, plus `JobRunErrors` from its issue handler when a pod fails or disappears. It also has a preempt processor that would emit `JobRunPreempted`, but the scheduler never triggers it (see [Job preempted](#job-preempted)).
-
-Before deleting a pod it owns (cancel or detected issue), the executor writes the `deletion_requested` annotation (`domain.MarkedForDeletion`). The state reporter's informer path then skips terminal-phase reporting for annotated pods, preventing a duplicate terminal event for pods the executor is itself killing.
-
-## Transport and edge cases
-
-A few transport-level behaviours affect how the flows below behave under failure.
-
-**Executor event reporting is buffered, batched, and not retried at the reporter level.** The job-event reporter buffers events in a 1M-slot channel, drains every two seconds or when the batch fills, and sends each batch through one `ReportEvents` call. On failure, per-event callbacks see the error but the reporter itself does not retry. Retries happen one layer up. The state reporter's reconciliation pass re-emits terminal-phase events for pods whose current phase has not been marked reported. The issue handler retries via its in-process `Reported` marker, which is lost on executor restart. It sets the marker only after a successful `Report`, so a failed call is retried on the next handler tick. The preempt processor uses a `JobPreemptedAnnotation` pod annotation for the same purpose, but it is dead code in current deployments (see [Job preempted](#job-preempted)).
-
-**Lease expiry is detected by the scheduler from executor heartbeat staleness.** Executors send `LeaseRequest` messages over the `LeaseJobRuns` stream as their heartbeat. The scheduler tracks the last time it heard from each executor. When an executor goes stale (no heartbeat within the scheduler's `executorTimeout`), the next scheduling cycle iterates jobs whose latest run belongs to that executor and emits `JobRunErrors` with a `LeaseExpired` reason for each one. The scheduler cannot distinguish "executor went away" from "stream momentarily lost". It acts on the heartbeat absence either way.
-
-**Pulsar redelivery is effectively idempotent at the ingesters' terminal-state writes.** `MarkRunsSucceeded`, `MarkRunsFailed`, and `MarkRunsPreempted` write timestamps taken from each event's `Created` field. A redelivered event carries the same `Created` value as the original, so a duplicate write produces the same column value. The `job_run_errors` table is upserted on `run_id`, so a redelivered `JobRunErrors` overwrites with identical bytes. `JobRunCancelled` is not written to the runs table at all by the scheduler ingester (it is in the explicit ignore list). Job-level cancellation is tracked separately via `CancelledJob` and `MarkJobsCancelled`. The exception to this idempotence is the reconciliation double emission described in [Run reconciliation and the executor/scheduler double emission](#run-reconciliation-and-the-executorscheduler-double-emission), where a separate producer writes a different event with different content, not a redelivery.
-
-## State machines
-
-Armada surfaces state at two levels: per job and per run. The public-facing vocabulary lives in Lookout's enums, defined in `internal/common/database/lookout/jobstates.go`.
-
-The scheduler's internal model tracks boolean flags (`queued`, `failed`, `succeeded`, `cancelled`, plus `validated` for pre-queue validation) rather than a single state value. The mutually-exclusive states are Queued, Running, Cancelled, Failed, and Succeeded. From Queued, the job can transition to Running, Cancelled, or Failed. From Running, it can transition to Queued (requeue), Cancelled, Failed, or Succeeded. The scheduler's `Running` collapses Lookout's `Leased`, `Pending`, and `Running` into one. `Preempted` and `Rejected` are surfaced by Lookout from the reason inside a `JobErrors` event, not as scheduler-internal states. The tables below show the Lookout view, which is what API consumers see.
-
-### Job state
-
-```mermaid
-stateDiagram-v2
-    [*] --> Queued: SubmitJob
-    Queued --> Leased: JobRunLeased
-    Leased --> Pending: JobRunAssigned
-    Pending --> Running: JobRunRunning
-    Leased --> Succeeded: JobSucceeded
-    Pending --> Succeeded: JobSucceeded
-    Running --> Succeeded: JobSucceeded
-    Leased --> Failed: JobErrors
-    Pending --> Failed: JobErrors
-    Running --> Failed: JobErrors
-    Pending --> Preempted: JobErrors (JobRunPreemptedError)
-    Running --> Preempted: JobErrors (JobRunPreemptedError)
-    Queued --> Rejected: JobErrors (JobRejected)
-    Queued --> Cancelled: CancelledJob
-    Leased --> Cancelled: CancelledJob
-    Pending --> Cancelled: CancelledJob
-    Running --> Cancelled: CancelledJob
-```
-
-| From                                | To        | Driven by                                       |
-| ----------------------------------- | --------- | ----------------------------------------------- |
-| (new)                               | Queued    | server publishes `SubmitJob`                    |
-| Queued                              | Leased    | `JobRunLeased`                                  |
-| Leased                              | Pending   | `JobRunAssigned`                                |
-| Pending                             | Running   | `JobRunRunning`                                 |
-| Leased / Pending / Running          | Succeeded | `JobSucceeded`                                  |
-| Leased / Pending / Running          | Failed    | `JobErrors` (Terminal=true, default case)       |
-| Pending / Running                   | Preempted | `JobErrors` with `JobRunPreemptedError` reason  |
-| Queued                              | Rejected  | `JobErrors` with `JobRejected` reason           |
-| Queued / Leased / Pending / Running | Cancelled | `CancelledJob`                                  |
-
-### Run state
-
-```mermaid
-stateDiagram-v2
-    [*] --> Leased: JobRunLeased
-    Leased --> Pending: JobRunAssigned
-    Pending --> Running: JobRunRunning
-    Running --> Succeeded: JobRunSucceeded
-    Running --> Failed: JobRunErrors (terminal, non-lease, non-preempt reason)
-    Pending --> Preempted: JobRunPreempted
-    Running --> Preempted: JobRunPreempted
-    Leased --> Cancelled: JobRunCancelled
-    Pending --> Cancelled: JobRunCancelled
-    Running --> Cancelled: JobRunCancelled
-    Pending --> LeaseReturned: JobRunErrors (PodLeaseReturned)
-    Leased --> LeaseExpired: JobRunErrors (LeaseExpired)
-    Pending --> LeaseExpired: JobRunErrors (LeaseExpired)
-    Running --> LeaseExpired: JobRunErrors (LeaseExpired)
-```
-
-| From                       | To            | Driven by                                                                                           |
-| -------------------------- | ------------- | --------------------------------------------------------------------------------------------------- |
-| (new)                      | Leased        | `JobRunLeased`                                                                                      |
-| Leased                     | Pending       | `JobRunAssigned`                                                                                    |
-| Pending                    | Running       | `JobRunRunning`                                                                                     |
-| Running                    | Succeeded     | `JobRunSucceeded`                                                                                   |
-| Running                    | Failed        | `JobRunErrors` with any reason except `PodLeaseReturned`, `LeaseExpired`, or `JobRunPreemptedError` |
-| Pending / Running          | Preempted     | `JobRunPreempted`                                                                                   |
-| Leased / Pending / Running | Cancelled     | `JobRunCancelled`                                                                                   |
-| Pending                    | LeaseReturned | `JobRunErrors` (`PodLeaseReturned`)                                                                 |
-| Leased / Pending / Running | LeaseExpired  | `JobRunErrors` (`LeaseExpired`, emitted on stale executor)                                          |
-
-`MaxRunsExceeded`, `UnableToSchedule`, and `Terminated` exist as enum values in the Lookout run-state enum but are not driven by any current emission path. When the scheduler caps retries it emits `MaxRunsExceeded` only as a job-level `JobErrors`, which reaches lookout's job-level handler (recording the job as `Failed`), never the run-level `JobRunErrors` handler. The run itself was already recorded as `Failed` or `LeaseReturned` by the earlier run-level error that triggered the final retry.
-
-## Event vocabulary
-
-A reference for the events used in the flows below.
-
-**Run-level internal events** describe what happened to a single run.
-
-| Event             | Emitted by              | Carries                                                                                                    |
-| ----------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `JobRunLeased`    | scheduler               | executor ID, node ID, scheduling priority                                                                  |
-| `JobRunAssigned`  | executor                | pod identity (node name, pod number), pool                                                                 |
-| `JobRunRunning`   | executor                | pod identity, pool                                                                                         |
-| `JobRunSucceeded` | executor                | pod identity                                                                                               |
-| `JobRunErrors`    | executor or scheduler   | one or more `Error` values (reason discriminated by oneof) plus optional `failure_category`/`_subcategory` |
-| `JobRunPreempted` | scheduler then executor | preempted run ID, preemption reason text                                                                   |
-| `JobRunCancelled` | scheduler               | run ID, job ID                                                                                             |
-
-The `Error.reason` oneof inside `JobRunErrors` has eleven variants: `KubernetesError`, `ContainerError`, `ExecutorError`, `LeaseExpired`, `MaxRunsExceeded`, `PodError`, `PodLeaseReturned`, `JobRunPreemptedError`, `GangJobUnschedulable`, `JobRejected`, `ReconciliationError`.
-
-**Job-level internal events** are emitted by the scheduler when it concludes the job itself reaches a terminal state or is being requeued, usually one scheduling cycle after the corresponding run-level event lands in the database.
-
-| Event          | Emitted by | Carries                                                                              |
-| -------------- | ---------- | ------------------------------------------------------------------------------------ |
-| `JobSucceeded` | scheduler  | job ID                                                                               |
-| `JobErrors`    | scheduler  | one or more `Error` values, where the reason discriminates Failed/Preempted/Rejected |
-| `CancelledJob` | scheduler  | job ID, cancel reason, cancelling user                                               |
-| `JobRequeued`  | scheduler  | job ID, updated scheduling info, queued version                                      |
-
-**External API events** are what watchers of the event-stream API see. The conversion layer maps internal events to external events. Some internal events have no external counterpart and are silently ignored.
-
-| Internal event             | External event                                    | Notes                                                                                                       |
-| -------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `JobSucceeded` (job-level) | `JobSucceededEvent`                               |                                                                                                             |
-| `JobErrors` (job-level)    | `JobFailedEvent` (for terminal)                   | Reason-discriminated conversion. Carries reason, category, subcategory.                                      |
-| `CancelledJob`             | `JobCancelledEvent`                               |                                                                                                             |
-| `JobRunPreempted`          | `JobPreemptedEvent`                               |                                                                                                             |
-| `JobRunErrors`             | `JobLeaseReturnedEvent` or `JobLeaseExpiredEvent` | Only for `PodLeaseReturned` and `LeaseExpired` reasons. All other reasons ignored at the conversion layer.  |
-| `JobRunSucceeded`          | (none, ignored)                                   | API watchers see success via the job-level `JobSucceeded`.                                                  |
-| `JobRunCancelled`          | (none, ignored)                                   | API watchers see cancellation via the job-level `CancelledJob`.                                             |
-
-API watchers see the success or failure of a job only after the scheduler has emitted its job-level event, which is one scheduling cycle later than when the run actually finished. Lookout, which consumes the run-level events directly, updates the run-state column promptly and the job-state column with the same lag.
-
-## Job succeeded
-
-- **Run state:** `Running` to `Succeeded`.
-- **Job state:** to `Succeeded`, from any non-terminal state.
-
-Events fired in this flow:
-
-| Event             | Phase | Emitted by | Payload      |
-| ----------------- | ----- | ---------- | ------------ |
-| `JobRunSucceeded` | 1     | executor   | pod identity |
-| `JobSucceeded`    | 2     | scheduler  | job ID       |
-
-Phase 1, observation, the executor:
-
-```mermaid
-sequenceDiagram
-    participant K as Kubelet
-    participant E as Executor
-    participant Sc as Scheduler
-    participant P as Pulsar
-    Note over K: container exits 0
-    K-->>K: sets PodSucceeded
-    K-->>E: pod informer fires
-    E->>Sc: ReportEvents (JobRunSucceeded)
-    Sc->>P: publishes JobRunSucceeded
-```
-
-The scheduler ingester writes `runs.succeeded = true, terminated_timestamp`. The lookout ingester writes the run state.
-
-Phase 2, conclusion, the scheduler:
-
-```mermaid
-sequenceDiagram
-    participant Pg as Postgres
-    participant Sc as Scheduler
-    participant P as Pulsar
-    Pg-->>Sc: jobdb reconciles
-    Note over Sc: cycle sees run terminal,<br/>job has runs
-    Sc->>P: publishes JobSucceeded (job-level)
-```
-
-The scheduler ingester writes `jobs.succeeded = true`. The lookout ingester writes the job state. The conversion layer ignores `JobRunSucceeded` and converts `JobSucceeded` to `JobSucceededEvent` for the external API stream.
-
-## Job failed
-
-Two emission paths reach this flow, depending on who detected the failure.
-
-### Path A: pod reaches terminal phase
-
-- **Run state:** `Running` to `Failed` (a pod that exits before it is observed `Running`, for example an immediate non-zero exit, goes `Pending` to `Failed`).
-- **Job state:** to `Failed` if terminal, or stays non-terminal if requeued.
-
-Events fired in this flow:
-
-| Event          | Phase | Emitted by | Payload                                                       |
-| -------------- | ----- | ---------- | ------------------------------------------------------------- |
-| `JobRunErrors` | 1     | executor   | `PodError` reason, `failure_category`, `failure_subcategory`  |
-| `JobErrors`    | 2     | scheduler  | reason copied from the `JobRunErrors`, Terminal=true          |
-| `JobRequeued`  | 2     | scheduler  | (alternative to `JobErrors` when the run is requeue-eligible) |
-
-Phase 1, observation, the executor:
-
-```mermaid
-sequenceDiagram
-    participant K as Kubelet
-    participant E as Executor
-    participant Sc as Scheduler
-    participant P as Pulsar
-    Note over K: container exits non-zero<br/>(or k8s evicts)
-    K-->>K: sets PodFailed
-    K-->>E: pod informer fires
-    Note over E: classifier categorises failure
-    E->>Sc: ReportEvents (JobRunErrors with PodError,<br/>failure_category, failure_subcategory)
-    Sc->>P: publishes JobRunErrors
-```
-
-The scheduler ingester writes `runs.failed = true, terminated_timestamp` and inserts a row into `job_run_errors`. The lookout ingester writes the run state.
-
-Phase 2, conclusion, the scheduler:
-
-```mermaid
-sequenceDiagram
-    participant Pg as Postgres
-    participant Sc as Scheduler
-    participant P as Pulsar
-    Pg-->>Sc: jobdb reconciles
-    alt requeue-eligible
-        Sc->>P: publishes JobRequeued
-    else terminal
-        Sc->>P: publishes JobErrors (Terminal=true)
-    end
-```
-
-"Requeue" here is conditional. A failed run is only requeue-eligible if it was *returned*, meaning the run carried a `PodLeaseReturned` error (the executor never successfully ran the pod, typically because the cluster could not honour the lease). Failures with a `PodError` reason are not requeued. The job is marked failed on the next cycle. Returned runs are additionally gated on two configuration knobs: the per-job `armadaproject.io/failFast` annotation must be unset, and the job's attempt count must be below the scheduler-wide `maxAttemptedRuns` cap.
-
-The conversion layer converts the scheduler's job-level `JobErrors` to `JobFailedEvent` for the API stream. The executor's `JobRunErrors` does not produce an external API event for `PodError`-reason failures. It only does so for `LeaseExpired` and `PodLeaseReturned`.
-
-### Path B: executor's issue handler detects a problem first
-
-The issue handler watches managed pods for failure modes that surface before the pod's terminal phase. Its `podIssueType` enum has seven values: `UnableToSchedule`, `StuckStartingUp`, `StuckTerminating`, `ActiveDeadlineExceeded`, `ExternallyDeleted`, `ErrorDuringIssueHandling`, and `FailedStartingUp`. When it decides a pod is broken, it emits the failure event at detection time and then deletes the pod.
-
-Events fired in this flow:
-
-| Event          | Phase | Emitted by | Payload                                                                                                          |
-| -------------- | ----- | ---------- | ---------------------------------------------------------------------------------------------------------------- |
-| `JobRunErrors` | 1     | executor   | `PodError` (or `PodLeaseReturned` for retryable issues) reason, category, subcategory                            |
-| `JobErrors`    | 2     | scheduler  | reason copied from the `JobRunErrors`, Terminal=true                                                             |
-| `JobRequeued`  | 2     | scheduler  | (alternative to `JobErrors` when the issue produced a `PodLeaseReturned` and the run is otherwise eligible)      |
-
-```mermaid
-sequenceDiagram
-    participant E as Executor
-    participant Sc as Scheduler
-    participant P as Pulsar
-    participant K as Kubelet
-    Note over E: issue handler decides pod is broken
-    Note over E: classifier produces category and subcategory
-    E->>Sc: ReportEvents (JobRunErrors with PodError, category, subcategory)
-    Sc->>P: publishes JobRunErrors
-    E-->>K: writes deletion annotation, deletes pod
-    Note over K: pod drains
-    K-->>K: sets PodFailed
-    K-->>E: pod informer fires
-    Note over E: phase-report skipped<br/>(deletion annotation)
-```
-
-The state reporter skips re-emitting on the terminal-phase tick because the pod is marked for deletion. Downstream from there it matches path A: the scheduler ingester writes the run as failed, the scheduler concludes the job's fate on a later cycle, and the conversion layer surfaces a `JobFailedEvent` if the result was terminal.
-
-This path differs from path A in timing only. `JobRunErrors` is emitted at detection time, not at pod-drain time. The gap between event emission and the pod actually stopping can be tens of seconds when Kubernetes honours a long `terminationGracePeriodSeconds` before SIGKILL.
-
-## Job preempted
-
-- **Run state:** `Pending` or `Running` to `Preempted`.
-- **Job state:** to `Preempted`, once the scheduler emits the job-level `JobErrors` with `JobRunPreemptedError` reason.
-
-Two distinct mechanisms drive a run to `Preempted`. The common one is scheduler-initiated preemption (fair share or priority), described first. A second, experimental one is run reconciliation, which can produce a genuine executor-and-scheduler double emission; see [Run reconciliation and the executor/scheduler double emission](#run-reconciliation-and-the-executorscheduler-double-emission).
-
-### Scheduler-initiated preemption
-
-When the scheduling algorithm decides to preempt a run, the scheduler generates all of the preemption events itself, in the same cycle, at decision time (`createEventsForPreemptedJob`). The executor is **not** asked to preempt. The scheduler marks the run failed (which makes it terminal via the generated `runs.terminated` column), and on the next lease request the scheduler finds the run inactive and tells the executor to **cancel** it. The executor's remove-runs processor deletes the pod and emits nothing.
-
-Events fired in this flow (all from the scheduler):
-
-| Event             | Phase | Emitted by | Payload                                                                   |
-| ----------------- | ----- | ---------- | ------------------------------------------------------------------------- |
-| `JobRunPreempted` | 1     | scheduler  | preempted run ID, scheduler's preemption reason                           |
-| `JobRunErrors`    | 1     | scheduler  | Terminal=true, `JobRunPreemptedError`, scheduler's reason                 |
-| `JobErrors`       | 1     | scheduler  | Terminal=true, `JobRunPreemptedError` reason (drives Preempted job state) |
-
-```mermaid
-sequenceDiagram
-    participant Sc as Scheduler
-    participant P as Pulsar
-    participant E as Executor
-    participant K as Kubelet
-    Note over Sc: scheduling cycle decides to preempt a run
-    Sc->>P: publishes JobRunPreempted (with scheduler's reason)
-    Sc->>P: publishes JobRunErrors (Terminal=true,<br/>JobRunPreemptedError, scheduler's reason)
-    Sc->>P: publishes JobErrors (job-level)
-    Note over Sc: marks run failed, run becomes terminal
-    Sc->>E: CancelRuns via lease stream (run is now inactive)
-    Note over E: remove-runs processor (emits nothing)
-    E-->>K: writes deletion annotation, deletes pod
-    Note over K: pod drains over<br/>terminationGracePeriodSeconds
-    K-->>K: sets PodFailed
-    K-->>E: pod informer fires
-    Note over E: phase-report skipped<br/>(deletion annotation)
-```
-
-The single `JobRunPreempted` becomes one `JobPreemptedEvent` on the external API. The scheduler's run-level `JobRunErrors` (`JobRunPreemptedError` reason) is dropped at the conversion layer. The scheduler's job-level `JobErrors` becomes the single `JobFailedEvent`, with the `JobRunPreemptedError` reason driving the Lookout job state to Preempted rather than Failed.
-
-The executor does have a preempt processor (`preempt_runs.go`) that would emit its own `JobRunPreempted` and a generic `PodError` ("Run preempted") `JobRunErrors`. It fires only for runs flagged `PreemptionRequested`, which is set only when the scheduler sends a `PreemptRuns` instruction over the lease stream. The scheduler never constructs that message (the lease stream only ever carries `Lease`, `CancelRuns`, and `End`), so this processor is currently dead code. Scheduler-initiated preemption is therefore scheduler-only: no duplicate `JobPreemptedEvent`, no `job_run_errors` overwrite.
-
-### Run reconciliation and the executor/scheduler double emission
-
-A real executor-and-scheduler double emission exists, but it is gated behind the experimental per-pool `ExperimentalRunReconciliation` feature (a `*RunReconciliationConfig` pointer, `nil`/off by default and not set in any shipped config), and it is triggered by node invalidation, not by fair-share preemption.
-
-When enabled, the scheduler's run-vs-node reconciler (`RunNodeReconciler`) flags a leased run as invalid when its node is no longer reported by any executor (a deleted node; gang jobs only), its node's pool has changed, or its node's reservation has changed. For a preemptible job it then emits the full preemption set (`JobRunPreempted` + run-level `JobRunErrors` with `JobRunPreemptedError` + job-level `JobErrors`); for a non-preemptible job it emits `JobRunErrors`/`JobErrors` with the `ReconciliationError` reason instead.
-
-The double emission specifically arises in the deleted-node case, where the pod genuinely disappears. The executor's issue handler independently detects that the pod was removed without Armada's deletion annotation, registers an `ExternallyDeleted` issue, and emits its own run-level `JobRunErrors` with a `PodError` reason ("Pod was unexpectedly deleted"). So two producers emit a run-level error for the same run. (Pool-change and reservation-change reconciliation leave the pod healthy, so the executor stays silent and those cases remain scheduler-only.)
-
-- The executor's `PodError` and the scheduler's `JobRunPreemptedError` both upsert `job_run_errors` keyed on `run_id`, so whichever lands second overwrites the first. `MarkRunsFailed` has no `IS NULL` guard, so `runs.terminated_timestamp` is overwritten as well.
-- The executor usually reports first, since it observes the pod loss before the next scheduling cycle runs, so the ordering is executor-then-scheduler. This is timing, not a guarantee.
-- It is a race. If the executor's failure is applied to the scheduler database before the reconciliation cycle runs, the run is already terminal and the reconciler skips it (it only acts on non-terminal leased runs), so no preemption event is produced and the run simply ends up `Failed`.
-
-On the external API this still yields a single `JobPreemptedEvent`, because only the scheduler emits `JobRunPreempted`; the executor's run-level `JobRunErrors` is dropped at the conversion layer. The lookout ingester has an explicit `continue` for `JobRunErrors` with `JobRunPreemptedError` reason (commented as handled by `JobRunPreempted`), but it does store the executor's `PodError`-reason emission.
-
-## Job cancelled
-
-- **Run state:** any non-terminal state to `Cancelled`.
-- **Job state:** any non-terminal state to `Cancelled`.
-
-Events fired in this flow:
-
-| Event             | Phase | Emitted by | Payload                                       |
-| ----------------- | ----- | ---------- | --------------------------------------------- |
-| `CancelJob`       | input | server     | job ID, cancel reason                         |
-| `JobRunCancelled` | 1     | scheduler  | run ID, job ID (emitted only if a run exists) |
-| `CancelledJob`    | 1     | scheduler  | job ID, cancel reason, cancelling user        |
+This flow shows a job that runs once and succeeds.
 
 ```mermaid
 sequenceDiagram
     participant U as User
     participant S as Server
     participant P as Pulsar
+    participant Pg as Scheduler DB
     participant Sc as Scheduler
     participant E as Executor
-    participant K as Kubelet
-    U->>S: cancel via API
-    S->>P: publishes CancelJob
-    P-->>Sc: scheduler reads in its cycle
-    Note over Sc: if the job has an active run
-    Sc->>P: publishes JobRunCancelled
-    Sc->>P: publishes CancelledJob (job-level)
-    Sc->>E: CancelRuns via lease stream
-    Note over E: remove-runs processor
-    E-->>K: writes deletion annotation, deletes pod
-    Note over K: pod drains
-    K-->>K: sets PodFailed (or PodSucceeded<br/>if cancel raced container exit)
-    K-->>E: pod informer fires
-    Note over E: phase-report skipped<br/>(deletion annotation)
+    participant K as Kubernetes
+    U->>S: SubmitJobs
+    S->>P: SubmitJob
+    P-->>Pg: ingester inserts the job (queued)
+    Pg-->>Sc: cycle reads the new job
+    Sc->>P: JobValidated (pools)
+    Note over Sc: scheduling round picks a node
+    Sc->>P: JobRunLeased
+    P-->>Pg: ingester inserts the run, job not queued
+    E->>Sc: LeaseRequest
+    Sc->>E: lease (pod spec for the node)
+    E->>K: creates the pod
+    K-->>E: pod is Pending
+    E->>Sc: ReportEvents (JobRunAssigned)
+    Sc->>P: JobRunAssigned
+    K-->>E: pod is Running
+    E->>Sc: ReportEvents (JobRunRunning)
+    Sc->>P: JobRunRunning
+    K-->>E: pod is Succeeded
+    E->>Sc: ReportEvents (JobRunSucceeded)
+    Sc->>P: JobRunSucceeded
+    P-->>Pg: ingester marks the run succeeded
+    Pg-->>Sc: cycle sees the run succeeded
+    Sc->>P: JobSucceeded
 ```
 
-The executor's cancel path emits no events. Cancellation is a clean teardown driven entirely by the scheduler. The scheduler ingester ignores `JobRunCancelled` (it is in the explicit ignore list) and writes cancellation via `MarkJobsCancelled` from `CancelledJob`. `MarkJobsCancelled` also stamps the runs table (`cancelled=true`, `terminated_timestamp`) keyed on `job_id`, so the run's cancelled state in the scheduler database comes from this job-level cascade rather than from the ignored `JobRunCancelled`. The lookout ingester writes both the run and job state. The conversion layer ignores `JobRunCancelled` and converts `CancelledJob` to `JobCancelledEvent` for the API stream.
+The steps are:
+
+1. **Submit.** The server checks the permissions of the user and validates the request. If a job has the client ID of an earlier job in the same queue, the server returns the earlier job ID for that job and publishes no `SubmitJob` for it. For each other job, it publishes `SubmitJob`.
+2. **Queue.** The scheduler ingester inserts the job with `queued=true`. Lookout shows the job as `Queued`, and watchers receive `JobSubmittedEvent` and `JobQueuedEvent`.
+3. **Validate.** The scheduler checks that the job can run on a node in at least one pool. It emits `JobValidated` with the pools. The scheduler considers a job only in the pools of its `JobValidated` event. See [Job rejected](#job-rejected) for a job that fails this check.
+4. **Lease.** A scheduling round assigns the job to an executor and a node, and emits `JobRunLeased`. The scheduler ingester inserts the run and sets `queued=false` on the job. The queued version on the event stops an old lease from overwriting a later requeue.
+5. **Send the lease.** On the next `LeaseRequest` from that executor, the scheduler reads the new runs from the database. It sends each run with a pod spec that it changes for the lease:
+   - a node selector for the node
+   - the pool annotation
+   - the tolerations, annotations, and resource changes of the run (for example, a memory increase from a retry policy)
+   - the preemptible label
+   - the priority class override, if it is configured
+6. **Create the pod.** The executor stores the run as `Leased` and creates the pod. If pod creation fails, see [Other failure sources](#other-failure-sources).
+7. **Report the pod phases.** The state reporter sees each pod phase through the Kubernetes informer. It sends `JobRunAssigned` for `Pending`, `JobRunRunning` for `Running`, and `JobRunSucceeded` for `Succeeded`. The scheduler publishes each event to Pulsar when it receives it. The scheduler ingester writes the pending, running, and succeeded times of the run.
+8. **Conclude the job.** On a later cycle, the scheduler sees that the latest run succeeded and emits `JobSucceeded`. The scheduler ingester marks the job succeeded.
+
+When `metric.exposeQueueUsageMetrics` is true and `task.utilisationEventReportingInterval` is set, the executor also emits `ResourceUtilisation` for each running pod at that interval. When the job asks for an ingress, the executor emits `StandaloneIngressInfo` with the addresses.
+
+## States
+
+Armada shows a state for each job and for each run. The state values in Lookout come from `internal/common/database/lookout/jobstates.go`. The diagrams use short names, for example `Queued` for `QUEUED` and `LeaseReturned` for `RUN_LEASE_RETURNED`.
+
+### Job state
+
+The scheduler does not store a single state. It stores boolean flags on the job. Lookout shows a state that it derives from the events:
+
+| Scheduler flags                       | Lookout job state                   |
+| ------------------------------------- | ----------------------------------- |
+| `queued`                              | `Queued`                            |
+| not `queued`, not terminal            | `Leased`, `Pending`, or `Running`   |
+| `succeeded`                           | `Succeeded`                         |
+| `failed`                              | `Failed`, `Preempted`, or `Rejected` |
+| `cancelled`                           | `Cancelled`                         |
+
+A job is terminal when `succeeded`, `failed`, or `cancelled` is true. Lookout shows `Preempted` when the `JobErrors` reason is `JobRunPreemptedError`, and `Rejected` when the reason is `JobRejected`.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Queued: SubmitJob
+    Queued --> HasRun: JobRunLeased
+    state "Has a run" as HasRun {
+        [*] --> Leased
+        Leased --> Pending: JobRunAssigned
+        Leased --> Running: JobRunRunning
+        Pending --> Running: JobRunRunning
+    }
+    HasRun --> Succeeded: JobSucceeded
+    HasRun --> Failed: JobErrors
+    HasRun --> Preempted: JobErrors (JobRunPreemptedError)
+    HasRun --> Cancelled: CancelledJob
+    Queued --> Cancelled: CancelledJob
+    Queued --> Rejected: JobErrors (JobRejected)
+    Succeeded --> Preempted: late JobErrors (JobRunPreemptedError)
+    Failed --> Preempted: late JobErrors (JobRunPreemptedError)
+    Cancelled --> Preempted: late JobErrors (JobRunPreemptedError)
+    HasRun --> Queued: JobRequeued
+```
+
+Lookout ignores updates to a terminal job, with one exception: `Preempted` can replace `Succeeded`, `Failed`, or `Cancelled`. A `Cancelled` job still accepts the cancel user and the cancel reason when these columns are empty. A `Preempted` job still accepts the name of the user who requested the preemption when that column is empty.
+
+The executor reports only the current phase of a pod, so a job or run can skip `Pending` or `Running`. For example, the job goes from `Leased` to `Running` when the pod is already running at the first report.
+
+### Run state
+
+```mermaid
+stateDiagram-v2
+    state "Not ended" as Live {
+        [*] --> Leased: JobRunLeased
+        Leased --> Pending: JobRunAssigned
+        Leased --> Running: JobRunRunning
+        Pending --> Running: JobRunRunning
+    }
+    Live --> Succeeded: JobRunSucceeded
+    Live --> Failed: JobRunErrors
+    Live --> LeaseReturned: JobRunErrors (PodLeaseReturned)
+    Live --> LeaseExpired: JobRunErrors (LeaseExpired)
+    Live --> Preempted: JobRunPreempted
+    Live --> Cancelled: JobRunCancelled
+    Preempted --> Succeeded: late JobRunSucceeded
+    Preempted --> Failed: late JobRunErrors
+    Succeeded --> Cancelled: late JobRunCancelled
+    Failed --> Cancelled: late JobRunCancelled
+    LeaseReturned --> Cancelled: late JobRunCancelled
+    LeaseExpired --> Cancelled: late JobRunCancelled
+```
+
+Lookout does not guard run rows. Each event overwrites the columns that it sets, so a late event can change an ended run. There are two late transitions:
+
+- A pod can end before the executor deletes it for a preemption. The executor then reports `JobRunSucceeded` or `JobRunErrors`, and the run shows that outcome under a `Preempted` job.
+- `JobRunCancelled` names the latest run of the job, also when that run has ended. A cancel request for a job whose latest run ended, but whose job is not terminal, changes that run to `Cancelled`.
+
+### Run state in the executor
+
+The executor keeps its own state for each run that it has. This state controls pod creation and cleanup. The executor sends the IDs of all its runs in each `LeaseRequest`. The scheduler does not send these runs again as new leases.
+
+| Executor phase         | Set when                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------- |
+| `Leased`               | the executor receives the lease                                                 |
+| `Invalid`              | the executor cannot build a pod from the lease, and reports `PodError`          |
+| `SuccessfulSubmission` | the executor creates the pod through the Kubernetes API                         |
+| `FailedSubmission`     | pod creation fails, and the executor reports the failure                        |
+| `Active`               | the pod informer sees the pod, or the executor finds the pod at start-up        |
+
+The executor removes a run from its state in these cases:
+
+- The scheduler cancels the run. The scheduler cancels each listed run that is terminated in its database or unknown to it, for example after the executor reports a failure. The executor deletes the pod if it is still active. It removes the run when the pod is gone, or when the pod has ended and its phase is reported.
+- The pod of a `SuccessfulSubmission` run does not appear within `deadlineForSubmittedPodConsideredMissing`. The executor emits no event. The run is no longer in the `LeaseRequest`, so the scheduler sends the same lease again.
+
+When the pod of an `Active` run is missing for longer than `deadlineForActivePodConsideredMissing`, the executor reports `PodError`.
+
+## Event reference
+
+### Request events
+
+Request events ask for a change. The server publishes them, the scheduler ingester writes them to the database, and the scheduler acts on them in a later cycle.
+
+| Event                    | Emitted by          | Carries                 |
+| ------------------------ | ------------------- | ----------------------- |
+| `SubmitJob`              | server              | job spec                |
+| `CancelJob`              | server or scheduler | job ID, optional reason |
+| `CancelJobSet`           | server              | job states, reason      |
+| `JobPreemptionRequested` | server              | job ID, reason          |
+| `ReprioritiseJob`        | server              | job ID, priority        |
+| `ReprioritiseJobSet`     | server              | priority                |
+
+The scheduler emits `CancelJob` for each job of a [cancelled job set](#job-set-and-control-plane-cancellation).
+
+### Run-level events
+
+Run-level events describe what happened to one run.
+
+| Event                       | Emitted by            | Carries                                                                  |
+| --------------------------- | --------------------- | ------------------------------------------------------------------------ |
+| `JobRunLeased`              | scheduler             | executor ID, node ID, pool, scheduling priority, pod spec changes, queued version |
+| `JobRunAssigned`            | executor              | pod identity, pod number, pool                                           |
+| `JobRunRunning`             | executor              | pod identity, node name, pod number, pool, start-up info                 |
+| `JobRunSucceeded`           | executor              | pod identity, node name, pod number                                      |
+| `JobRunErrors`              | executor or scheduler | one or more [`Error` values](#error-values)                              |
+| `JobRunPreempted`           | scheduler             | preempted run ID, preempted job ID, preempting job ID, reason, requestor |
+| `JobRunCancelled`           | scheduler             | run ID, job ID, cancel reason, requestor                                 |
+| `JobRunTerminatedDebugInfo` | executor              | run ID, job ID, debug message                                            |
+| `StandaloneIngressInfo`     | executor              | pod identity, ingress addresses                                          |
+| `ResourceUtilisation`       | executor              | pod identity, resource usage                                             |
+
+### Job-level events
+
+Job-level events come from the scheduler. They give the outcome of the job. A job outcome usually comes one cycle after the run-level event reaches the database.
+
+| Event              | Emitted by | Carries                                         |
+| ------------------ | ---------- | ----------------------------------------------- |
+| `JobValidated`     | scheduler  | job ID, pools                                   |
+| `JobSucceeded`     | scheduler  | job ID                                          |
+| `JobErrors`        | scheduler  | one or more [`Error` values](#error-values)     |
+| `JobRequeued`      | scheduler  | job ID, updated scheduling info, queued version |
+| `CancelledJob`     | scheduler  | job ID, cancel user                             |
+| `ReprioritisedJob` | scheduler  | job ID, priority, requestor                     |
+
+The scheduler publisher also emits `PartitionMarker`. When an instance becomes the leader, it sends one marker to each Pulsar partition, and waits until the scheduler ingester writes all of them. Then the database contains every event that was published before the markers. It is not part of the job lifecycle.
+
+### Error values
+
+`JobRunErrors` and `JobErrors` carry `Error` values with these fields:
+
+- `terminal`: true when Armada stops work on the run or the job.
+- `reason`: the components emit one of `PodError`, `PodLeaseReturned`, `LeaseExpired`, `MaxRunsExceeded`, `JobRunPreemptedError`, `JobRejected`, or `ReconciliationError`.
+- `failure_category` and `failure_subcategory`: the classification of the failure.
+- `retry_policy_name`: the retry policy that decided the retry or the terminal failure.
+
+Preemption errors use the category `preemption`. The subcategory is the preemption type: `fairshare`, `urgency`, `optimiser`, `api`, `reconciler`, `unknown`, or `unknown-gang`.
+
+### Events that watchers receive
+
+Watchers receive external API events. The event ingester writes a filtered copy of the internal events to Redis, and the server converts them when a watcher reads them. The event ingester removes these items:
+
+- the `Groups` field of each event sequence
+- `JobRunSucceeded`, `JobValidated`, and `JobRunTerminatedDebugInfo`
+- `JobRunErrors`, except for the `LeaseExpired` and `PodLeaseReturned` reasons
+- cancel reasons, start-up info, and debug messages
+
+| Internal event              | External event                                    | Notes                                                                    |
+| --------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------ |
+| `SubmitJob`                 | `JobSubmittedEvent` and `JobQueuedEvent`          |                                                                          |
+| `JobRunLeased`              | `JobLeasedEvent`                                  |                                                                          |
+| `JobRunAssigned`            | `JobPendingEvent`                                 |                                                                          |
+| `JobRunRunning`             | `JobRunningEvent`                                 |                                                                          |
+| `JobSucceeded`              | `JobSucceededEvent`                               |                                                                          |
+| `JobErrors`                 | `JobFailedEvent`                                  | Carries the reason and the category. `Retryable` is true for a non-terminal error. |
+| `CancelJob`                 | `JobCancellingEvent`                              |                                                                          |
+| `CancelledJob`              | `JobCancelledEvent`                               |                                                                          |
+| `JobPreemptionRequested`    | `JobPreemptingEvent`                              |                                                                          |
+| `JobRunPreempted`           | `JobPreemptedEvent`                               |                                                                          |
+| `ReprioritiseJob`           | `JobReprioritizingEvent`                          |                                                                          |
+| `ReprioritisedJob`          | `JobReprioritizedEvent`                           |                                                                          |
+| `ResourceUtilisation`       | `JobUtilisationEvent`                             |                                                                          |
+| `StandaloneIngressInfo`     | `JobIngressInfoEvent`                             |                                                                          |
+| `JobRunErrors`              | `JobLeaseReturnedEvent` or `JobLeaseExpiredEvent` | For the `PodLeaseReturned` and `LeaseExpired` reasons only.              |
+| `JobRunSucceeded`           | (none)                                            | Watchers use `JobSucceededEvent`.                                        |
+| `JobRunCancelled`           | (none)                                            | Watchers use `JobCancelledEvent`.                                        |
+| `JobRequeued`               | (none)                                            | Watchers see the next `JobLeasedEvent`.                                  |
+| `CancelJobSet`              | (none)                                            | Watchers see one `JobCancellingEvent` for each job.                      |
+| `JobRunTerminatedDebugInfo` | (none)                                            | Only Lookout stores this event.                                          |
+| `JobValidated`              | (none)                                            |                                                                          |
+| `ReprioritiseJobSet`        | (none)                                            |                                                                          |
+
+Watchers see the outcome of a job only when the scheduler emits the job-level event. Lookout updates the run state from the run-level events. It sets the job state to `Leased`, `Pending`, or `Running` from `JobRunLeased`, `JobRunAssigned`, and `JobRunRunning`, and sets `Queued` and the terminal job states from the job-level events.
+
+## Job failed
+
+A run can fail in three ways: the pod fails, the issue handler finds a problem with the pod, or the executor or the scheduler finds a problem without a pod. In each case, the scheduler then decides whether to [retry the job](#retry-and-requeue) or to fail it.
+
+### The pod fails
+
+The container exits with a non-zero code, or Kubernetes evicts the pod. The state reporter classifies the failed pod. If a failed-pod check matches, or the category has the `Delete` action, the state reporter gives the pod to the [issue handler](#the-issue-handler-finds-a-problem). Otherwise, it reports `JobRunErrors` with `PodError`.
+
+```mermaid
+sequenceDiagram
+    participant K as Kubernetes
+    participant E as Executor
+    participant Sc as Scheduler
+    participant P as Pulsar
+    participant Pg as Scheduler DB
+    K-->>E: pod is Failed
+    Note over E: state reporter classifies the pod,<br/>no issue matches
+    E->>Sc: ReportEvents (JobRunErrors with PodError)
+    Sc->>P: JobRunErrors
+    P-->>Pg: ingester marks the run failed, stores the error
+    Pg-->>Sc: cycle sees the run failed
+    alt the job gets a retry
+        Sc->>P: JobErrors (Terminal=false), JobRequeued
+    else the job fails
+        Sc->>P: JobErrors (Terminal=true)
+    end
+```
+
+- **Run state:** `Failed`. A pod that fails quickly can go from `Pending` to `Failed`.
+- **Job state:** `Failed`, or `Queued` when the job gets a retry.
+- **Watchers:** `JobFailedEvent`. For a retry, `Retryable` is true, and the next event is `JobLeasedEvent`.
+
+The terminal `JobErrors` copies the error of the run. When a retry policy decides the failure, the reason is `MaxRunsExceeded`, and the message includes the run error.
+
+### The issue handler finds a problem
+
+The issue handler finds the pods that the state reporter cannot report alone. It registers an issue in memory, and a periodic tick processes the issue.
+
+| Issue type                 | Detected when                                                                             |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| `UnableToSchedule`         | a `Pending` pod has no node after a deadline                                              |
+| `StuckStartingUp`          | a pod check returns a retry or fail action                                                |
+| `StuckTerminating`         | a pod that the executor did not mark for deletion stays in deletion past `stuckTerminatingPodExpiry` |
+| `ActiveDeadlineExceeded`   | a pod runs longer than its `activeDeadlineSeconds`, plus its termination grace period, plus `stuckTerminatingPodExpiry` |
+| `ExternallyDeleted`        | a pod disappears, the executor did not mark it for deletion, and its terminal phase is not reported |
+| `ErrorDuringIssueHandling` | a pod starts after the handler requested its deletion                                     |
+| `FailedStartingUp`         | a failed pod matches a retryable failed-pod check                                         |
+| `DeleteActionFailure`      | a failed pod matches a category with the `Delete` action                                  |
+
+The issue type sets the order of the report and the deletion:
+
+- **Non-retryable issue:** the handler reports `PodError`, and then deletes the pod.
+- **Retryable issue:** the handler deletes the pod, and reports `PodLeaseReturned` when the pod is gone. See [Retry and requeue](#retry-and-requeue).
+- **`DeleteActionFailure`:** the handler deletes the pod, and reports `PodError` when the pod is gone. If the pod is still present after `stuckTerminatingPodExpiry`, the handler reports an internal failure.
+
+```mermaid
+sequenceDiagram
+    participant E as Executor
+    participant Sc as Scheduler
+    participant P as Pulsar
+    participant K as Kubernetes
+    Note over E: issue handler tick processes a non-retryable issue
+    E->>Sc: ReportEvents (JobRunErrors with PodError)
+    Sc->>P: JobRunErrors
+    E->>K: marks the pod for deletion, deletes it
+    K-->>E: pod ends after terminationGracePeriodSeconds
+    Note over E: no phase report for a marked pod
+```
+
+After the report, the scheduler concludes the job as in [The pod fails](#the-pod-fails). The event carries the message and the category of the issue. For why the pod phase is not reported, see [Pod deletion and debug events](#pod-deletion-and-debug-events).
+
+### Other failure sources
+
+| Source                      | Trigger                                                                             | Event                                                     |
+| --------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| executor job requester      | the executor cannot build a pod from the lease                                      | `JobRunErrors` with `PodError`                            |
+| executor cluster allocation | pod creation fails with a recoverable error                                         | `JobRunErrors` with `PodLeaseReturned`                    |
+| executor cluster allocation | pod creation fails with a fatal error                                               | `JobRunErrors` with `PodError`                            |
+| executor issue handler      | the pod of an active run stays missing past `deadlineForActivePodConsideredMissing` | `JobRunErrors` with `PodError`                            |
+| scheduler                   | [lease expiry](#lease-expiry)                                                       | `JobRunErrors` and `JobErrors` in one cycle               |
+| scheduler                   | [run reconciliation](#run-reconciliation) of a non-preemptible job                  | `JobRunErrors` and `JobErrors` with `ReconciliationError` |
+| scheduler                   | [job rejection](#job-rejected)                                                      | `JobErrors`                                               |
+
+## Retry and requeue
+
+When the latest run of a job fails, the scheduler decides on the next cycle whether to requeue the job. Two mechanisms can grant a retry:
+
+- **Lease return.** The executor returns the lease when the pod cannot start, or when pod creation fails with a recoverable error. The run shows `LeaseReturned`.
+- **Retry policy.** When `retryPolicy.enabled` is true, the retry policy of the queue (or the default policy) decides a categorised pod failure. Retry policies do not decide lease returns, gang jobs, or jobs with the `armadaproject.io/failFast` annotation.
+
+The scheduler applies these checks in order:
+
+1. **Lease return.** The job gets a retry when the run returned its lease, the job does not have `failFast` set to `true`, and the attempt count is below `scheduling.maxRetries` plus 1. Runs count as attempts when `run_attempted` is true. A recoverable pod-creation failure counts as an attempt, and an `UnableToSchedule` issue does not count.
+2. **Retry policy.** If a retry policy decides the failure, its decision replaces the result of the first check.
+3. **Memory increase.** If the matching rule of the policy adds memory, the scheduler grows the job. If the larger job fits no node, the job fails.
+4. **Node anti-affinity.** For an attempted run, the scheduler adds node anti-affinity for each node that the job failed on. A lease-return retry always gets it, and a policy retry gets it when the rule sets `avoidSameNode`. If no other node fits, the job fails.
+
+```mermaid
+sequenceDiagram
+    participant E as Executor
+    participant Sc as Scheduler
+    participant P as Pulsar
+    participant Pg as Scheduler DB
+    E->>Sc: ReportEvents (JobRunErrors with PodError or PodLeaseReturned)
+    Sc->>P: JobRunErrors
+    P-->>Pg: ingester marks the run failed
+    Pg-->>Sc: cycle sees the failed run
+    Note over Sc: checks 1 to 4
+    alt retry policy grants a retry
+        Sc->>P: JobErrors (Terminal=false), JobRequeued
+    else lease return grants a retry
+        Sc->>P: JobRequeued
+    else no retry
+        Sc->>P: JobErrors (Terminal=true)
+    end
+```
+
+The events depend on the result:
+
+| Result                     | Events                                                   |
+| -------------------------- | -------------------------------------------------------- |
+| policy retry               | `JobErrors` (Terminal=false, policy name), `JobRequeued` |
+| lease-return retry         | `JobRequeued`                                            |
+| a check stops the retry    | `JobErrors` (`MaxRunsExceeded`, Terminal=true)           |
+| no retry for a pod failure | `JobErrors` with the run error, Terminal=true            |
+
+`JobRequeued` sets `queued=true` and carries the updated scheduling info. The next lease includes the memory change and the anti-affinity. Watchers receive `JobLeaseReturnedEvent` for a lease return, and then `JobLeasedEvent` for the next run or `JobFailedEvent`.
+
+## Lease expiry
+
+An executor is stale when its last heartbeat is older than `executorTimeout`. The scheduler checks for stale executors on every cycle. It acts on each job that is not queued and not terminal, and whose latest run is on a stale executor. It emits the run-level and job-level events in the same cycle.
+
+- **Run state:** `LeaseExpired`, or `Failed` when a retry policy declines a retry.
+- **Job state:** `Failed` by default.
+
+| Case                  | Events                                                                       | Watchers receive                                                         |
+| --------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| default               | `JobRunErrors` and `JobErrors`, with `LeaseExpired`, Terminal=true           | `JobLeaseExpiredEvent`, `JobFailedEvent`                                 |
+| retry policy retries  | `JobRunErrors` (`LeaseExpired`), `JobErrors` (Terminal=false), `JobRequeued` | `JobLeaseExpiredEvent`, `JobFailedEvent` (`Retryable`), `JobLeasedEvent` |
+| retry policy declines | `JobRunErrors` and `JobErrors`, with `MaxRunsExceeded`, Terminal=true        | `JobFailedEvent`                                                         |
+
+If the executor connects again, the scheduler tells it to cancel the run.
+
+## Job preempted
+
+Three mechanisms preempt a job: a scheduling round, a request through the API or the control plane, and run reconciliation. All three emit the same events through `createEventsForPreemptedJob`:
+
+| Event             | Payload                                                                  |
+| ----------------- | ------------------------------------------------------------------------ |
+| `JobRunPreempted` | preempted run ID, preempted job ID, preempting job ID, reason, requestor |
+| `JobRunErrors`    | Terminal=true, `JobRunPreemptedError`, category, subcategory             |
+| `JobErrors`       | Terminal=true, `JobRunPreemptedError`, category, subcategory             |
+
+- **Run state:** `Preempted`.
+- **Job state:** `Preempted`.
+- **Watchers:** `JobPreemptedEvent` and `JobFailedEvent`.
+
+### Preemption by the scheduler
+
+A scheduling round decides to preempt a run, for example to give its resources to a job with a higher priority or a larger fair share. The scheduler emits the events in the same cycle.
+
+```mermaid
+sequenceDiagram
+    participant Sc as Scheduler
+    participant P as Pulsar
+    participant Pg as Scheduler DB
+    participant E as Executor
+    participant K as Kubernetes
+    Note over Sc: scheduling round preempts a run
+    Sc->>P: JobRunPreempted, JobRunErrors, JobErrors
+    P-->>Pg: ingester marks the run failed and preempted
+    E->>Sc: LeaseRequest (lists the run)
+    Note over Sc: the run is terminated in the database
+    Sc->>E: cancel the run
+    E->>K: marks the pod for deletion, deletes it
+    K-->>E: pod ends after terminationGracePeriodSeconds
+    Note over E: no phase report for a marked pod
+```
+
+The scheduler ingester marks the run failed, so the database column `runs.terminated` becomes true. On the next `LeaseRequest`, the scheduler sends the runs that the executor has and that are terminated in the database. The executor then deletes the pods of those runs. See [Pod deletion and debug events](#pod-deletion-and-debug-events).
+
+### Preemption on request
+
+A user requests preemption through `PreemptJobs`. An operator requests it for all jobs on an executor, a node, or a queue through `PreemptOnExecutor`, `PreemptOnNode`, or `PreemptOnQueue`. `PreemptJobs` publishes `JobPreemptionRequested`. The operator calls publish control-plane events, which the scheduler ingester reads from a separate Pulsar topic. Each request sets `preempt_requested` on the runs of the job that are not terminated.
+
+On the next cycle, the scheduler preempts each preemptible job with a requested preemption and an active run. It uses the preemption type `api`. The pod deletion then follows [Preemption by the scheduler](#preemption-by-the-scheduler).
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant S as Server
+    participant P as Pulsar
+    participant Pg as Scheduler DB
+    participant Sc as Scheduler
+    U->>S: PreemptJobs
+    S->>P: JobPreemptionRequested
+    P-->>Pg: ingester sets runs.preempt_requested
+    Pg-->>Sc: cycle sees the request
+    Note over Sc: the job is preemptible
+    Sc->>P: JobRunPreempted, JobRunErrors, JobErrors
+```
+
+Watchers receive `JobPreemptingEvent` when the server publishes `JobPreemptionRequested`. Lookout stores the name of the user who requested the preemption.
+
+### Run reconciliation
+
+The per-pool `ExperimentalRunReconciliation` setting enables this mechanism. In a scheduling round, `RunNodeReconciler` marks a leased run as invalid in these cases:
+
+- No executor reports the node of the run, and the job is in a gang.
+- The node is in a pool that is not the pool of the run or one of its away pools.
+- The job does not match the reservation of the node (`EnsureReservationMatch`).
+- The job matches the reservation of the node (`EnsureReservationDoesNotMatch`).
+
+For a preemptible job, the reconciler emits the preemption events with the type `reconciler`. It also preempts the other preemptible members of the gang. For a non-preemptible job, it emits `JobRunErrors` and `JobErrors` with the `ReconciliationError` reason.
+
+When a node is deleted, the executor also finds the missing pod and emits `JobRunErrors` with `PodError` (`ExternallyDeleted`). The result depends on which event reaches the database first:
+
+- If the executor error is first, the job is already terminal. The reconciler skips the job, and the run ends as `Failed`.
+- If the scheduling round is first, two producers write to the same run. The later write sets the error and the end time of the run, in the scheduler database and in Lookout. Watchers receive one `JobPreemptedEvent`.
+
+## Job cancelled
+
+A user cancels a job through `CancelJobs`. The server publishes `CancelJob`, and the scheduler ingester sets `cancel_requested` on the job. On the next cycle, the scheduler emits the cancel events.
+
+| Event             | Emitted by | Payload                                         |
+| ----------------- | ---------- | ----------------------------------------------- |
+| `CancelJob`       | server     | job ID, cancel reason                           |
+| `JobRunCancelled` | scheduler  | latest run ID, job ID, cancel reason, requestor |
+| `CancelledJob`    | scheduler  | job ID, cancel user                             |
+
+- **Run state:** `Cancelled`.
+- **Job state:** `Cancelled`.
+- **Watchers:** `JobCancellingEvent` and `JobCancelledEvent`.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant S as Server
+    participant P as Pulsar
+    participant Pg as Scheduler DB
+    participant Sc as Scheduler
+    participant E as Executor
+    participant K as Kubernetes
+    U->>S: CancelJobs
+    S->>P: CancelJob
+    P-->>Pg: ingester sets jobs.cancel_requested
+    Pg-->>Sc: cycle sees the request
+    opt the job has a run
+        Sc->>P: JobRunCancelled
+    end
+    Sc->>P: CancelledJob
+    P-->>Pg: ingester marks the job and its runs cancelled
+    opt the executor has the run
+        E->>Sc: LeaseRequest (lists the run)
+        Sc->>E: cancel the run
+        E->>K: marks the pod for deletion, deletes it
+        K-->>E: pod ends
+        Note over E: no phase report for a marked pod
+    end
+```
+
+The scheduler checks cancel requests before run outcomes in the same cycle. A job with a succeeded run and a cancel request ends as `Cancelled`, and the scheduler emits no `JobSucceeded`.
+
+`JobRunCancelled` names the latest run of the job, also when that run has ended. Lookout then shows that run as `Cancelled`. The scheduler ingester ignores `JobRunCancelled`. When it processes `CancelledJob`, it marks every run of the job cancelled, including earlier runs.
+
+The cancel reason is on the `CancelJob` from the server, on `CancelJobSet`, and on `JobRunCancelled`. Lookout stores it on the run. The executor deletes the pod as described in [Pod deletion and debug events](#pod-deletion-and-debug-events).
+
+### Job-set and control-plane cancellation
+
+A user cancels a job set through `CancelJobSet`, optionally only for jobs in given states. The server publishes `CancelJobSet`, and the scheduler ingester sets `cancel_by_jobset_requested` on the matching jobs. For each job, the scheduler then emits `CancelJob`, `JobRunCancelled` if the job has a run, and `CancelledJob`. The `CancelJob` gives watchers a `JobCancellingEvent` for each job.
+
+An operator cancels all jobs on an executor, a node, or a queue through `CancelOnExecutor`, `CancelOnNode`, or `CancelOnQueue`. These control-plane events set `cancel_requested` on the matching jobs. The flow then continues as for a single job.
+
+## Job reprioritised
+
+A user changes the priority of jobs through `ReprioritizeJobs`. The request names jobs or a whole job set.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant S as Server
+    participant P as Pulsar
+    participant Pg as Scheduler DB
+    participant Sc as Scheduler
+    U->>S: ReprioritizeJobs
+    S->>P: ReprioritiseJob (or ReprioritiseJobSet)
+    P-->>Pg: ingester sets jobs.priority on jobs that are not terminated
+    Pg-->>Sc: cycle sees the new priority
+    Sc->>P: ReprioritisedJob
+```
+
+1. The server publishes `ReprioritiseJob` for each named job, or one `ReprioritiseJobSet` for a job set.
+2. The scheduler ingester writes the new priority and the user on each job that is not terminated.
+3. The scheduler sees that the priority in the database differs from the priority in `jobdb`. It applies the new priority and emits `ReprioritisedJob`.
+4. Lookout updates the priority of the job from `ReprioritisedJob`. Watchers receive `JobReprioritizingEvent` for each `ReprioritiseJob`, and `JobReprioritizedEvent`.
+
+In a queue, the scheduler orders jobs of the same priority class by this priority, and a lower number comes first. The order applies to queued jobs, and to running jobs that the scheduler evicts and schedules again.
+
+## Job rejected
+
+The scheduler checks each job that it has not validated, on every cycle. It does not check jobs in cordoned queues. It rejects a job in these cases:
+
+- The submit check finds no node in any pool that can run the job.
+- The resource requests of the job are not valid.
+- The gang of the job is not valid.
+
+For a rejected job, the scheduler emits `JobErrors` with the `JobRejected` reason and Terminal=true. The scheduler ingester marks the job failed.
+
+- **Run state:** the job has no run.
+- **Job state:** `Queued` to `Rejected`. Lookout stores the message.
+- **Watchers:** `JobFailedEvent` with the `Rejected` cause.
+
+## Delivery, retries, and duplicates
+
+Events can arrive late or more than once. This section describes how each component handles a failure, and where a watcher can see a duplicate.
+
+### Executor reports
+
+The state reporter puts events in a buffer with 1,000,000 slots. It sends the buffer every two seconds, or earlier when a batch is full. The event sender compacts each batch and splits it by message size. The issue handler, the pod-creation code, and the run processors call `Report` directly.
+
+Two mechanisms send a failed report again:
+
+- **State reporter.** A reconciliation pass runs at the interval `task.missingJobEventReconciliationInterval`. It selects pods that are in their phase for at least 30 seconds, whose phase is not reported, and that have no queued events. It skips the `Pending` and `Unknown` phases, so a lost `JobRunAssigned` is not sent again.
+- **Issue handler.** The handler sets a `Reported` marker in memory after a successful `Report` call. The next tick sends a failed report again. The executor loses this marker when it restarts.
+
+### Pulsar redelivery
+
+Pulsar can deliver an event more than once.
+
+- **Scheduler database.** A second write has no effect. `MarkRunsSucceeded`, `MarkRunsFailed`, and `MarkRunsPreempted` take their times from the `Created` field of the event, and a redelivered event has the same value. The scheduler ingester upserts `job_run_errors` on `run_id`.
+- **Redis.** The event ingester adds each event to the Redis stream with an automatic ID, so a redelivery adds a second entry. A watcher can see the same external event twice.
+
+### Events that the scheduler generates again
+
+The scheduler generates its events again in two cases:
+
+- **Publish failure.** The scheduler does not advance its read position, so the next cycle generates the events again. The job-level events have a new `Created` value.
+- **New leader.** In the first cycle after an instance becomes the leader, it generates events for all jobs, not only for the jobs that changed.
+
+## Pod deletion and debug events
+
+Before the executor deletes a pod, it adds the `deletion_requested` annotation (`domain.MarkedForDeletion`) to the pod. The state reporter does not report phase changes of a pod with this annotation. This stops a second terminal event for a pod that the executor deletes. Only the informer update path checks the annotation. The reconciliation pass does not check it.
+
+The executor emits one `JobRunTerminatedDebugInfo` event in two cases:
+
+- The executor cancels a run, and the main container of the pod never started. The cancel list includes preempted runs, so this case covers preemption too.
+- A pod that the executor marked for deletion is still present `kubernetes.podKillTimeout` after its deletion timestamp.
+
+The `debugMessage` is a JSON document. It describes the pod, its node, and their recent Kubernetes events. `PodError.debugMessage` and `PodLeaseReturned.debugMessage` use the same format. The `application.debugEvents.enabled` setting enables this capture. Only Lookout stores these events.

@@ -22,12 +22,13 @@ import {
 import { Analytics, ANALYTICS_EVENTS } from "../../../../analytics"
 import { downloadTextFile } from "../../../../common/downloadTextFile"
 import { SPACING } from "../../../../common/spacing"
+import { getErrorMessage } from "../../../../common/utils"
 import { JobRunLogsTextSizeToggle } from "../../../../components/JobRunLogsTextSizeToggle"
 import { useFormatIsoTimestampWithUserSettings } from "../../../../components/hooks/formatTimeWithUserSettings"
 import { useCustomSnackbar } from "../../../../components/hooks/useCustomSnackbar"
 import { Job } from "../../../../models/lookoutModels"
 import { useGetJobSpec } from "../../../../services/lookout/useGetJobSpec"
-import { LogLine, useGetLogs } from "../../../../services/lookout/useGetLogs"
+import { LogLine, useFetchAllLogsFromStart, useGetLogs } from "../../../../services/lookout/useGetLogs"
 import {
   JobRunLogsTextSize,
   useJobRunLogsShowTimestamps,
@@ -37,11 +38,24 @@ import {
 
 import { NoRunsAlert } from "./NoRunsAlert"
 
+const LogsControlsContainer = styled("div")(({ theme }) => ({
+  display: "flex",
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignContent: "center",
+  gap: theme.spacing(SPACING.sm),
+  flexWrap: "wrap",
+}))
+
+const DownloadLogsButtonContainer = styled("div")({
+  alignContent: "center",
+})
+
 const LogsSettingsContainer = styled("div")(({ theme }) => ({
   display: "flex",
   flexDirection: "row",
   alignItems: "center",
-  justifyContent: "end",
+  justifyContent: "space-apart",
   gap: theme.spacing(SPACING.sm),
   flexWrap: "wrap",
 }))
@@ -99,7 +113,9 @@ const INTERVAL_MS = 1_000
 export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
   const openSnackbar = useCustomSnackbar()
   const runsNewestFirst = useMemo(() => [...job.runs].reverse(), [job])
-  const [runIndex, setRunIndex] = useState(0)
+  // The tab keeps the run by its ID, so a refresh that adds a run of a retried job keeps the selection.
+  const [selectedRunId, setSelectedRunId] = useState<string>()
+  const selectedRun = runsNewestFirst.find((run) => run.runId === selectedRunId) ?? runsNewestFirst[0]
   const [selectedContainer, setSelectedContainer] = useState("")
   const [loadFromStart, setLoadFromStart] = useState(false)
 
@@ -124,18 +140,20 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
     return getJobSpecResult.status === "success" ? (getJobSpecResult.data.namespace ?? "") : ""
   }, [getJobSpecResult.status, getJobSpecResult.data])
 
-  const cluster = useMemo(() => {
-    if (job.runs.length === 0) {
-      // eslint-disable-next-line no-console
-      console.error("job has no runs")
-      return ""
-    }
-    return job.runs[job.runs.length - 1].cluster
-  }, [job])
+  const cluster = selectedRun?.cluster ?? ""
+  const podName = selectedRun?.podName ?? ""
 
   // Get logs
-  const getLogsEnabled = Boolean(cluster && namespace && job.jobId && selectedContainer && job.runs.length > 0)
-  const getLogsResult = useGetLogs(cluster, namespace, job.jobId, selectedContainer, loadFromStart, getLogsEnabled)
+  const getLogsEnabled = Boolean(cluster && namespace && podName && selectedContainer)
+  const getLogsResult = useGetLogs(
+    cluster,
+    namespace,
+    job.jobId,
+    podName,
+    selectedContainer,
+    loadFromStart,
+    getLogsEnabled,
+  )
 
   // Periodically refetch logs
   useEffect(() => {
@@ -157,17 +175,47 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
   const [showTimestamps, setShowTimestamps] = useJobRunLogsShowTimestamps()
   const [wrapLines, setWrapLines] = useJobRunLogsWrapLines()
 
-  const downloadLogs = useCallback(() => {
+  const fetchAllLogsFromStart = useFetchAllLogsFromStart()
+  const [downloadingLogs, setDownloadingLogs] = useState(false)
+
+  const downloadLogLines = useCallback(
+    (logLinesToDownload: LogLine[]) => {
+      downloadTextFile(
+        logLinesToDownload
+          .flatMap(({ line, timestamp }) => (showTimestamps ? `${timestamp}\t${line}` : line))
+          .join("\n"),
+        `${job.jobId}-${selectedRun?.runId}-${selectedContainer}.txt`,
+        "text/plain",
+      )
+    },
+    [showTimestamps, job.jobId, selectedRun?.runId, selectedContainer],
+  )
+
+  const downloadLogs = useCallback(async () => {
     if (getLogsResult.status !== "success") {
       return
     }
 
-    downloadTextFile(
-      logLines.flatMap(({ line, timestamp }) => (showTimestamps ? `${timestamp}\t${line}` : line)).join("\n"),
-      `${job.jobId}-${runIndex}-${selectedContainer}.txt`,
-      "text/plain",
-    )
-  }, [getLogsResult.status, logLines, showTimestamps, job.jobId, runIndex, selectedContainer])
+    setDownloadingLogs(true)
+    try {
+      const allLogLines = await fetchAllLogsFromStart(cluster, namespace, job.jobId, podName, selectedContainer)
+      downloadLogLines(allLogLines)
+    } catch (e) {
+      openSnackbar(`Failed to download logs for Job with ID: ${job.jobId}: ${await getErrorMessage(e)}`, "error")
+    } finally {
+      setDownloadingLogs(false)
+    }
+  }, [
+    getLogsResult.status,
+    downloadLogLines,
+    fetchAllLogsFromStart,
+    cluster,
+    namespace,
+    podName,
+    job.jobId,
+    selectedContainer,
+    openSnackbar,
+  ])
 
   if (job.runs.length === 0) {
     return <NoRunsAlert jobState={job.state} />
@@ -179,28 +227,21 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
         <div>
           <FormControl
             variant="standard"
-            disabled={
-              getJobSpecResult.status === "pending" ||
-              getLogsResult.status === "pending" ||
-              runsNewestFirst.length === 0
-            }
+            disabled={getJobSpecResult.status === "pending" || getLogsResult.isLoading || runsNewestFirst.length === 0}
           >
             <InputLabel id="select-job-run-label">Job Run</InputLabel>
             <Select
               labelId="select-job-run-label"
               variant="standard"
-              value={runIndex}
+              value={selectedRun?.runId ?? ""}
               size="small"
-              onChange={(e) => {
-                const index = e.target.value as number
-                setRunIndex(index)
-              }}
+              onChange={(e) => setSelectedRunId(e.target.value)}
             >
               {runsNewestFirst.map((run, i) => {
                 const runIndicativeTimestamp = run.started || run.pending || run.leased
                 return (
-                  <MenuItem value={i} key={i}>
-                    Run {i + 1}
+                  <MenuItem value={run.runId} key={run.runId}>
+                    Run {runsNewestFirst.length - i}
                     {runIndicativeTimestamp && <>: {formatIsoTimestamp(runIndicativeTimestamp, "full")}</>}
                   </MenuItem>
                 )
@@ -209,10 +250,7 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
           </FormControl>
         </div>
         <div>
-          <FormControl
-            variant="standard"
-            disabled={getJobSpecResult.status === "pending" || getLogsResult.status === "pending"}
-          >
+          <FormControl variant="standard" disabled={getJobSpecResult.status === "pending" || getLogsResult.isLoading}>
             <InputLabel id="select-container-label">Container</InputLabel>
             <ContainerSelect
               labelId="select-container-label"
@@ -245,11 +283,13 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
                 />
               }
               label="Load from start"
-              disabled={getJobSpecResult.status === "pending" || getLogsResult.status === "pending"}
+              disabled={getJobSpecResult.status === "pending" || getLogsResult.isLoading}
             />
           </FormGroup>
         </div>
-        <div>
+      </RunContainerSelectors>
+      <LogsControlsContainer>
+        <DownloadLogsButtonContainer>
           <Tooltip
             arrow
             title={`The file ${showTimestamps ? "will include" : "will not include"} timestamps for each log line. Toggle the 'show timestamps' switch below to change this.`}
@@ -257,50 +297,54 @@ export const SidebarTabJobLogs = ({ job }: SidebarTabJobLogsProps) => {
             <Analytics
               component={Button}
               eventName={ANALYTICS_EVENTS.DOWNLOAD_LOGS_CLICKED}
-              aria-label="download logs"
-              loading={getLogsResult.status === "pending"}
+              aria-label="download logs from start"
+              loading={getLogsResult.isLoading || downloadingLogs}
               disabled={getLogsResult.status !== "success"}
               startIcon={<Download />}
               variant="outlined"
               size="small"
               onClick={downloadLogs}
             >
-              Download logs
+              Download logs from start
             </Analytics>
           </Tooltip>
-        </div>
-      </RunContainerSelectors>
-      <LogsSettingsContainer>
-        <div>
-          <FormGroup>
-            <FormControlLabel
-              control={
-                <Switch checked={showTimestamps} onChange={({ target: { checked } }) => setShowTimestamps(checked)} />
-              }
-              label="Show timestamps"
-            />
-          </FormGroup>
-        </div>
-        <div>
-          <FormGroup>
-            <FormControlLabel
-              control={<Switch checked={wrapLines} onChange={({ target: { checked } }) => setWrapLines(checked)} />}
-              label="Wrap lines"
-            />
-          </FormGroup>
-        </div>
-        <JobRunLogsTextSizeToggle compact />
-      </LogsSettingsContainer>
-      {getJobSpecResult.status === "pending" ||
-        (getLogsResult.status === "pending" && (
-          <LogsContainer textSize={textSize}>
-            <Skeleton />
-            <Skeleton />
-            <Skeleton />
-            <Skeleton />
-            <Skeleton />
-          </LogsContainer>
-        ))}
+        </DownloadLogsButtonContainer>
+        <LogsSettingsContainer>
+          <div>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch checked={showTimestamps} onChange={({ target: { checked } }) => setShowTimestamps(checked)} />
+                }
+                label="Show timestamps"
+              />
+            </FormGroup>
+          </div>
+          <div>
+            <FormGroup>
+              <FormControlLabel
+                control={<Switch checked={wrapLines} onChange={({ target: { checked } }) => setWrapLines(checked)} />}
+                label="Wrap lines"
+              />
+            </FormGroup>
+          </div>
+          <JobRunLogsTextSizeToggle compact />
+        </LogsSettingsContainer>
+      </LogsControlsContainer>
+      {(getJobSpecResult.status === "pending" || getLogsResult.isLoading) && (
+        <LogsContainer textSize={textSize}>
+          <Skeleton />
+          <Skeleton />
+          <Skeleton />
+          <Skeleton />
+          <Skeleton />
+        </LogsContainer>
+      )}
+      {!podName && (
+        <Alert variant="outlined" severity="info">
+          This run has no pod, so it has no logs.
+        </Alert>
+      )}
       {getLogsResult.status === "success" && <LogView logLines={logLines} />}
       {getLogsResult.status === "error" && (
         <div>

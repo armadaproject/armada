@@ -15,6 +15,7 @@ import (
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -125,7 +126,7 @@ func setupPreemptRunProcessorTest(
 	}
 
 	eventReporter := mocks.NewFakeEventReporter()
-	preemptRunProcessor := NewRunPreemptedProcessor(executorContext, jobRunState, eventReporter)
+	preemptRunProcessor := NewRunPreemptedProcessor(executorContext, jobRunState, eventReporter, reporter.NewDebugMessageRenderer(executorContext, testDebugConfig()))
 	return preemptRunProcessor, executorContext, eventReporter
 }
 

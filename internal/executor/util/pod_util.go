@@ -2,7 +2,6 @@ package util
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -134,13 +133,10 @@ func ExtractJobRunId(pod *v1.Pod) string {
 	return pod.Labels[domain.JobRunId]
 }
 
-func ExtractPodNumber(pod *v1.Pod) int {
-	i, _ := strconv.Atoi(pod.Labels[domain.PodNumber])
-	return i
-}
-
+// ExtractPodKey returns the run ID of the pod. The executor creates exactly one pod for each run, so the run ID
+// identifies the pod. A cache entry can outlive its pod, and a key per job then blocks the pod of the next run.
 func ExtractPodKey(pod *v1.Pod) string {
-	return fmt.Sprintf("%s_%d", ExtractJobId(pod), ExtractPodNumber(pod))
+	return ExtractJobRunId(pod)
 }
 
 func FilterCompletedPods(pods []*v1.Pod) []*v1.Pod {
@@ -272,6 +268,26 @@ func HasAppContainerStarted(pod *v1.Pod) bool {
 		}
 	}
 	return false
+}
+
+// LongestAppContainerRunDuration returns how long the pod's longest-running app container ran for, or
+// zero if none of them ran to completion - only terminated containers have a measurable runtime. Init
+// containers are ignored, matching HasAppContainerStarted.
+func LongestAppContainerRunDuration(pod *v1.Pod) time.Duration {
+	longest := time.Duration(0)
+	for _, container := range pod.Status.ContainerStatuses {
+		terminated := container.State.Terminated
+		if terminated == nil {
+			terminated = container.LastTerminationState.Terminated
+		}
+		if terminated == nil || terminated.StartedAt.IsZero() || terminated.FinishedAt.IsZero() {
+			continue
+		}
+		if ran := terminated.FinishedAt.Sub(terminated.StartedAt.Time); ran > longest {
+			longest = ran
+		}
+	}
+	return longest
 }
 
 func IsMarkedForDeletion(pod *v1.Pod) bool {

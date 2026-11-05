@@ -11,6 +11,7 @@ export const ANALYTICS_EVENTS = {
   LIGHT_MODE_SELECTED: "Light Mode Selected",
   DARK_MODE_SELECTED: "Dark Mode Selected",
   COLUMN_CONFIGURATION_DIALOG_CLOSED: "Column Configuration Dialog Closed",
+  COLUMN_CONFIGURATION_RESET: "Column Configuration Reset",
   CUSTOM_VIEW_CREATED: "Custom View Created",
   CUSTOM_VIEW_LOADED: "Custom View Loaded",
   CUSTOM_VIEW_DELETED: "Custom View Deleted",

@@ -56,7 +56,7 @@ type JobSchedulingContext struct {
 	// This is only set for evicted jobs and is set alongside adding an additionalNodeSelector for the node
 	AssignedNode *internaltypes.Node
 	// job that preempted this pod
-	PreemptingJob *jobdb.Job
+	PreemptionDetails *PreemptionDetails
 	// The type of preemption used to preempt this job (i.e fairshare, urgency)
 	PreemptionType PreemptionType
 	// Description of the cause of preemption
@@ -71,6 +71,13 @@ type JobSchedulingContext struct {
 
 func (jctx *JobSchedulingContext) IsHomeJob(currentPool string) bool {
 	return IsHomeJob(jctx.Job, currentPool)
+}
+
+func (jctx *JobSchedulingContext) GetPreemptingJob() *jobdb.Job {
+	if jctx.PreemptionDetails != nil {
+		return jctx.PreemptionDetails.PreemptingJob
+	}
+	return nil
 }
 
 func (jctx *JobSchedulingContext) String() string {
@@ -243,4 +250,13 @@ func PrintJobSchedulingDetails(ctx *armadacontext.Context, prefix string, evicte
 
 	ctx.Infof("%s - total %d, showing first %d -  %+v", prefix, len(evictedJctx), infoDisplayLimit, summaries[:infoDisplayLimit])
 	ctx.Debugf("%s - %+v", prefix, summaries)
+}
+
+type PreemptionDetails struct {
+	PreemptingJob       *jobdb.Job
+	PreemptedSiblingJob *jobdb.Job
+}
+
+func (p *PreemptionDetails) CausedBySiblingPreemption() bool {
+	return p.PreemptedSiblingJob != nil
 }

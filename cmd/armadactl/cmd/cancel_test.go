@@ -1,277 +1,280 @@
 package cmd
 
 import (
-	"io"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/armadactl"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
-func TestCancel(t *testing.T) {
+func TestCancelExecutor(t *testing.T) {
 	tests := map[string]struct {
-		Flags  []flag
-		jobId  string
-		queue  string
-		jobSet string
+		flags []flag
+		want  executorCall
 	}{
-		"default flags": {nil, "", "", ""},
-		"valid job-id":  {[]flag{{"job-id", "jobId1"}}, "jobId1", "", ""},
-		"valid queue":   {[]flag{{"queue", "queue1,jobSet1"}}, "", "queue1", "jobSet1"},
-		"valid job-set": {[]flag{{"job-set", "jobSet1"}}, "", "", "jobSet1"},
-	}
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			a := armadactl.New()
-			cmd := cancelCmd()
-
-			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-				a.Out = io.Discard
-
-				if len(test.jobId) > 0 {
-					jobIdFlag, err1 := cmd.Flags().GetString("job-id")
-					require.Error(t, err1)
-					require.Equal(t, test.jobId, jobIdFlag)
-				}
-				if len(test.queue) > 0 {
-					queueFlag, err1 := cmd.Flags().GetString("queue")
-					jobSetFlag, err2 := cmd.Flags().GetString("job-set")
-					require.Error(t, err1)
-					require.Error(t, err2)
-					require.Equal(t, test.queue, queueFlag)
-					require.Equal(t, test.jobSet, jobSetFlag)
-				}
-				if len(test.jobSet) > 0 {
-					jobSetFlag, err1 := cmd.Flags().GetString("job-set")
-					require.Error(t, err1)
-					require.Equal(t, test.jobSet, jobSetFlag)
-				}
-				return nil
-			}
-		})
-	}
-}
-
-func TestCancelQueue(t *testing.T) {
-	tests := map[string]struct {
-		Flags           []flag
-		jobStates       []string
-		selectors       []string
-		priorityClasses []string
-		inverse         bool
-		onlyCordoned    bool
-		dryRun          bool
-	}{
-		"default flags":            {nil, []string{}, []string{}, []string{}, false, false, false},
-		"valid selectors":          {[]flag{{"selectors", "armadaproject.io/priority=high,armadaproject.io/category=critical"}}, []string{}, []string{"armadaproject.io/priority=high", "armadaproject.io/category=critical"}, []string{}, false, false, false},
-		"valid job-states 1":       {[]flag{{"job-states", "queued"}}, []string{"queued"}, []string{}, []string{}, false, false, false},
-		"valid job-states 2":       {[]flag{{"job-states", "queued,leased,pending,running"}}, []string{"queued", "leased", "pending", "running"}, []string{}, []string{}, false, false, false},
-		"valid priority-classes 1": {[]flag{{"priority-classes", "armada-default"}}, []string{}, []string{}, []string{"armada-default"}, false, false, false},
-		"valid priority-classes 2": {[]flag{{"priority-classes", "armada-default,armada-preemptible"}}, []string{}, []string{}, []string{"armada-default", "armada-preemptible"}, false, false, false},
-		"valid multiple flags": {
-			[]flag{{"selectors", "armadaproject.io/priority=high,armadaproject.io/category=critical"}, {"job-states", "queued,leased,pending,running"}, {"priority-classes", "armada-default,armada-preemptible"}},
-			[]string{"queued", "leased", "pending", "running"},
-			[]string{"armadaproject.io/priority=high", "armadaproject.io/category=critical"},
-			[]string{"armada-default", "armada-preemptible"},
-			true, true, true,
+		// Omitting priority-classes means all priority classes, which the
+		// executor API represents as an empty slice. An unnarrowed queue
+		// selection expands to every queue.
+		"without priority-classes": {
+			flags: nil,
+			want: executorCall{
+				executor:        "test-executor",
+				queues:          []string{"queue-a", "queue-b"},
+				priorityClasses: []string{},
+				pools:           []string{},
+			},
 		},
-	}
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			a := armadactl.New()
-			cmd := cancelQueueCmd()
-
-			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-				a.Out = io.Discard
-
-				if len(test.jobStates) > 0 {
-					jobStatesFlag, err := cmd.Flags().GetString("job-states")
-					require.NoError(t, err)
-					require.Equal(t, test.jobStates, jobStatesFlag)
-				}
-				if len(test.selectors) > 0 {
-					selectorsFlag, err := cmd.Flags().GetString("selectors")
-					require.Error(t, err)
-					require.Equal(t, test.selectors, selectorsFlag)
-				}
-				if len(test.priorityClasses) > 0 {
-					priorityClassesFlag, err := cmd.Flags().GetString("priority-classes")
-					require.Error(t, err)
-					require.Equal(t, test.priorityClasses, priorityClassesFlag)
-				}
-
-				inverseValue, err := cmd.Flags().GetBool("inverse")
-				require.NoError(t, err)
-				require.Equal(t, test, inverseValue)
-
-				onlyCordonedValue, err := cmd.Flags().GetBool("only-cordoned")
-				require.NoError(t, err)
-				require.Equal(t, test, onlyCordonedValue)
-
-				dryRunValue, err := cmd.Flags().GetBool("dry-run")
-				require.NoError(t, err)
-				require.Equal(t, test, dryRunValue)
-
-				return nil
-			}
-		})
-	}
-}
-
-func TestCancelExecutorAllPriorityClasses(t *testing.T) {
-	tests := map[string]struct {
-		flags       []flag
-		expectError bool
-	}{
-		"with all-priority-classes flag set": {
-			flags:       []flag{{"all-priority-classes", "true"}},
-			expectError: false,
+		"with a single priority class": {
+			flags: []flag{{"priority-classes", "armada-default"}},
+			want: executorCall{
+				executor:        "test-executor",
+				queues:          []string{"queue-a", "queue-b"},
+				priorityClasses: []string{"armada-default"},
+				pools:           []string{},
+			},
 		},
-		"without all-priority-classes and without priority-classes": {
-			flags:       nil,
-			expectError: true,
+		"with multiple priority classes": {
+			flags: []flag{{"priority-classes", "armada-default,armada-preemptible"}},
+			want: executorCall{
+				executor:        "test-executor",
+				queues:          []string{"queue-a", "queue-b"},
+				priorityClasses: []string{"armada-default", "armada-preemptible"},
+				pools:           []string{},
+			},
 		},
-		"without all-priority-classes but with priority-classes": {
-			flags:       []flag{{"priority-classes", "armada-default"}},
-			expectError: false,
+		"with queues and pools": {
+			flags: []flag{{"queues", "queue-a"}, {"pools", "pool-1,pool-2"}},
+			want: executorCall{
+				executor:        "test-executor",
+				queues:          []string{"queue-a"},
+				priorityClasses: []string{},
+				pools:           []string{"pool-1", "pool-2"},
+			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			cmd := cancelExecutorCmd()
-			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-				all, err := cmd.Flags().GetBool("all-priority-classes")
-				if err != nil {
-					return err
+			a := armadactl.New()
+			cmd := cancelExecutorCmd(a)
+
+			var got []executorCall
+			withFakeAPIs(t, a, cmd, func() {
+				a.Params.QueueAPI.GetAll = func() ([]*api.Queue, error) { return testQueues(), nil }
+				a.Params.ExecutorAPI.CancelOnExecutor = func(executor string, queues, priorityClasses, pools []string) error {
+					got = append(got, executorCall{executor, queues, priorityClasses, pools})
+					return nil
 				}
-				if !all {
-					if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
-						return err
-					}
-				}
-				return nil
-			}
-			cmd.RunE = func(cmd *cobra.Command, args []string) error {
-				return nil
-			}
+			})
+
 			cmd.SetArgs([]string{"test-executor"})
 			for _, f := range tc.flags {
 				require.NoError(t, cmd.Flags().Set(f.name, f.value))
 			}
-			err := cmd.Execute()
-			if tc.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+
+			require.NoError(t, cmd.Execute())
+			require.Equal(t, []executorCall{tc.want}, got)
 		})
 	}
 }
 
-func TestCancelNodeAllPriorityClasses(t *testing.T) {
+func TestCancelNode(t *testing.T) {
 	tests := map[string]struct {
-		flags       []flag
-		expectError bool
+		flags []flag
+		want  nodeCall
 	}{
-		"with all-priority-classes flag set": {
-			flags:       []flag{{"all-priority-classes", "true"}, {"executor", "test-exec"}},
-			expectError: false,
+		// Omitting priority-classes means all priority classes, which the node
+		// API represents as an empty slice.
+		"without priority-classes": {
+			flags: []flag{{"executor", "test-executor"}},
+			want: nodeCall{
+				node:            "test-node",
+				executor:        "test-executor",
+				queues:          []string{"queue-a", "queue-b"},
+				priorityClasses: []string{},
+			},
 		},
-		"without all-priority-classes and without priority-classes": {
-			flags:       []flag{{"executor", "test-exec"}},
-			expectError: true,
+		"with a single priority class": {
+			flags: []flag{{"executor", "test-executor"}, {"priority-classes", "armada-default"}},
+			want: nodeCall{
+				node:            "test-node",
+				executor:        "test-executor",
+				queues:          []string{"queue-a", "queue-b"},
+				priorityClasses: []string{"armada-default"},
+			},
 		},
-		"without all-priority-classes but with priority-classes": {
-			flags:       []flag{{"priority-classes", "armada-default"}, {"executor", "test-exec"}},
-			expectError: false,
+		"with multiple priority classes": {
+			flags: []flag{{"executor", "test-executor"}, {"priority-classes", "armada-default,armada-preemptible"}},
+			want: nodeCall{
+				node:            "test-node",
+				executor:        "test-executor",
+				queues:          []string{"queue-a", "queue-b"},
+				priorityClasses: []string{"armada-default", "armada-preemptible"},
+			},
+		},
+		"with queues": {
+			flags: []flag{{"executor", "test-executor"}, {"queues", "queue-a"}},
+			want: nodeCall{
+				node:            "test-node",
+				executor:        "test-executor",
+				queues:          []string{"queue-a"},
+				priorityClasses: []string{},
+			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			cmd := cancelNodeCmd()
-			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-				all, err := cmd.Flags().GetBool("all-priority-classes")
-				if err != nil {
-					return err
+			a := armadactl.New()
+			cmd := cancelNodeCmd(a)
+
+			var got []nodeCall
+			withFakeAPIs(t, a, cmd, func() {
+				a.Params.QueueAPI.GetAll = func() ([]*api.Queue, error) { return testQueues(), nil }
+				a.Params.NodeAPI.CancelOnNode = func(node, executor string, queues, priorityClasses []string) error {
+					got = append(got, nodeCall{node, executor, queues, priorityClasses})
+					return nil
 				}
-				if !all {
-					if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
-						return err
-					}
-				}
-				if err := cmd.MarkFlagRequired("executor"); err != nil {
-					return err
-				}
-				return nil
-			}
-			cmd.RunE = func(cmd *cobra.Command, args []string) error {
-				return nil
-			}
+			})
+
 			cmd.SetArgs([]string{"test-node"})
 			for _, f := range tc.flags {
 				require.NoError(t, cmd.Flags().Set(f.name, f.value))
 			}
-			err := cmd.Execute()
-			if tc.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+
+			require.NoError(t, cmd.Execute())
+			require.Equal(t, []nodeCall{tc.want}, got)
 		})
 	}
 }
 
-func TestCancelQueueAllPriorityClasses(t *testing.T) {
+func TestCancelQueues(t *testing.T) {
+	// job-states is required by this command, so every case sets it.
 	tests := map[string]struct {
-		flags       []flag
-		expectError bool
+		args  []string
+		flags []flag
+		want  []queueCall
 	}{
-		"with all-priority-classes flag set": {
-			flags:       []flag{{"all-priority-classes", "true"}, {"job-states", "queued"}},
-			expectError: false,
+		// Omitting priority-classes means all priority classes, which the
+		// queue API represents as an empty slice.
+		"without priority-classes": {
+			args:  []string{"queue-a"},
+			flags: []flag{{"job-states", "queued"}},
+			want: []queueCall{
+				{
+					queue:           "queue-a",
+					priorityClasses: []string{},
+					jobStates:       []api.JobState{api.JobState_QUEUED},
+					pools:           []string{},
+				},
+			},
 		},
-		"without all-priority-classes and without priority-classes": {
-			flags:       []flag{{"job-states", "queued"}},
-			expectError: true,
+		"with a single priority class": {
+			args:  []string{"queue-a"},
+			flags: []flag{{"job-states", "queued"}, {"priority-classes", "armada-default"}},
+			want: []queueCall{
+				{
+					queue:           "queue-a",
+					priorityClasses: []string{"armada-default"},
+					jobStates:       []api.JobState{api.JobState_QUEUED},
+					pools:           []string{},
+				},
+			},
 		},
-		"without all-priority-classes but with priority-classes": {
-			flags:       []flag{{"priority-classes", "armada-default"}, {"job-states", "queued"}},
-			expectError: false,
+		"with multiple priority classes": {
+			args:  []string{"queue-a"},
+			flags: []flag{{"job-states", "queued"}, {"priority-classes", "armada-default,armada-preemptible"}},
+			want: []queueCall{
+				{
+					queue:           "queue-a",
+					priorityClasses: []string{"armada-default", "armada-preemptible"},
+					jobStates:       []api.JobState{api.JobState_QUEUED},
+					pools:           []string{},
+				},
+			},
+		},
+		"with multiple job states and pools": {
+			args:  []string{"queue-a"},
+			flags: []flag{{"job-states", "queued,running"}, {"pools", "pool-1"}},
+			want: []queueCall{
+				{
+					queue:           "queue-a",
+					priorityClasses: []string{},
+					jobStates:       []api.JobState{api.JobState_QUEUED, api.JobState_RUNNING},
+					pools:           []string{"pool-1"},
+				},
+			},
+		},
+		"cancels each selected queue": {
+			args:  []string{"queue-a", "queue-b"},
+			flags: []flag{{"job-states", "queued"}},
+			want: []queueCall{
+				{
+					queue:           "queue-a",
+					priorityClasses: []string{},
+					jobStates:       []api.JobState{api.JobState_QUEUED},
+					pools:           []string{},
+				},
+				{
+					queue:           "queue-b",
+					priorityClasses: []string{},
+					jobStates:       []api.JobState{api.JobState_QUEUED},
+					pools:           []string{},
+				},
+			},
+		},
+		// dry-run reports what would happen without calling the API.
+		"dry-run calls nothing": {
+			args:  []string{"queue-a"},
+			flags: []flag{{"job-states", "queued"}, {"dry-run", "true"}},
+			want:  nil,
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			cmd := cancelQueueCmd()
-			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-				if err := cmd.MarkFlagRequired("job-states"); err != nil {
-					return err
+			a := armadactl.New()
+			cmd := cancelQueueCmd(a)
+
+			var got []queueCall
+			withFakeAPIs(t, a, cmd, func() {
+				a.Params.QueueAPI.GetAll = func() ([]*api.Queue, error) { return testQueues(), nil }
+				a.Params.QueueAPI.Cancel = func(queue string, priorityClasses []string, jobStates []api.JobState, pools []string) error {
+					got = append(got, queueCall{queue, priorityClasses, jobStates, pools})
+					return nil
 				}
-				all, err := cmd.Flags().GetBool("all-priority-classes")
-				if err != nil {
-					return err
-				}
-				if !all {
-					if err := cmd.MarkFlagRequired("priority-classes"); err != nil {
-						return err
-					}
-				}
-				return nil
-			}
-			cmd.RunE = func(cmd *cobra.Command, args []string) error {
-				return nil
-			}
-			cmd.SetArgs([]string{"test-queue"})
+			})
+
+			cmd.SetArgs(tc.args)
 			for _, f := range tc.flags {
 				require.NoError(t, cmd.Flags().Set(f.name, f.value))
 			}
-			err := cmd.Execute()
-			if tc.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+
+			require.NoError(t, cmd.Execute())
+			require.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func TestCancelQueuesRequiresQueueSelection(t *testing.T) {
+	// Guards against accidentally cancelling every queue: selection must be
+	// narrowed by name or by label.
+	a := armadactl.New()
+	cmd := cancelQueueCmd(a)
+
+	called := false
+	withFakeAPIs(t, a, cmd, func() {
+		a.Params.QueueAPI.GetAll = func() ([]*api.Queue, error) { return testQueues(), nil }
+		a.Params.QueueAPI.Cancel = func(queue string, priorityClasses []string, jobStates []api.JobState, pools []string) error {
+			called = true
+			return nil
+		}
+	})
+
+	// Must be non-nil: cobra falls back to os.Args[1:] when args are nil.
+	cmd.SetArgs([]string{})
+	require.NoError(t, cmd.Flags().Set("job-states", "queued"))
+	cmd.SilenceUsage = true
+
+	require.Error(t, cmd.Execute())
+	require.False(t, called, "no queue should be cancelled without a selection")
 }

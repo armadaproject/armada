@@ -12,6 +12,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	schedulingcontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -341,7 +342,7 @@ func TestReportJobStateTransitions(t *testing.T) {
 	}
 }
 
-func TestReportJobPreempted(t *testing.T) {
+func TestReportJobPreemptedStateTransition(t *testing.T) {
 	baseTimePlusSeconds := func(numSeconds int) *time.Time {
 		newTime := baseTime.Add(time.Duration(numSeconds) * time.Second)
 		return &newTime
@@ -359,18 +360,34 @@ func TestReportJobPreempted(t *testing.T) {
 	jobCheckpointIntervals := []time.Duration{time.Second * 5, time.Second * 30, time.Minute * 5}
 
 	metrics := newJobStateMetrics([]v1.ResourceName{"cpu"}, jobCheckpointIntervals, 12*time.Hour)
-	metrics.ReportJobPreempted(job)
+	preemptionType := schedulingcontext.PreemptedWithUrgencyPreemption
+	metrics.ReportJobPreemptedStateTransition(job, preemptionType)
 
-	expectedJobResourceSecondsLostToPreemptionByQueue := map[[4]string]float64{
-		{testQueue, testPool, noCheckpointLabelValue, "cpu"}: 60 * 16,
-		{testQueue, testPool, "5s", "cpu"}:                   5 * 16,
-		{testQueue, testPool, "30s", "cpu"}:                  30 * 16,
-		{testQueue, testPool, "5m", "cpu"}:                   60 * 16,
+	expectedJobResourceSecondsLostToPreemptionByQueue := map[[5]string]float64{
+		{testQueue, testPool, noCheckpointLabelValue, "cpu", string(preemptionType)}: 60 * 16,
+		{testQueue, testPool, "5s", "cpu", string(preemptionType)}:                   5 * 16,
+		{testQueue, testPool, "30s", "cpu", string(preemptionType)}:                  30 * 16,
+		{testQueue, testPool, "5m", "cpu", string(preemptionType)}:                   60 * 16,
 	}
 	for k, v := range expectedJobResourceSecondsLostToPreemptionByQueue {
 		actualJobStateSeconds := testutil.ToFloat64(metrics.jobResourceSecondsLostToPreemptionByQueue.WithLabelValues(k[:]...))
 		assert.InDelta(t, v, actualJobStateSeconds, epsilon, "jobResourceSecondsLostToPreemptionByQueue for %s", strings.Join(k[:], ","))
 	}
+}
+
+func TestReportRetryPolicyDecision(t *testing.T) {
+	job := baseJob.WithUpdatedRun(baseRun)
+
+	metrics := newJobStateMetrics([]v1.ResourceName{"cpu"}, []time.Duration{}, 12*time.Hour)
+	metrics.ReportRetryPolicyDecision(job, "infra-checks", "retry")
+	metrics.ReportRetryPolicyDecision(job, "infra-checks", "retry")
+	metrics.ReportRetryPolicyDecision(job, "infra-checks", "fail_budget_exhausted")
+
+	retried := testutil.ToFloat64(metrics.retryPolicyDecisionsByQueue.WithLabelValues(testQueue, testPool, "infra-checks", "retry"))
+	assert.InDelta(t, 2, retried, epsilon)
+
+	exhausted := testutil.ToFloat64(metrics.retryPolicyDecisionsByQueue.WithLabelValues(testQueue, testPool, "infra-checks", "fail_budget_exhausted"))
+	assert.InDelta(t, 1, exhausted, epsilon)
 }
 
 func TestCategoriseErrors(t *testing.T) {
@@ -417,7 +434,7 @@ func TestReset(t *testing.T) {
 	byNodeLabels := []string{testNode, testPool, testCluster, "running", "pending"}
 	byQueueResourceLabels := append(byQueueAndStateLabels, "cpu")
 	byNodeResourceLabels := append(byNodeLabels, "cpu")
-	resourceSecondsLostToPreemptionLabels := append(byQueueLabels, "none", "cpu")
+	resourceSecondsLostToPreemptionLabels := append(byQueueLabels, "none", "cpu", "urgency")
 	m := newJobStateMetrics(nil, []time.Duration{}, 12*time.Hour)
 
 	testReset := func(vec *prometheus.CounterVec, labels []string) {
@@ -446,7 +463,7 @@ func TestDisable(t *testing.T) {
 	byNodeLabels := []string{testNode, testPool, testCluster, "running", "pending"}
 	byQueueResourceLabels := append(byQueueAndStateLabels, "cpu")
 	byNodeResourceLabels := append(byNodeLabels, "cpu")
-	resourceSecondsLostToPreemptionLabels := append(byQueueLabels, "none", "cpu")
+	resourceSecondsLostToPreemptionLabels := append(byQueueLabels, "none", "cpu", "urgency")
 
 	collect := func(m *jobStateMetrics) []prometheus.Metric {
 		m.jobStateCounterByQueue.WithLabelValues(byQueueAndStateLabels...).Inc()

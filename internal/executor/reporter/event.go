@@ -18,7 +18,15 @@ import (
 // CreateEventForCurrentState builds the armada event for pod's current phase.
 // For failed pods the caller supplies the classification result to attach to the event,
 // along with an optional debugMessage (rendered k8s events) to include on the PodError.
-func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult categorizer.ClassifyResult, debugMessage string) (*armadaevents.EventSequence, error) {
+// startUpInfo is the start-up breakdown for a pod that has reached Running, and is nil when capture
+// is disabled, nothing could be determined, or the pod is in any other phase.
+func CreateEventForCurrentState(
+	pod *v1.Pod,
+	clusterId string,
+	classifyResult categorizer.ClassifyResult,
+	debugMessage string,
+	startUpInfo *armadaevents.PodStartUpInfo,
+) (*armadaevents.EventSequence, error) {
 	phase := pod.Status.Phase
 	sequence := createEmptySequence(pod)
 	jobId, runId, err := extractIds(pod)
@@ -60,9 +68,10 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string, classifyResult ca
 			Created: now,
 			Event: &armadaevents.EventSequence_Event_JobRunRunning{
 				JobRunRunning: &armadaevents.JobRunRunning{
-					RunId: runId,
-					JobId: jobId,
-					Pool:  util.ExtractPool(pod),
+					RunId:       runId,
+					JobId:       jobId,
+					Pool:        util.ExtractPool(pod),
+					StartUpInfo: startUpInfo,
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
@@ -261,11 +270,11 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.Kuberne
 	return sequence, nil
 }
 
-// CreateJobRunCancelledDebugEvent creates a JobCancelledDebugInfo event carrying the rendered
-// k8s pod events for a run that is being cancelled before its main container ever started. It is
-// purely diagnostic: it is NOT an error and does NOT change the run's state, so the run remains
-// cancelled. Only Lookout consumes it, to populate the run's debug column.
-func CreateJobRunCancelledDebugEvent(pod *v1.Pod, debugMessage string) (*armadaevents.EventSequence, error) {
+// CreateJobRunTerminatedDebugEvent creates a JobRunTerminatedDebugInfo event carrying the rendered
+// debug message for a run that is being torn down without its workload having completed. It is
+// purely diagnostic: it is NOT an error and does NOT change the run's state. Only Lookout consumes
+// it, to populate the run's debug column.
+func CreateJobRunTerminatedDebugEvent(pod *v1.Pod, debugMessage string) (*armadaevents.EventSequence, error) {
 	sequence := createEmptySequence(pod)
 	jobId, runId, err := extractIds(pod)
 	if err != nil {
@@ -274,8 +283,8 @@ func CreateJobRunCancelledDebugEvent(pod *v1.Pod, debugMessage string) (*armadae
 
 	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 		Created: types.TimestampNow(),
-		Event: &armadaevents.EventSequence_Event_JobCancelledDebugInfo{
-			JobCancelledDebugInfo: &armadaevents.JobCancelledDebugInfo{
+		Event: &armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo{
+			JobRunTerminatedDebugInfo: &armadaevents.JobRunTerminatedDebugInfo{
 				JobId:        jobId,
 				RunId:        runId,
 				DebugMessage: debugMessage,

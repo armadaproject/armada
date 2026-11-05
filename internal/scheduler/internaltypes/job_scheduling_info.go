@@ -20,16 +20,36 @@ type JobSchedulingInfo struct {
 	Priority        uint32
 	PodRequirements *PodRequirements
 	Version         uint32
+	// ResourceMutations records the job's total resource growth from retry
+	// mutations. Nil means no growth.
+	ResourceMutations *RetryResourceMutations
+}
+
+// RetryResourceMutations mirrors schedulerobjects.RetryResourceMutations,
+// which defines the semantics. MemoryStatic stays a quantity string to match
+// the wire format.
+type RetryResourceMutations struct {
+	MemoryFactor float64
+	MemoryStatic string
+}
+
+func (m *RetryResourceMutations) DeepCopy() *RetryResourceMutations {
+	if m == nil {
+		return nil
+	}
+	clone := *m
+	return &clone
 }
 
 func (j *JobSchedulingInfo) DeepCopy() *JobSchedulingInfo {
 	return &JobSchedulingInfo{
-		Lifetime:        j.Lifetime,
-		PriorityClass:   j.PriorityClass,
-		SubmitTime:      j.SubmitTime,
-		Priority:        j.Priority,
-		PodRequirements: j.PodRequirements.DeepCopy(),
-		Version:         j.Version,
+		Lifetime:          j.Lifetime,
+		PriorityClass:     j.PriorityClass,
+		SubmitTime:        j.SubmitTime,
+		Priority:          j.Priority,
+		PodRequirements:   j.PodRequirements.DeepCopy(),
+		Version:           j.Version,
+		ResourceMutations: j.ResourceMutations.DeepCopy(),
 	}
 }
 
@@ -103,8 +123,25 @@ func FromSchedulerObjectsJobSchedulingInfo(j *schedulerobjects.JobSchedulingInfo
 			Annotations:          maps.Clone(podRequirements.Annotations),
 			ResourceRequirements: *rr,
 		},
-		Version: j.Version,
+		Version:           j.Version,
+		ResourceMutations: retryResourceMutationsFromProto(j.ResourceMutations),
 	}, nil
+}
+
+func retryResourceMutationsFromProto(m *schedulerobjects.RetryResourceMutations) *RetryResourceMutations {
+	if m == nil {
+		return nil
+	}
+	return &RetryResourceMutations{MemoryFactor: m.MemoryFactor, MemoryStatic: m.MemoryStatic}
+}
+
+// RetryResourceMutationsToProto converts the internal representation to its
+// wire form. It returns nil for nil, so unset stays unset on the wire.
+func RetryResourceMutationsToProto(m *RetryResourceMutations) *schedulerobjects.RetryResourceMutations {
+	if m == nil {
+		return nil
+	}
+	return &schedulerobjects.RetryResourceMutations{MemoryFactor: m.MemoryFactor, MemoryStatic: m.MemoryStatic}
 }
 
 func ToSchedulerObjectsJobSchedulingInfo(j *JobSchedulingInfo) *schedulerobjects.JobSchedulingInfo {
@@ -129,6 +166,7 @@ func ToSchedulerObjectsJobSchedulingInfo(j *JobSchedulingInfo) *schedulerobjects
 				},
 			},
 		},
-		Version: j.Version,
+		Version:           j.Version,
+		ResourceMutations: RetryResourceMutationsToProto(j.ResourceMutations),
 	}
 }

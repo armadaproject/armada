@@ -267,7 +267,7 @@ func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *
 // job on each preempted job's context and marks the job as preempted so it is not re-scheduled.
 func (sch *GangScheduler) applyPreemptions(preemptedJobs []*nodedb.JobPreemptionInfo) {
 	for _, preemption := range preemptedJobs {
-		preemption.PreemptedJob.PreemptingJob = preemption.PreemptingJob
+		preemption.PreemptedJob.PreemptionDetails = preemption.PreemptionDetails
 		sch.schedulingContext.MarkJobPreempted(preemption.PreemptedJob.JobId)
 	}
 }

@@ -2,6 +2,8 @@ package retry
 
 import (
 	"fmt"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // Action is what a rule or a policy's default prescribes for a failed run:
@@ -28,6 +30,44 @@ type Rule struct {
 	Action        Action
 	OnCategory    string
 	OnSubcategory string
+	// Mutation describes changes applied to the job when this rule retries it.
+	Mutation Mutation
+}
+
+// Mutation groups the changes applied to a job on a policy-driven retry.
+// Fields are additive. The zero value applies no changes.
+type Mutation struct {
+	// Affinity changes where the retry is allowed to run.
+	Affinity AffinityMutation
+	// Resources bumps the retried job's resource requirements.
+	Resources ResourceMutation
+}
+
+// AffinityMutation groups placement changes applied to a retried job.
+type AffinityMutation struct {
+	// AvoidSameNode steers the retry away from every node a previous run
+	// attempted. This matches the lease-return retry behaviour.
+	AvoidSameNode bool
+}
+
+// ResourceMutation groups per-resource bumps applied to a retried job.
+type ResourceMutation struct {
+	Memory ResourceBump
+}
+
+// ResourceBump grows one resource on retry. The semantics live on
+// api.RetryResourceBump; write-time validation enforces them. The zero value
+// applies no bump.
+type ResourceBump struct {
+	// Static adds a fixed amount.
+	Static *resource.Quantity
+	// Factor multiplies the current amount.
+	Factor float64
+}
+
+// IsZero reports whether the bump applies no change.
+func (b ResourceBump) IsZero() bool {
+	return b.Static == nil && b.Factor == 0
 }
 
 // Decision identifies which gate produced an engine verdict. It is used as
@@ -43,6 +83,10 @@ const (
 	// DecisionNoError is returned when there is no run error to evaluate. It
 	// gives the nil-error path a non-empty metrics label instead of a gap.
 	DecisionNoError Decision = "no_error"
+	// DecisionRetryUnschedulable records a granted retry the scheduler
+	// abandoned because the mutated job fits no node. The engine never
+	// returns it. The scheduler records it in place of DecisionRetry.
+	DecisionRetryUnschedulable Decision = "retry_unschedulable"
 )
 
 // Result is the output of the retry engine evaluation.
@@ -52,6 +96,9 @@ type Result struct {
 	// Decision is the typed counterpart of Reason, suitable for metrics. It is
 	// always set.
 	Decision Decision
+	// Mutation is the mutation of the rule that decided the retry. It is the
+	// zero value unless a rule matched and its action was Retry.
+	Mutation Mutation
 }
 
 // ValidatePolicy checks that a policy has valid fields.

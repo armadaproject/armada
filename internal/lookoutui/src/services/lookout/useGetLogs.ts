@@ -1,4 +1,6 @@
-import { InfiniteData, useInfiniteQuery } from "@tanstack/react-query"
+import { useCallback } from "react"
+
+import { InfiniteData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query"
 
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
@@ -14,10 +16,61 @@ export type LogLine = {
   line: string
 }
 
+// podOfRequest names the pod of a log request. A binoculars that does not read podName reads the pod
+// armada-<jobId>-<podNumber>, so the request also carries the job ID and the pod number.
+const podOfRequest = (jobId: string, podName: string) => ({ jobId, podNumber: 0, podName })
+
+const fetchLogsFromStartPage = async (
+  getBinocularsApi: ReturnType<typeof useApiClients>["getBinocularsApi"],
+  cluster: string,
+  namespace: string,
+  jobId: string,
+  podName: string,
+  container: string,
+  sinceTime: string,
+): Promise<LogLine[]> => {
+  const config = getConfig()
+  try {
+    const logLinesRaw = config.fakeDataEnabled
+      ? createFakeLogs(cluster, namespace, podName, container, sinceTime)
+      : (
+          await getBinocularsApi(cluster).logs({
+            body: {
+              ...podOfRequest(jobId, podName),
+              podNamespace: namespace,
+              sinceTime,
+              logOptions: {
+                container: container,
+                tailLines: undefined,
+              },
+            },
+          })
+        ).log
+
+    const logLines = (logLinesRaw ?? []).map((l) => ({
+      timestamp: l.timestamp ?? "",
+      line: l.line ?? "",
+    }))
+
+    let sliceIndex = 0
+    for (let i = 0; i < logLines.length; i++) {
+      if (logLines[i].timestamp > sinceTime) {
+        break
+      }
+      sliceIndex = i + 1
+    }
+
+    return logLines.slice(sliceIndex)
+  } catch (e) {
+    throw await getErrorMessage(e)
+  }
+}
+
 export const useGetLogs = (
   cluster: string,
   namespace: string,
   jobId: string,
+  podName: string,
   container: string,
   loadFromStart: boolean,
   enabled = true,
@@ -29,20 +82,19 @@ export const useGetLogs = (
     LogLine[],
     string,
     InfiniteData<LogLine[]>,
-    ["getLogs", string, string, string, string, boolean],
+    ["getLogs", string, string, string, string, string, boolean],
     string
   >({
-    queryKey: ["getLogs", cluster, namespace, jobId, container, loadFromStart],
+    queryKey: ["getLogs", cluster, namespace, jobId, podName, container, loadFromStart],
     queryFn: async ({ pageParam, signal }) => {
       try {
         const logLinesRaw = config.fakeDataEnabled
-          ? createFakeLogs(cluster, namespace, jobId, container, pageParam)
+          ? createFakeLogs(cluster, namespace, podName, container, pageParam)
           : (
               await getBinocularsApi(cluster).logs(
                 {
                   body: {
-                    jobId,
-                    podNumber: 0,
+                    ...podOfRequest(jobId, podName),
                     podNamespace: namespace,
                     sinceTime: pageParam,
                     logOptions: {
@@ -78,4 +130,37 @@ export const useGetLogs = (
     getNextPageParam: (_, allPages) => allPages.flat().at(-1)?.timestamp ?? "",
     enabled,
   })
+}
+
+export const useFetchAllLogsFromStart = () => {
+  const queryClient = useQueryClient()
+  const { getBinocularsApi } = useApiClients()
+
+  return useCallback(
+    async (
+      cluster: string,
+      namespace: string,
+      jobId: string,
+      podName: string,
+      container: string,
+    ): Promise<LogLine[]> => {
+      const allLogLines: LogLine[] = []
+      let sinceTime = ""
+      for (;;) {
+        const page = await queryClient.fetchQuery({
+          // eslint-disable-next-line @tanstack/query/exhaustive-deps -- getBinocularsApi is a stable, memoised reference and does not vary the fetched data
+          queryKey: ["getLogsFromStartPage", cluster, namespace, jobId, podName, container, sinceTime],
+          queryFn: () =>
+            fetchLogsFromStartPage(getBinocularsApi, cluster, namespace, jobId, podName, container, sinceTime),
+        })
+        if (page.length === 0) {
+          break
+        }
+        allLogLines.push(...page)
+        sinceTime = page[page.length - 1].timestamp
+      }
+      return allLogLines
+    },
+    [queryClient, getBinocularsApi],
+  )
 }

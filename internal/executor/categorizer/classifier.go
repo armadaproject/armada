@@ -17,6 +17,14 @@ import (
 // time prevents the ingester from failing batch UPDATEs at runtime.
 const maxCategoryNameLen = 63
 
+// reservedCategoryNames are the categories that Armada sets itself on the
+// errors it creates. A retry policy rule for one of them must match only those
+// errors, so an operator category cannot use the name.
+var reservedCategoryNames = map[string]bool{
+	errormatch.CategoryInternal:   true,
+	errormatch.CategoryPreemption: true,
+}
+
 type category struct {
 	name   string
 	action PodFailureAction
@@ -28,9 +36,17 @@ type rule struct {
 	onExitCodes          *errormatch.ExitCodeMatcher
 	onTerminationMessage *regexp.Regexp
 	onPodError           *regexp.Regexp
+	onPodEvents          *podEventRule
 	onConditions         []string
 	subcategory          string
 	hint                 string
+}
+
+// podEventRule is a compiled OnPodEvents matcher.
+type podEventRule struct {
+	message   *regexp.Regexp
+	reason    string
+	eventType string
 }
 
 // ClassifyResult holds the classification output for a failed pod.
@@ -65,10 +81,14 @@ type Classifier struct {
 
 // NewClassifier validates config and compiles regex patterns.
 // Returns an error if any regex is invalid, a condition is unknown,
-// or an exit code matcher has an invalid operator.
+// an exit code matcher has an invalid operator, or a category uses a name
+// that Armada reserves.
 func NewClassifier(config ErrorCategoriesConfig) (*Classifier, error) {
 	if len(config.DefaultCategory) > maxCategoryNameLen {
 		return nil, fmt.Errorf("defaultCategory %q exceeds maximum length %d", config.DefaultCategory, maxCategoryNameLen)
+	}
+	if reservedCategoryNames[config.DefaultCategory] {
+		return nil, fmt.Errorf("defaultCategory %q is reserved for categories that Armada sets", config.DefaultCategory)
 	}
 	if len(config.DefaultSubcategory) > maxCategoryNameLen {
 		return nil, fmt.Errorf("defaultSubcategory %q exceeds maximum length %d", config.DefaultSubcategory, maxCategoryNameLen)
@@ -81,6 +101,9 @@ func NewClassifier(config ErrorCategoriesConfig) (*Classifier, error) {
 		}
 		if len(cfg.Name) > maxCategoryNameLen {
 			return nil, fmt.Errorf("category name %q exceeds maximum length %d", cfg.Name, maxCategoryNameLen)
+		}
+		if reservedCategoryNames[cfg.Name] {
+			return nil, fmt.Errorf("category name %q is reserved for categories that Armada sets", cfg.Name)
 		}
 		if seen[cfg.Name] {
 			return nil, fmt.Errorf("duplicate category name %q", cfg.Name)
@@ -140,11 +163,14 @@ func buildRule(cfg CategoryRule) (rule, error) {
 	if cfg.OnPodError != nil {
 		matcherCount++
 	}
+	if cfg.OnPodEvents != nil {
+		matcherCount++
+	}
 	if matcherCount == 0 {
-		return rule{}, fmt.Errorf("rule must specify one of onConditions, onExitCodes, onTerminationMessage, or onPodError")
+		return rule{}, fmt.Errorf("rule must specify one of onConditions, onExitCodes, onTerminationMessage, onPodError, or onPodEvents")
 	}
 	if matcherCount > 1 {
-		return rule{}, fmt.Errorf("rule must specify only one of onConditions, onExitCodes, onTerminationMessage, or onPodError")
+		return rule{}, fmt.Errorf("rule must specify only one of onConditions, onExitCodes, onTerminationMessage, onPodError, or onPodEvents")
 	}
 
 	for _, cond := range cfg.OnConditions {
@@ -185,39 +211,38 @@ func buildRule(cfg CategoryRule) (rule, error) {
 		podErrorRegex = re
 	}
 
+	var podEvents *podEventRule
+	if cfg.OnPodEvents != nil {
+		re, err := regexp.Compile(cfg.OnPodEvents.Regexp)
+		if err != nil {
+			return rule{}, fmt.Errorf("invalid onPodEvents regexp %q: %w", cfg.OnPodEvents.Regexp, err)
+		}
+		if cfg.OnPodEvents.Type != v1.EventTypeNormal && cfg.OnPodEvents.Type != v1.EventTypeWarning {
+			return rule{}, fmt.Errorf("invalid onPodEvents type %q, must be %q or %q",
+				cfg.OnPodEvents.Type, v1.EventTypeNormal, v1.EventTypeWarning)
+		}
+		podEvents = &podEventRule{message: re, reason: cfg.OnPodEvents.Reason, eventType: cfg.OnPodEvents.Type}
+	}
+
 	return rule{
 		containerName:        cfg.ContainerName,
 		onExitCodes:          cfg.OnExitCodes,
 		onConditions:         cfg.OnConditions,
 		onTerminationMessage: terminationRegex,
 		onPodError:           podErrorRegex,
+		onPodEvents:          podEvents,
 		subcategory:          cfg.Subcategory,
 		hint:                 cfg.Hint,
 	}, nil
 }
 
-// ClassifyContainerError returns the category and subcategory for a pod whose
-// failure is described by its own state: terminated containers, exit codes,
-// and Kubernetes conditions. Use it for terminated pods (PodFailed phase).
-// Returns empty result if the receiver is nil or the pod is nil.
-// Returns (defaultCategory, defaultSubcategory) if no rules match.
-func (c *Classifier) ClassifyContainerError(pod *v1.Pod) ClassifyResult {
-	return c.classify(pod, "")
-}
-
-// ClassifyPodError returns the category and subcategory for a pod-level failure
-// captured by the executor (image pull, missing volume, stuck terminating,
-// active deadline exceeded, etc.). It additionally matches podErrorMessage
-// against onPodError rules (see CategoryRule.OnPodError); all other rule types
-// are evaluated against pod state, preserving first-match-wins across config order.
-// Returns empty result if the receiver is nil or the pod is nil.
-// Returns (defaultCategory, defaultSubcategory) if no rules match.
-func (c *Classifier) ClassifyPodError(pod *v1.Pod, podErrorMessage string) ClassifyResult {
-	return c.classify(pod, podErrorMessage)
-}
-
-// Rules are evaluated in config order; the first matching rule wins.
-func (c *Classifier) classify(pod *v1.Pod, podErrorMessage string) ClassifyResult {
+// Classify returns the category, the subcategory, the hint and the action for a failure of the pod. message is the
+// failure message that the executor reports for the run, and onPodError rules match it. events are the Kubernetes
+// events of the pod, and onPodEvents rules match them. The other rules match the state of the pod and its containers.
+// The first rule in config order that matches wins.
+// Returns a result with only the action Retain if the receiver is nil or the pod is nil.
+// Returns (defaultCategory, defaultSubcategory) if no rule matches.
+func (c *Classifier) Classify(pod *v1.Pod, message string, events []*v1.Event) ClassifyResult {
 	if c == nil || pod == nil {
 		return ClassifyResult{Action: PodFailureActionRetain}
 	}
@@ -227,7 +252,7 @@ func (c *Classifier) classify(pod *v1.Pod, podErrorMessage string) ClassifyResul
 	for _, cat := range c.categories {
 		for _, r := range cat.rules {
 			start := time.Now()
-			matched := ruleMatches(r, containers, podReason, podErrorMessage)
+			matched := ruleMatches(r, containers, podReason, message, events)
 			metrics.RecordRuleEvaluationDuration(cat.name, r.subcategory, time.Since(start))
 			if matched {
 				return ClassifyResult{Category: cat.name, Subcategory: r.subcategory, Hint: r.hint, Action: cat.action}
@@ -238,10 +263,10 @@ func (c *Classifier) classify(pod *v1.Pod, podErrorMessage string) ClassifyResul
 }
 
 // ruleMatches evaluates a single rule. Container-level matchers honor the
-// rule's containerName scope (when set); onPodError ignores it because the
-// pod-level error has no container attribution. Exactly one matcher is set
-// per rule (validated at NewClassifier).
-func ruleMatches(r rule, containers []containerInfo, podReason, podErrorMessage string) bool {
+// rule's containerName scope (when set). onPodError and onPodEvents ignore it
+// because pod-level failures have no container attribution. Exactly one
+// matcher is set per rule (validated at NewClassifier).
+func ruleMatches(r rule, containers []containerInfo, podReason, message string, events []*v1.Event) bool {
 	filtered := containers
 	if r.containerName != "" {
 		filtered = filterByName(containers, r.containerName)
@@ -256,7 +281,28 @@ func ruleMatches(r rule, containers []containerInfo, podReason, podErrorMessage 
 		return matchesTerminationMessage(r.onTerminationMessage, filtered)
 	}
 	if r.onPodError != nil {
-		return podErrorMessage != "" && errormatch.MatchPattern(r.onPodError, podErrorMessage)
+		return message != "" && errormatch.MatchPattern(r.onPodError, message)
+	}
+	if r.onPodEvents != nil {
+		return matchesPodEvents(r.onPodEvents, events)
+	}
+	return false
+}
+
+// matchesPodEvents mirrors the legacy failedPodChecks event checker. An event
+// matches when its type equals the rule's, its reason equals the rule's (when
+// set), and its message matches the regex.
+func matchesPodEvents(matcher *podEventRule, podEvents []*v1.Event) bool {
+	for _, event := range podEvents {
+		if matcher.reason != "" && matcher.reason != event.Reason {
+			continue
+		}
+		if matcher.eventType != event.Type {
+			continue
+		}
+		if errormatch.MatchPattern(matcher.message, event.Message) {
+			return true
+		}
 	}
 	return false
 }

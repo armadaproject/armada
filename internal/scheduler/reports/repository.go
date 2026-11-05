@@ -37,7 +37,7 @@ func (r *SchedulingContextRepository) StoreSchedulingContext(sctx *context.Sched
 }
 
 func (r *SchedulingContextRepository) QueueSchedulingContext(queue string) []CtxPoolPair[*context.QueueSchedulingContext] {
-	contextsByPool := *(r.mostRecentByPool.Load())
+	contextsByPool := *r.mostRecentByPool.Load()
 	ctxs := make([]CtxPoolPair[*context.QueueSchedulingContext], 0, len(contextsByPool))
 	for _, pool := range sortedKeys(contextsByPool) {
 		ctx := CtxPoolPair[*context.QueueSchedulingContext]{pool: pool}
@@ -51,7 +51,7 @@ func (r *SchedulingContextRepository) QueueSchedulingContext(queue string) []Ctx
 }
 
 func (r *SchedulingContextRepository) JobSchedulingContext(jobId string) []CtxPoolPair[*context.JobSchedulingContext] {
-	contextsByPool := *(r.mostRecentByPool.Load())
+	contextsByPool := *r.mostRecentByPool.Load()
 	ctxs := make([]CtxPoolPair[*context.JobSchedulingContext], 0, len(contextsByPool))
 	for _, pool := range sortedKeys(contextsByPool) {
 		ctx := CtxPoolPair[*context.JobSchedulingContext]{
@@ -64,7 +64,7 @@ func (r *SchedulingContextRepository) JobSchedulingContext(jobId string) []CtxPo
 }
 
 func (r *SchedulingContextRepository) RoundSchedulingContext() []CtxPoolPair[*context.SchedulingContext] {
-	contextsByPool := *(r.mostRecentByPool.Load())
+	contextsByPool := *r.mostRecentByPool.Load()
 	ctxs := make([]CtxPoolPair[*context.SchedulingContext], 0, len(contextsByPool))
 	for _, pool := range sortedKeys(contextsByPool) {
 		ctx := CtxPoolPair[*context.SchedulingContext]{

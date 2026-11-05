@@ -67,7 +67,11 @@ func TestGetJobRunSchedulerTerminationReasonNoPreemptingJob(t *testing.T) {
 		var parsed map[string]any
 		require.NoError(t, json.Unmarshal([]byte(result), &parsed))
 		assert.Equal(t, "job preempted", parsed["reason"])
-		assert.Nil(t, parsed["args"])
+		args, ok := parsed["args"].(map[string]any)
+		require.True(t, ok, "expected args field in scheduler termination reason")
+		assert.Equal(t, owner, args["requestor"])
+		_, hasPreemptingJob := args["preemptingJobId"]
+		assert.False(t, hasPreemptingJob, "expected no preemptingJobId in scheduler termination reason")
 
 		return nil
 	})

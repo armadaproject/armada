@@ -1,0 +1,40 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-retry-queue
+jobs:
+  - priority: 0
+    namespace: default
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: oom-then-fit
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          # The sleep makes sure the executor sees the running state before the
+          # container writes data. The 56Mi of tmpfs data exceeds the 40Mi
+          # limit, so Kubernetes OOM-kills the first attempt. The policy
+          # doubles the memory, and the same data fits in the 80Mi of the retry.
+          command: ["sh", "-c", "sleep 3; dd if=/dev/zero of=/dev/shm/fill bs=1M count=56"]
+          resources:
+            limits:
+              memory: 40Mi
+              cpu: 100m
+            requests:
+              memory: 40Mi
+              cpu: 100m
+---
+timeout: "600s"
+expectedEvents:
+  - submitted:
+  - queued:
+  - leased:
+  - pending:
+  - running:
+  - failed:
+      failureCategory: "oom"
+      retryable: true
+  - leased:
+  - pending:
+  - running:
+  - succeeded:

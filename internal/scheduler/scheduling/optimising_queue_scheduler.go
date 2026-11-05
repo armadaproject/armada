@@ -96,6 +96,9 @@ loop:
 		if gctx.AllJobsEvicted {
 			continue
 		}
+		if gangContainsPreemptedJob(sctx, gctx.JobSchedulingContexts) {
+			continue
+		}
 
 		qctx, exists := sctx.QueueSchedulingContexts[gctx.Queue]
 		if !exists {
@@ -217,7 +220,7 @@ func (q *OptimisingQueueScheduler) createCandidateGangIterator(
 		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, q.maxQueueLookBack, true)
 	}
 
-	candidateGangIterator, err := NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, true, q.prioritiseLargerJobs)
+	candidateGangIterator, err := NewCostBasedCandidateGangIterator(sctx.Pool, sctx, sctx.FairnessCostProvider, gangIteratorsByQueue, false, q.prioritiseLargerJobs, false)
 	if err != nil {
 		return nil, err
 	}

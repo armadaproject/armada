@@ -75,8 +75,9 @@ type Configuration struct {
 	// When exceeded, the scheduler stops considering new jobs and only
 	// attempts to reschedule evicted jobs for the remainder of the cycle.
 	//
-	// This ensures evicted jobs (which were preempted mid-simulation) get
-	// rescheduled before the cycle commits, while still bounding total cycle time.
+	// Evicted jobs are running jobs tentatively removed from their nodes; they
+	// become preempted only if not rescheduled. This timeout lets them be
+	// reconsidered before the cycle commits, while still bounding total cycle time.
 	//
 	// Set to 0 to disable (scheduler will schedule new jobs until hard timeout).
 	// Must be less than MaxSchedulingDuration when non-zero.
@@ -154,6 +155,20 @@ type HistogramConfig struct {
 	Count  int
 }
 
+// AggregateDemandConfig controls the rollout of the JobDb demand aggregates.
+// The Compare/Use pair is deliberately shared by all aggregate types (queued
+// demand now, running demand to follow) rather than split per type. When both
+// are off the JobDb skips aggregate maintenance entirely.
+type AggregateDemandConfig struct {
+	// Compare derives demand both from the aggregates and by scanning jobs,
+	// and publishes any difference. The scan-derived value remains
+	// authoritative.
+	Compare bool
+	// Use sources queued demand from the aggregate instead of scanning jobs.
+	// Running jobs are still derived from the scan.
+	Use bool
+}
+
 // SchedulingConfig contains config controlling the Armada scheduler.
 //
 // The Armada scheduler is in charge of assigning pods to cluster and nodes.
@@ -162,7 +177,7 @@ type HistogramConfig struct {
 // Features:
 // 1. Queuing and fairly dividing resources between users.
 // 2. Fair preemption, including between jobs of equal priority to balance resource allocation.
-// 3. Gang scheduling, optional across clusters, and with lower and upper bounds on the number of jobs scheduled.
+// 3. Gang scheduling, optional across clusters: a gang's jobs are scheduled all together or not at all.
 //
 // Note that Armada still relies on kube-scheduler for binding of pods to nodes.
 // This is achieved by adding to each pod created by Armada a node selector that matches only the intended node.
@@ -191,8 +206,9 @@ type SchedulingConfig struct {
 	// When exceeded, the scheduler stops considering new jobs and only
 	// attempts to reschedule evicted jobs for the remainder of the cycle.
 	//
-	// This ensures evicted jobs (which were preempted mid-simulation) get
-	// rescheduled before the cycle commits, while still bounding total cycle time.
+	// Evicted jobs are running jobs tentatively removed from their nodes; they
+	// become preempted only if not rescheduled. This timeout lets them be
+	// reconsidered before the cycle commits, while still bounding total cycle time.
 	//
 	// Set to 0 to disable (scheduler will schedule new jobs until hard timeout).
 	// Must be less than MaxSchedulingDuration when non-zero.
@@ -201,14 +217,18 @@ type SchedulingConfig struct {
 	// When exceeded, the scheduler stops considering new jobs for that queue and only
 	// attempts to reschedule evicted jobs for the remainder of the cycle.
 	//
-	// This ensures evicted jobs (which were preempted mid-simulation) get
-	// rescheduled before the cycle commits, while still bounding total cycle time.
+	// Evicted jobs are running jobs tentatively removed from their nodes; they
+	// become preempted only if not rescheduled. This timeout lets them be
+	// reconsidered before the cycle commits, while still bounding total cycle time.
 	//
 	// Set to 0 to disable (scheduler will schedule new jobs until hard timeout).
 	// Must be less than MaxSchedulingDuration when non-zero.
 	MaxNewJobSchedulingDurationPerQueue time.Duration `validate:"omitempty,ltfield=MaxSchedulingDuration"`
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
+	// Experimental - controls the rollout of the JobDb demand aggregates.
+	// When both flags are off the aggregates are neither maintained nor read.
+	ExperimentalAggregateDemand AggregateDemandConfig
 	// If true, the scheduler tracks per-node pod capacity and refuses to schedule
 	// jobs onto nodes that have exhausted their pod limit.
 	RespectNodePodLimits bool
@@ -216,14 +236,22 @@ type SchedulingConfig struct {
 	// Set to true to enable larger job preferential ordering in the candidate gang iterator.
 	// This will result in larger jobs being ordered earlier in the job scheduling order
 	EnablePreferLargeJobOrdering bool
+	// Experimental
+	// This will cause urgency preemption to be ordered before fairshare preemption.
+	// This is desirable as fairshare preemption is for kicking off jobs of the same priority as the scheduled job,
+	//  and that should only happen after lower priority jobs have been preempted first.
+	// It will additionally handle more complex cases more gracefully,
+	//  such as where a job requires a fairshare and urgency preemption to fit
+	EnableUrgencyBeforeFairSharePreemptionOrdering bool
 	// ProtectedFractionOfFairShare sets the threshold for fair-share preemption.
-	// Queues at or below this fraction of their fair share are protected from preemption.
+	// Queues at or below this fraction of their adjusted fair share are protected.
+	// Queues above the threshold can have jobs preempted.
 	//
-	//   1.0 = Fair-share preemption disabled (default)
-	//   0.5 = Queues over 50% of fair share can have jobs preempted
-	//   0.1 = Aggressive - only queues under 10% of fair share are protected
+	//   1.0 = Protect queues at or below their adjusted fair share (the default in config/scheduler/config.yaml)
+	//   0.5 = Protect queues at or below 50% of their adjusted fair share
+	//   0.1 = Protect queues at or below 10% of their adjusted fair share
 	//
-	// This only affects fair-share preemption, not priority-based preemption.
+	// This only affects fair-share preemption, not urgency preemption.
 	// Can be overridden per-pool via Pools[].ProtectedFractionOfFairShare.
 	ProtectedFractionOfFairShare float64 `validate:"gte=0"`
 	// Armada adds a node selector term to every scheduled pod using this label with the node name as value.
@@ -236,14 +264,14 @@ type SchedulingConfig struct {
 	// in its scheduler before pods reach Kubernetes.
 	//
 	// Each class has two key fields:
-	//   - priority: Higher values are scheduled first and can preempt lower-priority jobs
-	//   - preemptible: If true, jobs can be evicted to rebalance resources across queues
+	//   - priority: Higher values are scheduled first and can preempt lower-priority preemptible jobs
+	//   - preemptible: If false, jobs are protected from preemption
 	//
 	// Example:
 	//   priorityClasses:
 	//     low:    { priority: 100,  preemptible: true }   # Can be preempted
 	//     medium: { priority: 500,  preemptible: true }   # Can be preempted, preempts "low"
-	//     high:   { priority: 1000, preemptible: false }  # Protected from fair-share preemption
+	//     high:   { priority: 1000, preemptible: false }  # Protected from preemption
 	PriorityClasses map[string]types.PriorityClass `validate:"dive"`
 	// DefaultPriorityClassName is assigned to jobs submitted without a priority class.
 	// Must match a key in PriorityClasses.
@@ -293,6 +321,8 @@ type SchedulingConfig struct {
 	MaximumPerQueueSchedulingBurst int `validate:"gt=0"`
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
+	// RetryPolicy controls the policy-based retry engine (disabled by default).
+	RetryPolicy RetryPolicyConfig
 	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness costs.
 	// Dominant resource fairness is the algorithm used to assign a cost to jobs and queues.
 	DominantResourceFairnessResourcesToConsider []string
@@ -345,6 +375,25 @@ type SchedulingConfig struct {
 	DefaultPoolSchedulePriority int
 	Pools                       []PoolConfig
 	ExperimentalIndicativeShare ExperimentalIndicativeShare
+}
+
+// RetryPolicyConfig controls the scheduler's retry policy behavior.
+type RetryPolicyConfig struct {
+	// Enabled controls whether the retry policy engine is active.
+	Enabled bool
+	// GlobalMaxRetries is the scheduler-wide cap on genuine-failure retries per
+	// job, on top of every policy. It counts retries, not runs: the initial
+	// failure consumes no budget, only subsequent retries do. Preempted and
+	// lease-returned runs are never charged. A value of 0 is the kill switch:
+	// no job is ever retried by the policy engine. There is no unlimited
+	// setting for the global cap.
+	GlobalMaxRetries uint
+	// DefaultPolicyName is the retry policy applied to jobs whose queue has no
+	// policy of its own. It lets an operator turn on retry policies fleet-wide
+	// with a single named policy before per-queue attachment is configured.
+	// Optional: when empty, only queues with an attached policy get engine
+	// decisions and every other queue keeps the existing behaviour.
+	DefaultPolicyName string
 }
 
 const (
@@ -407,6 +456,23 @@ type PoolConfig struct {
 	DisableFairshareScheduling       bool
 	DisableUrgencyScheduling         bool
 	FairsharePreemptionRateLimit     *RateLimit
+	// Default (false) - This will cause cross-pool jobs to always be preempted before home-pool jobs,
+	//  regardless of scheduled priority of the jobs
+	// Set to true to fall back to the legacy behaviour
+	//  where preemption ordering is determined purely by scheduled-at priority.
+	DisablePreemptCrossPoolJobsFirst bool
+	JobDefaults                      *JobDefaults
+}
+
+func (p PoolConfig) GetDefaultJobTolerations() []v1.Toleration {
+	if p.JobDefaults == nil || p.JobDefaults.Tolerations == nil {
+		return nil
+	}
+	return p.JobDefaults.Tolerations
+}
+
+type JobDefaults struct {
+	Tolerations []v1.Toleration
 }
 
 // RateLimit The rate at which an action can happen using a token bucket approach
@@ -417,11 +483,24 @@ type RateLimit struct {
 	MaximumBurst int `validate:"gte=0"`
 }
 
+func (p PoolConfig) ShouldPreemptCrossPoolJobsFirst() bool {
+	return !p.DisablePreemptCrossPoolJobsFirst
+}
+
 func (p PoolConfig) GetSubmissionGroup() string {
 	if p.ExperimentalSubmissionGroup == "" {
 		return p.Name
 	}
 	return p.ExperimentalSubmissionGroup
+}
+
+// UnmarshalConfigString allows an away pool to be specified in config as a plain
+// string (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
+// This preserves backwards compatibility with the deprecated []string form.
+// It opts AwayPoolConfig in to commonconfig.StringConfigUnmarshalerHook during config decode.
+func (a *AwayPoolConfig) UnmarshalConfigString(text string) error {
+	a.Name = text
+	return nil
 }
 
 // AwayPoolNames returns the names of the away pools configured for this pool.
@@ -436,15 +515,6 @@ func (p PoolConfig) AwayPoolNames() []string {
 type AwayPoolConfig struct {
 	// Name of the away pool.
 	Name string `validate:"required"`
-}
-
-// UnmarshalConfigString allows an away pool to be specified in config as a plain
-// string (e.g. "awayPools: [poolA, poolB]"), decoding it into AwayPoolConfig{Name: "poolA"}.
-// This preserves backwards compatibility with the deprecated []string form.
-// It opts AwayPoolConfig in to commonconfig.StringConfigUnmarshalerHook during config decode.
-func (a *AwayPoolConfig) UnmarshalConfigString(text string) error {
-	a.Name = text
-	return nil
 }
 
 type MarketSchedulingConfig struct {
@@ -473,6 +543,8 @@ type RunReconciliationConfig struct {
 
 type OptimiserConfig struct {
 	Enabled bool
+	// Allow gang preemption and retain preempted jobs where possible by moving the incoming gang.
+	AllowGangPreemption bool
 	// How often the optimiser should run, likely desirable to not run every scheduling round
 	Interval time.Duration
 	// How long the optimiser can run for before giving up
@@ -509,6 +581,16 @@ func (sc *SchedulingConfig) GetProtectUncappedAdjustedFairShare(poolName string)
 		}
 	}
 	return false
+}
+
+func (sc *SchedulingConfig) GetPreemptCrossPoolJobsFirst(poolName string) bool {
+	for _, poolConfig := range sc.Pools {
+		if poolConfig.Name == poolName {
+			return !poolConfig.DisablePreemptCrossPoolJobsFirst
+		}
+	}
+	// Default (including unknown pools): cross-pool preemption ordering is on.
+	return true
 }
 
 func (sc *SchedulingConfig) GetOptimiserConfig(poolName string) *OptimiserConfig {

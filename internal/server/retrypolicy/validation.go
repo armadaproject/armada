@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -53,6 +55,37 @@ func validateRule(r *api.RetryRule) error {
 	// as a matcher on its own.
 	if r.OnCategory == "" {
 		return fmt.Errorf("on_category must be set")
+	}
+	if err := validateResourceBump(r.GetMutate().GetResources().GetMemory()); err != nil {
+		return fmt.Errorf("mutate.resources.memory: %w", err)
+	}
+	return nil
+}
+
+// validateResourceBump rejects a malformed memory bump at write time, so the
+// scheduler-side conversion never sees one.
+func validateResourceBump(b *api.RetryResourceBump) error {
+	if b == nil {
+		return nil
+	}
+	if b.Static != "" && b.Factor != 0 {
+		return fmt.Errorf("set exactly one of static and factor, not both")
+	}
+	if b.Static == "" && b.Factor == 0 {
+		return fmt.Errorf("set exactly one of static and factor")
+	}
+	if b.Static != "" {
+		quantity, err := resource.ParseQuantity(b.Static)
+		if err != nil {
+			return fmt.Errorf("invalid static quantity %q: %w", b.Static, err)
+		}
+		if quantity.Sign() <= 0 {
+			return fmt.Errorf("static quantity %q must be positive", b.Static)
+		}
+		return nil
+	}
+	if b.Factor <= 1.0 {
+		return fmt.Errorf("factor %v must be greater than 1.0", b.Factor)
 	}
 	return nil
 }

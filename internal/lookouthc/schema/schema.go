@@ -53,6 +53,9 @@ func ApplyPartitioner(ctx *armadacontext.Context, db TxBeginner) error {
 
 		switch state {
 		case jobStateAlreadyPartitioned:
+			if err := backfillQueueJobIDIndex(ctx, tx); err != nil {
+				return errors.Wrap(err, "backfill idx_job_queue_job_id")
+			}
 			return nil
 		case jobStateUnpartitioned:
 			if err := convertUnpartitionedToPartitioned(ctx, tx); err != nil {
@@ -201,6 +204,8 @@ func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
 		{"annotations", "jsonb", true},
 		{"external_job_uri", "character varying", false},
 		{"cancel_user", "character varying", false},
+		{"preempt_user", "character varying", false},
+		{"reprioritize_user", "character varying", false},
 	}
 	rows, err = q.Query(ctx, `
 		SELECT column_name, data_type, is_nullable = 'NO'
@@ -308,6 +313,18 @@ func extractInts(s string) ([]int, error) {
 	return result, nil
 }
 
+// backfillQueueJobIDIndex creates idx_job_queue_job_id on an already
+// partitioned job table if it is missing. This index was added after the
+// partitioner had already shipped, so a database partitioned by an earlier
+// version of this package would otherwise be rejected as the wrong shape on
+// every subsequent run. It is intentionally excluded from
+// expectedParentIndexes for that reason.
+func backfillQueueJobIDIndex(ctx *armadacontext.Context, tx pgx.Tx) error {
+	_, err := tx.Exec(ctx,
+		`CREATE INDEX IF NOT EXISTS idx_job_queue_job_id ON job (queue, job_id) WITH (fillfactor = 80)`)
+	return err
+}
+
 // convertUnpartitionedToPartitioned is the conversion branch: it creates
 // job_new as a partitioned table using target_schema.sql, copies data from
 // the existing unpartitioned job into job_new (letting Postgres route rows
@@ -339,14 +356,14 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx) er
 			priority, submitted, cancelled, state, last_transition_time,
 			last_transition_time_seconds, job_spec, duplicate, priority_class,
 			latest_run_id, cancel_reason, namespace, annotations,
-			external_job_uri, cancel_user
+			external_job_uri, cancel_user, preempt_user, reprioritize_user
 		)
 		SELECT
 			job_id, queue, owner, jobset, cpu, memory, ephemeral_storage, gpu,
 			priority, submitted, cancelled, state, last_transition_time,
 			last_transition_time_seconds, job_spec, duplicate, priority_class,
 			latest_run_id, cancel_reason, namespace, annotations,
-			external_job_uri, cancel_user
+			external_job_uri, cancel_user, preempt_user, reprioritize_user
 		FROM job
 	`); err != nil {
 		return errors.Wrap(err, "copy rows from job to job_new")
@@ -367,6 +384,7 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx) er
 		`ALTER TABLE job_new_terminated RENAME TO job_terminated`,
 		`ALTER INDEX job_new_pkey RENAME TO job_pkey`,
 		`ALTER INDEX idx_job_new_queue_last_transition_time_seconds RENAME TO idx_job_queue_last_transition_time_seconds`,
+		`ALTER INDEX idx_job_new_queue_job_id RENAME TO idx_job_queue_job_id`,
 		`ALTER INDEX idx_job_new_queue_jobset_state RENAME TO idx_job_queue_jobset_state`,
 		`ALTER INDEX idx_job_new_state RENAME TO idx_job_state`,
 		`ALTER INDEX idx_job_new_submitted RENAME TO idx_job_submitted`,

@@ -12,6 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/podname"
 	"github.com/armadaproject/armada/internal/lookout/model"
 )
 
@@ -49,6 +50,8 @@ type jobRow struct {
 	latestRunId        sql.NullString
 	cancelReason       sql.NullString
 	cancelUser         sql.NullString
+	preemptUser        sql.NullString
+	reprioritizeUser   sql.NullString
 }
 
 func NewSqlGetJobsRepository(db *pgxpool.Pool) *SqlGetJobsRepository {
@@ -110,6 +113,8 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 			&row.latestRunId,
 			&row.cancelReason,
 			&row.cancelUser,
+			&row.preemptUser,
+			&row.reprioritizeUser,
 			&annotations,
 			&runs,
 		); err != nil {
@@ -125,6 +130,11 @@ func (r *SqlGetJobsRepository) getJobs(ctx *armadacontext.Context, filters []*mo
 		if runs.Valid {
 			if err := json.Unmarshal([]byte(runs.String), &job.Runs); err != nil {
 				return nil, err
+			}
+		}
+		for _, run := range job.Runs {
+			if name := podname.Resolve(job.JobId, run.PodName, run.Pending != nil, run.Started != nil); name != "" {
+				run.PodName = &name
 			}
 		}
 		if len(job.Runs) > 0 {
@@ -181,5 +191,7 @@ func jobRowToModel(row *jobRow) *model.Job {
 		Submitted:          row.submitted,
 		CancelReason:       database.ParseNullString(row.cancelReason),
 		CancelUser:         database.ParseNullString(row.cancelUser),
+		PreemptUser:        database.ParseNullString(row.preemptUser),
+		ReprioritizeUser:   database.ParseNullString(row.reprioritizeUser),
 	}
 }

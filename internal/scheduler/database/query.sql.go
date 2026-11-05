@@ -23,6 +23,15 @@ func (q *Queries) CountGroup(ctx context.Context, groupID uuid.UUID) (int64, err
 	return count, err
 }
 
+const deleteExecutor = `-- name: DeleteExecutor :exec
+DELETE FROM executors WHERE executor_id = $1::text
+`
+
+func (q *Queries) DeleteExecutor(ctx context.Context, executorID string) error {
+	_, err := q.db.Exec(ctx, deleteExecutor, executorID)
+	return err
+}
+
 const deleteExecutorSettings = `-- name: DeleteExecutorSettings :exec
 DELETE FROM executor_settings WHERE executor_id = $1::text
 `
@@ -99,11 +108,12 @@ func (q *Queries) MarkJobRunsFailedById(ctx context.Context, runIds []string) er
 }
 
 const markJobRunsPreemptRequestedByJobId = `-- name: MarkJobRunsPreemptRequestedByJobId :exec
-UPDATE runs SET preempt_requested = true, preempt_reason = $1 WHERE queue = $2 and job_set = $3 and job_id = ANY($4::text[]) and terminated = false
+UPDATE runs SET preempt_requested = true, preempt_reason = $1, preempt_user = $2 WHERE queue = $3 and job_set = $4 and job_id = ANY($5::text[]) and terminated = false
 `
 
 type MarkJobRunsPreemptRequestedByJobIdParams struct {
 	PreemptReason *string  `db:"preempt_reason"`
+	PreemptUser   *string  `db:"preempt_user"`
 	Queue         string   `db:"queue"`
 	JobSet        string   `db:"job_set"`
 	JobIds        []string `db:"job_ids"`
@@ -112,6 +122,7 @@ type MarkJobRunsPreemptRequestedByJobIdParams struct {
 func (q *Queries) MarkJobRunsPreemptRequestedByJobId(ctx context.Context, arg MarkJobRunsPreemptRequestedByJobIdParams) error {
 	_, err := q.db.Exec(ctx, markJobRunsPreemptRequestedByJobId,
 		arg.PreemptReason,
+		arg.PreemptUser,
 		arg.Queue,
 		arg.JobSet,
 		arg.JobIds,
@@ -420,7 +431,7 @@ func (q *Queries) SelectExecutorUpdateTimes(ctx context.Context) ([]SelectExecut
 }
 
 const selectInitialJobs = `-- name: SelectInitialJobs :many
-SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_reason, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial FROM jobs WHERE serial > $1 AND terminated = false ORDER BY serial LIMIT $2
+SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_reason, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial, reprioritise_user FROM jobs WHERE serial > $1 AND terminated = false ORDER BY serial LIMIT $2
 `
 
 type SelectInitialJobsParams struct {
@@ -449,6 +460,7 @@ type SelectInitialJobsRow struct {
 	Pools                   []string `db:"pools"`
 	PriceBand               int32    `db:"price_band"`
 	Serial                  int64    `db:"serial"`
+	ReprioritiseUser        *string  `db:"reprioritise_user"`
 }
 
 func (q *Queries) SelectInitialJobs(ctx context.Context, arg SelectInitialJobsParams) ([]SelectInitialJobsRow, error) {
@@ -481,6 +493,7 @@ func (q *Queries) SelectInitialJobs(ctx context.Context, arg SelectInitialJobsPa
 			&i.Pools,
 			&i.PriceBand,
 			&i.Serial,
+			&i.ReprioritiseUser,
 		); err != nil {
 			return nil, err
 		}
@@ -493,7 +506,7 @@ func (q *Queries) SelectInitialJobs(ctx context.Context, arg SelectInitialJobsPa
 }
 
 const selectInitialRuns = `-- name: SelectInitialRuns :many
-SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified, leased_timestamp, pending_timestamp, running_timestamp, terminated_timestamp, scheduled_at_priority, preempted, pending, preempted_timestamp, pod_requirements_overlay, preempt_requested, queue, pool, terminated, preempt_reason FROM runs WHERE serial > $1 AND job_id = ANY($3::text[]) ORDER BY serial LIMIT $2
+SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified, leased_timestamp, pending_timestamp, running_timestamp, terminated_timestamp, scheduled_at_priority, preempted, pending, preempted_timestamp, pod_requirements_overlay, preempt_requested, queue, pool, terminated, preempt_reason, preempt_user FROM runs WHERE serial > $1 AND job_id = ANY($3::text[]) ORDER BY serial LIMIT $2
 `
 
 type SelectInitialRunsParams struct {
@@ -540,6 +553,7 @@ func (q *Queries) SelectInitialRuns(ctx context.Context, arg SelectInitialRunsPa
 			&i.Pool,
 			&i.Terminated,
 			&i.PreemptReason,
+			&i.PreemptUser,
 		); err != nil {
 			return nil, err
 		}
@@ -576,7 +590,7 @@ func (q *Queries) SelectJobMetadata(ctx context.Context, jobIds []string) ([]Job
 }
 
 const selectJobsByExecutorAndQueues = `-- name: SelectJobsByExecutorAndQueues :many
-SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.priority, j.queued, j.queued_version, j.cancel_requested, j.cancelled, j.cancel_by_jobset_requested, j.succeeded, j.failed, j.scheduling_info, j.scheduling_info_version, j.serial, j.last_modified, j.validated, j.pools, j.bid_price, j.cancel_user, j.price_band, j.terminated, j.cancel_reason
+SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.priority, j.queued, j.queued_version, j.cancel_requested, j.cancelled, j.cancel_by_jobset_requested, j.succeeded, j.failed, j.scheduling_info, j.scheduling_info_version, j.serial, j.last_modified, j.validated, j.pools, j.bid_price, j.cancel_user, j.price_band, j.terminated, j.cancel_reason, j.reprioritise_user
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
@@ -627,6 +641,7 @@ func (q *Queries) SelectJobsByExecutorAndQueues(ctx context.Context, arg SelectJ
 			&i.PriceBand,
 			&i.Terminated,
 			&i.CancelReason,
+			&i.ReprioritiseUser,
 		); err != nil {
 			return nil, err
 		}
@@ -639,7 +654,7 @@ func (q *Queries) SelectJobsByExecutorAndQueues(ctx context.Context, arg SelectJ
 }
 
 const selectJobsByNodeAndExecutorAndQueues = `-- name: SelectJobsByNodeAndExecutorAndQueues :many
-SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.priority, j.queued, j.queued_version, j.cancel_requested, j.cancelled, j.cancel_by_jobset_requested, j.succeeded, j.failed, j.scheduling_info, j.scheduling_info_version, j.serial, j.last_modified, j.validated, j.pools, j.bid_price, j.cancel_user, j.price_band, j.terminated, j.cancel_reason
+SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.priority, j.queued, j.queued_version, j.cancel_requested, j.cancelled, j.cancel_by_jobset_requested, j.succeeded, j.failed, j.scheduling_info, j.scheduling_info_version, j.serial, j.last_modified, j.validated, j.pools, j.bid_price, j.cancel_user, j.price_band, j.terminated, j.cancel_reason, j.reprioritise_user
 FROM runs jr
         JOIN jobs j
              ON jr.job_id = j.job_id
@@ -690,6 +705,7 @@ func (q *Queries) SelectJobsByNodeAndExecutorAndQueues(ctx context.Context, arg 
 			&i.PriceBand,
 			&i.Terminated,
 			&i.CancelReason,
+			&i.ReprioritiseUser,
 		); err != nil {
 			return nil, err
 		}
@@ -724,7 +740,7 @@ func (q *Queries) SelectLatestJobSerial(ctx context.Context) (int64, error) {
 }
 
 const selectLeasedJobsByQueue = `-- name: SelectLeasedJobsByQueue :many
-SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.priority, j.queued, j.queued_version, j.cancel_requested, j.cancelled, j.cancel_by_jobset_requested, j.succeeded, j.failed, j.scheduling_info, j.scheduling_info_version, j.serial, j.last_modified, j.validated, j.pools, j.bid_price, j.cancel_user, j.price_band, j.terminated, j.cancel_reason
+SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.priority, j.queued, j.queued_version, j.cancel_requested, j.cancelled, j.cancel_by_jobset_requested, j.succeeded, j.failed, j.scheduling_info, j.scheduling_info_version, j.serial, j.last_modified, j.validated, j.pools, j.bid_price, j.cancel_user, j.price_band, j.terminated, j.cancel_reason, j.reprioritise_user
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
@@ -775,6 +791,7 @@ func (q *Queries) SelectLeasedJobsByQueue(ctx context.Context, arg SelectLeasedJ
 			&i.PriceBand,
 			&i.Terminated,
 			&i.CancelReason,
+			&i.ReprioritiseUser,
 		); err != nil {
 			return nil, err
 		}
@@ -809,7 +826,7 @@ func (q *Queries) SelectMaxRunSerial(ctx context.Context) (int64, error) {
 }
 
 const selectNewJobs = `-- name: SelectNewJobs :many
-SELECT job_id, job_set, queue, user_id, submitted, priority, queued, queued_version, cancel_requested, cancelled, cancel_by_jobset_requested, succeeded, failed, scheduling_info, scheduling_info_version, serial, last_modified, validated, pools, bid_price, cancel_user, price_band, terminated, cancel_reason FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
+SELECT job_id, job_set, queue, user_id, submitted, priority, queued, queued_version, cancel_requested, cancelled, cancel_by_jobset_requested, succeeded, failed, scheduling_info, scheduling_info_version, serial, last_modified, validated, pools, bid_price, cancel_user, price_band, terminated, cancel_reason, reprioritise_user FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
 
 type SelectNewJobsParams struct {
@@ -851,6 +868,7 @@ func (q *Queries) SelectNewJobs(ctx context.Context, arg SelectNewJobsParams) ([
 			&i.PriceBand,
 			&i.Terminated,
 			&i.CancelReason,
+			&i.ReprioritiseUser,
 		); err != nil {
 			return nil, err
 		}
@@ -863,7 +881,7 @@ func (q *Queries) SelectNewJobs(ctx context.Context, arg SelectNewJobsParams) ([
 }
 
 const selectNewRuns = `-- name: SelectNewRuns :many
-SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified, leased_timestamp, pending_timestamp, running_timestamp, terminated_timestamp, scheduled_at_priority, preempted, pending, preempted_timestamp, pod_requirements_overlay, preempt_requested, queue, pool, terminated, preempt_reason FROM runs WHERE serial > $1 ORDER BY serial LIMIT $2
+SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified, leased_timestamp, pending_timestamp, running_timestamp, terminated_timestamp, scheduled_at_priority, preempted, pending, preempted_timestamp, pod_requirements_overlay, preempt_requested, queue, pool, terminated, preempt_reason, preempt_user FROM runs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
 
 type SelectNewRunsParams struct {
@@ -909,6 +927,7 @@ func (q *Queries) SelectNewRuns(ctx context.Context, arg SelectNewRunsParams) ([
 			&i.Pool,
 			&i.Terminated,
 			&i.PreemptReason,
+			&i.PreemptUser,
 		); err != nil {
 			return nil, err
 		}
@@ -921,7 +940,7 @@ func (q *Queries) SelectNewRuns(ctx context.Context, arg SelectNewRunsParams) ([
 }
 
 const selectNewRunsForJobs = `-- name: SelectNewRunsForJobs :many
-SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified, leased_timestamp, pending_timestamp, running_timestamp, terminated_timestamp, scheduled_at_priority, preempted, pending, preempted_timestamp, pod_requirements_overlay, preempt_requested, queue, pool, terminated, preempt_reason FROM runs WHERE serial > $1 AND job_id = ANY($2::text[]) ORDER BY serial
+SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified, leased_timestamp, pending_timestamp, running_timestamp, terminated_timestamp, scheduled_at_priority, preempted, pending, preempted_timestamp, pod_requirements_overlay, preempt_requested, queue, pool, terminated, preempt_reason, preempt_user FROM runs WHERE serial > $1 AND job_id = ANY($2::text[]) ORDER BY serial
 `
 
 type SelectNewRunsForJobsParams struct {
@@ -967,6 +986,7 @@ func (q *Queries) SelectNewRunsForJobs(ctx context.Context, arg SelectNewRunsFor
 			&i.Pool,
 			&i.Terminated,
 			&i.PreemptReason,
+			&i.PreemptUser,
 		); err != nil {
 			return nil, err
 		}
@@ -979,7 +999,7 @@ func (q *Queries) SelectNewRunsForJobs(ctx context.Context, arg SelectNewRunsFor
 }
 
 const selectPendingJobsByQueue = `-- name: SelectPendingJobsByQueue :many
-SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.priority, j.queued, j.queued_version, j.cancel_requested, j.cancelled, j.cancel_by_jobset_requested, j.succeeded, j.failed, j.scheduling_info, j.scheduling_info_version, j.serial, j.last_modified, j.validated, j.pools, j.bid_price, j.cancel_user, j.price_band, j.terminated, j.cancel_reason
+SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.priority, j.queued, j.queued_version, j.cancel_requested, j.cancelled, j.cancel_by_jobset_requested, j.succeeded, j.failed, j.scheduling_info, j.scheduling_info_version, j.serial, j.last_modified, j.validated, j.pools, j.bid_price, j.cancel_user, j.price_band, j.terminated, j.cancel_reason, j.reprioritise_user
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
@@ -1030,6 +1050,7 @@ func (q *Queries) SelectPendingJobsByQueue(ctx context.Context, arg SelectPendin
 			&i.PriceBand,
 			&i.Terminated,
 			&i.CancelReason,
+			&i.ReprioritiseUser,
 		); err != nil {
 			return nil, err
 		}
@@ -1042,7 +1063,7 @@ func (q *Queries) SelectPendingJobsByQueue(ctx context.Context, arg SelectPendin
 }
 
 const selectQueuedJobsByQueue = `-- name: SelectQueuedJobsByQueue :many
-SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.priority, j.queued, j.queued_version, j.cancel_requested, j.cancelled, j.cancel_by_jobset_requested, j.succeeded, j.failed, j.scheduling_info, j.scheduling_info_version, j.serial, j.last_modified, j.validated, j.pools, j.bid_price, j.cancel_user, j.price_band, j.terminated, j.cancel_reason
+SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.priority, j.queued, j.queued_version, j.cancel_requested, j.cancelled, j.cancel_by_jobset_requested, j.succeeded, j.failed, j.scheduling_info, j.scheduling_info_version, j.serial, j.last_modified, j.validated, j.pools, j.bid_price, j.cancel_user, j.price_band, j.terminated, j.cancel_reason, j.reprioritise_user
 FROM jobs j
 WHERE j.queue = ANY($1::text[])
   AND j.queued = true
@@ -1088,6 +1109,7 @@ func (q *Queries) SelectQueuedJobsByQueue(ctx context.Context, arg SelectQueuedJ
 			&i.PriceBand,
 			&i.Terminated,
 			&i.CancelReason,
+			&i.ReprioritiseUser,
 		); err != nil {
 			return nil, err
 		}
@@ -1125,7 +1147,7 @@ func (q *Queries) SelectRunErrorsById(ctx context.Context, runIds []string) ([]J
 }
 
 const selectRunningJobsByQueue = `-- name: SelectRunningJobsByQueue :many
-SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.priority, j.queued, j.queued_version, j.cancel_requested, j.cancelled, j.cancel_by_jobset_requested, j.succeeded, j.failed, j.scheduling_info, j.scheduling_info_version, j.serial, j.last_modified, j.validated, j.pools, j.bid_price, j.cancel_user, j.price_band, j.terminated, j.cancel_reason
+SELECT j.job_id, j.job_set, j.queue, j.user_id, j.submitted, j.priority, j.queued, j.queued_version, j.cancel_requested, j.cancelled, j.cancel_by_jobset_requested, j.succeeded, j.failed, j.scheduling_info, j.scheduling_info_version, j.serial, j.last_modified, j.validated, j.pools, j.bid_price, j.cancel_user, j.price_band, j.terminated, j.cancel_reason, j.reprioritise_user
 FROM runs jr
        JOIN jobs j
             ON jr.job_id = j.job_id
@@ -1176,6 +1198,7 @@ func (q *Queries) SelectRunningJobsByQueue(ctx context.Context, arg SelectRunnin
 			&i.PriceBand,
 			&i.Terminated,
 			&i.CancelReason,
+			&i.ReprioritiseUser,
 		); err != nil {
 			return nil, err
 		}
@@ -1188,7 +1211,7 @@ func (q *Queries) SelectRunningJobsByQueue(ctx context.Context, arg SelectRunnin
 }
 
 const selectUpdatedJobs = `-- name: SelectUpdatedJobs :many
-SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_reason, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
+SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, validated, cancel_requested, cancel_user, cancel_reason, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, pools, price_band, serial, reprioritise_user FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
 
 type SelectUpdatedJobsParams struct {
@@ -1217,6 +1240,7 @@ type SelectUpdatedJobsRow struct {
 	Pools                   []string `db:"pools"`
 	PriceBand               int32    `db:"price_band"`
 	Serial                  int64    `db:"serial"`
+	ReprioritiseUser        *string  `db:"reprioritise_user"`
 }
 
 func (q *Queries) SelectUpdatedJobs(ctx context.Context, arg SelectUpdatedJobsParams) ([]SelectUpdatedJobsRow, error) {
@@ -1249,6 +1273,7 @@ func (q *Queries) SelectUpdatedJobs(ctx context.Context, arg SelectUpdatedJobsPa
 			&i.Pools,
 			&i.PriceBand,
 			&i.Serial,
+			&i.ReprioritiseUser,
 		); err != nil {
 			return nil, err
 		}
@@ -1317,19 +1342,21 @@ func (q *Queries) SetTerminatedTime(ctx context.Context, arg SetTerminatedTimePa
 }
 
 const updateJobPriorityById = `-- name: UpdateJobPriorityById :exec
-UPDATE jobs SET priority = $1 WHERE queue = $2 and job_set = $3 and job_id = ANY($4::text[]) and terminated = false
+UPDATE jobs SET priority = $1, reprioritise_user = $2 WHERE queue = $3 and job_set = $4 and job_id = ANY($5::text[]) and terminated = false
 `
 
 type UpdateJobPriorityByIdParams struct {
-	Priority int64    `db:"priority"`
-	Queue    string   `db:"queue"`
-	JobSet   string   `db:"job_set"`
-	JobIds   []string `db:"job_ids"`
+	Priority         int64    `db:"priority"`
+	ReprioritiseUser *string  `db:"reprioritise_user"`
+	Queue            string   `db:"queue"`
+	JobSet           string   `db:"job_set"`
+	JobIds           []string `db:"job_ids"`
 }
 
 func (q *Queries) UpdateJobPriorityById(ctx context.Context, arg UpdateJobPriorityByIdParams) error {
 	_, err := q.db.Exec(ctx, updateJobPriorityById,
 		arg.Priority,
+		arg.ReprioritiseUser,
 		arg.Queue,
 		arg.JobSet,
 		arg.JobIds,
@@ -1338,17 +1365,23 @@ func (q *Queries) UpdateJobPriorityById(ctx context.Context, arg UpdateJobPriori
 }
 
 const updateJobPriorityByJobSet = `-- name: UpdateJobPriorityByJobSet :exec
-UPDATE jobs SET priority = $1 WHERE job_set = $2 and queue = $3 and terminated = false
+UPDATE jobs SET priority = $1, reprioritise_user = $4 WHERE job_set = $2 and queue = $3 and terminated = false
 `
 
 type UpdateJobPriorityByJobSetParams struct {
-	Priority int64  `db:"priority"`
-	JobSet   string `db:"job_set"`
-	Queue    string `db:"queue"`
+	Priority         int64   `db:"priority"`
+	JobSet           string  `db:"job_set"`
+	Queue            string  `db:"queue"`
+	ReprioritiseUser *string `db:"reprioritise_user"`
 }
 
 func (q *Queries) UpdateJobPriorityByJobSet(ctx context.Context, arg UpdateJobPriorityByJobSetParams) error {
-	_, err := q.db.Exec(ctx, updateJobPriorityByJobSet, arg.Priority, arg.JobSet, arg.Queue)
+	_, err := q.db.Exec(ctx, updateJobPriorityByJobSet,
+		arg.Priority,
+		arg.JobSet,
+		arg.Queue,
+		arg.ReprioritiseUser,
+	)
 	return err
 }
 

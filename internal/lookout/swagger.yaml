@@ -119,6 +119,12 @@ definitions:
       cancelUser:
         type: string
         x-nullable: true
+      preemptUser:
+        type: string
+        x-nullable: true
+      reprioritizeUser:
+        type: string
+        x-nullable: true
       node:
         type: string
         x-nullable: true
@@ -152,6 +158,9 @@ definitions:
         minLength: 1
         x-nullable: false
       node:
+        type: string
+        x-nullable: true
+      podName:
         type: string
         x-nullable: true
       leased:

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -112,7 +113,7 @@ func (s *Scanner) executePipelineBatch(ctx context.Context, keys []string) ([]St
 
 	// Execute pipeline
 	cmders, err := pipe.Exec(ctx)
-	if err != nil && err != redis.Nil && len(cmders) != len(keys)*2 {
+	if err != nil && !errors.Is(err, redis.Nil) && len(cmders) != len(keys)*2 {
 		return nil, fmt.Errorf("pipeline execution error: %w", err)
 	}
 
@@ -131,7 +132,11 @@ func (s *Scanner) executePipelineBatch(ctx context.Context, keys []string) ([]St
 
 		info, err := infoCmd.Result()
 		if err != nil {
-			if err == redis.Nil || strings.Contains(err.Error(), "NOSTREAM") || strings.Contains(err.Error(), "WRONGTYPE") {
+			// Skip streams that vanished or changed type between SCAN and XINFO
+			if errors.Is(err, redis.Nil) ||
+				redis.HasErrorPrefix(err, "NOSTREAM") ||
+				redis.HasErrorPrefix(err, "WRONGTYPE") ||
+				redis.HasErrorPrefix(err, "no such key") {
 				continue
 			}
 			return nil, fmt.Errorf("xinfo stream error for key %q: %w", key, err)
@@ -146,7 +151,7 @@ func (s *Scanner) executePipelineBatch(ctx context.Context, keys []string) ([]St
 		memBytes, err := memCmd.Result()
 		if err != nil {
 			// Skip keys that vanished
-			if err == redis.Nil {
+			if errors.Is(err, redis.Nil) {
 				continue
 			}
 			return nil, fmt.Errorf("memory usage error for key %q: %w", key, err)

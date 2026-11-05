@@ -22,6 +22,10 @@ func (c *Configuration) Mutate() (config.Config, error) {
 		c.Scheduling.MaxNewJobSchedulingDuration = c.NewJobsSchedulingTimeout
 	}
 
+	if c.Scheduling.RetryPolicy.Enabled && c.Scheduling.RetryPolicy.GlobalMaxRetries == 0 {
+		log.Warnf("scheduling.retryPolicy.enabled is true but globalMaxRetries is 0: the retry engine is active but will never grant a retry (kill-switch semantics). Set globalMaxRetries above 0 to allow policy retries.")
+	}
+
 	return c, nil
 }
 

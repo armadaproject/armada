@@ -2,10 +2,102 @@ import { JobFilter, JobFiltersWithExcludes, JobState, Match } from "../models/lo
 
 import { StandardColumnId, toAnnotationColId } from "./jobsTableColumns"
 import { LookoutColumnFilter } from "./jobsTableUtils"
-import { diffOfKeys, getFiltersForRowsSelection } from "./jobsTableUtils"
+import {
+  changedFilterColumnIds,
+  diffOfKeys,
+  getFiltersForRowsSelection,
+  pruneUnsatisfiedFilters,
+} from "./jobsTableUtils"
 import { RowId } from "./reactTableUtils"
 
 describe("JobsTableUtils", () => {
+  describe("pruneUnsatisfiedFilters", () => {
+    it("keeps filters which have no prerequisites", () => {
+      const filters = [{ id: StandardColumnId.Queue, value: ["queue-1"] }]
+
+      const { filters: pruned, removedColumnIds } = pruneUnsatisfiedFilters(filters)
+
+      expect(pruned).toEqual(filters)
+      expect(removedColumnIds).toEqual([])
+    })
+
+    it("keeps a dependent filter when its prerequisite is filtered on", () => {
+      const filters = [
+        { id: StandardColumnId.Queue, value: ["queue-1"] },
+        { id: StandardColumnId.JobSet, value: "job-set-1" },
+      ]
+
+      const { filters: pruned, removedColumnIds } = pruneUnsatisfiedFilters(filters)
+
+      expect(pruned).toEqual(filters)
+      expect(removedColumnIds).toEqual([])
+    })
+
+    it("removes a dependent filter when its prerequisite is absent", () => {
+      const { filters: pruned, removedColumnIds } = pruneUnsatisfiedFilters([
+        { id: StandardColumnId.JobSet, value: "job-set-1" },
+      ])
+
+      expect(pruned).toEqual([])
+      expect(removedColumnIds).toEqual([StandardColumnId.JobSet])
+    })
+
+    it("removes a dependent filter when its prerequisite is present but empty", () => {
+      const { filters: pruned, removedColumnIds } = pruneUnsatisfiedFilters([
+        { id: StandardColumnId.Queue, value: [] },
+        { id: StandardColumnId.JobSet, value: "job-set-1" },
+      ])
+
+      expect(pruned).toEqual([{ id: StandardColumnId.Queue, value: [] }])
+      expect(removedColumnIds).toEqual([StandardColumnId.JobSet])
+    })
+
+    it("removes every dependent filter sharing an absent prerequisite", () => {
+      const { filters: pruned, removedColumnIds } = pruneUnsatisfiedFilters([
+        { id: StandardColumnId.JobSet, value: "job-set-1" },
+        { id: StandardColumnId.Namespace, value: "namespace-1" },
+        { id: StandardColumnId.Owner, value: "owner-1" },
+      ])
+
+      expect(pruned).toEqual([{ id: StandardColumnId.Owner, value: "owner-1" }])
+      expect(removedColumnIds).toEqual([StandardColumnId.JobSet, StandardColumnId.Namespace])
+    })
+
+    it("keeps annotation filters, which have no prerequisites", () => {
+      const filters = [{ id: toAnnotationColId("hyperparameter"), value: "some-value" }]
+
+      const { filters: pruned, removedColumnIds } = pruneUnsatisfiedFilters(filters)
+
+      expect(pruned).toEqual(filters)
+      expect(removedColumnIds).toEqual([])
+    })
+  })
+
+  describe("changedFilterColumnIds", () => {
+    it("returns nothing when the filter states match", () => {
+      const filters = [{ id: StandardColumnId.Queue, value: ["queue-1"] }]
+
+      expect(changedFilterColumnIds(filters, filters)).toEqual([])
+    })
+
+    it("detects added, removed and modified filters, ignoring unchanged ones", () => {
+      const before = [
+        { id: StandardColumnId.Queue, value: ["queue-1"] },
+        { id: StandardColumnId.Owner, value: "owner-1" },
+        { id: StandardColumnId.JobSet, value: "job-set-1" },
+      ]
+      const after = [
+        { id: StandardColumnId.Queue, value: ["queue-2"] },
+        { id: StandardColumnId.Owner, value: "owner-1" },
+        { id: StandardColumnId.State, value: ["QUEUED"] },
+      ]
+
+      expect(changedFilterColumnIds(before, after).sort()).toEqual(
+        [StandardColumnId.Queue, StandardColumnId.JobSet, StandardColumnId.State].sort(),
+      )
+    })
+  })
+
   describe("diffOfKeys", () => {
     it("detects added keys", () => {
       const newObject = {

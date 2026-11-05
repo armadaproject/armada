@@ -550,7 +550,20 @@ func TestQueueScheduler(t *testing.T) {
 				it := jobRepo.GetJobIterator(q.Name)
 				jobIteratorByQueue[q.Name] = it
 			}
-			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, tc.SchedulingConfig.EnablePreferLargeJobOrdering, tc.SchedulingConfig.MaxQueueLookback, false, 0, clock.RealClock{})
+			sch, err := NewQueueScheduler(
+				sctx,
+				constraints,
+				testfixtures.TestEmptyFloatingResources,
+				nodeDb, jobIteratorByQueue,
+				false,
+				false,
+				tc.SchedulingConfig.EnablePreferLargeJobOrdering,
+				tc.SchedulingConfig.GetPreemptCrossPoolJobsFirst(sctx.Pool),
+				tc.SchedulingConfig.MaxQueueLookback,
+				false,
+				0,
+				clock.RealClock{},
+			)
 			require.NoError(t, err)
 
 			result, err := sch.Schedule(armadacontext.Background())
@@ -682,6 +695,26 @@ func TestQueueScheduler(t *testing.T) {
 	}
 }
 
+func TestQueueCandidateGangIteratorPQ_HomeBeforeAway(t *testing.T) {
+	home := &QueueCandidateGangIteratorItem{queue: "q", proposedQueueCost: 100, priorityClassPriority: 1}
+	away := &QueueCandidateGangIteratorItem{queue: context.CalculateAwayQueueName("q"), away: true, proposedQueueCost: 1, priorityClassPriority: 1000}
+
+	// With the flag on, home sorts before away regardless of cost or priority-class priority.
+	pq := QueueCandidateGangIteratorPQ{
+		compareSchedulingPriority: true,
+		preemptCrossPoolJobsFirst: true,
+		items:                     []*QueueCandidateGangIteratorItem{home, away},
+	}
+	require.True(t, pq.Less(0, 1))
+	require.False(t, pq.Less(1, 0))
+
+	// With the flag off, the existing ordering (priority-class priority first) applies:
+	// away has the higher priorityClassPriority (1000 > 1) so it wins.
+	pq.preemptCrossPoolJobsFirst = false
+	require.False(t, pq.Less(0, 1))
+	require.True(t, pq.Less(1, 0))
+}
+
 func newQueueSchedulerSctx(t *testing.T, config configuration.SchedulingConfig, totalResources internaltypes.ResourceList, queues []string) *context.SchedulingContext {
 	t.Helper()
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, testfixtures.TestPool, config)
@@ -745,7 +778,7 @@ func TestQueueScheduler_PreemptedJobsGetMarkedInSctx(t *testing.T) {
 		"B": jobRepo.GetJobIterator("B"),
 	}
 
-	sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, true, config.EnablePreferLargeJobOrdering, config.MaxQueueLookback, false, 0, clock.RealClock{})
+	sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, true, config.EnablePreferLargeJobOrdering, true, config.MaxQueueLookback, false, 0, clock.RealClock{})
 	require.NoError(t, err)
 
 	result, err := sch.Schedule(armadacontext.Background())
@@ -758,11 +791,11 @@ func TestQueueScheduler_PreemptedJobsGetMarkedInSctx(t *testing.T) {
 	preemptedCount := 0
 	for jobId, evictedJctx := range evictedJctxByJobId {
 		markedInSctx := sctx.IsJobPreempted(jobId)
-		markedInJctx := evictedJctx.PreemptingJob != nil
+		markedInJctx := evictedJctx.GetPreemptingJob() != nil
 		require.Equal(t, markedInSctx, markedInJctx, "sctx and jctx preemption marking disagree for job %s", jobId)
 		if markedInJctx {
 			preemptedCount++
-			require.Equal(t, job.Id(), evictedJctx.PreemptingJob.Id())
+			require.Equal(t, job.Id(), evictedJctx.GetPreemptingJob().Id())
 		}
 	}
 	require.Equal(t, 1, preemptedCount, "expected exactly one incumbent to be preempted")
@@ -887,7 +920,7 @@ func TestQueueScheduler_PreemptionRateLimit(t *testing.T) {
 				"B": NewMultiJobsIterator(evictedRepoB, newRepo.GetJobIterator("B")),
 			}
 
-			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, true, config.EnablePreferLargeJobOrdering, config.MaxQueueLookback, false, 0, clock.RealClock{})
+			sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, true, config.EnablePreferLargeJobOrdering, true, config.MaxQueueLookback, false, 0, clock.RealClock{})
 			require.NoError(t, err)
 
 			result, err := sch.Schedule(armadacontext.Background())
@@ -903,7 +936,7 @@ func TestQueueScheduler_PreemptionRateLimit(t *testing.T) {
 
 			numberPreemptedJobs := 0
 			for _, jctx := range evictedJctxs {
-				if jctx.PreemptingJob != nil {
+				if jctx.GetPreemptingJob() != nil {
 					numberPreemptedJobs++
 				}
 			}
@@ -934,7 +967,7 @@ func TestQueueScheduler_SkipsPreemptedCandidate(t *testing.T) {
 	jobRepo.EnqueueMany(jctxs)
 	jobIteratorByQueue := map[string]JobContextIterator{"A": jobRepo.GetJobIterator("A")}
 
-	sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, config.EnablePreferLargeJobOrdering, config.MaxQueueLookback, false, 0, clock.RealClock{})
+	sch, err := NewQueueScheduler(sctx, constraints, testfixtures.TestEmptyFloatingResources, nodeDb, jobIteratorByQueue, false, false, config.EnablePreferLargeJobOrdering, true, config.MaxQueueLookback, false, 0, clock.RealClock{})
 	require.NoError(t, err)
 
 	result, err := sch.Schedule(armadacontext.Background())
@@ -1089,6 +1122,45 @@ func TestQueueCandidateGangIteratorPQ_Fallback(t *testing.T) {
 	assert.Equal(t, expectedOrder, pq.items)
 }
 
+func TestQueueCandidateGangIteratorPQ_Ordering_SchedulingPriority(t *testing.T) {
+	queueA := &QueueCandidateGangIteratorItem{
+		queue:                 "A",
+		schedulingPriority:    29000,
+		priorityClassPriority: 30000,
+	}
+	queueB := &QueueCandidateGangIteratorItem{
+		queue:                 "B",
+		schedulingPriority:    30000,
+		priorityClassPriority: 30000,
+	}
+
+	tests := map[string]struct {
+		shouldCompareSchedulingPriority bool
+		expectedOrder                   []*QueueCandidateGangIteratorItem
+	}{
+		"compares scheduling priority": {
+			shouldCompareSchedulingPriority: true,
+			expectedOrder:                   []*QueueCandidateGangIteratorItem{queueB, queueA},
+		},
+		"ignores scheduling priority": {
+			shouldCompareSchedulingPriority: false,
+			expectedOrder:                   []*QueueCandidateGangIteratorItem{queueA, queueB},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			pq := &QueueCandidateGangIteratorPQ{
+				prioritiseLargerJobs:      true,
+				compareSchedulingPriority: tc.shouldCompareSchedulingPriority,
+				items:                     []*QueueCandidateGangIteratorItem{queueA, queueB},
+			}
+
+			sort.Sort(pq)
+			assert.Equal(t, tc.expectedOrder, pq.items)
+		})
+	}
+}
+
 type timeoutTestSetup struct {
 	config      configuration.SchedulingConfig
 	nodeDb      *nodedb.NodeDb
@@ -1156,7 +1228,7 @@ func markJobsAsEvicted(jctxs []*context.JobSchedulingContext) {
 func (s *timeoutTestSetup) createScheduler(clk clock.Clock, jobIteratorsByQueue map[string]JobContextIterator) (*QueueScheduler, error) {
 	return NewQueueScheduler(
 		s.sctx, s.constraints, nil, s.nodeDb, jobIteratorsByQueue,
-		false, false, true, s.config.MaxQueueLookback, false, 0,
+		false, false, true, false, s.config.MaxQueueLookback, false, 0,
 		clk,
 	)
 }
