@@ -71,7 +71,7 @@ For contributors investigating behaviour behind the `api.Submit` contract:
 
 * [`internal/server/server.go`](../../internal/server/server.go) constructs and registers the Submit service implementation.
 * [`internal/server/submit/submit.go`](../../internal/server/submit/submit.go) contains its RPC handlers; [handler tests](../../internal/server/submit/submit_test.go) live alongside it.
-* [`internal/server/submit/validation/`](../../internal/server/submit/validation) contains submission request validation and its unit tests.
+* [`internal/server/submit/validation/`](../../internal/server/submit/validation) contains request validation and its unit tests.
 
 ## Authentication
 
