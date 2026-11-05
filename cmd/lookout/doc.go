@@ -1,8 +1,10 @@
 // Package main provides the lookout binary. By default it serves the Lookout
 // API. The --migrateDatabase flag instead applies the lookout migration chain
 // and, if the job table is still empty, converts it to the partitioned
-// shape; a job table that already contains data is left as it is. The
-// --pruneDatabase flag instead prunes old jobs from the database.
+// shape; a job table that already contains data is left as it is, with a
+// warning if it is unpartitioned. The --pruneDatabase flag instead prunes
+// old jobs from the database. The API and the pruner refuse to start while
+// the job table is unpartitioned and contains data.
 //
 // The --partitionJobTable flag instead runs the operator-initiated migration
 // of an existing job table to the partitioned shape. By default, or with

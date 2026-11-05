@@ -13,11 +13,33 @@ import (
 	"github.com/armadaproject/armada/internal/common/database"
 )
 
-// LegacySchemaWarning is logged when the job table still uses the
-// unpartitioned schema and contains data.
-const LegacySchemaWarning = "The job table uses the legacy unpartitioned schema. Support for it will be removed in v0.24.0. " +
-	"Migrating improves ingestion throughput but needs free disk of at least the size of the job table. " +
-	"See https://armadaproject.io/docs/lookout-job-table-partitioning for how to plan and run the migration."
+// ErrUnpartitionedJobTable is returned by CheckJobTablePartitioned when the
+// job table still uses the unpartitioned schema and contains data.
+var ErrUnpartitionedJobTable = errors.New("The job table is still using the legacy unpartitioned schema, which is no longer supported as of v0.24.0. " +
+	"Run `lookout --partitionJobTable --preflight` using this version, then migrate. " +
+	"See https://armadaproject.io/docs/lookout-job-table-partitioning.")
+
+// CheckJobTablePartitioned returns ErrUnpartitionedJobTable if the job table
+// still uses the unpartitioned schema and contains data. An empty
+// unpartitioned job table is allowed, because lookout --migrateDatabase
+// partitions it automatically.
+func CheckJobTablePartitioned(ctx *armadacontext.Context, q database.Querier) error {
+	shape, _, err := DetectJobTableShape(ctx, q)
+	if err != nil {
+		return errors.Wrap(err, "detect job table shape")
+	}
+	if shape != JobTableShapeUnpartitioned {
+		return nil
+	}
+	hasRows, err := JobTableHasRows(ctx, q)
+	if err != nil {
+		return errors.Wrap(err, "check whether job table has rows")
+	}
+	if hasRows {
+		return ErrUnpartitionedJobTable
+	}
+	return nil
+}
 
 // partitionAdvisoryLockKey identifies the session-level advisory lock held by
 // ExecutePartitionJobTable, so that a second run fails fast instead of

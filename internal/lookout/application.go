@@ -10,6 +10,7 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jessevdk/go-flags"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/armadaproject/armada/internal/common"
@@ -43,8 +44,10 @@ func Serve(configuration configuration.LookoutConfig) error {
 
 	collector := pgxpoolprometheus.NewCollector(db, map[string]string{})
 	prometheus.MustRegister(collector)
+	if err := checkJobTable(db); err != nil {
+		return err
+	}
 	metrics.RegisterJobTablePartitioned(db)
-	logJobTableShape(db)
 
 	getJobsRepo := repository.NewSqlGetJobsRepository(db)
 	groupJobsRepo := repository.NewSqlGroupJobsRepository(db)
@@ -214,7 +217,12 @@ func Serve(configuration configuration.LookoutConfig) error {
 	return err
 }
 
-func logJobTableShape(db *pgxpool.Pool) {
+// checkJobTable logs the shape of the job table, and returns
+// schema.ErrUnpartitionedJobTable if it still uses the unpartitioned schema
+// and contains data. Lookout starts if the check itself fails, as it did
+// before the check existed, so that a database that is briefly unavailable
+// does not stop it starting.
+func checkJobTable(db *pgxpool.Pool) error {
 	ctx := armadacontext.Background()
 	shape, detail, err := schema.DetectJobTableShape(ctx, db)
 	switch {
@@ -225,12 +233,11 @@ func logJobTableShape(db *pgxpool.Pool) {
 	default:
 		logging.WithField("detail", detail).Warnf("Job table shape: %s", shape)
 	}
-	if shape != schema.JobTableShapeUnpartitioned {
-		return
+
+	err = schema.CheckJobTablePartitioned(ctx, db)
+	if err != nil && !errors.Is(err, schema.ErrUnpartitionedJobTable) {
+		logging.WithError(err).Warn("Failed to check whether the job table is partitioned")
+		return nil
 	}
-	if hasRows, err := schema.JobTableHasRows(ctx, db); err != nil {
-		logging.WithError(err).Warn("Failed to check whether the job table has rows")
-	} else if hasRows {
-		logging.Warn(schema.LegacySchemaWarning)
-	}
+	return err
 }

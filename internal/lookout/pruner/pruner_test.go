@@ -39,8 +39,8 @@ func TestPruneDb(t *testing.T) {
 		expireAfter          time.Duration
 		jobs                 []testJob
 		jobIdsLeft           []string
-		activeJobIdsLeft     []string // partitioned only: when non-nil, assert job_active contains exactly these
-		terminatedJobIdsLeft []string // partitioned only: when non-nil, assert job_terminated contains exactly these
+		activeJobIdsLeft     []string // when non-nil, assert job_active contains exactly these
+		terminatedJobIdsLeft []string // when non-nil, assert job_terminated contains exactly these
 		jobErrorIdsLeft      []string // when non-nil, assert job_error contains exactly these
 	}
 
@@ -137,7 +137,7 @@ func TestPruneDb(t *testing.T) {
 			jobIdsLeft: sampleJobIds[50:],
 		},
 		{
-			testName:    "delete from job_terminated on the partitioned schema",
+			testName:    "delete from job_terminated",
 			expireAfter: 10 * time.Hour,
 			jobs: []testJob{
 				{
@@ -247,15 +247,11 @@ func TestPruneDb(t *testing.T) {
 					selectStringSet(t, db, "SELECT run_id FROM job_run"),
 					selectStringSet(t, db, "SELECT run_id FROM job_run_info"))
 
-				partitioned, err := lookoutschema.IsJobTablePartitioned(ctx, db)
-				require.NoError(t, err)
-				if partitioned {
-					if tc.activeJobIdsLeft != nil {
-						assertJobIds(t, db, "SELECT job_id FROM job_active", tc.activeJobIdsLeft)
-					}
-					if tc.terminatedJobIdsLeft != nil {
-						assertJobIds(t, db, "SELECT job_id FROM job_terminated", tc.terminatedJobIdsLeft)
-					}
+				if tc.activeJobIdsLeft != nil {
+					assertJobIds(t, db, "SELECT job_id FROM job_active", tc.activeJobIdsLeft)
+				}
+				if tc.terminatedJobIdsLeft != nil {
+					assertJobIds(t, db, "SELECT job_id FROM job_terminated", tc.terminatedJobIdsLeft)
 				}
 				if tc.jobErrorIdsLeft != nil {
 					assertJobIds(t, db, "SELECT job_id FROM job_error", tc.jobErrorIdsLeft)

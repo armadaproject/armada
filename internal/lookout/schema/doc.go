@@ -33,8 +33,11 @@
 // refuses unless the migration chain is fully applied, fails fast if another
 // run holds its advisory lock, waits for the lock on job with a lock_timeout
 // so that it does not stall other queries while queued behind a long one,
-// and logs its progress. LegacySchemaWarning is logged while an
-// unpartitioned job table contains data.
+// and logs its progress.
+//
+// From v0.24.0 an unpartitioned job table that contains data is no longer
+// supported: CheckJobTablePartitioned returns ErrUnpartitionedJobTable for
+// it, and the Lookout API and pruner refuse to start.
 //
 // The partitioned shape carries one index that the unpartitioned chain does
 // not need: idx_job_queue_job_id, on (queue, job_id). The unpartitioned job
@@ -47,7 +50,10 @@
 // # Writing migrations
 //
 // UpdateDatabase applies the migration chain to either shape of the job
-// table. Before each migration it checks the live shape, and on a
+// table. It must keep working on an unpartitioned job table for as long as
+// the partition command exists, so that an install upgrading from before
+// v0.23.0 can bring the chain up to date and then partition. Before each
+// migration it checks the live shape, and on a
 // partitioned job table it applies the migration's PartitionedVariant if it
 // has one: "NNN_name.partitioned.sql", or a "NNN_name.partitioned/"
 // directory whose files run as separate statements outside a transaction.

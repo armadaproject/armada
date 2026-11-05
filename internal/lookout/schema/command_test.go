@@ -277,3 +277,45 @@ func TestFormatBytes(t *testing.T) {
 	assert.Equal(t, "1.5 KiB", formatBytes(1536))
 	assert.Equal(t, "3.0 GiB", formatBytes(3<<30))
 }
+
+func TestCheckJobTablePartitioned(t *testing.T) {
+	tests := map[string]struct {
+		setup       func(ctx *armadacontext.Context, db *pgxpool.Pool) error
+		expectedErr error
+	}{
+		"unpartitioned and empty": {
+			setup: func(*armadacontext.Context, *pgxpool.Pool) error { return nil },
+		},
+		"unpartitioned with rows": {
+			setup: func(ctx *armadacontext.Context, db *pgxpool.Pool) error {
+				return insertUnpartitionedJob(ctx, db, "jobA", 4)
+			},
+			expectedErr: ErrUnpartitionedJobTable,
+		},
+		"partitioned with rows": {
+			setup: func(ctx *armadacontext.Context, db *pgxpool.Pool) error {
+				if err := insertUnpartitionedJob(ctx, db, "jobA", 4); err != nil {
+					return err
+				}
+				return PartitionJobTable(ctx, db)
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := withLookoutChainAppliedDb(func(db *pgxpool.Pool) error {
+				ctx := armadacontext.Background()
+				require.NoError(t, tc.setup(ctx, db))
+
+				err := CheckJobTablePartitioned(ctx, db)
+				if tc.expectedErr == nil {
+					assert.NoError(t, err)
+				} else {
+					assert.ErrorIs(t, err, tc.expectedErr)
+				}
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
