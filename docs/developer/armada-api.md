@@ -6,6 +6,7 @@
     - [`api.Event`](#apievent)
     - [Internal-only methods](#internal-only-methods)
   - [REST API](#rest-api)
+  - [Finding the Submit API implementation](#finding-the-submit-api-implementation)
   - [Authentication](#authentication)
     - [No authentication](#no-authentication)
     - [OpenID Authentication](#openid-authentication)
@@ -63,6 +64,14 @@ There are additional API methods defined in `proto` specifications, which are us
 The REST API only exposes the public part of the gRPC API and it is implemented using [`grpc-gateway`](https://github.com/grpc-ecosystem/grpc-gateway).
 
 [Swagger JSON specification](https://github.com/armadaproject/armada/blob/master/pkg/api/api.swagger.json) is also served by Armada under `my.armada.deployment/api/swagger.json`.
+
+## Finding the Submit API implementation
+
+For contributors investigating behaviour behind the `api.Submit` contract:
+
+* [`internal/server/server.go`](../../internal/server/server.go) constructs and registers the Submit service implementation.
+* [`internal/server/submit/submit.go`](../../internal/server/submit/submit.go) contains its RPC handlers; [handler tests](../../internal/server/submit/submit_test.go) live alongside it.
+* [`internal/server/submit/validation/`](../../internal/server/submit/validation) contains submission request validation and its unit tests.
 
 ## Authentication
 
