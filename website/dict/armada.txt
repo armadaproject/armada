@@ -49,5 +49,6 @@ categorisation
 retryable
 organisations
 KUBECONFIG
+preemptible
 ingester
 EMFILE
