@@ -117,7 +117,7 @@ Run the migration in a quiet period and let your users know beforehand that Look
 
      Helm does not wait for the Job. Its `partitionJobTable.activeDeadlineSeconds` value (24 hours by default) limits how long it may run.
 
-   - **With the Armada Operator** (`{{OPERATOR_VERSION - TODO}} ` or later), set `spec.partitionJobTable.enabled: true` on your `Lookout` resource. Once the Lookout migration Job has succeeded, the operator starts a `<name>-partition-job-table` Job, without holding up the rest of the installation. The `JobTablePartitioned` condition in the resource's status shows whether it is running, has succeeded or has failed.
+   - **With the Armada Operator** (v0.8.0 or later), set `spec.partitionJobTable.enabled: true` on your `Lookout` resource. Once the Lookout migration Job has succeeded, the operator starts a `<name>-partition-job-table` Job, without holding up the rest of the installation. The `JobTablePartitioned` condition in the resource's status shows whether it is running, has succeeded or has failed.
    - **As SQL**, if your database administrators prefer to run it themselves. This prints the exact statements, as a single transaction, without running them:
 
      ```bash
