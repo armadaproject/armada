@@ -63,7 +63,7 @@ This job starts a small Linux container, prints `hello from Armada`, waits 30 se
 | `queue`                            | The queue the job goes into.                                                                                           |
 | `jobSetId`                         | A label you choose to group related jobs, so you can watch or cancel them together.                                    |
 | `namespace`                        | The Kubernetes namespace the pod runs in. Required. `default` always exists; on a team installation, ask which to use. |
-| `priority`                         | Order within your queue. Lower runs first.                                                                             |
+| `priority`                         | Order within your queue among jobs with the same priority-class urgency. Lower runs first.                             |
 | `podSpec`                          | A normal Kubernetes pod spec, for exactly one pod.                                                                     |
 | `terminationGracePeriodSeconds: 0` | Fine for a demo. Real jobs need time to shut down cleanly.                                                             |
 
@@ -74,7 +74,7 @@ Armada rejects the whole file if any job breaks one of these rules:
 - Every container has `resources` with both `requests` and `limits`, and by default they're equal. Operators can allow limits above requests with a server setting: see [Operator setup](#operator-setup).
 - Node affinity is supported only in its `required...` form. `preferred...` node affinity is rejected.
 - `priorityClassName`, if set, must be on the cluster's allowed list.
-  {/* See [Priority and preemption](/docs/priority-and-preemption). */}
+  See [Priority and preemption](/docs/priority-and-preemption).
 
 ## 3. Check the file
 
@@ -153,7 +153,7 @@ kubectl logs -n default armada-$JOB_ID-0
 
 ## 7. Reorder or cancel jobs
 
-Change the priority of one job, or of every job in a job set. Lower numbers run first:
+Change the priority of one job, or of every job in a job set. Within your queue, lower numbers run first among jobs with the same priority-class urgency:
 
 ```bash
 armadactl reprioritize job my-team demo-1 <job-id> 5
@@ -191,11 +191,11 @@ Fields on each entry under `jobs:`:
 | Field                    | Meaning                                                                                                                                                                                                                                                                                                              |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `namespace`              | Kubernetes namespace the pod runs in. Required.                                                                                                                                                                                                                                                                      |
-| `priority`               | Order within your queue. Lower runs first. No effect on other queues, and never causes preemption.                                                                                                                                                                                                                   |
+| `priority`               | Order within your queue among jobs with the same priority-class urgency. Lower runs first. No effect on other queues, and never causes preemption.                                                                                                                                                                   |
 | `podSpec`                | A standard Kubernetes pod spec, for one pod.                                                                                                                                                                                                                                                                         |
 | `labels` / `annotations` | Added to the pod. The text `{JobId}` in any value is replaced with the job's ID.                                                                                                                                                                                                                                     |
 | `clientId`               | A key that helps prevent duplicates, up to 100 characters. Submitting again with the same `clientId` to the same queue normally returns the original job instead of creating a new one. This is best effort: a database error can let a duplicate through, and saved keys can be removed after 7 days (the default). |
-| `ingress` / `services`   | Make the job reachable over the network. See Interactive jobs and services. {/* LINK: restore "[Interactive jobs and services](/docs/interactive-jobs-and-services)" when that page merges */}                                                                                                                       |
+| `ingress` / `services`   | Make the job reachable over the network. See [Interactive jobs and services](/docs/interactive-jobs-and-services).                                                                                                                                                                                                   |
 
 ### The pod spec
 

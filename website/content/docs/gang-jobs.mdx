@@ -7,7 +7,7 @@ A **gang** is a group of jobs that Armada schedules onto a set of nodes all toge
 
 ## Before you start
 
-You need a working `armadactl` and the `my-team` queue from Submitting jobs. Run the commands on this page from your `~/armada-guide` folder.
+You need a working `armadactl` and the `my-team` queue from [Submitting jobs](/docs/submitting-jobs). Run the commands on this page from your `~/armada-guide` folder.
 
 ## Step 1. Write a gang job file
 
@@ -72,8 +72,8 @@ EOF
 
 Rules Armada enforces:
 
-- Every member must have the same `gangId`, `gangCardinality`, `priorityClassName` and node uniformity label. If they disagree within one file, the whole submission is rejected. If they disagree across separate submissions, the members are accepted and then fail.
-- Submit **exactly** as many members as `gangCardinality` says, normally all in one file. You can split them across several submissions while the gang is still waiting, but never after one of its members has started. With fewer members, the gang waits forever. With more, every member fails.
+- Every member must have the same `gangId`, `gangCardinality`, `priorityClassName` and node uniformity label. If they disagree within one file, the whole submission is rejected. If a later submission disagrees with existing members, the newly checked members are accepted and then fail; members checked earlier are not failed by that validation.
+- Submit **exactly** as many members as `gangCardinality` says, normally all in one file. You can split them across several submissions while the gang is still waiting, but never after one of its members has started. With fewer members, the gang waits forever. With more, the members being checked fail. If you add members in a later submission, that validation does not fail members checked earlier.
 - Use a **new `gangId`** each time. Reusing one from a finished gang leaves the new job waiting forever, with no error. Reusing one from a gang that's still running makes the new job fail with `cannot submit to gang that has running jobs`.
 
 ## Step 2. Submit and watch it start together
@@ -132,7 +132,7 @@ Each member gets these environment variables, as well as the usual `ARMADA_JOB_I
 
 There's no member number and no list of the other members' addresses. Members have to find each other, in one of two ways:
 
-1. **Through a service on one member.** Give one job (the leader) a headless service. Its address follows a fixed pattern, so the others can work it out. See Interactive jobs and services.
+1. **Through a service on one member.** Give one job (the leader) a headless service. Its address follows a fixed pattern, so the others can work it out. See [Interactive jobs and services](/docs/interactive-jobs-and-services).
 2. **External coordination:** an etcd or Redis endpoint, or your framework's own meeting point (for example `torchrun --rdzv_backend=c10d` pointed at the leader's service address).
 
 ## What happens when something fails
