@@ -1,9 +1,9 @@
 ---
-title: 'Failure categories'
+title: 'Error Categories'
 description: 'See at a glance why a job failed, whether the fix is yours or the platform, and how operators set up the categories.'
 ---
 
-When a job fails, the first question is usually: is the problem in my job, or in the platform? A **failure category** answers it at a glance. Armada gives each failed run a short label, such as `oom` (ran out of memory) or `user_error` (your program exited with an error), and can add a **hint** with a known fix.
+When a job fails, the first question is usually: is the problem in my job, or in the platform? An **error category** answers it at a glance. Armada gives each failed run a short label, such as `oom` (ran out of memory) or `user_error` (your program exited with an error), and can add a **hint** with a known fix. Lookout, job events and metrics call it the **failure category**.
 
 Your platform team (the operators) decides the categories. Categories are also what [retry policies](/docs/retry_policies) use to decide whether to run a job again.
 
@@ -25,12 +25,12 @@ When a run fails, the **executor** (the Armada component that runs pods on a clu
 
 Your operator writes rules that turn these into categories. For example:
 
-| The failure                                                      | A category an operator might give it             |
-| ---------------------------------------------------------------- | ------------------------------------------------ |
-| The container used more memory than its limit                    | `oom`                                            |
-| Kubernetes evicted the pod because the node was low on resources | `node`, subcategory `eviction`                   |
-| Your program exited with code 1                                  | `user_error`                                     |
-| No rule matches                                                  | `uncategorized` (if the operator sets a default) |
+| The failure                                                      | A category an operator might give it                                 |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------- |
+| The container used more memory than its limit                    | `oom`                                                                |
+| Kubernetes evicted the pod because the node was low on resources | `node`, subcategory `eviction`                                       |
+| Your program exited with code 1                                  | `user_error`                                                         |
+| No rule matches                                                  | `unknown` by default from 0.22.16, or the default your operator sets |
 
 A **subcategory** adds detail inside a category. The names on this page are examples: ask your operator for your installation's list.
 
@@ -99,11 +99,11 @@ The job ran out of memory. Increase the memory request, or use a retry policy th
 | `node`, or another node-problem category                                | The platform      | Submit again, or use a [retry policy that moves the job to another node](/docs/retry_policies). Tell your operator if it happens often.   |
 | `internal`                                                              | The platform      | Check the subcategory in [Categories Armada sets itself](#categories-armada-sets-itself). Submit again; tell your operator if it repeats. |
 | `preemption`                                                            | Nobody            | Armada gave the resources to other work. Submit again, or use a class that isn't preempted.                                               |
-| `uncategorized`                                                         | Unknown           | Read the failure message. Ask your operator to add a rule for it.                                                                         |
+| `unknown`, `uncategorized` or your operator's own default               | Unknown           | Read the failure message. Ask your operator to add a rule for it.                                                                         |
 
-## Set up failure categories
+## Set up error categories
 
-This section is for operators. Failure categories are **off by default**. They're executor settings, under `application.errorCategories` (the settings say _error_ where this page says _failure_).
+This section is for operators. Error categories are executor settings, under `application.errorCategories`. From Armada 0.22.16 they're on by default, and a failure no rule matches gets category `unknown` and subcategory `unknown`. In earlier versions they're off by default, so set `enabled: true`.
 
 ### Before you start
 
@@ -190,16 +190,16 @@ To turn categories off again, remove the `errorCategories` block (with the Opera
 
 ## Settings reference
 
-| Setting                              | Meaning                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`                            | Turns failure categories on.                                                                                                                                                                                                                                                                                                                            |
-| `defaultCategory`                    | Category for a failure no rule matches. Empty: no category.                                                                                                                                                                                                                                                                                             |
-| `defaultSubcategory`                 | Subcategory for a failure no rule matches. Empty: no subcategory.                                                                                                                                                                                                                                                                                       |
-| `categories[].name`                  | The category's name. Retry policies match it exactly, including case. Don't use `internal` or `preemption`, which Armada uses. In Armada 0.22.12 nothing stops you. **From the next release**, the executor won't start, with `category name "internal" is reserved for categories that Armada sets` (or `defaultCategory "internal" is reserved ...`). |
-| `categories[].action`                | What to do with a failed pod: `Retain` (default) or `Delete`. See [Keep or delete the failed pod](#keep-or-delete-the-failed-pod).                                                                                                                                                                                                                      |
-| `categories[].rules[].subcategory`   | Optional. The subcategory this rule gives.                                                                                                                                                                                                                                                                                                              |
-| `categories[].rules[].hint`          | Optional. Text added to the failure message when this rule matches.                                                                                                                                                                                                                                                                                     |
-| `categories[].rules[].containerName` | Optional. Applies a container rule to one container only.                                                                                                                                                                                                                                                                                               |
+| Setting                              | Meaning                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`                            | Turns error categories on. On by default from 0.22.16.                                                                                                                                                                                                                                                                     |
+| `defaultCategory`                    | Category for a failure no rule matches. Empty: no category.                                                                                                                                                                                                                                                                |
+| `defaultSubcategory`                 | Subcategory for a failure no rule matches. Empty: no subcategory.                                                                                                                                                                                                                                                          |
+| `categories[].name`                  | The category's name. Retry policies match it exactly, including case. Don't use `internal` or `preemption`, which Armada uses. From 0.22.13, the executor won't start with those names, and logs `category name "internal" is reserved for categories that Armada sets` (or `defaultCategory "internal" is reserved ...`). |
+| `categories[].action`                | What to do with a failed pod: `Retain` (default) or `Delete`. See [Keep or delete the failed pod](#keep-or-delete-the-failed-pod).                                                                                                                                                                                         |
+| `categories[].rules[].subcategory`   | Optional. The subcategory this rule gives.                                                                                                                                                                                                                                                                                 |
+| `categories[].rules[].hint`          | Optional. Text added to the failure message when this rule matches.                                                                                                                                                                                                                                                        |
+| `categories[].rules[].containerName` | Optional. Applies a container rule to one container only.                                                                                                                                                                                                                                                                  |
 
 Names and subcategories can be at most 63 characters.
 
@@ -233,7 +233,8 @@ The container matchers only look at containers that exited with a non-zero code,
 
 ### When the pod matchers see a failure
 
-- **A pod that failed:** both `onPodError` and `onPodEvents` can match, **but in Armada 0.22.12 only in a category with `action: Delete`**. In a `Retain` category, a failed pod is categorized from its containers only, so these rules don't match and the failure gets the default category (for example `uncategorized`). From the next release, they match in every category ([#5250](https://github.com/armadaproject/armada/pull/5250)). And if a `kubernetes.failedPodChecks` rule matches first, the executor returns the job to the queue as a startup retry, and `onPodEvents` never sees it.
+- **A pod that failed:** both `onPodError` and `onPodEvents` can match, in every category from Armada 0.22.13 ([#5250](https://github.com/armadaproject/armada/pull/5250)). In earlier versions they only match in a category with `action: Delete`; in a `Retain` category, the failure gets the default category instead. And if a `kubernetes.failedPodChecks` rule matches first, the executor returns the job to the queue as a startup retry, and `onPodEvents` never sees it.
+
 - **A pod that never started** (for example, an image pull error): a `kubernetes.pendingPodChecks` rule with `action: Fail` fails the pod after its grace period, and `onPodError` matches that rule's message; `onPodEvents` doesn't match. A rule with `action: Retry` makes a startup retry instead, which no retry policy sees.
 
 The grace period counts from the pod's last status change, and the executor checks every 10 seconds. With the default image-pull rule, the failure arrives about 90 to 100 seconds after the pod went Pending.
@@ -260,7 +261,7 @@ It checks for:
 - two categories with the same name, a category with no rules, or an empty name
 - a name, subcategory or default longer than 63 characters
 - an `action` other than `Retain` or `Delete`
-- **from the next release:** a category or `defaultCategory` named `internal` or `preemption` (`category name "internal" is reserved for categories that Armada sets`)
+- **from 0.22.13:** a category or `defaultCategory` named `internal` or `preemption` (`category name "internal" is reserved for categories that Armada sets`)
 
 ### Keep or delete the failed pod
 
@@ -331,9 +332,9 @@ Someone builds an image on an Arm laptop and runs it on x86 nodes. The image pul
 
 The pod never starts, so the failure arrives when the default image-pull check fails it, about 90 seconds after the pod went Pending.
 
-### A GPU the node can't give
+### No free GPU on the node at startup
 
-The kubelet sometimes can't give a GPU to a pod, and writes an event:
+Sometimes a node has no free GPU when the pod starts, even though Armada placed the job there. The kubelet rejects the pod with an `UnexpectedAdmissionError` event, such as `Pod Allocate failed due to requested number of devices unavailable for nvidia.com/gpu. Requested: 1, Available: 0`:
 
 ```yaml
 - name: gpu
@@ -347,7 +348,7 @@ The kubelet sometimes can't give a GPU to a pod, and writes an event:
       hint: 'The node could not give a GPU to the job. Submit the job again.'
 ```
 
-The pod fails before its container starts, so this rule needs `action: Delete` in Armada 0.22.12 (see [When the pod matchers see a failure](#when-the-pod-matchers-see-a-failure)). From the next release it also works with `Retain`.
+The pod fails before its container starts, so before Armada 0.22.13 this rule needs `action: Delete` (see [When the pod matchers see a failure](#when-the-pod-matchers-see-a-failure)). From 0.22.13 it also works with `Retain`.
 
 ### Messages your program writes
 
