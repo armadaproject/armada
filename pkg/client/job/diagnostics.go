@@ -22,17 +22,16 @@ func (d RunDetails) empty() bool {
 	return d == RunDetails{}
 }
 
-// addDiagnostics adds to the job why it did not succeed. That is recorded on the runs of a job that ran, so each run
-// that did not succeed is asked about. A job that never ran, because it was rejected or has not been scheduled yet,
-// has nothing on a run, so the job itself is asked.
+// addDiagnostics adds to the job why it did not succeed. Lookout records an error for the job itself only when the job
+// was rejected (see handleJobErrors in lookoutingester): any other failure is recorded on a run. So a rejected job is
+// asked for its error, and each run that did not succeed is asked about.
 func addDiagnostics(api *httpapi.Client, job *Job) error {
-	if len(job.Runs) == 0 {
+	if job.State == "REJECTED" {
 		message, err := optionalString(api, "/api/v1/jobError", map[string]any{"jobId": job.JobID}, "errorString")
 		if err != nil {
 			return err
 		}
 		job.Error = message
-		return nil
 	}
 
 	for _, run := range job.Runs {

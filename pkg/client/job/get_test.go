@@ -14,7 +14,6 @@ import (
 
 func TestGet_ReturnsTheJobWithItsSpec(t *testing.T) {
 	f, url := newFakeLookout(t, "a")
-	f.runs["a"] = []map[string]any{run("r1", "RUN_RUNNING")} // a job that ran is not asked for an error of its own
 
 	job, err := Get(connectionTo(url))("a")
 
@@ -55,7 +54,6 @@ func TestGet_NeedsALookoutUrl(t *testing.T) {
 
 func TestGet_SendsTheCredentialsOnEveryRequest(t *testing.T) {
 	f, url := newFakeLookout(t, "a")
-	f.runs["a"] = []map[string]any{run("r1", "RUN_RUNNING")}
 	details := func() (*client.ApiConnectionDetails, error) {
 		return &client.ApiConnectionDetails{LookoutUrl: url, BasicAuth: basic.LoginCredentials{Username: "u", Password: "p"}}, nil
 	}

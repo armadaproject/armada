@@ -52,7 +52,7 @@ func TestGet_ARunThatDidNotSucceedHasEverythingLookoutRecordedAboutIt(t *testing
 	f, url := newFakeLookout(t, "a")
 	f.states["a"] = "FAILED"
 	f.runs["a"] = []map[string]any{run("r1", "RUN_FAILED")}
-	f.jobErrors["a"] = "recorded for the job, but a job that ran is not asked for it"
+	f.jobErrors["a"] = "recorded for the job, but only a rejected job is asked for it"
 	f.runErrors["r1"] = "Container sleep failed with exit code 3"
 	f.debugMessages["r1"] = "the node was drained"
 	f.terminationReasons["r1"] = "preempted for a higher priority job"
@@ -140,22 +140,19 @@ func TestGet_OnlyAsksAboutRunsThatDidNotSucceed(t *testing.T) {
 	}
 }
 
-// What a job that ran has to say is on its runs. A job that never ran, because it was rejected or has not been scheduled,
-// has no runs to say it, so the job is asked, whatever its state.
-func TestGet_AsksForTheErrorOfAJobOnlyWhenItHasNoRuns(t *testing.T) {
+// Lookout records an error for a job itself only when it rejected it. A failed or preempted job has its reasons on its runs.
+func TestGet_AsksForTheErrorOfAJobOnlyWhenItWasRejected(t *testing.T) {
 	for _, state := range []string{"QUEUED", "LEASED", "PENDING", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED", "PREEMPTED", "REJECTED"} {
-		withRuns, url := newFakeLookout(t, "a")
-		withRuns.states["a"] = state
-		withRuns.runs["a"] = []map[string]any{run("r1", "RUN_SUCCEEDED")}
-		_, err := Get(connectionTo(url))("a")
-		require.NoError(t, err, state)
-		assert.Empty(t, withRuns.asked("/api/v1/jobError", "jobId"), "a job with runs, in state "+state)
+		for _, runs := range [][]map[string]any{nil, {run("r1", "RUN_FAILED")}} {
+			f, url := newFakeLookout(t, "a")
+			f.states["a"] = state
+			f.runs["a"] = runs
 
-		withoutRuns, url := newFakeLookout(t, "a")
-		withoutRuns.states["a"] = state
-		_, err = Get(connectionTo(url))("a")
-		require.NoError(t, err, state)
-		assert.Equal(t, []any{"a"}, withoutRuns.asked("/api/v1/jobError", "jobId"), "a job without runs, in state "+state)
+			_, err := Get(connectionTo(url))("a")
+
+			require.NoError(t, err, state)
+			assert.Equal(t, state == "REJECTED", len(f.asked("/api/v1/jobError", "jobId")) == 1, "state %s, %d runs", state, len(runs))
+		}
 	}
 }
 
@@ -173,8 +170,9 @@ func TestGet_AJobThatNeverRanShowsItsOwnError(t *testing.T) {
 	assert.Equal(t, []any{}, doc["runs"], "an empty list, not null")
 }
 
-func TestGet_AJobThatNeverRanWithNothingRecordedHasNoError(t *testing.T) {
-	_, url := newFakeLookout(t, "a")
+func TestGet_ARejectedJobWithNothingRecordedHasNoError(t *testing.T) {
+	f, url := newFakeLookout(t, "a")
+	f.states["a"] = "REJECTED"
 
 	job, err := Get(connectionTo(url))("a")
 
@@ -184,15 +182,15 @@ func TestGet_AJobThatNeverRanWithNothingRecordedHasNoError(t *testing.T) {
 }
 
 func TestGet_AFailureThatIsNotNothingRecordedIsAnError(t *testing.T) {
-	for path, hasRuns := range map[string]bool{
-		"/api/v1/jobError":                         false, // only a job without runs is asked for its error
-		"/api/v1/jobRunError":                      true,
-		"/api/v1/jobRunDebugMessage":               true,
-		"/api/v1/jobRunSchedulerTerminationReason": true,
+	for path, state := range map[string]string{
+		"/api/v1/jobError":                         "REJECTED", // only a rejected job is asked for its error
+		"/api/v1/jobRunError":                      "FAILED",
+		"/api/v1/jobRunDebugMessage":               "FAILED",
+		"/api/v1/jobRunSchedulerTerminationReason": "FAILED",
 	} {
 		f, url := newFakeLookout(t, "a")
-		f.states["a"] = "FAILED"
-		if hasRuns {
+		f.states["a"] = state
+		if state != "REJECTED" {
 			f.runs["a"] = []map[string]any{run("r1", "RUN_FAILED")}
 		}
 		f.failing[path] = true

@@ -19,8 +19,8 @@ type Job struct {
 	// Runs replaces the runs of the job, which this has the same JSON key as, to add to each what Lookout has recorded.
 	Runs    []*Run          `json:"runs"`
 	JobSpec json.RawMessage `json:"jobSpec,omitempty"`
-	// Error is why the job did not run, when Lookout has recorded one for the job itself. A job that ran has its
-	// reasons on its runs.
+	// Error is why Lookout rejected the job, which is the only error it records for a job itself. Any other failure is
+	// on the runs.
 	Error string `json:"error,omitempty"`
 }
 
