@@ -75,3 +75,26 @@ func TestAuthHeaders(t *testing.T) {
 		})
 	}
 }
+
+func TestAllowsCredentialsOver(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		url        string
+		forceNoTls bool
+		want       bool
+	}{
+		{"https", "https://lookout.example.com", false, true},
+		{"plain http to localhost", "http://localhost:8089", false, true},
+		{"plain http to a loopback address", "http://127.0.0.1:8089", false, true},
+		{"plain http to a remote host", "http://lookout.example.com", false, false},
+		{"plain http to a look-alike of localhost", "http://localhost.evil.com", false, false},
+		{"plain http to a remote host, with no tls forced", "http://lookout.example.com", true, true},
+		{"an unparseable url", "http://[::1", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			config := &ApiConnectionDetails{ForceNoTls: tc.forceNoTls}
+
+			assert.Equal(t, tc.want, config.AllowsCredentialsOver(tc.url))
+		})
+	}
+}

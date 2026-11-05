@@ -136,10 +136,21 @@ func (config *ApiConnectionDetails) AuthHeaders(ctx context.Context, rawURL stri
 	if creds == nil {
 		return nil, nil
 	}
-	if u, err := url.Parse(rawURL); err == nil && u.Scheme == "http" && !IsLocalAddress(rawURL) && !config.ForceNoTls {
+	if !config.AllowsCredentialsOver(rawURL) {
 		return nil, errors.New("refusing to send credentials over plain http: use an https url")
 	}
 	return creds.GetRequestMetadata(ctx, rawURL)
+}
+
+// AllowsCredentialsOver reports whether credentials may be sent to rawURL. Like the gRPC connection, which only
+// goes without TLS to a local server or when ForceNoTls is set, they may not go over plain http to anything else.
+// A url that cannot be parsed is not trusted.
+func (config *ApiConnectionDetails) AllowsCredentialsOver(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	return u.Scheme != "http" || IsLocalAddress(rawURL) || config.ForceNoTls
 }
 
 // IsLocalAddress reports whether the host of an address, which may be a url or a host with a port, is this machine.

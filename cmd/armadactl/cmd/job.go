@@ -91,10 +91,10 @@ func jobListArgs(cmd *cobra.Command) (job.ListArgs, error) {
 	if err := decodeStrict(filters, &args.Filters); err != nil {
 		return args, fmt.Errorf("invalid --filters: %s", err)
 	}
-	for i, filter := range args.Filters {
-		if filter.Field == "" || filter.Match == "" {
-			return args, fmt.Errorf("invalid --filters: filter %d needs a field and a match", i+1)
-		}
+	// The filters and the order are checked as Lookout checks them, here, before anything is sent, and before any
+	// login, which may be interactive.
+	if err := job.ValidateFilters(args.Filters); err != nil {
+		return args, fmt.Errorf("invalid --filters: %s", err)
 	}
 
 	order, err := jsonFlag(cmd, "order")
@@ -104,8 +104,8 @@ func jobListArgs(cmd *cobra.Command) (job.ListArgs, error) {
 	if err := decodeStrict(order, &args.Order); err != nil {
 		return args, fmt.Errorf("invalid --order: %s", err)
 	}
-	if args.Order.Field == "" || args.Order.Direction == "" {
-		return args, fmt.Errorf("invalid --order: needs a field and a direction")
+	if err := job.ValidateOrder(args.Order); err != nil {
+		return args, fmt.Errorf("invalid --order: %s", err)
 	}
 
 	if args.ActiveJobSets, err = f.GetBool("active-job-sets"); err != nil {

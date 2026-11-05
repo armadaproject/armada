@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/armadaproject/armada/internal/lookout/gen/models"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/client/auth/basic"
 )
@@ -58,6 +60,15 @@ func (f *fakeLookout) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/api/v1/jobs":
 		filters, _ := request["filters"].([]any)
+		// Lookout checks every request against its swagger schema before it looks at it, and that schema
+		// requires each filter to have a value, so a filter without one is rejected as it is there.
+		for i, filter := range filters {
+			if filter.(map[string]any)["value"] == nil {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_, _ = fmt.Fprintf(w, `{"code":602,"message":"filters.%d.value in body is required"}`, i)
+				return
+			}
+		}
 		var jobs []map[string]any
 		for _, filter := range filters {
 			filter := filter.(map[string]any)
@@ -219,8 +230,8 @@ func TestGet_ReportsTheStatusAndBodyOfAFailedRequest(t *testing.T) {
 func TestList_SendsTheRequest(t *testing.T) {
 	f, url := newFakeLookout(t)
 	args := ListArgs{
-		Filters:       []Filter{{Field: "queue", Match: "anyOf", Value: []string{"a", "b"}}, {Field: "team", Match: "exact", Value: "data", IsAnnotation: true}},
-		Order:         Order{Field: "queue", Direction: "ASC"},
+		Filters:       []*models.Filter{{Field: "queue", Match: "anyOf", Value: []string{"a", "b"}}, {Field: "team", Match: "exact", Value: "data", IsAnnotation: true}},
+		Order:         models.Order{Field: "queue", Direction: "ASC"},
 		ActiveJobSets: true,
 		Skip:          5,
 		Take:          20,
@@ -244,7 +255,7 @@ func TestList_SendsTheRequest(t *testing.T) {
 func TestList_SendsNoFiltersAsAnEmptyList(t *testing.T) {
 	f, url := newFakeLookout(t)
 
-	_, err := List(connectionTo(url))(ListArgs{Order: Order{Field: "submitted", Direction: "DESC"}, Take: 1})
+	_, err := List(connectionTo(url))(ListArgs{Order: models.Order{Field: "submitted", Direction: "DESC"}, Take: 1})
 
 	require.NoError(t, err)
 	assert.Equal(t, []any{}, f.requests[0]["filters"])
@@ -253,18 +264,11 @@ func TestList_SendsNoFiltersAsAnEmptyList(t *testing.T) {
 func TestList_ReturnsAnEmptyListWhenNothingMatches(t *testing.T) {
 	_, url := newFakeLookout(t)
 
-	jobs, err := List(connectionTo(url))(ListArgs{Take: 1})
+	jobs, err := List(connectionTo(url))(ListArgs{Order: models.Order{Field: "submitted", Direction: "DESC"}, Take: 1})
 
 	require.NoError(t, err)
 	assert.NotNil(t, jobs)
 	assert.Empty(t, jobs)
-}
-
-func TestFilter_LeavesOutAnAbsentValue(t *testing.T) {
-	b, err := json.Marshal(Filter{Field: "team", Match: "exists", IsAnnotation: true})
-
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"field": "team", "match": "exists", "isAnnotation": true}`, string(b))
 }
 
 func TestBaseUrl(t *testing.T) {
@@ -279,4 +283,146 @@ func TestBaseUrl(t *testing.T) {
 	} {
 		assert.Equal(t, want, baseUrl(in), in)
 	}
+}
+
+// Lookout ignores the value of an exists filter, but its request check rejects a filter that has none.
+func TestList_SendsAPlaceholderValueForExists(t *testing.T) {
+	f, url := newFakeLookout(t)
+
+	_, err := List(connectionTo(url))(ListArgs{
+		Filters: []*models.Filter{{Field: "team", Match: "exists", IsAnnotation: true}},
+		Order:   models.Order{Field: "submitted", Direction: "DESC"},
+		Take:    1,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []any{map[string]any{"field": "team", "match": "exists", "value": "", "isAnnotation": true}}, f.requests[0]["filters"])
+}
+
+// A mistake in the request is reported before anything is sent, and so before any login.
+func TestList_RejectsAnInvalidRequestBeforeSendingAnything(t *testing.T) {
+	f, url := newFakeLookout(t)
+
+	_, err := List(connectionTo(url))(ListArgs{
+		Filters: []*models.Filter{{Field: "queue", Match: "exact"}},
+		Order:   models.Order{Field: "submitted", Direction: "DESC"},
+		Take:    1,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "filter 1: value in body is required")
+	assert.Empty(t, f.requests)
+}
+
+func TestListArgsValidate(t *testing.T) {
+	order := models.Order{Field: "submitted", Direction: "DESC"}
+	tests := map[string]struct {
+		args    ListArgs
+		wantErr string // empty when the args are valid
+	}{
+		"no filters":                       {args: ListArgs{Order: order}},
+		"a filter with a value":            {args: ListArgs{Order: order, Filters: []*models.Filter{{Field: "queue", Match: "exact", Value: "q"}}}},
+		"an exists filter without a value": {args: ListArgs{Order: order, Filters: []*models.Filter{{Field: "team", Match: "exists", IsAnnotation: true}}}},
+		"a filter without a value":         {args: ListArgs{Order: order, Filters: []*models.Filter{{Field: "queue", Match: "exact"}}}, wantErr: "filter 1: value in body is required"},
+		"a filter without a field":         {args: ListArgs{Order: order, Filters: []*models.Filter{{Match: "exact", Value: "q"}}}, wantErr: "filter 1: field in body is required"},
+		"a filter without a match":         {args: ListArgs{Order: order, Filters: []*models.Filter{{Field: "queue", Value: "q"}}}, wantErr: "filter 1: match in body is required"},
+		"a filter with an unknown match":   {args: ListArgs{Order: order, Filters: []*models.Filter{{Field: "queue", Match: "exacct", Value: "q"}}}, wantErr: "match in body should be one of"},
+		"a filter lacking everything":      {args: ListArgs{Order: order, Filters: []*models.Filter{{}}}, wantErr: "field in body is required; match in body is required"},
+		"the second filter being invalid": {
+			args:    ListArgs{Order: order, Filters: []*models.Filter{{Field: "a", Match: "exact", Value: "x"}, {Field: "b", Match: "exact"}}},
+			wantErr: "filter 2: value in body is required",
+		},
+		"a null filter":                {args: ListArgs{Order: order, Filters: []*models.Filter{nil}}, wantErr: "filter 1 is null"},
+		"an order without a direction": {args: ListArgs{Order: models.Order{Field: "queue"}}, wantErr: "direction in body is required"},
+		"an order without a field":     {args: ListArgs{Order: models.Order{Direction: "ASC"}}, wantErr: "field in body is required"},
+		"an order with an unknown direction": {
+			args: ListArgs{Order: models.Order{Field: "queue", Direction: "UP"}}, wantErr: "direction in body should be one of",
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := tc.args.Validate()
+
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+			assert.NotContains(t, err.Error(), "\n", "the message is one line")
+		})
+	}
+}
+
+func TestValidateFilters_DoesNotChangeTheFilters(t *testing.T) {
+	filters := []*models.Filter{{Field: "team", Match: "exists", IsAnnotation: true}}
+
+	require.NoError(t, ValidateFilters(filters))
+
+	assert.Nil(t, filters[0].Value, "the placeholder is only added to the copy that is sent")
+}
+
+// lookoutRedirectingTo is a client for a TLS server that redirects every jobs request to target, and serves
+// /moved. The credentials the server sees on /moved are recorded in seen.
+func lookoutRedirectingTo(t *testing.T, target string, seen *string) *lookout {
+	t.Helper()
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/moved" {
+			*seen = r.Header.Get("authorization")
+			_, _ = w.Write([]byte(`{"jobs": null}`))
+			return
+		}
+		http.Redirect(w, r, target, http.StatusTemporaryRedirect)
+	}))
+	t.Cleanup(srv.Close)
+	l, err := newLookout(&client.ApiConnectionDetails{LookoutUrl: srv.URL}, func(context.Context, string) (map[string]string, error) {
+		return map[string]string{"authorization": "token"}, nil
+	})
+	require.NoError(t, err)
+	l.httpClient.Transport = srv.Client().Transport // trusts the certificate of the test server
+	return l
+}
+
+// The credentials are checked against the url a request starts at, and a redirect to the same host keeps
+// them, so a redirect must not be able to move the request from https to plain http.
+func TestPost_RefusesToFollowARedirectToPlainHttpWithCredentials(t *testing.T) {
+	var seen string
+	l := lookoutRedirectingTo(t, "http://lookout.example.com/moved", &seen)
+
+	_, err := l.getJob("a")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "refusing to follow a redirect to http://lookout.example.com/moved")
+	assert.Empty(t, seen)
+}
+
+func TestPost_FollowsARedirectOverHttpsWithCredentials(t *testing.T) {
+	var seen string
+	l := lookoutRedirectingTo(t, "/moved", &seen)
+
+	_, err := l.getJob("a")
+
+	require.NoError(t, err)
+	assert.Equal(t, "token", seen)
+}
+
+func TestPost_FollowsARedirectToALocalServerWithCredentials(t *testing.T) {
+	_, localUrl := newFakeLookout(t)
+	var seen string
+	l := lookoutRedirectingTo(t, localUrl+"/api/v1/jobs", &seen)
+
+	jobs, err := l.getJob("a")
+
+	require.NoError(t, err)
+	assert.Nil(t, jobs)
+}
+
+func TestPost_StopsAfterTooManyRedirects(t *testing.T) {
+	var seen string
+	l := lookoutRedirectingTo(t, "/api/v1/jobs", &seen)
+
+	_, err := l.getJob("a")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "stopped after 10 redirects")
 }

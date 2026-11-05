@@ -205,8 +205,8 @@ func TestListJobs_NothingFoundIsAnEmptyList(t *testing.T) {
 func TestListJobs_PassesTheArgsOn(t *testing.T) {
 	a, _, fake := newJobTestApp(OutputYaml)
 	args := job.ListArgs{
-		Filters: []job.Filter{{Field: "queue", Match: "exact", Value: "q"}},
-		Order:   job.Order{Field: "submitted", Direction: "ASC"},
+		Filters: []*models.Filter{{Field: "queue", Match: "exact", Value: "q"}},
+		Order:   models.Order{Field: "submitted", Direction: "ASC"},
 		Skip:    3,
 		Take:    7,
 	}

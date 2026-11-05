@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 
+	openapierrors "github.com/go-openapi/errors"
+	"github.com/go-openapi/strfmt"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common"
@@ -70,7 +72,8 @@ func baseUrl(url string) string {
 }
 
 type lookout struct {
-	baseUrl string
+	baseUrl    string
+	httpClient *http.Client
 	// authHeaders authenticate every request. They are resolved once, when the client is made, because resolving
 	// them can log in, which may be interactive, and a command makes several requests.
 	authHeaders map[string]string
@@ -93,15 +96,34 @@ func newLookout(
 	if err != nil {
 		return nil, err
 	}
-	return &lookout{baseUrl: base, authHeaders: headers}, nil
+	return &lookout{
+		baseUrl:     base,
+		authHeaders: headers,
+		httpClient:  &http.Client{CheckRedirect: checkRedirect(connectionDetails, len(headers) > 0)},
+	}, nil
+}
+
+// checkRedirect stops a request that carries credentials from following a redirect to somewhere they must not go.
+// The credentials were only checked against the url the request started at, and a redirect to the same host
+// keeps them, so a Lookout that redirects from https to http would otherwise get them in clear text.
+func checkRedirect(connectionDetails *client.ApiConnectionDetails, authenticated bool) func(*http.Request, []*http.Request) error {
+	return func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		if authenticated && !connectionDetails.AllowsCredentialsOver(req.URL.String()) {
+			return fmt.Errorf("refusing to follow a redirect to %s: the credentials would be sent over plain http", req.URL.Redacted())
+		}
+		return nil
+	}
 }
 
 // getJob returns the job with the given id, or nil if Lookout does not know it.
 func (l *lookout) getJob(jobId string) (*Job, error) {
 	// Lookout can only filter on a job id by an exact match, so jobs are fetched one at a time.
 	jobs, err := l.getJobs(ListArgs{
-		Filters: []Filter{{Field: "jobId", Value: jobId, Match: "exact"}},
-		Order:   Order{Field: "jobId", Direction: "ASC"},
+		Filters: []*models.Filter{{Field: "jobId", Value: jobId, Match: models.FilterMatchExact}},
+		Order:   models.Order{Field: "jobId", Direction: models.OrderDirectionASC},
 		Take:    1,
 	})
 	if err != nil {
@@ -116,8 +138,7 @@ func (l *lookout) getJob(jobId string) (*Job, error) {
 // getJobs returns the jobs that match the args. The result is never nil.
 func (l *lookout) getJobs(args ListArgs) ([]*models.Job, error) {
 	request := map[string]any{
-		// Lookout treats null filters as matching nothing, so this must be an empty list when there are none.
-		"filters":       append([]Filter{}, args.Filters...),
+		"filters":       requestFilters(args.Filters),
 		"order":         args.Order,
 		"skip":          args.Skip,
 		"take":          args.Take,
@@ -166,7 +187,7 @@ func (l *lookout) post(path string, body, out any) error {
 		req.Header.Set(k, v)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := l.httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -179,28 +200,11 @@ func (l *lookout) post(path string, body, out any) error {
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-// Filter is a Lookout job filter. Which matches a field supports is decided by Lookout, which rejects the rest.
-type Filter struct {
-	// Field is a job field such as queue, state or cpu, or the name of an annotation when IsAnnotation is set.
-	Field string `json:"field"`
-	// Value is what to match. It is a list for the anyOf match, and is left out for the exists match.
-	Value any `json:"value,omitempty"`
-	// Match is one of exact, anyOf, startsWith, contains, greaterThan, lessThan, greaterThanOrEqualTo,
-	// lessThanOrEqualTo and exists.
-	Match        string `json:"match"`
-	IsAnnotation bool   `json:"isAnnotation,omitempty"`
-}
-
-// Order is how Lookout orders jobs: by a field, in direction ASC or DESC.
-type Order struct {
-	Field     string `json:"field"`
-	Direction string `json:"direction"`
-}
-
-// ListArgs is a request for Lookout's job listing. A job must satisfy every filter.
+// ListArgs is a request for Lookout's job listing. A job must satisfy every filter. The filters and the order are
+// the types of Lookout's own API, so they have the shape and the validation it has.
 type ListArgs struct {
-	Filters []Filter
-	Order   Order
+	Filters []*models.Filter
+	Order   models.Order
 	// ActiveJobSets restricts the jobs to those in job sets that are still active.
 	ActiveJobSets bool
 	// Skip jobs before returning up to Take of them.
@@ -208,11 +212,74 @@ type ListArgs struct {
 	Take int
 }
 
+// Validate checks the filters and the order against the rules Lookout checks a request against, so a mistake is
+// reported before anything is sent, and before any login, which may be interactive.
+func (a ListArgs) Validate() error {
+	if err := ValidateFilters(a.Filters); err != nil {
+		return err
+	}
+	return ValidateOrder(a.Order)
+}
+
+// ValidateFilters checks filters as Lookout does. The exists match only looks at the field, so it may leave the
+// value out, as it is when the request is sent.
+func ValidateFilters(filters []*models.Filter) error {
+	for i, f := range requestFilters(filters) {
+		if f == nil {
+			return fmt.Errorf("filter %d is null", i+1)
+		}
+		if err := f.Validate(strfmt.Default); err != nil {
+			return fmt.Errorf("filter %d: %s", i+1, validationMessage(err))
+		}
+	}
+	return nil
+}
+
+// ValidateOrder checks an order as Lookout does.
+func ValidateOrder(order models.Order) error {
+	if err := order.Validate(strfmt.Default); err != nil {
+		return errors.New(validationMessage(err))
+	}
+	return nil
+}
+
+// validationMessage is the message of a validation error on one line, with the reasons it lists.
+func validationMessage(err error) string {
+	var composite *openapierrors.CompositeError
+	if !errors.As(err, &composite) || len(composite.Errors) == 0 {
+		return err.Error()
+	}
+	reasons := make([]string, len(composite.Errors))
+	for i, e := range composite.Errors {
+		reasons[i] = e.Error()
+	}
+	return strings.Join(reasons, "; ")
+}
+
+// requestFilters returns the filters as they are sent: a copy, and never nil, because Lookout treats null filters
+// as matching nothing. Lookout's request check wants every filter to have a value, though it ignores the value
+// of an exists filter, which only looks at the field, so an empty one is given to an exists filter without one.
+func requestFilters(filters []*models.Filter) []*models.Filter {
+	out := make([]*models.Filter, len(filters))
+	for i, f := range filters {
+		if f != nil && f.Match == models.FilterMatchExists && f.Value == nil {
+			withValue := *f
+			withValue.Value = ""
+			f = &withValue
+		}
+		out[i] = f
+	}
+	return out
+}
+
 // ListAPI returns the jobs that match the args, in order.
 type ListAPI func(args ListArgs) ([]*models.Job, error)
 
 func List(getConnectionDetails client.ConnectionDetails) ListAPI {
 	return func(args ListArgs) ([]*models.Job, error) {
+		if err := args.Validate(); err != nil {
+			return nil, err
+		}
 		connectionDetails, err := getConnectionDetails()
 		if err != nil {
 			return nil, fmt.Errorf("failed to obtain api connection details: %s", err)

@@ -208,7 +208,9 @@ func ExtractCommandlineArmadaApiConnectionDetails() (*ApiConnectionDetails, erro
 		if viper.GetString("armadaUrl") != defaultArmadaConnectionUrl {
 			apiConnectionDetails.ArmadaUrl = viper.GetString("armadaUrl")
 		}
-		if viper.GetString("lookoutUrl") != "" {
+		// The flag has a default, so only an explicit --lookoutUrl replaces the context's saved url. The default
+		// still applies to a context that has none. viper.IsSet is false for a flag that has not been passed.
+		if viper.IsSet("lookoutUrl") || apiConnectionDetails.LookoutUrl == "" {
 			apiConnectionDetails.LookoutUrl = viper.GetString("lookoutUrl")
 		}
 

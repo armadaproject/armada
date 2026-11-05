@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/armadaproject/armada/internal/lookout/gen/models"
 	"github.com/armadaproject/armada/pkg/client/job"
 )
 
@@ -56,7 +57,7 @@ func TestJobListArgs_Defaults(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Empty(t, args.Filters)
-	assert.Equal(t, job.Order{Field: "submitted", Direction: "DESC"}, args.Order)
+	assert.Equal(t, models.Order{Field: "submitted", Direction: "DESC"}, args.Order)
 	assert.False(t, args.ActiveJobSets)
 	assert.Equal(t, 0, args.Skip)
 	assert.Equal(t, 100, args.Take)
@@ -75,12 +76,12 @@ func TestJobListArgs_ReadsTheFlags(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, []job.Filter{
+	assert.Equal(t, []*models.Filter{
 		{Field: "queue", Match: "anyOf", Value: []any{"a", "b"}},
 		{Field: "team", Match: "exact", Value: "data", IsAnnotation: true},
 		{Field: "team", Match: "exists", IsAnnotation: true},
 	}, args.Filters)
-	assert.Equal(t, job.Order{Field: "queue", Direction: "ASC"}, args.Order)
+	assert.Equal(t, models.Order{Field: "queue", Direction: "ASC"}, args.Order)
 	assert.True(t, args.ActiveJobSets)
 	assert.Equal(t, 5, args.Skip)
 	assert.Equal(t, 20, args.Take)
@@ -93,8 +94,8 @@ func TestJobListArgs_ReadsFilesWhenTheValueStartsWithAtSign(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, []job.Filter{{Field: "queue", Match: "exact", Value: "a"}}, args.Filters)
-	assert.Equal(t, job.Order{Field: "jobId", Direction: "DESC"}, args.Order)
+	assert.Equal(t, []*models.Filter{{Field: "queue", Match: "exact", Value: "a"}}, args.Filters)
+	assert.Equal(t, models.Order{Field: "jobId", Direction: "DESC"}, args.Order)
 }
 
 func TestJobListArgs_Rejects(t *testing.T) {
@@ -106,14 +107,18 @@ func TestJobListArgs_Rejects(t *testing.T) {
 		"filters that are not a list":             {map[string]string{"filters": `{"field": "queue"}`}, "invalid --filters"},
 		"filters with data after the list":        {map[string]string{"filters": `[] []`}, "unexpected data"},
 		"a filter with a mistyped key":            {map[string]string{"filters": `[{"feild": "queue", "match": "exact"}]`}, `unknown field "feild"`},
-		"a filter without a field":                {map[string]string{"filters": `[{"match": "exact", "value": "a"}]`}, "filter 1 needs a field and a match"},
-		"a filter without a match":                {map[string]string{"filters": `[{"field": "queue", "value": "a"}]`}, "filter 1 needs a field and a match"},
-		"the second filter lacking a match":       {map[string]string{"filters": `[{"field": "a", "match": "exact"}, {"field": "b"}]`}, "filter 2 needs"},
+		"a filter without a field":                {map[string]string{"filters": `[{"match": "exact", "value": "a"}]`}, "invalid --filters: filter 1: field in body is required"},
+		"a filter without a match":                {map[string]string{"filters": `[{"field": "queue", "value": "a"}]`}, "invalid --filters: filter 1: match in body is required"},
+		"a filter without a value":                {map[string]string{"filters": `[{"field": "queue", "match": "exact"}]`}, "invalid --filters: filter 1: value in body is required"},
+		"a filter with an unknown match":          {map[string]string{"filters": `[{"field": "queue", "match": "exacct", "value": "a"}]`}, "match in body should be one of"},
+		"the second filter being invalid":         {map[string]string{"filters": `[{"field": "a", "match": "exact", "value": "x"}, {"field": "b", "match": "exact"}]`}, "filter 2: value in body is required"},
+		"a null filter":                           {map[string]string{"filters": `[null]`}, "filter 1 is null"},
 		"filters from a file that is not there":   {map[string]string{"filters": "@/no/such/file.json"}, "invalid --filters"},
 		"an order that is not json":               {map[string]string{"order": "queue"}, "invalid --order"},
 		"an order with a mistyped key":            {map[string]string{"order": `{"feild": "queue", "direction": "ASC"}`}, `unknown field "feild"`},
-		"an order without a direction":            {map[string]string{"order": `{"field": "queue"}`}, "needs a field and a direction"},
-		"an order without a field":                {map[string]string{"order": `{"direction": "ASC"}`}, "needs a field and a direction"},
+		"an order without a direction":            {map[string]string{"order": `{"field": "queue"}`}, "invalid --order: direction in body is required"},
+		"an order without a field":                {map[string]string{"order": `{"direction": "ASC"}`}, "invalid --order: field in body is required"},
+		"an order with an unknown direction":      {map[string]string{"order": `{"field": "queue", "direction": "UP"}`}, "direction in body should be one of"},
 		"a take of zero":                          {map[string]string{"take": "0"}, "invalid take"},
 		"a negative skip":                         {map[string]string{"skip": "-1"}, "invalid skip"},
 		"an order from a file that is not there":  {map[string]string{"order": "@/no/such/file.json"}, "invalid --order"},
