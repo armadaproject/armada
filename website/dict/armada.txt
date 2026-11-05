@@ -49,6 +49,7 @@ categorisation
 retryable
 organisations
 KUBECONFIG
+jobset
 uncordoned
 triggerer
 rdzv
