@@ -1,5 +1,5 @@
 ---
-title: 'Error Categories'
+title: 'Error categories'
 description: 'See at a glance why a job failed, whether the fix is yours or the platform, and how operators set up the categories.'
 ---
 
@@ -186,7 +186,7 @@ Submit a job that exits with code 1, then look at its **Result** tab in Lookout.
 2. Look at failures in `uncategorized`, and add rules for the common ones.
 3. Add hints to rules for failures with a known fix.
 
-To turn categories off again, remove the `errorCategories` block (with the Operator: `kubectl patch executor <executor-name> -n armada --type json -p '[{"op":"remove","path":"/spec/applicationConfig/application/errorCategories"}]'`).
+To turn categories off, set `enabled: false` (with the Operator: `kubectl patch executor <executor-name> -n armada --type merge -p '{"spec":{"applicationConfig":{"application":{"errorCategories":{"enabled":false}}}}}'`).
 
 ## Settings reference
 
@@ -265,7 +265,7 @@ It checks for:
 
 ### Keep or delete the failed pod
 
-- **`Retain`** (default) keeps the failed pod, so people can read its logs, until normal clean-up: after `kubernetes.failedPodExpiry` (10 minutes by default), or earlier if the cluster holds more than `kubernetes.maxTerminatedPods` finished pods (1000). No clean-up deletes a pod younger than `kubernetes.minimumPodAge` (3 minutes).
+- **`Retain`** (default) keeps the failed pod, so people can read its logs, until normal clean-up: after `kubernetes.failedPodExpiry` (10 minutes by default), or earlier if the cluster holds more than `kubernetes.maxTerminatedPods` finished pods (1000). Normal clean-up leaves pods younger than `kubernetes.minimumPodAge` (3 minutes) alone, but the `maxTerminatedPods` limit can delete a younger pod.
 - **`Delete`** deletes the pod, **and its logs**, and reports the failure once the pod is gone, a few seconds later than with `Retain`. If the pod isn't gone after `kubernetes.stuckTerminatingPodExpiry` (30 seconds), the failure is reported as `internal`, `stuck-terminating`.
 
 The action only applies to pods that failed. A pod that never started is always deleted after its failure is reported.
