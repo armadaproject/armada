@@ -13,6 +13,14 @@ observability:
 metric:
   port: 9002
 kubernetes:
+  taintCategorisation:
+    categoriseUnknownTaints: false
+    wellKnownTaints:
+      keys: []
+      admin:
+        - category: platform
+          keys:
+            - example.com/k8s-test
   toleratedTaints:
     - node-tests
   trackedNodeLabels:
