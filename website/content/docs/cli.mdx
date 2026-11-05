@@ -32,7 +32,7 @@ mkdir -p ~/bin && mv armadactl ~/bin/
 armadactl version
 ```
 
-If you see `command not found`, add `~/bin` to your PATH: `export PATH="$HOME/bin:$PATH"`.
+If you see `command not found`, add `~/bin` to your PATH: `export PATH="$HOME/bin:$PATH"`. To keep it for new terminals, add that line to `~/.zshrc` (the macOS default) or `~/.bashrc`.
 
 ## Configure armadactl
 
@@ -54,7 +54,7 @@ contexts:
 
 {/* See [Authentication](/docs/authentication) for every login option. */}
 
-An older config format, with `armadaUrl` at the top level and no `contexts`, still works but prints `No context defined. This method of providing connection details will soon be deprecated`. Move the settings into a context to stop the warning. (The link in that warning points to a page that no longer exists.)
+An older config format, with `armadaUrl` at the top level and no `contexts`, still works but prints `No context defined. This method of providing connection details will soon be deprecated`. Move the settings into a context to stop the warning.
 
 Options that work with every command:
 
@@ -95,7 +95,7 @@ armadactl get queue-report my-team
 
 ## Command reference
 
-Every command has detailed help: `armadactl <command> --help`.
+Every command has detailed help: `armadactl <command> --help`. For the full documentation in your terminal, run `armadactl docs`.
 
 ### Jobs
 
@@ -147,7 +147,8 @@ A report for a job that's already running may say `Most recent scheduling round 
 | `get retry-policy <name>`, `get retry-policies` | Show retry policies.   |
 | `delete retry-policy <name>`                    | Delete a retry policy. |
 
-Managing policies needs `create_retry_policy`, `update_retry_policy` or `delete_retry_policy`; anyone can read them. See [Retry policies](/docs/retry_policies).
+Managing policies needs `create_retry_policy`, `update_retry_policy` or `delete_retry_policy`; anyone can read them.
+{/* See [Retry policies](/docs/retry-policies). */}
 
 ### Configuration and other commands
 
