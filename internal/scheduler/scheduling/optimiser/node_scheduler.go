@@ -6,6 +6,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -296,7 +298,7 @@ func (n *PreemptingNodeScheduler) populateQueueImpactFields(schedContext *Schedu
 
 		qctx, ok := schedContext.Queues[queue]
 		if !ok {
-			return fmt.Errorf("queue context for queue %s not found", queue)
+			return errors.Errorf("queue context for queue %s not found", queue)
 		}
 
 		allocation := qctx.AllocationInclShortJobPenalty
