@@ -1410,6 +1410,7 @@
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run. Use pod_name.",
           "type": "integer",
           "format": "int32"
         },
@@ -1460,6 +1461,7 @@
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run. Use pod_name.",
           "type": "integer",
           "format": "int32"
         },
@@ -1506,6 +1508,7 @@
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run.",
           "type": "integer",
           "format": "int32"
         },
@@ -1570,6 +1573,7 @@
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run. Use pod_name.",
           "type": "integer",
           "format": "int32"
         },
@@ -1794,6 +1798,10 @@
           "type": "string",
           "format": "date-time"
         },
+        "podName": {
+          "description": "pod_name is the name of the pod of the run, as the executor reports it. It is empty while the run has no pod.",
+          "type": "string"
+        },
         "runId": {
           "type": "string"
         },
@@ -1873,6 +1881,7 @@
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run. Use pod_name.",
           "type": "integer",
           "format": "int32"
         },
@@ -2142,6 +2151,7 @@
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run. Use pod_name.",
           "type": "integer",
           "format": "int32"
         },
@@ -2191,6 +2201,7 @@
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run. Use pod_name.",
           "type": "integer",
           "format": "int32"
         },

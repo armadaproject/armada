@@ -14,10 +14,9 @@
 //   - [CategoryRule.OnConditions]: matches Kubernetes failure signals (OOMKilled, Evicted, DeadlineExceeded)
 //   - [CategoryRule.OnExitCodes]: matches non-zero container exit codes using In/NotIn set operators
 //   - [CategoryRule.OnTerminationMessage]: matches container termination messages against a regex
-//   - [CategoryRule.OnPodError]: matches a regex against the pod-level error
-//     message the executor captured. It covers failures with no useful
-//     container terminationMessage (image pull, missing volume, stuck
-//     terminating, etc.)
+//   - [CategoryRule.OnPodError]: matches a regex against the failure message
+//     that the executor reports for the run. It covers failures with no useful
+//     container terminationMessage (image pull, missing volume, etc.)
 //   - [CategoryRule.OnPodEvents]: matches the pod's Kubernetes events, where
 //     kubelet admission and device-plugin failures appear most reliably
 //
