@@ -59,6 +59,9 @@ type Run struct {
 	// Format: date-time
 	Pending *strfmt.DateTime `json:"pending,omitempty"`
 
+	// pod name
+	PodName *string `json:"podName,omitempty"`
+
 	// pool
 	Pool *string `json:"pool,omitempty"`
 

@@ -904,6 +904,10 @@ func init() {
           "minLength": 1,
           "x-nullable": true
         },
+        "podName": {
+          "type": "string",
+          "x-nullable": true
+        },
         "pool": {
           "type": "string",
           "x-nullable": true
@@ -1882,6 +1886,10 @@ func init() {
           "type": "string",
           "format": "date-time",
           "minLength": 1,
+          "x-nullable": true
+        },
+        "podName": {
+          "type": "string",
           "x-nullable": true
         },
         "pool": {

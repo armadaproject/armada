@@ -17,6 +17,7 @@ const (
 
 	// Environment variables injected into all jobs
 	JobIdEnvVar    = internalEnvVarPrefix + "JOB_ID"
+	JobRunIdEnvVar = internalEnvVarPrefix + "JOB_RUN_ID"
 	QueueEnvVar    = internalEnvVarPrefix + "QUEUE"
 	JobSetIdEnvVar = internalEnvVarPrefix + "JOB_SET_ID"
 
