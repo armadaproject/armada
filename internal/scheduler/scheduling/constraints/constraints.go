@@ -52,6 +52,10 @@ const (
 	GangDoesNotFitUnschedulableReason = "unable to schedule gang since minimum cardinality not met"
 	JobDoesNotFitUnschedulableReason  = "job does not fit on any node"
 
+	// Optimiser placement depends on queue fairness and eligible preemptions, so these reasons cannot be cached by job requirements.
+	OptimiserNoPlacementUnschedulableReason           = "no feasible optimiser placement"
+	OptimiserNoFairnessImprovementUnschedulableReason = "no optimiser placement with sufficient fairness improvement"
+
 	UnschedulableReasonMaximumResourcesExceeded = "resource limit exceeded"
 )
 
