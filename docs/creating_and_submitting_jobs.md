@@ -168,3 +168,18 @@ Using this format, you can submit a job set composed of several jobs. The meanin
 * `annotations`: the list of annotations that are added to all pods created as part of this job
 * `ingress`: the list of ports that are exposed with the specified ingress type. The ingress only exposes ports for pods that also expose the corresponding port via the `containerPort` setting.
 * `podSpecs`: the list of podspecs that make up the job; for an overview of the available parameters, [see the Kubernetes documentation](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/).
+
+## Environment variables in the containers
+
+The executor sets these environment variables in every container and init container of a job. A value that you set in the pod spec for the same name stays.
+
+| Variable | Value |
+| --- | --- |
+| `ARMADA_JOB_ID` | The job ID. It is the same for all runs of the job. |
+| `ARMADA_JOB_RUN_ID` | The ID of the current run. Each run of the job has a different ID. |
+| `ARMADA_QUEUE` | The queue of the job. |
+| `ARMADA_JOB_SET_ID` | The job set of the job. |
+
+Gang jobs also get `ARMADA_GANG_ID` and `ARMADA_GANG_CARDINALITY`. When the gang has a node uniformity label, they also get `ARMADA_GANG_NODE_UNIFORMITY_LABEL_NAME` and `ARMADA_GANG_NODE_UNIFORMITY_LABEL_VALUE`.
+
+Use `ARMADA_JOB_ID` as a stable key for a job, for example for checkpoints. Use `ARMADA_JOB_RUN_ID` to keep the output of each run apart.
