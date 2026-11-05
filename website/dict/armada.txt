@@ -49,7 +49,14 @@ categorisation
 retryable
 organisations
 KUBECONFIG
-preemptible
 jobset
+uncordoned
+triggerer
+rdzv
+torchrun
+certingress
+scriptable
+preemptible
 ingester
+reprioritizes
 EMFILE
