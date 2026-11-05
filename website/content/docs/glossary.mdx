@@ -18,7 +18,7 @@ A workflow tool. The `armada-airflow` package lets Airflow tasks run as Armada j
 A key-value note attached to a job. Armada reads a few of its own, such as `armadaproject.io/gangId`. Others are passed on to the pod.
 
 **`anonymous`**
-The user name Armada gives requests that aren't logged in. Everyone on a laptop install is `anonymous`.
+The user name Armada gives requests that aren't logged in. The laptop install turns on anonymous access, so every request there is `anonymous`.
 
 **armadactl**
 Armada's command-line tool. See the [CLI reference](/docs/cli).
@@ -28,7 +28,7 @@ Kubernetes resources the Armada Operator uses to describe each Armada component.
 {/* See [Install and configure](/docs/install-and-configure). */}
 
 **Armada Operator**
-A program that installs and manages Armada inside a Kubernetes cluster. Getting started uses it.
+A program that installs and manages Armada inside a Kubernetes cluster. See [Getting started](/getting-started) for an example, or the [armada-operator repository](https://github.com/armadaproject/armada-operator).
 
 ## B
 
@@ -41,19 +41,19 @@ An action on many jobs at once: a whole job set, or every matching job in one or
 ## C
 
 **Cancel**
-Stop a job, or every job in a job set or queue, on purpose. The job ends as **Cancelled**.
+Stop a job, or every job in a job set or queue, on purpose. If the job is running, the executor deletes its pod, so the container gets a SIGTERM and is killed after its termination grace period. The job ends as **Cancelled**.
 
 **`clientId`**
-An optional key on a job that prevents duplicates. Submitting again with the same `clientId` to the same queue returns the original job.
+An optional key on a job that helps prevent duplicates. Submitting again with the same `clientId` to the same queue normally returns the original job. This is best effort.
 
 **Cluster**
-A Kubernetes cluster: a group of machines (nodes) managed together. Armada can run jobs on several.
+A Kubernetes cluster. Armada can schedule jobs across several of them. See **Worker cluster**.
 
 **Context**
-A named connection in `~/.armadactl.yaml`: an Armada address plus how to log in. You switch between contexts with `armadactl config use-context`.
+A named connection in `~/.armadactl.yaml`: one Armada installation's address and login settings. Use one context per installation, for example a local one and your team's. You switch between contexts with `armadactl config use-context`.
 
 **Control plane**
-The central part of Armada: the server, scheduler, Lookout and their databases. It can run anywhere the executors can reach.
+The central part of Armada: the server, scheduler, ingesters, Lookout and their databases. It can run anywhere the executors can reach.
 
 **Cordon**
 Pause new scheduling for a queue, or a whole worker cluster (an executor), until it's **uncordoned**. Jobs already running carry on; jobs already leased or pending may still start.
@@ -61,7 +61,7 @@ Pause new scheduling for a queue, or a whole worker cluster (an executor), until
 ## D
 
 **DAG**
-In Airflow, a workflow: a set of tasks and the order they run in.
+Directed acyclic graph. In Airflow, a workflow: a set of tasks and the order they run in.
 
 **Deferrable**
 An Airflow mode where a waiting task hands over to Airflow's triggerer, freeing its worker slot.
@@ -93,7 +93,7 @@ A short label the executor gives a failed run, such as `oom` or `user_error`, so
 {/* See [Failure categories](/docs/failure-categories). */}
 
 **Fair share**
-The portion of the cluster each active queue is entitled to, weighted by its priority factor. See [Core concepts](/docs/core-concepts#fair-use-scheduling).
+The portion of the cluster each active queue is entitled to, weighted by its priority factor. See [Core concepts](/docs/core-concepts#fair-share).
 
 **Fair-share preemption**
 Armada stopping preemptible jobs from a queue that's using more than its fair share, so other queues get theirs.
@@ -104,7 +104,7 @@ A simulated executor for developing Armada without Kubernetes: jobs move through
 ## G
 
 **Gang**
-A group of jobs that must all start together or not at all.
+A group of jobs that Armada schedules onto a set of nodes all together, or not at all. A **node uniformity label** can also require those nodes to share a label value.
 {/* See [Gang jobs](/docs/gang-jobs). */}
 
 **Gang cardinality**
@@ -173,6 +173,9 @@ Kubernetes' command-line tool. On a laptop install, you use it to read a job's o
 **Label (queue)**
 A `key=value` tag on a queue, used to select many queues at once.
 
+**Laptop install**
+The single-machine Armada that [Getting started](/getting-started) sets up with `make kind-all` from the Armada Operator repository. It runs everything in one Kind cluster, with anonymous access and no Binoculars.
+
 **Lease, Leased**
 The state where the scheduler has chosen a cluster and node for a job, but its pod hasn't started yet.
 
@@ -196,7 +199,7 @@ The build tool used to develop Armada (`mage kind`, `mage dev:up`). See [Develop
 A Kubernetes area that a pod runs in. Every job must name one; `default` always exists.
 
 **Node**
-One machine in a Kubernetes cluster.
+One machine, physical or virtual, in a Kubernetes cluster.
 
 **Node selector**
 A pod setting that limits which nodes it can run on. Armada adds one to pin each pod to the node it chose.
@@ -323,11 +326,14 @@ The final states of a job: it finished without error, finished with an error (in
 
 ## T
 
+**Team installation**
+An Armada installation that your platform team runs for many users, usually with login turned on. Compare with **Laptop install**.
+
 **Termination grace period**
 How long a pod gets to shut down after being told to stop, before it's killed (`terminationGracePeriodSeconds`).
 
 **TLS**
-Encryption for network connections. `armadactl` uses it unless the address contains `localhost` or the context sets `forceNoTls: true`.
+Transport Layer Security: encryption for network connections. `armadactl` uses it unless the address contains `localhost` or the context sets `forceNoTls: true`.
 
 ## U
 
