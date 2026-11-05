@@ -941,18 +941,18 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.Context, instructions
 	sqlStatement := `UPDATE job_run
 		SET
 			node                 = coalesce($2, node),
+			pod_name             = coalesce($3, pod_name),
+			pending              = coalesce($4, pending),
 			started              = coalesce($5, started),
 			finished             = coalesce($6, finished),
 			job_run_state        = coalesce($7, job_run_state),
 			error                = coalesce($8, error),
-			exit_code            = coalesce($10, exit_code),
-			pending              = coalesce($4, pending),
 			debug                = coalesce($9, debug),
+			exit_code            = coalesce($10, exit_code),
 			ingress_addresses    = coalesce($11, ingress_addresses),
 			failure_category     = coalesce($12, failure_category),
 			failure_subcategory  = coalesce($13, failure_subcategory),
-			scheduler_termination_reason = coalesce($14, scheduler_termination_reason),
-			pod_name             = coalesce($3, pod_name)
+			scheduler_termination_reason = coalesce($14, scheduler_termination_reason)
 		WHERE run_id = $1`
 	for _, i := range instructions {
 		if ctx.Err() != nil {
