@@ -17,7 +17,10 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-const UserWellKnownTaintCategory = "user"
+const (
+	UserWellKnownTaintCategory = "user"
+	UnknownTaintCategory       = "unknown"
+)
 
 type ApplicationConfiguration struct {
 	// ClusterId is the unique identifier for the cluster that the executor is running on.
@@ -159,7 +162,7 @@ type KubernetesConfiguration struct {
 	// ToleratedTaints specifies taints which are tolerated by the executor.
 	// If a node has a taint that is not in this list, the executor will consider it for scheduling Armada jobs.
 	ToleratedTaints           []string
-	WellKnownTaints           WellKnownTaintsConfiguration
+	TaintCategorisation       TaintCategorisationConfiguration
 	MinimumPodAge             time.Duration
 	StuckTerminatingPodExpiry time.Duration
 	FailedPodExpiry           time.Duration
@@ -179,6 +182,12 @@ type KubernetesConfiguration struct {
 	MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority int32
 
 	PodKillTimeout time.Duration
+}
+
+type TaintCategorisationConfiguration struct {
+	// CategoriseUnknownTaints controls whether unknown node taints receive the "unknown" category.
+	CategoriseUnknownTaints bool
+	WellKnownTaints         WellKnownTaintsConfiguration
 }
 
 type WellKnownTaintsConfiguration struct {
@@ -213,7 +222,7 @@ type WellKnownTaints struct {
 }
 
 func (c KubernetesConfiguration) NewWellKnownTaints() (*WellKnownTaints, error) {
-	taints := make([]WellKnownTaint, 0, len(c.WellKnownTaints.Keys)+len(c.ToleratedTaints)+1)
+	taints := make([]WellKnownTaint, 0, len(c.TaintCategorisation.WellKnownTaints.Keys)+len(c.ToleratedTaints)+1)
 	appendTaint := func(pattern, category string, userFacing bool) error {
 		expression := pattern
 		if !strings.ContainsAny(expression, `*+?[](){}|^$\`) {
@@ -232,20 +241,23 @@ func (c KubernetesConfiguration) NewWellKnownTaints() (*WellKnownTaints, error) 
 			return nil, err
 		}
 	}
-	// Convert kubernetes.wellKnownTaints.keys to user-facing well-known taints.
-	for _, pattern := range c.WellKnownTaints.Keys {
+	// Convert kubernetes.taintCategorisation.wellKnownTaints.keys to user-facing well-known taints.
+	for _, pattern := range c.TaintCategorisation.WellKnownTaints.Keys {
 		if err := appendTaint(pattern, UserWellKnownTaintCategory, true); err != nil {
 			return nil, err
 		}
 	}
-	// Convert kubernetes.wellKnownTaints.admin.keys to categorized well-known taints with
+	// Convert kubernetes.taintCategorisation.wellKnownTaints.admin.keys to categorized well-known taints with
 	// their respective category strings
-	for i, admin := range c.WellKnownTaints.Admin {
+	for i, admin := range c.TaintCategorisation.WellKnownTaints.Admin {
 		if strings.TrimSpace(admin.Category) == "" {
-			return nil, fmt.Errorf("wellKnownTaints.admin[%d].category must not be empty", i)
+			return nil, fmt.Errorf("taintCategorisation.wellKnownTaints.admin[%d].category must not be empty", i)
 		}
 		if admin.Category == UserWellKnownTaintCategory {
-			return nil, fmt.Errorf("wellKnownTaints.admin[%d].category must not be %q, as that is the implied category for outer level wellKnownTaints", i, UserWellKnownTaintCategory)
+			return nil, fmt.Errorf("taintCategorisation.wellKnownTaints.admin[%d].category must not be %q, as that is the implied category for outer level wellKnownTaints", i, UserWellKnownTaintCategory)
+		}
+		if admin.Category == UnknownTaintCategory {
+			return nil, fmt.Errorf("taintCategorisation.wellKnownTaints.admin[%d].category must not be %q, as it is reserved for unknown taints", i, UnknownTaintCategory)
 		}
 		for _, pattern := range admin.Keys {
 			if err := appendTaint(pattern, admin.Category, false); err != nil {
