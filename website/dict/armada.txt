@@ -79,3 +79,10 @@ temurin
 Dskip
 GOBIN
 reprioritization
+unpartitioned
+pgxpool
+psql
+regclass
+partrelid
+crds
+untar

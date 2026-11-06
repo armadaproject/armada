@@ -9,6 +9,7 @@
     "clients",
     "integrations",
     "user-guide",
+    "lookout-job-table-partitioning",
     "api",
     "..."
   ]
