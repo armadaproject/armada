@@ -282,6 +282,12 @@ func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGro
 	return returnedPod, err
 }
 
+// TrackSubmittedPod records a pod created through the direct etcd path so the
+// executor can see it before the informer catches up.
+func (c *KubernetesClusterContext) TrackSubmittedPod(pod *v1.Pod) {
+	c.submittedPods.Add(pod)
+}
+
 func (c *KubernetesClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
 	return c.kubernetesClient.CoreV1().Services(service.Namespace).Create(armadacontext.Background(), service, metav1.CreateOptions{})
 }

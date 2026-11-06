@@ -1,0 +1,54 @@
+httpPort: 8082
+executorApiConnection:
+  armadaUrl: "localhost:50052"
+  forceNoTls: true
+observability:
+  enabled: true
+  exporter:
+    endpoint: "http://localhost:4318"
+    protocol: "http/protobuf"
+  traces:
+    sampler: "parent_based_trace_id_ratio"
+    samplerArg: 1.0
+metric:
+  port: 9002
+kubernetes:
+  toleratedTaints:
+    - node-tests
+  trackedNodeLabels:
+    - armadaproject.io/node-pool
+  # POC only. Point the certificate paths at the etcd client certs copied from
+  # the kind control-plane node, and keep `kubectl port-forward` running.
+  podWrite:
+    mode: etcd
+    maxBatchPods: 64
+    maxRequestBytes: 1572864
+    requestTimeout: 30s
+    etcd:
+      endpoints: ["https://127.0.0.1:2379"]
+      caFile: /etc/armada/etcd/ca.crt
+      certFile: /etc/armada/etcd/client.crt
+      keyFile: /etc/armada/etcd/client.key
+      prefix: /registry
+      dialTimeout: 5s
+      # etcd transactions committed in parallel per batch (0 = sequential).
+      txnConcurrency: 8
+application:
+  clusterId: "local-cluster"
+  pool: "default"
+  errorCategories:
+    enabled: true
+    defaultCategory: uncategorized
+    categories:
+      # The action Delete makes the executor remove the failed pod. A retry
+      # then reuses the name of the pod. The retry/ testcases need this.
+      - name: oom
+        action: Delete
+        rules:
+          - onConditions: ["OOMKilled"]
+      - name: user_error
+        action: Delete
+        rules:
+          - onExitCodes:
+              operator: In
+              values: [1, 2, 126, 127]

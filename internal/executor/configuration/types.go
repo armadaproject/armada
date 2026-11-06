@@ -132,6 +132,32 @@ type KubernetesConfiguration struct {
 	MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority int32
 
 	PodKillTimeout time.Duration
+	PodWrite       PodWriteConfiguration
+}
+
+// PodWriteConfiguration selects how the executor creates pods.
+type PodWriteConfiguration struct {
+	// Mode is "api" (default) or "etcd".
+	Mode string `validate:"omitempty,oneof=api etcd"`
+	// MaxBatchPods is the maximum number of pods per etcd transaction.
+	MaxBatchPods int
+	// MaxRequestBytes bounds a single etcd transaction.
+	MaxRequestBytes int
+	// RequestTimeout bounds one bulk write.
+	RequestTimeout time.Duration
+	// Etcd configures the direct write path.
+	Etcd EtcdWriterConfiguration
+}
+
+// EtcdWriterConfiguration configures the etcd connection for direct pod writes.
+type EtcdWriterConfiguration struct {
+	Endpoints      []string
+	CAFile         string
+	CertFile       string
+	KeyFile        string
+	Prefix         string
+	DialTimeout    time.Duration
+	TxnConcurrency int
 }
 
 type EtcdConfiguration struct {

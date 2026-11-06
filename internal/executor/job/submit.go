@@ -1,8 +1,10 @@
 package job
 
 import (
+	stdcontext "context"
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -17,14 +19,23 @@ import (
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	util2 "github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/internal/podwriter"
 )
 
 type Submitter interface {
 	SubmitJobs(jobsToSubmit []*SubmitJob) []*FailedSubmissionDetails
 }
 
+// SubmittedPodTracker records pods created outside the Kubernetes API so the
+// executor can see them before the informer catches up.
+type SubmittedPodTracker interface {
+	TrackSubmittedPod(pod *v1.Pod)
+}
+
 type SubmitService struct {
 	clusterContext           context.ClusterContext
+	podWriter                podwriter.Writer
+	podTracker               SubmittedPodTracker
 	podDefaults              *configuration.PodDefaults
 	submissionThreadCount    int
 	fatalPodSubmissionErrors []string
@@ -32,12 +43,16 @@ type SubmitService struct {
 
 func NewSubmitter(
 	clusterContext context.ClusterContext,
+	podWriter podwriter.Writer,
+	podTracker SubmittedPodTracker,
 	podDefaults *configuration.PodDefaults,
 	submissionThreadCount int,
 	fatalPodSubmissionErrors []string,
 ) *SubmitService {
 	return &SubmitService{
 		clusterContext:           clusterContext,
+		podWriter:                podWriter,
+		podTracker:               podTracker,
 		podDefaults:              podDefaults,
 		submissionThreadCount:    submissionThreadCount,
 		fatalPodSubmissionErrors: fatalPodSubmissionErrors,
@@ -52,7 +67,106 @@ type FailedSubmissionDetails struct {
 }
 
 func (submitService *SubmitService) SubmitJobs(jobsToSubmit []*SubmitJob) []*FailedSubmissionDetails {
+	if submitService.podWriter != nil {
+		return submitService.submitJobsViaWriter(jobsToSubmit)
+	}
 	return submitService.submitJobs(jobsToSubmit)
+}
+
+func (submitService *SubmitService) submitJobsViaWriter(jobsToSubmit []*SubmitJob) []*FailedSubmissionDetails {
+	failures := make([]*FailedSubmissionDetails, 0)
+	batchJobs := make([]*SubmitJob, 0, len(jobsToSubmit))
+
+	for _, job := range jobsToSubmit {
+		// The POC rejects services and ingresses on the etcd path; keep those
+		// jobs on the API path so existing behavior is unchanged.
+		if len(job.Services) > 0 || len(job.Ingresses) > 0 {
+			failures = append(failures, submitService.submitViaAPI(job)...)
+			continue
+		}
+		batchJobs = append(batchJobs, job)
+	}
+
+	groups := map[string]*submissionGroup{}
+	order := make([]string, 0)
+	for _, job := range batchJobs {
+		key := job.Meta.Owner + "\x00" + strings.Join(job.Meta.OwnershipGroups, "\x00")
+		group, ok := groups[key]
+		if !ok {
+			group = &submissionGroup{
+				owner:  job.Meta.Owner,
+				groups: job.Meta.OwnershipGroups,
+			}
+			groups[key] = group
+			order = append(order, key)
+		}
+		group.jobs = append(group.jobs, job)
+	}
+
+	for _, key := range order {
+		group := groups[key]
+		request := podwriter.BatchRequest{
+			User:   group.owner,
+			Groups: group.groups,
+			Pods:   make([]podwriter.PodRequest, len(group.jobs)),
+		}
+		for i, job := range group.jobs {
+			request.Pods[i] = podwriter.PodRequest{
+				Namespace:      job.Pod.Namespace,
+				IdempotencyKey: job.Meta.RunMeta.RunId,
+				Pod:            job.Pod,
+			}
+		}
+
+		result := submitService.podWriter.CreateBatch(stdcontext.Background(), request)
+		for i, job := range group.jobs {
+			podResult := result.Results[i]
+			if podResult.Status == podwriter.Created || podResult.Status == podwriter.AlreadyExists {
+				if submitService.podTracker != nil && podResult.Pod != nil {
+					submitService.podTracker.TrackSubmittedPod(podResult.Pod)
+				}
+				continue
+			}
+
+			reason := podResult.Reason
+			if reason == "" {
+				reason = "pod writer failed"
+			}
+			failure := &FailedSubmissionDetails{
+				JobRunMeta:  job.Meta.RunMeta,
+				Pod:         job.Pod,
+				Error:       fmt.Errorf("%s", reason),
+				Recoverable: podResult.Status == podwriter.Failed && podResult.Transient,
+			}
+			log.Errorf("Failed to submit job %s because %s", job.Meta.RunMeta.JobId, failure.Error)
+			failures = append(failures, failure)
+			if podResult.Status == podwriter.Failed {
+				submitService.clusterContext.DeletePods([]*v1.Pod{job.Pod})
+			}
+		}
+	}
+	return failures
+}
+
+type submissionGroup struct {
+	owner  string
+	groups []string
+	jobs   []*SubmitJob
+}
+
+func (submitService *SubmitService) submitViaAPI(job *SubmitJob) []*FailedSubmissionDetails {
+	pod, err := submitService.submitPod(job)
+	if err == nil {
+		return nil
+	}
+	log.Errorf("Failed to submit job %s because %s", job.Meta.RunMeta.JobId, err)
+	submitService.clusterContext.DeletePods([]*v1.Pod{pod})
+	return []*FailedSubmissionDetails{{
+		JobRunMeta:  job.Meta.RunMeta,
+		Pod:         pod,
+		Error:       err,
+		Recoverable: submitService.isRecoverable(err),
+	}}
 }
 
 func (submitService *SubmitService) submitJobs(jobsToSubmit []*SubmitJob) []*FailedSubmissionDetails {

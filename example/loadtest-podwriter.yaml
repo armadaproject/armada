@@ -1,0 +1,21 @@
+submissions:
+  - jobSetPrefix: podwriter-poc
+    queue: podwriter-poc
+    count: 1
+    jobs:
+      - name: pause
+        count: 1000
+        spec:
+          restartPolicy: Never
+          terminationGracePeriodSeconds: 0
+          containers:
+            - name: main
+              image: registry.k8s.io/pause:3.9
+              imagePullPolicy: IfNotPresent
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi

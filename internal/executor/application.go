@@ -36,6 +36,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/service"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
+	"github.com/armadaproject/armada/internal/podwriter"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -212,8 +213,19 @@ func setupExecutorApiComponents(
 
 	eventReporter, stopReporter := reporter.NewJobEventReporter(eventSender, clock.RealClock{}, 200)
 
+	podWriter, closePodWriter, err := createPodWriter(config)
+	if err != nil {
+		ctx.Fatalf("Config error in pod writer: %s", err)
+	}
+	var podTracker job.SubmittedPodTracker
+	if tracker, ok := clusterContext.(job.SubmittedPodTracker); ok {
+		podTracker = tracker
+	}
+
 	submitter := job.NewSubmitter(
 		clusterContext,
+		podWriter,
+		podTracker,
 		config.Kubernetes.PodDefaults,
 		config.Application.SubmitConcurrencyLimit,
 		config.Kubernetes.FatalPodSubmissionErrors,
@@ -303,6 +315,7 @@ func setupExecutorApiComponents(
 	return func() {
 		stopReporter <- true
 		conn.Close()
+		closePodWriter()
 	}
 }
 
@@ -318,6 +331,50 @@ func createConnectionToApi(connectionDetails client.ApiConnectionDetails, maxMes
 		grpc.WithChainStreamInterceptor(clientMetrics.StreamClientInterceptor()),
 		grpc.WithKeepaliveParams(grpcConfig),
 	)
+}
+
+func createPodWriter(config configuration.ExecutorConfiguration) (podwriter.Writer, func(), error) {
+	podWrite := config.Kubernetes.PodWrite
+	switch podWrite.Mode {
+	case "", "api":
+		return nil, func() {}, nil
+	case "etcd":
+	default:
+		return nil, func() {}, fmt.Errorf("unknown podWrite.mode %q", podWrite.Mode)
+	}
+	if len(podWrite.Etcd.Endpoints) == 0 {
+		return nil, func() {}, fmt.Errorf("podWrite.etcd.endpoints is required when podWrite.mode is etcd")
+	}
+	client, err := podwriter.NewEtcdClient(podwriter.EtcdClientConfig{
+		Endpoints:   podWrite.Etcd.Endpoints,
+		CAFile:      podWrite.Etcd.CAFile,
+		CertFile:    podWrite.Etcd.CertFile,
+		KeyFile:     podWrite.Etcd.KeyFile,
+		DialTimeout: podWrite.Etcd.DialTimeout,
+	})
+	if err != nil {
+		return nil, func() {}, err
+	}
+	schedulerName := ""
+	if config.Kubernetes.PodDefaults != nil {
+		schedulerName = config.Kubernetes.PodDefaults.SchedulerName
+	}
+	writer := podwriter.NewEtcdWriter(
+		podwriter.NewEtcdKV(client),
+		podwriter.Config{
+			Prefix:          podWrite.Etcd.Prefix,
+			MaxTxnOps:       podWrite.MaxBatchPods * 2,
+			MaxRequestBytes: podWrite.MaxRequestBytes,
+			RequestTimeout:  podWrite.RequestTimeout,
+			Concurrency:     podWrite.Etcd.TxnConcurrency,
+		},
+		podwriter.PrepareOptions{
+			SchedulerName: schedulerName,
+			NodeIdLabel:   config.Kubernetes.NodeIdLabel,
+		},
+		nil,
+	)
+	return writer, func() { _ = client.Close() }, nil
 }
 
 func validateConfig(config configuration.ExecutorConfiguration) error {

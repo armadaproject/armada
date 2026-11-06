@@ -43,6 +43,22 @@ metric:
   exposeQueueUsageMetrics: false
 kubernetes:
   impersonateUsers: false
+  podWrite:
+    mode: api
+    # Experimental direct-etcd path. Enable only on a disposable cluster.
+    # mode: etcd
+    # maxBatchPods: 64
+    # maxRequestBytes: 1572864
+    # requestTimeout: 30s
+    # etcd:
+    #   endpoints: ["https://127.0.0.1:2379"]
+    #   caFile: /etc/armada/etcd/ca.crt
+    #   certFile: /etc/armada/etcd/client.crt
+    #   keyFile: /etc/armada/etcd/client.key
+    #   prefix: /registry
+    #   dialTimeout: 5s
+    #   # etcd transactions committed in parallel per batch (0 = sequential).
+    #   txnConcurrency: 8
   trackedNodeLabels:
     - kubernetes.io/hostname
   QPS: 10000
