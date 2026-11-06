@@ -7,8 +7,7 @@ Armada can stop a running job to make room for more urgent work, or to keep shar
 
 ## Before you start
 
-You need a working `armadactl` and the `my-team` queue.
-{/* from [Submitting jobs](/docs/submitting-jobs). */}
+You need a working `armadactl` and the `my-team` queue from [Submitting jobs](/docs/submitting-jobs).
 
 ## Choose a priority class
 
@@ -28,7 +27,7 @@ These classes are available by default:
 
 Your installation may allow others. A class that isn't allowed fails with `priority class <name> is not supported`.
 
-**Which to use:** choose `armada-preemptible` for work that can be interrupted and resubmitted. Both default classes can use spare capacity; choosing a preemptible class does not itself make a job start sooner. Choose `armada-default` for work that must not be interrupted. There's one exception: on a pool using experimental market-based scheduling, which is off by default, Armada can preempt running jobs in any class. Ask your platform team if you're not sure about your pool.
+**Which to use:** choose `armada-preemptible` for work that can be interrupted and resubmitted. Both default classes can use spare capacity; choosing a preemptible class does not itself make a job start sooner. Choose `armada-default` for work that must not be interrupted.
 
 ## Try it: preempt a job yourself
 
@@ -143,11 +142,11 @@ If you run under a preemptible class:
 
 Jobs also have a numeric `priority` field. They're different:
 
-|                         | Priority class                                                         | `priority` field                                        |
-| ----------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------- |
-| Decides                 | Urgency across the whole cluster, and whether the job can be preempted | Order **within your own queue** only. Lower runs first. |
-| Can cause preemption    | Yes                                                                    | Never                                                   |
-| Change after submitting | No: cancel and resubmit                                                | Yes: `armadactl reprioritize`                           |
+|                         | Priority class                                                         | `priority` field                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Decides                 | Urgency across the whole cluster, and whether the job can be preempted | Order **within your own queue**, among jobs with the same priority-class urgency. Lower runs first. |
+| Can cause preemption    | Yes                                                                    | Never                                                                                               |
+| Change after submitting | No: cancel and resubmit                                                | Yes: `armadactl reprioritize`                                                                       |
 
 ## Armada classes aren't Kubernetes priority classes
 

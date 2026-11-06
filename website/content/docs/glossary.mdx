@@ -75,7 +75,7 @@ A trial run that checks a command or file without changing anything (`--dry-run`
 ## E
 
 **Event**
-A record of a change in a job's state, such as `JobQueuedEvent` or `JobSucceededEvent`. `armadactl watch` shows them as they happen.
+A record of something that happened to a job, or a request to cancel or reprioritize it. `armadactl watch` shows job updates such as `JobQueuedEvent` and `JobSucceededEvent`; the internal event log also carries control requests.
 
 **Event API**
 The part of the server that streams a job set's events (gRPC service `Event`). `armadactl watch` uses it.
@@ -93,7 +93,7 @@ A short label the executor gives a failed run, such as `oom` or `user_error`, so
 {/* See [Failure categories](/docs/failure-categories). */}
 
 **Fair share**
-The portion of the cluster each active queue is entitled to, weighted by its priority factor. See [Core concepts](/docs/core-concepts#fair-share).
+The portion of a pool each active queue is entitled to, weighted by its priority factor. Armada adjusts shares for demand and redistributes unused shares to queues that can use them. See [Core concepts](/docs/core-concepts#fair-share).
 
 **Fair-share preemption**
 Armada stopping preemptible jobs from a queue that's using more than its fair share, so other queues get theirs.
@@ -105,7 +105,7 @@ A simulated executor for developing Armada without Kubernetes: jobs move through
 
 **Gang**
 A group of jobs that Armada schedules onto a set of nodes all together, or not at all. A **node uniformity label** can also require those nodes to share a label value.
-{/* See [Gang jobs](/docs/gang-jobs). */}
+See [Gang jobs](/docs/gang-jobs).
 
 **Gang cardinality**
 The number of jobs in a gang (`armadaproject.io/gangCardinality`).
@@ -127,7 +127,7 @@ A set of users from your login provider. Permissions can be given to groups as w
 
 **Headless service**
 A service that gives a job a fixed DNS name other pods can reach it by, without a separate IP address.
-{/* See [Interactive jobs and services](/docs/interactive-jobs-and-services). */}
+See [Interactive jobs and services](/docs/interactive-jobs-and-services).
 
 **Hint**
 A short message, with a known fix, that the platform team attaches to a failure category. It appears after the failure message in Lookout and `armadactl watch`.
@@ -176,8 +176,11 @@ A `key=value` tag on a queue, used to select many queues at once.
 **Laptop install**
 The single-machine Armada that [Getting started](/getting-started) sets up with `make kind-all` from the Armada Operator repository. It runs everything in one Kind cluster, with anonymous access and no Binoculars.
 
-**Lease, Leased**
-The state where the scheduler has chosen a cluster and node for a job, but its pod hasn't started yet.
+**Lease**
+The assignment of a job run to an executor and node, so the executor can create its pod.
+
+**Leased**
+The state where the scheduler has assigned a run, before the executor reports its pod as pending. A job whose pod is being created or started is **Pending**.
 
 **Lease returned**
 The executor handing a job back to the scheduler because its pod couldn't start. Armada can then try it again (a **startup retry**).
@@ -243,22 +246,22 @@ Allowed to be stopped by Armada once running. Jobs in the `armada-preemptible` c
 
 **Preemption**
 Armada stopping a running job to make room for other work: for urgency, for fair share, or by hand.
-{/* See [Priority and preemption](/docs/priority-and-preemption). */}
+See [Priority and preemption](/docs/priority-and-preemption).
 
 **Priority (job)**
-A number on a job that orders it within its own queue. Lower runs first. It never causes preemption.
+A number on a job that orders it within its own queue among jobs with the same priority-class urgency. Lower runs first. It never causes preemption.
 
 **Priority class**
 A named class (`priorityClassName`) that sets a job's urgency across the cluster and whether it can be preempted.
 
 **Priority factor**
-A queue's weight in fair sharing. Lower means a larger share.
+A queue setting that controls its weight in fair sharing: weight is `1 ÷ priority factor`. Lower means a larger share.
 
 **Profile (developer setup)**
 Which version of the developer setup `mage dev:up` starts: `no-auth`, `auth`, `fake-executor` and others. See [Developer guide](/docs/developer-guide).
 
 **Pulsar**
-The message system Armada uses as its event log, the record that every component builds its view from.
+The message system Armada uses for its job event log, including job updates and control requests. Components consume it to build their views of jobs; other state, such as queue definitions, is stored separately.
 
 ## Q
 

@@ -4,7 +4,7 @@ description: 'The ideas behind Armada: jobs, queues, job sets, fair share, prior
 ---
 
 This page explains the fundamental concepts you need to effectively use Armada.
-{/* Each section ends with a link to the guide where you put it into practice. For quick definitions of any term, see the [Glossary](/docs/glossary). */}
+For quick definitions of any term, see the [Glossary](/docs/glossary).
 
 ## What Armada does
 
@@ -24,7 +24,7 @@ A **job** is one piece of work. It's made of:
 
 - A Kubernetes **pod spec**: the containers to run, and the CPU and memory they need. Exactly one pod per job.
 - Optionally, network objects that live and die with the job: **services** and **ingresses**.
-  {/* (see [Interactive jobs and services](/docs/interactive-jobs-and-services)). */}
+  See [Interactive jobs and services](/docs/interactive-jobs-and-services).
 - Armada details: which **queue** it goes into, which **job set** it belongs to, and its **priority**.
 
 Every job gets a unique **job ID** when you submit it. You use the ID to look the job up, read its output or cancel it.
@@ -44,7 +44,7 @@ Every job moves through these states:
 | **Cancelled** | Someone cancelled it.                                                |
 
 Succeeded, Failed and Cancelled are **final**. Lookout also shows two kinds of failure as states of their own: **Preempted** (Armada stopped the job for other work) and **Rejected** (the job was turned down before it ran); `armadactl watch` shows both as failed events. The API can also report **Submitted** and **Unknown**.
-{/* (see the [API reference](/docs/api#step-3-check-the-jobs-state)). */}
+See the [API reference](/docs/api).
 
 Before a job is final, Armada may run it more than once. Each attempt is a **run**:
 
@@ -55,7 +55,7 @@ Before a job is final, Armada may run it more than once. Each attempt is a **run
 
 Every state change is published as an **event**, which you can follow with `armadactl watch` or in Lookout.
 
-{/* Try it: [Submitting jobs](/docs/submitting-jobs). */}
+Try it: [Submitting jobs](/docs/submitting-jobs).
 
 ## Queues
 
@@ -108,12 +108,12 @@ The scheduler balances three goals: **fairness** (queues below their share go fi
 
 Two different things are called "priority" in Armada:
 
-|                             | Priority class                                                                  | Job `priority`                                                      |
-| --------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| What it is                  | A named class, set with `priorityClassName` in the pod spec                     | A number on the job                                                 |
-| Decides                     | How urgent the job is across the whole cluster, and whether it can be preempted | Only the order of jobs **within your own queue**. Lower runs first. |
-| Can cause preemption        | Yes                                                                             | Never                                                               |
-| Can change after submitting | No                                                                              | Yes, with `armadactl reprioritize`                                  |
+|                             | Priority class                                                                  | Job `priority`                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| What it is                  | A named class, set with `priorityClassName` in the pod spec                     | A number on the job                                                                                 |
+| Decides                     | How urgent the job is across the whole cluster, and whether it can be preempted | Order **within your own queue**, among jobs with the same priority-class urgency. Lower runs first. |
+| Can cause preemption        | Yes                                                                             | Never                                                                                               |
+| Can change after submitting | No                                                                              | Yes, with `armadactl reprioritize`                                                                  |
 
 Within a queue, jobs are ordered by their priority class's urgency, then by job `priority`, then by when they were submitted. Jobs that are already running always come before waiting ones.
 
@@ -140,7 +140,7 @@ Only **preemptible** jobs are ever preempted: running jobs in a non-preemptible 
 
 A preempted job gets a short time to shut down (its termination grace period), then ends as failed with the reason (shown as **Preempted** in Lookout). It isn't restarted, even by a retry policy. Jobs that can be preempted should save their progress and be safe to submit again.
 
-{/* Try it: [Priority and preemption](/docs/priority-and-preemption). */}
+Try it: [Priority and preemption](/docs/priority-and-preemption).
 
 ## Gangs
 
@@ -154,13 +154,14 @@ You make a gang with annotations on each job:
 
 Armada waits until it can start every member at once. If one member is preempted, the whole gang is stopped. Gangs always fail fast: Armada doesn't retry them, either when a pod can't start or through retry policies. Without a uniformity label, a gang's members can be placed in different worker clusters.
 
-{/* Try it: [Gang jobs](/docs/gang-jobs). */}
+Try it: [Gang jobs](/docs/gang-jobs).
 
 ## Failures and retries
 
 When a run fails, Armada can label it with a **failure category**, a short name such as `oom` (out of memory) or `user_error` (your program exited with an error), and sometimes a **hint** with a known fix. Your platform team defines the categories. They show in Lookout, and they're what retry policies use to decide whether to run a job again: for example, retry `oom` with more memory, but never retry `user_error`.
 
-{/* Both are off by default. See [Failure categories](/docs/failure-categories) and [Retry policies](/docs/retry-policies). */}
+See [Retry policies](/docs/retry_policies).
+{/* See [Failure categories](/docs/failure-categories). */}
 
 ## How the pieces fit together
 
@@ -177,10 +178,10 @@ Jobs flow like this:
 4. The executor for that cluster creates the pod (**Pending**), and Kubernetes starts it (**Running**).
 5. When the job finishes, the executor reports the result (**Succeeded**, **Failed** or **Cancelled**).
 
-{/* For the details, including how Armada stays consistent at scale, see [Architecture](/docs/architecture). */}
+For the details, including how Armada stays consistent at scale, see [Architecture](/docs/architecture).
 
 ## Next steps
 
 - [Getting started](/getting-started): run Armada on your laptop.
-  {/* - [Submitting jobs](/docs/submitting-jobs): your first job, step by step. */}
-  {/* - [Glossary](/docs/glossary): every Armada term in one place. */}
+- [Submitting jobs](/docs/submitting-jobs): your first job, step by step.
+- [Glossary](/docs/glossary): every Armada term in one place.
