@@ -1627,7 +1627,7 @@ func TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords(t *testing.T) {
 
 	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
 	txn := jobDb.ReadTxn()
-	algo := &FairSchedulingAlgo{compareAggregateDemand: true}
+	algo := &FairSchedulingAlgo{compareQueuedAggregateDemand: true}
 
 	beforeComparisons := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
 	beforeMismatches := testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool))
@@ -1679,7 +1679,7 @@ func TestCalculateJobSchedulingInfo_AggregateDemandAgreementPublishesComparisonO
 	queued := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
 	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
 	txn := jobDb.ReadTxn()
-	algo := &FairSchedulingAlgo{compareAggregateDemand: true}
+	algo := &FairSchedulingAlgo{compareQueuedAggregateDemand: true}
 
 	beforeComparisons := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
 	beforeMismatches := testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool))
@@ -1712,7 +1712,7 @@ func TestCalculateJobSchedulingInfo_UsesAggregateForQueuedDemand(t *testing.T) {
 
 	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued, leased})
 	txn := jobDb.ReadTxn()
-	algo := &FairSchedulingAlgo{useAggregateDemand: true}
+	algo := &FairSchedulingAlgo{useQueuedAggregateDemand: true}
 
 	info, err := algo.newCalculateJobSchedulingInfo(
 		ctx, txn, map[string]bool{"executor-1": true}, queues,
