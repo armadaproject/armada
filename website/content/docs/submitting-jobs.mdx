@@ -194,7 +194,7 @@ Fields on each entry under `jobs:`:
 | `podSpec`                | A standard Kubernetes pod spec, for one pod.                                                                                                                                                                                                                                                                         |
 | `labels` / `annotations` | Added to the pod. The text `{JobId}` in any value is replaced with the job's ID.                                                                                                                                                                                                                                     |
 | `clientId`               | A key that helps prevent duplicates, up to 100 characters. Submitting again with the same `clientId` to the same queue normally returns the original job instead of creating a new one. This is best effort: a database error can let a duplicate through, and saved keys can be removed after 7 days (the default). |
-| `ingress` / `services`   | Make the job reachable over the network. See [Interactive jobs and services](/docs/interactive-jobs-and-services). |
+| `ingress` / `services`   | Make the job reachable over the network. See [Interactive jobs and services](/docs/interactive-jobs-and-services).                                                                                                                                                                                                   |
 
 ### The pod spec
 
