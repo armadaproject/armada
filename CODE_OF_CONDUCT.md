@@ -6,6 +6,7 @@ We expect this code of conduct to be honored by everyone who participates in the
 
 This code is not exhaustive or complete, and is a living document. It serves to distill our common understanding of a collaborative, shared environment and goals. We expect it to be followed in spirit as much as in the letter, so that it can enrich all of us and the technical communities in which we participate.
 
+Armada adheres to the [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/main/code-of-conduct.md).
 
 ## Our Pledge
 
