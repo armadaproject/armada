@@ -20,7 +20,7 @@ Every client talks to Armada's gRPC API. To call Armada over HTTP instead, see t
 
 ## Before you start
 
-You need an Armada installation and a queue you can submit to. On a laptop: [Getting started](/getting-started), then the `my-team` queue from Submitting jobs. {/* See [Submitting jobs](/docs/submitting-jobs). */}
+You need an Armada installation and a queue you can submit to. On a laptop: [Getting started](/getting-started), then the `my-team` queue from [Submitting jobs](/docs/submitting-jobs).
 
 ## Python: submit a job and follow it
 
@@ -275,12 +275,12 @@ Published as [`armada-client` on crates.io](https://crates.io/crates/armada-clie
 
 ## Troubleshooting
 
-| What you see                                                               | Cause                                                                | Fix                                                                                                                          |
-| -------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `StatusCode.NOT_FOUND ... Jobset <name> for queue <queue> does not exist`  | You read events straight after submitting                            | Wait a few seconds before calling `get_job_events_stream`, as the example does.                                              |
-| `PermissionDenied ... could not find queue`                                | The queue is brand new, or doesn't exist                             | Wait 15 seconds after creating a queue. Check the name with `armadactl get queues`.                                          |
-| `StatusCode.UNAVAILABLE ... connection refused`                            | Wrong address, or Armada isn't running                               | A laptop install uses `localhost:30002`.                                                                                     |
-| `Invalid archive signature` from `mage BuildScala`                         | The build image downloads a Scala package that's no longer available | Use the Maven commands in [Scala](#scala).                                                                                   |
-| `requires go >= 1.27.1; switching to go1.27.2`                             | Your Go is older than Armada's                                       | Nothing to do: Go downloads the right version.                                                                               |
-| `pip show armada-client` prints a version older than 0.5.1                 | Python is older than 3.10, or you installed the client earlier       | Use Python 3.10 or later, and run `pip install --upgrade armada-client`.                                                     |
-| `container <name> has no resources specified`, or another submission error | The job breaks a submission rule                                     | The messages match `armadactl`'s. See Submitting jobs. {/* See [Submitting jobs](/docs/submitting-jobs#troubleshooting). */} |
+| What you see                                                               | Cause                                                                | Fix                                                                                             |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `StatusCode.NOT_FOUND ... Jobset <name> for queue <queue> does not exist`  | You read events straight after submitting                            | Wait a few seconds before calling `get_job_events_stream`, as the example does.                 |
+| `PermissionDenied ... could not find queue`                                | The queue is brand new, or doesn't exist                             | Wait 15 seconds after creating a queue. Check the name with `armadactl get queues`.             |
+| `StatusCode.UNAVAILABLE ... connection refused`                            | Wrong address, or Armada isn't running                               | A laptop install uses `localhost:30002`.                                                        |
+| `Invalid archive signature` from `mage BuildScala`                         | The build image downloads a Scala package that's no longer available | Use the Maven commands in [Scala](#scala).                                                      |
+| `requires go >= 1.27.1; switching to go1.27.2`                             | Your Go is older than Armada's                                       | Nothing to do: Go downloads the right version.                                                  |
+| `pip show armada-client` prints a version older than 0.5.1                 | Python is older than 3.10, or you installed the client earlier       | Use Python 3.10 or later, and run `pip install --upgrade armada-client`.                        |
+| `container <name> has no resources specified`, or another submission error | The job breaks a submission rule                                     | The messages match `armadactl`'s. See [Submitting jobs](/docs/submitting-jobs#troubleshooting). |
