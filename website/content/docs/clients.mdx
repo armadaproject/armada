@@ -3,26 +3,24 @@ title: 'Client libraries'
 description: 'Use Armada from your own code in Python, Go, Java, Scala, .NET or Rust.'
 ---
 
-{/* Tested 2026-10-08 on a laptop install (Armada 0.22.12): the Python steps as written (armada-client 0.5.1, Python 3.14), a Go program using pkg/client from a separate module (github.com/armadaproject/armada@f8bd058b), mage BuildJava and mage BuildScala (see the Java and Scala sections for results). Checked against source and registries: client/DotNet (net10.0; NuGet ArmadaProject.Io.Client up to 0.22.12), client/rust and the published armada-client 0.2.2 crate on crates.io. Not run: .NET and Rust (no toolchains installed). */}
-
 Client libraries let your own programs submit jobs, follow their events and manage queues, without calling `armadactl`. This page gets you running with the Python client, then lists the clients for other languages.
 
 ## Choose a client
 
-| Language   | Package                                           | Good for                                                                                             |
-| ---------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **Python** | `armada-client` on PyPI                           | Scripts, data and ML workflows. The most complete client.                                            |
-| **Go**     | `github.com/armadaproject/armada/pkg/client`      | Go programs. `armadactl` itself is built on it.                                                      |
-| **Java**   | Build from source (needs only Docker)             | JVM applications                                                                                     |
-| **Scala**  | Build from source (needs Go, `protoc` and Docker) | Scala applications and Spark                                                                         |
-| **.NET**   | `ArmadaProject.Io.Client` on NuGet                | C# applications (.NET 10)                                                                            |
-| **Rust**   | `armada-client` on crates.io                      | Rust programs: submitting, watching, cancelling, preempting, reprioritizing, queues and job lookups. |
+| Language   | Package                                                                                                                          | Good for                                                 |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| **Python** | `armada-client` on PyPI                                                                                                          | Scripts, data and ML workflows.                          |
+| **Go**     | `github.com/armadaproject/armada/pkg/client`                                                                                     | Go programs. `armadactl` itself is built on it.          |
+| **Java**   | `io.armadaproject:java-client` on Maven Central, or build from source (needs only Docker)                                        | JVM applications                                         |
+| **Scala**  | `io.armadaproject:armada-scala-client_2.13` on Maven Central (`_2.12` too), or build from source (needs Go, `protoc` and Docker) | Scala applications and Spark                             |
+| **.NET**   | `ArmadaProject.Io.Client` on NuGet                                                                                               | C# applications (.NET 10)                                |
+| **Rust**   | `armada-client` on crates.io                                                                                                     | Rust programs: submitting, watching and cancelling jobs. |
 
 Every client talks to Armada's gRPC API. To call Armada over HTTP instead, see the [API reference](/docs/api).
 
 ## Before you start
 
-You need an Armada installation and a queue you can submit to. On a laptop: [Getting started](/getting-started), then the `my-team` queue from Submitting jobs. {/* LINK: restore "[Submitting jobs](/docs/submitting-jobs)" when that page merges */}
+You need an Armada installation and a queue you can submit to. On a laptop: [Getting started](/getting-started), then the `my-team` queue from Submitting jobs. {/* See [Submitting jobs](/docs/submitting-jobs). */}
 
 ## Python: submit a job and follow it
 
@@ -38,7 +36,7 @@ source .venv/bin/activate
 pip install armada-client
 ```
 
-**Success:** `pip show armada-client` prints its version.
+**Success:** `pip show armada-client` prints version 0.5.0 or later.
 
 ### Step 2. Write the program
 
@@ -103,7 +101,7 @@ for event in client.get_job_events_stream(queue="my-team", job_set_id=job_set_id
 EOF
 ```
 
-To connect to a team installation instead, replace the `grpc.insecure_channel(...)` line with an authenticated channel, as shown in Authentication. {/* LINK: restore "[Authentication](/docs/authentication#connecting-from-your-own-code-python-and-airflow)" when that page merges */}
+To connect to a team installation (an Armada that your platform team runs for many users) instead, replace the `grpc.insecure_channel(...)` line with an authenticated channel, as shown in Authentication. {/* LINK: restore "[Authentication](/docs/authentication#connecting-from-your-own-code-python-and-airflow)" when that page merges */}
 
 ### Step 3. Run it
 
@@ -126,13 +124,13 @@ A short job can finish before Armada reports it as running, so `running` may not
 
 ### What else the Python client does
 
-| Method                                                | What it does                                                                                                                                                                                                                                                                                                                                 |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `submit_jobs`, `create_job_request_item`              | Submit jobs                                                                                                                                                                                                                                                                                                                                  |
-| `get_job_events_stream`                               | Stream a job set's events                                                                                                                                                                                                                                                                                                                    |
-| `get_job_status`, `get_job_details`, `get_job_errors` | Look up jobs' current state, details or errors                                                                                                                                                                                                                                                                                               |
-| `cancel_jobs`, `cancel_jobset`                        | Cancel jobs or a whole job set                                                                                                                                                                                                                                                                                                               |
-| `create_queue`, `get_queue`, `update_queue`           | Manage queues. See the read-modify-write example in Managing queues. {/* LINK: restore "[Managing queues](/docs/managing-queues#...)" when that page merges. Anchor: #step-4-change-a-queue-safely in the sprint rewrite; #a-queue-with-per-queue-permissions-or-resource-limits in PR #5238 as it stands. Use whichever heading merges. */} |
+| Method                                                | What it does                                                                                                               |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `submit_jobs`, `create_job_request_item`              | Submit jobs                                                                                                                |
+| `get_job_events_stream`                               | Stream a job set's events                                                                                                  |
+| `get_job_status`, `get_job_details`, `get_job_errors` | Look up jobs' current state, details or errors                                                                             |
+| `cancel_jobs`, `cancel_jobset`                        | Cancel jobs or a whole job set                                                                                             |
+| `create_queue`, `get_queue`, `update_queue`           | Manage queues. See the read-modify-write example in Managing queues. {/* See [Managing queues](/docs/managing-queues). */} |
 
 The full reference is in the [Python client's documentation](https://github.com/armadaproject/armada/tree/master/client/python).
 
@@ -140,7 +138,7 @@ The full reference is in the [Python client's documentation](https://github.com/
 
 ### Go
 
-The Go client is part of the Armada codebase (`armadactl` is built on it). You need Go 1.27.1 or later; an older Go downloads it automatically.
+The Go client is part of the Armada codebase (`armadactl` is built on it). You need Go 1.27.1 or later; Go 1.21 or later downloads it automatically.
 
 ```bash
 mkdir -p ~/armada-guide/go && cd ~/armada-guide/go
@@ -232,11 +230,11 @@ Submitted job <job-id>
 *api.JobSucceededEvent
 ```
 
-For a team installation, fill in the login fields of `client.ApiConnectionDetails` (the same ones as `~/.armadactl.yaml`; see Authentication) {/* LINK: restore "[Authentication](/docs/authentication)" when that page merges */}. See the [Go package](https://github.com/armadaproject/armada/tree/master/pkg/client).
+For a team installation, set one of the login fields of `client.ApiConnectionDetails`, such as `BasicAuth`, `OpenIdAuth` or `ExecAuth` (the same ones as `~/.armadactl.yaml`; see Authentication) {/* LINK: restore "[Authentication](/docs/authentication)" when that page merges */}. See the [Go package](https://github.com/armadaproject/armada/tree/master/pkg/client).
 
 ### Java
 
-Build it from a clone of the [Armada repository](https://github.com/armadaproject/armada). You need either Java 11 and Maven 3.9, or just Docker. With Docker, from the repository's root folder:
+Published on Maven Central as `io.armadaproject:java-client` (0.0.3, from April 2025). For the latest code, build it from a clone of the [Armada repository](https://github.com/armadaproject/armada). You need either Java 11 and Maven 3.9, or just Docker. With Docker, from the repository's root folder:
 
 ```bash
 docker run --rm -v "$PWD":/src -v "$HOME/.m2":/root/.m2 -w /src/client/java \
@@ -251,7 +249,7 @@ With Java and Maven installed, run `mvn clean package` in `client/java` instead.
 
 ### Scala
 
-Build it from the root of a clone of the Armada repository. First fetch the proto files it needs (this needs Go and `protoc` on your machine), then build with Maven, here in Docker:
+Published on Maven Central as `io.armadaproject:armada-scala-client_2.13` and `_2.12` (0.3.0). To build it yourself, work from the root of a clone of the Armada repository. First fetch the proto files it needs (this needs Go and `protoc` on your machine), then build with Maven, here in Docker:
 
 ```bash
 go run github.com/magefile/mage@v1.17.2 BootstrapProto
@@ -271,16 +269,16 @@ Targets .NET 10. Install the `ArmadaProject.Io.Client` package from [NuGet](http
 
 ### Rust
 
-Published as [`armada-client` on crates.io](https://crates.io/crates/armada-client) (0.2.2). Supports submitting and watching jobs, cancelling, preempting and reprioritizing, managing queues, and job lookups; the version in the repository adds retry policies. Needs Rust 1.85 or later. The published crate needs nothing else; building it from the Armada repository also needs `protoc` and some proto files (see its README). See the [Rust client](https://github.com/armadaproject/armada/tree/master/client/rust).
+Published as [`armada-client` on crates.io](https://crates.io/crates/armada-client) (0.2.2). `ArmadaClient` can submit and watch jobs and cancel jobs or job sets. For other calls, such as preempting, reprioritizing, queues and job lookups, use the generated gRPC clients in `armada_client::api`; the version in the repository also generates one for retry policies. Needs Rust 1.85 or later. The published crate needs nothing else; building it from the Armada repository also needs `protoc` and the proto files from `mage BootstrapProto`. See the [Rust client](https://github.com/armadaproject/armada/tree/master/client/rust).
 
 ## Troubleshooting
 
-| What you see                                                                                                   | Cause                                                                   | Fix                                                                                                                                                           |
-| -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `StatusCode.NOT_FOUND ... Jobset <name> for queue <queue> does not exist`                                      | You read events straight after submitting                               | Wait a few seconds before calling `get_job_events_stream`, as the example does.                                                                               |
-| `PermissionDenied ... could not find queue`                                                                    | The queue is brand new, or doesn't exist                                | Wait 15 seconds after creating a queue. Check the name with `armadactl get queues`.                                                                           |
-| `StatusCode.UNAVAILABLE ... connection refused`                                                                | Wrong address, or Armada isn't running                                  | A laptop install uses `localhost:30002`.                                                                                                                      |
-| `gzip: stdin: not in gzip format` from `mage BuildJava`, or `Invalid archive signature` from `mage BuildScala` | The build images download tools from addresses that no longer have them | Use the Maven commands in [Java](#java) or [Scala](#scala).                                                                                                   |
-| `requires go >= 1.27.1; switching to go1.27.2`                                                                 | Your Go is older than Armada's                                          | Nothing to do: Go downloads the right version.                                                                                                                |
-| `ERROR: Package 'armada-client' requires a different Python`                                                   | Python is older than 3.10                                               | Use Python 3.10 or later.                                                                                                                                     |
-| `container <name> has no resources specified`, or another submission error                                     | The job breaks a submission rule                                        | The messages match `armadactl`'s. See Submitting jobs. {/* LINK: restore "[Submitting jobs](/docs/submitting-jobs#troubleshooting)" when that page merges */} |
+| What you see                                                                                                   | Cause                                                                   | Fix                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `StatusCode.NOT_FOUND ... Jobset <name> for queue <queue> does not exist`                                      | You read events straight after submitting                               | Wait a few seconds before calling `get_job_events_stream`, as the example does.                                              |
+| `PermissionDenied ... could not find queue`                                                                    | The queue is brand new, or doesn't exist                                | Wait 15 seconds after creating a queue. Check the name with `armadactl get queues`.                                          |
+| `StatusCode.UNAVAILABLE ... connection refused`                                                                | Wrong address, or Armada isn't running                                  | A laptop install uses `localhost:30002`.                                                                                     |
+| `gzip: stdin: not in gzip format` from `mage BuildJava`, or `Invalid archive signature` from `mage BuildScala` | The build images download tools from addresses that no longer have them | Use the Maven commands in [Java](#java) or [Scala](#scala).                                                                  |
+| `requires go >= 1.27.1; switching to go1.27.2`                                                                 | Your Go is older than Armada's                                          | Nothing to do: Go downloads the right version.                                                                               |
+| `pip show armada-client` prints a version older than 0.5.0                                                     | Python is older than 3.10, so pip installed an older release            | Use Python 3.10 or later.                                                                                                    |
+| `container <name> has no resources specified`, or another submission error                                     | The job breaks a submission rule                                        | The messages match `armadactl`'s. See Submitting jobs. {/* See [Submitting jobs](/docs/submitting-jobs#troubleshooting). */} |
