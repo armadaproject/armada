@@ -2,14 +2,18 @@
   "title": "Docs",
   "pages": [
     "core-concepts",
+     "architecture",
     "submitting-jobs",
-    "developer-guide",
-    "architecture",
-    "cli",
+    "monitoring-and-fleet",
+    "priority-and-preemption",
+    "interactive-jobs-and-services",
+    "gang-jobs",
+    "failure-categories",
     "clients",
     "integrations",
-    "user-guide",
+    "cli",
     "api",
-    "..."
+    "glossary",
+    "developer-guide"
   ]
 }

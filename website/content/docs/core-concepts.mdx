@@ -3,7 +3,7 @@ title: 'Core concepts'
 description: 'The ideas behind Armada: jobs, queues, job sets, fair share, priority, preemption and gangs.'
 ---
 
-This page explains the fundamental concepts you need to effectively use Armada. Each section ends with a link to the guide where you put it into practice. For quick definitions of any term, see the [Glossary](/docs/glossary).
+This page explains the fundamental concepts you need to effectively use Armada. For quick definitions of any term, see the [Glossary](/docs/glossary).
 
 ## What Armada does
 
@@ -157,7 +157,7 @@ Try it: [Gang jobs](/docs/gang-jobs).
 
 When a run fails, Armada can label it with a **failure category**, a short name such as `oom` (out of memory) or `user_error` (your program exited with an error), and sometimes a **hint** with a known fix. Your platform team defines the categories. They show in Lookout, and they're what retry policies use to decide whether to run a job again: for example, retry `oom` with more memory, but never retry `user_error`. See [Error categories](/docs/failure-categories).
 
-{/* Both are off by default. [Retry policies](/docs/retry-policies). */}
+{/* See [Retry policies](/docs/retry-policies). */}
 
 ## How the pieces fit together
 
