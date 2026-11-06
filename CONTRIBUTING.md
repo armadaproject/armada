@@ -41,8 +41,9 @@ Please try and make sure that this is linked to an [issue](https://github.com/ar
 
 ### Testing
 
-All new functionality must include tests. CI runs the full
-test suite automatically on every pull request.
+All new functionality must include tests. CI runs the core Go and TypeScript
+test suites automatically on every pull request. Client test suites run when
+the files changed match their workflow path filters.
 
 ### Branches
 
