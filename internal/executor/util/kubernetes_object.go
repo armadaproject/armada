@@ -9,8 +9,8 @@ import (
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/armadaproject/armada/internal/common"
 	serverconfiguration "github.com/armadaproject/armada/internal/common/constants"
+	"github.com/armadaproject/armada/internal/common/podname"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
@@ -136,11 +136,11 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 	applyDefaults(podSpec, defaults)
 	setRestartPolicyNever(podSpec)
 
-	injectArmadaEnvVars(podSpec, jobId, job.Queue, job.Jobset, annotation)
+	injectArmadaEnvVars(podSpec, job, annotation)
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        common.PodNamePrefix + job.Job.JobId + "-" + strconv.Itoa(0),
+			Name:        podname.ForRun(job.Job.ObjectNamePrefix, job.Job.RunScopedPodNames, jobId, runId),
 			Labels:      labels,
 			Annotations: annotation,
 			Namespace:   job.Job.ObjectMeta.Namespace,
@@ -177,12 +177,13 @@ func setRestartPolicyNever(podSpec *v1.PodSpec) {
 
 // injectArmadaEnvVars injects Armada system environment variables into all containers.
 // It injects base variables for all jobs and additional variables for gang-scheduled jobs.
-func injectArmadaEnvVars(podSpec *v1.PodSpec, jobId string, queue string, jobsetId string, annotations map[string]string) {
+func injectArmadaEnvVars(podSpec *v1.PodSpec, job *executorapi.JobRunLease, annotations map[string]string) {
 	// Base environment variables for all jobs
 	baseEnvVars := []v1.EnvVar{
-		{Name: serverconfiguration.JobIdEnvVar, Value: jobId},
-		{Name: serverconfiguration.QueueEnvVar, Value: queue},
-		{Name: serverconfiguration.JobSetIdEnvVar, Value: jobsetId},
+		{Name: serverconfiguration.JobIdEnvVar, Value: job.Job.JobId},
+		{Name: serverconfiguration.JobRunIdEnvVar, Value: job.JobRunId},
+		{Name: serverconfiguration.QueueEnvVar, Value: job.Queue},
+		{Name: serverconfiguration.JobSetIdEnvVar, Value: job.Jobset},
 	}
 
 	// Gang-specific environment variables
