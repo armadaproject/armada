@@ -51,5 +51,13 @@ organisations
 KUBECONFIG
 jobset
 schedulerobjects
+uncordoned
+triggerer
+rdzv
+torchrun
+certingress
+scriptable
+preemptible
 ingester
+reprioritizes
 EMFILE
