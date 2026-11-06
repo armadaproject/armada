@@ -153,11 +153,12 @@ var SubmitWithIrrelevantAnnotations = &armadaevents.EventSequence_Event{
 				Namespace: Namespace,
 				Name:      "test-job",
 				Annotations: map[string]string{
-					"foo":                        "bar",
-					"fizz":                       "buzz",
-					"buzz":                       "fizz",
-					constants.FailFastAnnotation: "true",
-					constants.JobPriceBand:       "A",
+					"foo":                             "bar",
+					"fizz":                            "buzz",
+					"buzz":                            "fizz",
+					constants.FailFastAnnotation:      "true",
+					constants.JobPriceBand:            "A",
+					constants.RetryPoliciesAnnotation: "team-default",
 				},
 			},
 			MainObject: &armadaevents.KubernetesMainObject{
