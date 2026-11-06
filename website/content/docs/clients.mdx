@@ -96,7 +96,10 @@ time.sleep(5)
 for event in client.get_job_events_stream(queue="my-team", job_set_id=job_set_id):
     kind = event.message.WhichOneof("events")
     print(kind)
-    if kind in ("succeeded", "failed", "cancelled"):
+    if kind in ("succeeded", "cancelled"):
+        break
+    # A retryable failure isn't final: the job runs again.
+    if kind == "failed" and not event.message.failed.retryable:
         break
 EOF
 ```
@@ -205,9 +208,11 @@ func main() {
 	client.WatchJobSet(api.NewEventClient(conn), "my-team", jobSetId, true, true, false, false, ctx,
 		func(state *domain.WatchContext, e api.Event) bool {
 			fmt.Printf("%T\n", e)
-			switch e.(type) {
-			case *api.JobSucceededEvent, *api.JobFailedEvent, *api.JobCancelledEvent:
+			switch ev := e.(type) {
+			case *api.JobSucceededEvent, *api.JobCancelledEvent:
 				return true // stop watching
+			case *api.JobFailedEvent:
+				return !ev.Retryable // a retryable failure means the job runs again
 			}
 			return false
 		})
