@@ -17,3 +17,24 @@ customServiceAccount: null
 serviceAccount: null
 
 applicationConfig: {}
+
+# Opt-in Job that migrates an existing Lookout job table to the partitioned
+# schema by running `lookout --partitionJobTable --execute --yes`. It refuses
+# to run until this version's migration Job has completed, so enable it in a
+# separate `helm upgrade` once that Job has succeeded. It runs
+# asynchronously: Helm does not wait for it, and Lookout and the ingester
+# keep running while it works. Follow it with
+# `kubectl logs -f job/armada-lookout-migration-partition-job-table-<revision>`
+# (or `<nameOverride>-partition-job-table-<revision>`), then set enabled back
+# to false. Helm leaves each partition Job in place after later upgrades and
+# `helm uninstall`, so Kubernetes deletes it ttlSecondsAfterFinished after it
+# finishes. Run `lookout --partitionJobTable --preflight` first.
+partitionJobTable:
+  # -- Create a Job that partitions the job table. Enable it in a separate `helm upgrade` after this version's migration Job has succeeded. Helm does not wait for it: follow it with `kubectl logs -f job/<name>-partition-job-table-<revision>`, then set this back to false
+  enabled: false
+  # -- Maximum time in seconds the Job may run before Kubernetes stops it, which rolls the migration back
+  activeDeadlineSeconds: 86400
+  # -- Time in seconds to keep the finished Job and its logs before Kubernetes deletes it
+  ttlSecondsAfterFinished: 604800
+  # -- Resources for the Job; defaults to resources if empty
+  resources: {}
