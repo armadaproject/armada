@@ -321,7 +321,9 @@ mage dev:fullDown
 
 ## Profile a component with pprof
 
-Add a `profiling` block to the component's config file (`_local/<component>/config.yaml`, or `config-auth.yaml` with the `auth` profile), then restart it. The block needs an `auth` section; with only a port, the component logs `Pprof server auth not configured, will not set up pprof` and doesn't open the port.
+Add a `profiling` block to the component's config file, then restart it. The file is the one after `--config` on the component's line in `_local/procfiles/<profile>.Procfile`: with `auth`, for example, the server reads `config-auth.yaml`, but the ingesters still read `config.yaml`. The block needs an `auth` section; with only a port, the component logs `Pprof server auth not configured, will not set up pprof` and doesn't open the port.
+
+This example has no login, and the port listens on every network interface, not just `localhost`. Anyone who can reach it can read the profiles, so use it only on a network you trust, and remove the block when you're done.
 
 ```yaml
 profiling:
