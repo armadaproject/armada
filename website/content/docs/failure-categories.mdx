@@ -5,7 +5,8 @@ description: 'See at a glance why a job failed, whether the fix is yours or the 
 
 When a job fails, the first question is usually: is the problem in my job, or in the platform? An **error category** answers it at a glance. Armada gives each failed run a short label, such as `oom` (ran out of memory) or `user_error` (your program exited with an error), and can add a **hint** with a known fix. Lookout, job events and metrics call it the **failure category**.
 
-Your platform team (the operators) decides the categories. Categories are also what [retry policies](/docs/retry_policies) use to decide whether to run a job again.
+Your platform team (the operators) decides the categories. Categories are also what retry policies use to decide whether to run a job again.
+{/* See [Retry policies](/docs/retry-policies). */}
 
 ## How categories work
 
@@ -32,34 +33,35 @@ Your operator writes rules that turn these into categories. For example:
 | Your program exited with code 1                                  | `user_error`                                                         |
 | No rule matches                                                  | `unknown` by default from 0.22.16, or the default your operator sets |
 
-A **subcategory** adds detail inside a category. The names on this page are examples: ask your operator for your installation's list.
+A **subcategory** adds detail inside a category. The names on this page are examples: ask your operator for the list on your clusters.
 
 ### Categories Armada sets itself
 
 Armada sets two categories of its own.
 
-**`internal`** means Armada found a problem with the platform, not your job. The subcategory says what happened:
+**`internal`** means Armada detected the failure itself, not an operator's rule. It's usually a platform problem, but `job-rejected` and `job-creation-failed` can point to the job. The subcategory says what happened:
 
-| Subcategory           | What happened                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lease-expired`       | Armada lost contact with the cluster running the job, so it stopped the run.                                                                                                                                                                                                                                                                                                                                                                 |
-| `pod-missing`         | The pod of a running job is no longer on the cluster.                                                                                                                                                                                                                                                                                                                                                                                        |
-| `externally-deleted`  | Something other than Armada deleted the pod.                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `stuck-terminating`   | The pod didn't stop in time: something else asked Kubernetes to delete it and it didn't stop, or the executor couldn't delete a failed pod before reporting the failure. Usually a node problem.                                                                                                                                                                                                                                             |
-| `active-deadline`     | The pod ran past its `activeDeadlineSeconds` and Kubernetes didn't stop it. Reported after the deadline, plus the termination grace period, plus `kubernetes.stuckTerminatingPodExpiry` (30 seconds by default). A normal stop at the deadline instead has the reason `DeadlineExceeded`, and gets whatever category the operator's rules give it.                                                                                           |
-| `job-creation-failed` | The executor couldn't create the pod from the job.                                                                                                                                                                                                                                                                                                                                                                                           |
-| `job-rejected`        | A check rejected the job before it ran.                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `max-runs-exceeded`   | The job used all its startup retries (`scheduling.maxRetries`; runs started by a retry policy count toward that limit), or was tried once on every node that can run it. A job that runs out of [retry policy](/docs/retry_policies) retries doesn't get this label: it keeps its last run's category. For a failed pod, its message starts `Retry policy:`; for a run Armada lost contact with, `Lease expired and not retried by policy:`. |
-| `issue-handler-error` | The pod changed state while the executor was handling a problem.                                                                                                                                                                                                                                                                                                                                                                             |
+| Subcategory           | What happened                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lease-expired`       | Armada lost contact with the cluster running the job, so it stopped the run.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `pod-missing`         | The pod of a running job is no longer on the cluster.                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `externally-deleted`  | Something other than Armada deleted the pod.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `stuck-terminating`   | The pod didn't stop in time: something else asked Kubernetes to delete it and it didn't stop, or the executor couldn't delete a failed pod before reporting the failure. Usually a node problem.                                                                                                                                                                                                                                                                              |
+| `active-deadline`     | The pod ran past its `activeDeadlineSeconds` and Kubernetes didn't stop it. Reported after the deadline, plus the termination grace period, plus `kubernetes.stuckTerminatingPodExpiry` (30 seconds by default). A normal stop at the deadline instead has the reason `DeadlineExceeded`, and gets whatever category the operator's rules give it.                                                                                                                            |
+| `job-creation-failed` | The executor couldn't create the pod from the job.                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `job-rejected`        | Armada refused the job before it ran, for example because its resource request isn't valid or no node can ever fit it.                                                                                                                                                                                                                                                                                                                                                        |
+| `max-runs-exceeded`   | The job used all its startup retries (`scheduling.maxRetries`; runs started by a retry policy count toward that limit), was tried once on every node that can run it, or has the fail-fast annotation and its lease was returned. A job that runs out of retry policy retries doesn't get this label: it keeps its last run's category. For a failed pod, its message starts `Retry policy:`; for a run Armada lost contact with, `Lease expired and not retried by policy:`. |
+| `issue-handler-error` | The pod changed state while the executor was handling a problem.                                                                                                                                                                                                                                                                                                                                                                                                              |
 
-An `internal` failure has no hint. Submit the job again, and tell your operator if it keeps happening.
+An `internal` failure has no hint. For `job-rejected`, fix the job first. Otherwise submit the job again, and tell your operator if it keeps happening.
+{/* See [Retry policies](/docs/retry-policies). */}
 
 **`preemption`** means Armada stopped the run to give its resources to other work. The subcategory is the kind of preemption, for example `fairshare`. Lookout shows the job as **Preempted**, and Armada doesn't retry it.
 {/* See [Priority and preemption](/docs/priority-and-preemption). */}
 
 ### What a category changes
 
-On its own, nothing: it's a label. Two settings attached to it have effects:
+On its own, it's a label that retry policies can match. Two settings attached to it have effects:
 
 - a **hint**, added to the failure message you see
 - an **action** for the failed pod: keep it so you can read its logs (`Retain`, the default), or delete it (`Delete`)
@@ -77,7 +79,7 @@ On its own, nothing: it's a label. Two settings attached to it have effects:
 
 ### In your own tools
 
-The failed event (`JobFailedEvent`) has the category and subcategory: `failureCategory` and `failureSubcategory` in JSON, `failure_category` and `failure_subcategory` in the Python client. An empty subcategory is an empty string.
+The failed event (`JobFailedEvent`) has the category and subcategory: `failureCategory` and `failureSubcategory` in JSON, `failure_category` and `failure_subcategory` in the Python client. An empty subcategory is left out of the JSON, and is an empty string in the Python client.
 
 ### Read the hint
 
@@ -92,14 +94,16 @@ The job ran out of memory. Increase the memory request, or use a retry policy th
 
 ### What to do for each category
 
-| Category                                                                | Usually whose fix | What to do                                                                                                                                |
-| ----------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `user_error`, or another category your operator made for program errors | Yours             | Read the logs and exit code. Fix the job and submit it again.                                                                             |
-| `oom`                                                                   | Yours             | Raise the memory request, or use less memory. A [retry policy that adds memory](/docs/retry_policies) can do this automatically.          |
-| `node`, or another node-problem category                                | The platform      | Submit again, or use a [retry policy that moves the job to another node](/docs/retry_policies). Tell your operator if it happens often.   |
-| `internal`                                                              | The platform      | Check the subcategory in [Categories Armada sets itself](#categories-armada-sets-itself). Submit again; tell your operator if it repeats. |
-| `preemption`                                                            | Nobody            | Armada gave the resources to other work. Submit again, or use a class that isn't preempted.                                               |
-| `unknown`, `uncategorized` or your operator's own default               | Unknown           | Read the failure message. Ask your operator to add a rule for it.                                                                         |
+| Category                                                                | Usually whose fix | What to do                                                                                                                                                                           |
+| ----------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `user_error`, or another category your operator made for program errors | Yours             | Read the logs and exit code. Fix the job and submit it again.                                                                                                                        |
+| `oom`                                                                   | Yours             | Raise the memory request, or use less memory. A retry policy that adds memory can do this automatically.                                                                             |
+| `node`, or another node-problem category                                | The platform      | Submit again, or use a retry policy that moves the job to another node. Tell your operator if it happens often.                                                                      |
+| `internal`                                                              | The platform      | Check the subcategory in [Categories Armada sets itself](#categories-armada-sets-itself). For `job-rejected`, fix the job. Otherwise submit again; tell your operator if it repeats. |
+| `preemption`                                                            | Nobody            | Armada gave the resources to other work. Submit again, or use a priority class that isn't preemptible.                                                                               |
+| `unknown`, `uncategorized` or your operator's own default               | Unknown           | Read the failure message. Ask your operator to add a rule for it.                                                                                                                    |
+
+{/* See [Retry policies](/docs/retry-policies). */}
 
 ## Set up error categories
 
@@ -107,9 +111,9 @@ This section is for operators. Error categories are executor settings, under `ap
 
 ### Before you start
 
-You need an installation you can change, and `kubectl` access to it. Everything on this page needs Armada 0.22.3 or later (`action: Delete` arrived in 0.22.3; categories are older). Lookout and the Lookout ingester must also be a version that stores categories, with their database migrations run; otherwise categories work but don't appear in Lookout.
+You need `kubectl` access to the executor's cluster, with permission to change the executor. Everything on this page needs Armada 0.22.5 or later (`onPodEvents` arrived in 0.22.5, `action: Delete` in 0.22.3; categories are older). Lookout and the Lookout ingester must be 0.20.42 or later, with their database migrations run; otherwise categories work but don't appear in Lookout.
 
-**Ready when:** `kubectl get executor -n armada` lists your executor (on a laptop install, `armada-executor`).
+**Ready when:** `kubectl get executor -n armada` lists your executor (after [Getting started](/getting-started), `armada-executor`).
 
 ### Step 1. Choose your categories
 
@@ -186,15 +190,15 @@ Submit a job that exits with code 1, then look at its **Result** tab in Lookout.
 2. Look at failures in `uncategorized`, and add rules for the common ones.
 3. Add hints to rules for failures with a known fix.
 
-To turn categories off, set `enabled: false` (with the Operator: `kubectl patch executor <executor-name> -n armada --type merge -p '{"spec":{"applicationConfig":{"application":{"errorCategories":{"enabled":false}}}}}'`).
+To turn your categories off, set `enabled: false` (with the Armada Operator: `kubectl patch executor <executor-name> -n armada --type merge -p '{"spec":{"applicationConfig":{"application":{"errorCategories":{"enabled":false}}}}}'`). Armada's own `internal` and `preemption` categories still appear.
 
 ## Settings reference
 
 | Setting                              | Meaning                                                                                                                                                                                                                                                                                                                    |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `enabled`                            | Turns error categories on. On by default from 0.22.16.                                                                                                                                                                                                                                                                     |
-| `defaultCategory`                    | Category for a failure no rule matches. Empty: no category.                                                                                                                                                                                                                                                                |
-| `defaultSubcategory`                 | Subcategory for a failure no rule matches. Empty: no subcategory.                                                                                                                                                                                                                                                          |
+| `defaultCategory`                    | Category for a failure no rule matches. `unknown` by default from 0.22.16. Empty: no category.                                                                                                                                                                                                                             |
+| `defaultSubcategory`                 | Subcategory for a failure no rule matches. `unknown` by default from 0.22.16. Empty: no subcategory.                                                                                                                                                                                                                       |
 | `categories[].name`                  | The category's name. Retry policies match it exactly, including case. Don't use `internal` or `preemption`, which Armada uses. From 0.22.13, the executor won't start with those names, and logs `category name "internal" is reserved for categories that Armada sets` (or `defaultCategory "internal" is reserved ...`). |
 | `categories[].action`                | What to do with a failed pod: `Retain` (default) or `Delete`. See [Keep or delete the failed pod](#keep-or-delete-the-failed-pod).                                                                                                                                                                                         |
 | `categories[].rules[].subcategory`   | Optional. The subcategory this rule gives.                                                                                                                                                                                                                                                                                 |
@@ -233,9 +237,9 @@ The container matchers only look at containers that exited with a non-zero code,
 
 ### When the pod matchers see a failure
 
-- **A pod that failed:** both `onPodError` and `onPodEvents` can match, in every category from Armada 0.22.13 ([#5250](https://github.com/armadaproject/armada/pull/5250)). In earlier versions they only match in a category with `action: Delete`; in a `Retain` category, the failure gets the default category instead. And if a `kubernetes.failedPodChecks` rule matches first, the executor returns the job to the queue as a startup retry, and `onPodEvents` never sees it.
+- **A pod that failed:** both `onPodError` and `onPodEvents` can match, in every category from Armada 0.22.13 ([#5250](https://github.com/armadaproject/armada/pull/5250)). In earlier versions they only match in a category with `action: Delete`; in a `Retain` category, the failure gets the default category instead. If a `kubernetes.failedPodChecks` rule matches first, the executor returns the job to the queue as a startup retry. `onPodEvents` can still set that run's category from 0.22.15; in earlier versions it never sees it.
 
-- **A pod that never started** (for example, an image pull error): a `kubernetes.pendingPodChecks` rule with `action: Fail` fails the pod after its grace period, and `onPodError` matches that rule's message; `onPodEvents` doesn't match. A rule with `action: Retry` makes a startup retry instead, which no retry policy sees.
+- **A pod that never started** (for example, an image pull error): a `kubernetes.pendingPodChecks` rule with `action: Fail` fails the pod after its grace period, and `onPodError` matches that rule's message. From 0.22.15, `onPodEvents` can match too; in earlier versions it doesn't. A rule with `action: Retry` makes a startup retry instead, which no retry policy sees.
 
 The grace period counts from the pod's last status change, and the executor checks every 10 seconds. With the default image-pull rule, the failure arrives about 90 to 100 seconds after the pod went Pending.
 
@@ -248,7 +252,7 @@ The executor checks rules in the order they're written, across all categories. T
 When `enabled` is `true`, the executor checks the settings at startup. If something is wrong, it stops with a line like:
 
 ```text title="Output"
-FATAL application.go:209 Config error in error categories: category "oom" rule 0: unknown condition "OutOfMemory", valid values: OOMKilled, Evicted, DeadlineExceeded
+FATAL application.go:211 Config error in error categories: category "oom" rule 0: unknown condition "OutOfMemory", valid values: OOMKilled, Evicted, DeadlineExceeded
 ```
 
 It checks for:
@@ -266,11 +270,12 @@ It checks for:
 ### Keep or delete the failed pod
 
 - **`Retain`** (default) keeps the failed pod, so people can read its logs, until normal clean-up: after `kubernetes.failedPodExpiry` (10 minutes by default), or earlier if the cluster holds more than `kubernetes.maxTerminatedPods` finished pods (1000). Normal clean-up leaves pods younger than `kubernetes.minimumPodAge` (3 minutes) alone, but the `maxTerminatedPods` limit can delete a younger pod.
-- **`Delete`** deletes the pod, **and its logs**, and reports the failure once the pod is gone, a few seconds later than with `Retain`. If the pod isn't gone after `kubernetes.stuckTerminatingPodExpiry` (30 seconds), the failure is reported as `internal`, `stuck-terminating`.
+- **`Delete`** deletes the pod, **and its logs**, and reports the failure once the pod is gone, about 10 to 20 seconds later than with `Retain`. If the pod isn't gone after `kubernetes.stuckTerminatingPodExpiry` (30 seconds), the failure is reported as `internal`, `stuck-terminating`.
 
 The action only applies to pods that failed. A pod that never started is always deleted after its failure is reported.
 
-[Retry policies](/docs/retry_policies) need `Delete` on every category they retry; that page explains why. Keep `Retain` on categories you don't retry, such as `user_error`, so people can read their logs.
+Retry policies need `Delete` on every category they retry; otherwise the retry's pod name collides with the kept pod. Keep `Retain` on categories you don't retry, such as `user_error`, so people can read their logs.
+{/* See [Retry policies](/docs/retry-policies). */}
 
 ### Write useful hints
 
@@ -295,12 +300,12 @@ These keep the default `action: Retain`, except the GPU example. Set `action: De
 
 The configuration in [Step 1](#step-1-choose-your-categories) gives:
 
-| The failure                                   | Category                       |
-| --------------------------------------------- | ------------------------------ |
-| The container used more memory than its limit | `oom`, with a hint             |
-| Kubernetes evicted the pod                    | `node`, subcategory `eviction` |
-| The program exited with code 1                | `user_error`                   |
-| The program exited with code 3                | `uncategorized`                |
+| The failure                                   | Category                                            |
+| --------------------------------------------- | --------------------------------------------------- |
+| The container used more memory than its limit | `oom`, with a hint                                  |
+| Kubernetes evicted the pod                    | `node`, subcategory `eviction`                      |
+| The program exited with code 1                | `user_error`                                        |
+| The program exited with code 3                | `uncategorized`, subcategory `unknown` from 0.22.16 |
 
 ### Only look at the main container
 
@@ -367,12 +372,11 @@ Tested: a container that ran `echo Input file not found > /dev/termination-log; 
 
 ## Troubleshooting
 
-| What you see                                                                      | Cause                                                                                                                                                                  | Fix                                                                                                     |
-| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| A failed job has no category                                                      | Categories are off on the executor that ran it, or no rule matched and there's no `defaultCategory`                                                                    | Ask your operator. If categories are on but Lookout shows nothing, Lookout is older than the executors. |
-| Category `uncategorized`                                                          | No rule matched                                                                                                                                                        | Ask your operator to add a rule.                                                                        |
-| The failed run's logs are gone                                                    | The category has `action: Delete`, the pod passed `kubernetes.failedPodExpiry` (10 minutes), or the cluster had more than `kubernetes.maxTerminatedPods` finished pods | Write important logs to your own storage.                                                               |
-| `Found no logs for job; try 'kubectl --context Cluster1 ...` in `armadactl watch` | `watch` uses the executor's name as the kubectl context                                                                                                                | On a laptop install, use `--context kind-armada` instead.                                               |
-| An `onPodEvents` rule doesn't match a pod that never started                      | `onPodEvents` only sees pods that failed                                                                                                                               | Use `onPodError` on the `pendingPodChecks` message instead.                                             |
-| `Config error in error categories: ...` and the executor won't start              | A setting isn't valid; the message names the category and rule                                                                                                         | Fix the rule (see [Check the settings](#check-the-settings)) and apply again.                           |
-| The same failure gets different categories                                        | The executors have different settings                                                                                                                                  | Use the same settings on every executor.                                                                |
+| What you see                                                         | Cause                                                                                                                                                                  | Fix                                                                                                     |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| A failed job has no category                                         | Categories are off on the executor that ran it, or no rule matched and there's no `defaultCategory`                                                                    | Ask your operator. If categories are on but Lookout shows nothing, Lookout is older than the executors. |
+| Category `unknown`, `uncategorized` or your operator's own default   | No rule matched                                                                                                                                                        | Ask your operator to add a rule.                                                                        |
+| The failed run's logs are gone                                       | The category has `action: Delete`, the pod passed `kubernetes.failedPodExpiry` (10 minutes), or the cluster had more than `kubernetes.maxTerminatedPods` finished pods | Write important logs to your own storage.                                                               |
+| An `onPodEvents` rule doesn't match a pod that never started         | Before 0.22.15, `onPodEvents` only sees pods that failed. From 0.22.15, an event written after the executor detects the failure doesn't count                          | Upgrade, or use `onPodError` on the `pendingPodChecks` message.                                         |
+| `Config error in error categories: ...` and the executor won't start | A setting isn't valid; the message names the category and rule                                                                                                         | Fix the rule (see [Check the settings](#check-the-settings)) and apply again.                           |
+| The same failure gets different categories                           | The executors have different settings                                                                                                                                  | Use the same settings on every executor.                                                                |
