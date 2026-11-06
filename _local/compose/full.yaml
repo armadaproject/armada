@@ -17,6 +17,9 @@ name: armada-full
 # Usage:
 #   docker compose -f _local/compose/full.yaml up -d
 #
+# Each component starts through _local/scripts/run-component.sh. The script adds the config overrides from
+# _local/.test-config/. The testsuite config hook _local/scripts/apply-test-config.sh writes them.
+#
 # The external "kind" network is created by `mage kind`; components join it so the
 # executor can reach the Kind API server.
 
@@ -30,6 +33,13 @@ networks:
 x-component: &component
   networks: [kind]
   working_dir: /app
+
+# Shared timings of the component healthchecks. `up --wait` returns when the components are healthy, so a test case
+# does not run against a component that is not ready.
+x-health: &health
+  interval: 2s
+  timeout: 2s
+  retries: 60
 
 services:
   # =========================================================
@@ -149,6 +159,8 @@ services:
       scheduler-migration: {condition: service_completed_successfully}
     volumes:
       - ../scheduler/config.yaml:/config/config.yaml:ro
+      - ../scripts/run-component.sh:/scripts/run-component.sh:ro
+      - ../.test-config:/test-config:ro
     environment:
       ARMADA_PULSAR_URL: pulsar://pulsar:6650
       ARMADA_POSTGRES_CONNECTION_HOST: postgres
@@ -156,7 +168,10 @@ services:
       # Refresh the executor list every 1s (default 60s) so newly-started executors are
       # picked up quickly; the integration test readiness check waits on this.
       ARMADA_SCHEDULING_EXECUTORUPDATEFREQUENCY: 1s
-    command: ./scheduler run --config /config/config.yaml
+    command: /scripts/run-component.sh scheduler ./scheduler run
+    healthcheck:
+      <<: *health
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
 
   scheduleringester:
     <<: *component
@@ -167,11 +182,16 @@ services:
       pulsar: {condition: service_healthy}
     volumes:
       - ../scheduleringester/config.yaml:/config/config.yaml:ro
+      - ../scripts/run-component.sh:/scripts/run-component.sh:ro
+      - ../.test-config:/test-config:ro
     environment:
       ARMADA_POSTGRES_CONNECTION_HOST: postgres
       ARMADA_PULSAR_URL: pulsar://pulsar:6650
       ARMADA_PULSAR_RESTURL: http://pulsar:8080
-    command: ./scheduleringester --config /config/config.yaml
+    command: /scripts/run-component.sh scheduleringester ./scheduleringester
+    healthcheck:
+      <<: *health
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9006/metrics"]
 
   server:
     <<: *component
@@ -189,6 +209,8 @@ services:
       redis: {condition: service_healthy}
     volumes:
       - ../server/config.yaml:/config/config.yaml:ro
+      - ../scripts/run-component.sh:/scripts/run-component.sh:ro
+      - ../.test-config:/test-config:ro
     environment:
       ARMADA_EVENTSAPIREDIS_ADDRS: redis:6379
       ARMADA_REDIS_ADDRS: redis:6379
@@ -196,7 +218,10 @@ services:
       ARMADA_QUERYAPI_POSTGRES_CONNECTION_HOST: postgres
       ARMADA_PULSAR_URL: pulsar://pulsar:6650
       ARMADA_SCHEDULERAPICONNECTION_ARMADAURL: scheduler:50052
-    command: ./server --config /config/config.yaml
+    command: /scripts/run-component.sh server ./server
+    healthcheck:
+      <<: *health
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8081/health"]
 
   executor:
     <<: *component
@@ -208,11 +233,16 @@ services:
       scheduler: {condition: service_started}
     volumes:
       - ../executor/config.yaml:/config/config.yaml:ro
+      - ../scripts/run-component.sh:/scripts/run-component.sh:ro
+      - ../.test-config:/test-config:ro
       - ../../.kube/internal:/.kube:ro
     environment:
       KUBECONFIG: /.kube/config
       ARMADA_EXECUTORAPICONNECTION_ARMADAURL: scheduler:50052
-    command: ./executor --config /config/config.yaml
+    command: /scripts/run-component.sh executor ./executor
+    healthcheck:
+      <<: *health
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8082/health"]
 
   eventingester:
     <<: *component
@@ -223,11 +253,16 @@ services:
       redis: {condition: service_healthy}
     volumes:
       - ../eventingester/config.yaml:/config/config.yaml:ro
+      - ../scripts/run-component.sh:/scripts/run-component.sh:ro
+      - ../.test-config:/test-config:ro
     environment:
       ARMADA_REDIS_ADDRS: redis:6379
       ARMADA_PULSAR_URL: pulsar://pulsar:6650
       ARMADA_PULSAR_RESTURL: http://pulsar:8080
-    command: ./eventingester --config /config/config.yaml
+    command: /scripts/run-component.sh eventingester ./eventingester
+    healthcheck:
+      <<: *health
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9004/metrics"]
 
   lookoutingester:
     <<: *component
@@ -238,11 +273,16 @@ services:
       pulsar: {condition: service_healthy}
     volumes:
       - ../lookoutingester/config.yaml:/config/config.yaml:ro
+      - ../scripts/run-component.sh:/scripts/run-component.sh:ro
+      - ../.test-config:/test-config:ro
     environment:
       ARMADA_POSTGRES_CONNECTION_HOST: postgres
       ARMADA_PULSAR_URL: pulsar://pulsar:6650
       ARMADA_PULSAR_RESTURL: http://pulsar:8080
-    command: ./lookoutingester --config /config/config.yaml
+    command: /scripts/run-component.sh lookoutingester ./lookoutingester
+    healthcheck:
+      <<: *health
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9005/metrics"]
 
   lookout:
     <<: *component
@@ -255,9 +295,14 @@ services:
       lookout-migration: {condition: service_completed_successfully}
     volumes:
       - ../lookout/config.yaml:/config/config.yaml:ro
+      - ../scripts/run-component.sh:/scripts/run-component.sh:ro
+      - ../.test-config:/test-config:ro
     environment:
       ARMADA_POSTGRES_CONNECTION_HOST: postgres
-    command: ./lookout --config /config/config.yaml
+    command: /scripts/run-component.sh lookout ./lookout
+    healthcheck:
+      <<: *health
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8089/health"]
 
   binoculars:
     <<: *component
@@ -265,7 +310,12 @@ services:
     image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     volumes:
       - ../binoculars/config.yaml:/config/config.yaml:ro
+      - ../scripts/run-component.sh:/scripts/run-component.sh:ro
+      - ../.test-config:/test-config:ro
       - ../../.kube/internal:/.kube:ro
     environment:
       KUBECONFIG: /.kube/config
-    command: ./binoculars --config /config/config.yaml
+    command: /scripts/run-component.sh binoculars ./binoculars
+    healthcheck:
+      <<: *health
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8084/health"]
