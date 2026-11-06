@@ -5,12 +5,12 @@ description: 'Plan and run the migration of the Lookout job table to its partiti
 
 import { Callout } from 'fumadocs-ui/components/callout';
 
-<Callout type='warn' title='Action needed before v0.24.0'>
-  From v0.23.0, Lookout partitions its `job` table into active and terminated
-  jobs. New installs get the partitioned table automatically. Existing installs
-  are never migrated automatically: you must run the migration yourself before
-  you upgrade to v0.24.0 (planned for 01 March 2027), which no longer supports
-  the unpartitioned table.
+<Callout type='warn' title='Required since v0.24.0'>
+  Since v0.24.0, Lookout requires its `job` table to be partitioned into active
+  and terminated jobs. New installs get the partitioned table automatically.
+  Existing installs are never migrated automatically: if yours was installed
+  before v0.23.0 and has not been migrated, the Lookout API and pruner will not
+  start until you run the migration described on this page.
 </Callout>
 
 ## Why the job table is partitioned
@@ -42,8 +42,8 @@ You can migrate at any time from v0.23.0 onwards, and you do not need to install
 
 Your `job` table still needs migrating if any of these are true:
 
-- **Startup logs.** The Lookout API logs `Job table shape: unpartitioned` or `Job table shape: partitioned` when it starts. While an unpartitioned table contains data, Lookout and `lookout --migrateDatabase` also log a warning that support for it will be removed in v0.24.0.
-- **Metrics.** The Lookout API exposes `lookout_job_table_partitioned`, which is `1` once the table is partitioned and `0` before. It is updated on every scrape, so it changes as soon as the migration finishes, which is useful if you run many installs.
+- **Startup logs.** The Lookout API logs `Job table shape: unpartitioned` or `Job table shape: partitioned` when it starts. While an unpartitioned table contains data, the Lookout API and `lookout --pruneDatabase` then exit with an error saying that the unpartitioned schema is no longer supported, and `lookout --migrateDatabase` logs the same message as a warning. Versions v0.23.x log a warning instead.
+- **Metrics.** The Lookout API exposes `lookout_job_table_partitioned`, which is `1` when the table is partitioned. From v0.24.0 the API does not start on an unpartitioned table that contains data, so the metric is missing rather than `0`.
 - **SQL.** Run `SELECT EXISTS (SELECT 1 FROM pg_partitioned_table WHERE partrelid = 'job'::regclass);` against the Lookout database. `true` means the table is already partitioned.
 - **Preflight.** `lookout --partitionJobTable --preflight` reports `The job table is already partitioned` if there is nothing to do.
 
@@ -89,6 +89,20 @@ Run the migration in a quiet period and let your users know beforehand that Look
 </Callout>
 
 ## Running the migration
+
+<Callout
+  type='info'
+  title='Upgrading to v0.24.0 or later without having migrated'
+>
+  Run `lookout --migrateDatabase` and the migration with the new version before
+  you roll out its Lookout API and pruner, which will not start until the
+  migration has finished. With Helm, upgrade the `lookout-migration` chart and
+  run its partition Job first, then upgrade the `lookout` chart. With the Armada
+  Operator, set `spec.partitionJobTable.enabled: true` together with the new
+  image: the Lookout API is unavailable until the partition Job succeeds, as it
+  would be during the migration anyway. Alternatively, upgrade to a v0.23.x
+  release first and migrate there.
+</Callout>
 
 1. **Upgrade to v0.23.0 or later**, and let `lookout --migrateDatabase` run as part of the upgrade. The migration refuses to run until the database has been migrated by the same version of Lookout.
    - **With Helm**, delete the previous version's migration Job first (`kubectl delete job armada-lookout-migration`, or `<nameOverride>` if you set one). Kubernetes does not allow a Job's pod template to change, so the upgrade of the `lookout-migration` chart fails while that Job exists.
