@@ -1552,35 +1552,35 @@ func TestQueuedDemandEqual(t *testing.T) {
 	}
 
 	t.Run("equal demands match", func(t *testing.T) {
-		require.True(t, queuedDemandEqual(newDemand("q1", oneCpu), newDemand("q1", oneCpu)))
+		require.True(t, demandEqual(newDemand("q1", oneCpu), newDemand("q1", oneCpu)))
 	})
 
 	t.Run("both empty match", func(t *testing.T) {
-		require.True(t, queuedDemandEqual(
+		require.True(t, demandEqual(
 			map[string]map[string]internaltypes.ResourceList{},
 			map[string]map[string]internaltypes.ResourceList{},
 		))
 	})
 
 	t.Run("different quantity mismatches", func(t *testing.T) {
-		require.False(t, queuedDemandEqual(newDemand("q1", twoCpu), newDemand("q1", oneCpu)))
+		require.False(t, demandEqual(newDemand("q1", twoCpu), newDemand("q1", oneCpu)))
 	})
 
 	t.Run("missing queue mismatches", func(t *testing.T) {
-		require.False(t, queuedDemandEqual(newDemand("q1", oneCpu), newDemand("q2", oneCpu)))
+		require.False(t, demandEqual(newDemand("q1", oneCpu), newDemand("q2", oneCpu)))
 	})
 
 	t.Run("zero bucket matches absent bucket", func(t *testing.T) {
 		zero := oneCpu.Subtract(oneCpu)
-		require.True(t, queuedDemandEqual(newDemand("q1", zero), map[string]map[string]internaltypes.ResourceList{}))
-		require.True(t, queuedDemandEqual(map[string]map[string]internaltypes.ResourceList{}, newDemand("q1", zero)))
-		require.True(t, queuedDemandEqual(newDemand("q1", zero), newDemand("q2", zero)))
+		require.True(t, demandEqual(newDemand("q1", zero), map[string]map[string]internaltypes.ResourceList{}))
+		require.True(t, demandEqual(map[string]map[string]internaltypes.ResourceList{}, newDemand("q1", zero)))
+		require.True(t, demandEqual(newDemand("q1", zero), newDemand("q2", zero)))
 	})
 
 	t.Run("zero bucket does not mask non-zero demand", func(t *testing.T) {
 		zero := oneCpu.Subtract(oneCpu)
-		require.False(t, queuedDemandEqual(newDemand("q1", zero), newDemand("q2", oneCpu)))
-		require.False(t, queuedDemandEqual(newDemand("q2", oneCpu), newDemand("q1", zero)))
+		require.False(t, demandEqual(newDemand("q1", zero), newDemand("q2", oneCpu)))
+		require.False(t, demandEqual(newDemand("q2", oneCpu), newDemand("q1", zero)))
 	})
 }
 
@@ -1593,11 +1593,11 @@ func TestQueuedDemandDiff(t *testing.T) {
 
 	t.Run("no differences yields empty string", func(t *testing.T) {
 		demand := map[string]map[string]internaltypes.ResourceList{"q1": {pc: oneCpu}}
-		require.Empty(t, queuedDemandDiff(demand, demand))
+		require.Empty(t, demandDiff(demand, demand))
 	})
 
 	t.Run("reports differing quantity", func(t *testing.T) {
-		diff := queuedDemandDiff(
+		diff := demandDiff(
 			map[string]map[string]internaltypes.ResourceList{"q1": {pc: twoCpu}},
 			map[string]map[string]internaltypes.ResourceList{"q2": {pc: oneCpu}},
 		)
@@ -1692,6 +1692,71 @@ func TestCalculateJobSchedulingInfo_AggregateDemandAgreementPublishesComparisonO
 
 	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
 	require.Equal(t, beforeMismatches, testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool)))
+
+	cpu := info.demandByQueueAndPriorityClass()["q1"][pc].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(1), cpu.Value())
+}
+
+// TestCalculateJobSchedulingInfo_RunningMismatchRecordsMetrics proves a running
+// divergence is recorded in the running aggregate metrics, and the scan remains
+// authoritative.
+func TestCalculateJobSchedulingInfo_RunningMismatchRecordsMetrics(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-running-mismatch-pool"
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	leased := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithNewRun("executor-1", "node-1", "node-1", pool, 0)
+	phantom := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithNewRun("executor-2", "node-2", "node-2", pool, 0)
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{leased})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{compareRunningAggregateDemand: true}
+
+	beforeComparisons := testutil.ToFloat64(jobAggregateRunningComparisons.WithLabelValues(pool))
+	beforeMismatches := testutil.ToFloat64(jobAggregateRunningMismatches.WithLabelValues(pool))
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{"executor-1": true, "executor-2": true}, queues,
+		[]*jobdb.Job{leased, phantom}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	// Scan wins: demand covers both jobs (2 cpu) although the aggregate only knows one.
+	cpu := info.demandByQueueAndPriorityClass()["q1"][testfixtures.PriorityClass0].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(2), cpu.Value())
+
+	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateRunningComparisons.WithLabelValues(pool)))
+	require.Equal(t, beforeMismatches+1, testutil.ToFloat64(jobAggregateRunningMismatches.WithLabelValues(pool)))
+}
+
+// TestCalculateJobSchedulingInfo_RunningAggregateAgreementPublishesComparisonOnly
+// proves that when the running aggregate agrees with the scan, a comparison is
+// recorded but no mismatch.
+func TestCalculateJobSchedulingInfo_RunningAggregateAgreementPublishesComparisonOnly(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-running-agreement-pool"
+	pc := testfixtures.PriorityClass0
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	leased := testfixtures.Test1Cpu4GiJob("q1", pc).
+		WithNewRun("executor-1", "node-1", "node-1", pool, 0)
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{leased})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{compareRunningAggregateDemand: true}
+
+	beforeComparisons := testutil.ToFloat64(jobAggregateRunningComparisons.WithLabelValues(pool))
+	beforeMismatches := testutil.ToFloat64(jobAggregateRunningMismatches.WithLabelValues(pool))
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{"executor-1": true}, queues,
+		[]*jobdb.Job{leased}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateRunningComparisons.WithLabelValues(pool)))
+	require.Equal(t, beforeMismatches, testutil.ToFloat64(jobAggregateRunningMismatches.WithLabelValues(pool)))
 
 	cpu := info.demandByQueueAndPriorityClass()["q1"][pc].GetByNameZeroIfMissing("cpu")
 	require.Equal(t, int64(1), cpu.Value())
