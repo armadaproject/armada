@@ -50,7 +50,6 @@ func TestGetAvailableClusterCapacity_ReportsAllNodeTaints(t *testing.T) {
 			Allocatable: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")},
 		}},
 	)
-	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, "node-type", "node-pool", "", wellKnownTaints)
 	for name, tc := range map[string]struct {
 		categoriseUnknown bool
 		unknownCategory   string
@@ -59,11 +58,16 @@ func TestGetAvailableClusterCapacity_ReportsAllNodeTaints(t *testing.T) {
 		"unknown taints categorised":   {categoriseUnknown: true, unknownCategory: "unknown"},
 	} {
 		t.Run(name, func(t *testing.T) {
+			taintCategorisation := kubernetesConfig.TaintCategorisation
+			taintCategorisation.CategoriseUnknownTaints = tc.categoriseUnknown
+			nodeInfoService, err := node.NewKubernetesNodeInfoService(clusterContext, "node-type", "node-pool", "", taintCategorisation, kubernetesConfig.ToleratedTaints)
+			require.NoError(t, err)
 			// No pods are present, so this report does not need a pod utilisation service.
 			service := NewClusterUtilisationService(clusterContext, nil, nodeInfoService, wellKnownTaints, tc.categoriseUnknown, nil, nodeIdLabel, nil, 0)
 			report, err := service.GetAvailableClusterCapacity()
 			require.NoError(t, err)
 			require.Len(t, report.Nodes, 1)
+			assert.Equal(t, !tc.categoriseUnknown, report.Nodes[0].Unschedulable)
 			assert.Equal(t, []*v1.Taint{legacy, user, admin, reservation, other}, report.Nodes[0].Taints)
 			assert.Equal(t, []*executorapi.NodeTaint{
 				{Taint: legacy, UserFacing: true},

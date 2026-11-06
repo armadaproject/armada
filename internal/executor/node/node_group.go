@@ -12,7 +12,11 @@ import (
 	util2 "github.com/armadaproject/armada/internal/executor/util"
 )
 
-const defaultNodeType = "none"
+const (
+	defaultNodeType     = "none"
+	masterRoleKey       = "node-role.kubernetes.io/master"
+	controlPlaneRoleKey = "node-role.kubernetes.io/control-plane"
+)
 
 type NodeInfoService interface {
 	IsAvailableProcessingNode(*v1.Node) bool
@@ -28,6 +32,7 @@ type KubernetesNodeInfoService struct {
 	nodeTypeLabel          string
 	nodePoolLabel          string
 	reservedNodePoolSuffix string
+	taintCategorisation    configuration.TaintCategorisationConfiguration
 	wellKnownTaints        *configuration.WellKnownTaints
 }
 
@@ -36,15 +41,24 @@ func NewKubernetesNodeInfoService(
 	nodeTypeLabel string,
 	nodePoolLabel string,
 	reservedNodePoolSuffix string,
-	wellKnownTaints *configuration.WellKnownTaints,
-) *KubernetesNodeInfoService {
+	taintCategorisation configuration.TaintCategorisationConfiguration,
+	toleratedTaints []string,
+) (*KubernetesNodeInfoService, error) {
+	wellKnownTaints, err := (configuration.KubernetesConfiguration{
+		TaintCategorisation: taintCategorisation,
+		ToleratedTaints:     toleratedTaints,
+	}).NewWellKnownTaints()
+	if err != nil {
+		return nil, err
+	}
 	return &KubernetesNodeInfoService{
 		clusterContext:         clusterContext,
 		nodePoolLabel:          nodePoolLabel,
 		nodeTypeLabel:          nodeTypeLabel,
 		reservedNodePoolSuffix: reservedNodePoolSuffix,
+		taintCategorisation:    taintCategorisation,
 		wellKnownTaints:        wellKnownTaints,
-	}
+	}, nil
 }
 
 type NodeGroup struct {
@@ -141,14 +155,31 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetAllNodes() ([]*v1
 }
 
 func (kubernetesNodeInfoService *KubernetesNodeInfoService) IsAvailableProcessingNode(node *v1.Node) bool {
+	// Cordoned nodes are not available
 	if node.Spec.Unschedulable {
 		return false
 	}
 
+	// Control plane nodes are not available
+	if _, ok := node.Labels[masterRoleKey]; ok {
+		return false
+	}
+	if _, ok := node.Labels[controlPlaneRoleKey]; ok {
+		return false
+	}
 	for _, taint := range node.Spec.Taints {
-		_, isWellKnown := kubernetesNodeInfoService.wellKnownTaints.MatchWellKnownTaint(taint.Key)
-		if taint.Effect == v1.TaintEffectNoSchedule && !isWellKnown {
+		if taint.Key == masterRoleKey || taint.Key == controlPlaneRoleKey {
 			return false
+		}
+	}
+
+	// When unknown taints are not categorised, nodes with unknown taints are not available
+	if !kubernetesNodeInfoService.taintCategorisation.CategoriseUnknownTaints {
+		for _, taint := range node.Spec.Taints {
+			_, isWellKnown := kubernetesNodeInfoService.wellKnownTaints.MatchWellKnownTaint(taint.Key)
+			if taint.Effect == v1.TaintEffectNoSchedule && !isWellKnown {
+				return false
+			}
 		}
 	}
 

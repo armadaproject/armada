@@ -369,6 +369,23 @@ func (node *Node) GetNodeType() *NodeType {
 	return node.nodeType
 }
 
+func (node *Node) GetTaintCategory() string {
+	if len(node.nodeTaints) == 0 {
+		return "none"
+	}
+
+	category := "user"
+	for _, nodeTaint := range node.nodeTaints {
+		if nodeTaint.category == "" {
+			return "unknown"
+		} else if nodeTaint.category != "user" {
+			category = "admin"
+		}
+	}
+
+	return category
+}
+
 func (node *Node) GetLabels() map[string]string {
 	return deepCopyLabels(node.labels)
 }

@@ -130,12 +130,16 @@ func StartUpWithContext(
 	if err != nil {
 		ctx.Fatalf("Config error in well-known taints: %s", err)
 	}
-	nodeInfoService := node.NewKubernetesNodeInfoService(
+	nodeInfoService, err := node.NewKubernetesNodeInfoService(
 		clusterContext,
 		config.Kubernetes.NodeTypeLabel,
 		config.Kubernetes.NodePoolLabel,
 		config.Application.ReservedNodePoolSuffix,
-		wellKnownTaints)
+		config.Kubernetes.TaintCategorisation,
+		config.Kubernetes.ToleratedTaints)
+	if err != nil {
+		ctx.Fatalf("Config error in node taint categorisation: %s", err)
+	}
 	podUtilisationService := utilisation.NewPodUtilisationService(
 		clusterContext,
 		nodeInfoService,
