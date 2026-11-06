@@ -327,7 +327,7 @@ pub struct Queue {
         ::prost::alloc::string::String,
     >,
     /// retry_policies are the names of the retry policies attached to this queue,
-    /// in precedence order. The scheduler evaluates the first policy in the list.
+    /// in priority order. The first policy has the highest priority.
     #[prost(string, repeated, tag = "11")]
     pub retry_policies: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }

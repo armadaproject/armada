@@ -203,7 +203,7 @@ message Queue {
     repeated string labels_deprecated = 9 [deprecated=true];
     map<string,string> labels = 10;
     // retry_policies are the names of the retry policies attached to this queue,
-    // in precedence order. The scheduler evaluates the first policy in the list.
+    // in priority order. The first policy has the highest priority.
     repeated string retry_policies = 11;
 }
 
