@@ -269,7 +269,7 @@ func TestSchedulingResourceRequirementsFromPodSpec(t *testing.T) {
 				},
 			},
 		},
-		"mixed native sidecar and classic init containers": {
+		"native sidecar before a classic init container adds to it": {
 			input: &v1.PodSpec{
 				Containers: []v1.Container{
 					{
@@ -314,16 +314,79 @@ func TestSchedulingResourceRequirementsFromPodSpec(t *testing.T) {
 				},
 			},
 			// Running total: main (2000, 1000) + sidecar (1000, 500) = (3000, 1500)
-			// Classic init: (5000, 100) -> max with running: (5000, 1500)
+			// Classic init runs next to the sidecar that starts before it: (5000, 100) + (1000, 500) = (6000, 600)
 			expected: &v1.ResourceRequirements{
 				Requests: v1.ResourceList{
-					"cpu":    QuantityWithMilliValue(5000),
+					"cpu":    QuantityWithMilliValue(6000),
 					"memory": QuantityWithMilliValue(1500),
 				},
 				Limits: v1.ResourceList{
-					"cpu":    QuantityWithMilliValue(5000),
+					"cpu":    QuantityWithMilliValue(6000),
 					"memory": QuantityWithMilliValue(1500),
 				},
+			},
+		},
+		"classic init container before a native sidecar runs alone": {
+			input: &v1.PodSpec{
+				Containers: []v1.Container{{
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{"cpu": QuantityWithMilliValue(2000)},
+						Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(2000)},
+					},
+				}},
+				InitContainers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{"cpu": QuantityWithMilliValue(5000)},
+							Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(5000)},
+						},
+					},
+					{
+						RestartPolicy: restartPolicyAlways(),
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{"cpu": QuantityWithMilliValue(1000)},
+							Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(1000)},
+						},
+					},
+				},
+			},
+			expected: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{"cpu": QuantityWithMilliValue(5000)},
+				Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(5000)},
+			},
+		},
+		"zero request from a classic init container is left out": {
+			input: &v1.PodSpec{
+				Containers: []v1.Container{{
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{"cpu": QuantityWithMilliValue(1000)},
+						Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(1000)},
+					},
+				}},
+				InitContainers: []v1.Container{{
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{"cpu": QuantityWithMilliValue(100), "hugepages-2Mi": QuantityWithMilliValue(0)},
+						Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(100), "hugepages-2Mi": QuantityWithMilliValue(0)},
+					},
+				}},
+			},
+			expected: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{"cpu": QuantityWithMilliValue(1000)},
+				Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(1000)},
+			},
+		},
+		"zero request from a main container is kept": {
+			input: &v1.PodSpec{
+				Containers: []v1.Container{{
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{"cpu": QuantityWithMilliValue(1000), "nvidia.com/gpu": QuantityWithMilliValue(0)},
+						Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(1000), "nvidia.com/gpu": QuantityWithMilliValue(0)},
+					},
+				}},
+			},
+			expected: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{"cpu": QuantityWithMilliValue(1000), "nvidia.com/gpu": QuantityWithMilliValue(0)},
+				Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(1000), "nvidia.com/gpu": QuantityWithMilliValue(0)},
 			},
 		},
 		"multiple native sidecars are all summed": {
@@ -388,7 +451,7 @@ func TestSchedulingResourceRequirementsFromPodSpec(t *testing.T) {
 				Limits:   v1.ResourceList{"cpu": QuantityWithMilliValue(4000)},
 			},
 		},
-		"pod-level is max'd with the container sum": {
+		"pod-level value replaces the container sum": {
 			input: &v1.PodSpec{
 				Containers: []v1.Container{{
 					Resources: v1.ResourceRequirements{

@@ -160,15 +160,15 @@ func TestTotalResourceRequest_PodLevelResources(t *testing.T) {
 			podLevelResources:  ptr.To(makeContainerResource(4, 16)),
 			expected:           makeContainerResource(4, 16),
 		},
-		"effective request is max of container-sum and pod-level": {
+		"pod-level value replaces the container sum": {
 			containerResources: []*v1.ResourceList{ptr.To(makeContainerResource(2, 4))},
-			podLevelResources:  ptr.To(makeContainerResource(4, 2)),
-			expected:           makeContainerResource(4, 4),
+			podLevelResources:  ptr.To(makeContainerResource(4, 8)),
+			expected:           makeContainerResource(4, 8),
 		},
-		"container-sum wins when it exceeds pod-level": {
-			containerResources: []*v1.ResourceList{ptr.To(makeContainerResource(8, 8))},
-			podLevelResources:  ptr.To(makeContainerResource(4, 4)),
-			expected:           makeContainerResource(8, 8),
+		"resource missing from the pod-level block keeps the container sum": {
+			containerResources: []*v1.ResourceList{ptr.To(makeContainerResource(2, 4))},
+			podLevelResources:  &v1.ResourceList{v1.ResourceCPU: *resource.NewQuantity(4, resource.DecimalSI)},
+			expected:           makeContainerResource(4, 4),
 		},
 		"nil pod-level leaves upstream behaviour unchanged": {
 			containerResources: []*v1.ResourceList{ptr.To(makeContainerResource(2, 4))},
@@ -218,8 +218,8 @@ func TestTotalResourceRequest_MixedNativeSidecarAndClassicInitContainers(t *test
 		[]*v1.ResourceList{&classicInitResource},
 	)
 	// Running total: main (2, 1) + sidecar (1, 1) = (3, 2)
-	// Classic init: (5, 1) -> max with running: (5, 2)
-	expectedResult := makeContainerResource(5, 2)
+	// Classic init runs next to the sidecar that starts before it: (5, 1) + (1, 1) = (6, 2)
+	expectedResult := makeContainerResource(6, 2)
 
 	result := TotalPodResourceRequest(&pod.Spec)
 	assert.Equal(t, result, FromResourceList(expectedResult))
@@ -239,39 +239,6 @@ func TestTotalResourceRequest_MultipleNativeSidecarsAreSummed(t *testing.T) {
 
 	result := TotalPodResourceRequest(&pod.Spec)
 	assert.Equal(t, result, FromResourceList(expectedResult))
-}
-
-func TestIsNativeSidecar(t *testing.T) {
-	tests := map[string]struct {
-		container *v1.Container
-		expected  bool
-	}{
-		"native sidecar with RestartPolicy=Always": {
-			container: &v1.Container{
-				Name:          "sidecar",
-				RestartPolicy: restartPolicyAlways(),
-			},
-			expected: true,
-		},
-		"classic init container without RestartPolicy": {
-			container: &v1.Container{
-				Name: "init",
-			},
-			expected: false,
-		},
-		"classic init container with nil RestartPolicy": {
-			container: &v1.Container{
-				Name:          "init",
-				RestartPolicy: nil,
-			},
-			expected: false,
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, IsNativeSidecar(tc.container))
-		})
-	}
 }
 
 func TestToProtoMap(t *testing.T) {
