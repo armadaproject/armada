@@ -26,7 +26,9 @@ applicationConfig: {}
 # keep running while it works. Follow it with
 # `kubectl logs -f job/armada-lookout-migration-partition-job-table-<revision>`
 # (or `<nameOverride>-partition-job-table-<revision>`), then set enabled back
-# to false. Run `lookout --partitionJobTable --preflight` first.
+# to false. Helm leaves each partition Job in place after later upgrades and
+# `helm uninstall`, so Kubernetes deletes it ttlSecondsAfterFinished after it
+# finishes. Run `lookout --partitionJobTable --preflight` first.
 partitionJobTable:
   # -- Create a Job that partitions the job table. Enable it in a separate `helm upgrade` after this version's migration Job has succeeded. Helm does not wait for it: follow it with `kubectl logs -f job/<name>-partition-job-table-<revision>`, then set this back to false
   enabled: false

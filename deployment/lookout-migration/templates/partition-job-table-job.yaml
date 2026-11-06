@@ -5,6 +5,10 @@ metadata:
   name: {{ include "lookout.name" . | trunc 40 | trimSuffix "-" }}-partition-job-table-{{ .Release.Revision }}
   labels:
     {{- include "lookout.labels.all" . | nindent 4 }}
+  annotations:
+    # Each revision renders a Job with a new name, so without this a later upgrade would delete this Job, and its
+    # logs, before ttlSecondsAfterFinished, or stop it part-way if it was still running.
+    helm.sh/resource-policy: keep
 spec:
   backoffLimit: 0
   completions: 1
