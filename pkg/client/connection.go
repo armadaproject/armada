@@ -1,8 +1,11 @@
 package client
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -22,7 +25,9 @@ import (
 )
 
 type ApiConnectionDetails struct {
-	ArmadaUrl     string
+	ArmadaUrl string
+	// LookoutUrl is the url of the Lookout API, for the commands that query Lookout rather than Armada.
+	LookoutUrl    string
 	ArmadaRestUrl string
 	// Names of executor clusters as they appear in the local kubeconfig file.
 	// Used by the test suite to download logs from pods running tests.
@@ -117,6 +122,52 @@ func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredenti
 		return exec.NewAuthenticator(config.ExecAuth), nil
 	}
 	return nil, nil
+}
+
+// AuthHeaders returns the HTTP headers that authenticate a request to rawURL with the credentials the connection
+// is configured with, which are the credentials that authenticate its gRPC calls. It returns no headers when no
+// credentials are configured. Like the gRPC connection, which only goes without TLS to a local server or when
+// ForceNoTls is set, it refuses to send credentials over plain http in other cases.
+func (config *ApiConnectionDetails) AuthHeaders(ctx context.Context, rawURL string) (map[string]string, error) {
+	creds, err := perRpcCredentials(config)
+	if err != nil {
+		return nil, err
+	}
+	if creds == nil {
+		return nil, nil
+	}
+	if !config.AllowsCredentialsOver(rawURL) {
+		return nil, errors.New("refusing to send credentials over plain http: use an https url")
+	}
+	return creds.GetRequestMetadata(ctx, rawURL)
+}
+
+// AllowsCredentialsOver reports whether credentials may be sent to rawURL. Like the gRPC connection, which only
+// goes without TLS to a local server or when ForceNoTls is set, they may not go over plain http to anything else.
+// A url that cannot be parsed is not trusted.
+func (config *ApiConnectionDetails) AllowsCredentialsOver(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	return u.Scheme != "http" || IsLocalAddress(rawURL) || config.ForceNoTls
+}
+
+// IsLocalAddress reports whether the host of an address, which may be a url or a host with a port, is this machine.
+func IsLocalAddress(address string) bool {
+	u, err := url.Parse(address)
+	if err != nil || u.Host == "" {
+		u, err = url.Parse("//" + address)
+		if err != nil {
+			return false
+		}
+	}
+	host := u.Hostname()
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func transportCredentials(config *ApiConnectionDetails) grpc.DialOption {
