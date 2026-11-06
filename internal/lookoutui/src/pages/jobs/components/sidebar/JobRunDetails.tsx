@@ -30,6 +30,7 @@ import { useGetJobRunDebugMessage } from "../../../../services/lookout/useGetJob
 import { useGetJobRunError } from "../../../../services/lookout/useGetJobRunError"
 import { useGetJobRunSchedulerTerminationReason } from "../../../../services/lookout/useGetJobRunSchedulerTerminationReason"
 
+import { DebugInfo } from "./DebugInfo"
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import { SidebarTabSubheading } from "./sidebarTabContentComponents"
 
@@ -327,13 +328,7 @@ export const JobRunDetails = ({
             <Accordion variant="elevation" square>
               <AccordionSummary>Debug</AccordionSummary>
               <AccordionDetails>
-                <CodeBlock
-                  code={debugMessage}
-                  language="text"
-                  downloadable={false}
-                  showLineNumbers={false}
-                  loading={false}
-                />
+                <DebugInfo message={debugMessage} />
               </AccordionDetails>
             </Accordion>
           )}

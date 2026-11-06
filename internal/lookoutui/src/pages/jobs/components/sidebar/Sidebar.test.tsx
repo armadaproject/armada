@@ -1,9 +1,8 @@
-import { QueryClientProvider } from "@tanstack/react-query"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { SnackbarProvider } from "notistack"
 
-import { queryClient } from "../../../../app/App"
 import { makeTestJob } from "../../../../common/fakeJobsUtils"
 import { Job, JobRunState, JobState } from "../../../../models/lookoutModels"
 import { ApiClientsProvider } from "../../../../services/apiClients"
@@ -43,7 +42,22 @@ describe("Sidebar", () => {
       ],
     )
     mockServer.setPostJobRunErrorResponseForRunId("1234-5678", "job run error")
-    mockServer.setPostJobRunDebugMessageResponseForRunId("1234-5678", "job run debug message")
+    mockServer.setPostJobRunDebugMessageResponseForRunId(
+      "1234-5678",
+      JSON.stringify({
+        diagnostic: {
+          status: "Failed",
+          attempts: [
+            {
+              host: "worker-1",
+              result: {
+                code: 137,
+              },
+            },
+          ],
+        },
+      }),
+    )
     mockServer.setPostJobSpecResponse({
       // eslint-disable-next-line @cspell/spellchecker
       clientId: "01gvgjbr0jrzvschp2f8jhk6n5",
@@ -90,16 +104,24 @@ describe("Sidebar", () => {
     mockServer.close()
   })
 
-  const renderComponent = () =>
-    render(
+  const renderComponent = () => {
+    const testQueryClient = new QueryClient({
+      defaultOptions: {
+        queries: { gcTime: 0, retry: false },
+        mutations: { retry: false },
+      },
+    })
+
+    return render(
       <SnackbarProvider>
-        <QueryClientProvider client={queryClient}>
+        <QueryClientProvider client={testQueryClient}>
           <ApiClientsProvider>
             <Sidebar job={job} sidebarWidth={600} onClose={onClose} onWidthChange={() => undefined} commandSpecs={[]} />
           </ApiClientsProvider>
         </QueryClientProvider>
       </SnackbarProvider>,
     )
+  }
 
   it("should show job details by default", async () => {
     const { findByRole } = renderComponent()
@@ -135,6 +157,53 @@ describe("Sidebar", () => {
     // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
     within(getByRole("row", { name: /Exit code/ })).getByText(137)
+  })
+
+  it("should display arbitrary JSON data in nested detail sections", async () => {
+    const { getByRole, findByRole, findByText } = renderComponent()
+
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
+    await userEvent.click(await findByRole("button", { name: "Debug" }))
+
+    await userEvent.click(getByRole("button", { name: "diagnostic" }))
+    within(await findByRole("row", { name: /status/ })).getByText("Failed")
+    await userEvent.click(getByRole("button", { name: "attempts" }))
+    within(await findByRole("row", { name: /host/ })).getByText("worker-1")
+    await userEvent.click(getByRole("button", { name: "result" }))
+    within(await findByRole("row", { name: /code/ })).getByText("137")
+
+    await userEvent.click(getByRole("button", { name: "JSON" }))
+    expect(
+      await findByText((_, element) => element?.tagName === "DIV" && element.textContent === '  "diagnostic": {'),
+    ).toBeInTheDocument()
+  })
+
+  it("should display unstructured debug data as text", async () => {
+    mockServer.setPostJobRunDebugMessageResponseForRunId("1234-5678", "legacy debug message")
+    const { getByRole, findByRole, findByText, queryByRole } = renderComponent()
+
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
+    await userEvent.click(await findByRole("button", { name: "Debug" }))
+
+    expect(await findByText("legacy debug message")).toBeInTheDocument()
+    expect(queryByRole("button", { name: "Details" })).toBeNull()
+  })
+
+  it("should display valid JSON with any shape in the details view", async () => {
+    mockServer.setPostJobRunDebugMessageResponseForRunId(
+      "1234-5678",
+      '{"message":"unknown payload","values":[true,null]}',
+    )
+    const { getByRole, findByRole } = renderComponent()
+
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
+    await userEvent.click(await findByRole("button", { name: "Debug" }))
+
+    expect(getByRole("button", { name: "Details" })).toBeInTheDocument()
+    within(await findByRole("row", { name: /message/ })).getByText("unknown payload")
+    await userEvent.click(getByRole("button", { name: "values" }))
+    within(await findByRole("row", { name: "Value true" })).getByText("true")
+    within(await findByRole("row", { name: "Value null" })).getByText("null")
   })
 
   it("should handle no runs", async () => {
