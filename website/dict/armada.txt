@@ -53,4 +53,13 @@ uncategorized
 fairshare
 ingester
 kubelet
+jobset
+uncordoned
+triggerer
+rdzv
+torchrun
+certingress
+scriptable
+preemptible
+reprioritizes
 EMFILE
