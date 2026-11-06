@@ -1,6 +1,5 @@
 -- target_schema.sql
--- Target partitioned shape for the job table in the experimental hot-cold
--- phase.
+-- Target partitioned shape for the job table.
 --
 -- Placeholder: {{TABLE}} is replaced at render time with the parent table
 -- name (typically 'job_new' during conversion, 'job' for a from-scratch

@@ -2,20 +2,24 @@ package pruner
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookout/repository"
+	lookoutschema "github.com/armadaproject/armada/internal/lookout/schema"
 	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
 	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
 	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
@@ -35,8 +39,8 @@ func TestPruneDb(t *testing.T) {
 		expireAfter          time.Duration
 		jobs                 []testJob
 		jobIdsLeft           []string
-		activeJobIdsLeft     []string // HC only: when non-nil, assert job_active contains exactly these
-		terminatedJobIdsLeft []string // HC only: when non-nil, assert job_terminated contains exactly these
+		activeJobIdsLeft     []string // partitioned only: when non-nil, assert job_active contains exactly these
+		terminatedJobIdsLeft []string // partitioned only: when non-nil, assert job_terminated contains exactly these
 		jobErrorIdsLeft      []string // when non-nil, assert job_error contains exactly these
 	}
 
@@ -133,7 +137,7 @@ func TestPruneDb(t *testing.T) {
 			jobIdsLeft: sampleJobIds[50:],
 		},
 		{
-			testName:    "delete from job_terminated when hot cold split enabled",
+			testName:    "delete from job_terminated on the partitioned schema",
 			expireAfter: 10 * time.Hour,
 			jobs: []testJob{
 				{
@@ -221,8 +225,7 @@ func TestPruneDb(t *testing.T) {
 
 				dbConn, err := db.Acquire(ctx)
 				assert.NoError(t, err)
-				isHC := isHotColdSchema(ctx, db)
-				err = PruneDb(ctx, dbConn.Conn(), tc.expireAfter, 0, 0, 10, clock.NewFakeClock(baseTime), isHC)
+				err = PruneDb(ctx, dbConn.Conn(), tc.expireAfter, 0, 0, 10, clock.NewFakeClock(baseTime))
 				assert.NoError(t, err)
 
 				queriedJobIdsPerTable := []map[string]bool{
@@ -244,7 +247,9 @@ func TestPruneDb(t *testing.T) {
 					selectStringSet(t, db, "SELECT run_id FROM job_run"),
 					selectStringSet(t, db, "SELECT run_id FROM job_run_info"))
 
-				if isHC {
+				partitioned, err := lookoutschema.IsJobTablePartitioned(ctx, db)
+				require.NoError(t, err)
+				if partitioned {
 					if tc.activeJobIdsLeft != nil {
 						assertJobIds(t, db, "SELECT job_id FROM job_active", tc.activeJobIdsLeft)
 					}
@@ -261,6 +266,34 @@ func TestPruneDb(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	}
+}
+
+// TestSelectJobIdsToDelete_OnlyScansTerminatedPartition verifies that the
+// pruner can query job on both schemas: on the partitioned schema, Postgres
+// prunes its scan to job_terminated.
+func TestSelectJobIdsToDelete_OnlyScansTerminatedPartition(t *testing.T) {
+	migrations, err := lookoutschema.LookoutMigrations()
+	require.NoError(t, err)
+	err = database.WithTestDb(migrations, func(db *pgxpool.Pool) error {
+		ctx := armadacontext.Background()
+		require.NoError(t, lookoutschema.PartitionJobTable(ctx, db))
+
+		rows, err := db.Query(ctx, "EXPLAIN "+selectJobIdsToDelete, baseTime)
+		require.NoError(t, err)
+		defer rows.Close()
+		var plan strings.Builder
+		for rows.Next() {
+			var line string
+			require.NoError(t, rows.Scan(&line))
+			plan.WriteString(line + "\n")
+		}
+		require.NoError(t, rows.Err())
+
+		assert.Contains(t, plan.String(), "job_terminated")
+		assert.NotContains(t, plan.String(), "job_active")
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func storeJob(job testJob, db *lookoutdb.LookoutDb, converter *instructions.InstructionConverter) {
@@ -306,16 +339,6 @@ func storeJob(job testJob, db *lookoutdb.LookoutDb, converter *instructions.Inst
 	default:
 		panic(fmt.Sprintf("job state %s not supported", job.state))
 	}
-}
-
-func isHotColdSchema(ctx *armadacontext.Context, db *pgxpool.Pool) bool {
-	var exists bool
-	err := db.QueryRow(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM information_schema.tables
-			WHERE table_name = 'job_active'
-		)`).Scan(&exists)
-	return err == nil && exists
 }
 
 func assertJobIds(t *testing.T, db *pgxpool.Pool, query string, expected []string) {
