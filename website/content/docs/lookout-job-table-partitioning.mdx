@@ -92,7 +92,7 @@ Run the migration in a quiet period and let your users know beforehand that Look
 
 1. **Upgrade to v0.23.0 or later**, and let `lookout --migrateDatabase` run as part of the upgrade. The migration refuses to run until the database has been migrated by the same version of Lookout.
    - **With Helm**, delete the previous version's migration Job first (`kubectl delete job armada-lookout-migration`, or `<nameOverride>` if you set one). Kubernetes does not allow a Job's pod template to change, so the upgrade of the `lookout-migration` chart fails while that Job exists.
-   - **With the Armada Operator**, v0.8.0 or later runs the migration Job again with the new image before it updates the Lookout API. Earlier versions leave the previous version's Job in place, so delete the completed `<name>-migration` Job after changing the image to make the operator run it again.
+   - **With the Armada Operator**, v0.8.1 or later runs the migration Job again with the new image before it updates the Lookout API. Earlier versions leave the previous version's Job in place, so delete the completed `<name>-migration` Job after changing the image to make the operator run it again.
 2. **Run the preflight** with the same configuration as your Lookout API:
 
    ```bash
@@ -120,7 +120,7 @@ Run the migration in a quiet period and let your users know beforehand that Look
 
      Helm does not wait for the Job. Its `partitionJobTable.activeDeadlineSeconds` value (24 hours by default) limits how long it may run.
 
-   - **With the Armada Operator** (v0.8.0 or later), set `spec.partitionJobTable.enabled: true` on your `Lookout` resource. If you upgrade the operator to get this, apply the new release's CRDs before you run `helm upgrade`, because Helm does not upgrade the CRDs in a chart's `crds/` directory: run `helm pull gresearch/armada-operator --version <version> --untar`, then `kubectl apply --server-side --force-conflicts -f armada-operator/crds/`. Once the Lookout migration Job has succeeded, the operator starts a `<name>-partition-job-table` Job, without holding up the rest of the installation. The `JobTablePartitioned` condition in the resource's status shows whether it is running, has succeeded or has failed.
+   - **With the Armada Operator** (v0.8.1 or later), set `spec.partitionJobTable.enabled: true` on your `Lookout` resource. If you upgrade the operator to get this, apply the new release's CRDs before you run `helm upgrade`, because Helm does not upgrade the CRDs in a chart's `crds/` directory: run `helm pull gresearch/armada-operator --version <version> --untar`, then `kubectl apply --server-side --force-conflicts -f armada-operator/crds/`. Once the Lookout migration Job has succeeded, the operator starts a `<name>-partition-job-table` Job, without holding up the rest of the installation. The `JobTablePartitioned` condition in the resource's status shows whether it is running, has succeeded or has failed.
    - **As SQL**, if your database administrators prefer to run it themselves. This prints the exact statements, as a single transaction, without running them:
 
      ```bash
