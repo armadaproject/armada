@@ -608,6 +608,36 @@ func TestValidateJobSetIdLength(t *testing.T) {
 	}
 }
 
+func TestValidateJobSetIdStorable(t *testing.T) {
+	tests := map[string]struct {
+		req           *api.JobSubmitRequest
+		expectSuccess bool
+	}{
+		"plain job set id valid": {
+			req:           &api.JobSubmitRequest{JobSetId: "job_set_id"},
+			expectSuccess: true,
+		},
+		"job set id with NUL byte invalid": {
+			req:           &api.JobSubmitRequest{JobSetId: "job\x00set"},
+			expectSuccess: false,
+		},
+		"job set id with invalid UTF-8 invalid": {
+			req:           &api.JobSubmitRequest{JobSetId: "job\xffset"},
+			expectSuccess: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateJobSetIdStorable(tc.req, configuration.SubmissionConfig{})
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
 func TestValidatePriceBand(t *testing.T) {
 	tests := map[string]struct {
 		req           *api.JobSubmitRequestItem
