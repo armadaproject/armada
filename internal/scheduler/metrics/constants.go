@@ -12,7 +12,7 @@ const (
 	priorityClassLabel       = "priority_class"
 	nodeLabel                = "node"
 	nodeTypeLabel            = "nodeType"
-	taintCategoryLabel       = "taintCategory"
+	taintGroupTypeLabel      = "taintGroupType"
 	clusterLabel             = "cluster"
 	errorCategoryLabel       = "category"
 	errorSubcategoryLabel    = "subcategory"

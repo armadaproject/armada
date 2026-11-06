@@ -28,6 +28,26 @@ import (
 
 const epsilon = 1e-6
 
+func TestNodeResourceMetricsTaintGroupTypeLabel(t *testing.T) {
+	cycle := newPerCycleMetrics()
+	for name, gauge := range map[string]*prometheus.GaugeVec{
+		"allocatable": cycle.nodeAllocatableResource,
+		"allocated":   cycle.nodeAllocatedResource,
+	} {
+		t.Run(name, func(t *testing.T) {
+			metric := &dto.Metric{}
+			err := gauge.WithLabelValues("pool", "node", "cluster", "type", "cpu", "none", "true", "false", "pool", "dedicated", "", "admin").Write(metric)
+			require.NoError(t, err)
+			labels := make(map[string]string)
+			for _, label := range metric.GetLabel() {
+				labels[label.GetName()] = label.GetValue()
+			}
+			assert.Equal(t, "admin", labels["taintGroupType"])
+			assert.NotContains(t, labels, "taintCategory")
+		})
+	}
+}
+
 func TestReportStateTransitions(t *testing.T) {
 	ctx := armadacontext.Background()
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
@@ -202,7 +222,7 @@ func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
 	poolLabelValues := []string{"pool1"}
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolQueueResourceLabelValues := []string{"pool1", "queue1", "cpu"}
-	nodeResourceLabelValues := []string{"pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, ""}
+	nodeResourceLabelValues := []string{"pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, "", "none"}
 
 	testResetGauge := func(getVec func(metrics *cycleMetrics) *prometheus.GaugeVec, labelValues []string) {
 		vec := getVec(m)
@@ -275,8 +295,8 @@ func TestDisableLeaderMetrics(t *testing.T) {
 		m.latestCycleMetrics.Load().loopNumber.WithLabelValues("pool1").Inc()
 		m.latestCycleMetrics.Load().evictedJobs.WithLabelValues("pool1", "queue1").Inc()
 		m.latestCycleMetrics.Load().evictedResources.WithLabelValues("pool1", "queue1", "cpu").Inc()
-		m.latestCycleMetrics.Load().nodeAllocatableResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, "").Inc()
-		m.latestCycleMetrics.Load().nodeAllocatedResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, "").Inc()
+		m.latestCycleMetrics.Load().nodeAllocatableResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, "", "none").Inc()
+		m.latestCycleMetrics.Load().nodeAllocatedResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, "", "none").Inc()
 		m.latestCycleMetrics.Load().nodePoolSize.WithLabelValues("pool1").Inc()
 
 		ch := make(chan prometheus.Metric, 1000)

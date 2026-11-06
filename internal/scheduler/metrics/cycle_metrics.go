@@ -32,7 +32,7 @@ var (
 	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
 	poolAndOutcomeLabels                   = []string{poolLabel, outcomeLabel, terminationReasonLabel}
 	loopTypeAndOutcomeLabels               = []string{typeLabel, outcomeLabel}
-	nodeLabels                             = []string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, schedulableLabel, overAllocatedLabel, physicalPoolLabel, capacityClassLabel, scalableUnitLabel, taintCategoryLabel}
+	nodeLabels                             = []string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, schedulableLabel, overAllocatedLabel, physicalPoolLabel, capacityClassLabel, scalableUnitLabel, taintGroupTypeLabel}
 	defaultType                            = "unknown"
 	homePlacementType                      = "home"
 	awayPlacementType                      = "away"
@@ -693,14 +693,14 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 						}
 						for _, resource := range node.GetAllocatableResources().GetAll() {
 							currentCycle.nodeAllocatableResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
-								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit, node.GetTaintCategory()).Set(resource.Value.AsApproximateFloat64())
+								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit, node.GetTaintGroupType()).Set(resource.Value.AsApproximateFloat64())
 						}
 
 						allocated := node.GetAllocatableResources().Subtract(node.AllocatableAtPriority(internaltypes.EvictedPriority))
 						for _, resource := range allocated.GetAll() {
 							allocatableValue := math.Max(resource.Value.AsApproximateFloat64(), 0)
 							currentCycle.nodeAllocatedResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
-								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit, node.GetTaintCategory()).Set(allocatableValue)
+								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit, node.GetTaintGroupType()).Set(allocatableValue)
 						}
 					}
 				}
