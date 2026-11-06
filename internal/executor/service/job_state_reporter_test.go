@@ -370,7 +370,7 @@ func setUpJobStateReporterTestWithClassifier(
 	require.NoError(t, err)
 	jobStateReporter, err := NewJobStateReporter(fakeClusterContext, eventReporter, issueHandler, classifier,
 		reporter.NewDebugMessageRenderer(fakeClusterContext, testDebugConfig()),
-		startUpTimings, startupmetrics.NewRecorder(startUpConfig.Metrics), time.Minute)
+		startUpTimings, startupmetrics.NewRecorder(startUpConfig.Metrics, fakeClusterContext), time.Minute)
 	require.NoError(t, err)
 	return jobStateReporter, issueHandler, eventReporter, fakeClusterContext
 }
