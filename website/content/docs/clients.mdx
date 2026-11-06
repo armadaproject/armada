@@ -203,9 +203,7 @@ func main() {
 	fmt.Println("Submitted job", resp.JobResponseItems[0].JobId)
 
 	time.Sleep(5 * time.Second) // a new job set takes a few seconds to appear
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	client.WatchJobSet(api.NewEventClient(conn), "my-team", jobSetId, true, true, false, false, ctx,
+	client.WatchJobSet(api.NewEventClient(conn), "my-team", jobSetId, true, true, false, false, context.Background(),
 		func(state *domain.WatchContext, e api.Event) bool {
 			fmt.Printf("%T\n", e)
 			switch ev := e.(type) {
