@@ -13,4 +13,7 @@
 //  3. Deletes job_deduplication rows older than a configurable lifetime.
 //
 // Step 1 runs first so that step 2's deletion sees correct terminal states.
+//
+// The pruner requires the partitioned job table: the lookout binary refuses
+// to run it while the job table is unpartitioned and contains data.
 package pruner

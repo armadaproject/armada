@@ -100,8 +100,8 @@ func deleteJobs(ctx *armadacontext.Context, db *pgx.Conn, jobLifetime time.Durat
 	return nil
 }
 
-// selectJobIdsToDelete selects expired terminal jobs. On the partitioned
-// schema, the state filter lets Postgres prune the scan to job_terminated.
+// selectJobIdsToDelete selects expired terminal jobs. The state filter lets
+// Postgres prune the scan to job_terminated.
 const selectJobIdsToDelete = `
 	SELECT job_id FROM job
 	WHERE last_transition_time < $1

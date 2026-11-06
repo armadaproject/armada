@@ -98,8 +98,11 @@ func migrate(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 	if err != nil {
 		panic(err)
 	}
+	// The migration chain must keep working on an unpartitioned job table, so
+	// that an install upgrading from before v0.23.0 can bring it up to date
+	// and then run lookout --partitionJobTable.
 	if shape == lookoutschema.JobTableShapeUnpartitioned {
-		log.Warn(lookoutschema.LegacySchemaWarning)
+		log.Warn(lookoutschema.ErrUnpartitionedJobTable.Error())
 	} else {
 		log.Infof("Job table shape: %s", shape)
 	}
@@ -115,6 +118,9 @@ func prune(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 
 	db, err := database.OpenPgxConn(dbConfig)
 	if err != nil {
+		panic(err)
+	}
+	if err := lookoutschema.CheckJobTablePartitioned(ctx, db); err != nil {
 		panic(err)
 	}
 

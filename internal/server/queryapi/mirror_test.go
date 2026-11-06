@@ -11,22 +11,16 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
-	lookoutschema "github.com/armadaproject/armada/internal/lookout/schema"
 	"github.com/armadaproject/armada/internal/server/queryapi/database"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-// withPrimaryAndMirrorDbs runs action with two independent test databases: a
-// primary carrying the unpartitioned lookout schema and a mirror carrying the
-// partitioned schema.
+// withPrimaryAndMirrorDbs runs action with two independent test databases,
+// a primary and a mirror, each carrying the lookout schema.
 func withPrimaryAndMirrorDbs(t *testing.T, action func(primary, mirror *pgxpool.Pool)) {
 	t.Helper()
-	migrations, err := lookoutschema.LookoutMigrations()
-	require.NoError(t, err)
-
-	err = dbcommon.WithTestDb(migrations, func(primary *pgxpool.Pool) error {
-		return dbcommon.WithTestDb(migrations, func(mirror *pgxpool.Pool) error {
-			require.NoError(t, lookoutschema.PartitionJobTable(armadacontext.Background(), mirror))
+	err := lookout.WithLookoutDb(func(primary *pgxpool.Pool) error {
+		return lookout.WithLookoutDb(func(mirror *pgxpool.Pool) error {
 			action(primary, mirror)
 			return nil
 		})

@@ -8,22 +8,12 @@ import (
 	lookoutschema "github.com/armadaproject/armada/internal/lookout/schema"
 )
 
-// WithLookoutDb spins up two Lookout test databases in sequence and runs
-// action against each:
-//
-//  1. a fresh database with the lookout migration chain applied;
-//  2. a fresh database with the lookout migration chain applied, then
-//     converted to the partitioned shape via PartitionJobTable.
-//
-// This exercises shared test logic against both the non-partitioned and
-// the partitioned schema.
+// WithLookoutDb spins up a fresh Lookout test database with the lookout
+// migration chain applied and the job table partitioned, as lookout
+// --migrateDatabase leaves a new install, and runs action against it.
 func WithLookoutDb(action func(db *pgxpool.Pool) error) error {
 	lookoutMigrations, err := lookoutschema.LookoutMigrations()
 	if err != nil {
-		return err
-	}
-
-	if err := database.WithTestDb(lookoutMigrations, action); err != nil {
 		return err
 	}
 
