@@ -68,8 +68,7 @@ curl -X POST http://localhost:30001/v1/job/submit \
 {"jobResponseItems":[{"jobId":"<job-id>"}]}
 ```
 
-The job follows the same rules as any Armada job: by default, each container's `limits` must equal its `requests`, but your platform team can allow higher limits (the server's `submission.maxOversubscriptionByResourceRequest`).
-{/* See [Submitting jobs](/docs/submitting-jobs). */}
+The job follows the same rules as any Armada job: by default, each container's `limits` must equal its `requests`, but your platform team can allow higher limits (the server's `submission.maxOversubscriptionByResourceRequest`). See [Submitting jobs](/docs/submitting-jobs). 
 
 ### Step 3. Check the job's state
 
