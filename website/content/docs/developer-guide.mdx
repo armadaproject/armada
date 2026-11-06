@@ -194,20 +194,18 @@ and integration testing of job flows.
 
 ## Testing your setup
 
-Run the full test suite:
+Use [Validating changes](https://github.com/armadaproject/armada/blob/master/docs/developer_guide.md#validating-changes) to choose focused Go checks, the service-backed Go suite or Lookout UI checks without starting the full Armada stack.
+
+For the configured YAML integration suites, use the containerized full stack:
 
 ```bash
-mage testsuite
+mage dev:full
+mage -v testsuite
+# Tear down your disposable stack, its volumes and the armada-test Kind cluster:
+mage dev:fullDown
 ```
 
-Or manually:
-
-```bash
-go run cmd/armadactl/main.go create queue e2e-test-queue
-export ARMADA_EXECUTOR_INGRESS_URL="http://localhost"
-export ARMADA_EXECUTOR_INGRESS_PORT=5001
-go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
-```
+Stop your own Goreman/dependency stack before switching to this setup: the stacks share container names and ports. `testsuite` waits for the full-stack containers and real executor; it does not start them or provide a generic readiness check for the Goreman or fake-executor setup. See [Full-stack integration tests](https://github.com/armadaproject/armada/blob/master/docs/developer_guide.md#full-stack-integration-tests) for build tools, resources and cleanup details. The manual basic-case command in the repository reference runs only a subset of these suites.
 
 {/* divider */}
 
