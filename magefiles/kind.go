@@ -23,7 +23,6 @@ const (
 
 func getImagesUsedInTestsOrControllers() []string {
 	return []string{
-		"nginx:1.27.0", // Used by ingress-controller
 		"alpine:3.20.0",
 		"bitnamilegacy/kubectl:1.33.4",
 	}
@@ -181,7 +180,7 @@ func kindSetup() error {
 	}
 
 	resources := []string{
-		"_local/kind/ingress-nginx.yaml",
+		"_local/kind/traefik.yaml",
 		"_local/kind/priorityclasses.yaml",
 		"_local/kind/namespace.yaml",
 	}
@@ -248,11 +247,15 @@ func kindWriteKubeConfig() error {
 }
 
 func kindWaitUntilReady() error {
+	// NOTE: the selector must match the labels the Traefik chart actually renders.
+	// The Traefik chart does not set app.kubernetes.io/component (which the old
+	// ingress-nginx manifest did), so the previous selector matches zero pods here
+	// and `kubectl wait` fails with "no matching resources found".
 	return kubectlRun(
 		"wait",
-		"--namespace", "ingress-nginx",
+		"--namespace", "traefik",
 		"--for=condition=ready", "pod",
-		"--selector=app.kubernetes.io/component=controller",
+		"--selector=app.kubernetes.io/name=traefik",
 		"--timeout=2m",
 		"--context", "kind-armada-test",
 	)
