@@ -331,11 +331,11 @@ func TestPodIssueService_DetectAndRegisterFailedPodIssue(t *testing.T) {
 			expectIssueAdded:   false,
 			expectError:        false,
 		},
-		"FailedPodWithIssue_EventErrors": {
+		"FailedPodWithIssue_EventErrors_StillDetectsFromPodStatus": {
 			pod:                      failedPodWithRetryableIssue,
 			shouldErrorGettingEvents: true,
-			expectIssueAdded:         false,
-			expectError:              true,
+			expectIssueAdded:         true,
+			expectError:              false,
 		},
 		"UnmanagedPod": {
 			pod:              &v1.Pod{},
@@ -365,7 +365,7 @@ func TestPodIssueService_DetectAndRegisterFailedPodIssue(t *testing.T) {
 				fakeClusterContext.GetPodEventsErr = fmt.Errorf("failed getting events")
 			}
 
-			issueAdded, err := podIssueService.DetectAndRegisterFailedPodIssue(tc.pod)
+			issueAdded, err := podIssueService.DetectAndRegisterFailedPodIssue(newFailedPod(podIssueService.clusterContext, podIssueService.classifier, tc.pod))
 
 			assert.Equal(t, tc.expectIssueAdded, issueAdded)
 			if tc.expectError {
@@ -904,7 +904,7 @@ func TestPodIssueService_ClassifiesIssueWithPodEventsWhenDetected(t *testing.T) 
 		"a failed pod that a failed pod check retries gets the category from the events at detection": {
 			pod: failedPodWithRetryableIssue,
 			detect: func(t *testing.T, handler *PodIssueHandler, pod *v1.Pod) {
-				added, err := handler.DetectAndRegisterFailedPodIssue(pod)
+				added, err := handler.DetectAndRegisterFailedPodIssue(newFailedPod(handler.clusterContext, handler.classifier, pod))
 				require.NoError(t, err)
 				require.True(t, added)
 			},
@@ -1261,7 +1261,7 @@ func TestDetectAndRegisterDeleteActionIssue(t *testing.T) {
 				fakeClusterContext.GetPodEventsErr = fmt.Errorf("events unavailable")
 			}
 
-			registered, err := podIssueService.DetectAndRegisterDeleteActionIssue(pod)
+			registered, err := podIssueService.DetectAndRegisterIssuesForFailedPod(newFailedPod(podIssueService.clusterContext, podIssueService.classifier, pod))
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectRegistered, registered)
 			assert.Equal(t, tc.expectRegistered, podIssueService.HasIssue(util.ExtractJobRunId(pod)))
@@ -1291,7 +1291,7 @@ func TestPodIssueService_DeleteAction_FailedPodChecksKeepPrecedence(t *testing.T
 	})
 	addPod(t, fakeClusterContext, pod)
 
-	registered, err := podIssueService.DetectAndRegisterIssuesForFailedPod(pod)
+	registered, err := podIssueService.DetectAndRegisterIssuesForFailedPod(newFailedPod(podIssueService.clusterContext, podIssueService.classifier, pod))
 	require.NoError(t, err)
 	require.True(t, registered)
 
@@ -1334,7 +1334,7 @@ func TestPodIssueService_DeleteAction_PreservesFailureCause(t *testing.T) {
 	require.NoError(t, err)
 	pod := makeTestPod(v1.PodStatus{Phase: v1.PodFailed, Reason: errormatch.ConditionEvicted})
 	addPod(t, fakeClusterContext, pod)
-	registered, err := podIssueService.DetectAndRegisterDeleteActionIssue(pod)
+	registered, err := podIssueService.DetectAndRegisterDeleteActionIssue(newFailedPod(podIssueService.clusterContext, podIssueService.classifier, pod))
 	require.NoError(t, err)
 	require.True(t, registered)
 
@@ -1440,7 +1440,7 @@ func TestPodIssueService_DeleteActionLifecycle(t *testing.T) {
 			pod := makeFailedPodWithExitCode(t, 42)
 			addPod(t, clusterContext, pod)
 			runId := util.ExtractJobRunId(pod)
-			registered, err := podIssueService.DetectAndRegisterDeleteActionIssue(pod)
+			registered, err := podIssueService.DetectAndRegisterDeleteActionIssue(newFailedPod(podIssueService.clusterContext, podIssueService.classifier, pod))
 			require.NoError(t, err)
 			require.True(t, registered)
 

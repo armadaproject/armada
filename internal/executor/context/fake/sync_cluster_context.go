@@ -26,6 +26,7 @@ type SyncFakeClusterContext struct {
 	AnnotationsAdded map[string]map[string]string
 	podEventHandlers []*cache.ResourceEventHandlerFuncs
 	GetPodEventsErr  error
+	podEventsReads   int
 	rwLock           sync.RWMutex
 }
 
@@ -80,11 +81,21 @@ func (c *SyncFakeClusterContext) GetNode(nodeName string) (*v1.Node, error) {
 }
 
 func (c *SyncFakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
+	c.rwLock.Lock()
+	c.podEventsReads++
+	c.rwLock.Unlock()
 	if c.GetPodEventsErr != nil {
 		return nil, c.GetPodEventsErr
 	}
 	jobId := util2.ExtractJobId(pod)
 	return c.Events[jobId], nil
+}
+
+// PodEventsReads returns the number of GetPodEvents calls.
+func (c *SyncFakeClusterContext) PodEventsReads() int {
+	c.rwLock.RLock()
+	defer c.rwLock.RUnlock()
+	return c.podEventsReads
 }
 
 func (c *SyncFakeClusterContext) GetNodeEvents(nodeName string) ([]*v1.Event, error) {
