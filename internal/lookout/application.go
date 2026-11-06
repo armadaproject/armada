@@ -215,7 +215,8 @@ func Serve(configuration configuration.LookoutConfig) error {
 }
 
 func logJobTableShape(db *pgxpool.Pool) {
-	shape, detail, err := schema.DetectJobTableShape(armadacontext.Background(), db)
+	ctx := armadacontext.Background()
+	shape, detail, err := schema.DetectJobTableShape(ctx, db)
 	switch {
 	case err != nil:
 		logging.WithError(err).Warn("Failed to detect the shape of the job table")
@@ -223,5 +224,13 @@ func logJobTableShape(db *pgxpool.Pool) {
 		logging.Infof("Job table shape: %s", shape)
 	default:
 		logging.WithField("detail", detail).Warnf("Job table shape: %s", shape)
+	}
+	if shape != schema.JobTableShapeUnpartitioned {
+		return
+	}
+	if hasRows, err := schema.JobTableHasRows(ctx, db); err != nil {
+		logging.WithError(err).Warn("Failed to check whether the job table has rows")
+	} else if hasRows {
+		logging.Warn(schema.LegacySchemaWarning)
 	}
 }

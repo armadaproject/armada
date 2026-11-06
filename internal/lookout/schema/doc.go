@@ -21,7 +21,20 @@
 // converted without an explicit operator action. On an already partitioned
 // job table both backfill any indexes added to the partitioned shape since
 // that database was first partitioned, then return. On an unexpected shape
-// both refuse. Callers must apply the migration chain first.
+// both refuse. Callers must apply the migration chain first. The conversion
+// creates the partitioned tables, copies the rows, then builds the primary
+// key and indexes (target_schema_indexes.sql), which is faster than
+// maintaining them during the copy.
+//
+// The operator-run migration, lookout --partitionJobTable, uses Preflight to
+// report on the job table and the database settings that affect the
+// migration without changing anything, ConversionScript to print the SQL for
+// review, and ExecutePartitionJobTable to convert. ExecutePartitionJobTable
+// refuses unless the migration chain is fully applied, fails fast if another
+// run holds its advisory lock, waits for the lock on job with a lock_timeout
+// so that it does not stall other queries while queued behind a long one,
+// and logs its progress. LegacySchemaWarning is logged while an
+// unpartitioned job table contains data.
 //
 // The partitioned shape carries one index that the unpartitioned chain does
 // not need: idx_job_queue_job_id, on (queue, job_id). The unpartitioned job
@@ -52,8 +65,9 @@
 //     applying it: use IF NOT EXISTS, and drop any INVALID index left by a
 //     failed concurrent build before rebuilding it.
 //   - Be matched by the conversion, which rebuilds job from
-//     target_schema.sql: add any new column or index there, to the rename
-//     list in convertUnpartitionedToPartitioned, and to findShapeMismatch.
+//     target_schema.sql and target_schema_indexes.sql: add any new column or
+//     index there, any new parent index to renames, and both to
+//     findShapeMismatch.
 //     TestChainThenConvertMatchesConvertThenRestOfChain fails if a database
 //     partitioned before the migration ends up different from one
 //     partitioned after it.
