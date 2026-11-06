@@ -27,7 +27,7 @@ Find Lookout:
 
 **Ready when:** Lookout opens in your browser and shows a job list.
 
-The examples use the `my-team` queue from [Submitting jobs](/docs/submitting-jobs). To have something to look at, submit a job first.
+{/* The examples use the `my-team` queue from [Submitting jobs](/docs/submitting-jobs). To have something to look at, submit a job first. */}
 
 ## Follow jobs in Lookout
 
@@ -93,13 +93,14 @@ You can cancel, reprioritize and preempt jobs from Lookout, one at a time or sev
 armadactl watch my-team demo-1
 ```
 
-`watch` streams every change to the jobs in one job set. See [Submitting jobs](/docs/submitting-jobs#step-5-watch-it-run) for what the output means.
+`watch` streams every change to the jobs in one job set.
+{/* See [Submitting jobs](/docs/submitting-jobs#step-5-watch-it-run) for what the output means. */}
 
 `watch` keeps running until you press Ctrl-C. To stop it when every job in the job set has finished, add `--exit-if-inactive`. It counts only the jobs it has seen so far, so in a job set with older finished jobs it can stop before a newer job ends. If it's still running after the last job finishes, press Ctrl-C.
 
 `watch` covers one job set at a time. For everything in a queue, use Lookout.
 
-For jobs with an ingress, the address to reach them appears in Lookout's per-run details once the job is running. From a script, read the `JobIngressInfoEvent` in the event stream. See [Interactive jobs and services](/docs/interactive-jobs-and-services).
+For jobs with an ingress, the address to reach them appears in Lookout's per-run details once the job is running. From a script, read the `JobIngressInfoEvent` in the event stream. See Interactive jobs and services. {/* LINK: restore "[Interactive jobs and services](/docs/interactive-jobs-and-services)" when that page merges */}
 
 ### Find out why jobs are waiting
 
@@ -131,7 +132,7 @@ The Python and Go clients can perform the same requests:
 | `get_job_details`       | Job details, including runs                       |
 | `get_job_errors`        | Why jobs failed                                   |
 
-See [Client libraries](/docs/clients) for an example. {/* See [Authentication](/docs/authentication#connecting-from-your-own-code-python-and-airflow) to connect to a team installation. */}
+{/* See [Client libraries](/docs/clients) for an example, and [Authentication](/docs/authentication#connecting-from-your-own-code-python-and-airflow) to connect to a team installation. */}
 
 ## Act on many jobs at once
 
@@ -204,7 +205,7 @@ The flags:
 
 `preempt queues` takes the same flags except `--job-states`. It targets allocated jobs in the `leased`, `pending` and `running` states. It only stops jobs in preemptible priority classes.
 
-See [Priority and preemption](/docs/priority-and-preemption).
+{/* See [Priority and preemption](/docs/priority-and-preemption). */}
 
 On a laptop install, `cancel queues` works, but `preempt queues` is refused: everyone has `cancel_any_jobs`, but not `preempt_any_jobs`.
 
