@@ -26,7 +26,7 @@ import { getConfig } from "../../config"
 import { JobGroupRow, JobRow, JobTableRow } from "../../models/jobsTableModels"
 import { AggregateType, Job, JobFilter, JobGroup, JobId, JobOrder, Match } from "../../models/lookoutModels"
 import { useMirroredLookoutApiFetch } from "../../oidcAuth"
-import { GetJobsResponse } from "../../services/lookout/useGetJobs"
+import { GetJobsResponse, getFakeJobsResponse } from "../../services/lookout/useGetJobs"
 import { GroupedField } from "../../services/lookout/useGroupJobs"
 
 export interface UseFetchJobsTableDataArgs {
@@ -320,6 +320,10 @@ export const fetchJobs = async (
 ): Promise<GetJobsResponse> => {
   const { filters, activeJobSets, skip, take, order } = rowRequest
   const config = getConfig()
+
+  if (config.fakeDataEnabled) {
+    return getFakeJobsResponse(rowRequest)
+  }
 
   let path = "/api/v1/jobs"
   if (config.backend) {

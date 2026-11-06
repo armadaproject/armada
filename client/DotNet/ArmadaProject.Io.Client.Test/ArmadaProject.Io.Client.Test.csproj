@@ -2,9 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-
     <IsPackable>false</IsPackable>
-
     <RootNamespace>ArmadaProject.Io.Client.Test</RootNamespace>
   </PropertyGroup>
 
@@ -12,7 +10,8 @@
     <PackageReference Include="nunit" Version="4.6.1" />
     <PackageReference Include="NUnit3TestAdapter" Version="6.3.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
-    <PackageReference Include="RichardSzalay.MockHttp" Version="7.1.0" />
+    <PackageReference Include="Grpc.AspNetCore.Server" Version="2.84.0" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>

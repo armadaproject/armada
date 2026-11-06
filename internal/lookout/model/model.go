@@ -97,6 +97,7 @@ type Run struct {
 	Finished           *PostgreSQLTime
 	JobRunState        int
 	Node               *string
+	PodName            *string
 	Leased             *PostgreSQLTime
 	Pending            *PostgreSQLTime
 	Pool               *string
