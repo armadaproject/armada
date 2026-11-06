@@ -146,7 +146,7 @@ loop:
 			break
 		}
 		start := time.Now()
-		scheduledOk, preemptedJctxs, unschedulableReason, err := q.gangScheduler.Schedule(ctx, gctx, sctx)
+		scheduledOk, preemptedJctxs, _, err := q.gangScheduler.Schedule(ctx, gctx, sctx)
 		if err != nil {
 			return nil, err
 		} else if scheduledOk {
@@ -163,8 +163,6 @@ loop:
 			if qctx := sctx.QueueSchedulingContexts[gctx.Queue]; qctx != nil {
 				qctx.Limiter.ReserveN(sctx.Started, gctx.Cardinality())
 			}
-		} else {
-			q.updateUnfeasibleSchedulingKeys(gctx, sctx, unschedulableReason)
 		}
 
 		duration := time.Now().Sub(start)
@@ -256,25 +254,4 @@ func (q *OptimisingQueueScheduler) checkIfWillBreachSchedulingLimits(
 	}
 
 	return true, "", nil
-}
-
-func (q *OptimisingQueueScheduler) updateUnfeasibleSchedulingKeys(gctx *schedulercontext.GangSchedulingContext,
-	sctx *schedulercontext.SchedulingContext, unschedulableReason string,
-) {
-	globallyUnschedulable := schedulerconstraints.UnschedulableReasonIsPropertyOfGang(unschedulableReason)
-
-	// Register globally unfeasible scheduling keys.
-	//
-	// Only record unfeasible scheduling keys for single-job gangs.
-	// Since a gang may be unschedulable even if all its members are individually schedulable.
-	if gctx.Cardinality() == 1 && globallyUnschedulable {
-		jctx := gctx.JobSchedulingContexts[0]
-		schedulingKey, ok := jctx.SchedulingKey()
-		if ok && schedulingKey != internaltypes.EmptySchedulingKey {
-			if _, ok := sctx.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
-				// Keep the first jctx for each unfeasible schedulingKey.
-				sctx.UnfeasibleSchedulingKeys[schedulingKey] = jctx
-			}
-		}
-	}
 }
