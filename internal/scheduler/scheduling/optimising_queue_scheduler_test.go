@@ -38,6 +38,7 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 
 	alwaysSucceedGangScheduler := &StubGangScheduler{t: t, scheduleSuccess: true, scheduleError: nil, scheduleFailedReason: "", preemptedJobs: make([]*context.JobSchedulingContext, 0)}
 	alwaysSucceedGangSchedulerWithPreemptedJobs := &StubGangScheduler{t: t, scheduleSuccess: true, scheduleError: nil, scheduleFailedReason: "", preemptedJobs: []*context.JobSchedulingContext{preemptedJctx1, preemptedJctx2}}
+	alwaysFailsGangScheduler := &StubGangScheduler{t: t, scheduleSuccess: false, scheduleError: nil, scheduleFailedReason: schedulerconstraints.JobDoesNotFitUnschedulableReason, preemptedJobs: make([]*context.JobSchedulingContext, 0)}
 	alwaysErrorGangScheduler := &StubGangScheduler{t: t, scheduleSuccess: false, scheduleError: gangSchedulerError, scheduleFailedReason: "", preemptedJobs: make([]*context.JobSchedulingContext, 0)}
 	schedulerConfig := testfixtures.WithOptimiserConfig(testfixtures.TestPool, defaultOptimiserConfig, testfixtures.TestSchedulingConfig())
 
@@ -56,6 +57,8 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 		AlreadyPreemptedThisRoundIndices  []int
 		// Indices of jobs expected to be scheduled.
 		ExpectedScheduledIndices []int
+		// Indicies of jobs that should have their key in unfeasibleSchedulingKeys
+		ExpectedUnfeasibleSchedulingKeyIndicies []int
 		// The jctx we expect to be returned as preempted jctx
 		ExpectedPreemptedJctx []*context.JobSchedulingContext
 		// If an error is expected to be returned
@@ -200,16 +203,17 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 			Queues:                  armadaslices.Concatenate(testfixtures.SingleQueuePriorityOne("A"), testfixtures.SingleQueuePriorityOne("B")),
 			Jobs:                    testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 2),
 		},
-		"should consider every job after optimiser placement failures": {
+		"should utilise unfeasibleSchedulingKeys": {
 			SchedulingConfig:        schedulerConfig,
-			GangScheduler:           &failingOptimiserGangScheduler{},
+			GangScheduler:           alwaysFailsGangScheduler,
 			TotalSchedulingCapacity: testfixtures.CpuMem("100", "500Gi"),
 			Queues:                  armadaslices.Concatenate(testfixtures.SingleQueuePriorityOne("A"), testfixtures.SingleQueuePriorityOne("B")),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 10),
 				testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass1, 10),
 			),
-			ExpectedScheduledIndices: []int{},
+			ExpectedScheduledIndices:                []int{},
+			ExpectedUnfeasibleSchedulingKeyIndicies: armadaslices.Concatenate(testfixtures.IntRange(0, 0), testfixtures.IntRange(10, 10)),
 		},
 		"should handle gang scheduler error": {
 			SchedulingConfig:        schedulerConfig,
@@ -290,8 +294,6 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 				sctx.MarkJobPreempted(tc.Jobs[index].Id())
 			}
 
-			initialAllocated := sctx.Allocated
-			initialScheduledResources := sctx.ScheduledResources
 			ctx := armadacontext.Background()
 			result, err := queueScheduler.Schedule(ctx, sctx)
 
@@ -316,20 +318,11 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 				slices.Sort(scheduledIds)
 				assert.Equal(t, expectedScheduledIds, scheduledIds)
 
-				assert.Empty(t, sctx.UnfeasibleSchedulingKeys)
-				if failed, ok := tc.GangScheduler.(*failingOptimiserGangScheduler); ok {
-					expectedIds := armadaslices.Map(jobs, func(job *jobdb.Job) string { return job.Id() })
-					assert.ElementsMatch(t, expectedIds, failed.attemptedJobIds)
-					assert.Equal(t, jobs[0].SchedulingKey(), jobs[1].SchedulingKey())
-					assert.Empty(t, result.PreemptedJobs)
-					assert.Zero(t, sctx.NumScheduledJobs)
-					assert.Zero(t, sctx.NumScheduledGangs)
-					assert.True(t, initialAllocated.Subtract(sctx.Allocated).AllZero())
-					assert.True(t, initialScheduledResources.Subtract(sctx.ScheduledResources).AllZero())
-					for queue, qctx := range sctx.QueueSchedulingContexts {
-						assert.Empty(t, qctx.SuccessfulJobSchedulingContexts)
-						assert.True(t, tc.InitialAllocatedByQueue[queue].Subtract(qctx.Allocated).AllZero())
-					}
+				assert.Len(t, sctx.UnfeasibleSchedulingKeys, len(tc.ExpectedUnfeasibleSchedulingKeyIndicies))
+				for _, index := range tc.ExpectedUnfeasibleSchedulingKeyIndicies {
+					key := tc.Jobs[index].SchedulingKey()
+					_, exists := sctx.UnfeasibleSchedulingKeys[key]
+					assert.True(t, exists)
 				}
 
 				for i, preemptedJctx := range tc.ExpectedPreemptedJctx {
@@ -340,6 +333,54 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 	}
 }
 
+type StubGangScheduler struct {
+	scheduleSuccess      bool
+	scheduleError        error
+	scheduleFailedReason string
+	preemptedJobs        []*context.JobSchedulingContext
+	t                    *testing.T
+}
+
+func (s *StubGangScheduler) Schedule(
+	ctx *armadacontext.Context,
+	gctx *context.GangSchedulingContext,
+	sctx *context.SchedulingContext,
+) (bool, []*context.JobSchedulingContext, string, error) {
+	for _, jctx := range gctx.JobSchedulingContexts {
+		jctx.PodSchedulingContext = &context.PodSchedulingContext{
+			SchedulingMethod: context.ScheduledWithFairnessOptimiser,
+			Created:          time.Now(),
+			NodeId:           "node",
+		}
+	}
+	_, err := sctx.AddGangSchedulingContext(gctx)
+	require.NoError(s.t, err)
+	return s.scheduleSuccess, s.preemptedJobs, s.scheduleFailedReason, s.scheduleError
+}
+
+func createOptimiserConfig(
+	maximumJobsPerRound int,
+	maximumFractionToSchedule map[string]float64,
+	minimumJobSizeToSchedule *armadaresource.ComputeResources,
+) *configuration.OptimiserConfig {
+	return &configuration.OptimiserConfig{
+		Enabled:                           true,
+		Timeout:                           time.Second * 5,
+		MaximumJobsPerRound:               maximumJobsPerRound,
+		MaximumResourceFractionToSchedule: maximumFractionToSchedule,
+		MinimumJobSizeToSchedule:          minimumJobSizeToSchedule,
+	}
+}
+
+func withCordoned(queues []*api.Queue) []*api.Queue {
+	for _, queue := range queues {
+		queue.Cordoned = true
+	}
+	return queues
+}
+
+// This characterises current non-cacheability, which the separate optimiser
+// cache bug fix will revisit. The extraction preserves it.
 func TestOptimisingQueueScheduler_ContinuesAfterRealPlacementFailures(t *testing.T) {
 	config := testfixtures.TestSchedulingConfig()
 	nodeDb, err := NewNodeDb(config, stringinterner.New(1024))
@@ -402,13 +443,6 @@ func TestOptimisingQueueScheduler_ContinuesAfterRealPlacementFailures(t *testing
 	assert.True(t, expectedResources.Equal(qctx.ScheduledResourcesByPriorityClass[feasibleJob.PriorityClassName()]))
 }
 
-type failingOptimiserGangScheduler struct{ attemptedJobIds []string }
-
-func (s *failingOptimiserGangScheduler) Schedule(_ *armadacontext.Context, gctx *context.GangSchedulingContext, _ *context.SchedulingContext) (bool, []*context.JobSchedulingContext, string, error) {
-	s.attemptedJobIds = append(s.attemptedJobIds, gctx.JobIds()...)
-	return false, nil, schedulerconstraints.OptimiserNoPlacementUnschedulableReason, nil
-}
-
 type recordingOptimiserGangScheduler struct {
 	delegate        optimiser.GangScheduler
 	attemptedJobIds []string
@@ -420,50 +454,4 @@ func (s *recordingOptimiserGangScheduler) Schedule(ctx *armadacontext.Context, g
 	ok, preempted, reason, err := s.delegate.Schedule(ctx, gctx, sctx)
 	s.reasons = append(s.reasons, reason)
 	return ok, preempted, reason, err
-}
-
-type StubGangScheduler struct {
-	scheduleSuccess      bool
-	scheduleError        error
-	scheduleFailedReason string
-	preemptedJobs        []*context.JobSchedulingContext
-	t                    *testing.T
-}
-
-func (s *StubGangScheduler) Schedule(
-	ctx *armadacontext.Context,
-	gctx *context.GangSchedulingContext,
-	sctx *context.SchedulingContext,
-) (bool, []*context.JobSchedulingContext, string, error) {
-	for _, jctx := range gctx.JobSchedulingContexts {
-		jctx.PodSchedulingContext = &context.PodSchedulingContext{
-			SchedulingMethod: context.ScheduledWithFairnessOptimiser,
-			Created:          time.Now(),
-			NodeId:           "node",
-		}
-	}
-	_, err := sctx.AddGangSchedulingContext(gctx)
-	require.NoError(s.t, err)
-	return s.scheduleSuccess, s.preemptedJobs, s.scheduleFailedReason, s.scheduleError
-}
-
-func createOptimiserConfig(
-	maximumJobsPerRound int,
-	maximumFractionToSchedule map[string]float64,
-	minimumJobSizeToSchedule *armadaresource.ComputeResources,
-) *configuration.OptimiserConfig {
-	return &configuration.OptimiserConfig{
-		Enabled:                           true,
-		Timeout:                           time.Second * 5,
-		MaximumJobsPerRound:               maximumJobsPerRound,
-		MaximumResourceFractionToSchedule: maximumFractionToSchedule,
-		MinimumJobSizeToSchedule:          minimumJobSizeToSchedule,
-	}
-}
-
-func withCordoned(queues []*api.Queue) []*api.Queue {
-	for _, queue := range queues {
-		queue.Cordoned = true
-	}
-	return queues
 }

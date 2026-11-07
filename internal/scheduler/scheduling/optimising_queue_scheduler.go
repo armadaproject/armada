@@ -146,7 +146,7 @@ loop:
 			break
 		}
 		start := time.Now()
-		scheduledOk, preemptedJctxs, _, err := q.gangScheduler.Schedule(ctx, gctx, sctx)
+		scheduledOk, preemptedJctxs, unschedulableReason, err := q.gangScheduler.Schedule(ctx, gctx, sctx)
 		if err != nil {
 			return nil, err
 		} else if scheduledOk {
@@ -163,6 +163,8 @@ loop:
 			if qctx := sctx.QueueSchedulingContexts[gctx.Queue]; qctx != nil {
 				qctx.Limiter.ReserveN(sctx.Started, gctx.Cardinality())
 			}
+		} else {
+			recordUnfeasibleSchedulingKey(gctx, sctx, unschedulableReason)
 		}
 
 		duration := time.Now().Sub(start)
