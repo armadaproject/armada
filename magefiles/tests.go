@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"debug/buildinfo"
 	"fmt"
 	"io"
 	"os"
@@ -40,17 +41,93 @@ func makeLocalBin() error {
 	return nil
 }
 
-// Gotestsum downloads gotestsum locally if necessary
+const (
+	gotestsumModule  = "gotest.tools/gotestsum"
+	gotestsumVersion = "v1.13.0"
+)
+
+// gotestsum ensures that tests use the pinned gotestsum binary.
 func gotestsum() error {
-	mg.Deps(makeLocalBin)
-	Gotestsum = filepath.Join(LocalBin, "/gotestsum")
+	binary := filepath.Join(LocalBin, "gotestsum")
+	if err := ensureGotestsum(binary, isPinnedGotestsum, installGotestsum); err != nil {
+		return err
+	}
+	Gotestsum = binary
+	return nil
+}
 
-	if _, err := os.Stat(Gotestsum); os.IsNotExist(err) {
-		fmt.Println(Gotestsum)
-		cmd := exec.Command("go", "install", "gotest.tools/gotestsum@v1.8.2")
-		cmd.Env = append(os.Environ(), "GOBIN="+LocalBin)
-		return cmd.Run()
+func installGotestsum(binDir string) error {
+	cmd := exec.Command("go", "install", gotestsumModule+"@"+gotestsumVersion)
+	cmd.Env = append(os.Environ(), "GOBIN="+binDir)
+	return cmd.Run()
+}
 
+// isPinnedGotestsum reads metadata without executing an unverified local tool.
+// Read the file first so filesystem failures remain errors even when the build
+// info reader would report them as an unrecognized executable format.
+func isPinnedGotestsum(binary string) (bool, error) {
+	info, err := os.Stat(binary)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !info.Mode().IsRegular() {
+		return false, fmt.Errorf("%s is not a regular file", binary)
+	}
+	data, err := os.ReadFile(binary)
+	if err != nil {
+		return false, err
+	}
+	metadata, err := buildinfo.Read(bytes.NewReader(data))
+	if err != nil {
+		// Non-Go, damaged and development binaries are cache misses.
+		return false, nil
+	}
+	return info.Mode()&0o111 != 0 && metadata.Path == gotestsumModule &&
+		metadata.Main.Path == gotestsumModule && metadata.Main.Version == gotestsumVersion &&
+		metadata.Main.Replace == nil, nil
+}
+
+// ensureGotestsum stages and verifies updates before replacing the managed tool.
+// The callbacks keep bootstrap regressions independent of the network and Mage's
+// dependency memoization; production uses the same path with the real installer.
+func ensureGotestsum(binary string, matches func(string) (bool, error), install func(string) error) (err error) {
+	matching, err := matches(binary)
+	if err != nil {
+		return fmt.Errorf("checking gotestsum: %w", err)
+	}
+	if matching {
+		return nil
+	}
+	binDir := filepath.Dir(binary)
+	if err := os.MkdirAll(binDir, os.ModePerm); err != nil {
+		return fmt.Errorf("creating gotestsum directory: %w", err)
+	}
+	staging, err := os.MkdirTemp(binDir, ".gotestsum-*")
+	if err != nil {
+		return fmt.Errorf("staging gotestsum: %w", err)
+	}
+	defer func() {
+		if cleanupErr := os.RemoveAll(staging); cleanupErr != nil && err == nil {
+			err = fmt.Errorf("cleaning up gotestsum installation: %w", cleanupErr)
+		}
+	}()
+
+	if err := install(staging); err != nil {
+		return fmt.Errorf("installing gotestsum: %w", err)
+	}
+	installed := filepath.Join(staging, "gotestsum")
+	matching, err = matches(installed)
+	if err != nil {
+		return fmt.Errorf("verifying installed gotestsum: %w", err)
+	}
+	if !matching {
+		return fmt.Errorf("installed gotestsum is not %s@%s", gotestsumModule, gotestsumVersion)
+	}
+	if err := os.Rename(installed, binary); err != nil {
+		return fmt.Errorf("replacing gotestsum: %w", err)
 	}
 	return nil
 }

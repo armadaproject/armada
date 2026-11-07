@@ -52,6 +52,9 @@ jobs:
         with:
           cache-prefix: go-unit-tests
 
+      - name: Mage Bootstrap Tests
+        run: go test ./magefiles -count=1
+
       - name: Unit Tests
         id: unit_test
         run: go run github.com/magefile/mage@v1.17.2 -v tests
