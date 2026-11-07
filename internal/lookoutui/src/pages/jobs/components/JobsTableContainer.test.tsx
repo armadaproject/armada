@@ -309,25 +309,25 @@ describe("JobsTableContainer", () => {
       expect(await findByRole("button", { name: "Cancel selected" })).toBeDisabled()
     })
 
-    it("should clear selection after filtering even when the selected job remains visible", async () => {
+    it("should clear selection when changing State filter values even if the selected job remains visible", async () => {
       const [queuedJob] = makeTestJobs(1, "queue-1", "job-set-1", JobState.Queued)
       const [runningJob] = makeTestJobs(1, "queue-1", "job-set-1", JobState.Running)
+      const queuedRowName = `jobId:${queuedJob.jobId}`
       mockServer.setPostJobsResponse([queuedJob, runningJob])
 
       renderComponent()
       await waitForFinishedLoading()
       await assertNumDataRowsShown(2)
 
-      await toggleSelectedRow("jobId", queuedJob.jobId)
-      const selectedRow = await screen.findByRole("row", { name: `jobId:${queuedJob.jobId}` })
+      const selectedRow = await screen.findByRole("row", { name: queuedRowName })
+      await userEvent.click(within(selectedRow).getByRole("checkbox"))
       expect(within(selectedRow).getByRole("checkbox")).toBeChecked()
       expect(screen.getByRole("button", { name: "Cancel selected" })).toBeEnabled()
 
       await toggleEnumFilterOptions("State", ["Queued"])
       await assertNumDataRowsShown(1)
 
-      expect(screen.queryByRole("row", { name: `jobId:${runningJob.jobId}` })).not.toBeInTheDocument()
-      const remainingRow = await screen.findByRole("row", { name: `jobId:${queuedJob.jobId}` })
+      const remainingRow = await screen.findByRole("row", { name: queuedRowName })
       expect(within(remainingRow).getByRole("checkbox")).not.toBeChecked()
       expect(screen.getByRole("button", { name: "Cancel selected" })).toBeDisabled()
     })
