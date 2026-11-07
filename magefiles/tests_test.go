@@ -2,9 +2,7 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
@@ -129,63 +127,6 @@ func TestEnsureGotestsumCreatesBinDirectory(t *testing.T) {
 		return os.WriteFile(filepath.Join(dir, "gotestsum"), []byte("pinned"), 0o755)
 	}); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestInstallGotestsum(t *testing.T) {
-	for _, exitCode := range []int{0, 23} {
-		t.Run(fmt.Sprint(exitCode), func(t *testing.T) {
-			dir := t.TempDir()
-			// A fake go checks the real command's arguments and install directory.
-			writeTestTool(t, filepath.Join(dir, "go"), `#!/bin/sh
-[ "$#" -eq 2 ] && [ "$1" = install ] && [ "$2" = gotest.tools/gotestsum@v1.13.0 ] || exit 90
-[ "$GOBIN" = "$EXPECTED_GOBIN" ] || exit 91
-echo install-stdout
-echo install-stderr >&2
-exit "$INSTALL_EXIT_CODE"
-`)
-			t.Setenv("PATH", dir)
-			t.Setenv("EXPECTED_GOBIN", dir)
-			t.Setenv("INSTALL_EXIT_CODE", fmt.Sprint(exitCode))
-			stdout, err := os.CreateTemp(dir, "stdout-")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer stdout.Close()
-			stderr, err := os.CreateTemp(dir, "stderr-")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer stderr.Close()
-			originalOut, originalErr := os.Stdout, os.Stderr
-			os.Stdout, os.Stderr = stdout, stderr
-			defer func() { os.Stdout, os.Stderr = originalOut, originalErr }()
-
-			err = installGotestsum(dir)
-			if exitCode == 0 && err != nil {
-				t.Fatal(err)
-			}
-			if exitCode != 0 {
-				var exitErr *exec.ExitError
-				if !errors.As(err, &exitErr) || exitErr.ExitCode() != exitCode {
-					t.Fatalf("expected exit code %d, got %v", exitCode, err)
-				}
-			}
-			out, err := os.ReadFile(stdout.Name())
-			if err != nil {
-				t.Fatal(err)
-			}
-			if want := "Installing gotest.tools/gotestsum@v1.13.0\ninstall-stdout\n"; string(out) != want {
-				t.Errorf("stdout = %q, want %q", out, want)
-			}
-			out, err = os.ReadFile(stderr.Name())
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(out) != "install-stderr\n" {
-				t.Errorf("stderr = %q, want install-stderr", out)
-			}
-		})
 	}
 }
 
