@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	"github.com/magefile/mage/mg"
@@ -85,9 +86,12 @@ func isPinnedGotestsum(binary string) (bool, error) {
 		// Non-Go, damaged and development binaries are cache misses.
 		return false, nil
 	}
-	return info.Mode()&0o111 != 0 && metadata.Path == gotestsumModule &&
-		metadata.Main.Path == gotestsumModule && metadata.Main.Version == gotestsumVersion &&
-		metadata.Main.Replace == nil, nil
+	return info.Mode()&0o111 != 0 && isPinnedGotestsumBuild(metadata), nil
+}
+
+func isPinnedGotestsumBuild(metadata *debug.BuildInfo) bool {
+	return metadata.Path == gotestsumModule && metadata.Main.Path == gotestsumModule &&
+		metadata.Main.Version == gotestsumVersion && metadata.Main.Replace == nil
 }
 
 // ensureGotestsum stages and verifies updates before replacing the managed tool.
