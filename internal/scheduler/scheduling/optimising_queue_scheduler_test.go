@@ -379,9 +379,11 @@ func withCordoned(queues []*api.Queue) []*api.Queue {
 	return queues
 }
 
-// This characterises current non-cacheability, which the separate optimiser
-// cache bug fix will revisit. The extraction preserves it.
-func TestOptimisingQueueScheduler_ContinuesAfterRealPlacementFailures(t *testing.T) {
+// This temporarily characterises the known optimiser-cache defect preserved by
+// the extraction: production placement failures do not populate the cache.
+// A separate bug fix should replace the non-cacheability expectations while
+// retaining coverage of continued consideration, successful placement and accounting.
+func TestOptimisingQueueScheduler_CharacterisesCurrentNonCacheablePlacementFailures(t *testing.T) {
 	config := testfixtures.TestSchedulingConfig()
 	nodeDb, err := NewNodeDb(config, stringinterner.New(1024))
 	require.NoError(t, err)
