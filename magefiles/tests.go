@@ -58,8 +58,11 @@ func gotestsum() error {
 }
 
 func installGotestsum(binDir string) error {
+	fmt.Println("Installing", gotestsumModule+"@"+gotestsumVersion)
 	cmd := exec.Command("go", "install", gotestsumModule+"@"+gotestsumVersion)
 	cmd.Env = append(os.Environ(), "GOBIN="+binDir)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
@@ -83,7 +86,7 @@ func isPinnedGotestsum(binary string) (bool, error) {
 	}
 	metadata, err := buildinfo.Read(bytes.NewReader(data))
 	if err != nil {
-		// Non-Go, damaged and development binaries are cache misses.
+		// Non-Go and damaged binaries are cache misses.
 		return false, nil
 	}
 	return info.Mode()&0o111 != 0 && isPinnedGotestsumBuild(metadata), nil
