@@ -77,8 +77,21 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *context.Gan
 		return err
 	}
 
-	if !sch.skipUnsuccessfulSchedulingKeyCheck {
-		recordUnfeasibleSchedulingKey(gctx, sch.schedulingContext, unschedulableReason)
+	globallyUnschedulable := schedulerconstraints.UnschedulableReasonIsPropertyOfGang(unschedulableReason)
+
+	// Register globally unfeasible scheduling keys.
+	//
+	// Only record unfeasible scheduling keys for single-job gangs.
+	// Since a gang may be unschedulable even if all its members are individually schedulable.
+	if !sch.skipUnsuccessfulSchedulingKeyCheck && gctx.Cardinality() == 1 && globallyUnschedulable {
+		jctx := gctx.JobSchedulingContexts[0]
+		schedulingKey, ok := jctx.SchedulingKey()
+		if ok && schedulingKey != internaltypes.EmptySchedulingKey {
+			if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
+				// Keep the first jctx for each unfeasible schedulingKey.
+				sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey] = jctx
+			}
+		}
 	}
 
 	return nil

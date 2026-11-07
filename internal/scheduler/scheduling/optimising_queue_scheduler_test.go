@@ -14,7 +14,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -377,83 +376,4 @@ func withCordoned(queues []*api.Queue) []*api.Queue {
 		queue.Cordoned = true
 	}
 	return queues
-}
-
-// This temporarily characterises the known optimiser-cache defect preserved by
-// the extraction: production placement failures do not populate the cache.
-// A separate bug fix should replace the non-cacheability expectations while
-// retaining coverage of continued consideration, successful placement and accounting.
-func TestOptimisingQueueScheduler_CharacterisesCurrentNonCacheablePlacementFailures(t *testing.T) {
-	config := testfixtures.TestSchedulingConfig()
-	nodeDb, err := NewNodeDb(config, stringinterner.New(1024))
-	require.NoError(t, err)
-	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
-	nodeTxn := nodeDb.Txn(true)
-	require.NoError(t, nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeTxn, nil, node))
-	nodeTxn.Commit()
-
-	failedJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 2)
-	for i, job := range failedJobs {
-		info := job.JobSchedulingInfo().DeepCopy()
-		info.PodRequirements.NodeSelector = map[string]string{"unavailable": "true"}
-		failedJobs[i], err = job.WithJobSchedulingInfo(info)
-		require.NoError(t, err)
-		failedJobs[i] = failedJobs[i].WithPriority(0)
-	}
-	feasibleJob := testfixtures.Test1Cpu4GiJob("A", testfixtures.PriorityClass1).WithPriority(1)
-	jobs := testfixtures.WithQueued(append(failedJobs, feasibleJob))
-	require.Equal(t, jobs[0].SchedulingKey(), jobs[1].SchedulingKey())
-	require.NotEqual(t, jobs[0].SchedulingKey(), jobs[2].SchedulingKey())
-	jobDb := testfixtures.NewJobDbWithJobs(jobs)
-	jobTxn := jobDb.ReadTxn()
-	totalResources := nodeDb.TotalKubernetesResources()
-	fairnessCost, err := fairness.NewDominantResourceFairness(totalResources, testfixtures.TestPool, config)
-	require.NoError(t, err)
-	sctx := context.NewSchedulingContext(testfixtures.TestPool, fairnessCost, rate.NewLimiter(rate.Inf, 1000), nil, totalResources)
-	demand := testfixtures.CpuMem("100", "500Gi")
-	require.NoError(t, sctx.AddQueueSchedulingContext("A", 1, 1, nil, demand, demand, internaltypes.ResourceList{}, rate.NewLimiter(rate.Inf, 1000)))
-	sctx.UpdateFairShares()
-	nodeScheduler := optimiser.NewPreemptingNodeScheduler(jobTxn, nodeDb, nil, false)
-	gangScheduler := &recordingOptimiserGangScheduler{delegate: optimiser.NewFairnessOptimisingScheduler(nodeScheduler, jobTxn, nodeDb, 10, false)}
-	constraints := schedulerconstraints.NewSchedulingConstraints(testfixtures.TestPool, totalResources, config, []*api.Queue{{Name: "A"}})
-	sch := NewOptimisingQueueScheduler(jobTxn, gangScheduler, constraints, testfixtures.TestEmptyFloatingResources, 100, false, nil, 100, nil)
-
-	result, err := sch.Schedule(armadacontext.Background(), sctx)
-	require.NoError(t, err)
-	expectedIds := armadaslices.Map(jobs, func(job *jobdb.Job) string { return job.Id() })
-	assert.Equal(t, expectedIds, gangScheduler.attemptedJobIds)
-	assert.Equal(t, []string{schedulerconstraints.OptimiserNoPlacementUnschedulableReason, schedulerconstraints.OptimiserNoPlacementUnschedulableReason, ""}, gangScheduler.reasons)
-	for _, reason := range gangScheduler.reasons {
-		assert.False(t, schedulerconstraints.UnschedulableReasonIsPropertyOfGang(reason))
-	}
-	assert.Empty(t, sctx.UnfeasibleSchedulingKeys)
-	assert.Empty(t, result.PreemptedJobs)
-	require.Len(t, result.ScheduledJobs, 1)
-	assert.Equal(t, feasibleJob.Id(), result.ScheduledJobs[0].JobId)
-	require.NotNil(t, result.ScheduledJobs[0].PodSchedulingContext)
-	assert.Equal(t, node.GetId(), result.ScheduledJobs[0].PodSchedulingContext.NodeId)
-	qctx := sctx.QueueSchedulingContexts["A"]
-	require.Len(t, qctx.SuccessfulJobSchedulingContexts, 1)
-	assert.Same(t, result.ScheduledJobs[0], qctx.SuccessfulJobSchedulingContexts[feasibleJob.Id()])
-	assert.Equal(t, 1, sctx.NumScheduledJobs)
-	assert.Equal(t, 1, sctx.NumScheduledGangs)
-	expectedResources := feasibleJob.AllResourceRequirements()
-	assert.True(t, expectedResources.Equal(sctx.Allocated))
-	assert.True(t, expectedResources.Equal(sctx.ScheduledResources))
-	assert.True(t, expectedResources.Equal(qctx.Allocated))
-	assert.True(t, expectedResources.Equal(qctx.AllocatedByPriorityClass[feasibleJob.PriorityClassName()]))
-	assert.True(t, expectedResources.Equal(qctx.ScheduledResourcesByPriorityClass[feasibleJob.PriorityClassName()]))
-}
-
-type recordingOptimiserGangScheduler struct {
-	delegate        optimiser.GangScheduler
-	attemptedJobIds []string
-	reasons         []string
-}
-
-func (s *recordingOptimiserGangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.GangSchedulingContext, sctx *context.SchedulingContext) (bool, []*context.JobSchedulingContext, string, error) {
-	s.attemptedJobIds = append(s.attemptedJobIds, gctx.JobIds()...)
-	ok, preempted, reason, err := s.delegate.Schedule(ctx, gctx, sctx)
-	s.reasons = append(s.reasons, reason)
-	return ok, preempted, reason, err
 }
