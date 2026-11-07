@@ -3,8 +3,7 @@ title: 'Core concepts'
 description: 'The ideas behind Armada: jobs, queues, job sets, fair share, priority, preemption and gangs.'
 ---
 
-This page explains the fundamental concepts you need to effectively use Armada.
-For quick definitions of any term, see the [Glossary](/docs/glossary).
+This page explains the fundamental concepts you need to effectively use Armada. For quick definitions of any term, see the [Glossary](/docs/glossary).
 
 ## What Armada does
 
@@ -23,8 +22,7 @@ Armada doesn't replace Kubernetes. It sits on top, decides which jobs should run
 A **job** is one piece of work. It's made of:
 
 - A Kubernetes **pod spec**: the containers to run, and the CPU and memory they need. Exactly one pod per job.
-- Optionally, network objects that live and die with the job: **services** and **ingresses**.
-  See [Interactive jobs and services](/docs/interactive-jobs-and-services).
+- Optionally, network objects that live and die with the job: **services** and **ingresses**. See [Interactive jobs and services](/docs/interactive-jobs-and-services).
 - Armada details: which **queue** it goes into, which **job set** it belongs to, and its **priority**.
 
 Every job gets a unique **job ID** when you submit it. You use the ID to look the job up, read its output or cancel it.
@@ -43,8 +41,7 @@ Every job moves through these states:
 | **Failed**    | It finished with an error, or was stopped by preemption or rejected. |
 | **Cancelled** | Someone cancelled it.                                                |
 
-Succeeded, Failed and Cancelled are **final**. Lookout also shows two kinds of failure as states of their own: **Preempted** (Armada stopped the job for other work) and **Rejected** (the job was turned down before it ran); `armadactl watch` shows both as failed events. The API can also report **Submitted** and **Unknown**.
-See the [API reference](/docs/api).
+Succeeded, Failed and Cancelled are **final**. Lookout also shows two kinds of failure as states of their own: **Preempted** (Armada stopped the job for other work) and **Rejected** (the job was turned down before it ran); `armadactl watch` shows both as failed events. The API can also report **Submitted** and **Unknown**. (See the [API reference](/docs/api#step-3-check-the-jobs-state)).
 
 Before a job is final, Armada may run it more than once. Each attempt is a **run**:
 
@@ -158,10 +155,9 @@ Try it: [Gang jobs](/docs/gang-jobs).
 
 ## Failures and retries
 
-When a run fails, Armada can label it with a **failure category**, a short name such as `oom` (out of memory) or `user_error` (your program exited with an error), and sometimes a **hint** with a known fix. Your platform team defines the categories. They show in Lookout, and they're what retry policies use to decide whether to run a job again: for example, retry `oom` with more memory, but never retry `user_error`.
+When a run fails, Armada can label it with a **failure category**, a short name such as `oom` (out of memory) or `user_error` (your program exited with an error), and sometimes a **hint** with a known fix. Your platform team defines the categories. They show in Lookout, and they're what retry policies use to decide whether to run a job again: for example, retry `oom` with more memory, but never retry `user_error`. See [Error categories](/docs/failure-categories).
 
 See [Retry policies](/docs/retry_policies).
-{/* See [Failure categories](/docs/failure-categories). */}
 
 ## How the pieces fit together
 

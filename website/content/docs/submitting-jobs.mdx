@@ -73,8 +73,7 @@ Armada rejects the whole file if any job breaks one of these rules:
 - `namespace` is required.
 - Every container has `resources` with both `requests` and `limits`, and by default they're equal. Operators can allow limits above requests with a server setting: see [Operator setup](#operator-setup).
 - Node affinity is supported only in its `required...` form. `preferred...` node affinity is rejected.
-- `priorityClassName`, if set, must be on the cluster's allowed list.
-  See [Priority and preemption](/docs/priority-and-preemption).
+- `priorityClassName`, if set, must be on the cluster's allowed list. See [Priority and preemption](/docs/priority-and-preemption).
 
 ## 3. Check the file
 

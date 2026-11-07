@@ -93,8 +93,7 @@ You can cancel, reprioritize and preempt jobs from Lookout, one at a time or sev
 armadactl watch my-team demo-1
 ```
 
-`watch` streams every change to the jobs in one job set.
-See [Submitting jobs](/docs/submitting-jobs#5-watch-it-run) for what the output means.
+`watch` streams every change to the jobs in one job set. See [Submitting jobs](/docs/submitting-jobs#5-watch-it-run) for what the output means.
 
 `watch` keeps running until you press Ctrl-C. To stop it when every job in the job set has finished, add `--exit-if-inactive`. It counts only the jobs it has seen so far, so in a job set with older finished jobs it can stop before a newer job ends. If it's still running after the last job finishes, press Ctrl-C.
 
@@ -132,8 +131,7 @@ The Python and Go clients can perform the same requests:
 | `get_job_details`       | Job details, including runs                       |
 | `get_job_errors`        | Why jobs failed                                   |
 
-See [Client libraries](/docs/clients) for an example.
-{/* See [Authentication](/docs/authentication#connecting-from-your-own-code-python-and-airflow) to connect to a team installation. */}
+See [Client libraries](/docs/clients) for an example. {/* See [Authentication](/docs/authentication#connecting-from-your-own-code-python-and-airflow) to connect to a team installation. */}
 
 ## Act on many jobs at once
 
