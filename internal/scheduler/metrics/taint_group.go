@@ -20,7 +20,12 @@ func classifyTaintGroup(taints []internaltypes.NodeTaint) string {
 	unknownTaintsFound := false
 	for _, taint := range taints {
 		switch taint.GetCategory() {
-		case taintCategoryUnspecified, taintCategoryUnknown:
+		case taintCategoryUnspecified:
+			// Legacy tolerated and reservation taints have no category but are user-facing.
+			if !taint.GetUserFacing() {
+				unknownTaintsFound = true
+			}
+		case taintCategoryUnknown:
 			unknownTaintsFound = true
 		case taintCategoryUser:
 		default:
