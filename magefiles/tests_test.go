@@ -3,7 +3,9 @@ package main
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"strings"
 	"testing"
@@ -127,6 +129,54 @@ func TestEnsureGotestsumCreatesBinDirectory(t *testing.T) {
 		return os.WriteFile(filepath.Join(dir, "gotestsum"), []byte("pinned"), 0o755)
 	}); err != nil {
 		t.Fatal(err)
+	}
+	if info, err := os.Stat(binary); err != nil || !info.Mode().IsRegular() {
+		t.Fatalf("binary not created at %s: %v", binary, err)
+	}
+}
+
+// TestIsPinnedGotestsumInstalled installs the real pinned tool and expects a match.
+func TestIsPinnedGotestsumInstalled(t *testing.T) {
+	if testing.Short() {
+		t.Skip("installing gotestsum needs the module cache or network")
+	}
+	dir := t.TempDir()
+	if err := installGotestsum(dir); err != nil {
+		t.Fatal(err)
+	}
+	binary := filepath.Join(dir, gotestsumBinaryName())
+	matches, err := isPinnedGotestsum(binary)
+	if err != nil || !matches {
+		t.Fatalf("got (%v, %v), want match=true", matches, err)
+	}
+	if runtime.GOOS == "windows" {
+		return // Windows has no exec permission bits to check.
+	}
+	if err := os.Chmod(binary, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	matches, err = isPinnedGotestsum(binary)
+	if err != nil || matches {
+		t.Fatalf("non-executable binary: got (%v, %v), want match=false", matches, err)
+	}
+}
+
+// TestIsPinnedGotestsumLocalBuild checks that a Go binary that is not the pinned tool is rejected.
+func TestIsPinnedGotestsumLocalBuild(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "main.go")
+	if err := os.WriteFile(src, []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	binary := filepath.Join(dir, gotestsumBinaryName())
+	build := exec.Command("go", "build", "-o", binary, src)
+	build.Dir = dir
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("building test binary: %v\n%s", err, out)
+	}
+	matches, err := isPinnedGotestsum(binary)
+	if err != nil || matches {
+		t.Fatalf("got (%v, %v), want match=false", matches, err)
 	}
 }
 

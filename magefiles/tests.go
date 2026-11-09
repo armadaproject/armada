@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"strings"
 
@@ -49,12 +50,20 @@ const (
 
 // gotestsum ensures that tests use the pinned gotestsum binary.
 func gotestsum() error {
-	binary := filepath.Join(LocalBin, "gotestsum")
+	binary := filepath.Join(LocalBin, gotestsumBinaryName())
 	if err := ensureGotestsum(binary, isPinnedGotestsum, installGotestsum); err != nil {
 		return err
 	}
 	Gotestsum = binary
 	return nil
+}
+
+// gotestsumBinaryName returns the file name go install gives the tool.
+func gotestsumBinaryName() string {
+	if runtime.GOOS == "windows" {
+		return "gotestsum.exe"
+	}
+	return "gotestsum"
 }
 
 func installGotestsum(binDir string) error {
@@ -67,7 +76,7 @@ func installGotestsum(binDir string) error {
 }
 
 // isPinnedGotestsum reads metadata without executing an unverified local tool.
-// Read the file first so filesystem failures remain errors even when the build
+// Open the file first so filesystem failures remain errors even when the build
 // info reader would report them as an unrecognized executable format.
 func isPinnedGotestsum(binary string) (bool, error) {
 	info, err := os.Stat(binary)
@@ -80,16 +89,21 @@ func isPinnedGotestsum(binary string) (bool, error) {
 	if !info.Mode().IsRegular() {
 		return false, fmt.Errorf("%s is not a regular file", binary)
 	}
-	data, err := os.ReadFile(binary)
+	f, err := os.Open(binary)
 	if err != nil {
 		return false, err
 	}
-	metadata, err := buildinfo.Read(bytes.NewReader(data))
+	defer f.Close()
+	metadata, err := buildinfo.Read(f)
 	if err != nil {
 		// Non-Go and damaged binaries are cache misses.
 		return false, nil
 	}
-	return info.Mode()&0o111 != 0 && isPinnedGotestsumBuild(metadata), nil
+	// Windows has no exec permission bits; executability comes from the .exe name.
+	if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
+		return false, nil
+	}
+	return isPinnedGotestsumBuild(metadata), nil
 }
 
 func isPinnedGotestsumBuild(metadata *debug.BuildInfo) bool {
@@ -109,7 +123,7 @@ func ensureGotestsum(binary string, matches func(string) (bool, error), install 
 		return nil
 	}
 	binDir := filepath.Dir(binary)
-	if err := os.MkdirAll(binDir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return fmt.Errorf("creating gotestsum directory: %w", err)
 	}
 	staging, err := os.MkdirTemp(binDir, ".gotestsum-*")
@@ -125,7 +139,7 @@ func ensureGotestsum(binary string, matches func(string) (bool, error), install 
 	if err := install(staging); err != nil {
 		return fmt.Errorf("installing gotestsum: %w", err)
 	}
-	installed := filepath.Join(staging, "gotestsum")
+	installed := filepath.Join(staging, filepath.Base(binary))
 	matching, err = matches(installed)
 	if err != nil {
 		return fmt.Errorf("verifying installed gotestsum: %w", err)
