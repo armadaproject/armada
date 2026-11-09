@@ -28,12 +28,12 @@ type NodeInfoService interface {
 }
 
 type KubernetesNodeInfoService struct {
-	clusterContext         context.ClusterContext
-	nodeTypeLabel          string
-	nodePoolLabel          string
-	reservedNodePoolSuffix string
-	taintCategorisation    configuration.TaintCategorisationConfiguration
-	wellKnownTaints        *configuration.WellKnownTaints
+	clusterContext          context.ClusterContext
+	nodeTypeLabel           string
+	nodePoolLabel           string
+	reservedNodePoolSuffix  string
+	categoriseUnknownTaints bool
+	wellKnownTaints         *configuration.WellKnownTaints
 }
 
 func NewKubernetesNodeInfoService(
@@ -41,24 +41,17 @@ func NewKubernetesNodeInfoService(
 	nodeTypeLabel string,
 	nodePoolLabel string,
 	reservedNodePoolSuffix string,
-	taintCategorisation configuration.TaintCategorisationConfiguration,
-	toleratedTaints []string,
-) (*KubernetesNodeInfoService, error) {
-	wellKnownTaints, err := (configuration.KubernetesConfiguration{
-		TaintCategorisation: taintCategorisation,
-		ToleratedTaints:     toleratedTaints,
-	}).NewWellKnownTaints()
-	if err != nil {
-		return nil, err
-	}
+	wellKnownTaints *configuration.WellKnownTaints,
+	categoriseUnknownTaints bool,
+) *KubernetesNodeInfoService {
 	return &KubernetesNodeInfoService{
-		clusterContext:         clusterContext,
-		nodePoolLabel:          nodePoolLabel,
-		nodeTypeLabel:          nodeTypeLabel,
-		reservedNodePoolSuffix: reservedNodePoolSuffix,
-		taintCategorisation:    taintCategorisation,
-		wellKnownTaints:        wellKnownTaints,
-	}, nil
+		clusterContext:          clusterContext,
+		nodePoolLabel:           nodePoolLabel,
+		nodeTypeLabel:           nodeTypeLabel,
+		reservedNodePoolSuffix:  reservedNodePoolSuffix,
+		categoriseUnknownTaints: categoriseUnknownTaints,
+		wellKnownTaints:         wellKnownTaints,
+	}
 }
 
 type NodeGroup struct {
@@ -174,7 +167,7 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) IsAvailableProcessin
 	}
 
 	// When unknown taints are not categorised, nodes with unknown taints are not available
-	if !kubernetesNodeInfoService.taintCategorisation.CategoriseUnknownTaints {
+	if !kubernetesNodeInfoService.categoriseUnknownTaints {
 		for _, taint := range node.Spec.Taints {
 			_, isWellKnown := kubernetesNodeInfoService.wellKnownTaints.MatchWellKnownTaint(taint.Key)
 			if taint.Effect == v1.TaintEffectNoSchedule && !isWellKnown {

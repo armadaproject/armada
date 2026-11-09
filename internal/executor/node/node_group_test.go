@@ -325,8 +325,9 @@ func TestIsAvailableProcessingNode_CategoriseUnknownTaints(t *testing.T) {
 				CategoriseUnknownTaints: tc.categoriseUnknown,
 				WellKnownTaints:         configuration.WellKnownTaintsConfiguration{Keys: []string{"known"}},
 			}
-			service, err := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, config, nil)
+			wellKnownTaints, err := (configuration.KubernetesConfiguration{TaintCategorisation: config}).NewWellKnownTaints()
 			require.NoError(t, err)
+			service := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, wellKnownTaints, tc.categoriseUnknown)
 			node := &v1.Node{Spec: v1.NodeSpec{Unschedulable: tc.unschedulable, Taints: tc.taints}}
 			assert.Equal(t, tc.want, service.IsAvailableProcessingNode(node))
 		})
@@ -342,8 +343,9 @@ func TestIsAvailableProcessingNode_ControlPlaneRoles(t *testing.T) {
 				"node-role.kubernetes.io/master", "node-role.kubernetes.io/control-plane",
 			}},
 		}
-		service, err := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, config, nil)
+		wellKnownTaints, err := (configuration.KubernetesConfiguration{TaintCategorisation: config}).NewWellKnownTaints()
 		require.NoError(t, err)
+		service := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, wellKnownTaints, categoriseUnknown)
 		for _, tc := range []struct {
 			name   string
 			labels map[string]string
@@ -364,12 +366,13 @@ func TestIsAvailableProcessingNode_ControlPlaneRoles(t *testing.T) {
 	}
 }
 
-func TestNewKubernetesNodeInfoService_RejectsInvalidTaintPattern(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	config := configuration.TaintCategorisationConfiguration{
-		WellKnownTaints: configuration.WellKnownTaintsConfiguration{Keys: []string{"["}},
+func TestNewWellKnownTaints_RejectsInvalidTaintPattern(t *testing.T) {
+	config := configuration.KubernetesConfiguration{
+		TaintCategorisation: configuration.TaintCategorisationConfiguration{
+			WellKnownTaints: configuration.WellKnownTaintsConfiguration{Keys: []string{"["}},
+		},
 	}
-	_, err := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, config, nil)
+	_, err := config.NewWellKnownTaints()
 	require.Error(t, err)
 }
 
@@ -448,7 +451,7 @@ func mustWellKnownTaints(t *testing.T, toleratedTaints []string, wellKnownTaints
 
 func newTestKubernetesNodeInfoService(t *testing.T, context executorcontext.ClusterContext, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix string, config configuration.KubernetesConfiguration) *KubernetesNodeInfoService {
 	t.Helper()
-	result, err := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, config.TaintCategorisation, config.ToleratedTaints)
+	wellKnownTaints, err := config.NewWellKnownTaints()
 	require.NoError(t, err)
-	return result
+	return NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, wellKnownTaints, config.TaintCategorisation.CategoriseUnknownTaints)
 }
