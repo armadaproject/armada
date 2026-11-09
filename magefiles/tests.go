@@ -2,14 +2,11 @@ package main
 
 import (
 	"bytes"
-	"debug/buildinfo"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
-	"runtime/debug"
 	"strings"
 
 	"github.com/magefile/mage/mg"
@@ -51,53 +48,17 @@ const (
 // gotestsum ensures that tests use the pinned gotestsum binary.
 func gotestsum() error {
 	mg.Deps(makeLocalBin)
-	binary := filepath.Join(LocalBin, binaryWithExt("gotestsum"))
-	matching, err := isPinnedGotestsum(binary)
-	if err != nil {
-		return err
-	}
-	if !matching {
-		if err := installDependency(LocalBin, gotestsumModule, gotestsumVersion); err != nil {
+	binDir := filepath.Join(LocalBin, "gotestsum-"+gotestsumVersion)
+	binary := filepath.Join(binDir, binaryWithExt("gotestsum"))
+	if _, err := os.Stat(binary); os.IsNotExist(err) {
+		if err := installDependency(binDir, gotestsumModule, gotestsumVersion); err != nil {
 			return err
 		}
+	} else if err != nil {
+		return err
 	}
 	Gotestsum = binary
 	return nil
-}
-
-// isPinnedGotestsum reads metadata without executing an unverified local tool.
-// Read the file first so filesystem failures remain errors even when the build
-// info reader would report them as an unrecognized executable format.
-func isPinnedGotestsum(binary string) (bool, error) {
-	info, err := os.Stat(binary)
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	if !info.Mode().IsRegular() {
-		return false, fmt.Errorf("%s is not a regular file", binary)
-	}
-	data, err := os.ReadFile(binary)
-	if err != nil {
-		return false, err
-	}
-	metadata, err := buildinfo.Read(bytes.NewReader(data))
-	if err != nil {
-		// Non-Go and damaged binaries are cache misses.
-		return false, nil
-	}
-	// Windows has no exec permission bits; executability comes from the .exe name.
-	if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
-		return false, nil
-	}
-	return isPinnedGotestsumBuild(metadata), nil
-}
-
-func isPinnedGotestsumBuild(metadata *debug.BuildInfo) bool {
-	return metadata.Path == gotestsumModule && metadata.Main.Path == gotestsumModule &&
-		metadata.Main.Version == gotestsumVersion && metadata.Main.Replace == nil
 }
 
 // Tests is a mage target that runs the tests and generates coverage reports.
