@@ -136,15 +136,19 @@ func TestEnsureGotestsumCreatesBinDirectory(t *testing.T) {
 }
 
 // TestIsPinnedGotestsumInstalled installs the real pinned tool and expects a match.
+// Run with ARMADA_TEST_GOTESTSUM_INSTALL=1 go test ./magefiles -run '^TestIsPinnedGotestsumInstalled$' -count=1.
 func TestIsPinnedGotestsumInstalled(t *testing.T) {
 	if testing.Short() {
 		t.Skip("installing gotestsum needs the module cache or network")
+	}
+	if os.Getenv("ARMADA_TEST_GOTESTSUM_INSTALL") != "1" {
+		t.Skip("set ARMADA_TEST_GOTESTSUM_INSTALL=1 to install the real pinned tool")
 	}
 	dir := t.TempDir()
 	if err := installGotestsum(dir); err != nil {
 		t.Fatal(err)
 	}
-	binary := filepath.Join(dir, gotestsumBinaryName())
+	binary := filepath.Join(dir, binaryWithExt("gotestsum"))
 	matches, err := isPinnedGotestsum(binary)
 	if err != nil || !matches {
 		t.Fatalf("got (%v, %v), want match=true", matches, err)
@@ -168,7 +172,7 @@ func TestIsPinnedGotestsumLocalBuild(t *testing.T) {
 	if err := os.WriteFile(src, []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	binary := filepath.Join(dir, gotestsumBinaryName())
+	binary := filepath.Join(dir, binaryWithExt("gotestsum"))
 	build := exec.Command("go", "build", "-o", binary, src)
 	build.Dir = dir
 	if out, err := build.CombinedOutput(); err != nil {

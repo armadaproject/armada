@@ -50,20 +50,12 @@ const (
 
 // gotestsum ensures that tests use the pinned gotestsum binary.
 func gotestsum() error {
-	binary := filepath.Join(LocalBin, gotestsumBinaryName())
+	binary := filepath.Join(LocalBin, binaryWithExt("gotestsum"))
 	if err := ensureGotestsum(binary, isPinnedGotestsum, installGotestsum); err != nil {
 		return err
 	}
 	Gotestsum = binary
 	return nil
-}
-
-// gotestsumBinaryName returns the file name go install gives the tool.
-func gotestsumBinaryName() string {
-	if runtime.GOOS == "windows" {
-		return "gotestsum.exe"
-	}
-	return "gotestsum"
 }
 
 func installGotestsum(binDir string) error {
@@ -76,7 +68,7 @@ func installGotestsum(binDir string) error {
 }
 
 // isPinnedGotestsum reads metadata without executing an unverified local tool.
-// Open the file first so filesystem failures remain errors even when the build
+// Read the file first so filesystem failures remain errors even when the build
 // info reader would report them as an unrecognized executable format.
 func isPinnedGotestsum(binary string) (bool, error) {
 	info, err := os.Stat(binary)
@@ -89,12 +81,11 @@ func isPinnedGotestsum(binary string) (bool, error) {
 	if !info.Mode().IsRegular() {
 		return false, fmt.Errorf("%s is not a regular file", binary)
 	}
-	f, err := os.Open(binary)
+	data, err := os.ReadFile(binary)
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
-	metadata, err := buildinfo.Read(f)
+	metadata, err := buildinfo.Read(bytes.NewReader(data))
 	if err != nil {
 		// Non-Go and damaged binaries are cache misses.
 		return false, nil
