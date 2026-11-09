@@ -21,31 +21,30 @@ func TestClassifyTaintGroup(t *testing.T) {
 	taint := func(category string, userFacing bool) internaltypes.NodeTaint {
 		return internaltypes.NewNodeTaint(v1.Taint{Key: "example"}, category, userFacing)
 	}
-	for _, tc := range []struct {
-		name      string
+	for name, tc := range map[string]struct {
 		taints    []internaltypes.NodeTaint
 		rawTaints []v1.Taint
 		want      string
 	}{
-		{name: "nil taints", want: "none"},
-		{name: "empty taints", taints: []internaltypes.NodeTaint{}, want: "none"},
-		{name: "raw taints without metadata", rawTaints: []v1.Taint{{Key: "legacy"}}, want: "none"},
-		{name: "user taint", taints: []internaltypes.NodeTaint{taint("user", false)}, want: "user"},
-		{name: "multiple user taints", taints: []internaltypes.NodeTaint{taint("user", false), taint("user", true)}, want: "user"},
-		{name: "unknown taint", taints: []internaltypes.NodeTaint{taint("unknown", false)}, want: "unknown"},
-		{name: "unspecified category", taints: []internaltypes.NodeTaint{taint("", false)}, want: "unknown"},
-		{name: "admin category", taints: []internaltypes.NodeTaint{taint("platform", false)}, want: "admin"},
-		{name: "another admin category", taints: []internaltypes.NodeTaint{taint("maintenance", false)}, want: "admin"},
-		{name: "unknown after user", taints: []internaltypes.NodeTaint{taint("user", false), taint("unknown", false)}, want: "unknown"},
-		{name: "unknown before user", taints: []internaltypes.NodeTaint{taint("unknown", false), taint("user", false)}, want: "unknown"},
-		{name: "unspecified and user", taints: []internaltypes.NodeTaint{taint("", false), taint("user", false)}, want: "unknown"},
-		{name: "admin after unknown", taints: []internaltypes.NodeTaint{taint("unknown", false), taint("platform", false)}, want: "admin"},
-		{name: "admin before unknown", taints: []internaltypes.NodeTaint{taint("platform", false), taint("unknown", false)}, want: "admin"},
-		{name: "admin after unspecified", taints: []internaltypes.NodeTaint{taint("", false), taint("platform", false)}, want: "admin"},
-		{name: "admin before unspecified", taints: []internaltypes.NodeTaint{taint("platform", false), taint("", false)}, want: "admin"},
-		{name: "admin and user", taints: []internaltypes.NodeTaint{taint("user", false), taint("platform", false)}, want: "admin"},
+		"nil taints":                  {want: "none"},
+		"empty taints":                {taints: []internaltypes.NodeTaint{}, want: "none"},
+		"raw taints without metadata": {rawTaints: []v1.Taint{{Key: "legacy"}}, want: "none"},
+		"user taint":                  {taints: []internaltypes.NodeTaint{taint("user", false)}, want: "user"},
+		"multiple user taints":        {taints: []internaltypes.NodeTaint{taint("user", false), taint("user", true)}, want: "user"},
+		"unknown taint":               {taints: []internaltypes.NodeTaint{taint("unknown", false)}, want: "unknown"},
+		"unspecified category":        {taints: []internaltypes.NodeTaint{taint("", false)}, want: "unknown"},
+		"admin category":              {taints: []internaltypes.NodeTaint{taint("platform", false)}, want: "admin"},
+		"another admin category":      {taints: []internaltypes.NodeTaint{taint("maintenance", false)}, want: "admin"},
+		"unknown after user":          {taints: []internaltypes.NodeTaint{taint("user", false), taint("unknown", false)}, want: "unknown"},
+		"unknown before user":         {taints: []internaltypes.NodeTaint{taint("unknown", false), taint("user", false)}, want: "unknown"},
+		"unspecified and user":        {taints: []internaltypes.NodeTaint{taint("", false), taint("user", false)}, want: "unknown"},
+		"admin after unknown":         {taints: []internaltypes.NodeTaint{taint("unknown", false), taint("platform", false)}, want: "admin"},
+		"admin before unknown":        {taints: []internaltypes.NodeTaint{taint("platform", false), taint("unknown", false)}, want: "admin"},
+		"admin after unspecified":     {taints: []internaltypes.NodeTaint{taint("", false), taint("platform", false)}, want: "admin"},
+		"admin before unspecified":    {taints: []internaltypes.NodeTaint{taint("platform", false), taint("", false)}, want: "admin"},
+		"admin and user":              {taints: []internaltypes.NodeTaint{taint("user", false), taint("platform", false)}, want: "admin"},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(name, func(t *testing.T) {
 			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities).WithTaints(tc.rawTaints).WithNodeTaints(tc.taints)
 			assert.Equal(t, tc.want, classifyTaintGroup(node.GetNodeTaints()))
 		})
