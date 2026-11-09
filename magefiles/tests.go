@@ -50,21 +50,19 @@ const (
 
 // gotestsum ensures that tests use the pinned gotestsum binary.
 func gotestsum() error {
+	mg.Deps(makeLocalBin)
 	binary := filepath.Join(LocalBin, binaryWithExt("gotestsum"))
-	if err := ensureGotestsum(binary, isPinnedGotestsum, installGotestsum); err != nil {
+	matching, err := isPinnedGotestsum(binary)
+	if err != nil {
 		return err
+	}
+	if !matching {
+		if err := installDependency(LocalBin, gotestsumModule, gotestsumVersion); err != nil {
+			return err
+		}
 	}
 	Gotestsum = binary
 	return nil
-}
-
-func installGotestsum(binDir string) error {
-	fmt.Println("Installing", gotestsumModule+"@"+gotestsumVersion)
-	cmd := exec.Command("go", "install", gotestsumModule+"@"+gotestsumVersion)
-	cmd.Env = append(os.Environ(), "GOBIN="+binDir)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 // isPinnedGotestsum reads metadata without executing an unverified local tool.
@@ -100,48 +98,6 @@ func isPinnedGotestsum(binary string) (bool, error) {
 func isPinnedGotestsumBuild(metadata *debug.BuildInfo) bool {
 	return metadata.Path == gotestsumModule && metadata.Main.Path == gotestsumModule &&
 		metadata.Main.Version == gotestsumVersion && metadata.Main.Replace == nil
-}
-
-// ensureGotestsum stages and verifies updates before replacing the managed tool.
-// The callbacks keep bootstrap regressions independent of the network and Mage's
-// dependency memoization; production uses the same path with the real installer.
-func ensureGotestsum(binary string, matches func(string) (bool, error), install func(string) error) (err error) {
-	matching, err := matches(binary)
-	if err != nil {
-		return fmt.Errorf("checking gotestsum: %w", err)
-	}
-	if matching {
-		return nil
-	}
-	binDir := filepath.Dir(binary)
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		return fmt.Errorf("creating gotestsum directory: %w", err)
-	}
-	staging, err := os.MkdirTemp(binDir, ".gotestsum-*")
-	if err != nil {
-		return fmt.Errorf("staging gotestsum: %w", err)
-	}
-	defer func() {
-		if cleanupErr := os.RemoveAll(staging); cleanupErr != nil && err == nil {
-			err = fmt.Errorf("cleaning up gotestsum installation: %w", cleanupErr)
-		}
-	}()
-
-	if err := install(staging); err != nil {
-		return fmt.Errorf("installing gotestsum: %w", err)
-	}
-	installed := filepath.Join(staging, filepath.Base(binary))
-	matching, err = matches(installed)
-	if err != nil {
-		return fmt.Errorf("verifying installed gotestsum: %w", err)
-	}
-	if !matching {
-		return fmt.Errorf("installed gotestsum is not %s@%s", gotestsumModule, gotestsumVersion)
-	}
-	if err := os.Rename(installed, binary); err != nil {
-		return fmt.Errorf("replacing gotestsum: %w", err)
-	}
-	return nil
 }
 
 // Tests is a mage target that runs the tests and generates coverage reports.

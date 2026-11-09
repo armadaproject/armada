@@ -52,7 +52,7 @@ jobs:
         with:
           cache-prefix: go-unit-tests
 
-      - name: Mage Bootstrap Tests
+      - name: Mage Tests
         run: go test ./magefiles -count=1
 
       - name: Unit Tests
