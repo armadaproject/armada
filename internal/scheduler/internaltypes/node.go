@@ -28,14 +28,6 @@ const (
 	MinPriority int32 = EvictedPriority
 )
 
-const (
-	taintCategoryUnspecified = ""
-	taintCategoryUser        = "user"
-	taintCategoryUnknown     = "unknown"
-	taintGroupTypeAdmin      = "admin"
-	taintGroupTypeNone       = "none"
-)
-
 // Node is a scheduler-internal representation of one Kubernetes node.
 // Its private fields should be immutable! Do not change these!
 type Node struct {
@@ -375,30 +367,6 @@ func (node *Node) GetNodeTypeId() uint64 {
 
 func (node *Node) GetNodeType() *NodeType {
 	return node.nodeType
-}
-
-// TODO: modify, clean up, test
-func (node *Node) GetTaintGroupType() string {
-	if len(node.nodeTaints) == 0 {
-		return taintGroupTypeNone
-	}
-
-	unknownTaintsFound := false
-	for _, nodeTaint := range node.nodeTaints {
-		switch nodeTaint.category {
-		case taintCategoryUnspecified, taintCategoryUnknown:
-			unknownTaintsFound = true
-		case taintCategoryUser:
-		default:
-			return taintGroupTypeAdmin
-		}
-	}
-
-	if unknownTaintsFound {
-		return taintCategoryUnknown
-	}
-
-	return taintCategoryUser
 }
 
 func (node *Node) GetLabels() map[string]string {
