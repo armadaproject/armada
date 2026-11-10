@@ -306,6 +306,161 @@ definitions:
         type: string
         minLength: 1
         x-nullable: false
+  jobRunDebugMessage:
+    type: object
+    properties:
+      errorString:
+        type: string
+        description: Debug message for individual job run, exactly as it was stored
+        x-nullable: false
+      debugInfo:
+        $ref: "#/definitions/podDebugInfo"
+  # The debug definitions below describe the JSON captured by the executor for a pod (PodDebugInfo in
+  # internal/executor/reporter/debug.go)
+  podDebugInfo:
+    type: object
+    description: Diagnostics captured by the executor about a pod and its node when a run was torn down
+    required:
+      - schemaVersion
+      - trigger
+      - pod
+    properties:
+      schemaVersion:
+        type: integer
+        format: int32
+        x-nullable: false
+      trigger:
+        type: string
+        description: Why the debug data was captured, e.g. podFailed or cancelledNotStarted
+        x-nullable: false
+      pod:
+        $ref: "#/definitions/debugPod"
+      node:
+        $ref: "#/definitions/debugNode"
+  debugPod:
+    type: object
+    properties:
+      phase:
+        type: string
+      reason:
+        type: string
+      restartPolicy:
+        type: string
+      deletionTimestamp:
+        type: string
+      forceTerminated:
+        type: boolean
+        x-nullable: true
+      finalizers:
+        type: array
+        x-omitempty: true
+        items:
+          type: string
+      initContainers:
+        type: array
+        x-omitempty: true
+        items:
+          $ref: "#/definitions/debugContainer"
+      containers:
+        type: array
+        x-omitempty: true
+        items:
+          $ref: "#/definitions/debugContainer"
+      events:
+        type: array
+        x-omitempty: true
+        items:
+          $ref: "#/definitions/debugEvent"
+  debugNode:
+    type: object
+    required:
+      - name
+    properties:
+      name:
+        type: string
+        x-nullable: false
+      exists:
+        type: boolean
+        description: False when the pod outlived the node it was assigned to
+        x-nullable: true
+      unschedulable:
+        type: boolean
+        x-nullable: true
+      ready:
+        type: string
+      readyReason:
+        type: string
+      labels:
+        type: object
+        additionalProperties:
+          type: string
+      annotations:
+        type: object
+        additionalProperties:
+          type: string
+      conditions:
+        type: array
+        x-omitempty: true
+        items:
+          $ref: "#/definitions/debugCondition"
+      events:
+        type: array
+        x-omitempty: true
+        items:
+          $ref: "#/definitions/debugEvent"
+  debugContainer:
+    type: object
+    required:
+      - name
+      - state
+    properties:
+      name:
+        type: string
+        x-nullable: false
+      restartPolicy:
+        type: string
+      state:
+        type: string
+        x-nullable: false
+      exitCode:
+        type: integer
+        format: int32
+        x-nullable: true
+      reason:
+        type: string
+      runSeconds:
+        type: integer
+        format: int64
+        x-nullable: true
+  debugCondition:
+    type: object
+    required:
+      - type
+      - status
+    properties:
+      type:
+        type: string
+        x-nullable: false
+      status:
+        type: string
+        x-nullable: false
+      reason:
+        type: string
+      message:
+        type: string
+  debugEvent:
+    type: object
+    properties:
+      type:
+        type: string
+      reason:
+        type: string
+      from:
+        type: string
+      message:
+        type: string
+      timestamp:
+        type: string
 
 parameters:
   backend:
@@ -541,12 +696,7 @@ paths:
         200:
           description: Returns debug message for specific job run (if present)
           schema:
-            type: object
-            properties:
-              errorString:
-                type: string
-                description: Debug message for individual job run
-                x-nullable: false
+            $ref: "#/definitions/jobRunDebugMessage"
         400:
           description: Error response
           schema:

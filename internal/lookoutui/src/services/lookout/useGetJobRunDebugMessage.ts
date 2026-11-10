@@ -5,15 +5,20 @@ import { QueryFunction, QueryKey, useQueries, useQuery } from "@tanstack/react-q
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
 import { useMirroredLookoutApiFetch } from "../../oidcAuth"
+import { JobRunDebugMessage, JobRunDebugMessageFromJSON } from "../../openapi/lookout"
 
 import { fakeRunDebugMessage } from "./mocks/fakeData"
 
 const getQueryFn =
-  (runId: string, fetchFunc: GlobalFetch["fetch"], fakeDataEnabled: boolean): QueryFunction<string, QueryKey, never> =>
+  (
+    runId: string,
+    fetchFunc: GlobalFetch["fetch"],
+    fakeDataEnabled: boolean,
+  ): QueryFunction<JobRunDebugMessage, QueryKey, never> =>
   async ({ signal }) => {
     try {
       if (fakeDataEnabled) {
-        return fakeRunDebugMessage
+        return { errorString: fakeRunDebugMessage }
       }
 
       const response = await fetchFunc("/api/v1/jobRunDebugMessage", {
@@ -23,8 +28,7 @@ const getQueryFn =
         signal,
       })
 
-      const json = await response.json()
-      return json.errorString ?? ""
+      return JobRunDebugMessageFromJSON(await response.json())
     } catch (e) {
       throw await getErrorMessage(e)
     }
@@ -40,7 +44,7 @@ export const useGetJobRunDebugMessage = (runId: string, enabled = true) => {
     [runId, lookoutApiFetch, config.fakeDataEnabled],
   )
 
-  return useQuery<string, string>({
+  return useQuery<JobRunDebugMessage, string>({
     queryKey: ["getJobRunDebugMessage", runId],
     queryFn,
     enabled,
