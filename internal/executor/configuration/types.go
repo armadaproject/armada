@@ -1,16 +1,25 @@
 package configuration
 
 import (
+	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 	"github.com/armadaproject/armada/pkg/client"
+)
+
+const (
+	UserWellKnownTaintCategory = "user"
+	UnknownTaintCategory       = "unknown"
 )
 
 type ApplicationConfiguration struct {
@@ -153,6 +162,7 @@ type KubernetesConfiguration struct {
 	// ToleratedTaints specifies taints which are tolerated by the executor.
 	// If a node has a taint that is not in this list, the executor will consider it for scheduling Armada jobs.
 	ToleratedTaints           []string
+	TaintCategorisation       TaintCategorisationConfiguration
 	MinimumPodAge             time.Duration
 	StuckTerminatingPodExpiry time.Duration
 	FailedPodExpiry           time.Duration
@@ -172,6 +182,100 @@ type KubernetesConfiguration struct {
 	MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority int32
 
 	PodKillTimeout time.Duration
+}
+
+type TaintCategorisationConfiguration struct {
+	// CategoriseUnknownTaints controls whether unknown node taints receive the "unknown" category.
+	CategoriseUnknownTaints bool
+	WellKnownTaints         WellKnownTaintsConfiguration
+}
+
+type WellKnownTaintsConfiguration struct {
+	// Taint keys used by end users that the executor recognizes. Supports regex and will eventually replace ToleratedTaints.
+	// Keys match literally unless they contain regex syntax other than dots
+	// (*+?[](){}|^$ or backslash). Regex patterns must match the entire taint key.
+	// Nodes with unrecognized NoSchedule taints are not considered available for scheduling.
+	// Matching taints are reported to the scheduler as user-facing metadata.
+	Keys  []string
+	Admin []WellKnownTaintAdminConfiguration
+}
+
+type WellKnownTaintAdminConfiguration struct {
+	// Name of a category to for admins to place taints in.
+	Category string
+	// Taint keys used by admins and operators that the executor recognizes. Supports regex.
+	// Literal and regex matching follow the same rules as WellKnownTaintsConfiguration.Keys.
+	// Nodes with unrecognized NoSchedule taints are not considered available for scheduling.
+	// Matching taints are reported to the scheduler with the configured admin category.
+	Keys []string
+}
+
+type WellKnownTaint struct {
+	Pattern    string
+	Category   string
+	UserFacing bool
+	regexp     *regexp.Regexp
+}
+
+type WellKnownTaints struct {
+	Taints []WellKnownTaint
+}
+
+func (c KubernetesConfiguration) NewWellKnownTaints() (*WellKnownTaints, error) {
+	taints := make([]WellKnownTaint, 0, len(c.TaintCategorisation.WellKnownTaints.Keys)+len(c.ToleratedTaints)+1)
+	appendTaint := func(pattern, category string, userFacing bool) error {
+		expression := pattern
+		if !strings.ContainsAny(expression, `*+?[](){}|^$\`) {
+			expression = regexp.QuoteMeta(expression)
+		}
+		re, err := regexp.Compile("^(?:" + expression + ")$")
+		if err != nil {
+			return err
+		}
+		taints = append(taints, WellKnownTaint{Pattern: pattern, Category: category, UserFacing: userFacing, regexp: re})
+		return nil
+	}
+	// Convert legacy tolerated taints and the reservation taint key to user-facing well-known taints.
+	for _, taintKey := range append(append([]string{}, c.ToleratedTaints...), constants.ReservationTaintKey) {
+		if err := appendTaint("^"+regexp.QuoteMeta(taintKey)+"$", "", true); err != nil {
+			return nil, err
+		}
+	}
+	// Convert kubernetes.taintCategorisation.wellKnownTaints.keys to user-facing well-known taints.
+	for _, pattern := range c.TaintCategorisation.WellKnownTaints.Keys {
+		if err := appendTaint(pattern, UserWellKnownTaintCategory, true); err != nil {
+			return nil, err
+		}
+	}
+	// Convert kubernetes.taintCategorisation.wellKnownTaints.admin.keys to categorized well-known taints with
+	// their respective category strings
+	for i, admin := range c.TaintCategorisation.WellKnownTaints.Admin {
+		if strings.TrimSpace(admin.Category) == "" {
+			return nil, fmt.Errorf("taintCategorisation.wellKnownTaints.admin[%d].category must not be empty", i)
+		}
+		if admin.Category == UserWellKnownTaintCategory {
+			return nil, fmt.Errorf("taintCategorisation.wellKnownTaints.admin[%d].category must not be %q, as that is the implied category for outer level wellKnownTaints", i, UserWellKnownTaintCategory)
+		}
+		if admin.Category == UnknownTaintCategory {
+			return nil, fmt.Errorf("taintCategorisation.wellKnownTaints.admin[%d].category must not be %q, as it is reserved for unknown taints", i, UnknownTaintCategory)
+		}
+		for _, pattern := range admin.Keys {
+			if err := appendTaint(pattern, admin.Category, false); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return &WellKnownTaints{Taints: taints}, nil
+}
+
+// MatchWellKnownTaint reports whether taintKey matches a configured well-known taint.
+func (q *WellKnownTaints) MatchWellKnownTaint(taintKey string) (WellKnownTaint, bool) {
+	for _, taint := range q.Taints {
+		if taint.regexp.MatchString(taintKey) {
+			return taint, true
+		}
+	}
+	return WellKnownTaint{}, false
 }
 
 type EtcdConfiguration struct {
