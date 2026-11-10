@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -17,43 +19,86 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-// Client sends requests to one HTTP API. Its credentials are resolved when it is made, and every request carries
-// them. Resolving them can log in, which may be interactive, and a command makes several requests.
+// Client sends requests to one HTTP API. The credentials are logged in with when it is made, once, and every request
+// asks them for their current token, so a command that runs for a long time keeps working after the first token
+// expires.
 type Client struct {
-	baseUrl     string
-	authHeaders map[string]string
-	httpClient  *http.Client
+	baseUrl    string
+	httpClient *http.Client
 }
+
+type options struct {
+	transport      http.RoundTripper
+	now            func() time.Time
+	credentialsTTL time.Duration
+}
+
+// Option changes how a Client is made.
+type Option func(*options)
+
+// WithTransport sets what sends the requests in the end, instead of http.DefaultTransport.
+func WithTransport(transport http.RoundTripper) Option {
+	return func(o *options) { o.transport = transport }
+}
+
+// withCredentialsTTL and withClock are for tests: how long the headers of a request are kept, and what time it is.
+func withCredentialsTTL(ttl time.Duration) Option { return func(o *options) { o.credentialsTTL = ttl } }
+func withClock(now func() time.Time) Option       { return func(o *options) { o.now = now } }
 
 // New makes a client for the API at url, which is authenticated with the credentials of the connection. A url
 // without a scheme gets http if it is local and https otherwise. Credentials are never sent over plain http to a
-// remote host unless the connection has ForceNoTls set, whether in a request or in a redirect.
-func New(connectionDetails *client.ApiConnectionDetails, url string) (*Client, error) {
-	return newClient(connectionDetails, url, connectionDetails.AuthHeaders)
+// remote host unless the connection has ForceNoTls set, whether in a request or in a redirect, and never to a host
+// other than the one of the API.
+func New(connectionDetails *client.ApiConnectionDetails, url string, opts ...Option) (*Client, error) {
+	return newClient(connectionDetails, url, connectionDetails.RequestAuth, opts...)
 }
 
-// newClient is New with the way the credentials are resolved given, which is a function of the url they are for.
+// newClient is New with the way to log in given: it is called once, and returns the function that gives the headers
+// for a request to a url.
 func newClient(
 	connectionDetails *client.ApiConnectionDetails,
 	url string,
-	resolveAuthHeaders func(ctx context.Context, url string) (map[string]string, error),
+	login func() (func(ctx context.Context, url string) (map[string]string, error), error),
+	opts ...Option,
 ) (*Client, error) {
 	if url == "" {
 		return nil, errors.New("no url given for the http api")
 	}
+	o := &options{transport: http.DefaultTransport, now: time.Now, credentialsTTL: credentialsTTL}
+	for _, opt := range opts {
+		opt(o)
+	}
 	base := baseUrl(url)
 
-	ctx, cancel := common.ContextWithDefaultTimeout()
-	defer cancel()
-	headers, err := resolveAuthHeaders(ctx, base)
+	authenticate, err := login()
 	if err != nil {
 		return nil, err
 	}
+	// Asking once now checks the url and the credentials before any request is made, and has them ready.
+	ctx, cancel := common.ContextWithDefaultTimeout()
+	defer cancel()
+	headers, err := authenticate(ctx, base)
+	if err != nil {
+		return nil, err
+	}
+
+	transport := o.transport
+	if len(headers) > 0 {
+		transport = newAuthTransport(transport, hostOf(base), authenticate, headers, o)
+	}
 	return &Client{
-		baseUrl:     base,
-		authHeaders: headers,
-		httpClient:  &http.Client{CheckRedirect: checkRedirect(connectionDetails, len(headers) > 0)},
+		baseUrl:    base,
+		httpClient: &http.Client{Transport: transport, CheckRedirect: checkRedirect(connectionDetails, len(headers) > 0)},
 	}, nil
+}
+
+// hostOf is the hostname of a url.
+func hostOf(rawUrl string) string {
+	u, err := url.Parse(rawUrl)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
 }
 
 // baseUrl adds a scheme to a url that has none: http for a local address, https otherwise.
@@ -69,8 +114,8 @@ func baseUrl(url string) string {
 }
 
 // checkRedirect stops a request that carries credentials from following a redirect to somewhere they must not go.
-// The credentials were only checked against the url the request started at, and a redirect to the same host
-// keeps them, so an API that redirects from https to http would otherwise get them in clear text.
+// The credentials are given to every request to the host of the API, so a redirect that stays on the host would
+// keep them, and a Lookout that redirects from https to http would otherwise get them in clear text.
 func checkRedirect(connectionDetails *client.ApiConnectionDetails, authenticated bool) func(*http.Request, []*http.Request) error {
 	return func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 10 {
@@ -129,9 +174,6 @@ func (c *Client) Do(method, path string, body, out any) error {
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
-	}
-	for k, v := range c.authHeaders {
-		req.Header.Set(k, v)
 	}
 
 	resp, err := c.httpClient.Do(req)

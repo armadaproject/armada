@@ -124,22 +124,37 @@ func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredenti
 	return nil, nil
 }
 
-// AuthHeaders returns the HTTP headers that authenticate a request to rawURL with the credentials the connection
-// is configured with, which are the credentials that authenticate its gRPC calls. It returns no headers when no
-// credentials are configured. Like the gRPC connection, which only goes without TLS to a local server or when
-// ForceNoTls is set, it refuses to send credentials over plain http in other cases.
-func (config *ApiConnectionDetails) AuthHeaders(ctx context.Context, rawURL string) (map[string]string, error) {
+// RequestAuth logs in with the credentials the connection is configured with, which are the credentials that
+// authenticate its gRPC calls, and returns a function that gives the HTTP headers that authenticate a request to a url.
+// The login, which may be interactive, happens here, once. The function only asks the credentials for their current
+// token, which they renew themselves when it has expired, so it can be called for every request of a long command.
+// It gives no headers when no credentials are configured. Like the gRPC connection, which only goes without TLS to a
+// local server or when ForceNoTls is set, it refuses to give credentials for a url they must not be sent to over plain
+// http.
+func (config *ApiConnectionDetails) RequestAuth() (func(ctx context.Context, url string) (map[string]string, error), error) {
 	creds, err := perRpcCredentials(config)
 	if err != nil {
 		return nil, err
 	}
 	if creds == nil {
-		return nil, nil
+		return func(context.Context, string) (map[string]string, error) { return nil, nil }, nil
 	}
-	if !config.AllowsCredentialsOver(rawURL) {
-		return nil, errors.New("refusing to send credentials over plain http: use an https url")
+	return func(ctx context.Context, url string) (map[string]string, error) {
+		if !config.AllowsCredentialsOver(url) {
+			return nil, errors.New("refusing to send credentials over plain http: use an https url")
+		}
+		return creds.GetRequestMetadata(ctx, url)
+	}, nil
+}
+
+// AuthHeaders returns the HTTP headers that authenticate a request to url, as RequestAuth does, for a caller that makes
+// one request. A caller that makes several should use RequestAuth, which logs in once.
+func (config *ApiConnectionDetails) AuthHeaders(ctx context.Context, url string) (map[string]string, error) {
+	authenticate, err := config.RequestAuth()
+	if err != nil {
+		return nil, err
 	}
-	return creds.GetRequestMetadata(ctx, rawURL)
+	return authenticate(ctx, url)
 }
 
 // AllowsCredentialsOver reports whether credentials may be sent to rawURL. Like the gRPC connection, which only

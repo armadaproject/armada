@@ -98,3 +98,42 @@ func TestAllowsCredentialsOver(t *testing.T) {
 		})
 	}
 }
+
+func TestRequestAuth(t *testing.T) {
+	credentials := basic.LoginCredentials{Username: "u", Password: "p"}
+	tests := map[string]struct {
+		details *ApiConnectionDetails
+		url     string
+		wantErr string
+		want    bool // whether there are headers
+	}{
+		"no credentials give no headers":     {details: &ApiConnectionDetails{}, url: "http://api.example.com"},
+		"credentials for a local server":     {details: &ApiConnectionDetails{BasicAuth: credentials}, url: "http://localhost:8089", want: true},
+		"credentials for https":              {details: &ApiConnectionDetails{BasicAuth: credentials}, url: "https://api.example.com", want: true},
+		"credentials for plain http, remote": {details: &ApiConnectionDetails{BasicAuth: credentials}, url: "http://api.example.com", wantErr: "refusing to send credentials over plain http"},
+		"credentials for plain http, no tls": {details: &ApiConnectionDetails{BasicAuth: credentials, ForceNoTls: true}, url: "http://api.example.com", want: true},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			authenticate, err := tc.details.RequestAuth()
+			require.NoError(t, err)
+
+			// It can be asked for any number of requests.
+			for i := 0; i < 3; i++ {
+				headers, err := authenticate(context.Background(), tc.url)
+				if tc.wantErr != "" {
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), tc.wantErr)
+					assert.Empty(t, headers)
+					continue
+				}
+				require.NoError(t, err)
+				if tc.want {
+					assert.Contains(t, headers, "authorization")
+				} else {
+					assert.Empty(t, headers)
+				}
+			}
+		})
+	}
+}
