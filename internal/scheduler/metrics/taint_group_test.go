@@ -23,6 +23,8 @@ func TestClassifyTaintGroup(t *testing.T) {
 	taint := func(category string, userFacing bool) internaltypes.NodeTaint {
 		return internaltypes.NewNodeTaint(v1.Taint{Key: "example"}, category, userFacing)
 	}
+	unschedulable := internaltypes.NewNodeTaint(internaltypes.UnschedulableTaint(), "", false)
+	kubernetesCordon := internaltypes.NewNodeTaint(v1.Taint{Key: v1.TaintNodeUnschedulable}, "", false)
 	for name, tc := range map[string]struct {
 		taints    []internaltypes.NodeTaint
 		rawTaints []v1.Taint
@@ -30,6 +32,12 @@ func TestClassifyTaintGroup(t *testing.T) {
 	}{
 		"nil taints":                   {want: "none"},
 		"empty taints":                 {taints: []internaltypes.NodeTaint{}, want: "none"},
+		"synthetic marker only":        {taints: []internaltypes.NodeTaint{unschedulable}, want: "none"},
+		"marker after user":            {taints: []internaltypes.NodeTaint{taint("user", true), unschedulable}, want: "user"},
+		"marker before user":           {taints: []internaltypes.NodeTaint{unschedulable, taint("user", true)}, want: "user"},
+		"marker and unknown":           {taints: []internaltypes.NodeTaint{unschedulable, taint("unknown", false)}, want: "unknown"},
+		"marker and admin":             {taints: []internaltypes.NodeTaint{unschedulable, taint("platform", false)}, want: "admin"},
+		"kubernetes cordon taint":      {taints: []internaltypes.NodeTaint{kubernetesCordon}, want: "unknown"},
 		"raw taints without metadata":  {rawTaints: []v1.Taint{{Key: "legacy"}}, want: "none"},
 		"user taint":                   {taints: []internaltypes.NodeTaint{taint("user", false)}, want: "user"},
 		"multiple user taints":         {taints: []internaltypes.NodeTaint{taint("user", false), taint("user", true)}, want: "user"},
@@ -58,6 +66,15 @@ func TestClassifyTaintGroup(t *testing.T) {
 			assert.Equal(t, tc.want, classifyTaintGroup(node.GetNodeTaints()))
 		})
 	}
+}
+
+func TestClassifyTaintGroup_AfterNodeBecomesUnschedulable(t *testing.T) {
+	userTaint := internaltypes.NewNodeTaint(v1.Taint{Key: "example"}, "user", true)
+	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities).WithNodeTaints([]internaltypes.NodeTaint{userTaint})
+	assert.Equal(t, "user", classifyTaintGroup(node.GetNodeTaints()))
+	unschedulableNode := node.WithSchedulable(false)
+	assert.True(t, unschedulableNode.IsUnschedulable())
+	assert.Equal(t, "user", classifyTaintGroup(unschedulableNode.GetNodeTaints()))
 }
 
 func TestClassifyTaintGroup_LegacyWellKnownTaints(t *testing.T) {

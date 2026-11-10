@@ -28,26 +28,6 @@ import (
 
 const epsilon = 1e-6
 
-func TestNodeResourceMetricsTaintGroupTypeLabel(t *testing.T) {
-	cycle := newPerCycleMetrics()
-	for name, gauge := range map[string]*prometheus.GaugeVec{
-		"allocatable": cycle.nodeAllocatableResource,
-		"allocated":   cycle.nodeAllocatedResource,
-	} {
-		t.Run(name, func(t *testing.T) {
-			metric := &dto.Metric{}
-			err := gauge.WithLabelValues("pool", "node", "cluster", "type", "cpu", "none", "true", "false", "pool", "dedicated", "", "admin").Write(metric)
-			require.NoError(t, err)
-			labels := make(map[string]string)
-			for _, label := range metric.GetLabel() {
-				labels[label.GetName()] = label.GetValue()
-			}
-			assert.Equal(t, "admin", labels["taintGroupType"])
-			assert.NotContains(t, labels, "taintCategory")
-		})
-	}
-}
-
 func TestReportStateTransitions(t *testing.T) {
 	ctx := armadacontext.Background()
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(

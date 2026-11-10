@@ -11,14 +11,17 @@ const (
 )
 
 // classifyTaintGroup classifies reported taint metadata for node metrics.
-// No metadata is reported as none, even when a node has raw taints.
+// No metadata, or only Armada's synthetic unschedulable marker, is reported as none,
+// even when a node has raw taints.
 func classifyTaintGroup(taints []internaltypes.NodeTaint) string {
-	if len(taints) == 0 {
-		return taintGroupTypeNone
-	}
-
+	hasTaints := false
 	unknownTaintsFound := false
+	unschedulableKey := internaltypes.UnschedulableTaint().Key
 	for _, taint := range taints {
+		if taint.GetTaint().Key == unschedulableKey {
+			continue
+		}
+		hasTaints = true
 		switch taint.GetCategory() {
 		case taintCategoryUnspecified:
 			// Legacy tolerated and reservation taints have no category but are user-facing.
@@ -29,10 +32,14 @@ func classifyTaintGroup(taints []internaltypes.NodeTaint) string {
 			unknownTaintsFound = true
 		case taintCategoryUser:
 		default:
+			// Any other non-empty category is administrator-defined.
 			return taintGroupTypeAdmin
 		}
 	}
 
+	if !hasTaints {
+		return taintGroupTypeNone
+	}
 	if unknownTaintsFound {
 		return taintCategoryUnknown
 	}
