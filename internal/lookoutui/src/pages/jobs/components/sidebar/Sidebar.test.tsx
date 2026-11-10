@@ -156,6 +156,7 @@ describe("Sidebar", () => {
             },
           ],
         },
+        node: { name: "node-1", _exists: false },
       },
     })
     const { getByRole, findByRole } = renderComponent()
@@ -164,7 +165,12 @@ describe("Sidebar", () => {
     await userEvent.click(await findByRole("button", { name: "Debug" }))
 
     const eventsTable = await findByRole("table", { name: "Pod events" })
-    within(eventsTable).getByRole("row", { name: /Warning.*FailedMount.*kubelet.*MountVolume.SetUp failed/ })
+    // The time is shown with the user's timestamp settings, like the run's own times, so only the year is stable here
+    within(eventsTable).getByRole("row", { name: /Warning.*FailedMount.*2026.*kubelet.*MountVolume.SetUp failed/ })
+
+    // A field the generated model renames (exists -> _exists) must survive the trip through the mocked API
+    await userEvent.click(getByRole("button", { name: "Node" }))
+    within(await findByRole("row", { name: /Exists/ })).getByText("false")
   })
 
   it("should show an unstructured debug message as text", async () => {

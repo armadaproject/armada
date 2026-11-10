@@ -8,6 +8,7 @@ COPY internal/lookoutui /project/internal/lookoutui
 COPY pkg/api/*.swagger.json /project/pkg/api/
 COPY pkg/api/binoculars/*.swagger.json /project/pkg/api/binoculars/
 COPY pkg/api/schedulerobjects/*.swagger.json /project/pkg/api/schedulerobjects/
+COPY internal/lookout/swagger.yaml /project/internal/lookout/swagger.yaml
 RUN ./project/internal/lookoutui/openapi.sh
 
 FROM ${NODE_BUILD_IMAGE} AS NODE

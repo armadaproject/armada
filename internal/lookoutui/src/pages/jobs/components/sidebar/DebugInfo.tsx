@@ -15,6 +15,8 @@ import {
   Typography,
 } from "@mui/material"
 
+import { tryFormatJson } from "../../../../common/formatJson"
+import { formatDuration, TimestampFormat } from "../../../../common/formatTime"
 import { SPACING } from "../../../../common/spacing"
 import { CodeBlock } from "../../../../components/CodeBlock"
 import { CopyIconButton } from "../../../../components/CopyIconButton"
@@ -30,7 +32,8 @@ import {
 
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import { summarizeDebugInfo } from "./debugSummary"
-import { formatEventAge } from "./eventAge"
+
+type FormatIsoTimestamp = (isoTimestamp: string | undefined, format: TimestampFormat) => string
 
 const CompactTable = styled(Table)({
   "& th, & td": {
@@ -62,7 +65,15 @@ const CollapsedAccordion = ({ title, children }: { title: string; children: Reac
   </Accordion>
 )
 
-const EventsTable = ({ label, events, now }: { label: string; events: DebugEvent[] | undefined; now: Date }) => {
+const EventsTable = ({
+  label,
+  events,
+  formatIsoTimestamp,
+}: {
+  label: string
+  events: DebugEvent[] | undefined
+  formatIsoTimestamp: FormatIsoTimestamp
+}) => {
   if (!events || events.length === 0) {
     return <Typography variant="body2">No events recorded</Typography>
   }
@@ -73,7 +84,7 @@ const EventsTable = ({ label, events, now }: { label: string; events: DebugEvent
         <TableRow>
           <NoWrapCell>Type</NoWrapCell>
           <NoWrapCell>Reason</NoWrapCell>
-          <NoWrapCell>Age</NoWrapCell>
+          <NoWrapCell>Time</NoWrapCell>
           <NoWrapCell>From</NoWrapCell>
           <TableCell>Message</TableCell>
         </TableRow>
@@ -86,7 +97,7 @@ const EventsTable = ({ label, events, now }: { label: string; events: DebugEvent
             <TableRow key={index}>
               <NoWrapCell>{emphasise(event.type)}</NoWrapCell>
               <NoWrapCell>{emphasise(event.reason)}</NoWrapCell>
-              <NoWrapCell title={event.timestamp}>{formatEventAge(event.timestamp, now)}</NoWrapCell>
+              <NoWrapCell>{formatIsoTimestamp(event.timestamp, "compact")}</NoWrapCell>
               <NoWrapCell>{event.from}</NoWrapCell>
               <MessageCell>{event.message}</MessageCell>
             </TableRow>
@@ -114,7 +125,7 @@ const ContainersTable = ({ label, containers }: { label: string; containers: Deb
           <NoWrapCell>{container.name}</NoWrapCell>
           <NoWrapCell>{container.state}</NoWrapCell>
           <NoWrapCell>{container.exitCode ?? ""}</NoWrapCell>
-          <NoWrapCell>{container.runSeconds === undefined ? "" : `${container.runSeconds}s`}</NoWrapCell>
+          <NoWrapCell>{container.runSeconds == null ? "" : formatDuration(container.runSeconds)}</NoWrapCell>
           <MessageCell>{container.reason}</MessageCell>
         </TableRow>
       ))}
@@ -173,8 +184,12 @@ const nodeDetails = (node: DebugNode) =>
     ["Ready", node.ready],
     ["Ready reason", node.readyReason],
     ...Object.entries(node.labels ?? {}).map(([key, value]): [string, string] => [`Label ${key}`, value]),
-    ...Object.entries(node.annotations ?? {}).map(([key, value]): [string, string] => [`Annotation ${key}`, value]),
   ])
+
+const nodeAnnotations = (node: DebugNode) =>
+  Object.entries(node.annotations ?? {})
+    .filter(([, value]) => value !== "")
+    .map(([key, value]) => ({ key: `Annotation ${key}`, value, isAnnotation: true }))
 
 const DebugSummary = ({ debugInfo }: { debugInfo: PodDebugInfo }) => (
   <Stack
@@ -196,7 +211,13 @@ const DebugSummary = ({ debugInfo }: { debugInfo: PodDebugInfo }) => (
   </Stack>
 )
 
-const StructuredDebugInfo = ({ debugInfo, now }: { debugInfo: PodDebugInfo; now: Date }) => {
+const StructuredDebugInfo = ({
+  debugInfo,
+  formatIsoTimestamp,
+}: {
+  debugInfo: PodDebugInfo
+  formatIsoTimestamp: FormatIsoTimestamp
+}) => {
   const { pod, node } = debugInfo
   const initContainers = pod.initContainers ?? []
   const containers = pod.containers ?? []
@@ -204,7 +225,7 @@ const StructuredDebugInfo = ({ debugInfo, now }: { debugInfo: PodDebugInfo; now:
   return (
     <Stack spacing={SPACING.md}>
       <DebugSummary debugInfo={debugInfo} />
-      <EventsTable label="Pod events" events={pod.events} now={now} />
+      <EventsTable label="Pod events" events={pod.events} formatIsoTimestamp={formatIsoTimestamp} />
       <div>
         <CollapsedAccordion title="Pod">
           <KeyValuePairTable data={podDetails(debugInfo, pod)} />
@@ -217,10 +238,10 @@ const StructuredDebugInfo = ({ debugInfo, now }: { debugInfo: PodDebugInfo; now:
         )}
         {node && (
           <CollapsedAccordion title="Node">
-            <KeyValuePairTable data={nodeDetails(node)} />
+            <KeyValuePairTable data={[...nodeDetails(node), ...nodeAnnotations(node)]} />
             {node.conditions && node.conditions.length > 0 && <ConditionsTable conditions={node.conditions} />}
             <Typography variant="subtitle2">Node events</Typography>
-            <EventsTable label="Node events" events={node.events} now={now} />
+            <EventsTable label="Node events" events={node.events} formatIsoTimestamp={formatIsoTimestamp} />
           </CollapsedAccordion>
         )}
       </div>
@@ -228,32 +249,27 @@ const StructuredDebugInfo = ({ debugInfo, now }: { debugInfo: PodDebugInfo; now:
   )
 }
 
-// Reformats the stored message so that it can be read. This only changes whitespace and does not depend on the
-// shape of the message, so it keeps fields that the generated types do not know about, e.g. from a newer executor.
-const formatStoredJson = (stored: string): string => {
-  try {
-    return JSON.stringify(JSON.parse(stored), undefined, 2)
-  } catch {
-    return stored
-  }
-}
-
 interface DebugInfoProps {
   debugMessage: JobRunDebugMessage
-  // The time that event ages are measured against. Exists so that tests can fix it.
-  now?: Date
+  // Formats event times with the user's timestamp settings, so that they read like the run's own times
+  formatIsoTimestamp: FormatIsoTimestamp
 }
 
-export const DebugInfo = ({ debugMessage, now }: DebugInfoProps) => {
+export const DebugInfo = ({ debugMessage, formatIsoTimestamp }: DebugInfoProps) => {
   const [showRawJson, setShowRawJson] = useState(false)
 
-  const { debugInfo, errorString } = debugMessage
+  const { debugInfo } = debugMessage
+  const errorString = debugMessage.errorString ?? ""
+  // Reformatted without reading it, so fields that the generated types do not know about are kept
+  const formattedJson = tryFormatJson(errorString)
+
   if (!debugInfo) {
-    // The API found no structured debug info in the message, e.g. it was stored before debug info was JSON.
+    // The API found no structured debug info in the message. It is either text from before debug info was JSON, or
+    // JSON this version of Lookout cannot structure, e.g. from an executor on a newer schema version.
     return (
       <CodeBlock
-        code={errorString ?? ""}
-        language="text"
+        code={formattedJson ?? errorString}
+        language={formattedJson ? "json" : "text"}
         downloadable={false}
         showLineNumbers={false}
         loading={false}
@@ -261,7 +277,7 @@ export const DebugInfo = ({ debugMessage, now }: DebugInfoProps) => {
     )
   }
 
-  const storedJson = formatStoredJson(errorString ?? "")
+  const storedJson = formattedJson ?? errorString
 
   return (
     <Stack spacing={SPACING.md}>
@@ -279,7 +295,7 @@ export const DebugInfo = ({ debugMessage, now }: DebugInfoProps) => {
       {showRawJson ? (
         <CodeBlock code={storedJson} language="json" downloadable={false} showLineNumbers={false} loading={false} />
       ) : (
-        <StructuredDebugInfo debugInfo={debugInfo} now={now ?? new Date()} />
+        <StructuredDebugInfo debugInfo={debugInfo} formatIsoTimestamp={formatIsoTimestamp} />
       )}
     </Stack>
   )

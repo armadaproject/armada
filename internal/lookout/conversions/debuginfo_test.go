@@ -67,9 +67,7 @@ func TestParseDebugInfo_ReturnsNilWhenTheMessageIsNotAUsablePayload(t *testing.T
 		"missing schema version":       `{"trigger": "podFailed", "pod": {}}`,
 		"missing pod":                  `{"schemaVersion": 1, "trigger": "podFailed"}`,
 		"missing trigger":              `{"schemaVersion": 1, "pod": {}}`,
-		"container without a state":    `{"schemaVersion": 1, "trigger": "podFailed", "pod": {"containers": [{"name": "c"}]}}`,
 		"events is not a list":         `{"schemaVersion": 1, "trigger": "podFailed", "pod": {"events": "nope"}}`,
-		"node without a name":          `{"schemaVersion": 1, "trigger": "podFailed", "pod": {}, "node": {"ready": "True"}}`,
 		"truncated json":               `{"schemaVersion": 1, "trigger": "pod`,
 		"schema version of wrong type": `{"schemaVersion": "1", "trigger": "podFailed", "pod": {}}`,
 	}
@@ -89,4 +87,34 @@ func TestParseDebugInfo_OmitsEmptyListsWhenSerialised(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.JSONEq(t, `{"schemaVersion": 1, "trigger": "podFailed", "pod": {"phase": "Failed"}}`, string(serialised))
+}
+
+func TestParseDebugInfo_KeepsThePayloadWhenARecordInsideItIsIncomplete(t *testing.T) {
+	// The executor copies pod and node records as Kubernetes reports them without checking them, so an
+	// incomplete one must not cost the reader everything else that was captured.
+	info := ParseDebugInfo(`{
+	  "schemaVersion": 1,
+	  "trigger": "podFailed",
+	  "pod": {
+	    "phase": "Failed",
+	    "containers": [{"name": "main"}],
+	    "events": [{"type": "Warning", "reason": "Failed"}, null]
+	  },
+	  "node": {
+	    "conditions": [
+	      {"type": "NetworkUnavailable", "status": ""},
+	      {"type": "Ready", "status": "True"}
+	    ]
+	  }
+	}`)
+
+	require.NotNil(t, info)
+	assert.Equal(t, "Failed", info.Pod.Phase)
+	assert.Equal(t, []*models.DebugContainer{{Name: "main"}}, info.Pod.Containers)
+	assert.Len(t, info.Pod.Events, 1, "a null entry in a list is dropped rather than sent on to the UI")
+	require.NotNil(t, info.Node)
+	assert.Equal(t, []*models.DebugCondition{
+		{Type: "NetworkUnavailable"},
+		{Type: "Ready", Status: "True"},
+	}, info.Node.Conditions)
 }

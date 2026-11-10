@@ -6,7 +6,8 @@ import { JobRunDebugMessage, PodDebugInfo, PodDebugInfoToJSON } from "../../../.
 
 import { DebugInfo } from "./DebugInfo"
 
-const now = new Date("2026-11-03T19:00:00Z")
+// Stands in for the user's timestamp settings, so that the output does not depend on the locale or time zone
+const formatIsoTimestamp = (isoTimestamp: string | undefined) => (isoTimestamp ? `at ${isoTimestamp}` : "")
 
 const debugInfo: PodDebugInfo = {
   schemaVersion: 1,
@@ -57,9 +58,13 @@ const debugMessage: JobRunDebugMessage = { errorString: storedJson, debugInfo }
 const renderDebugInfo = (message: JobRunDebugMessage) =>
   render(
     <SnackbarProvider>
-      <DebugInfo debugMessage={message} now={now} />
+      <DebugInfo debugMessage={message} formatIsoTimestamp={formatIsoTimestamp} />
     </SnackbarProvider>,
   )
+
+// The code block splits each line into highlighted token spans, so match on the whole line.
+const hasLine = (line: string) => (_: string, element: Element | null) =>
+  element?.tagName === "DIV" && element.textContent === line
 
 describe("DebugInfo", () => {
   it("shows pod events in a table without needing to expand anything", () => {
@@ -70,15 +75,21 @@ describe("DebugInfo", () => {
       within(table)
         .getAllByRole("columnheader")
         .map((header) => header.textContent),
-    ).toEqual(["Type", "Reason", "Age", "From", "Message"])
+    ).toEqual(["Type", "Reason", "Time", "From", "Message"])
 
     const scheduled = within(table).getByRole("row", { name: /Scheduled/ })
     expect(
       within(scheduled)
         .getAllByRole("cell")
         .map((cell) => cell.textContent),
-    ).toEqual(["Normal", "Scheduled", "26s", "bin-packing", "Successfully assigned ns/pod-0 to node-1"])
-    within(table).getByRole("row", { name: /FailedMount.*25s.*kubelet.*ca-bundle/ })
+    ).toEqual([
+      "Normal",
+      "Scheduled",
+      "at 2026-11-03T18:59:34Z",
+      "bin-packing",
+      "Successfully assigned ns/pod-0 to node-1",
+    ])
+    within(table).getByRole("row", { name: /FailedMount.*at 2026-11-03T18:59:35Z.*kubelet.*ca-bundle/ })
   })
 
   it("summarises the cause above the events", () => {
@@ -105,11 +116,44 @@ describe("DebugInfo", () => {
     within(getByRole("row", { name: /Exists/ })).getByText("true")
   })
 
-  describe("raw JSON", () => {
-    // The code block splits each line into highlighted token spans, so match on the whole line.
-    const hasLine = (line: string) => (_: string, element: Element | null) =>
-      element?.tagName === "DIV" && element.textContent === line
+  it("shows how long a container ran in the same units as the run's own runtime", async () => {
+    const { getByRole, findByRole } = renderDebugInfo({
+      errorString: "{}",
+      debugInfo: {
+        schemaVersion: 1,
+        trigger: "podFailed",
+        pod: { containers: [{ name: "main", state: "terminated", exitCode: 137, runSeconds: 93600 }] },
+      },
+    })
 
+    await userEvent.click(getByRole("button", { name: "Containers" }))
+
+    within(await findByRole("row", { name: /main/ })).getByText("1d 2h 0m 0s")
+  })
+
+  it("links node annotations whose values are URLs, as job annotations are", async () => {
+    const { getByRole, findByRole } = renderDebugInfo({
+      errorString: "{}",
+      debugInfo: {
+        schemaVersion: 1,
+        trigger: "podFailed",
+        pod: {},
+        node: {
+          name: "node-1",
+          annotations: { "example.com/dashboard": "https://example.com/nodes/node-1" },
+          labels: { "example.com/url-label": "https://example.com/labels-are-not-linked" },
+        },
+      },
+    })
+
+    await userEvent.click(getByRole("button", { name: "Node" }))
+
+    const link = await findByRole("link", { name: "https://example.com/nodes/node-1" })
+    expect(link).toHaveAttribute("href", "https://example.com/nodes/node-1")
+    expect(() => getByRole("link", { name: "https://example.com/labels-are-not-linked" })).toThrow()
+  })
+
+  describe("raw JSON", () => {
     it("shows the stored message as it was captured, including fields this UI does not know about", async () => {
       const { getByRole, findByText } = renderDebugInfo(debugMessage)
 
@@ -137,6 +181,14 @@ describe("DebugInfo", () => {
 
       expect(await findByText("not json at all")).toBeInTheDocument()
     })
+  })
+
+  it("shows JSON it cannot structure as indented JSON, not as one long line", async () => {
+    // e.g. the executor moved to a newer schema version before Lookout was upgraded
+    const { findByText } = renderDebugInfo({ errorString: '{"schemaVersion":2,"newShape":{"a":1}}' })
+
+    expect(await findByText(hasLine('  "schemaVersion": 2,'))).toBeInTheDocument()
+    expect(await findByText(hasLine('    "a": 1'))).toBeInTheDocument()
   })
 
   it("shows the message as text when the API returned no structured debug info", () => {

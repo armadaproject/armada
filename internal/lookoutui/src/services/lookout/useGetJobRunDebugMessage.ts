@@ -18,7 +18,7 @@ const getQueryFn =
   async ({ signal }) => {
     try {
       if (fakeDataEnabled) {
-        return { errorString: fakeRunDebugMessage }
+        return fakeRunDebugMessage
       }
 
       const response = await fetchFunc("/api/v1/jobRunDebugMessage", {
