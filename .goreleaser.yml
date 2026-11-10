@@ -288,6 +288,7 @@ dockers:
       - pkg/api/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
       - pkg/api/schedulerobjects/api.swagger.json
+      - internal/lookout/swagger.yaml
     dockerfile: ./build/bundles/full/Dockerfile
 
   - id: server
@@ -401,6 +402,7 @@ dockers:
       - pkg/api/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
       - pkg/api/schedulerobjects/api.swagger.json
+      - internal/lookout/swagger.yaml
       - config/lookout/config.yaml
       - config/lookoutingester/config.yaml
       - config/logging.yaml
