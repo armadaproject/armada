@@ -10,6 +10,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 )
 
 type testLogEntry struct {
@@ -83,6 +85,12 @@ func TestWithStacktrace(t *testing.T) {
 	innerErrorWithStackTrace := errors.Errorf("inner error")
 	errorsWithMessageNested := errors.WithMessage(innerErrorWithStackTrace, "outer message")
 	errorsWithMessageNested2 := errors.WithMessage(errorsWithMessageNested, "even outer message")
+	// Stdlib %w wrapper only exposes Unwrap(), not Cause(), so the chain must be walked via Unwrap()
+	// to reach the origin stacktrace.
+	stdlibWrapped := fmt.Errorf("stdlib wrapper: %w", innerErrorWithStackTrace)
+	// A stack added above a stdlib wrapper must not shadow the deeper origin stacktrace.
+	stdlibWrappedThenWithStack := errors.WithStack(stdlibWrapped)
+	armadaErrWrapped := &armadaerrors.ErrInvalidArgument{Name: "field", Value: 1, Message: "bad"}
 	tests := map[string]struct {
 		err         error
 		expectedLog *testLogEntry
@@ -130,6 +138,32 @@ func TestWithStacktrace(t *testing.T) {
 				Message:    "test message",
 				Error:      "even outer message: outer message: inner error",
 				Stacktrace: fmt.Sprintf("%v", innerErrorWithStackTrace.(stackTracer).StackTrace()),
+			},
+		},
+		"fmt.Errorf %w wrapping pkg/errors origin": {
+			err: stdlibWrapped,
+			expectedLog: &testLogEntry{
+				Level:      "info",
+				Message:    "test message",
+				Error:      "stdlib wrapper: inner error",
+				Stacktrace: fmt.Sprintf("%v", innerErrorWithStackTrace.(stackTracer).StackTrace()),
+			},
+		},
+		"errors.WithStack above fmt.Errorf %w - origin stacktrace wins": {
+			err: stdlibWrappedThenWithStack,
+			expectedLog: &testLogEntry{
+				Level:      "info",
+				Message:    "test message",
+				Error:      "stdlib wrapper: inner error",
+				Stacktrace: fmt.Sprintf("%v", innerErrorWithStackTrace.(stackTracer).StackTrace()),
+			},
+		},
+		"fmt.Errorf without a stacktrace anywhere in the chain": {
+			err: fmt.Errorf("outer: %w", armadaErrWrapped),
+			expectedLog: &testLogEntry{
+				Level:   "info",
+				Message: "test message",
+				Error:   "outer: " + armadaErrWrapped.Error(),
 			},
 		},
 	}

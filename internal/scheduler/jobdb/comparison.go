@@ -71,7 +71,7 @@ func SchedulingOrderCompare(job, other *Job) int {
 		return 1
 	}
 
-	// Jobs higher in queue-priority come first.
+	// Among jobs of the same urgency, a lower job priority number comes first.
 	if job.priority < other.priority {
 		return -1
 	} else if job.priority > other.priority {

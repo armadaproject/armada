@@ -10,6 +10,7 @@ import (
 	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/node"
@@ -24,9 +25,11 @@ type UtilisationService interface {
 }
 
 type ClusterUtilisationService struct {
+	categoriseUnknownTaints                                       bool
 	clusterContext                                                context.ClusterContext
 	queueUtilisationService                                       PodUtilisationService
 	nodeInfoService                                               node.NodeInfoService
+	wellKnownTaints                                               *configuration.WellKnownTaints
 	trackedNodeLabels                                             []string
 	nodeIdLabel                                                   string
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode         armadaresource.ComputeResources
@@ -37,15 +40,19 @@ func NewClusterUtilisationService(
 	clusterContext context.ClusterContext,
 	queueUtilisationService PodUtilisationService,
 	nodeInfoService node.NodeInfoService,
+	wellKnownTaints *configuration.WellKnownTaints,
+	categoriseUnknownTaints bool,
 	trackedNodeLabels []string,
 	nodeIdLabel string,
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode armadaresource.ComputeResources,
 	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority int32,
 ) *ClusterUtilisationService {
 	return &ClusterUtilisationService{
+		categoriseUnknownTaints: categoriseUnknownTaints,
 		clusterContext:          clusterContext,
 		queueUtilisationService: queueUtilisationService,
 		nodeInfoService:         nodeInfoService,
+		wellKnownTaints:         wellKnownTaints,
 		trackedNodeLabels:       trackedNodeLabels,
 		nodeIdLabel:             nodeIdLabel,
 		minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode:         minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
@@ -109,12 +116,15 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority)
 
 		nodePool := cls.nodeInfoService.GetPool(node)
+		taints := armadaslices.Map(node.Spec.Taints, func(taint v1.Taint) *v1.Taint {
+			return &taint
+		})
+		nodeTaints := cls.wellKnownNodeTaints(taints)
 		nodes = append(nodes, executorapi.NodeInfo{
-			Name:   node.Name,
-			Labels: cls.filterTrackedLabels(node.Labels),
-			Taints: armadaslices.Map(node.Spec.Taints, func(t v1.Taint) *v1.Taint {
-				return &t
-			}),
+			Name:                        node.Name,
+			Labels:                      cls.filterTrackedLabels(node.Labels),
+			Taints:                      taints,
+			NodeTaints:                  nodeTaints,
 			AllocatableResources:        allocatable.ToProtoMap(),
 			AvailableResources:          available.ToProtoMap(),
 			TotalResources:              allocatable.ToProtoMap(),
@@ -131,6 +141,21 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAva
 		AvailableCapacity: &totalAvailable, // TODO: This should be the total - max job priority resources.
 		Nodes:             nodes,
 	}, nil
+}
+
+func (cls *ClusterUtilisationService) wellKnownNodeTaints(taints []*v1.Taint) []*executorapi.NodeTaint {
+	result := make([]*executorapi.NodeTaint, 0)
+	for _, taint := range taints {
+		nodeTaint := &executorapi.NodeTaint{Taint: taint}
+		if wellKnownTaint, ok := cls.wellKnownTaints.MatchWellKnownTaint(taint.Key); ok {
+			nodeTaint.Category = wellKnownTaint.Category
+			nodeTaint.UserFacing = wellKnownTaint.UserFacing
+		} else if cls.categoriseUnknownTaints {
+			nodeTaint.Category = configuration.UnknownTaintCategory
+		}
+		result = append(result, nodeTaint)
+	}
+	return result
 }
 
 // This returns all the pods assigned the node or soon to be assigned (via node-selector)
@@ -280,10 +305,7 @@ func getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) armadaresource.Comput
 	podsOnNodes := util.GetPodsOnNodes(pods, cordonedNodes)
 	usage := armadaresource.ComputeResources{}
 	for _, pod := range podsOnNodes {
-		for _, container := range pod.Spec.Containers {
-			containerResource := armadaresource.FromResourceList(container.Resources.Limits) // Not 100% on whether this should be Requests or Limits
-			usage.Add(containerResource)
-		}
+		usage.Add(armadaresource.TotalPodResourceRequest(&pod.Spec))
 	}
 	return usage
 }

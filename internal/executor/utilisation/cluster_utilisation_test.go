@@ -9,14 +9,72 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	fakeContext "github.com/armadaproject/armada/internal/executor/fake/context"
+	"github.com/armadaproject/armada/internal/executor/node"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 const nodeIdLabel = "node-id"
+
+func TestGetAvailableClusterCapacity_ReportsAllNodeTaints(t *testing.T) {
+	kubernetesConfig := configuration.KubernetesConfiguration{
+		ToleratedTaints: []string{"legacy"},
+		TaintCategorisation: configuration.TaintCategorisationConfiguration{
+			WellKnownTaints: configuration.WellKnownTaintsConfiguration{
+				Keys: []string{"user"},
+				Admin: []configuration.WellKnownTaintAdminConfiguration{
+					{Category: "platform", Keys: []string{"admin"}},
+				},
+			},
+		},
+	}
+	wellKnownTaints, err := kubernetesConfig.NewWellKnownTaints()
+	require.NoError(t, err)
+	legacy := &v1.Taint{Key: "legacy", Value: "true", Effect: v1.TaintEffectNoSchedule}
+	user := &v1.Taint{Key: "user", Value: "gpu", Effect: v1.TaintEffectNoSchedule}
+	admin := &v1.Taint{Key: "admin", Value: "maintenance", Effect: v1.TaintEffectNoSchedule}
+	reservation := &v1.Taint{Key: constants.ReservationTaintKey, Value: "reserved", Effect: v1.TaintEffectNoSchedule}
+	other := &v1.Taint{Key: "other", Value: "restricted", Effect: v1.TaintEffectNoSchedule}
+	clusterContext := fakeContext.NewFakeClusterContext(
+		configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"},
+		nodeIdLabel,
+		[]*fakeContext.NodeSpec{{
+			Name: "worker", Count: 1,
+			Taints:      []v1.Taint{*legacy, *user, *admin, *reservation, *other},
+			Allocatable: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")},
+		}},
+	)
+	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, "node-type", "node-pool", "", wellKnownTaints)
+	for name, tc := range map[string]struct {
+		categoriseUnknown bool
+		unknownCategory   string
+	}{
+		"unknown taints uncategorised": {},
+		"unknown taints categorised":   {categoriseUnknown: true, unknownCategory: "unknown"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// No pods are present, so this report does not need a pod utilisation service.
+			service := NewClusterUtilisationService(clusterContext, nil, nodeInfoService, wellKnownTaints, tc.categoriseUnknown, nil, nodeIdLabel, nil, 0)
+			report, err := service.GetAvailableClusterCapacity()
+			require.NoError(t, err)
+			require.Len(t, report.Nodes, 1)
+			assert.Equal(t, []*v1.Taint{legacy, user, admin, reservation, other}, report.Nodes[0].Taints)
+			assert.Equal(t, []*executorapi.NodeTaint{
+				{Taint: legacy, UserFacing: true},
+				{Taint: user, Category: configuration.UserWellKnownTaintCategory, UserFacing: true},
+				{Taint: admin, Category: "platform"},
+				{Taint: reservation, UserFacing: true},
+				{Taint: other, Category: tc.unknownCategory},
+			}, report.Nodes[0].NodeTaints)
+		})
+	}
+}
 
 func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludePodsNotOnGivenNodes(t *testing.T) {
 	presentNodeName := "Node1"
@@ -360,6 +418,81 @@ func TestGetCordonedResource(t *testing.T) {
 	}
 
 	assert.True(t, expected.Equal(resources))
+}
+
+func TestGetCordonedResource_PodLevelResources(t *testing.T) {
+	nodes := []*v1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "node1"},
+			Spec:       v1.NodeSpec{Unschedulable: true},
+		},
+	}
+	podLevel := v1.ResourceList{
+		v1.ResourceCPU:    resource.MustParse("4"),
+		v1.ResourceMemory: resource.MustParse("8Gi"),
+	}
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: util.NewULID()},
+		Spec: v1.PodSpec{
+			NodeName:   "node1",
+			Containers: []v1.Container{{Name: "main"}},
+			Resources:  &v1.ResourceRequirements{Requests: podLevel, Limits: podLevel.DeepCopy()},
+		},
+	}
+
+	resources := getCordonedResource(nodes, []*v1.Pod{pod})
+
+	expected := armadaresource.ComputeResources{
+		"cpu":    resource.MustParse("4"),
+		"memory": resource.MustParse("8Gi"),
+	}
+	assert.True(t, expected.Equal(resources), "got %v", resources)
+}
+
+func TestGetCordonedResource_InitContainerDominates(t *testing.T) {
+	nodes := []*v1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "node1"},
+			Spec:       v1.NodeSpec{Unschedulable: true},
+		},
+	}
+	cpu := func(s string) v1.ResourceList { return v1.ResourceList{v1.ResourceCPU: resource.MustParse(s)} }
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: util.NewULID()},
+		Spec: v1.PodSpec{
+			NodeName:       "node1",
+			Containers:     []v1.Container{{Name: "main", Resources: v1.ResourceRequirements{Requests: cpu("1"), Limits: cpu("1")}}},
+			InitContainers: []v1.Container{{Name: "init", Resources: v1.ResourceRequirements{Requests: cpu("6"), Limits: cpu("6")}}},
+		},
+	}
+
+	resources := getCordonedResource(nodes, []*v1.Pod{pod})
+
+	expected := armadaresource.ComputeResources{"cpu": resource.MustParse("6")}
+	assert.True(t, expected.Equal(resources), "got %v", resources)
+}
+
+func TestGetCordonedResource_UsesRequestsNotLimits(t *testing.T) {
+	nodes := []*v1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "node1"},
+			Spec:       v1.NodeSpec{Unschedulable: true},
+		},
+	}
+	cpu := func(s string) v1.ResourceList { return v1.ResourceList{v1.ResourceCPU: resource.MustParse(s)} }
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: util.NewULID()},
+		Spec: v1.PodSpec{
+			NodeName:   "node1",
+			Containers: []v1.Container{{Name: "main", Resources: v1.ResourceRequirements{Requests: cpu("1"), Limits: cpu("4")}}},
+			Resources:  &v1.ResourceRequirements{Requests: cpu("2"), Limits: cpu("8")},
+		},
+	}
+
+	resources := getCordonedResource(nodes, []*v1.Pod{pod})
+
+	expected := armadaresource.ComputeResources{"cpu": resource.MustParse("2")}
+	assert.True(t, expected.Equal(resources), "got %v", resources)
 }
 
 func TestCalculateNonArmadaResource(t *testing.T) {

@@ -49,6 +49,12 @@ type Node struct {
 	// indexed taints and labels, but we need all of them when checking pod requirements.
 	taints []v1.Taint
 	labels map[string]string
+	// Taints received from executor with additional metadata
+	nodeTaints []NodeTaint
+	// Whether the original report contained matching raw and metadata taint inventories.
+	// Preserved through node updates; this is not recomputed for synthetic taints.
+	// To be removed once all executors switch to sending taints with metadata
+	hasCompleteNodeTaintMetadata bool
 
 	// Which taint and label keys the node type indexes.
 	// Held so the node can recompute its own node type whenever its taints or labels change
@@ -94,6 +100,44 @@ type Node struct {
 	knownPriorities []int32
 }
 
+type NodeTaint struct {
+	taint      v1.Taint
+	category   string
+	userFacing bool
+}
+
+func NewNodeTaint(taint v1.Taint, category string, userFacing bool) NodeTaint {
+	return NodeTaint{taint: *taint.DeepCopy(), category: category, userFacing: userFacing}
+}
+
+func (nodeTaint NodeTaint) GetTaint() v1.Taint {
+	return *nodeTaint.taint.DeepCopy()
+}
+
+func (nodeTaint NodeTaint) GetCategory() string {
+	return nodeTaint.category
+}
+
+func (nodeTaint NodeTaint) GetUserFacing() bool {
+	return nodeTaint.userFacing
+}
+
+func (nodeTaint NodeTaint) IsUserFacing() bool {
+	return nodeTaint.userFacing && nodeTaint.category != ""
+}
+
+func deepCopyNodeTaints(nodeTaints []NodeTaint) []NodeTaint {
+	if nodeTaints == nil {
+		return nil
+	}
+	result := make([]NodeTaint, len(nodeTaints))
+	for i, nodeTaint := range nodeTaints {
+		result[i] = nodeTaint
+		result[i].taint = *nodeTaint.taint.DeepCopy()
+	}
+	return result
+}
+
 func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 	nodeIndex uint64,
 	indexedTaints map[string]bool,
@@ -110,7 +154,18 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 			taints = append(taints, *t)
 		}
 	}
+	nodeTaints := make([]NodeTaint, 0, len(node.NodeTaints))
+	for _, nodeTaint := range node.NodeTaints {
+		if nodeTaint != nil && nodeTaint.Taint != nil {
+			nodeTaints = append(nodeTaints, NodeTaint{
+				taint:      *nodeTaint.Taint,
+				category:   nodeTaint.Category,
+				userFacing: nodeTaint.UserFacing,
+			})
+		}
+	}
 
+	completeNodeTaintMetadata := hasCompleteNodeTaintMetadata(node.Taints, node.NodeTaints)
 	return CreateNodeAndType(
 		node.Id,
 		nodeIndex,
@@ -120,6 +175,8 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		node.ReportingNodeType,
 		node.Unschedulable,
 		taints,
+		nodeTaints,
+		completeNodeTaintMetadata,
 		node.Labels,
 		indexedTaints,
 		indexedNodeLabels,
@@ -127,6 +184,37 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 		allocatableResources,
 		allowedPriorities,
 	)
+}
+
+func hasCompleteNodeTaintMetadata(taints []*v1.Taint, nodeTaints []*schedulerobjects.NodeTaint) bool {
+	if len(taints) != len(nodeTaints) {
+		return false
+	}
+	// Compare inventories independently of ordering and TimeAdded pointer identity.
+	type taintIdentity struct {
+		key    string
+		value  string
+		effect v1.TaintEffect
+	}
+	counts := make(map[taintIdentity]int, len(taints))
+	for _, taint := range taints {
+		if taint == nil {
+			return false
+		}
+		counts[taintIdentity{taint.Key, taint.Value, taint.Effect}]++
+	}
+	for _, nodeTaint := range nodeTaints {
+		if nodeTaint == nil || nodeTaint.Taint == nil {
+			return false
+		}
+		taint := nodeTaint.Taint
+		key := taintIdentity{taint.Key, taint.Value, taint.Effect}
+		if counts[key] == 0 {
+			return false
+		}
+		counts[key]--
+	}
+	return true
 }
 
 func CreateNodeAndType(
@@ -138,6 +226,8 @@ func CreateNodeAndType(
 	reportingNodeType string,
 	unschedulable bool,
 	taints []v1.Taint,
+	nodeTaints []NodeTaint,
+	hasCompleteNodeTaintMetadata bool,
 	labels map[string]string,
 	indexedTaints map[string]bool,
 	indexedNodeLabels map[string]bool,
@@ -164,6 +254,8 @@ func CreateNodeAndType(
 		pool,
 		reportingNodeType,
 		taints,
+		nodeTaints,
+		hasCompleteNodeTaintMetadata,
 		labels,
 		indexedTaints,
 		indexedNodeLabels,
@@ -182,6 +274,8 @@ func CreateNode(
 	pool string,
 	reportingNodeType string,
 	taints []v1.Taint,
+	nodeTaints []NodeTaint,
+	hasCompleteNodeTaintMetadata bool,
 	labels map[string]string,
 	indexedTaints map[string]bool,
 	indexedNodeLabels map[string]bool,
@@ -208,6 +302,8 @@ func CreateNode(
 		pool:                            pool,
 		reportingNodeType:               reportingNodeType,
 		taints:                          taints,
+		nodeTaints:                      deepCopyNodeTaints(nodeTaints),
+		hasCompleteNodeTaintMetadata:    hasCompleteNodeTaintMetadata,
 		reservation:                     util.GetReservationName(taints),
 		labels:                          labels,
 		indexedTaints:                   indexedTaints,
@@ -231,6 +327,10 @@ func (node *Node) GetId() string {
 
 func (node *Node) GetName() string {
 	return node.name
+}
+
+func (node *Node) GetNodeTaints() []NodeTaint {
+	return deepCopyNodeTaints(node.nodeTaints)
 }
 
 func (node *Node) IsUnschedulable() bool {
@@ -380,6 +480,12 @@ func (node *Node) WithTaints(taints []v1.Taint) *Node {
 	return result
 }
 
+func (node *Node) WithNodeTaints(nodeTaints []NodeTaint) *Node {
+	result := node.DeepCopyNilKeys()
+	result.nodeTaints = deepCopyNodeTaints(nodeTaints)
+	return result
+}
+
 func (node *Node) WithLabels(labels map[string]string) *Node {
 	result := node.DeepCopyNilKeys()
 	result.labels = deepCopyLabels(labels)
@@ -438,6 +544,7 @@ func (node *Node) WithSchedulable(schedulable bool) *Node {
 
 	unschedulableTaint := UnschedulableTaint()
 	var taints []v1.Taint
+	var nodeTaints []NodeTaint
 	if schedulable {
 		taints = make([]v1.Taint, 0, len(node.taints))
 		for _, taint := range node.taints {
@@ -445,11 +552,17 @@ func (node *Node) WithSchedulable(schedulable bool) *Node {
 				taints = append(taints, taint)
 			}
 		}
+		for _, nodeTaint := range node.nodeTaints {
+			if !nodeTaint.taint.MatchTaint(&unschedulableTaint) {
+				nodeTaints = append(nodeTaints, nodeTaint)
+			}
+		}
 	} else {
 		taints = append(node.GetTaints(), unschedulableTaint)
+		nodeTaints = append(node.GetNodeTaints(), NodeTaint{taint: unschedulableTaint})
 	}
 
-	result := node.WithTaints(taints)
+	result := node.WithTaints(taints).WithNodeTaints(nodeTaints)
 	result.unschedulable = !schedulable
 	return result
 }
@@ -457,22 +570,24 @@ func (node *Node) WithSchedulable(schedulable bool) *Node {
 func (node *Node) DeepCopyNilKeys() *Node {
 	return &Node{
 		// private fields are immutable so a shallow copy is fine
-		id:                   node.id,
-		index:                node.index,
-		executor:             node.executor,
-		name:                 node.name,
-		pool:                 node.pool,
-		reservation:          node.reservation,
-		reportingNodeType:    node.reportingNodeType,
-		nodeType:             node.nodeType,
-		taints:               node.taints,
-		labels:               node.labels,
-		indexedTaints:        node.indexedTaints,
-		indexedNodeLabels:    node.indexedNodeLabels,
-		unschedulable:        node.unschedulable,
-		overAllocated:        node.overAllocated,
-		totalResources:       node.totalResources,
-		allocatableResources: node.allocatableResources,
+		id:                           node.id,
+		index:                        node.index,
+		executor:                     node.executor,
+		name:                         node.name,
+		pool:                         node.pool,
+		reservation:                  node.reservation,
+		reportingNodeType:            node.reportingNodeType,
+		nodeType:                     node.nodeType,
+		taints:                       node.taints,
+		nodeTaints:                   deepCopyNodeTaints(node.nodeTaints),
+		hasCompleteNodeTaintMetadata: node.hasCompleteNodeTaintMetadata,
+		labels:                       node.labels,
+		indexedTaints:                node.indexedTaints,
+		indexedNodeLabels:            node.indexedNodeLabels,
+		unschedulable:                node.unschedulable,
+		overAllocated:                node.overAllocated,
+		totalResources:               node.totalResources,
+		allocatableResources:         node.allocatableResources,
 
 		// keys set to nil
 		Keys: nil,

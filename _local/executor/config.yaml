@@ -13,6 +13,14 @@ observability:
 metric:
   port: 9002
 kubernetes:
+  taintCategorisation:
+    categoriseUnknownTaints: false
+    wellKnownTaints:
+      keys: []
+      admin:
+        - category: platform
+          keys:
+            - example.com/k8s-test
   toleratedTaints:
     - node-tests
   trackedNodeLabels:
@@ -22,7 +30,6 @@ application:
   pool: "default"
   errorCategories:
     enabled: true
-    defaultCategory: uncategorized
     categories:
       # The action Delete makes the executor remove the failed pod. A retry
       # then reuses the name of the pod. The retry/ testcases need this.
