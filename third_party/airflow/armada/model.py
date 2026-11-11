@@ -66,6 +66,15 @@ class GrpcChannelArgs:
 
 
 @dataclass(frozen=True)
+class LogPosition:
+    """How far a pod's log has been logged: `offset` characters of the message
+    stamped `time`. A carriage-return progress display is one growing record."""
+
+    time: DateTime
+    offset: int
+
+
+@dataclass(frozen=True)
 class RunningJobContext:
     armada_queue: str
     job_id: str
@@ -75,7 +84,14 @@ class RunningJobContext:
     last_log_time: Optional[DateTime] = None
     job_state: str = JobState.UNKNOWN.name
     pod_name: Optional[str] = None
+    last_log_offset: int = 0
 
     @property
     def state(self) -> JobState:
         return JobState[self.job_state]
+
+    @property
+    def log_position(self) -> Optional[LogPosition]:
+        if self.last_log_time is None:
+            return None
+        return LogPosition(self.last_log_time, self.last_log_offset)

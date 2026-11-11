@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch, ANY
 
 import pytest
 from airflow.exceptions import TaskDeferred
-from armada.model import GrpcChannelArgs, RunningJobContext
+from armada.model import GrpcChannelArgs, LogPosition, RunningJobContext
 from armada.operators.armada import ArmadaOperator
 from armada.operators.errors import (
     ArmadaOperatorJobFailedError,
@@ -278,9 +278,22 @@ def test_polls_for_logs(context):
         namespace="namespace-1",
         pod=DEFAULT_POD,
         container="alpine",
-        since_time=None,
+        since=None,
         link_extractor=ANY,
     )
+
+
+def test_persists_the_log_position_for_the_next_poll(context):
+    op = operator(
+        JobSubmitRequestItem(namespace="namespace-1"), container_logs="alpine"
+    )
+    op.pod_manager.fetch_container_logs.return_value = LogPosition(
+        DEFAULT_CURRENT_TIME, 7
+    )
+    op.execute(context)
+
+    persisted = op.hook.context_to_xcom.call_args.args[1]
+    assert persisted.log_position == LogPosition(DEFAULT_CURRENT_TIME, 7)
 
 
 def test_does_not_poll_for_logs_of_a_run_without_a_pod_name(context):
