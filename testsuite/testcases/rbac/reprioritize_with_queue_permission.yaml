@@ -1,0 +1,46 @@
+# RBAC: a principal without the global reprioritize_any_jobs permission can reprioritize jobs
+# in a queue it has the reprioritize permission.
+queue: rbac-queue-submit-and-reprioritize
+authContext: rbac-queue-only
+numBatches: 1
+batchSize: 1
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: reprioritize-by-id
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          args:
+            - "sleep"
+            - "100s"
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+reprioritize:
+  request:
+    newPriority: 100
+expectedEvents:
+  - submitted:
+  - reprioritized:
+timeout: "100s"
+queueConfig:
+  setup:
+    queueSpec:
+      userOwners: ["nobody"]
+      permissions:
+        - subjects:
+            - kind: Group
+              name: queue-only
+          verbs:
+            - submit
+            - reprioritize
+            - watch
