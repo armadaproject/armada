@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,7 +19,9 @@ import (
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/metrics/startupmetrics"
+	"github.com/armadaproject/armada/internal/executor/podchecks/failedpodchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/internal/executor/reporter/startup"
@@ -548,6 +551,8 @@ func (s *stubIssueHandler) DetectAndRegisterIssuesForFailedPod(pod *v1.Pod) (boo
 	return s.detectResult, s.detectError
 }
 
+func (s *stubIssueHandler) ReleaseFailedPodReport(runId string) {}
+
 func copyWithUpdatedPhase(pod *v1.Pod, newPhase v1.PodPhase) *v1.Pod {
 	result := pod.DeepCopy()
 	result.Status.Phase = newPhase
@@ -590,4 +595,584 @@ func TestJobStateReporter_PodRunning_FillsCachedImageSizeFromNode(t *testing.T) 
 	assert.True(t, pull.Cached)
 	require.NotNil(t, pull.SizeBytes)
 	assert.Equal(t, uint64(1234), pull.SizeBytes.Value)
+}
+
+// Two observations of the same failed pod, for example an informer update and the missing event
+// reconciliation, can both find no issue for the run before either registers one. Whichever
+// registers second must still leave the run to the issue handler, so a delete-action failure is
+// reported once, and only after the pod is observed to be gone.
+func TestJobStateReporter_OverlappingFailedPodObservations_WaitForPodDeletion(t *testing.T) {
+	classifier := classifierForExitCode(t, "jsr-overlap-cat", "jsr-overlap-sub", 42, true)
+	f := newOverlappingObservationsFixture(t, classifier)
+	pod := makeFailedPodWithExitCode(t, 42)
+	runId := util.ExtractJobRunId(pod)
+	addPod(t, f.clusterContext, pod)
+
+	// Each observation reaches the failed pod checker after it has found no issue for the run and
+	// before it registers one. Hold both there, then let them register one after the other.
+	done := f.observeTwice(pod)
+	f.registerFirstObservation(t, done)
+	require.True(t, f.issueHandler.HasIssue(runId), "the first observation must register the delete-action issue")
+	sendWithin(t, f.failedPodChecker.release, "second observation to resume")
+	receiveWithin(t, done, "second observation to finish")
+
+	assert.Empty(t, f.eventReporter.GetReceivedEvents(), "no failure may be reported while the failed pod still exists")
+
+	// The delete request is accepted, but the pod stays until the cluster removes it.
+	f.issueHandler.HandlePodIssues()
+	f.issueHandler.HandlePodIssues()
+	assert.GreaterOrEqual(t, f.clusterContext.deleteRequestCount(), 1)
+	assert.Len(t, getActivePods(t, f.clusterContext), 1)
+	assert.Empty(t, f.eventReporter.GetReceivedEvents(), "no failure may be reported before the pod is observed to be gone")
+
+	f.clusterContext.DeletePods([]*v1.Pod{pod})
+	f.issueHandler.HandlePodIssues()
+	f.issueHandler.HandlePodIssues()
+
+	events := f.eventReporter.GetReceivedEvents()
+	require.Len(t, events, 1, "the failure must be reported exactly once, after the pod is gone")
+	require.Len(t, events[0].Event.Events, 1)
+	failedEvent, ok := events[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+	require.Len(t, failedEvent.JobRunErrors.Errors, 1)
+	jobError := failedEvent.JobRunErrors.Errors[0]
+	assert.True(t, jobError.Terminal)
+	assert.Equal(t, "jsr-overlap-cat", jobError.FailureCategory)
+	assert.Equal(t, "jsr-overlap-sub", jobError.FailureSubcategory)
+	require.NotNil(t, jobError.GetPodError())
+	require.Len(t, jobError.GetPodError().ContainerErrors, 1)
+	assert.Equal(t, int32(42), jobError.GetPodError().ContainerErrors[0].ExitCode)
+	assert.False(t, f.issueHandler.HasIssue(runId))
+}
+
+// The observation that registers second learns that the run already has an issue when its
+// registration is refused. It must decide from that refusal: the issue can be handled and resolved
+// before it decides, which must not turn it into an ordinary failure report. A retryable failure
+// exposes this window, because the reporter then reads the pod events again after the refusal.
+func TestJobStateReporter_OverlappingFailedPodObservations_IssueResolvedBeforeSecondDecides(t *testing.T) {
+	f := newOverlappingObservationsFixture(t, nil)
+	pod := makeTestPod(v1.PodStatus{Phase: v1.PodFailed, Message: retryableFailedPodStatusMessage})
+	runId := util.ExtractJobRunId(pod)
+	addPod(t, f.clusterContext, pod)
+
+	done := f.observeTwice(pod)
+	f.registerFirstObservation(t, done)
+	require.True(t, f.issueHandler.HasIssue(runId), "the first observation must register the retryable issue")
+
+	// Hold the second observation at its next pod events read, if it has one after its registration
+	// is refused, and meanwhile let the issue handler return the lease once the pod is gone.
+	f.clusterContext.pausePodEventsRead(0)
+	sendWithin(t, f.failedPodChecker.release, "second observation to resume")
+	secondPaused := false
+	select {
+	case <-f.clusterContext.podEventsPaused:
+		secondPaused = true
+	case <-done:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timed out waiting for the second observation")
+	}
+
+	f.issueHandler.HandlePodIssues()
+	assert.Empty(t, f.eventReporter.GetReceivedEvents(), "no failure may be reported while the failed pod still exists")
+	f.clusterContext.DeletePods([]*v1.Pod{pod})
+	f.issueHandler.HandlePodIssues()
+	require.False(t, f.issueHandler.HasIssue(runId), "the issue must be resolved once the lease is returned")
+
+	if secondPaused {
+		sendWithin(t, f.clusterContext.podEventsResume, "second observation to read pod events")
+		receiveWithin(t, done, "second observation to finish")
+	}
+
+	events := f.eventReporter.GetReceivedEvents()
+	require.Len(t, events, 1, "only the returned lease may be reported")
+	require.Len(t, events[0].Event.Events, 1)
+	runErrors, ok := events[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+	require.Len(t, runErrors.JobRunErrors.Errors, 1)
+	assert.NotNil(t, runErrors.JobRunErrors.Errors[0].GetPodLeaseReturned())
+}
+
+// An observation that cannot read the pod events cannot run the failed pod checks. It must still
+// leave the run to the issue handler when another observation has registered the run's issue, and
+// it must not report a delete-action failure while the pod still exists.
+func TestJobStateReporter_OverlappingFailedPodObservations_SecondCannotReadPodEvents(t *testing.T) {
+	tests := map[string]struct {
+		classifier   func(t *testing.T) *categorizer.Classifier
+		pod          func(t *testing.T) *v1.Pod
+		assertReport func(t *testing.T, jobError *armadaevents.Error)
+	}{
+		"delete action": {
+			classifier: func(t *testing.T) *categorizer.Classifier {
+				return classifierForExitCode(t, "jsr-overlap-cat", "jsr-overlap-sub", 42, true)
+			},
+			pod: func(t *testing.T) *v1.Pod { return makeFailedPodWithExitCode(t, 42) },
+			assertReport: func(t *testing.T, jobError *armadaevents.Error) {
+				assert.Equal(t, "jsr-overlap-cat", jobError.FailureCategory)
+				assert.Equal(t, "jsr-overlap-sub", jobError.FailureSubcategory)
+				require.NotNil(t, jobError.GetPodError())
+			},
+		},
+		"retryable": {
+			classifier: func(t *testing.T) *categorizer.Classifier { return nil },
+			pod: func(t *testing.T) *v1.Pod {
+				return makeTestPod(v1.PodStatus{Phase: v1.PodFailed, Message: retryableFailedPodStatusMessage})
+			},
+			assertReport: func(t *testing.T, jobError *armadaevents.Error) {
+				assert.NotNil(t, jobError.GetPodLeaseReturned())
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newOverlappingObservationsFixture(t, tc.classifier(t))
+			pod := tc.pod(t)
+			runId := util.ExtractJobRunId(pod)
+			addPod(t, f.clusterContext, pod)
+
+			done := make(chan struct{}, 2)
+			f.observe(pod, done)
+			receiveWithin(t, f.failedPodChecker.arrived, "first observation to reach issue detection")
+
+			// From here every pod events read fails. The second observation reads them once to report the
+			// status, finds no issue for the run, and is held at its read for the failed pod checks while
+			// the first observation registers the issue.
+			f.clusterContext.failPodEventsReads(errors.New("pod events unavailable"))
+			f.clusterContext.pausePodEventsRead(1)
+			f.observe(pod, done)
+			receiveWithin(t, f.clusterContext.podEventsPaused, "second observation to read pod events for issue detection")
+			sendWithin(t, f.failedPodChecker.release, "first observation to resume")
+			receiveWithin(t, done, "first observation to finish")
+			require.True(t, f.issueHandler.HasIssue(runId), "the first observation must register the issue")
+			sendWithin(t, f.clusterContext.podEventsResume, "second observation to fail reading pod events")
+			receiveWithin(t, done, "second observation to finish")
+
+			assert.Empty(t, f.eventReporter.GetReceivedEvents(), "no failure may be reported while the failed pod still exists")
+			f.issueHandler.HandlePodIssues()
+			assert.Empty(t, f.eventReporter.GetReceivedEvents(), "no failure may be reported before the pod is observed to be gone")
+
+			f.clusterContext.DeletePods([]*v1.Pod{pod})
+			f.issueHandler.HandlePodIssues()
+			f.issueHandler.HandlePodIssues()
+
+			events := f.eventReporter.GetReceivedEvents()
+			require.Len(t, events, 1, "only the issue handler may report the failure, once")
+			require.Len(t, events[0].Event.Events, 1)
+			runErrors, ok := events[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+			require.True(t, ok)
+			require.Len(t, runErrors.JobRunErrors.Errors, 1)
+			tc.assertReport(t, runErrors.JobRunErrors.Errors[0])
+			assert.False(t, f.issueHandler.HasIssue(runId))
+		})
+	}
+}
+
+// A delete category matched by the pod events, and a pod that has those events.
+func eventMatchedDeleteClassifier(t *testing.T) *categorizer.Classifier {
+	c, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
+		Categories: []categorizer.CategoryConfig{
+			{
+				Name:   "jsr-gpu-cat",
+				Action: categorizer.PodFailureActionDelete,
+				Rules: []categorizer.CategoryRule{{OnPodEvents: &errormatch.PodEventMatcher{
+					Regexp: "devices unavailable for nvidia.com/gpu",
+					Type:   v1.EventTypeWarning,
+				}}},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return c
+}
+
+func addEventMatchedFailedPod(t *testing.T, f *overlappingObservationsFixture) *v1.Pod {
+	pod := makeTestPod(v1.PodStatus{Phase: v1.PodFailed})
+	addPod(t, f.clusterContext, pod)
+	addPodEvents(f.clusterContext.SyncFakeClusterContext, pod, []*v1.Event{{
+		Type:    v1.EventTypeWarning,
+		Reason:  "UnexpectedAdmissionError",
+		Message: "Pod Allocate failed due to requested number of devices unavailable for nvidia.com/gpu",
+	}})
+	return pod
+}
+
+// Two observations can classify the same pod differently when only one of them can read the pod
+// events. Once one observation has registered the run's issue, the other must leave the run to it,
+// even though without the events it finds no issue to register.
+func TestJobStateReporter_OverlappingFailedPodObservations_SecondCannotMatchRegisteredCategory(t *testing.T) {
+	f := newOverlappingObservationsFixture(t, eventMatchedDeleteClassifier(t))
+	pod := addEventMatchedFailedPod(t, f)
+	runId := util.ExtractJobRunId(pod)
+
+	done := f.observeTwice(pod)
+	f.registerFirstObservation(t, done)
+	require.True(t, f.issueHandler.HasIssue(runId), "the first observation must register the delete-action issue")
+	f.clusterContext.failPodEventsReads(errors.New("pod events unavailable"))
+	sendWithin(t, f.failedPodChecker.release, "second observation to resume")
+	receiveWithin(t, done, "second observation to finish")
+
+	assert.Empty(t, f.eventReporter.GetReceivedEvents(), "no failure may be reported while the failed pod still exists")
+	f.issueHandler.HandlePodIssues()
+	assert.Empty(t, f.eventReporter.GetReceivedEvents(), "no failure may be reported before the pod is observed to be gone")
+
+	f.clusterContext.DeletePods([]*v1.Pod{pod})
+	f.issueHandler.HandlePodIssues()
+	f.issueHandler.HandlePodIssues()
+
+	events := f.eventReporter.GetReceivedEvents()
+	require.Len(t, events, 1, "only the issue handler may report the failure, once")
+	require.Len(t, events[0].Event.Events, 1)
+	runErrors, ok := events[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+	require.Len(t, runErrors.JobRunErrors.Errors, 1)
+	assert.Equal(t, "jsr-gpu-cat", runErrors.JobRunErrors.Errors[0].FailureCategory)
+}
+
+// The reverse order: the observation that cannot read the pod events decides first. Without the
+// events it cannot match the category, so, like a lone observation, it reports the failure
+// itself. An observation that can read them afterwards must not also hand the run to the issue
+// handler, which would report the failure a second time.
+func TestJobStateReporter_OverlappingFailedPodObservations_FirstDecisionWithoutPodEventsStands(t *testing.T) {
+	f := newOverlappingObservationsFixture(t, eventMatchedDeleteClassifier(t))
+	pod := addEventMatchedFailedPod(t, f)
+	runId := util.ExtractJobRunId(pod)
+
+	done := make(chan struct{}, 2)
+	f.observe(pod, done)
+	receiveWithin(t, f.failedPodChecker.arrived, "first observation to reach issue detection")
+
+	f.clusterContext.failPodEventsReads(errors.New("pod events unavailable"))
+	f.observe(pod, done)
+	receiveWithin(t, done, "observation without pod events to report the failure")
+	require.Len(t, f.eventReporter.GetReceivedEvents(), 1)
+
+	f.clusterContext.failPodEventsReads(nil)
+	sendWithin(t, f.failedPodChecker.release, "observation with pod events to resume")
+	receiveWithin(t, done, "observation with pod events to finish")
+	assert.False(t, f.issueHandler.HasIssue(runId), "the run must not also be handed to the issue handler")
+
+	f.issueHandler.HandlePodIssues()
+	f.clusterContext.DeletePods([]*v1.Pod{pod})
+	f.issueHandler.HandlePodIssues()
+	f.issueHandler.HandlePodIssues()
+
+	assert.Zero(t, f.clusterContext.deleteRequestCount())
+	events := f.eventReporter.GetReceivedEvents()
+	require.Len(t, events, 1, "the failure must be reported once")
+	require.Len(t, events[0].Event.Events, 1)
+	runErrors, ok := events[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+	require.Len(t, runErrors.JobRunErrors.Errors, 1)
+	assert.True(t, runErrors.JobRunErrors.Errors[0].Terminal)
+	assert.NotNil(t, runErrors.JobRunErrors.Errors[0].GetPodError())
+}
+
+// The pod can be deleted, and the deletion observed, while an observation that started before the
+// run was decided is still detecting issues. The run's decision must outlive that observation, or
+// it could hand the already reported run to an issue that reports it again.
+func TestJobStateReporter_OverlappingFailedPodObservations_DecisionOutlivesPodDeletion(t *testing.T) {
+	tests := map[string]struct {
+		observeDeletion func(c *fakecontext.SyncFakeClusterContext, pod *v1.Pod)
+	}{
+		"deletion event": {
+			observeDeletion: func(c *fakecontext.SyncFakeClusterContext, pod *v1.Pod) { c.SimulateDeletionEvent(pod) },
+		},
+		"missed deletion": {
+			observeDeletion: func(c *fakecontext.SyncFakeClusterContext, pod *v1.Pod) { c.SimulateTombstoneDeletionEvent(pod) },
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newOverlappingObservationsFixture(t, eventMatchedDeleteClassifier(t))
+			pod := addEventMatchedFailedPod(t, f)
+			runId := util.ExtractJobRunId(pod)
+
+			done := make(chan struct{}, 2)
+			f.observe(pod, done)
+			receiveWithin(t, f.failedPodChecker.arrived, "first observation to reach issue detection")
+
+			f.clusterContext.failPodEventsReads(errors.New("pod events unavailable"))
+			f.observe(pod, done)
+			receiveWithin(t, done, "observation without pod events to report the failure")
+			require.Len(t, f.eventReporter.GetReceivedEvents(), 1)
+
+			reported := pod.DeepCopy()
+			reported.Annotations[string(v1.PodFailed)] = time.Now().String()
+			f.clusterContext.DeletePods([]*v1.Pod{pod})
+			tc.observeDeletion(f.clusterContext.SyncFakeClusterContext, reported)
+
+			f.clusterContext.failPodEventsReads(nil)
+			sendWithin(t, f.failedPodChecker.release, "observation with pod events to resume")
+			receiveWithin(t, done, "observation with pod events to finish")
+			f.issueHandler.HandlePodIssues()
+			f.issueHandler.HandlePodIssues()
+
+			assert.Len(t, f.eventReporter.GetReceivedEvents(), 1, "the failure must be reported once")
+			assert.False(t, f.issueHandler.HasIssue(runId))
+			f.issueHandler.podIssueMutex.Lock()
+			defer f.issueHandler.podIssueMutex.Unlock()
+			assert.NotContains(t, f.issueHandler.failedPodsReportedByReporter, runId,
+				"the run's decision must be forgotten once no observation is detecting issues for it")
+		})
+	}
+}
+
+// An observation left to report a failed pod itself can fail to send the report. A later
+// observation, for example the missing event reconciliation, must still report it.
+func TestJobStateReporter_FailedPod_ReportedByLaterObservationAfterFailedSend(t *testing.T) {
+	f := newOverlappingObservationsFixture(t, nil)
+	pod := makeFailedPodWithExitCode(t, 42)
+	addPod(t, f.clusterContext, pod)
+
+	observeOnce := func() {
+		done := make(chan struct{}, 1)
+		f.observe(pod, done)
+		receiveWithin(t, f.failedPodChecker.arrived, "observation to reach issue detection")
+		sendWithin(t, f.failedPodChecker.release, "observation to resume")
+		receiveWithin(t, done, "observation to finish")
+	}
+	f.eventReporter.ErrorOnReport = true
+	observeOnce()
+	require.Empty(t, f.eventReporter.GetReceivedEvents())
+
+	f.eventReporter.ErrorOnReport = false
+	observeOnce()
+	assert.Len(t, f.eventReporter.GetReceivedEvents(), 1, "the later observation must report the failure")
+}
+
+// The report can be sent but the pod not marked as reported, which also keeps the pod from being
+// cleaned up. A later observation must still mark it. As before, it sends the failure again to do so.
+func TestJobStateReporter_FailedPod_MarkedReportedByLaterObservationAfterFailedAnnotation(t *testing.T) {
+	f := newOverlappingObservationsFixture(t, nil)
+	pod := makeFailedPodWithExitCode(t, 42)
+	jobId := util.ExtractJobId(pod)
+	addPod(t, f.clusterContext, pod)
+
+	observeOnce := func() {
+		done := make(chan struct{}, 1)
+		f.observe(pod, done)
+		receiveWithin(t, f.failedPodChecker.arrived, "observation to reach issue detection")
+		sendWithin(t, f.failedPodChecker.release, "observation to resume")
+		receiveWithin(t, done, "observation to finish")
+	}
+	f.clusterContext.failAnnotations(errors.New("annotation rejected"))
+	observeOnce()
+	require.Len(t, f.eventReporter.GetReceivedEvents(), 1)
+	require.Empty(t, f.clusterContext.GetAnnotationsAdded()[jobId])
+
+	f.clusterContext.failAnnotations(nil)
+	observeOnce()
+	assert.Contains(t, f.clusterContext.GetAnnotationsAdded()[jobId], string(v1.PodFailed), "the later observation must mark the pod as reported")
+	assert.Len(t, f.eventReporter.GetReceivedEvents(), 2)
+}
+
+// overlappingObservationsFixture wires a real job state reporter to a real pod issue handler, with
+// test doubles that let a test order two observations of the same pod.
+type overlappingObservationsFixture struct {
+	clusterContext   *deferredDeleteClusterContext
+	eventReporter    *mocks.FakeEventReporter
+	failedPodChecker *gatedRetryChecker
+	issueHandler     *PodIssueHandler
+	stateReporter    *JobStateReporter
+}
+
+func newOverlappingObservationsFixture(t *testing.T, classifier *categorizer.Classifier) *overlappingObservationsFixture {
+	t.Helper()
+	// Unblocks any observation still held when the test ends early.
+	stop := make(chan struct{})
+	t.Cleanup(func() { close(stop) })
+	clusterContext := &deferredDeleteClusterContext{
+		SyncFakeClusterContext: fakecontext.NewSyncFakeClusterContext(),
+		podEventsPaused:        make(chan struct{}),
+		podEventsResume:        make(chan struct{}),
+		stop:                   stop,
+	}
+	eventReporter := mocks.NewFakeEventReporter()
+	failedPodChecker := &gatedRetryChecker{
+		RetryChecker: makeFailedPodChecker(),
+		arrived:      make(chan struct{}),
+		release:      make(chan struct{}),
+		stop:         stop,
+	}
+	issueHandler, err := NewPodIssuerHandler(
+		job.NewJobRunStateStoreWithInitialState([]*job.RunState{}),
+		clusterContext,
+		eventReporter,
+		configuration.StateChecksConfiguration{
+			DeadlineForSubmittedPodConsideredMissing: time.Minute * 15,
+			DeadlineForActivePodConsideredMissing:    time.Minute * 5,
+		},
+		makePendingPodChecker(),
+		failedPodChecker,
+		time.Minute*3,
+		time.Second*30,
+		classifier,
+		reporter.NewDebugMessageRenderer(clusterContext, testDebugConfig()),
+	)
+	require.NoError(t, err)
+	stateReporter, err := NewJobStateReporter(clusterContext, eventReporter, issueHandler, classifier,
+		reporter.NewDebugMessageRenderer(clusterContext, testDebugConfig()), nil, nil, time.Minute)
+	require.NoError(t, err)
+	return &overlappingObservationsFixture{
+		clusterContext:   clusterContext,
+		eventReporter:    eventReporter,
+		failedPodChecker: failedPodChecker,
+		issueHandler:     issueHandler,
+		stateReporter:    stateReporter,
+	}
+}
+
+// observe reports the pod's current status from a goroutine, with its own copy of the pod as an
+// informer would deliver, and signals done when it finishes. done must have room for every observation.
+func (f *overlappingObservationsFixture) observe(pod *v1.Pod, done chan<- struct{}) {
+	observed := pod.DeepCopy()
+	go func() {
+		f.stateReporter.reportCurrentStatus(observed)
+		done <- struct{}{}
+	}()
+}
+
+// observeTwice starts two observations of the pod. The returned channel receives once per finished
+// observation.
+func (f *overlappingObservationsFixture) observeTwice(pod *v1.Pod) chan struct{} {
+	done := make(chan struct{}, 2)
+	f.observe(pod, done)
+	f.observe(pod, done)
+	return done
+}
+
+// registerFirstObservation waits until both observations have found no issue for the run and
+// reached the failed pod checker, then lets one of them finish.
+func (f *overlappingObservationsFixture) registerFirstObservation(t *testing.T, done chan struct{}) {
+	t.Helper()
+	receiveWithin(t, f.failedPodChecker.arrived, "first observation to reach issue detection")
+	receiveWithin(t, f.failedPodChecker.arrived, "second observation to reach issue detection")
+	sendWithin(t, f.failedPodChecker.release, "first observation to resume")
+	receiveWithin(t, done, "first observation to finish")
+}
+
+// gatedRetryChecker holds every call until the test releases it.
+type gatedRetryChecker struct {
+	failedpodchecks.RetryChecker
+	arrived chan struct{}
+	release chan struct{}
+	stop    chan struct{}
+}
+
+func (c *gatedRetryChecker) IsRetryable(pod *v1.Pod, podEvents []*v1.Event) (bool, string) {
+	select {
+	case c.arrived <- struct{}{}:
+	case <-c.stop:
+	}
+	select {
+	case <-c.release:
+	case <-c.stop:
+	}
+	return c.RetryChecker.IsRetryable(pod, podEvents)
+}
+
+// deferredDeleteClusterContext accepts delete requests without removing the pod, as the cluster
+// does while a pod terminates. The test removes the pod itself. It can also fail pod events reads,
+// and hold one read until the test resumes it.
+type deferredDeleteClusterContext struct {
+	*fakecontext.SyncFakeClusterContext
+	mutex          sync.Mutex
+	deleteRequests int
+	podEventsErr   error
+	annotationErr  error
+	pauseArmed     bool
+	// Reads still to pass before the armed pause holds one.
+	readsBeforePause int
+	podEventsPaused  chan struct{}
+	podEventsResume  chan struct{}
+	stop             chan struct{}
+}
+
+func (c *deferredDeleteClusterContext) DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.deleteRequests++
+	return nil
+}
+
+func (c *deferredDeleteClusterContext) deleteRequestCount() int {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.deleteRequests
+}
+
+func (c *deferredDeleteClusterContext) failAnnotations(err error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.annotationErr = err
+}
+
+func (c *deferredDeleteClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
+	c.mutex.Lock()
+	err := c.annotationErr
+	c.mutex.Unlock()
+	if err != nil {
+		return err
+	}
+	return c.SyncFakeClusterContext.AddAnnotation(pod, annotations)
+}
+
+func (c *deferredDeleteClusterContext) failPodEventsReads(err error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.podEventsErr = err
+}
+
+// pausePodEventsRead holds the pod events read that follows the next skip reads. A held read waits
+// at most five seconds for the test, so a pause the test no longer expects cannot hang it.
+func (c *deferredDeleteClusterContext) pausePodEventsRead(skip int) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.pauseArmed = true
+	c.readsBeforePause = skip
+}
+
+func (c *deferredDeleteClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
+	c.mutex.Lock()
+	pause := c.pauseArmed && c.readsBeforePause == 0
+	if pause {
+		c.pauseArmed = false
+	} else if c.pauseArmed {
+		c.readsBeforePause--
+	}
+	err := c.podEventsErr
+	c.mutex.Unlock()
+	if pause {
+		select {
+		case c.podEventsPaused <- struct{}{}:
+		case <-c.stop:
+		case <-time.After(5 * time.Second):
+		}
+		select {
+		case <-c.podEventsResume:
+		case <-c.stop:
+		case <-time.After(5 * time.Second):
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return c.SyncFakeClusterContext.GetPodEvents(pod)
+}
+
+func receiveWithin(t *testing.T, ch <-chan struct{}, waitingFor string) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timed out waiting for "+waitingFor)
+	}
+}
+
+func sendWithin(t *testing.T, ch chan<- struct{}, waitingFor string) {
+	t.Helper()
+	select {
+	case ch <- struct{}{}:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timed out waiting for "+waitingFor)
+	}
 }
