@@ -968,7 +968,7 @@ func TestJobStateReporter_FailedPod_MarkedReportedByLaterObservationAfterFailedA
 // overlappingObservationsFixture wires a real job state reporter to a real pod issue handler, with
 // test doubles that let a test order two observations of the same pod.
 type overlappingObservationsFixture struct {
-	clusterContext   *deferredDeleteClusterContext
+	clusterContext   *overlappingObservationsClusterContext
 	eventReporter    *mocks.FakeEventReporter
 	failedPodChecker *gatedRetryChecker
 	issueHandler     *PodIssueHandler
@@ -980,7 +980,7 @@ func newOverlappingObservationsFixture(t *testing.T, classifier *categorizer.Cla
 	// Unblocks any observation still held when the test ends early.
 	stop := make(chan struct{})
 	t.Cleanup(func() { close(stop) })
-	clusterContext := &deferredDeleteClusterContext{
+	clusterContext := &overlappingObservationsClusterContext{
 		SyncFakeClusterContext: fakecontext.NewSyncFakeClusterContext(),
 		podEventsPaused:        make(chan struct{}),
 		podEventsResume:        make(chan struct{}),
@@ -1070,10 +1070,10 @@ func (c *gatedRetryChecker) IsRetryable(pod *v1.Pod, podEvents []*v1.Event) (boo
 	return c.RetryChecker.IsRetryable(pod, podEvents)
 }
 
-// deferredDeleteClusterContext accepts delete requests without removing the pod, as the cluster
+// overlappingObservationsClusterContext accepts delete requests without removing the pod, as the cluster
 // does while a pod terminates. The test removes the pod itself. It can also fail pod events reads,
 // and hold one read until the test resumes it.
-type deferredDeleteClusterContext struct {
+type overlappingObservationsClusterContext struct {
 	*fakecontext.SyncFakeClusterContext
 	mutex          sync.Mutex
 	deleteRequests int
@@ -1087,26 +1087,26 @@ type deferredDeleteClusterContext struct {
 	stop             chan struct{}
 }
 
-func (c *deferredDeleteClusterContext) DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error {
+func (c *overlappingObservationsClusterContext) DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.deleteRequests++
 	return nil
 }
 
-func (c *deferredDeleteClusterContext) deleteRequestCount() int {
+func (c *overlappingObservationsClusterContext) deleteRequestCount() int {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	return c.deleteRequests
 }
 
-func (c *deferredDeleteClusterContext) failAnnotations(err error) {
+func (c *overlappingObservationsClusterContext) failAnnotations(err error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.annotationErr = err
 }
 
-func (c *deferredDeleteClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
+func (c *overlappingObservationsClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
 	c.mutex.Lock()
 	err := c.annotationErr
 	c.mutex.Unlock()
@@ -1116,7 +1116,7 @@ func (c *deferredDeleteClusterContext) AddAnnotation(pod *v1.Pod, annotations ma
 	return c.SyncFakeClusterContext.AddAnnotation(pod, annotations)
 }
 
-func (c *deferredDeleteClusterContext) failPodEventsReads(err error) {
+func (c *overlappingObservationsClusterContext) failPodEventsReads(err error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.podEventsErr = err
@@ -1124,14 +1124,14 @@ func (c *deferredDeleteClusterContext) failPodEventsReads(err error) {
 
 // pausePodEventsRead holds the pod events read that follows the next skip reads. A held read waits
 // at most five seconds for the test, so a pause the test no longer expects cannot hang it.
-func (c *deferredDeleteClusterContext) pausePodEventsRead(skip int) {
+func (c *overlappingObservationsClusterContext) pausePodEventsRead(skip int) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.pauseArmed = true
 	c.readsBeforePause = skip
 }
 
-func (c *deferredDeleteClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
+func (c *overlappingObservationsClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
 	c.mutex.Lock()
 	pause := c.pauseArmed && c.readsBeforePause == 0
 	if pause {
