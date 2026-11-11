@@ -27,32 +27,51 @@ func (a *App) Watch(queue string, jobSetId string, raw bool, exitOnInactive bool
 }
 
 func (a *App) watch(c api.EventClient, queue string, jobSetId string, raw bool, exitOnInactive bool, forceNewEvents bool, forceLegacyEvents bool) error {
+	if !exitOnInactive {
+		client.WatchJobSet(c, queue, jobSetId, true, true, forceNewEvents, forceLegacyEvents, armadacontext.Background(), func(state *domain.WatchContext, event api.Event) bool {
+			a.printEvent(state, event, raw)
+			return false
+		})
+		return nil
+	}
+
 	// The event stream does not tell the client when it has caught up with the events that were recorded before the
 	// watch started. So, to exit only if the job set is currently inactive, the history is read first, without
-	// waiting for new events. If the job set is still active at the end of the history, the watch then starts
-	// again and skips over the events that were already printed.
-	replayed := 0
-	if exitOnInactive {
+	// waiting for new events. If the job set is still active at the end of the history, the watch starts again and
+	// skips over the events that were already printed. The watch can stop at a moment of inactivity that is not the
+	// end of the history, as events may have been recorded since the history was read, so the history is read again
+	// before exiting.
+	printed := 0
+	for {
+		seen := 0
 		state := client.WatchJobSet(c, queue, jobSetId, false, true, forceNewEvents, forceLegacyEvents, armadacontext.Background(), func(state *domain.WatchContext, event api.Event) bool {
-			replayed++
-			a.printEvent(state, event, raw)
+			seen++
+			if seen > printed {
+				a.printEvent(state, event, raw)
+				printed = seen
+			}
 			return false
 		})
 		if state.GetNumberOfJobs() > 0 && state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs() {
 			return nil
 		}
-	}
 
-	seen := 0
-	client.WatchJobSet(c, queue, jobSetId, true, true, forceNewEvents, forceLegacyEvents, armadacontext.Background(), func(state *domain.WatchContext, event api.Event) bool {
-		seen++
-		if seen <= replayed {
-			return false
+		seen = 0
+		becameInactive := false
+		client.WatchJobSet(c, queue, jobSetId, true, true, forceNewEvents, forceLegacyEvents, armadacontext.Background(), func(state *domain.WatchContext, event api.Event) bool {
+			seen++
+			if seen <= printed {
+				return false
+			}
+			a.printEvent(state, event, raw)
+			printed = seen
+			becameInactive = state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs()
+			return becameInactive
+		})
+		if !becameInactive {
+			return nil
 		}
-		a.printEvent(state, event, raw)
-		return exitOnInactive && state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs()
-	})
-	return nil
+	}
 }
 
 func (a *App) printEvent(state *domain.WatchContext, event api.Event, raw bool) {

@@ -86,19 +86,27 @@ func TestKubectlLogsHint(t *testing.T) {
 }
 
 // fakeEventClient serves the events of a single job set. A request that does not watch gets the history only. A
-// request that watches gets the history followed by the live events, after which the stream ends.
+// request that watches gets the history followed by the live events, after which the stream ends and the live events
+// become part of the history. The events in recordedAfterFirstRequest become part of the history once the first
+// request has been served.
 type fakeEventClient struct {
 	api.EventClient
-	history  []*api.EventMessage
-	live     []*api.EventMessage
-	requests []*api.JobSetRequest
+	history                   []*api.EventMessage
+	live                      []*api.EventMessage
+	recordedAfterFirstRequest []*api.EventMessage
+	requests                  []*api.JobSetRequest
 }
 
 func (c *fakeEventClient) GetJobSetEvents(_ context.Context, in *api.JobSetRequest, _ ...grpc.CallOption) (api.Event_GetJobSetEventsClient, error) {
 	c.requests = append(c.requests, in)
-	messages := c.history
+	messages := append([]*api.EventMessage{}, c.history...)
 	if in.Watch {
-		messages = append(append([]*api.EventMessage{}, c.history...), c.live...)
+		messages = append(messages, c.live...)
+		c.history = append(c.history, c.live...)
+		c.live = nil
+	}
+	if len(c.requests) == 1 {
+		c.history = append(c.history, c.recordedAfterFirstRequest...)
 	}
 	return &fakeEventStream{messages: messages}, nil
 }
@@ -144,6 +152,7 @@ func TestWatch_ExitOnInactive(t *testing.T) {
 	tests := map[string]struct {
 		history          []*api.EventMessage
 		live             []*api.EventMessage
+		recordedLater    []*api.EventMessage
 		expectedEvents   []string
 		expectedRequests []bool // the Watch field of each request
 	}{
@@ -163,20 +172,29 @@ func TestWatch_ExitOnInactive(t *testing.T) {
 		},
 		"exits when the job set becomes inactive after an active history": {
 			history: []*api.EventMessage{submitted("1"), succeeded("1"), submitted("2"), running("2")},
-			live:    []*api.EventMessage{succeeded("2"), submitted("3")},
+			live:    []*api.EventMessage{succeeded("2")},
 			expectedEvents: []string{
 				"JobSubmittedEvent, job id: 1", "JobSucceededEvent, job id: 1",
 				"JobSubmittedEvent, job id: 2", "JobRunningEvent, job id: 2",
 				"JobSucceededEvent, job id: 2",
 			},
-			expectedRequests: []bool{false, true},
+			expectedRequests: []bool{false, true, false},
+		},
+		"does not exit at a moment of inactivity that was recorded after the history was read": {
+			history:       []*api.EventMessage{submitted("1"), running("1")},
+			recordedLater: []*api.EventMessage{succeeded("1"), submitted("2"), running("2")},
+			expectedEvents: []string{
+				"JobSubmittedEvent, job id: 1", "JobRunningEvent, job id: 1",
+				"JobSucceededEvent, job id: 1", "JobSubmittedEvent, job id: 2", "JobRunningEvent, job id: 2",
+			},
+			expectedRequests: []bool{false, true, false, true},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			buf := new(bytes.Buffer)
 			app := &App{Out: buf}
-			fake := &fakeEventClient{history: tc.history, live: tc.live}
+			fake := &fakeEventClient{history: tc.history, live: tc.live, recordedAfterFirstRequest: tc.recordedLater}
 
 			err := app.watch(fake, "queue", "job-set", false, true, false, false)
 			assert.NoError(t, err)
