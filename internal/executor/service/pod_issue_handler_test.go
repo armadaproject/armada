@@ -377,6 +377,105 @@ func TestPodIssueService_DetectAndRegisterFailedPodIssue(t *testing.T) {
 	}
 }
 
+// The job state reporter registers failed pod issues from informer callbacks, so a registration can
+// arrive while a pod issue handling pass is collecting the known issues.
+func TestPodIssueService_RegistersFailedPodIssueDuringHandlingPass(t *testing.T) {
+	existingRun := createRunState("job-1", uuid.New().String(), job.Active)
+	podIssueService, runStateStore, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{existingRun})
+	require.NoError(t, err)
+	// Cancelling the run resolves its existing issue when handled, and stops detection re-registering it.
+	runStateStore.RequestRunCancellation(existingRun.Meta.RunId)
+	_, err = podIssueService.registerIssue(&runIssue{
+		JobId: existingRun.Meta.JobId,
+		RunId: existingRun.Meta.RunId,
+		ReconciliationIssue: &reconciliationIssue{
+			InitialDetectionTime: time.Now(),
+			OriginalRunState:     existingRun.DeepCopy(),
+		},
+	})
+	require.NoError(t, err)
+
+	failedPod := makeTestPod(v1.PodStatus{Phase: v1.PodFailed, Message: retryableFailedPodStatusMessage})
+	addPod(t, fakeClusterContext, failedPod)
+
+	start := make(chan struct{})
+	registered := make(chan struct{})
+	pausingStore := &pausingRunStateStore{RunStateStore: runStateStore, paused: make(chan struct{}), resume: start, hold: registered}
+	podIssueService.jobRunState = pausingStore
+
+	handled := make(chan struct{})
+	go func() {
+		defer close(handled)
+		podIssueService.HandlePodIssues()
+	}()
+	// The pass has detected issues and is about to collect the known issues for handling.
+	waitFor(t, pausingStore.paused, "handling pass to pause")
+
+	var issueAdded bool
+	var registerErr error
+	go func() {
+		defer close(registered)
+		<-start
+		issueAdded, registerErr = podIssueService.DetectAndRegisterIssuesForFailedPod(failedPod)
+	}()
+	// Releasing both together leaves the registration unordered with the pass collecting the known issues.
+	close(start)
+	waitFor(t, registered, "failed pod issue registration")
+	waitFor(t, handled, "handling pass")
+
+	require.NoError(t, registerErr)
+	assert.True(t, issueAdded)
+	assert.False(t, podIssueService.HasIssue(existingRun.Meta.RunId))
+	assert.True(t, podIssueService.HasIssue(util.ExtractJobRunId(failedPod)))
+
+	// The issue registered during the pass is handled as usual: the pod is deleted, then the lease returned.
+	podIssueService.jobRunState = runStateStore
+	podIssueService.HandlePodIssues()
+	podIssueService.HandlePodIssues()
+	assert.False(t, podIssueService.HasIssue(util.ExtractJobRunId(failedPod)))
+	assert.Len(t, getActivePods(t, fakeClusterContext), 0)
+	require.Len(t, eventsReporter.ReceivedEvents, 1)
+	assert.Equal(t, util.ExtractJobRunId(failedPod), eventsReporter.ReceivedEvents[0].JobRunId)
+	require.Len(t, eventsReporter.ReceivedEvents[0].Event.Events, 1)
+	leaseReturned, ok := eventsReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+	require.True(t, ok)
+	require.Len(t, leaseReturned.JobRunErrors.Errors, 1)
+	assert.NotNil(t, leaseReturned.JobRunErrors.Errors[0].GetPodLeaseReturned())
+}
+
+// pausingRunStateStore pauses a handling pass in GetAllWithFilter, which must stay the pass's last call before it
+// collects the known issues: an issue mutex lock in between could order the registration before the collection.
+// It also holds the pass's handling of a reconciliation issue until the hold channel is closed, because the
+// handler's issue mutex use could otherwise order the collection before the registration. Either ordering hides
+// the race from the race detector.
+type pausingRunStateStore struct {
+	job.RunStateStore
+	paused chan struct{}
+	resume <-chan struct{}
+	hold   <-chan struct{}
+}
+
+func (s *pausingRunStateStore) GetAllWithFilter(fn func(state *job.RunState) bool) []*job.RunState {
+	runs := s.RunStateStore.GetAllWithFilter(fn)
+	close(s.paused)
+	<-s.resume
+	return runs
+}
+
+func (s *pausingRunStateStore) Get(runId string) *job.RunState {
+	<-s.hold
+	return s.RunStateStore.Get(runId)
+}
+
+func waitFor(t *testing.T, done <-chan struct{}, description string) {
+	t.Helper()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatalf("timed out waiting for %s", description)
+	}
+}
+
 func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *testing.T) {
 	startTime := time.Now().Add(-time.Minute * 10)
 

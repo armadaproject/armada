@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -491,8 +492,16 @@ func (p *PodIssueHandler) hasExceededActiveDeadline(pod *v1.Pod) bool {
 
 func (p *PodIssueHandler) handleKnownIssues(ctx *armadacontext.Context, allManagedPods []*v1.Pod) {
 	// Make issues from pods + issues
-	issues := createIssues(allManagedPods, p.knownPodIssues)
+	issues := createIssues(allManagedPods, p.copyKnownIssues())
 	util.ProcessItemsWithThreadPool(ctx, 20, issues, p.handleRunIssue)
+}
+
+// copyKnownIssues returns a copy of the known issues. Issues can be registered while known issues are being
+// handled, so handling works on a copy. Issues registered after the copy is taken are handled on the next pass.
+func (p *PodIssueHandler) copyKnownIssues() map[string]*runIssue {
+	p.podIssueMutex.Lock()
+	defer p.podIssueMutex.Unlock()
+	return maps.Clone(p.knownPodIssues)
 }
 
 func createIssues(managedPods []*v1.Pod, runIssues map[string]*runIssue) []*issue {
