@@ -103,7 +103,8 @@ func TestPodIssueService_DeleteActionFailedEscalationRecovery(t *testing.T) {
 		t.Run(fmt.Sprintf("buildFailure=%t", buildFailure), func(t *testing.T) {
 			const category, subcategory, hint = "recovery-delete", "node-lost", "Retry on another node."
 			classifier, err := categorizer.NewClassifier(categorizer.ErrorCategoriesConfig{
-				Categories: []categorizer.CategoryConfig{{Name: category, Action: categorizer.PodFailureActionDelete,
+				Categories: []categorizer.CategoryConfig{{
+					Name: category, Action: categorizer.PodFailureActionDelete,
 					Rules: []categorizer.CategoryRule{{OnPodEvents: &errormatch.PodEventMatcher{Type: "Warning", Regexp: "node lost"}, Subcategory: subcategory, Hint: hint}},
 				}},
 			})
