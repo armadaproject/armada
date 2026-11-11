@@ -15,38 +15,68 @@ import (
 )
 
 // Watch prints events associated with a particular job set.
+//
+// If exitOnInactive is set, Watch returns once the job set is currently inactive, i.e. once all the events recorded so
+// far have been printed and every job in the job set has finished. Moments of inactivity in the history of the job set
+// do not stop the watch.
 func (a *App) Watch(queue string, jobSetId string, raw bool, exitOnInactive bool, forceNewEvents bool, forceLegacyEvents bool) error {
 	fmt.Fprintf(a.Out, "Watching job set %s\n", jobSetId)
 	return client.WithEventClient(a.Params.ApiConnectionDetails, func(c api.EventClient) error {
-		client.WatchJobSet(c, queue, jobSetId, true, true, forceNewEvents, forceLegacyEvents, armadacontext.Background(), func(state *domain.WatchContext, event api.Event) bool {
-			if raw {
-				data, err := json.Marshal(event)
-				if err != nil {
-					fmt.Fprintf(a.Out, "error parsing event %s: %s\n", event, err)
-				} else {
-					fmt.Fprintf(a.Out, "%s %s\n", reflect.TypeOf(event), string(data))
-				}
-			} else {
-				switch event2 := event.(type) {
-				case *api.JobUtilisationEvent:
-					// no print
-				case *api.JobFailedEvent:
-					a.printSummary(state, event)
-					fmt.Fprintf(a.Out, "Job failed: %s\n", event2.Reason)
-					if hint := kubectlLogsHint(event2, state.GetJobInfo(event2.JobId)); hint != "" {
-						fmt.Fprintf(a.Out, "To see the logs, try '%s --tail=50'\n", hint)
-					}
-				default:
-					a.printSummary(state, event)
-				}
-			}
-			if exitOnInactive && state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs() {
-				return true
-			}
+		return a.watch(c, queue, jobSetId, raw, exitOnInactive, forceNewEvents, forceLegacyEvents)
+	})
+}
+
+func (a *App) watch(c api.EventClient, queue string, jobSetId string, raw bool, exitOnInactive bool, forceNewEvents bool, forceLegacyEvents bool) error {
+	// The event stream does not tell the client when it has caught up with the events that were recorded before the
+	// watch started. So, to exit only if the job set is currently inactive, the history is read first, without
+	// waiting for new events. If the job set is still active at the end of the history, the watch then starts
+	// again and skips over the events that were already printed.
+	replayed := 0
+	if exitOnInactive {
+		state := client.WatchJobSet(c, queue, jobSetId, false, true, forceNewEvents, forceLegacyEvents, armadacontext.Background(), func(state *domain.WatchContext, event api.Event) bool {
+			replayed++
+			a.printEvent(state, event, raw)
 			return false
 		})
-		return nil
+		if state.GetNumberOfJobs() > 0 && state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs() {
+			return nil
+		}
+	}
+
+	seen := 0
+	client.WatchJobSet(c, queue, jobSetId, true, true, forceNewEvents, forceLegacyEvents, armadacontext.Background(), func(state *domain.WatchContext, event api.Event) bool {
+		seen++
+		if seen <= replayed {
+			return false
+		}
+		a.printEvent(state, event, raw)
+		return exitOnInactive && state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs()
 	})
+	return nil
+}
+
+func (a *App) printEvent(state *domain.WatchContext, event api.Event, raw bool) {
+	if raw {
+		data, err := json.Marshal(event)
+		if err != nil {
+			fmt.Fprintf(a.Out, "error parsing event %s: %s\n", event, err)
+		} else {
+			fmt.Fprintf(a.Out, "%s %s\n", reflect.TypeOf(event), string(data))
+		}
+		return
+	}
+	switch event2 := event.(type) {
+	case *api.JobUtilisationEvent:
+		// no print
+	case *api.JobFailedEvent:
+		a.printSummary(state, event)
+		fmt.Fprintf(a.Out, "Job failed: %s\n", event2.Reason)
+		if hint := kubectlLogsHint(event2, state.GetJobInfo(event2.JobId)); hint != "" {
+			fmt.Fprintf(a.Out, "To see the logs, try '%s --tail=50'\n", hint)
+		}
+	default:
+		a.printSummary(state, event)
+	}
 }
 
 func (a *App) printSummary(state *domain.WatchContext, e api.Event) {
