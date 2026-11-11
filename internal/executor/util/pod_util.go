@@ -260,14 +260,20 @@ func GetPodContainerStatuses(pod *v1.Pod) []v1.ContainerStatus {
 // that never started. This only affects whether diagnostic debug data is captured.
 func HasAppContainerStarted(pod *v1.Pod) bool {
 	for _, container := range pod.Status.ContainerStatuses {
-		if container.State.Running != nil ||
-			container.State.Terminated != nil ||
-			container.LastTerminationState.Running != nil ||
-			container.LastTerminationState.Terminated != nil {
+		if HasContainerStarted(container) {
 			return true
 		}
 	}
 	return false
+}
+
+// HasContainerStarted returns true if the container has started - i.e. reached a Running or
+// Terminated state, now or previously.
+func HasContainerStarted(container v1.ContainerStatus) bool {
+	return container.State.Running != nil ||
+		container.State.Terminated != nil ||
+		container.LastTerminationState.Running != nil ||
+		container.LastTerminationState.Terminated != nil
 }
 
 // LongestAppContainerRunDuration returns how long the pod's longest-running app container ran for, or

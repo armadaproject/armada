@@ -711,11 +711,12 @@ func (p *PodIssueHandler) reportDeleteActionFailure(issue *issue, category strin
 // For retryable issues we must:
 //   - Report JobReturnLeaseEvent, carrying the pod error classification when a rule matches
 //
-// If the pod becomes Running/Completed/Failed in the middle of being deleted - swap this issue to a nonRetryableIssue where it will be Failed
+// If the pod starts up in the middle of being deleted - swap this issue to a nonRetryableIssue where it will be Failed
 func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 	log.Infof("Handling retryable issue for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 	if issue.CurrentPodState != nil {
-		if issue.RunIssue.PodIssue.OriginalPodState.Status.Phase == v1.PodPending && issue.CurrentPodState.Status.Phase != v1.PodPending {
+		originalPodState := issue.RunIssue.PodIssue.OriginalPodState
+		if isStartupPhase(originalPodState) && hasStartedUpSince(originalPodState, issue.CurrentPodState) {
 			p.markIssuesResolved(issue.RunIssue)
 			if issue.RunIssue.PodIssue.DeletionRequested {
 				handlingError := p.newPodIssue(podIssue{
@@ -737,7 +738,10 @@ func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 		}
 
 		err := p.clusterContext.DeletePodWithCondition(issue.CurrentPodState, func(pod *v1.Pod) bool {
-			return pod.Status.Phase == issue.RunIssue.PodIssue.OriginalPodState.Status.Phase
+			if isStartupPhase(originalPodState) {
+				return !hasStartedUpSince(originalPodState, pod)
+			}
+			return pod.Status.Phase == originalPodState.Status.Phase
 		}, true)
 		if err != nil {
 			log.Errorf("Failed to delete pod of running job %s because %s", issue.RunIssue.JobId, err)
@@ -791,11 +795,41 @@ func hasPodIssueSelfResolved(issue *issue) bool {
 		}
 
 		// Pod has started up and we haven't tried to delete the pod yet - so resolve the issue
-		if issue.CurrentPodState.Status.Phase != v1.PodPending && !issue.RunIssue.PodIssue.DeletionRequested {
+		if hasStartedUpSince(issue.RunIssue.PodIssue.OriginalPodState, issue.CurrentPodState) && !issue.RunIssue.PodIssue.DeletionRequested {
 			return true
 		}
 	}
 
+	return false
+}
+
+// isStartupPhase returns true if the pod is Pending or Unknown, the phases startup issues are detected in. Moving
+// between those phases alone does not show the pod has started up.
+func isStartupPhase(pod *v1.Pod) bool {
+	return pod.Status.Phase == v1.PodPending || pod.Status.Phase == v1.PodUnknown
+}
+
+// hasStartedUpSince returns true if a pod detected with a startup issue has started up since the original state. An
+// Unknown pod has started up if an app container started since then, as its node can be lost after startup.
+func hasStartedUpSince(originalPod *v1.Pod, pod *v1.Pod) bool {
+	if !isStartupPhase(pod) {
+		return true
+	}
+	return pod.Status.Phase == v1.PodUnknown && hasAppContainerStartedSince(originalPod, pod)
+}
+
+// hasAppContainerStartedSince returns true if an app container of the pod has started since its original state. A
+// container that had already started, such as a sidecar, does not count.
+func hasAppContainerStartedSince(originalPod *v1.Pod, currentPod *v1.Pod) bool {
+	startedContainers := map[string]bool{}
+	for _, container := range originalPod.Status.ContainerStatuses {
+		startedContainers[container.Name] = util.HasContainerStarted(container)
+	}
+	for _, container := range currentPod.Status.ContainerStatuses {
+		if util.HasContainerStarted(container) && !startedContainers[container.Name] {
+			return true
+		}
+	}
 	return false
 }
 
