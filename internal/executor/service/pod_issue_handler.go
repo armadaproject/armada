@@ -103,6 +103,10 @@ type PodIssueHandler struct {
 	// so that none of them can decide for the run again. Guarded by podIssueMutex.
 	failedPodDetectionsInProgress   map[string]int
 	deletedDuringFailedPodDetection map[string]struct{}
+	// Resolved issues no longer need handling, but detections already in progress must still
+	// leave their runs to the issue handler. Forgotten when the last detection finishes.
+	// Guarded by podIssueMutex.
+	resolvedIssuesDuringFailedPodDetection map[string]struct{}
 
 	// Run ids a terminated-run debug event has already been reported for. The event is diagnostic,
 	// so losing this across an executor restart is acceptable.
@@ -139,9 +143,10 @@ func NewPodIssuerHandler(
 		podIssueMutex:             sync.Mutex{},
 		clock:                     clock.RealClock{},
 
-		failedPodsReportedByReporter:    map[string]struct{}{},
-		failedPodDetectionsInProgress:   map[string]int{},
-		deletedDuringFailedPodDetection: map[string]struct{}{},
+		failedPodsReportedByReporter:           map[string]struct{}{},
+		failedPodDetectionsInProgress:          map[string]int{},
+		deletedDuringFailedPodDetection:        map[string]struct{}{},
+		resolvedIssuesDuringFailedPodDetection: map[string]struct{}{},
 
 		reportedTerminationDebugRunIds: map[string]struct{}{},
 		reportedTerminationDebugLock:   sync.Mutex{},
@@ -274,6 +279,9 @@ func (p *PodIssueHandler) leaveFailedPodToReporter(runId string) bool {
 	if _, exists := p.knownPodIssues[runId]; exists {
 		return false
 	}
+	if _, resolved := p.resolvedIssuesDuringFailedPodDetection[runId]; resolved {
+		return false
+	}
 	if _, reported := p.failedPodsReportedByReporter[runId]; reported {
 		return false
 	}
@@ -309,6 +317,7 @@ func (p *PodIssueHandler) endFailedPodDetection(runId string) {
 		return
 	}
 	delete(p.failedPodDetectionsInProgress, runId)
+	delete(p.resolvedIssuesDuringFailedPodDetection, runId)
 	if _, deleted := p.deletedDuringFailedPodDetection[runId]; deleted {
 		delete(p.deletedDuringFailedPodDetection, runId)
 		delete(p.failedPodsReportedByReporter, runId)
@@ -381,7 +390,7 @@ type issueRegistration int
 const (
 	noIssueRegistered issueRegistration = iota
 	issueRegistered
-	// The run already had an issue, which stays registered in place of the new one.
+	// The run already had an issue, which remains responsible for the failure even if resolved.
 	issueAlreadyRegistered
 	// The job state reporter reports the run's failure itself, so the failed pod
 	// detections leave the run to it.
@@ -407,6 +416,9 @@ func (p *PodIssueHandler) tryRegisterIssue(issue *runIssue) (issueRegistration, 
 func (p *PodIssueHandler) tryRegisterFailedPodIssue(issue *runIssue) (issueRegistration, error) {
 	p.podIssueMutex.Lock()
 	defer p.podIssueMutex.Unlock()
+	if _, resolved := p.resolvedIssuesDuringFailedPodDetection[issue.RunId]; resolved {
+		return issueAlreadyRegistered, nil
+	}
 	if _, reported := p.failedPodsReportedByReporter[issue.RunId]; reported {
 		log.Infof("Not registering an issue for job %s (runId %s) as its failure is already being reported", issue.JobId, issue.RunId)
 		return failureReportedByReporter, nil
@@ -450,6 +462,9 @@ func (p *PodIssueHandler) markIssuesResolved(issue *runIssue) {
 	log.Infof("Issue for job %s run %s is resolved", issue.JobId, issue.RunId)
 
 	delete(p.knownPodIssues, issue.RunId)
+	if p.failedPodDetectionsInProgress[issue.RunId] > 0 {
+		p.resolvedIssuesDuringFailedPodDetection[issue.RunId] = struct{}{}
+	}
 }
 
 func (p *PodIssueHandler) markIssueReported(issue *runIssue) {

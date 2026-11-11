@@ -692,6 +692,68 @@ func TestJobStateReporter_OverlappingFailedPodObservations_IssueResolvedBeforeSe
 	assert.NotNil(t, runErrors.JobRunErrors.Errors[0].GetPodLeaseReturned())
 }
 
+// A detection that already started before an issue was registered must keep that decision even
+// if the issue returns the lease and is resolved before the detection attempts registration.
+func TestJobStateReporter_OverlappingFailedPodObservations_DecisionOutlivesIssueResolution(t *testing.T) {
+	for _, retryable := range []bool{true, false} {
+		name := "non-retryable second observation"
+		if retryable {
+			name = "retryable second observation"
+		}
+		t.Run(name, func(t *testing.T) {
+			f := newOverlappingObservationsFixture(t, nil)
+			pod := makeTestPod(v1.PodStatus{Phase: v1.PodFailed, Message: retryableFailedPodStatusMessage})
+			runId := util.ExtractJobRunId(pod)
+			addPod(t, f.clusterContext, pod)
+
+			done := make(chan struct{}, 2)
+			f.observe(pod, done)
+			receiveWithin(t, f.failedPodChecker.arrived, "first observation to reach issue detection")
+
+			// The status reporter reads events once before starting detection. Hold the next
+			// read inside detection, before the second observation can register anything.
+			secondPod := pod.DeepCopy()
+			if !retryable {
+				secondPod.Status.Message = ""
+			}
+			f.clusterContext.pausePodEventsRead(1)
+			f.observe(secondPod, done)
+			receiveWithin(t, f.clusterContext.podEventsPaused, "second observation to start detecting issues")
+			sendWithin(t, f.failedPodChecker.release, "first observation to register its issue")
+			receiveWithin(t, done, "first observation to finish")
+			require.True(t, f.issueHandler.HasIssue(runId))
+
+			f.issueHandler.HandlePodIssues()
+			assert.Empty(t, f.eventReporter.GetReceivedEvents(), "the lease must not be returned before deletion")
+			f.clusterContext.DeletePods([]*v1.Pod{pod})
+			f.clusterContext.SimulateDeletionEvent(pod)
+			f.issueHandler.HandlePodIssues()
+			require.False(t, f.issueHandler.HasIssue(runId), "the issue must resolve after returning the lease")
+			require.Len(t, f.eventReporter.GetReceivedEvents(), 1)
+
+			sendWithin(t, f.clusterContext.podEventsResume, "second observation to resume detection")
+			receiveWithin(t, f.failedPodChecker.arrived, "second observation to reach the failed pod checker")
+			sendWithin(t, f.failedPodChecker.release, "second observation to finish detection")
+			receiveWithin(t, done, "second observation to finish")
+			assert.False(t, f.issueHandler.HasIssue(runId), "the resolved issue must not be registered again")
+			f.issueHandler.HandlePodIssues()
+
+			events := f.eventReporter.GetReceivedEvents()
+			require.Len(t, events, 1, "only the original lease return may be reported")
+			require.Len(t, events[0].Event.Events, 1)
+			runErrors, ok := events[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+			require.True(t, ok)
+			require.Len(t, runErrors.JobRunErrors.Errors, 1)
+			assert.NotNil(t, runErrors.JobRunErrors.Errors[0].GetPodLeaseReturned())
+
+			f.issueHandler.podIssueMutex.Lock()
+			defer f.issueHandler.podIssueMutex.Unlock()
+			assert.NotContains(t, f.issueHandler.resolvedIssuesDuringFailedPodDetection, runId,
+				"the resolved decision must be released once all active detections finish")
+		})
+	}
+}
+
 // An observation that cannot read the pod events cannot run the failed pod checks. It must still
 // leave the run to the issue handler when another observation has registered the run's issue, and
 // it must not report a delete-action failure while the pod still exists.
