@@ -1690,8 +1690,9 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckPodIsUnknownWithStart
 		detectedContainers []v1.ContainerStatus
 		laterContainers    []v1.ContainerStatus
 	}{
-		"single container":                     {laterContainers: []v1.ContainerStatus{mainRunning}},
-		"with a sidecar running when detected": {detectedContainers: []v1.ContainerStatus{sidecarRunning, mainWaiting}, laterContainers: []v1.ContainerStatus{sidecarRunning, mainRunning}},
+		"single container":                         {laterContainers: []v1.ContainerStatus{mainRunning}},
+		"with a sidecar running when detected":     {detectedContainers: []v1.ContainerStatus{sidecarRunning, mainWaiting}, laterContainers: []v1.ContainerStatus{sidecarRunning, mainRunning}},
+		"with only the original container running": {detectedContainers: []v1.ContainerStatus{sidecarRunning, mainWaiting}, laterContainers: []v1.ContainerStatus{sidecarRunning, mainWaiting}},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -1730,35 +1731,46 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckPodIsUnknownWithStart
 	}
 }
 
-// The pod started up unseen between the pod issue handler listing it and deleting it, then its node was lost.
+// A live Unknown pod showing execution must not be deleted, whether execution began before or after detection.
 func TestPodIssueService_ResolvesStuckPodIssue_IfPodIsUnknownWithStartedContainerWhenDeleting(t *testing.T) {
-	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
-	require.NoError(t, err)
-	clusterContext := &asyncDeleteClusterContext{SyncFakeClusterContext: fakeClusterContext, acceptDeletes: true}
-	podIssueService.clusterContext = clusterContext
-	fakeClock := clock.NewFakeClock(stuckStartingUpBaseTime.Add(6 * time.Minute))
-	podIssueService.clock = fakeClock
-	podIssueService.pendingPodChecker = makeConfiguredPendingPodChecker(t, fakeClock)
-	pod := makeStuckStartingUpPod(v1.PodPending, nil)
-	addPod(t, fakeClusterContext, pod)
-	runId := util.ExtractJobRunId(pod)
-	startedPod := pod.DeepCopy()
-	startedPod.Status.Phase = v1.PodUnknown
-	startedPod.Status.ContainerStatuses = []v1.ContainerStatus{
-		{Name: "main", State: v1.ContainerState{Running: &v1.ContainerStateRunning{StartedAt: metav1.NewTime(stuckStartingUpBaseTime.Add(6 * time.Minute))}}},
+	for _, alreadyStarted := range []bool{false, true} {
+		t.Run(fmt.Sprintf("already started: %t", alreadyStarted), func(t *testing.T) {
+			podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+			require.NoError(t, err)
+			clusterContext := &asyncDeleteClusterContext{SyncFakeClusterContext: fakeClusterContext, acceptDeletes: true}
+			podIssueService.clusterContext = clusterContext
+			fakeClock := clock.NewFakeClock(stuckStartingUpBaseTime.Add(6 * time.Minute))
+			podIssueService.clock = fakeClock
+			podIssueService.pendingPodChecker = makeConfiguredPendingPodChecker(t, fakeClock)
+			var containers []v1.ContainerStatus
+			if alreadyStarted {
+				containers = []v1.ContainerStatus{
+					{Name: "main", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+					{Name: "other-worker", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "ImagePullBackOff"}}},
+				}
+			}
+			pod := makeStuckStartingUpPod(v1.PodPending, containers)
+			addPod(t, fakeClusterContext, pod)
+			runId := util.ExtractJobRunId(pod)
+			startedPod := pod.DeepCopy()
+			startedPod.Status.Phase = v1.PodUnknown
+			startedPod.Status.ContainerStatuses = []v1.ContainerStatus{
+				{Name: "main", State: v1.ContainerState{Running: &v1.ContainerStateRunning{StartedAt: metav1.NewTime(stuckStartingUpBaseTime.Add(6 * time.Minute))}}},
+			}
+			clusterContext.livePod = startedPod
+
+			podIssueService.HandlePodIssues()
+			assert.False(t, clusterContext.deleteAccepted)
+			assert.True(t, podIssueService.HasIssue(runId))
+
+			addPod(t, fakeClusterContext, startedPod)
+			podIssueService.HandlePodIssues()
+			assert.False(t, podIssueService.HasIssue(runId))
+			assert.False(t, clusterContext.deleteAccepted)
+			assert.Len(t, getActivePods(t, fakeClusterContext), 1)
+			assert.Len(t, eventsReporter.GetReceivedEvents(), 0)
+		})
 	}
-	clusterContext.livePod = startedPod
-
-	podIssueService.HandlePodIssues()
-	assert.False(t, clusterContext.deleteAccepted)
-	assert.True(t, podIssueService.HasIssue(runId))
-
-	addPod(t, fakeClusterContext, startedPod)
-	podIssueService.HandlePodIssues()
-	assert.False(t, podIssueService.HasIssue(runId))
-	assert.False(t, clusterContext.deleteAccepted)
-	assert.Len(t, getActivePods(t, fakeClusterContext), 1)
-	assert.Len(t, eventsReporter.GetReceivedEvents(), 0)
 }
 
 func TestPodIssueService_ResolvesUnreportedStuckPodIssue_IfPodIsUnknownWithStartedContainer(t *testing.T) {
@@ -1793,39 +1805,64 @@ func TestPodIssueService_ResolvesUnreportedStuckPodIssue_IfPodIsUnknownWithStart
 	assert.Len(t, eventsReporter.GetReceivedEvents(), 0)
 }
 
-// A container that was already running when the issue was detected is not evidence the pod has started since.
-func TestPodIssueService_ReturnsLease_IfStuckUnknownPodHadStartedContainerWhenDetected(t *testing.T) {
-	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
-	require.NoError(t, err)
-	clusterContext := &asyncDeleteClusterContext{SyncFakeClusterContext: fakeClusterContext, acceptDeletes: true}
-	podIssueService.clusterContext = clusterContext
-	fakeClock := clock.NewFakeClock(stuckStartingUpBaseTime.Add(6 * time.Minute))
-	podIssueService.clock = fakeClock
-	podIssueService.pendingPodChecker = makeConfiguredPendingPodChecker(t, fakeClock)
-	pod := makeStuckStartingUpPod(v1.PodUnknown, []v1.ContainerStatus{
-		{Name: "sidecar", State: v1.ContainerState{Running: &v1.ContainerStateRunning{StartedAt: metav1.NewTime(stuckStartingUpBaseTime)}}},
-		{Name: "main", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "ContainerCreating"}}},
+// A regular container may be executing work while another image is still pulling.
+// Its name does not establish whether it is a sidecar or application work.
+func TestPodIssueService_ResolvesStuckUnknownPodIssue_IfContainerHadStartedWhenDetected(t *testing.T) {
+	for name, started := range map[string]v1.ContainerStatus{
+		"running":               {Name: "worker", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+		"terminated":            {Name: "worker", State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{}}},
+		"previously terminated": {Name: "worker", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}}, LastTerminationState: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+			require.NoError(t, err)
+			clusterContext := &asyncDeleteClusterContext{SyncFakeClusterContext: fakeClusterContext, acceptDeletes: true}
+			podIssueService.clusterContext = clusterContext
+			fakeClock := clock.NewFakeClock(stuckStartingUpBaseTime.Add(6 * time.Minute))
+			podIssueService.clock = fakeClock
+			podIssueService.pendingPodChecker = makeConfiguredPendingPodChecker(t, fakeClock)
+			pod := makeStuckStartingUpPod(v1.PodUnknown, []v1.ContainerStatus{
+				started,
+				{Name: "other-worker", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "ImagePullBackOff"}}},
+			})
+			pod.Spec.Containers = []v1.Container{{Name: "worker", Image: "worker"}, {Name: "other-worker", Image: "other-worker"}}
+			addPod(t, fakeClusterContext, pod)
+			runId := util.ExtractJobRunId(pod)
+			action, _, _ := podIssueService.pendingPodChecker.GetAction(pod, nil)
+			require.Equal(t, podchecks.ActionRetry, action)
+
+			for i := 0; i < 2; i++ {
+				podIssueService.HandlePodIssues()
+				assert.False(t, clusterContext.deleteAccepted)
+				assert.False(t, podIssueService.HasIssue(runId))
+				assert.Len(t, getActivePods(t, fakeClusterContext), 1)
+				assert.Empty(t, eventsReporter.GetReceivedEvents())
+			}
+		})
+	}
+}
+
+func TestHasStartedUpSince_RetainsDetectedUnknownExecutionEvidence(t *testing.T) {
+	original := makeStuckStartingUpPod(v1.PodUnknown, []v1.ContainerStatus{
+		{Name: "worker", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
 	})
-	addPod(t, fakeClusterContext, pod)
-	runId := util.ExtractJobRunId(pod)
+	for _, phase := range []v1.PodPhase{v1.PodUnknown, v1.PodPending} {
+		t.Run(string(phase), func(t *testing.T) {
+			current := original.DeepCopy()
+			current.Status.Phase = phase
+			current.Status.ContainerStatuses = nil
+			assert.True(t, hasStartedUpSince(original, current))
+		})
+	}
+}
 
-	podIssueService.HandlePodIssues()
-	require.True(t, clusterContext.deleteAccepted)
-
-	podIssueService.HandlePodIssues()
-	assert.True(t, podIssueService.HasIssue(runId))
-	assert.Len(t, eventsReporter.GetReceivedEvents(), 0)
-
-	// The deletion completes
-	fakeClusterContext.DeletePods([]*v1.Pod{pod})
-	podIssueService.HandlePodIssues()
-	assert.False(t, podIssueService.HasIssue(runId))
-	events := eventsReporter.GetReceivedEvents()
-	require.Len(t, events, 1)
-	runErrors, ok := events[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
-	require.True(t, ok)
-	require.Len(t, runErrors.JobRunErrors.Errors, 1)
-	assert.NotNil(t, runErrors.JobRunErrors.Errors[0].GetPodLeaseReturned())
+func TestHasStartedUpSince_IgnoresInitContainerExecution(t *testing.T) {
+	pod := makeStuckStartingUpPod(v1.PodUnknown, nil)
+	pod.Status.InitContainerStatuses = []v1.ContainerStatus{
+		{Name: "native-sidecar", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+		{Name: "init", State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{}}},
+	}
+	assert.False(t, hasStartedUpSince(pod, pod))
 }
 
 var stuckStartingUpBaseTime = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)

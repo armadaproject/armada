@@ -256,8 +256,7 @@ func GetPodContainerStatuses(pod *v1.Pod) []v1.ContainerStatus {
 //
 // Note: this checks ALL app containers, matching the aggregate semantics used elsewhere
 // (e.g. ExtractFailedPodContainerStatuses). Armada has no notion of a single "main"
-// container, so in a multi-container pod a started sidecar will mask an app container
-// that never started. This only affects whether diagnostic debug data is captured.
+// container, so in a multi-container pod any started regular container counts.
 func HasAppContainerStarted(pod *v1.Pod) bool {
 	for _, container := range pod.Status.ContainerStatuses {
 		if HasContainerStarted(container) {

@@ -809,28 +809,18 @@ func isStartupPhase(pod *v1.Pod) bool {
 	return pod.Status.Phase == v1.PodPending || pod.Status.Phase == v1.PodUnknown
 }
 
-// hasStartedUpSince returns true if a pod detected with a startup issue has started up since the original state. An
-// Unknown pod has started up if an app container started since then, as its node can be lost after startup.
+// hasStartedUpSince returns true if a startup issue has evidence of app execution. Unknown
+// does not establish that execution never began: any started app container counts, including
+// one already started at detection. Regular containers cannot be distinguished as sidecars.
 func hasStartedUpSince(originalPod *v1.Pod, pod *v1.Pod) bool {
 	if !isStartupPhase(pod) {
 		return true
 	}
-	return pod.Status.Phase == v1.PodUnknown && hasAppContainerStartedSince(originalPod, pod)
-}
-
-// hasAppContainerStartedSince returns true if an app container of the pod has started since its original state. A
-// container that had already started, such as a sidecar, does not count.
-func hasAppContainerStartedSince(originalPod *v1.Pod, currentPod *v1.Pod) bool {
-	startedContainers := map[string]bool{}
-	for _, container := range originalPod.Status.ContainerStatuses {
-		startedContainers[container.Name] = util.HasContainerStarted(container)
+	if originalPod.Status.Phase == v1.PodUnknown && util.HasAppContainerStarted(originalPod) {
+		return true
 	}
-	for _, container := range currentPod.Status.ContainerStatuses {
-		if util.HasContainerStarted(container) && !startedContainers[container.Name] {
-			return true
-		}
-	}
-	return false
+	return pod.Status.Phase == v1.PodUnknown &&
+		(util.HasAppContainerStarted(originalPod) || util.HasAppContainerStarted(pod))
 }
 
 func createStuckPodMessage(retryable bool, originalMessage string) string {
