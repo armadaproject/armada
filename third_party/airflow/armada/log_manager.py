@@ -14,6 +14,7 @@ from urllib3.exceptions import HTTPError
 
 from .auth import TokenRetriever
 from .links import UrlFromLogsExtractor
+from .model import LogPosition
 
 
 class KubernetesPodLogManager(LoggingMixin):
@@ -55,17 +56,15 @@ class KubernetesPodLogManager(LoggingMixin):
         namespace: str,
         pod: str,
         container: str,
-        since_time: Optional[DateTime],
+        since: Optional[LogPosition],
         link_extractor: UrlFromLogsExtractor,
-    ) -> Optional[DateTime]:
+    ) -> Optional[LogPosition]:
         """
         Fetches container logs, do not follow container logs.
         """
         client = self._k8s_client(k8s_context)
         since_seconds = (
-            math.ceil((pendulum.now() - since_time).total_seconds())
-            if since_time
-            else None
+            math.ceil((pendulum.now() - since.time).total_seconds()) if since else None
         )
         try:
             logs = client.read_namespaced_pod_log(
@@ -79,50 +78,75 @@ class KubernetesPodLogManager(LoggingMixin):
             )
             if logs.status == 404:
                 self.log.warning(f"Unable to fetch logs - pod {pod} has been deleted.")
-                return since_time
+                return since
         except HTTPError as e:
             self.log.exception(f"There was an error reading the kubernetes API: {e}.")
             raise
 
-        return self._stream_logs(container, since_time, logs, link_extractor)
+        return self._stream_logs(container, since, logs, link_extractor)
 
     def _stream_logs(
         self,
         container: str,
-        since_time: Optional[DateTime],
+        since: Optional[LogPosition],
         logs: HTTPResponse,
         link_extractor: UrlFromLogsExtractor,
-    ) -> Optional[DateTime]:
-        messages: List[str] = []
-        message_timestamp = None
+    ) -> Optional[LogPosition]:
+        """
+        Logs what the response holds beyond `since` and returns the new position.
+
+        `since_seconds` has whole-second granularity, so every poll returns the last
+        record again, possibly grown. Only its characters beyond the offset are new.
+        """
         try:
             chunk = logs.read()
-            lines = chunk.decode("utf-8", errors="backslashreplace").splitlines()
-            for raw_line in lines:
-                line_timestamp, message = self._parse_log_line(raw_line)
-
-                if line_timestamp:  # detect new log-line (starts with timestamp)
-                    if since_time and line_timestamp <= since_time:
-                        continue
-                    self._log_container_message(container, messages, link_extractor)
-                    message_timestamp = line_timestamp
-                messages.append(message)
         except HTTPError as e:
             self.log.warning(
                 f"Reading of logs interrupted for container {container} with error {e}."
             )
+            return since
 
-        self._log_container_message(container, messages, link_extractor)
-        return message_timestamp
+        position = since
+        text = chunk.decode("utf-8", errors="backslashreplace")
+        for timestamp, message in self._parse_messages(text):
+            if timestamp is None:
+                self._log_container_message(container, message, link_extractor)
+                continue
+            if since and timestamp < since.time:
+                continue
+            logged = since.offset if since and timestamp == since.time else 0
+            new_text = message[logged:].lstrip("\r\n")
+            self._log_container_message(container, new_text, link_extractor)
+            position = LogPosition(timestamp, max(logged, len(message)))
+
+        return position
+
+    def _parse_messages(self, text: str) -> List[Tuple[DateTime | None, str]]:
+        """
+        Groups k8s log lines into one message per timestamp.
+
+        Lines are split on newlines only: the kubelet stamps each newline-terminated
+        record, and a carriage return inside one is part of that record.
+        """
+        messages: List[Tuple[DateTime | None, str]] = []
+        for raw_line in text.split("\n"):
+            if not raw_line:
+                continue
+            line_timestamp, line = self._parse_log_line(raw_line)
+            if messages and line_timestamp in (None, messages[-1][0]):
+                timestamp, message = messages[-1]
+                messages[-1] = (timestamp, f"{message}\n{line}")
+                continue
+            messages.append((line_timestamp, line))
+        return messages
 
     def _log_container_message(
-        self, container: str, messages: List[str], link_extractor: UrlFromLogsExtractor
+        self, container: str, message: str, link_extractor: UrlFromLogsExtractor
     ):
-        message = "\n".join(messages)
+        message = "\n".join(message.splitlines())
         if message:
             link_extractor.extract_and_persist_urls(message)
             self.log.info("[%s] %s", container, message)
-        messages.clear()
 
     def _parse_log_line(self, line: bytes) -> Tuple[DateTime | None, str]:
         """
