@@ -6,6 +6,8 @@ import (
 	"math/rand"
 
 	goslices "golang.org/x/exp/slices"
+
+	armadamath "github.com/armadaproject/armada/internal/common/math"
 )
 
 // PartitionToMaxLen partitions the elements of s into non-overlapping slices,
@@ -227,4 +229,15 @@ func AllFunc[S ~[]T, T any](s S, predicate func(val T) bool) bool {
 		}
 	}
 	return true
+}
+
+// Sum returns the sum of values in the provided slice.
+func Sum[S ~[]T, T armadamath.Number](numbers S) T {
+	var sum T
+
+	for _, v := range numbers {
+		sum += v
+	}
+
+	return sum
 }
