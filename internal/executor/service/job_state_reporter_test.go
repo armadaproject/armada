@@ -547,11 +547,14 @@ func (s *stubIssueHandler) HasIssue(runId string) bool {
 	return exists
 }
 
-func (s *stubIssueHandler) DetectAndRegisterIssuesForFailedPod(pod *v1.Pod) (bool, error) {
-	return s.detectResult, s.detectError
+func (s *stubIssueHandler) DetectAndRegisterIssuesForFailedPod(pod *v1.Pod) (*FailedPodReportClaim, error) {
+	if s.detectResult {
+		return nil, s.detectError
+	}
+	return &FailedPodReportClaim{runId: util.ExtractJobRunId(pod)}, s.detectError
 }
 
-func (s *stubIssueHandler) ReleaseFailedPodReport(runId string) {}
+func (s *stubIssueHandler) ReleaseFailedPodReport(claim *FailedPodReportClaim, sent bool) {}
 
 func copyWithUpdatedPhase(pod *v1.Pod, newPhase v1.PodPhase) *v1.Pod {
 	result := pod.DeepCopy()
@@ -748,7 +751,7 @@ func TestJobStateReporter_OverlappingFailedPodObservations_DecisionOutlivesIssue
 
 			f.issueHandler.podIssueMutex.Lock()
 			defer f.issueHandler.podIssueMutex.Unlock()
-			assert.NotContains(t, f.issueHandler.resolvedIssuesDuringFailedPodDetection, runId,
+			assert.NotContains(t, f.issueHandler.failedPodDecisions, runId,
 				"the resolved decision must be released once all active detections finish")
 		})
 	}
@@ -972,7 +975,7 @@ func TestJobStateReporter_OverlappingFailedPodObservations_DecisionOutlivesPodDe
 			assert.False(t, f.issueHandler.HasIssue(runId))
 			f.issueHandler.podIssueMutex.Lock()
 			defer f.issueHandler.podIssueMutex.Unlock()
-			assert.NotContains(t, f.issueHandler.failedPodsReportedByReporter, runId,
+			assert.NotContains(t, f.issueHandler.failedPodDecisions, runId,
 				"the run's decision must be forgotten once no observation is detecting issues for it")
 		})
 	}
@@ -1003,28 +1006,54 @@ func TestJobStateReporter_FailedPod_ReportedByLaterObservationAfterFailedSend(t 
 
 // The report can be sent but the pod not marked as reported, which also keeps the pod from being
 // cleaned up. A later observation must still mark it. As before, it sends the failure again to do so.
+// It must not decide for the run again: the pod events it can now read match a delete category, and
+// handing the already reported run to that issue would also report it as a delete-action failure.
 func TestJobStateReporter_FailedPod_MarkedReportedByLaterObservationAfterFailedAnnotation(t *testing.T) {
-	f := newOverlappingObservationsFixture(t, nil)
-	pod := makeFailedPodWithExitCode(t, 42)
+	f := newOverlappingObservationsFixture(t, eventMatchedDeleteClassifier(t))
+	pod := addEventMatchedFailedPod(t, f)
 	jobId := util.ExtractJobId(pod)
-	addPod(t, f.clusterContext, pod)
+	runId := util.ExtractJobRunId(pod)
 
+	// Neither observation reaches the failed pod checker: the first cannot read the pod events, and
+	// the second takes over the first one's report.
 	observeOnce := func() {
 		done := make(chan struct{}, 1)
 		f.observe(pod, done)
-		receiveWithin(t, f.failedPodChecker.arrived, "observation to reach issue detection")
-		sendWithin(t, f.failedPodChecker.release, "observation to resume")
 		receiveWithin(t, done, "observation to finish")
 	}
+	f.clusterContext.failPodEventsReads(errors.New("pod events unavailable"))
 	f.clusterContext.failAnnotations(errors.New("annotation rejected"))
 	observeOnce()
 	require.Len(t, f.eventReporter.GetReceivedEvents(), 1)
 	require.Empty(t, f.clusterContext.GetAnnotationsAdded()[jobId])
 
+	f.clusterContext.failPodEventsReads(nil)
 	f.clusterContext.failAnnotations(nil)
 	observeOnce()
 	assert.Contains(t, f.clusterContext.GetAnnotationsAdded()[jobId], string(v1.PodFailed), "the later observation must mark the pod as reported")
-	assert.Len(t, f.eventReporter.GetReceivedEvents(), 2)
+	assert.False(t, f.issueHandler.HasIssue(runId), "the run must not be handed to the issue handler")
+
+	f.issueHandler.HandlePodIssues()
+	reported := pod.DeepCopy()
+	reported.Annotations[string(v1.PodFailed)] = time.Now().String()
+	f.clusterContext.DeletePods([]*v1.Pod{pod})
+	f.clusterContext.SimulateDeletionEvent(reported)
+	f.issueHandler.HandlePodIssues()
+
+	assert.Zero(t, f.clusterContext.deleteRequestCount())
+	events := f.eventReporter.GetReceivedEvents()
+	require.Len(t, events, 2, "the failure must be sent again, and nothing else reported")
+	for _, event := range events {
+		require.Len(t, event.Event.Events, 1)
+		runErrors, ok := event.Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
+		require.True(t, ok)
+		require.Len(t, runErrors.JobRunErrors.Errors, 1)
+		assert.True(t, runErrors.JobRunErrors.Errors[0].Terminal)
+		assert.NotNil(t, runErrors.JobRunErrors.Errors[0].GetPodError())
+	}
+	f.issueHandler.podIssueMutex.Lock()
+	defer f.issueHandler.podIssueMutex.Unlock()
+	assert.NotContains(t, f.issueHandler.failedPodDecisions, runId, "the run's decision must be forgotten once the pod is deleted")
 }
 
 // overlappingObservationsFixture wires a real job state reporter to a real pod issue handler, with

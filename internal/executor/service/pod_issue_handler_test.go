@@ -1291,9 +1291,9 @@ func TestPodIssueService_DeleteAction_FailedPodChecksKeepPrecedence(t *testing.T
 	})
 	addPod(t, fakeClusterContext, pod)
 
-	registered, err := podIssueService.DetectAndRegisterIssuesForFailedPod(pod)
+	reportClaim, err := podIssueService.DetectAndRegisterIssuesForFailedPod(pod)
 	require.NoError(t, err)
-	require.True(t, registered)
+	require.Nil(t, reportClaim, "the issue handler must handle the failure")
 
 	podIssueService.HandlePodIssues()
 	podIssueService.HandlePodIssues()
@@ -1305,6 +1305,37 @@ func TestPodIssueService_DeleteAction_FailedPodChecksKeepPrecedence(t *testing.T
 	require.Len(t, returnedEvent.JobRunErrors.Errors, 1)
 	assert.NotNil(t, returnedEvent.JobRunErrors.Errors[0].GetPodLeaseReturned(),
 		"the run must take the lease-return path, not the categorized terminal path")
+}
+
+// A claim that was taken over by a later observation stays with that observation, whatever the
+// earlier holder releases afterwards.
+func TestPodIssueService_ReleaseFailedPodReport_IgnoresClaimTakenOver(t *testing.T) {
+	podIssueService, _, fakeClusterContext, _, err := setupTestComponentsWithClassifier([]*job.RunState{}, nil)
+	require.NoError(t, err)
+	pod := makeTestPod(v1.PodStatus{Phase: v1.PodFailed})
+	addPod(t, fakeClusterContext, pod)
+
+	first, err := podIssueService.DetectAndRegisterIssuesForFailedPod(pod)
+	require.NoError(t, err)
+	require.NotNil(t, first, "with no issue the caller must report the failure")
+	other, err := podIssueService.DetectAndRegisterIssuesForFailedPod(pod)
+	require.NoError(t, err)
+	require.Nil(t, other, "the failure is already being reported")
+
+	podIssueService.ReleaseFailedPodReport(first, true)
+	second, err := podIssueService.DetectAndRegisterIssuesForFailedPod(pod)
+	require.NoError(t, err)
+	require.NotNil(t, second, "a sent but unmarked report must be taken over")
+
+	podIssueService.ReleaseFailedPodReport(first, false)
+	other, err = podIssueService.DetectAndRegisterIssuesForFailedPod(pod)
+	require.NoError(t, err)
+	assert.Nil(t, other, "the stale release must not drop the claim taken over")
+
+	podIssueService.ReleaseFailedPodReport(second, false)
+	third, err := podIssueService.DetectAndRegisterIssuesForFailedPod(pod)
+	require.NoError(t, err)
+	assert.NotNil(t, third, "a released claim lets a later observation decide again")
 }
 
 type failingDeleteClusterContext struct {
