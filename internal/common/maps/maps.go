@@ -11,6 +11,16 @@ func FromSlice[S []E, E any, K comparable, V any](slice S, keyFunc func(E) K, va
 	return rv
 }
 
+func DefaultMapFromKeys[K comparable, V any](keys []K, defaultValue V) map[K]V {
+	rv := make(map[K]V, len(keys))
+
+	for _, k := range keys {
+		rv[k] = defaultValue
+	}
+
+	return rv
+}
+
 // MapValues maps the values of m into valueFunc(v).
 func MapValues[M ~map[K]VA, K comparable, VA any, VB any](m M, valueFunc func(VA) VB) map[K]VB {
 	rv := make(map[K]VB, len(m))
