@@ -609,6 +609,149 @@ describe("JobsTableContainer", () => {
       await filterTextColumnTo("hyperparameter", "some-test-hyperparameter")
       await assertNumDataRowsShown(15)
     })
+
+    describe("Changing a filter's match", () => {
+      const jobs = [
+        ...makeTestJobs(5, "queue-1", "job-set-1", JobState.Queued),
+        ...makeTestJobs(7, "queue-1", "job-set-10", JobState.Queued),
+        ...makeTestJobs(3, "queue-2", "job-set-1", JobState.Queued),
+      ]
+
+      const renderWithExactJobSetFilter = async () => {
+        mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
+        mockServer.setPostJobsResponse(jobs)
+
+        const utils = renderComponent()
+        await waitForFinishedLoading()
+
+        await filterAutocompleteTextColumnTo("Queue", "queue-1", utils.baseElement)
+        await filterTextColumnTo("Job Set", "job-set-1")
+        await selectColumnMatch("Job Set", "Exact")
+        await assertNumDataRowsShown(5)
+        return utils
+      }
+
+      it("should clear the selection when the match changes", async () => {
+        const { findByRole } = await renderWithExactJobSetFilter()
+
+        await groupByColumn("Queue")
+        await assertNumDataRowsShown(1)
+        await toggleSelectedRow("queue", "queue-1")
+        expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
+
+        await selectColumnMatch("Job Set", "Starts with")
+
+        await waitFor(
+          async () => {
+            expect(await findByRole("button", { name: "Cancel selected" })).toBeDisabled()
+          },
+          { timeout: 5000 },
+        )
+        const groupRow = await findByRole("row", { name: "queue:queue-1" })
+        expect(within(groupRow).getByRole("checkbox")).not.toBeChecked()
+        expect(within(await getHeaderCell("Job Set")).getByRole("textbox")).toHaveValue("job-set-1")
+
+        await clearAllGroupings()
+        await assertNumDataRowsShown(12)
+      })
+
+      it("should return to the first page and close the sidebar when the match changes", async () => {
+        const manyJobs = [
+          ...makeTestJobs(60, "queue-1", "job-set-1", JobState.Queued),
+          ...makeTestJobs(10, "queue-1", "job-set-10", JobState.Queued),
+        ]
+        mockServer.setGetQueuesResponse(["queue-1"])
+        mockServer.setPostJobsResponse(manyJobs)
+
+        const { baseElement, findByRole, findByText, queryByRole, queryByText, router } = renderComponent()
+        await waitForFinishedLoading()
+
+        await filterAutocompleteTextColumnTo("Queue", "queue-1", baseElement)
+        await filterTextColumnTo("Job Set", "job-set-1")
+        await selectColumnMatch("Job Set", "Exact")
+        // The first page reads the same before and after the Job Set filter applies, so the filter is
+        // awaited in the query params before paging
+        await waitFor(() => {
+          expect(router.state.location.search).toContain("job-set-1")
+          expect(router.state.location.search).toContain("[match]=exact")
+        })
+        await findByText("1–50 of more than 50")
+
+        await userEvent.click(await findByRole("button", { name: "Go to next page" }))
+        await findByText("51–60 of 60")
+        const jobOnSecondPage = manyJobs.find(({ jobId }) => queryByText(jobId) !== null)
+        expect(jobOnSecondPage).toBeDefined()
+        await clickOnJobRow(jobOnSecondPage!.jobId)
+        expect(await findByRole("complementary")).toBeInTheDocument()
+
+        await selectColumnMatch("Job Set", "Starts with")
+
+        // The sidebar closes as soon as the match changes, whereas the first page is only shown once the
+        // new data has been fetched. A soft assertion lets both be reported if neither is reset.
+        expect.soft(queryByRole("complementary")).toBeNull()
+        await findByText("1–50 of more than 50")
+      })
+
+      it("should clear the selection when the cell filter action changes only the match", async () => {
+        mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
+        mockServer.setPostJobsResponse(jobs)
+
+        const { baseElement, findByRole, router } = renderComponent()
+        await waitForFinishedLoading()
+
+        await filterAutocompleteTextColumnTo("Queue", "queue-1", baseElement)
+        await filterTextColumnTo("Job Set", "job-set-1")
+        // The Queue filter alone gives the same rows, so the Job Set filter is awaited in the query
+        // params; applying it later would clear the selection made below
+        await waitFor(() => expect(router.state.location.search).toContain("job-set-1"))
+        await assertNumDataRowsShown(12)
+        await toggleSelectedRow("jobId", jobs[0].jobId)
+        expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
+
+        // Filtering by the cell's own value leaves the filter text as it was, changing only its match
+        // from the default, Starts with, to Exact
+        const jobSetCell = await findCellByText("job-set-1")
+        await userEvent.hover(jobSetCell)
+        await userEvent.click(await within(jobSetCell).findByLabelText("Filter by this value"))
+
+        await waitFor(
+          async () => {
+            expect(await findByRole("button", { name: "Cancel selected" })).toBeDisabled()
+          },
+          { timeout: 5000 },
+        )
+        await assertNumDataRowsShown(5)
+      })
+
+      it("should keep the selection when the current match is chosen again", async () => {
+        const { findByRole } = await renderWithExactJobSetFilter()
+
+        await groupByColumn("Queue")
+        await toggleSelectedRow("queue", "queue-1")
+
+        await selectColumnMatch("Job Set", "Exact")
+        await waitForFinishedLoading()
+
+        expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
+      })
+
+      it("should keep the selection when the match changes on a column without a filter", async () => {
+        mockServer.setGetQueuesResponse(["queue-1", "queue-2"])
+        mockServer.setPostJobsResponse(jobs)
+
+        const { baseElement, findByRole } = renderComponent()
+        await waitForFinishedLoading()
+
+        await filterAutocompleteTextColumnTo("Queue", "queue-1", baseElement)
+        await groupByColumn("Queue")
+        await toggleSelectedRow("queue", "queue-1")
+
+        await selectColumnMatch("Job Set", "Exact")
+        await waitForFinishedLoading()
+
+        expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
+      })
+    })
   })
 
   describe("Sorting", () => {
@@ -939,6 +1082,15 @@ describe("JobsTableContainer", () => {
     if (filterText.length > 0) {
       await userEvent.type(filterInput, filterText)
     }
+  }
+
+  async function selectColumnMatch(columnDisplayName: string, matchDisplayName: string) {
+    const headerCell = await getHeaderCell(columnDisplayName)
+    // The match menu button has no accessible name, so it is found by its icon
+    const matchButton = within(headerCell).getByTestId("MoreVertIcon").closest("button")
+    expect(matchButton).not.toBeNull()
+    await userEvent.click(matchButton!)
+    await userEvent.click(await screen.findByRole("menuitem", { name: matchDisplayName }))
   }
 
   async function filterAutocompleteTextColumnTo(
