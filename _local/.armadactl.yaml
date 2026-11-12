@@ -8,6 +8,8 @@ contexts:
   # Default context - no authentication (for local development)
   no-auth:
     armadaUrl: localhost:50051
+    # Lookout API, used by the commands that query Lookout (get job)
+    lookoutUrl: http://localhost:8089
 
   # Context with OIDC Authorization Code + PKCE Flow - Keycloak
   # Opens browser for login, starts local callback server
