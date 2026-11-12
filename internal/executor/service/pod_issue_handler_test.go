@@ -1152,13 +1152,14 @@ func addPodEvents(fakeClusterContext *fakecontext.SyncFakeClusterContext, pod *v
 
 func TestInternalSubcategoryForPodIssueType(t *testing.T) {
 	tests := map[podIssueType]string{
-		StuckTerminating:         errormatch.SubcategoryStuckTerminating,
-		ExternallyDeleted:        errormatch.SubcategoryExternallyDeleted,
-		ErrorDuringIssueHandling: errormatch.SubcategoryIssueHandlerError,
-		ActiveDeadlineExceeded:   errormatch.SubcategoryActiveDeadline,
-		StuckStartingUp:          "",
-		UnableToSchedule:         "",
-		FailedStartingUp:         "",
+		StuckTerminating:                 errormatch.SubcategoryStuckTerminating,
+		ExternallyDeleted:                errormatch.SubcategoryExternallyDeleted,
+		ErrorDuringIssueHandling:         errormatch.SubcategoryIssueHandlerError,
+		ActiveDeadlineExceeded:           errormatch.SubcategoryActiveDeadline,
+		StuckStartingUpOnUnreachableNode: errormatch.SubcategoryNodeUnreachable,
+		StuckStartingUp:                  "",
+		UnableToSchedule:                 "",
+		FailedStartingUp:                 "",
 	}
 	for issueType, want := range tests {
 		assert.Equal(t, want, internalSubcategoryForPodIssueType(issueType))
@@ -1797,10 +1798,42 @@ func TestPodIssueService_ReportsFailed_IfUnreportedStuckPodIsUnknownWithStartedC
 	addPod(t, fakeClusterContext, pod)
 	podIssueService.HandlePodIssues()
 	assert.Len(t, getActivePods(t, fakeClusterContext), 0)
-	assert.NotNil(t, requireSingleRunError(t, eventsReporter).GetPodError())
+	runError := requireSingleRunError(t, eventsReporter)
+	require.NotNil(t, runError.GetPodError())
+	assert.Contains(t, runError.GetPodError().GetMessage(), "Not retrying as an app container has started on a node that is unreachable")
+	assert.Equal(t, errormatch.CategoryInternal, runError.GetFailureCategory())
+	assert.Equal(t, errormatch.SubcategoryNodeUnreachable, runError.GetFailureSubcategory())
 
 	podIssueService.HandlePodIssues()
 	assert.False(t, podIssueService.HasIssue(runId))
+}
+
+// An unreported unreachable-node issue resolves if the node recovers and the pod starts up, so
+// the run carries on.
+func TestPodIssueService_ResolvesUnreportedNodeUnreachableIssue_IfPodStartsUp(t *testing.T) {
+	podIssueService, fakeClusterContext, eventsReporter := setupStuckStartingUpTest(t, 6*time.Minute)
+	pod := makeStuckStartingUpPod(v1.PodUnknown, []v1.ContainerStatus{
+		{Name: "worker", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+		{Name: "other-worker", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "ImagePullBackOff"}}},
+	})
+	addPod(t, fakeClusterContext, pod)
+	runId := util.ExtractJobRunId(pod)
+
+	// Reporting the failure fails, so the pod is not deleted
+	eventsReporter.ErrorOnReport = true
+	podIssueService.HandlePodIssues()
+	assert.True(t, podIssueService.HasIssue(runId))
+	assert.Len(t, getActivePods(t, fakeClusterContext), 1)
+
+	// The node recovers and the pod starts up
+	eventsReporter.ErrorOnReport = false
+	pod.Status.Phase = v1.PodRunning
+	addPod(t, fakeClusterContext, pod)
+	podIssueService.HandlePodIssues()
+
+	assert.False(t, podIssueService.HasIssue(runId))
+	assert.Len(t, getActivePods(t, fakeClusterContext), 1)
+	assert.Len(t, eventsReporter.GetReceivedEvents(), 0)
 }
 
 // A regular container may be executing work while another image is still pulling. Its name
@@ -1836,12 +1869,61 @@ func TestPodIssueService_ReportsFailedIfUnknownOrReturnsLeaseIfPending_IfStuckPo
 				if phase == v1.PodUnknown {
 					require.NotNil(t, runError.GetPodError())
 					assert.Contains(t, runError.GetPodError().GetMessage(), "Not retrying as an app container has started on a node that is unreachable")
+					assert.Equal(t, errormatch.CategoryInternal, runError.GetFailureCategory())
+					assert.Equal(t, errormatch.SubcategoryNodeUnreachable, runError.GetFailureSubcategory())
 				} else {
 					assert.NotNil(t, runError.GetPodLeaseReturned())
 				}
 			})
 		}
 	}
+}
+
+// A retry policy matching the category the operator's categorizer gives the stuck container must
+// not retry the run, so the failure is internal whatever the categorizer would match.
+func TestPodIssueService_ReportsInternalNodeUnreachable_IfStuckUnknownPodHadStartedContainer_RegardlessOfClassifier(t *testing.T) {
+	classifier := podErrorClassifier(t, "image-pull", "backoff", "ImagePullBackOff", "Check the image name")
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
+	require.NoError(t, err)
+	fakeClock := clock.NewFakeClock(stuckStartingUpBaseTime.Add(6 * time.Minute))
+	podIssueService.clock = fakeClock
+	podIssueService.pendingPodChecker = makeConfiguredPendingPodChecker(t, fakeClock)
+	pod := makeStuckStartingUpPod(v1.PodUnknown, []v1.ContainerStatus{
+		{Name: "worker", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+		{Name: "other-worker", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "ImagePullBackOff"}}},
+	})
+	addPod(t, fakeClusterContext, pod)
+
+	podIssueService.HandlePodIssues()
+
+	runError := requireSingleRunError(t, eventsReporter)
+	assert.Equal(t, errormatch.CategoryInternal, runError.GetFailureCategory())
+	assert.Equal(t, errormatch.SubcategoryNodeUnreachable, runError.GetFailureSubcategory())
+	assert.NotContains(t, runError.GetPodError().GetMessage(), "Check the image name")
+}
+
+// A pod the pod checks fail rather than retry is still reported as internal / node-unreachable,
+// so a retry policy for the categorizer's category can't retry it.
+func TestPodIssueService_ReportsInternalNodeUnreachable_IfFailedStuckUnknownPodHadStartedContainer(t *testing.T) {
+	classifier := podErrorClassifier(t, "image-pull", "invalid", "InvalidImageName", "")
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
+	require.NoError(t, err)
+	fakeClock := clock.NewFakeClock(stuckStartingUpBaseTime.Add(time.Minute))
+	podIssueService.clock = fakeClock
+	podIssueService.pendingPodChecker = makeConfiguredPendingPodChecker(t, fakeClock)
+	pod := makeStuckStartingUpPod(v1.PodUnknown, []v1.ContainerStatus{
+		{Name: "worker", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+		{Name: "other-worker", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "InvalidImageName"}}},
+	})
+	addPod(t, fakeClusterContext, pod)
+	action, _, _ := podIssueService.pendingPodChecker.GetAction(pod, nil)
+	require.Equal(t, podchecks.ActionFail, action)
+
+	podIssueService.HandlePodIssues()
+
+	runError := requireSingleRunError(t, eventsReporter)
+	assert.Equal(t, errormatch.CategoryInternal, runError.GetFailureCategory())
+	assert.Equal(t, errormatch.SubcategoryNodeUnreachable, runError.GetFailureSubcategory())
 }
 
 func TestCanRetryStartupIssue(t *testing.T) {

@@ -35,6 +35,9 @@ const (
 	ErrorDuringIssueHandling
 	FailedStartingUp
 	DeleteActionFailure
+	// StuckStartingUpOnUnreachableNode is a startup issue for a pod that has an app container started on a node that
+	// is unreachable. It is never retried, as the container may still be running.
+	StuckStartingUpOnUnreachableNode
 )
 
 type podIssue struct {
@@ -373,16 +376,16 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 
 			if action != podchecks.ActionWait {
 				retryable := action == podchecks.ActionRetry
-				unsafeToRetry := retryable && isUnsafeToRetry(pod, pod)
-				if unsafeToRetry {
-					retryable = false
-				}
-				message := createStuckPodMessage(retryable, podCheckMessage)
-				debugMessage := p.debugRenderer.Render(pod, podEvents, reporter.TriggerPodFailed)
 				podIssueType := StuckStartingUp
 				if cause == podchecks.NoNodeAssigned {
 					podIssueType = UnableToSchedule
+				} else if isUnsafeToRetry(pod, pod) {
+					retryable = false
+					podIssueType = StuckStartingUpOnUnreachableNode
+					podCheckMessage += unreachableNodeMessage
 				}
+				message := createStuckPodMessage(retryable, podCheckMessage)
+				debugMessage := p.debugRenderer.Render(pod, podEvents, reporter.TriggerPodFailed)
 
 				log.Infof("Found issue with pod %s in namespace %s: %s", pod.Name, pod.Namespace, message)
 
@@ -393,10 +396,6 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 					Retryable:        retryable,
 					Type:             podIssueType,
 				}, podEvents)
-				if unsafeToRetry {
-					// Appended after classification, so the categorizer only sees the pod checks' message
-					issue.Message += "\nNot retrying as an app container has started on a node that is unreachable"
-				}
 				p.attemptToRegisterIssue(&runIssue{
 					JobId:    util.ExtractJobId(pod),
 					RunId:    util.ExtractJobRunId(pod),
@@ -569,6 +568,14 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 	if !issue.RunIssue.Reported {
 		log.Infof("Handling non-retryable issue detected for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 		podIssue := issue.RunIssue.PodIssue
+		if podIssue.Type == StuckStartingUp && issue.CurrentPodState != nil && isUnsafeToRetry(podIssue.OriginalPodState, issue.CurrentPodState) {
+			// The node became unreachable with an app container started since detection, so report it as such
+			updated := *podIssue
+			updated.Type = StuckStartingUpOnUnreachableNode
+			updated.Message += unreachableNodeMessage
+			podIssue = p.newPodIssue(updated, nil)
+			issue.RunIssue.PodIssue = podIssue
+		}
 		clusterId := p.clusterContext.GetClusterId()
 
 		classification := podIssue.Classification
@@ -638,6 +645,8 @@ func internalSubcategoryForPodIssueType(t podIssueType) string {
 		return errormatch.SubcategoryIssueHandlerError
 	case ActiveDeadlineExceeded:
 		return errormatch.SubcategoryActiveDeadline
+	case StuckStartingUpOnUnreachableNode:
+		return errormatch.SubcategoryNodeUnreachable
 	default:
 		return ""
 	}
@@ -799,7 +808,8 @@ func hasPodIssueSelfResolved(issue *issue) bool {
 		return true
 	}
 
-	isStuckStartingUpAndResolvable := issue.RunIssue.PodIssue.Type == StuckStartingUp &&
+	isStuckStartingUp := issue.RunIssue.PodIssue.Type == StuckStartingUp || issue.RunIssue.PodIssue.Type == StuckStartingUpOnUnreachableNode
+	isStuckStartingUpAndResolvable := isStuckStartingUp &&
 		(issue.RunIssue.PodIssue.Retryable || (!issue.RunIssue.PodIssue.Retryable && !issue.RunIssue.Reported))
 	if issue.RunIssue.PodIssue.Type == UnableToSchedule || isStuckStartingUpAndResolvable {
 		// If pod has disappeared - don't consider it resolved as we still need to report the issue
@@ -821,6 +831,8 @@ func hasPodIssueSelfResolved(issue *issue) bool {
 func isStartupPhase(pod *v1.Pod) bool {
 	return pod.Status.Phase == v1.PodPending || pod.Status.Phase == v1.PodUnknown
 }
+
+const unreachableNodeMessage = "\nNot retrying as an app container has started on a node that is unreachable"
 
 // isUnsafeToRetry returns true if the pod is Unknown and an app container has started, now or at detection. The
 // node is unreachable, so deleting the pod may not stop that container and a retry could run alongside it. A Pending
