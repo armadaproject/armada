@@ -305,12 +305,13 @@ func (p *PodIssueHandler) HandlePodIssues() {
 	managedPods, err := p.clusterContext.GetBatchPods()
 	if err != nil {
 		log.WithError(err).Errorf("unable to handle pod issus as failed to load pods")
+		return
 	}
 	p.detectPodIssues(managedPods)
 	p.detectReconciliationIssues(managedPods)
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Minute*2)
 	defer cancel()
-	p.handleKnownIssues(ctx, managedPods)
+	p.handleKnownIssues(ctx)
 }
 
 func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
@@ -491,9 +492,16 @@ func (p *PodIssueHandler) hasExceededActiveDeadline(pod *v1.Pod) bool {
 	return currentRunTimeSeconds > deadline
 }
 
-func (p *PodIssueHandler) handleKnownIssues(ctx *armadacontext.Context, allManagedPods []*v1.Pod) {
+func (p *PodIssueHandler) handleKnownIssues(ctx *armadacontext.Context) {
+	// Load the pods after the snapshot, so an issue's pod is in the list whenever it still exists.
+	knownIssues := p.knownIssuesSnapshot()
+	managedPods, err := p.clusterContext.GetBatchPods()
+	if err != nil {
+		log.WithError(err).Errorf("unable to handle pod issues as failed to load pods")
+		return
+	}
 	// Make issues from pods + issues
-	issues := createIssues(allManagedPods, p.knownIssuesSnapshot())
+	issues := createIssues(managedPods, knownIssues)
 	util.ProcessItemsWithThreadPool(ctx, 20, issues, p.handleRunIssue)
 }
 

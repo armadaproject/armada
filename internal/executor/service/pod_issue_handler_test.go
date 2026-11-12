@@ -467,6 +467,65 @@ func (s *pausingRunStateStore) Get(runId string) *job.RunState {
 	return s.RunStateStore.Get(runId)
 }
 
+func TestPodIssueService_DeletesPod_IfIssueRegisteredAfterPodsLoaded(t *testing.T) {
+	podIssueService, runStateStore, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{})
+	require.NoError(t, err)
+	failedPod := makeTestPod(v1.PodStatus{Phase: v1.PodFailed, Message: retryableFailedPodStatusMessage})
+	// The pod is submitted and fails after detection loaded the pods, but before the known issues are handled.
+	podIssueService.jobRunState = &hookedRunStateStore{RunStateStore: runStateStore, afterGetAllWithFilter: func() {
+		addPod(t, fakeClusterContext, failedPod)
+		issueAdded, err := podIssueService.DetectAndRegisterIssuesForFailedPod(failedPod)
+		require.NoError(t, err)
+		require.True(t, issueAdded)
+	}}
+
+	podIssueService.HandlePodIssues()
+
+	// The pod still exists, so it must be deleted before the lease is returned.
+	assert.Len(t, getActivePods(t, fakeClusterContext), 0)
+	assert.Len(t, eventsReporter.ReceivedEvents, 0)
+	assert.True(t, podIssueService.HasIssue(util.ExtractJobRunId(failedPod)))
+}
+
+func TestPodIssueService_DoesNotHandleIssues_IfPodsFailToLoad(t *testing.T) {
+	activeRun := createRunState("job-1", uuid.New().String(), job.Active)
+	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponents([]*job.RunState{activeRun})
+	require.NoError(t, err)
+	failedPod := makeTestPod(v1.PodStatus{Phase: v1.PodFailed, Message: retryableFailedPodStatusMessage})
+	addPod(t, fakeClusterContext, failedPod)
+	issueAdded, err := podIssueService.DetectAndRegisterIssuesForFailedPod(failedPod)
+	require.NoError(t, err)
+	require.True(t, issueAdded)
+	podIssueService.clusterContext = &failingPodListClusterContext{ClusterContext: fakeClusterContext}
+
+	podIssueService.HandlePodIssues()
+
+	// Without the pods, every pod would look gone: the active run's pod would be detected as missing,
+	// and the issue's lease would be returned while its pod exists.
+	assert.False(t, podIssueService.HasIssue(activeRun.Meta.RunId))
+	assert.Len(t, eventsReporter.ReceivedEvents, 0)
+	assert.True(t, podIssueService.HasIssue(util.ExtractJobRunId(failedPod)))
+}
+
+type hookedRunStateStore struct {
+	job.RunStateStore
+	afterGetAllWithFilter func()
+}
+
+func (s *hookedRunStateStore) GetAllWithFilter(fn func(state *job.RunState) bool) []*job.RunState {
+	runs := s.RunStateStore.GetAllWithFilter(fn)
+	s.afterGetAllWithFilter()
+	return runs
+}
+
+type failingPodListClusterContext struct {
+	context.ClusterContext
+}
+
+func (c *failingPodListClusterContext) GetBatchPods() ([]*v1.Pod, error) {
+	return nil, fmt.Errorf("failed to list pods")
+}
+
 func waitFor(t *testing.T, done <-chan struct{}, description string) {
 	t.Helper()
 	select {
