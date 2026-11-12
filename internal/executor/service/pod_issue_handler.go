@@ -363,7 +363,9 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 				PodIssue: issue,
 			})
 		} else if pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending {
-
+			// Keep running the full startup checks so other issues remain visible. An Unknown pod with
+			// observed app execution may be flagged and resolved again before deletion; deliberately leave
+			// it to normal pod/node lifecycle handling rather than introduce a new failure that could trigger retry.
 			podEvents, err := p.clusterContext.GetPodEvents(pod)
 			if err != nil {
 				log.Errorf("Unable to get pod events for pod %s: %v", pod.Name, err)
@@ -700,7 +702,7 @@ func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 	log.Infof("Handling retryable issue for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 	if issue.CurrentPodState != nil {
 		originalPodState := issue.RunIssue.PodIssue.OriginalPodState
-		if isStartupPhase(originalPodState) && hasStartedUpSince(originalPodState, issue.CurrentPodState) {
+		if isStartupPhase(originalPodState) && shouldStopStartupHandling(originalPodState, issue.CurrentPodState) {
 			p.markIssuesResolved(issue.RunIssue)
 			if issue.RunIssue.PodIssue.DeletionRequested {
 				handlingError := p.newPodIssue(podIssue{
@@ -723,7 +725,7 @@ func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 
 		err := p.clusterContext.DeletePodWithCondition(issue.CurrentPodState, func(pod *v1.Pod) bool {
 			if isStartupPhase(originalPodState) {
-				return !hasStartedUpSince(originalPodState, pod)
+				return !shouldStopStartupHandling(originalPodState, pod)
 			}
 			return pod.Status.Phase == originalPodState.Status.Phase
 		}, true)
@@ -779,7 +781,7 @@ func hasPodIssueSelfResolved(issue *issue) bool {
 		}
 
 		// The pod recovered or execution was observed before deletion; leave it to normal lifecycle handling.
-		if hasStartedUpSince(issue.RunIssue.PodIssue.OriginalPodState, issue.CurrentPodState) && !issue.RunIssue.PodIssue.DeletionRequested {
+		if shouldStopStartupHandling(issue.RunIssue.PodIssue.OriginalPodState, issue.CurrentPodState) && !issue.RunIssue.PodIssue.DeletionRequested {
 			return true
 		}
 	}
@@ -793,10 +795,15 @@ func isStartupPhase(pod *v1.Pod) bool {
 	return pod.Status.Phase == v1.PodPending || pod.Status.Phase == v1.PodUnknown
 }
 
-// hasStartedUpSince returns true if a startup issue has evidence of app execution. Unknown
-// does not establish that execution never began: any started app container counts, including
-// one already started at detection. Regular containers cannot be distinguished as sidecars.
-func hasStartedUpSince(originalPod *v1.Pod, pod *v1.Pod) bool {
+// shouldStopStartupHandling applies the startup recovery policy: leaving Pending/Unknown stops
+// startup handling, even without observed execution. For an originally Pending pod, execution alone
+// while still Pending preserves existing handling. Pending does not prove node reachability or that
+// containers have stopped.
+// For Unknown, any started app container counts, including execution in the original snapshot.
+// Execution in an original Unknown snapshot also stops handling if the current phase is Pending.
+// That snapshot is retained only while this issue is registered, not across later detections or restarts.
+// Regular containers cannot be distinguished as sidecars.
+func shouldStopStartupHandling(originalPod *v1.Pod, pod *v1.Pod) bool {
 	if !isStartupPhase(pod) {
 		return true
 	}

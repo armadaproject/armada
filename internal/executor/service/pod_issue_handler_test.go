@@ -1861,13 +1861,13 @@ func TestPodIssueService_LeavesUnreportedUnknownExecutionBeforeDeletion(t *testi
 }
 
 // Init container execution alone does not count as regular/application execution.
-func TestHasStartedUpSince_IgnoresInitContainerExecution(t *testing.T) {
+func TestShouldStopStartupHandling_IgnoresInitContainerExecution(t *testing.T) {
 	pod := makeStuckStartingUpPod(v1.PodUnknown, nil)
 	pod.Status.InitContainerStatuses = []v1.ContainerStatus{
 		{Name: "native-sidecar", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
 		{Name: "init", State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{}}},
 	}
-	assert.False(t, hasStartedUpSince(pod, pod))
+	assert.False(t, shouldStopStartupHandling(pod, pod))
 }
 
 // setupStuckStartingUpTest returns a pod issue handler using the configured pending pod checks,
