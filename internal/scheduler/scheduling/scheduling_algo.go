@@ -895,8 +895,20 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 	if err != nil {
 		return nil, err
 	}
-	sctx := schedulercontext.NewSchedulingContext(pool, fairnessCostProvider, l.limiter, l.preemptionLimiterByPool[pool], totalCapacity)
-	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalCapacity, l.schedulingConfig, maps.Values(queues))
+	sctx := schedulercontext.NewSchedulingContext(
+		pool,
+		fairnessCostProvider,
+		l.limiter,
+		l.preemptionLimiterByPool[pool],
+		totalCapacity,
+		l.schedulingConfig.PriorityClasses,
+	)
+	constraints := schedulerconstraints.NewSchedulingConstraints(
+		pool,
+		totalCapacity,
+		l.schedulingConfig,
+		maps.Values(queues),
+	)
 
 	for _, queue := range queues {
 		demand, hasDemand := demandByQueueAndPriorityClass[queue.Name]
@@ -933,7 +945,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			l.limiterByQueue[queue.Name] = queueLimiter
 		}
 
-		if err := sctx.AddQueueSchedulingContext(queue.Name, weight, rawWeight, allocatedByPriorityClass, internaltypes.RlMapSumValues(demand), internaltypes.RlMapSumValues(constrainedDemand), shortJobPenaltyByQueue[queue.Name], queueLimiter); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue.Name, weight, rawWeight, allocatedByPriorityClass, internaltypes.RlMapSumValues(demand), constrainedDemand, shortJobPenaltyByQueue[queue.Name], queueLimiter); err != nil {
 			return nil, err
 		}
 	}
@@ -958,7 +970,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			weight = 1 / overridePriority
 		}
 
-		if err := sctx.AddQueueSchedulingContext(schedulercontext.CalculateAwayQueueName(queue.Name), weight, rawWeight, allocation, internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil); err != nil {
+		if err := sctx.AddQueueSchedulingContext(schedulercontext.CalculateAwayQueueName(queue.Name), weight, rawWeight, allocation, internaltypes.ResourceList{}, map[string]internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil); err != nil {
 			return nil, err
 		}
 	}

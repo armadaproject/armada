@@ -48,7 +48,9 @@ func CalculateIdealisedValue(
 		sctx.FairnessCostProvider,
 		noOpRateLimiter,
 		nil, // no fairshare preemption rate limit for idealised (dry-run) scheduling
-		sctx.TotalResources)
+		sctx.TotalResources,
+		config.PriorityClasses,
+	)
 
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		err := dummySchedulingContext.AddQueueSchedulingContext(
@@ -57,8 +59,8 @@ func CalculateIdealisedValue(
 			qctx.RawWeight,
 			map[string]internaltypes.ResourceList{},
 			qctx.Demand,
-			qctx.ConstrainedDemand,
-			qctx.ConstrainedDemand,
+			qctx.ConstrainedDemandByPriorityClass,
+			internaltypes.RlMapSumValues(qctx.ConstrainedDemandByPriorityClass),
 			noOpRateLimiter)
 		if err != nil {
 			return err
