@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/constants"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/slices"
@@ -160,15 +161,23 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 		podSpecs = k8sPodSpecs
 	}
 
+	annotations := e.GetObjectMeta().GetAnnotations()
+	// Prefer the proto field; fall back to annotation for events produced before the field existed.
+	externalJobUri := e.ExternalJobUri
+	if externalJobUri == "" {
+		externalJobUri = annotations[constants.ExternalJobUriAnnotation]
+	}
+
 	return &api.Job{
 		Id:       e.JobId,
 		ClientId: e.DeduplicationId,
 		Queue:    queueName,
 		JobSetId: jobSetName,
 
-		Namespace:   e.ObjectMeta.Namespace,
-		Labels:      e.ObjectMeta.Labels,
-		Annotations: e.ObjectMeta.Annotations,
+		Namespace:      e.ObjectMeta.Namespace,
+		Labels:         e.ObjectMeta.Labels,
+		Annotations:    e.ObjectMeta.Annotations,
+		ExternalJobUri: externalJobUri,
 
 		K8SIngress: k8sIngresses,
 		K8SService: k8sServices,
