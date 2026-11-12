@@ -1335,7 +1335,7 @@ func TestPodIssueService_ReleaseFailedPodReport_IgnoresClaimTakenOver(t *testing
 	podIssueService.ReleaseFailedPodReport(second, false)
 	third, err := podIssueService.DetectAndRegisterIssuesForFailedPod(pod)
 	require.NoError(t, err)
-	assert.NotNil(t, third, "a released claim lets a later observation decide again")
+	assert.NotNil(t, third, "a failed resend leaves the sent failure to a later observation")
 }
 
 type failingDeleteClusterContext struct {

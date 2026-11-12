@@ -1006,16 +1006,17 @@ func TestJobStateReporter_FailedPod_ReportedByLaterObservationAfterFailedSend(t 
 
 // The report can be sent but the pod not marked as reported, which also keeps the pod from being
 // cleaned up. A later observation must still mark it. As before, it sends the failure again to do so.
-// It must not decide for the run again: the pod events it can now read match a delete category, and
-// handing the already reported run to that issue would also report it as a delete-action failure.
+// It must not decide for the run again, even after an observation that took the report over failed
+// to send it: the pod events it can now read match a delete category, and handing the already
+// reported run to that issue would also report it as a delete-action failure.
 func TestJobStateReporter_FailedPod_MarkedReportedByLaterObservationAfterFailedAnnotation(t *testing.T) {
 	f := newOverlappingObservationsFixture(t, eventMatchedDeleteClassifier(t))
 	pod := addEventMatchedFailedPod(t, f)
 	jobId := util.ExtractJobId(pod)
 	runId := util.ExtractJobRunId(pod)
 
-	// Neither observation reaches the failed pod checker: the first cannot read the pod events, and
-	// the second takes over the first one's report.
+	// No observation reaches the failed pod checker: the first cannot read the pod events, and each
+	// later one takes over the report.
 	observeOnce := func() {
 		done := make(chan struct{}, 1)
 		f.observe(pod, done)
@@ -1028,6 +1029,12 @@ func TestJobStateReporter_FailedPod_MarkedReportedByLaterObservationAfterFailedA
 	require.Empty(t, f.clusterContext.GetAnnotationsAdded()[jobId])
 
 	f.clusterContext.failPodEventsReads(nil)
+	f.eventReporter.ErrorOnReport = true
+	observeOnce()
+	require.Len(t, f.eventReporter.GetReceivedEvents(), 1, "the resend fails")
+	require.False(t, f.issueHandler.HasIssue(runId))
+
+	f.eventReporter.ErrorOnReport = false
 	f.clusterContext.failAnnotations(nil)
 	observeOnce()
 	assert.Contains(t, f.clusterContext.GetAnnotationsAdded()[jobId], string(v1.PodFailed), "the later observation must mark the pod as reported")
