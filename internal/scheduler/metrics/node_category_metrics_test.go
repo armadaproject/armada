@@ -19,7 +19,7 @@ import (
 	"github.com/armadaproject/armada/pkg/metricevents"
 )
 
-func TestCategorizeNodeByTaints(t *testing.T) {
+func TestCategoriseNodeByTaints(t *testing.T) {
 	taint := func(category string, userFacing bool) internaltypes.NodeTaint {
 		return internaltypes.NewNodeTaint(v1.Taint{Key: "example"}, category, userFacing)
 	}
@@ -36,8 +36,8 @@ func TestCategorizeNodeByTaints(t *testing.T) {
 		"nil taints":                   {want: "none"},
 		"empty taints":                 {taints: []internaltypes.NodeTaint{}, want: "none"},
 		"synthetic marker only":        {taints: []internaltypes.NodeTaint{unschedulable}, want: "none"},
-		"user-categorized marker key":  {taints: []internaltypes.NodeTaint{internaltypes.NewNodeTaint(internaltypes.UnschedulableTaint(), "user", true)}, want: "user"},
-		"admin-categorized marker key": {taints: []internaltypes.NodeTaint{internaltypes.NewNodeTaint(internaltypes.UnschedulableTaint(), "platform", false)}, want: "armadaproject.io/unschedulable"},
+		"user-categorised marker key":  {taints: []internaltypes.NodeTaint{internaltypes.NewNodeTaint(internaltypes.UnschedulableTaint(), "user", true)}, want: "user"},
+		"admin-categorised marker key": {taints: []internaltypes.NodeTaint{internaltypes.NewNodeTaint(internaltypes.UnschedulableTaint(), "platform", false)}, want: "armadaproject.io/unschedulable"},
 		"marker after user":            {taints: []internaltypes.NodeTaint{taint("user", true), unschedulable}, want: "user"},
 		"marker before user":           {taints: []internaltypes.NodeTaint{unschedulable, taint("user", true)}, want: "user"},
 		"marker and unknown":           {taints: []internaltypes.NodeTaint{unschedulable, taint("unknown", false)}, want: "none"},
@@ -73,21 +73,21 @@ func TestCategorizeNodeByTaints(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities).WithTaints(tc.rawTaints).WithNodeTaints(tc.taints)
-			assert.Equal(t, tc.want, categorizeNodeByTaints(node.GetNodeTaints()))
+			assert.Equal(t, tc.want, CategoriseNodeByTaints(node.GetNodeTaints()))
 		})
 	}
 }
 
-func TestCategorizeNodeByTaints_AfterNodeBecomesUnschedulable(t *testing.T) {
+func TestCategoriseNodeByTaints_AfterNodeBecomesUnschedulable(t *testing.T) {
 	userTaint := internaltypes.NewNodeTaint(v1.Taint{Key: "example"}, "user", true)
 	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities).WithNodeTaints([]internaltypes.NodeTaint{userTaint})
-	assert.Equal(t, "user", categorizeNodeByTaints(node.GetNodeTaints()))
+	assert.Equal(t, "user", CategoriseNodeByTaints(node.GetNodeTaints()))
 	unschedulableNode := node.WithSchedulable(false)
 	assert.True(t, unschedulableNode.IsUnschedulable())
-	assert.Equal(t, "user", categorizeNodeByTaints(unschedulableNode.GetNodeTaints()))
+	assert.Equal(t, "user", CategoriseNodeByTaints(unschedulableNode.GetNodeTaints()))
 }
 
-func TestCategorizeNodeByTaints_LegacyWellKnownTaints(t *testing.T) {
+func TestCategoriseNodeByTaints_LegacyWellKnownTaints(t *testing.T) {
 	config := executorconfig.KubernetesConfiguration{
 		ToleratedTaints: []string{"example.com/dedicated"},
 		TaintCategorisation: executorconfig.TaintCategorisationConfiguration{
@@ -106,7 +106,7 @@ func TestCategorizeNodeByTaints_LegacyWellKnownTaints(t *testing.T) {
 			assert.Empty(t, match.Category)
 			assert.True(t, match.UserFacing)
 			taint := internaltypes.NewNodeTaint(v1.Taint{Key: key}, match.Category, match.UserFacing)
-			assert.Equal(t, "user", categorizeNodeByTaints([]internaltypes.NodeTaint{taint}))
+			assert.Equal(t, "user", CategoriseNodeByTaints([]internaltypes.NodeTaint{taint}))
 		})
 	}
 }

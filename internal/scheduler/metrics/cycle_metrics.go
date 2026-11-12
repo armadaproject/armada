@@ -691,7 +691,7 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 						if m.scalableUnitLabelKey != "" {
 							scalableUnit, _ = node.GetLabelValue(m.scalableUnitLabelKey)
 						}
-						nodeCategory := categorizeNodeByTaints(node.GetNodeTaints())
+						nodeCategory := CategoriseNodeByTaints(node.GetNodeTaints())
 						for _, resource := range node.GetAllocatableResources().GetAll() {
 							currentCycle.nodeAllocatableResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
 								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit, nodeCategory).Set(resource.Value.AsApproximateFloat64())

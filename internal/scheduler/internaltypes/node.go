@@ -110,6 +110,17 @@ func NewNodeTaint(taint v1.Taint, category string, userFacing bool) NodeTaint {
 	return NodeTaint{taint: *taint.DeepCopy(), category: category, userFacing: userFacing}
 }
 
+// NodeTaintsFromSchedulerObjects converts scheduler taint metadata, skipping nil entries and taints.
+func NodeTaintsFromSchedulerObjects(taints []*schedulerobjects.NodeTaint) []NodeTaint {
+	result := make([]NodeTaint, 0, len(taints))
+	for _, taint := range taints {
+		if taint != nil && taint.Taint != nil {
+			result = append(result, NewNodeTaint(*taint.Taint, taint.Category, taint.UserFacing))
+		}
+	}
+	return result
+}
+
 func (nodeTaint NodeTaint) GetTaint() v1.Taint {
 	return *nodeTaint.taint.DeepCopy()
 }
@@ -154,16 +165,7 @@ func FromSchedulerObjectsNode(node *schedulerobjects.Node,
 			taints = append(taints, *t)
 		}
 	}
-	nodeTaints := make([]NodeTaint, 0, len(node.NodeTaints))
-	for _, nodeTaint := range node.NodeTaints {
-		if nodeTaint != nil && nodeTaint.Taint != nil {
-			nodeTaints = append(nodeTaints, NodeTaint{
-				taint:      *nodeTaint.Taint,
-				category:   nodeTaint.Category,
-				userFacing: nodeTaint.UserFacing,
-			})
-		}
-	}
+	nodeTaints := NodeTaintsFromSchedulerObjects(node.NodeTaints)
 
 	completeNodeTaintMetadata := hasCompleteNodeTaintMetadata(node.Taints, node.NodeTaints)
 	return CreateNodeAndType(

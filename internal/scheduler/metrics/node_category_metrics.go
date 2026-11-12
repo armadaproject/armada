@@ -14,12 +14,12 @@ const (
 	nodeCategoryNone         = "none"
 )
 
-// categorizeNodeByTaints classifies reported taint metadata for node metrics:
+// CategoriseNodeByTaints classifies reported taint metadata for node metrics:
 //   - If any admin taints exist, it returns their keys sorted and joined by "|".
 //   - Otherwise, it returns "user" if any taint has the user category or is
 //     user-facing with no category.
 //   - Otherwise, it returns "none". Unknown taints are ignored.
-func categorizeNodeByTaints(taints []internaltypes.NodeTaint) string {
+func CategoriseNodeByTaints(taints []internaltypes.NodeTaint) string {
 	hasUserTaints := false
 	var adminTaintKeys []string
 	for _, taint := range taints {

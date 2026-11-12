@@ -197,7 +197,7 @@ var NodeJobPhaseCounterDesc = prometheus.NewDesc(
 var ClusterCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_capacity",
 	"Cluster capacity",
-	[]string{"cluster", "pool", "resourceType", "nodeType", "reservation", "physical_pool", "capacity_class", "scalable_unit"},
+	[]string{"cluster", "pool", "resourceType", "nodeType", "reservation", "physical_pool", "capacity_class", "scalable_unit", "category"},
 	nil,
 )
 
@@ -211,7 +211,7 @@ var ClusterCapacityDesc = prometheus.NewDesc(
 var ClusterFarmCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_farm_capacity",
 	"Cluster capacity less usage from non-Armada pods",
-	[]string{"cluster", "pool", "resourceType", "nodeType", "reservation", "physical_pool", "capacity_class", "scalable_unit"},
+	[]string{"cluster", "pool", "resourceType", "nodeType", "reservation", "physical_pool", "capacity_class", "scalable_unit", "category"},
 	nil,
 )
 
@@ -225,7 +225,7 @@ var ClusterFarmCapacityDesc = prometheus.NewDesc(
 var ClusterAvailableCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_available_capacity",
 	"Cluster capacity available for Armada jobs",
-	[]string{"cluster", "pool", "resourceType", "nodeType", "reservation", "physical_pool", "capacity_class", "scalable_unit"},
+	[]string{"cluster", "pool", "resourceType", "nodeType", "reservation", "physical_pool", "capacity_class", "scalable_unit", "category"},
 	nil,
 )
 
@@ -559,16 +559,16 @@ func NewQueueLeasedPodCount(value float64, cluster string, pool string, queue st
 	return prometheus.MustNewConstMetric(QueueLeasedPodCountDesc, prometheus.GaugeValue, value, cluster, pool, queue, queue, phase, nodeType, reservation)
 }
 
-func NewClusterAvailableCapacity(value float64, cluster string, pool string, resource string, nodeType string, reservation string, physicalPool string, capacityClass string, scalableUnit string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(ClusterAvailableCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType, reservation, physicalPool, capacityClass, scalableUnit)
+func NewClusterAvailableCapacity(value float64, cluster string, pool string, resource string, nodeType string, reservation string, physicalPool string, capacityClass string, scalableUnit string, category string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(ClusterAvailableCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType, reservation, physicalPool, capacityClass, scalableUnit, category)
 }
 
-func NewClusterFarmCapacity(value float64, cluster string, pool string, resource string, nodeType string, reservation string, physicalPool string, capacityClass string, scalableUnit string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(ClusterFarmCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType, reservation, physicalPool, capacityClass, scalableUnit)
+func NewClusterFarmCapacity(value float64, cluster string, pool string, resource string, nodeType string, reservation string, physicalPool string, capacityClass string, scalableUnit string, categrory string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(ClusterFarmCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType, reservation, physicalPool, capacityClass, scalableUnit, categrory)
 }
 
-func NewClusterTotalCapacity(value float64, cluster string, pool string, resource string, nodeType string, reservation string, physicalPool string, capacityClass string, scalableUnit string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(ClusterCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType, reservation, physicalPool, capacityClass, scalableUnit)
+func NewClusterTotalCapacity(value float64, cluster string, pool string, resource string, nodeType string, reservation string, physicalPool string, capacityClass string, scalableUnit string, category string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(ClusterCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType, reservation, physicalPool, capacityClass, scalableUnit, category)
 }
 
 func NewClusterCordonedStatus(value float64, cluster string, reason string, setByUser string) prometheus.Metric {

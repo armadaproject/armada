@@ -348,6 +348,7 @@ type clusterMetricKey struct {
 	physicalPool  string
 	capacityClass string
 	scalableUnit  string
+	category      string
 }
 
 type clusterCordonedStatus struct {
@@ -427,6 +428,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 				scalableUnit = node.GetLabels()[c.scalableUnitLabel]
 			}
 
+			category := metrics.CategoriseNodeByTaints(internaltypes.NodeTaintsFromSchedulerObjects(node.GetNodeTaints()))
 			clusterKey := clusterMetricKey{
 				cluster:       executor.Id,
 				pool:          nodePool,
@@ -435,6 +437,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 				physicalPool:  nodePool,
 				capacityClass: metrics.CapacityClassDedicated,
 				scalableUnit:  scalableUnit,
+				category:      category,
 			}
 
 			if _, ok := schedulableNodeCountByCluster[clusterKey]; !ok {
@@ -451,6 +454,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 					physicalPool:  nodePool,
 					capacityClass: metrics.CapacityClassShared,
 					scalableUnit:  scalableUnit,
+					category:      category,
 				})
 			}
 
@@ -575,24 +579,24 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 	}
 	for k, r := range availableResourceByCluster {
 		for resourceKey, resourceValue := range r {
-			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterAvailableCapacity(resourceValue.AsApproximateFloat64(), k.cluster, k.pool, resourceKey, k.nodeType, k.reservation, k.physicalPool, k.capacityClass, k.scalableUnit))
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterAvailableCapacity(resourceValue.AsApproximateFloat64(), k.cluster, k.pool, resourceKey, k.nodeType, k.reservation, k.physicalPool, k.capacityClass, k.scalableUnit, k.category))
 		}
 	}
 	for k, r := range totalFarmResourceByCluster {
 		for resourceKey, resourceValue := range r {
-			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterFarmCapacity(resourceValue.AsApproximateFloat64(), k.cluster, k.pool, resourceKey, k.nodeType, k.reservation, k.physicalPool, k.capacityClass, k.scalableUnit))
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterFarmCapacity(resourceValue.AsApproximateFloat64(), k.cluster, k.pool, resourceKey, k.nodeType, k.reservation, k.physicalPool, k.capacityClass, k.scalableUnit, k.category))
 		}
 	}
 	for k, r := range totalResourceByCluster {
 		for resourceKey, resourceValue := range r {
-			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(resourceValue.AsApproximateFloat64(), k.cluster, k.pool, resourceKey, k.nodeType, k.reservation, k.physicalPool, k.capacityClass, k.scalableUnit))
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(resourceValue.AsApproximateFloat64(), k.cluster, k.pool, resourceKey, k.nodeType, k.reservation, k.physicalPool, k.capacityClass, k.scalableUnit, k.category))
 		}
 	}
 	for k, v := range schedulableNodeCountByCluster {
-		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterAvailableCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType, k.reservation, k.physicalPool, k.capacityClass, k.scalableUnit))
+		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterAvailableCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType, k.reservation, k.physicalPool, k.capacityClass, k.scalableUnit, k.category))
 	}
 	for k, v := range totalNodeCountByCluster {
-		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType, k.reservation, k.physicalPool, k.capacityClass, k.scalableUnit))
+		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType, k.reservation, k.physicalPool, k.capacityClass, k.scalableUnit, k.category))
 	}
 	for k, v := range nodeJobsMetricCounts {
 		clusterMetrics = append(
