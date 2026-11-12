@@ -23,6 +23,9 @@ func TestClassifyTaintGroup(t *testing.T) {
 	taint := func(category string, userFacing bool) internaltypes.NodeTaint {
 		return internaltypes.NewNodeTaint(v1.Taint{Key: "example"}, category, userFacing)
 	}
+	adminTaint := func(key string) internaltypes.NodeTaint {
+		return internaltypes.NewNodeTaint(v1.Taint{Key: key}, "platform", false)
+	}
 	unschedulable := internaltypes.NewNodeTaint(internaltypes.UnschedulableTaint(), "", false)
 	kubernetesCordon := internaltypes.NewNodeTaint(v1.Taint{Key: v1.TaintNodeUnschedulable}, "", false)
 	for name, tc := range map[string]struct {
@@ -33,33 +36,40 @@ func TestClassifyTaintGroup(t *testing.T) {
 		"nil taints":                   {want: "none"},
 		"empty taints":                 {taints: []internaltypes.NodeTaint{}, want: "none"},
 		"synthetic marker only":        {taints: []internaltypes.NodeTaint{unschedulable}, want: "none"},
+		"user-categorized marker key":  {taints: []internaltypes.NodeTaint{internaltypes.NewNodeTaint(internaltypes.UnschedulableTaint(), "user", true)}, want: "user"},
+		"admin-categorized marker key": {taints: []internaltypes.NodeTaint{internaltypes.NewNodeTaint(internaltypes.UnschedulableTaint(), "platform", false)}, want: "armadaproject.io/unschedulable"},
 		"marker after user":            {taints: []internaltypes.NodeTaint{taint("user", true), unschedulable}, want: "user"},
 		"marker before user":           {taints: []internaltypes.NodeTaint{unschedulable, taint("user", true)}, want: "user"},
-		"marker and unknown":           {taints: []internaltypes.NodeTaint{unschedulable, taint("unknown", false)}, want: "unknown"},
-		"marker and admin":             {taints: []internaltypes.NodeTaint{unschedulable, taint("platform", false)}, want: "admin"},
-		"kubernetes cordon taint":      {taints: []internaltypes.NodeTaint{kubernetesCordon}, want: "unknown"},
+		"marker and unknown":           {taints: []internaltypes.NodeTaint{unschedulable, taint("unknown", false)}, want: "none"},
+		"marker and admin":             {taints: []internaltypes.NodeTaint{unschedulable, taint("platform", false)}, want: "example"},
+		"kubernetes cordon taint":      {taints: []internaltypes.NodeTaint{kubernetesCordon}, want: "none"},
 		"raw taints without metadata":  {rawTaints: []v1.Taint{{Key: "legacy"}}, want: "none"},
 		"user taint":                   {taints: []internaltypes.NodeTaint{taint("user", false)}, want: "user"},
 		"multiple user taints":         {taints: []internaltypes.NodeTaint{taint("user", false), taint("user", true)}, want: "user"},
-		"unknown taint":                {taints: []internaltypes.NodeTaint{taint("unknown", false)}, want: "unknown"},
-		"unspecified category":         {taints: []internaltypes.NodeTaint{taint("", false)}, want: "unknown"},
+		"unknown taint":                {taints: []internaltypes.NodeTaint{taint("unknown", false)}, want: "none"},
+		"unspecified category":         {taints: []internaltypes.NodeTaint{taint("", false)}, want: "none"},
+		"multiple unknown taints":      {taints: []internaltypes.NodeTaint{taint("unknown", false), taint("", false)}, want: "none"},
 		"legacy user-facing taint":     {taints: []internaltypes.NodeTaint{taint("", true)}, want: "user"},
 		"legacy and user taints":       {taints: []internaltypes.NodeTaint{taint("", true), taint("user", false)}, want: "user"},
-		"legacy and unknown taints":    {taints: []internaltypes.NodeTaint{taint("", true), taint("unknown", false)}, want: "unknown"},
-		"unknown and legacy taints":    {taints: []internaltypes.NodeTaint{taint("unknown", false), taint("", true)}, want: "unknown"},
-		"legacy and admin taints":      {taints: []internaltypes.NodeTaint{taint("", true), taint("platform", false)}, want: "admin"},
-		"admin and legacy taints":      {taints: []internaltypes.NodeTaint{taint("platform", false), taint("", true)}, want: "admin"},
-		"user-facing unknown category": {taints: []internaltypes.NodeTaint{taint("unknown", true)}, want: "unknown"},
-		"admin category":               {taints: []internaltypes.NodeTaint{taint("platform", false)}, want: "admin"},
-		"another admin category":       {taints: []internaltypes.NodeTaint{taint("maintenance", false)}, want: "admin"},
-		"unknown after user":           {taints: []internaltypes.NodeTaint{taint("user", false), taint("unknown", false)}, want: "unknown"},
-		"unknown before user":          {taints: []internaltypes.NodeTaint{taint("unknown", false), taint("user", false)}, want: "unknown"},
-		"unspecified and user":         {taints: []internaltypes.NodeTaint{taint("", false), taint("user", false)}, want: "unknown"},
-		"admin after unknown":          {taints: []internaltypes.NodeTaint{taint("unknown", false), taint("platform", false)}, want: "admin"},
-		"admin before unknown":         {taints: []internaltypes.NodeTaint{taint("platform", false), taint("unknown", false)}, want: "admin"},
-		"admin after unspecified":      {taints: []internaltypes.NodeTaint{taint("", false), taint("platform", false)}, want: "admin"},
-		"admin before unspecified":     {taints: []internaltypes.NodeTaint{taint("platform", false), taint("", false)}, want: "admin"},
-		"admin and user":               {taints: []internaltypes.NodeTaint{taint("user", false), taint("platform", false)}, want: "admin"},
+		"legacy and unknown taints":    {taints: []internaltypes.NodeTaint{taint("", true), taint("unknown", false)}, want: "user"},
+		"unknown and legacy taints":    {taints: []internaltypes.NodeTaint{taint("unknown", false), taint("", true)}, want: "user"},
+		"legacy and admin taints":      {taints: []internaltypes.NodeTaint{taint("", true), taint("platform", false)}, want: "example"},
+		"admin and legacy taints":      {taints: []internaltypes.NodeTaint{taint("platform", false), taint("", true)}, want: "example"},
+		"user-facing unknown category": {taints: []internaltypes.NodeTaint{taint("unknown", true)}, want: "none"},
+		"admin category":               {taints: []internaltypes.NodeTaint{taint("platform", false)}, want: "example"},
+		"another admin category":       {taints: []internaltypes.NodeTaint{taint("maintenance", false)}, want: "example"},
+		"admin keys sorted":            {taints: []internaltypes.NodeTaint{adminTaint("example.com/z"), adminTaint("example.com/a")}, want: "example.com/a|example.com/z"},
+		"admin keys already sorted":    {taints: []internaltypes.NodeTaint{adminTaint("example.com/a"), adminTaint("example.com/z")}, want: "example.com/a|example.com/z"},
+		"duplicate admin keys":         {taints: []internaltypes.NodeTaint{adminTaint("example.com/a"), adminTaint("example.com/a")}, want: "example.com/a|example.com/a"},
+		"admin keys with other taints": {taints: []internaltypes.NodeTaint{adminTaint("example.com/z"), taint("unknown", false), unschedulable, taint("user", true), adminTaint("example.com/a")}, want: "example.com/a|example.com/z"},
+		"unknown after user":           {taints: []internaltypes.NodeTaint{taint("user", false), taint("unknown", false)}, want: "user"},
+		"unknown before user":          {taints: []internaltypes.NodeTaint{taint("unknown", false), taint("user", false)}, want: "user"},
+		"unspecified and user":         {taints: []internaltypes.NodeTaint{taint("", false), taint("user", false)}, want: "user"},
+		"admin after unknown":          {taints: []internaltypes.NodeTaint{taint("unknown", false), taint("platform", false)}, want: "example"},
+		"admin before unknown":         {taints: []internaltypes.NodeTaint{taint("platform", false), taint("unknown", false)}, want: "example"},
+		"admin after unspecified":      {taints: []internaltypes.NodeTaint{taint("", false), taint("platform", false)}, want: "example"},
+		"admin before unspecified":     {taints: []internaltypes.NodeTaint{taint("platform", false), taint("", false)}, want: "example"},
+		"admin and user":               {taints: []internaltypes.NodeTaint{taint("user", false), taint("platform", false)}, want: "example"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities).WithTaints(tc.rawTaints).WithNodeTaints(tc.taints)
@@ -106,7 +116,8 @@ func TestReportSchedulerResult_ReportsTaintGroupType(t *testing.T) {
 	nodeDb, err := nodedb.NewNodeDb(config.PriorityClasses, config.IndexedResources, config.IndexedTaints, config.IndexedNodeLabels, config.WellKnownNodeTypes, testfixtures.TestResourceListFactory)
 	require.NoError(t, err)
 	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities).WithNodeTaints([]internaltypes.NodeTaint{
-		internaltypes.NewNodeTaint(v1.Taint{Key: "example"}, "platform", false),
+		internaltypes.NewNodeTaint(v1.Taint{Key: "example.com/z"}, "platform", false),
+		internaltypes.NewNodeTaint(v1.Taint{Key: "example.com/a"}, "maintenance", false),
 	})
 	require.NoError(t, nodeDb.Upsert(node))
 
@@ -133,7 +144,7 @@ func TestReportSchedulerResult_ReportsTaintGroupType(t *testing.T) {
 			for _, label := range metric.GetLabel() {
 				labels[label.GetName()] = label.GetValue()
 			}
-			assert.Equal(t, "admin", labels["taintGroupType"], family.GetName())
+			assert.Equal(t, "example.com/a|example.com/z", labels["taintGroupType"], family.GetName())
 		}
 	}
 }

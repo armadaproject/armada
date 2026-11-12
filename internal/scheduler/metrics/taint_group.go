@@ -1,48 +1,46 @@
 package metrics
 
-import "github.com/armadaproject/armada/internal/scheduler/internaltypes"
+import (
+	"sort"
+	"strings"
+
+	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
+)
 
 const (
 	taintCategoryUnspecified = ""
 	taintCategoryUser        = "user"
 	taintCategoryUnknown     = "unknown"
-	taintGroupTypeAdmin      = "admin"
 	taintGroupTypeNone       = "none"
 )
 
-// classifyTaintGroup classifies reported taint metadata for node metrics.
-// No metadata, or only Armada's synthetic unschedulable marker, is reported as none,
-// even when a node has raw taints.
+// classifyTaintGroup classifies reported taint metadata for node metrics:
+//   - If any admin taints exist, it returns their keys sorted and joined by "|".
+//   - Otherwise, it returns "user" if any taint has the user category or is
+//     user-facing with no category.
+//   - Otherwise, it returns "none". Unknown taints are ignored.
 func classifyTaintGroup(taints []internaltypes.NodeTaint) string {
-	hasTaints := false
-	unknownTaintsFound := false
-	unschedulableKey := internaltypes.UnschedulableTaint().Key
+	hasUserTaints := false
+	var adminTaintKeys []string
 	for _, taint := range taints {
-		if taint.GetTaint().Key == unschedulableKey {
-			continue
-		}
-		hasTaints = true
-		switch taint.GetCategory() {
-		case taintCategoryUnspecified:
-			// Legacy tolerated and reservation taints have no category but are user-facing.
-			if !taint.GetUserFacing() {
-				unknownTaintsFound = true
-			}
-		case taintCategoryUnknown:
-			unknownTaintsFound = true
-		case taintCategoryUser:
-		default:
+		switch category := taint.GetCategory(); {
+		case category == taintCategoryUser || (category == taintCategoryUnspecified && taint.GetUserFacing()):
+			hasUserTaints = true
+		case category != taintCategoryUnspecified && category != taintCategoryUnknown:
 			// Any other non-empty category is administrator-defined.
-			return taintGroupTypeAdmin
+			adminTaintKeys = append(adminTaintKeys, taint.GetTaint().Key)
+		default:
+			// Unknown taints do not contribute to the group type.
 		}
 	}
 
-	if !hasTaints {
-		return taintGroupTypeNone
+	if len(adminTaintKeys) > 0 {
+		sort.Strings(adminTaintKeys)
+		return strings.Join(adminTaintKeys, "|")
 	}
-	if unknownTaintsFound {
-		return taintCategoryUnknown
+	if hasUserTaints {
+		return taintCategoryUser
 	}
 
-	return taintCategoryUser
+	return taintGroupTypeNone
 }
