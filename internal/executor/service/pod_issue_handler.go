@@ -817,33 +817,10 @@ func (p *PodIssueHandler) handleNonRetryableJobIssue(issue *issue) {
 	if !issue.RunIssue.Reported {
 		log.Infof("Handling non-retryable issue detected for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 		podIssue := issue.RunIssue.PodIssue
-		clusterId := p.clusterContext.GetClusterId()
-
 		classification := podIssue.Classification
-
-		failedEvent, err := reporter.CreateJobFailedEvent(
-			podIssue.OriginalPodState,
-			classification.AppendHint(podIssue.Message),
-			podIssue.Cause,
-			podIssue.DebugMessage,
-			util.ExtractFailedPodContainerStatuses(podIssue.OriginalPodState, clusterId),
-			clusterId,
-			classification.Category,
-			classification.Subcategory,
-		)
-		if err != nil {
-			log.Errorf("Failed to create failed event for job %s because %s", issue.RunIssue.JobId, err)
+		if !p.reportPodIssueFailure(issue, classification.Category, classification.Subcategory, classification.AppendHint(podIssue.Message)) {
 			return
 		}
-		err = p.eventReporter.Report([]reporter.EventMessage{{Event: failedEvent, JobRunId: issue.RunIssue.RunId}})
-		if err != nil {
-			log.Errorf("Failed to report failed event for job %s because %s", issue.RunIssue.JobId, err)
-			return
-		}
-		// Increment only after successful Report so failed sends do not inflate the counter.
-		// RecordJobFailure is a no-op for an empty category.
-		metrics.RecordJobFailure(classification.Category, classification.Subcategory)
-		p.markIssueReported(issue.RunIssue)
 	}
 
 	if issue.CurrentPodState != nil {
@@ -905,7 +882,7 @@ func (p *PodIssueHandler) handleDeleteActionFailure(issue *issue) {
 
 	if issue.CurrentPodState == nil {
 		if !issue.RunIssue.Reported {
-			p.reportDeleteActionFailure(issue, podIssue.Classification.Category, podIssue.Classification.Subcategory,
+			p.reportPodIssueFailure(issue, podIssue.Classification.Category, podIssue.Classification.Subcategory,
 				podIssue.Classification.AppendHint(podIssue.Message))
 		}
 		if issue.RunIssue.Reported {
@@ -923,7 +900,8 @@ func (p *PodIssueHandler) handleDeleteActionFailure(issue *issue) {
 			// Re-render against the pod as it is now, so the failure carries why the delete did not
 			// take effect. This is strictly richer than what was captured at detection time.
 			podIssue.DebugMessage = p.renderTerminationDebugMessage(issue.CurrentPodState, reporter.TriggerUndeletable)
-			p.reportDeleteActionFailure(issue, errormatch.CategoryInternal, errormatch.SubcategoryStuckTerminating,
+			// A failed escalation report must still allow deletion to proceed.
+			p.reportPodIssueFailure(issue, errormatch.CategoryInternal, errormatch.SubcategoryStuckTerminating,
 				podIssue.Message+"\n\nThe failed pod could not be deleted, so the job is failed rather than retried.")
 		}
 	}
@@ -938,7 +916,9 @@ func (p *PodIssueHandler) handleDeleteActionFailure(issue *issue) {
 	podIssue.DeletionRequested = true
 }
 
-func (p *PodIssueHandler) reportDeleteActionFailure(issue *issue, category string, subcategory string, message string) {
+// reportPodIssueFailure reports the original pod's failure synchronously. It marks the issue
+// reported only on success; callers decide whether a failed report prevents deletion.
+func (p *PodIssueHandler) reportPodIssueFailure(issue *issue, category string, subcategory string, message string) bool {
 	podIssue := issue.RunIssue.PodIssue
 	clusterId := p.clusterContext.GetClusterId()
 	failedEvent, err := reporter.CreateJobFailedEvent(
@@ -953,15 +933,18 @@ func (p *PodIssueHandler) reportDeleteActionFailure(issue *issue, category strin
 	)
 	if err != nil {
 		log.Errorf("Failed to create failed event for job %s because %s", issue.RunIssue.JobId, err)
-		return
+		return false
 	}
 	err = p.eventReporter.Report([]reporter.EventMessage{{Event: failedEvent, JobRunId: issue.RunIssue.RunId}})
 	if err != nil {
 		log.Errorf("Failed to report failed event for job %s because %s", issue.RunIssue.JobId, err)
-		return
+		return false
 	}
+	// Increment only after successful Report so failed sends do not inflate the counter.
+	// RecordJobFailure is a no-op for an empty category.
 	metrics.RecordJobFailure(category, subcategory)
 	p.markIssueReported(issue.RunIssue)
+	return true
 }
 
 // For retryable issues we must:
