@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -492,19 +493,19 @@ func (p *PodIssueHandler) hasExceededActiveDeadline(pod *v1.Pod) bool {
 
 func (p *PodIssueHandler) handleKnownIssues(ctx *armadacontext.Context, allManagedPods []*v1.Pod) {
 	// Make issues from pods + issues
-	issues := createIssues(allManagedPods, p.copyKnownIssues())
+	issues := createIssues(allManagedPods, p.knownIssuesSnapshot())
 	util.ProcessItemsWithThreadPool(ctx, 20, issues, p.handleRunIssue)
 }
 
-// copyKnownIssues returns a copy of the known issues. Issues can be registered while known issues are being
-// handled, so handling works on a copy. Issues registered after the copy is taken are handled on the next pass.
-func (p *PodIssueHandler) copyKnownIssues() map[string]*runIssue {
+// knownIssuesSnapshot returns the known issues, so they can be handled while new issues are registered.
+// Only the collection is copied; the issues are shared with knownPodIssues.
+func (p *PodIssueHandler) knownIssuesSnapshot() []*runIssue {
 	p.podIssueMutex.Lock()
 	defer p.podIssueMutex.Unlock()
-	return maps.Clone(p.knownPodIssues)
+	return slices.Collect(maps.Values(p.knownPodIssues))
 }
 
-func createIssues(managedPods []*v1.Pod, runIssues map[string]*runIssue) []*issue {
+func createIssues(managedPods []*v1.Pod, runIssues []*runIssue) []*issue {
 	podsByRunId := make(map[string]*v1.Pod, len(managedPods))
 
 	for _, pod := range managedPods {
