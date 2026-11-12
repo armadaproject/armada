@@ -67,6 +67,47 @@ func TestGetJob_IsADocumentWithTheJobAndItsSpec(t *testing.T) {
 	}
 }
 
+func TestGetJob_ShowsWhyARunDidNotSucceedInsideTheRun(t *testing.T) {
+	for _, f := range []OutputFormat{OutputYaml, OutputJson} {
+		a, out, _ := newJobTestApp(f, "a")
+		a.Params.JobAPI.Get = func(id string) (*job.Job, error) {
+			j := job.NewJob(&models.Job{
+				JobID: id, Queue: "q", State: "FAILED",
+				Runs: []*models.Run{{RunID: "r1", JobRunState: "RUN_FAILED"}, {RunID: "r2", JobRunState: "RUN_SUCCEEDED"}},
+			})
+			j.Runs[0].RunDetails = &job.RunDetails{Error: "exit code 3", DebugMessage: "drained"}
+			return j, nil
+		}
+
+		require.NoError(t, a.GetJob("a"), string(f))
+
+		var doc map[string]any
+		require.NoError(t, yaml.Unmarshal([]byte(out()), &doc), string(f))
+		assert.NotContains(t, doc, "runDetails", string(f))
+		runs := doc["runs"].([]any)
+		require.Len(t, runs, 2, string(f))
+		assert.Equal(t, "r1", runs[0].(map[string]any)["runId"], string(f))
+		assert.Equal(t, map[string]any{"error": "exit code 3", "debugMessage": "drained"}, runs[0].(map[string]any)["runDetails"], string(f))
+		assert.NotContains(t, runs[1], "runDetails", string(f))
+	}
+}
+
+func TestGetJob_ShowsWhyAJobThatNeverRanWasNotRun(t *testing.T) {
+	a, out, _ := newJobTestApp(OutputYaml, "a")
+	a.Params.JobAPI.Get = func(id string) (*job.Job, error) {
+		j := job.NewJob(&models.Job{JobID: id, Queue: "q", State: "REJECTED"})
+		j.Error = "requests resources which exceed the limit"
+		return j, nil
+	}
+
+	require.NoError(t, a.GetJob("a"))
+
+	var doc map[string]any
+	require.NoError(t, yaml.Unmarshal([]byte(out()), &doc))
+	assert.Equal(t, "requests resources which exceed the limit", doc["error"])
+	assert.Equal(t, []any{}, doc["runs"])
+}
+
 func TestGetJob_DefaultOutputIsTheSameAsYaml(t *testing.T) {
 	text, textOut, _ := newJobTestApp(OutputText, "a")
 	yamlApp, yamlOut, _ := newJobTestApp(OutputYaml, "a")
