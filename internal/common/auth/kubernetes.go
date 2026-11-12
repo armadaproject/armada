@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/patrickmn/go-cache"
 	authv1 "k8s.io/api/authentication/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -21,6 +23,9 @@ import (
 )
 
 const KubernetesAuthServiceName = "KubernetesNative"
+
+// kubernetesAuthScheme is the scheme in the Authorization header that the service accepts.
+const kubernetesAuthScheme = "KubernetesAuth"
 
 type TokenReviewer interface {
 	ReviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (*authv1.TokenReview, error)
@@ -72,9 +77,13 @@ type CacheData struct {
 	Valid bool   `json:"valid"`
 }
 
+func (authService *KubernetesNativeAuthService) Challenges() []string {
+	return []string{kubernetesAuthScheme}
+}
+
 func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context, authHeader string) (Principal, error) {
 	authHeaderSplits := strings.SplitN(authHeader, " ", 2)
-	if len(authHeaderSplits) < 2 || authHeaderSplits[0] != "KubernetesAuth" {
+	if len(authHeaderSplits) < 2 || authHeaderSplits[0] != kubernetesAuthScheme {
 		return nil, &armadaerrors.ErrMissingCredentials{
 			AuthService: KubernetesAuthServiceName,
 		}
@@ -130,7 +139,11 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	// Make request to token review endpoint
 	name, err := authService.reviewToken(ctx, url, token, []byte(ca))
 	if err != nil {
-		// reviewToken returns appropriate armadaerrors.
+		// reviewToken returns appropriate armadaerrors. An internal error is not the fault of the credentials.
+		var internalErr *armadaerrors.ErrInternalAuthServiceError
+		if errors.As(err, &internalErr) {
+			return nil, err
+		}
 		return nil, &armadaerrors.ErrInvalidCredentials{
 			AuthService: KubernetesAuthServiceName,
 			Message:     err.Error(),
@@ -180,6 +193,11 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 func (authService *KubernetesNativeAuthService) reviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (string, error) {
 	result, err := authService.TokenReviewer.ReviewToken(ctx, clusterUrl, token, ca)
 	if err != nil {
+		// The token being reviewed is also the one the review is made with, so the API refusing it with a 401 is the
+		// token being rejected, and not the API failing.
+		if apierrors.IsUnauthorized(err) {
+			return "", authService.rejectToken(token, "provided token was rejected by the Kubernetes API")
+		}
 		// TODO(clif) Hard to tell if this should be internal auth error
 		// or invalid creds still.
 		return "", &armadaerrors.ErrInternalAuthServiceError{
@@ -189,14 +207,19 @@ func (authService *KubernetesNativeAuthService) reviewToken(ctx context.Context,
 	}
 
 	if !result.Status.Authenticated {
-		authService.TokenCache.Set(token, CacheData{Valid: false}, time.Duration(authService.InvalidTokenExpiry))
-		return "", &armadaerrors.ErrInvalidCredentials{
-			AuthService: KubernetesAuthServiceName,
-			Message:     "provided token was rejected by TokenReview",
-		}
+		return "", authService.rejectToken(token, "provided token was rejected by TokenReview")
 	}
 
 	return result.Status.User.Username, nil
+}
+
+// rejectToken remembers that the token is invalid, and returns the error to say so.
+func (authService *KubernetesNativeAuthService) rejectToken(token string, message string) error {
+	authService.TokenCache.Set(token, CacheData{Valid: false}, time.Duration(authService.InvalidTokenExpiry))
+	return &armadaerrors.ErrInvalidCredentials{
+		AuthService: KubernetesAuthServiceName,
+		Message:     message,
+	}
 }
 
 func parseAuth(auth string) (string, string, error) {

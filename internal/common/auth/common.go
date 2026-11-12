@@ -2,11 +2,13 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata"
 	"golang.org/x/exp/slices"
 
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/util"
 )
 
@@ -110,6 +112,12 @@ type AuthService interface {
 	Authenticate(ctx context.Context, authHeader string) (Principal, error)
 }
 
+// Challenger is implemented by an AuthService that can tell a client how to authenticate with it.
+// The challenges are sent in the WWW-Authenticate header of a 401 response.
+type Challenger interface {
+	Challenges() []string
+}
+
 // CreateGrpcMiddlewareAuthFunction for use with GRPC.
 // That function returns success if any service successfully
 // authenticates the user, and an error if all services fail to authenticate.
@@ -142,9 +150,31 @@ func CreateHttpMiddlewareAuthFunction(authService AuthService) func(w http.Respo
 		authHeader := r.Header.Get("Authorization")
 		principal, err := authService.Authenticate(ctx, authHeader)
 		if err != nil {
-			http.Error(w, "auth error:"+err.Error(), http.StatusInternalServerError)
+			status := httpStatusForAuthError(err)
+			if status == http.StatusUnauthorized {
+				// RFC 9110 requires a 401 to say how to authenticate. The schemes are the ones the services accept.
+				if challenger, ok := authService.(Challenger); ok {
+					for _, challenge := range challenger.Challenges() {
+						w.Header().Add("WWW-Authenticate", challenge)
+					}
+				}
+			}
+			http.Error(w, "auth error:"+err.Error(), status)
 			return nil, err
 		}
 		return WithPrincipal(ctx, principal), nil
 	}
+}
+
+// httpStatusForAuthError is the HTTP status for an error from authenticating a request: 401 when the request could not
+// be authenticated, because it has no credentials, or credentials that are not valid, and 500 for anything else, such
+// as the authentication service failing. The gRPC API reports the same errors as codes.Unauthenticated.
+func httpStatusForAuthError(err error) int {
+	var unauthenticated *armadaerrors.ErrUnauthenticated
+	var missingCredentials *armadaerrors.ErrMissingCredentials
+	var invalidCredentials *armadaerrors.ErrInvalidCredentials
+	if errors.As(err, &unauthenticated) || errors.As(err, &missingCredentials) || errors.As(err, &invalidCredentials) {
+		return http.StatusUnauthorized
+	}
+	return http.StatusInternalServerError
 }

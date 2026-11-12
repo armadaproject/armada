@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,8 +14,11 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	authv1 "k8s.io/api/authentication/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	clock "k8s.io/utils/clock/testing"
 
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/configuration"
 )
 
@@ -96,9 +100,14 @@ func TestGetClusterURL(t *testing.T) {
 type MockTokenReviewer struct {
 	Authenticated bool
 	Username      string
+	// Err, if set, is returned by ReviewToken, as when the Kubernetes API is unavailable.
+	Err error
 }
 
 func (reviewer *MockTokenReviewer) ReviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (*authv1.TokenReview, error) {
+	if reviewer.Err != nil {
+		return nil, reviewer.Err
+	}
 	return &authv1.TokenReview{
 		Status: authv1.TokenReviewStatus{
 			Authenticated: reviewer.Authenticated,
@@ -162,4 +171,76 @@ func TestAuthenticateKubernetes(t *testing.T) {
 	expected := NewStaticPrincipal(testName, KubernetesAuthServiceName, []string{testName})
 	assert.NoError(t, err)
 	assert.Equal(t, expected, principal)
+}
+
+// When the Kubernetes API cannot review the token, the credentials have not been found wanting, so the error is an
+// internal one and not that the credentials are invalid.
+func TestAuthenticateKubernetes_ReviewFailureIsAnInternalError(t *testing.T) {
+	tempdir := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(tempdir, testKid), []byte(testUrl), 0o600))
+
+	authService := createTestAuthService(tempdir+"/", true, testName, testTokenIss)
+	authService.TokenReviewer = &MockTokenReviewer{Err: errors.New("kubernetes api unavailable")}
+
+	principal, err := authService.Authenticate(context.Background(), createKubernetesAuthPayload(testToken, testCA))
+
+	assert.Nil(t, principal)
+	var internalErr *armadaerrors.ErrInternalAuthServiceError
+	assert.ErrorAs(t, err, &internalErr)
+	var invalidErr *armadaerrors.ErrInvalidCredentials
+	assert.False(t, errors.As(err, &invalidErr), "an outage is not invalid credentials")
+	_, cached := authService.TokenCache.Get(testToken)
+	assert.False(t, cached, "an outage must not be remembered as a verdict on the token")
+}
+
+// A token that the Kubernetes API reviews and rejects is still invalid credentials.
+func TestAuthenticateKubernetes_RejectedTokenIsInvalidCredentials(t *testing.T) {
+	tempdir := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(tempdir, testKid), []byte(testUrl), 0o600))
+
+	authService := createTestAuthService(tempdir+"/", false, "", testTokenIss)
+
+	_, err := authService.Authenticate(context.Background(), createKubernetesAuthPayload(testToken, testCA))
+
+	var invalidErr *armadaerrors.ErrInvalidCredentials
+	assert.ErrorAs(t, err, &invalidErr)
+}
+
+// The token is what the review is made with, so the Kubernetes API refusing it with a 401 is a token that has been
+// revoked or has expired, and is invalid credentials. Other failures of the API stay internal errors.
+func TestAuthenticateKubernetes_TokenTheApiRefusesIsInvalidCredentials(t *testing.T) {
+	tempdir := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(tempdir, testKid), []byte(testUrl), 0o600))
+
+	authService := createTestAuthService(tempdir+"/", true, testName, testTokenIss)
+	authService.TokenReviewer = &MockTokenReviewer{Err: apierrors.NewUnauthorized("Unauthorized")}
+
+	principal, err := authService.Authenticate(context.Background(), createKubernetesAuthPayload(testToken, testCA))
+
+	assert.Nil(t, principal)
+	var invalidErr *armadaerrors.ErrInvalidCredentials
+	assert.ErrorAs(t, err, &invalidErr)
+	var internalErr *armadaerrors.ErrInternalAuthServiceError
+	assert.False(t, errors.As(err, &internalErr), "a refused token is not an outage")
+}
+
+func TestAuthenticateKubernetes_ApiFailuresOtherThanUnauthorizedAreInternalErrors(t *testing.T) {
+	for name, reviewErr := range map[string]error{
+		"unavailable":    apierrors.NewServiceUnavailable("etcd is down"),
+		"server timeout": apierrors.NewServerTimeout(schema.GroupResource{}, "create", 1),
+		"internal error": apierrors.NewInternalError(errors.New("boom")),
+		"not a status":   errors.New("connection refused"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			tempdir := t.TempDir()
+			assert.NoError(t, os.WriteFile(filepath.Join(tempdir, testKid), []byte(testUrl), 0o600))
+			authService := createTestAuthService(tempdir+"/", true, testName, testTokenIss)
+			authService.TokenReviewer = &MockTokenReviewer{Err: reviewErr}
+
+			_, err := authService.Authenticate(context.Background(), createKubernetesAuthPayload(testToken, testCA))
+
+			var internalErr *armadaerrors.ErrInternalAuthServiceError
+			assert.ErrorAs(t, err, &internalErr)
+		})
+	}
 }
