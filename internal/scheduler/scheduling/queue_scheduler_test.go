@@ -1332,8 +1332,8 @@ func TestQueuedGangIterator_PreservesCachedFailureDiagnostics(t *testing.T) {
 		NumNodes:                 2,
 		NumExcludedNodesByReason: map[string]int{"node selector mismatch": 2},
 	}
-	sctx := context.NewSchedulingContext(testfixtures.TestPool, nil, nil, nil, testfixtures.CpuMem("100", "500Gi"))
-	require.NoError(t, sctx.AddQueueSchedulingContext("A", 1, 1, nil, internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil))
+	sctx := context.NewSchedulingContext(testfixtures.TestPool, nil, nil, nil, testfixtures.CpuMem("100", "500Gi"), testfixtures.TestPriorityClasses)
+	require.NoError(t, sctx.AddQueueSchedulingContext("A", 1, 1, nil, internaltypes.ResourceList{}, map[string]internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil))
 	sctx.UnfeasibleSchedulingKeys[first.Job.SchedulingKey()] = first
 
 	it := NewQueuedGangIterator(sctx, NewInMemoryJobIterator(jctxs[1:]), 100, true)
