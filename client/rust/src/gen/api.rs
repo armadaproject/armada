@@ -253,6 +253,11 @@ pub struct Job {
     /// If empty, the default scheduler is used.
     #[prost(string, tag = "20")]
     pub scheduler: ::prost::alloc::string::String,
+    /// URI identifying this job in an external system (e.g. Airflow).
+    /// Populated from JobSubmitRequestItem.external_job_uri, or from the
+    /// "armadaproject.io/externalJobUri" annotation if that was not set. Empty if the job has neither.
+    #[prost(string, tag = "23")]
+    pub external_job_uri: ::prost::alloc::string::String,
 }
 /// swagger:model
 #[derive(Clone, PartialEq, ::prost::Message)]
