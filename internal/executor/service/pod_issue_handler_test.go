@@ -1152,14 +1152,13 @@ func addPodEvents(fakeClusterContext *fakecontext.SyncFakeClusterContext, pod *v
 
 func TestInternalSubcategoryForPodIssueType(t *testing.T) {
 	tests := map[podIssueType]string{
-		StuckTerminating:                 errormatch.SubcategoryStuckTerminating,
-		ExternallyDeleted:                errormatch.SubcategoryExternallyDeleted,
-		ErrorDuringIssueHandling:         errormatch.SubcategoryIssueHandlerError,
-		ActiveDeadlineExceeded:           errormatch.SubcategoryActiveDeadline,
-		StuckStartingUpOnUnreachableNode: errormatch.SubcategoryNodeUnreachable,
-		StuckStartingUp:                  "",
-		UnableToSchedule:                 "",
-		FailedStartingUp:                 "",
+		StuckTerminating:         errormatch.SubcategoryStuckTerminating,
+		ExternallyDeleted:        errormatch.SubcategoryExternallyDeleted,
+		ErrorDuringIssueHandling: errormatch.SubcategoryIssueHandlerError,
+		ActiveDeadlineExceeded:   errormatch.SubcategoryActiveDeadline,
+		StuckStartingUp:          "",
+		UnableToSchedule:         "",
+		FailedStartingUp:         "",
 	}
 	for issueType, want := range tests {
 		assert.Equal(t, want, internalSubcategoryForPodIssueType(issueType))
@@ -1656,7 +1655,8 @@ func (c *asyncDeleteClusterContext) DeletePodWithCondition(pod *v1.Pod, conditio
 }
 
 // The delete was accepted for a Pending pod, then its node was lost with an app container
-// started. The delete may never reach that container, so the run must be failed, not retried.
+// started. Preserve the inherited issue-handler-error path instead of returning its lease.
+// Scheduler retry policies may still match the resulting terminal error.
 func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckPodIsUnknownWithStartedContainerAfterDeletionCalled(t *testing.T) {
 	sidecarRunning := v1.ContainerStatus{Name: "sidecar", State: v1.ContainerState{Running: &v1.ContainerStateRunning{StartedAt: metav1.NewTime(stuckStartingUpBaseTime)}}}
 	mainWaiting := v1.ContainerStatus{Name: "main", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "ContainerCreating"}}}
@@ -1694,13 +1694,13 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckPodIsUnknownWithStart
 			assert.Len(t, getActivePods(t, fakeClusterContext), 0)
 			runError := requireSingleRunError(t, eventsReporter)
 			assert.Equal(t, errormatch.SubcategoryIssueHandlerError, runError.GetFailureSubcategory())
-			assert.Contains(t, runError.GetPodError().GetMessage(), "node became unreachable after delete was called")
+			assert.Contains(t, runError.GetPodError().GetMessage(), "Pod unexpectedly started up after delete was called")
 		})
 	}
 }
 
-// A Pending pod's node is reachable, so its containers are stopped by the delete. A container
-// starting while the delete completes doesn't stop the lease being returned.
+// Preserve the existing Pending-only startup policy: a container status change without a
+// phase change does not prevent the lease return after the pod disappears.
 func TestPodIssueService_ReturnsLease_IfStuckPendingPodContainerStartsAfterDeletionCalled(t *testing.T) {
 	podIssueService, fakeClusterContext, eventsReporter := setupStuckStartingUpTest(t, 6*time.Minute)
 	clusterContext := &asyncDeleteClusterContext{SyncFakeClusterContext: fakeClusterContext, acceptDeletes: true}
@@ -1773,194 +1773,100 @@ func TestPodIssueService_ResolvesStuckPodIssue_IfPodIsUnknownWithStartedContaine
 	}
 }
 
-// The pod's node is unreachable, so the started container's work may still be running. The run is failed
-// as originally detected rather than left for the node lifecycle.
-func TestPodIssueService_ReportsFailed_IfUnreportedStuckPodIsUnknownWithStartedContainer(t *testing.T) {
-	podIssueService, fakeClusterContext, eventsReporter := setupStuckStartingUpTest(t, time.Minute)
-	pod := makeStuckStartingUpPod(v1.PodPending, []v1.ContainerStatus{
-		{Name: "main", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "InvalidImageName"}}},
-	})
-	addPod(t, fakeClusterContext, pod)
-	runId := util.ExtractJobRunId(pod)
-
-	// Reporting the failure fails, so the pod is not deleted
-	eventsReporter.ErrorOnReport = true
-	podIssueService.HandlePodIssues()
-	assert.True(t, podIssueService.HasIssue(runId))
-	assert.Len(t, getActivePods(t, fakeClusterContext), 1)
-
-	// The image is corrected and the pod starts up, then its node is lost
-	eventsReporter.ErrorOnReport = false
-	pod.Status.Phase = v1.PodUnknown
-	pod.Status.ContainerStatuses = []v1.ContainerStatus{
-		{Name: "main", State: v1.ContainerState{Running: &v1.ContainerStateRunning{StartedAt: metav1.NewTime(stuckStartingUpBaseTime.Add(time.Minute))}}},
-	}
-	addPod(t, fakeClusterContext, pod)
-	podIssueService.HandlePodIssues()
-	assert.Len(t, getActivePods(t, fakeClusterContext), 0)
-	runError := requireSingleRunError(t, eventsReporter)
-	require.NotNil(t, runError.GetPodError())
-	assert.Contains(t, runError.GetPodError().GetMessage(), "Not retrying as an app container has started on a node that is unreachable")
-	assert.Equal(t, errormatch.CategoryInternal, runError.GetFailureCategory())
-	assert.Equal(t, errormatch.SubcategoryNodeUnreachable, runError.GetFailureSubcategory())
-
-	podIssueService.HandlePodIssues()
-	assert.False(t, podIssueService.HasIssue(runId))
-}
-
-// An unreported unreachable-node issue resolves if the node recovers and the pod starts up, so
-// the run carries on.
-func TestPodIssueService_ResolvesUnreportedNodeUnreachableIssue_IfPodStartsUp(t *testing.T) {
-	podIssueService, fakeClusterContext, eventsReporter := setupStuckStartingUpTest(t, 6*time.Minute)
-	pod := makeStuckStartingUpPod(v1.PodUnknown, []v1.ContainerStatus{
-		{Name: "worker", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
-		{Name: "other-worker", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "ImagePullBackOff"}}},
-	})
-	addPod(t, fakeClusterContext, pod)
-	runId := util.ExtractJobRunId(pod)
-
-	// Reporting the failure fails, so the pod is not deleted
-	eventsReporter.ErrorOnReport = true
-	podIssueService.HandlePodIssues()
-	assert.True(t, podIssueService.HasIssue(runId))
-	assert.Len(t, getActivePods(t, fakeClusterContext), 1)
-
-	// The node recovers and the pod starts up
-	eventsReporter.ErrorOnReport = false
-	pod.Status.Phase = v1.PodRunning
-	addPod(t, fakeClusterContext, pod)
-	podIssueService.HandlePodIssues()
-
-	assert.False(t, podIssueService.HasIssue(runId))
-	assert.Len(t, getActivePods(t, fakeClusterContext), 1)
-	assert.Len(t, eventsReporter.GetReceivedEvents(), 0)
-}
-
-// A regular container may be executing work while another image is still pulling. Its name
-// does not establish whether it is a sidecar or application work. If the pod is Unknown,
-// deleting it may not stop that work, so the run is failed rather than retried. If the pod is
-// Pending, its node is reachable and deleting the pod stops the work, so the run is retried.
-func TestPodIssueService_ReportsFailedIfUnknownOrReturnsLeaseIfPending_IfStuckPodHadStartedContainerWhenDetected(t *testing.T) {
+// Execution observed before deletion leaves the run to normal pod/node lifecycle handling.
+// A terminal run error could itself trigger scheduler retry policies while old work still runs.
+func TestPodIssueService_LeavesUnknownExecutionBeforeDeletion(t *testing.T) {
 	started := map[string]v1.ContainerStatus{
 		"running":               {Name: "worker", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
 		"terminated":            {Name: "worker", State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{}}},
 		"previously terminated": {Name: "worker", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "CrashLoopBackOff"}}, LastTerminationState: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{}}},
 	}
-	for _, phase := range []v1.PodPhase{v1.PodUnknown, v1.PodPending} {
-		for name, startedContainer := range started {
-			t.Run(fmt.Sprintf("%s %s", phase, name), func(t *testing.T) {
+	for name, container := range started {
+		for _, invalidImage := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s invalid image: %t", name, invalidImage), func(t *testing.T) {
 				podIssueService, fakeClusterContext, eventsReporter := setupStuckStartingUpTest(t, 6*time.Minute)
-				pod := makeStuckStartingUpPod(phase, []v1.ContainerStatus{
-					startedContainer,
-					{Name: "other-worker", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "ImagePullBackOff"}}},
+				clusterContext := &asyncDeleteClusterContext{SyncFakeClusterContext: fakeClusterContext, acceptDeletes: true}
+				podIssueService.clusterContext = clusterContext
+				reason := "ImagePullBackOff"
+				expectedAction := podchecks.ActionRetry
+				if invalidImage {
+					reason = "InvalidImageName"
+					expectedAction = podchecks.ActionFail
+				}
+				pod := makeStuckStartingUpPod(v1.PodUnknown, []v1.ContainerStatus{container,
+					{Name: "other-worker", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: reason}}},
 				})
 				pod.Spec.Containers = []v1.Container{{Name: "worker", Image: "worker"}, {Name: "other-worker", Image: "other-worker"}}
 				addPod(t, fakeClusterContext, pod)
-				runId := util.ExtractJobRunId(pod)
 				action, _, _ := podIssueService.pendingPodChecker.GetAction(pod, nil)
-				require.Equal(t, podchecks.ActionRetry, action)
-
-				podIssueService.HandlePodIssues()
-				assert.Len(t, getActivePods(t, fakeClusterContext), 0)
-				podIssueService.HandlePodIssues()
-				assert.False(t, podIssueService.HasIssue(runId))
-
-				runError := requireSingleRunError(t, eventsReporter)
-				if phase == v1.PodUnknown {
-					require.NotNil(t, runError.GetPodError())
-					assert.Contains(t, runError.GetPodError().GetMessage(), "Not retrying as an app container has started on a node that is unreachable")
-					assert.Equal(t, errormatch.CategoryInternal, runError.GetFailureCategory())
-					assert.Equal(t, errormatch.SubcategoryNodeUnreachable, runError.GetFailureSubcategory())
-				} else {
-					assert.NotNil(t, runError.GetPodLeaseReturned())
+				require.Equal(t, expectedAction, action)
+				for i := 0; i < 2; i++ {
+					podIssueService.HandlePodIssues()
+					assert.False(t, clusterContext.deleteAccepted)
+					assert.False(t, podIssueService.HasIssue(util.ExtractJobRunId(pod)))
+					assert.Len(t, getActivePods(t, fakeClusterContext), 1)
+					assert.Empty(t, eventsReporter.GetReceivedEvents())
 				}
 			})
 		}
 	}
 }
 
-// A retry policy matching the category the operator's categorizer gives the stuck container must
-// not retry the run, so the failure is internal whatever the categorizer would match.
-func TestPodIssueService_ReportsInternalNodeUnreachable_IfStuckUnknownPodHadStartedContainer_RegardlessOfClassifier(t *testing.T) {
-	classifier := podErrorClassifier(t, "image-pull", "backoff", "ImagePullBackOff", "Check the image name")
-	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
-	require.NoError(t, err)
-	fakeClock := clock.NewFakeClock(stuckStartingUpBaseTime.Add(6 * time.Minute))
-	podIssueService.clock = fakeClock
-	podIssueService.pendingPodChecker = makeConfiguredPendingPodChecker(t, fakeClock)
-	pod := makeStuckStartingUpPod(v1.PodUnknown, []v1.ContainerStatus{
-		{Name: "worker", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
-		{Name: "other-worker", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "ImagePullBackOff"}}},
-	})
-	addPod(t, fakeClusterContext, pod)
-
-	podIssueService.HandlePodIssues()
-
-	runError := requireSingleRunError(t, eventsReporter)
-	assert.Equal(t, errormatch.CategoryInternal, runError.GetFailureCategory())
-	assert.Equal(t, errormatch.SubcategoryNodeUnreachable, runError.GetFailureSubcategory())
-	assert.NotContains(t, runError.GetPodError().GetMessage(), "Check the image name")
-}
-
-// A pod the pod checks fail rather than retry is still reported as internal / node-unreachable,
-// so a retry policy for the categorizer's category can't retry it.
-func TestPodIssueService_ReportsInternalNodeUnreachable_IfFailedStuckUnknownPodHadStartedContainer(t *testing.T) {
-	classifier := podErrorClassifier(t, "image-pull", "invalid", "InvalidImageName", "")
-	podIssueService, _, fakeClusterContext, eventsReporter, err := setupTestComponentsWithClassifier([]*job.RunState{}, classifier)
-	require.NoError(t, err)
-	fakeClock := clock.NewFakeClock(stuckStartingUpBaseTime.Add(time.Minute))
-	podIssueService.clock = fakeClock
-	podIssueService.pendingPodChecker = makeConfiguredPendingPodChecker(t, fakeClock)
-	pod := makeStuckStartingUpPod(v1.PodUnknown, []v1.ContainerStatus{
-		{Name: "worker", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
-		{Name: "other-worker", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "InvalidImageName"}}},
-	})
-	addPod(t, fakeClusterContext, pod)
-	action, _, _ := podIssueService.pendingPodChecker.GetAction(pod, nil)
-	require.Equal(t, podchecks.ActionFail, action)
-
-	podIssueService.HandlePodIssues()
-
-	runError := requireSingleRunError(t, eventsReporter)
-	assert.Equal(t, errormatch.CategoryInternal, runError.GetFailureCategory())
-	assert.Equal(t, errormatch.SubcategoryNodeUnreachable, runError.GetFailureSubcategory())
-}
-
-func TestCanRetryStartupIssue(t *testing.T) {
-	started := []v1.ContainerStatus{{Name: "worker", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}}}
-	tests := map[string]struct {
-		originalPhase      v1.PodPhase
-		originalContainers []v1.ContainerStatus
-		phase              v1.PodPhase
-		containers         []v1.ContainerStatus
-		expected           bool
-	}{
-		"pending, not started":               {originalPhase: v1.PodPending, phase: v1.PodPending, expected: true},
-		"unknown, not started":               {originalPhase: v1.PodUnknown, phase: v1.PodUnknown, expected: true},
-		"moved between startup phases":       {originalPhase: v1.PodPending, phase: v1.PodUnknown, expected: true},
-		"left the startup phases":            {originalPhase: v1.PodPending, phase: v1.PodRunning, expected: false},
-		"pending, started since detection":   {originalPhase: v1.PodPending, phase: v1.PodPending, containers: started, expected: true},
-		"pending, started at detection":      {originalPhase: v1.PodPending, originalContainers: started, phase: v1.PodPending, containers: started, expected: true},
-		"unknown, started since detection":   {originalPhase: v1.PodPending, phase: v1.PodUnknown, containers: started, expected: false},
-		"unknown, started at detection":      {originalPhase: v1.PodPending, originalContainers: started, phase: v1.PodUnknown, containers: started, expected: false},
-		"unknown, started at detection only": {originalPhase: v1.PodPending, originalContainers: started, phase: v1.PodUnknown, expected: false},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			original := makeStuckStartingUpPod(tc.originalPhase, tc.originalContainers)
-			current := makeStuckStartingUpPod(tc.phase, tc.containers)
-			assert.Equal(t, tc.expected, canRetryStartupIssue(original, current))
+func TestPodIssueService_RetainsDetectedUnknownExecutionAcrossSnapshots(t *testing.T) {
+	for _, phase := range []v1.PodPhase{v1.PodUnknown, v1.PodPending} {
+		t.Run(string(phase), func(t *testing.T) {
+			podIssueService, fakeClusterContext, eventsReporter := setupStuckStartingUpTest(t, 6*time.Minute)
+			clusterContext := &asyncDeleteClusterContext{SyncFakeClusterContext: fakeClusterContext, acceptDeletes: true}
+			podIssueService.clusterContext = clusterContext
+			pod := makeStuckStartingUpPod(v1.PodUnknown, []v1.ContainerStatus{
+				{Name: "worker", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
+				{Name: "other-worker", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "ImagePullBackOff"}}},
+			})
+			addPod(t, fakeClusterContext, pod)
+			// Use production detection, then model a newer cache snapshot losing container status.
+			podIssueService.detectPodIssues(getActivePods(t, fakeClusterContext))
+			require.True(t, podIssueService.HasIssue(util.ExtractJobRunId(pod)))
+			current := pod.DeepCopy()
+			current.Status.Phase = phase
+			current.Status.ContainerStatuses = nil
+			addPod(t, fakeClusterContext, current)
+			podIssueService.HandlePodIssues()
+			assert.False(t, podIssueService.HasIssue(util.ExtractJobRunId(pod)))
+			assert.False(t, clusterContext.deleteAccepted)
+			assert.Len(t, getActivePods(t, fakeClusterContext), 1)
+			assert.Empty(t, eventsReporter.GetReceivedEvents())
 		})
 	}
 }
 
-func TestIsUnsafeToRetry_IgnoresInitContainerExecution(t *testing.T) {
+func TestPodIssueService_LeavesUnreportedUnknownExecutionBeforeDeletion(t *testing.T) {
+	podIssueService, fakeClusterContext, eventsReporter := setupStuckStartingUpTest(t, time.Minute)
+	pod := makeStuckStartingUpPod(v1.PodPending, []v1.ContainerStatus{
+		{Name: "main", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "InvalidImageName"}}},
+	})
+	addPod(t, fakeClusterContext, pod)
+	eventsReporter.ErrorOnReport = true
+	podIssueService.HandlePodIssues()
+	require.True(t, podIssueService.HasIssue(util.ExtractJobRunId(pod)))
+	require.Len(t, getActivePods(t, fakeClusterContext), 1)
+	eventsReporter.ErrorOnReport = false
+	pod.Status.Phase = v1.PodUnknown
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{{Name: "main", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}}}
+	addPod(t, fakeClusterContext, pod)
+	podIssueService.HandlePodIssues()
+	assert.False(t, podIssueService.HasIssue(util.ExtractJobRunId(pod)))
+	assert.Len(t, getActivePods(t, fakeClusterContext), 1)
+	assert.Empty(t, eventsReporter.GetReceivedEvents())
+}
+
+// Init container execution alone does not count as regular/application execution.
+func TestHasStartedUpSince_IgnoresInitContainerExecution(t *testing.T) {
 	pod := makeStuckStartingUpPod(v1.PodUnknown, nil)
 	pod.Status.InitContainerStatuses = []v1.ContainerStatus{
 		{Name: "native-sidecar", State: v1.ContainerState{Running: &v1.ContainerStateRunning{}}},
 		{Name: "init", State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{}}},
 	}
-	assert.False(t, isUnsafeToRetry(pod, pod))
+	assert.False(t, hasStartedUpSince(pod, pod))
 }
 
 // setupStuckStartingUpTest returns a pod issue handler using the configured pending pod checks,

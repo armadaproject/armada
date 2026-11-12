@@ -258,8 +258,8 @@ func GetPodContainerStatuses(pod *v1.Pod) []v1.ContainerStatus {
 // (e.g. ExtractFailedPodContainerStatuses). Armada has no notion of a single "main"
 // container, so in a multi-container pod a started sidecar will mask an app container
 // that never started. This affects whether diagnostic debug data is captured, and whether
-// the pod issue handler retries a startup issue for a pod whose node is unreachable - where
-// treating the pod as started is the safe direction.
+// the pod issue handler returns a startup lease for an Unknown pod. Observed regular-container
+// execution prevents that lease return even if another container never started.
 func HasAppContainerStarted(pod *v1.Pod) bool {
 	for _, container := range pod.Status.ContainerStatuses {
 		if container.State.Running != nil ||

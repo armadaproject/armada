@@ -77,5 +77,4 @@ const (
 	SubcategoryExternallyDeleted = "externally-deleted"  // pod deleted by something other than Armada
 	SubcategoryIssueHandlerError = "issue-handler-error" // pod unexpectedly changed state mid issue-handling
 	SubcategoryActiveDeadline    = "active-deadline"     // pod exceeded its user-set activeDeadlineSeconds
-	SubcategoryNodeUnreachable   = "node-unreachable"    // pod stuck starting up with an app container started on a node that is unreachable
 )

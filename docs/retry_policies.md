@@ -98,7 +98,7 @@ Category and subcategory matching is exact and case-sensitive, so the values her
 
 Rules can also match the category `internal`, which Armada sets itself, for example `internal` / `lease-expired`. Executor error categories cannot use the names `internal` and `preemption`. A rule for `preemption` has no effect, because Armada does not retry a preempted run.
 
-Be careful retrying `internal` / `node-unreachable`, `internal` / `stuck-terminating` or `internal` / `issue-handler-error`, or any of them through `defaultAction: Retry`. For these failures the executor couldn't confirm that the run's containers stopped, so a retry can run while the earlier run is still running.
+Be careful retrying `internal` / `stuck-terminating` or `internal` / `issue-handler-error`, or any of them through `defaultAction: Retry`. For these failures the executor couldn't confirm that the run's containers stopped, so a retry can run while the earlier run is still running.
 
 Matching on failure signals directly (exit codes, Kubernetes conditions, termination-message patterns) is planned for a later version. For now, express those by defining a category for them in the executor's categorizer config and matching the category here.
 
