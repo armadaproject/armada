@@ -1793,7 +1793,8 @@ func TestPodIssueService_LeavesUnknownExecutionBeforeDeletion(t *testing.T) {
 					reason = "InvalidImageName"
 					expectedAction = podchecks.ActionFail
 				}
-				pod := makeStuckStartingUpPod(v1.PodUnknown, []v1.ContainerStatus{container,
+				pod := makeStuckStartingUpPod(v1.PodUnknown, []v1.ContainerStatus{
+					container,
 					{Name: "other-worker", State: v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: reason}}},
 				})
 				pod.Spec.Containers = []v1.Container{{Name: "worker", Image: "worker"}, {Name: "other-worker", Image: "other-worker"}}
