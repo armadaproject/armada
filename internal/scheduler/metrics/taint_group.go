@@ -11,15 +11,15 @@ const (
 	taintCategoryUnspecified = ""
 	taintCategoryUser        = "user"
 	taintCategoryUnknown     = "unknown"
-	taintGroupTypeNone       = "none"
+	nodeCategoryNone         = "none"
 )
 
-// classifyTaintGroup classifies reported taint metadata for node metrics:
+// categorizeNodeByTaints classifies reported taint metadata for node metrics:
 //   - If any admin taints exist, it returns their keys sorted and joined by "|".
 //   - Otherwise, it returns "user" if any taint has the user category or is
 //     user-facing with no category.
 //   - Otherwise, it returns "none". Unknown taints are ignored.
-func classifyTaintGroup(taints []internaltypes.NodeTaint) string {
+func categorizeNodeByTaints(taints []internaltypes.NodeTaint) string {
 	hasUserTaints := false
 	var adminTaintKeys []string
 	for _, taint := range taints {
@@ -42,5 +42,5 @@ func classifyTaintGroup(taints []internaltypes.NodeTaint) string {
 		return taintCategoryUser
 	}
 
-	return taintGroupTypeNone
+	return nodeCategoryNone
 }

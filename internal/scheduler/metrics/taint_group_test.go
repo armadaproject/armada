@@ -19,7 +19,7 @@ import (
 	"github.com/armadaproject/armada/pkg/metricevents"
 )
 
-func TestClassifyTaintGroup(t *testing.T) {
+func TestCategorizeNodeByTaints(t *testing.T) {
 	taint := func(category string, userFacing bool) internaltypes.NodeTaint {
 		return internaltypes.NewNodeTaint(v1.Taint{Key: "example"}, category, userFacing)
 	}
@@ -73,21 +73,21 @@ func TestClassifyTaintGroup(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities).WithTaints(tc.rawTaints).WithNodeTaints(tc.taints)
-			assert.Equal(t, tc.want, classifyTaintGroup(node.GetNodeTaints()))
+			assert.Equal(t, tc.want, categorizeNodeByTaints(node.GetNodeTaints()))
 		})
 	}
 }
 
-func TestClassifyTaintGroup_AfterNodeBecomesUnschedulable(t *testing.T) {
+func TestCategorizeNodeByTaints_AfterNodeBecomesUnschedulable(t *testing.T) {
 	userTaint := internaltypes.NewNodeTaint(v1.Taint{Key: "example"}, "user", true)
 	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities).WithNodeTaints([]internaltypes.NodeTaint{userTaint})
-	assert.Equal(t, "user", classifyTaintGroup(node.GetNodeTaints()))
+	assert.Equal(t, "user", categorizeNodeByTaints(node.GetNodeTaints()))
 	unschedulableNode := node.WithSchedulable(false)
 	assert.True(t, unschedulableNode.IsUnschedulable())
-	assert.Equal(t, "user", classifyTaintGroup(unschedulableNode.GetNodeTaints()))
+	assert.Equal(t, "user", categorizeNodeByTaints(unschedulableNode.GetNodeTaints()))
 }
 
-func TestClassifyTaintGroup_LegacyWellKnownTaints(t *testing.T) {
+func TestCategorizeNodeByTaints_LegacyWellKnownTaints(t *testing.T) {
 	config := executorconfig.KubernetesConfiguration{
 		ToleratedTaints: []string{"example.com/dedicated"},
 		TaintCategorisation: executorconfig.TaintCategorisationConfiguration{
@@ -106,12 +106,12 @@ func TestClassifyTaintGroup_LegacyWellKnownTaints(t *testing.T) {
 			assert.Empty(t, match.Category)
 			assert.True(t, match.UserFacing)
 			taint := internaltypes.NewNodeTaint(v1.Taint{Key: key}, match.Category, match.UserFacing)
-			assert.Equal(t, "user", classifyTaintGroup([]internaltypes.NodeTaint{taint}))
+			assert.Equal(t, "user", categorizeNodeByTaints([]internaltypes.NodeTaint{taint}))
 		})
 	}
 }
 
-func TestReportSchedulerResult_ReportsTaintGroupType(t *testing.T) {
+func TestReportSchedulerResult_ReportsCategory(t *testing.T) {
 	config := testfixtures.TestSchedulingConfig()
 	nodeDb, err := nodedb.NewNodeDb(config.PriorityClasses, config.IndexedResources, config.IndexedTaints, config.IndexedNodeLabels, config.WellKnownNodeTypes, testfixtures.TestResourceListFactory)
 	require.NoError(t, err)
@@ -144,7 +144,7 @@ func TestReportSchedulerResult_ReportsTaintGroupType(t *testing.T) {
 			for _, label := range metric.GetLabel() {
 				labels[label.GetName()] = label.GetValue()
 			}
-			assert.Equal(t, "example.com/a|example.com/z", labels["taintGroupType"], family.GetName())
+			assert.Equal(t, "example.com/a|example.com/z", labels["category"], family.GetName())
 		}
 	}
 }
