@@ -264,6 +264,7 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 				),
 				nil,
 				tc.TotalSchedulingCapacity,
+				tc.SchedulingConfig.PriorityClasses,
 			)
 			for _, q := range tc.Queues {
 				weight := 1.0 / float64(q.PriorityFactor)
@@ -272,7 +273,7 @@ func TestOptimisingQueueScheduler_Schedule(t *testing.T) {
 					q.Name, weight, weight,
 					map[string]internaltypes.ResourceList{testfixtures.PriorityClass2: tc.InitialAllocatedByQueue[q.Name]},
 					unlimitedDemand,
-					unlimitedDemand,
+					demandAtDefaultPriorityClass(unlimitedDemand),
 					internaltypes.ResourceList{},
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),

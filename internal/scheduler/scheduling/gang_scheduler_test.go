@@ -631,6 +631,7 @@ func TestGangScheduler(t *testing.T) {
 				),
 				nil,
 				tc.TotalResources,
+				tc.SchedulingConfig.PriorityClasses,
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
 				err := sctx.AddQueueSchedulingContext(
@@ -639,7 +640,7 @@ func TestGangScheduler(t *testing.T) {
 					priorityFactor,
 					nil,
 					internaltypes.ResourceList{},
-					internaltypes.ResourceList{},
+					map[string]internaltypes.ResourceList{},
 					internaltypes.ResourceList{},
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
@@ -773,11 +774,12 @@ func TestGangScheduler_MarksPreemptedJobs(t *testing.T) {
 		rate.NewLimiter(rate.Limit(schedulingConfig.MaximumSchedulingRate), schedulingConfig.MaximumSchedulingBurst),
 		rate.NewLimiter(rate.Limit(1), 5),
 		totalResources,
+		schedulingConfig.PriorityClasses,
 	)
 	for _, queue := range []string{"A", "B"} {
 		require.NoError(t, sctx.AddQueueSchedulingContext(
 			queue, 1, 1, nil,
-			internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{},
+			internaltypes.ResourceList{}, map[string]internaltypes.ResourceList{}, internaltypes.ResourceList{},
 			rate.NewLimiter(rate.Limit(schedulingConfig.MaximumPerQueueSchedulingRate), schedulingConfig.MaximumPerQueueSchedulingBurst),
 		))
 	}
@@ -890,11 +892,12 @@ func TestGangScheduler_FairsharePreemption_PreemptsWholeGang(t *testing.T) {
 		// thing under test; we only assert how many tokens are consumed.
 		rate.NewLimiter(rate.Limit(1), 100),
 		totalResources,
+		schedulingConfig.PriorityClasses,
 	)
 	for _, queue := range []string{"A", "B"} {
 		require.NoError(t, sctx.AddQueueSchedulingContext(
 			queue, 1, 1, nil,
-			internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{},
+			internaltypes.ResourceList{}, map[string]internaltypes.ResourceList{}, internaltypes.ResourceList{},
 			rate.NewLimiter(rate.Limit(schedulingConfig.MaximumPerQueueSchedulingRate), schedulingConfig.MaximumPerQueueSchedulingBurst),
 		))
 	}

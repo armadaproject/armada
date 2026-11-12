@@ -2,6 +2,7 @@ package context
 
 import (
 	"fmt"
+	"maps"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/pointer"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -26,7 +28,7 @@ func TestNewSchedulingContextDefaultsPreemptionLimiterToUnset(t *testing.T) {
 	)
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 	require.NoError(t, err)
-	sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, nil, totalResources)
+	sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, nil, totalResources, testfixtures.TestPriorityClasses)
 
 	// A nil fairshare preemption limiter means no limit; the pool is never at the rate limit.
 	assert.Nil(t, sctx.FairsharePreemptionLimiter)
@@ -45,6 +47,7 @@ func TestSchedulingContextAccounting(t *testing.T) {
 		nil,
 		nil,
 		totalResources,
+		testfixtures.TestPriorityClasses,
 	)
 	priorityFactorByQueue := map[string]float64{"A": 1, "B": 1}
 	allocatedByQueueAndPriorityClass := map[string]map[string]internaltypes.ResourceList{
@@ -61,7 +64,7 @@ func TestSchedulingContextAccounting(t *testing.T) {
 			priorityFactor,
 			allocatedByQueueAndPriorityClass[queue],
 			internaltypes.ResourceList{},
-			internaltypes.ResourceList{},
+			demandAtDefaultPriorityClass(internaltypes.ResourceList{}),
 			internaltypes.ResourceList{},
 			nil,
 		)
@@ -93,6 +96,8 @@ func TestCalculateFairShares(t *testing.T) {
 	oneHundredCpu := cpu(100)
 	oneThousandCpu := cpu(1000)
 	tests := map[string]struct {
+		// testfixtures.TestDefaultPriorityClass is the default class. Additional classes can be added here.
+		additionalPriorityClasses              map[string]types.PriorityClass
 		availableResources                     internaltypes.ResourceList
 		queueCtxs                              map[string]*QueueSchedulingContext
 		expectedFairShares                     map[string]float64
@@ -102,7 +107,7 @@ func TestCalculateFairShares(t *testing.T) {
 		"one queue, demand exceeds capacity": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneThousandCpu},
+				"queueA": {Weight: 1.0, Demand: oneThousandCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneThousandCpu)},
 			},
 			expectedFairShares:                     map[string]float64{"queueA": 1.0},
 			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 1.0},
@@ -111,7 +116,7 @@ func TestCalculateFairShares(t *testing.T) {
 		"one queue, demand less than capacity": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneCpu},
+				"queueA": {Weight: 1.0, Demand: oneCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneCpu)},
 			},
 			expectedFairShares:                     map[string]float64{"queueA": 1.0},
 			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 0.01},
@@ -120,8 +125,8 @@ func TestCalculateFairShares(t *testing.T) {
 		"two queues, equal weights, demand exceeds capacity": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneThousandCpu},
-				"queueB": {Weight: 1.0, Demand: oneThousandCpu},
+				"queueA": {Weight: 1.0, Demand: oneThousandCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneThousandCpu)},
+				"queueB": {Weight: 1.0, Demand: oneThousandCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneThousandCpu)},
 			},
 			expectedFairShares:                     map[string]float64{"queueA": 0.5, "queueB": 0.5},
 			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 0.5, "queueB": 0.5},
@@ -130,8 +135,8 @@ func TestCalculateFairShares(t *testing.T) {
 		"two queues, equal weights, demand less than capacity for both queues": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneCpu},
-				"queueB": {Weight: 1.0, Demand: oneCpu},
+				"queueA": {Weight: 1.0, Demand: oneCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneCpu)},
+				"queueB": {Weight: 1.0, Demand: oneCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneCpu)},
 			},
 			expectedFairShares:                     map[string]float64{"queueA": 0.5, "queueB": 0.5},
 			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 0.01, "queueB": 0.01},
@@ -140,18 +145,96 @@ func TestCalculateFairShares(t *testing.T) {
 		"two queues, equal weights, demand less than capacity for one queue": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneCpu},
-				"queueB": {Weight: 1.0, Demand: oneThousandCpu},
+				"queueA": {Weight: 1.0, Demand: oneCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneCpu)},
+				"queueB": {Weight: 1.0, Demand: oneThousandCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneThousandCpu)},
 			},
 			expectedFairShares:                     map[string]float64{"queueA": 0.5, "queueB": 0.5},
 			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 0.01, "queueB": 0.99},
 			expectedUncappedAdjustedFairShares:     map[string]float64{"queueA": 0.5, "queueB": 0.99},
 		},
+		"two queues, equal weights, demand at different priority classes": {
+			additionalPriorityClasses: map[string]types.PriorityClass{
+				testfixtures.PriorityClass6Preemptible: testfixtures.TestPriorityClasses[testfixtures.PriorityClass6Preemptible],
+			},
+			availableResources: oneHundredCpu,
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Weight: 1.0, Demand: oneHundredCpu, ConstrainedDemandByPriorityClass: demandAtCustomPriorityClass(oneHundredCpu, testfixtures.PriorityClass6Preemptible)},
+				"queueB": {Weight: 1.0, Demand: oneHundredCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneHundredCpu)},
+			},
+			expectedFairShares:                     map[string]float64{"queueA": 0.5, "queueB": 0.5},
+			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 1.0, "queueB": 0.0},
+			expectedUncappedAdjustedFairShares:     map[string]float64{"queueA": 1.0, "queueB": 0.5},
+		},
+		"two queues, equal weights, demand at different priority classes 2": {
+			additionalPriorityClasses: map[string]types.PriorityClass{
+				testfixtures.PriorityClass6Preemptible: testfixtures.TestPriorityClasses[testfixtures.PriorityClass6Preemptible],
+			},
+			availableResources: oneHundredCpu,
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Weight: 1.0, Demand: oneCpu, ConstrainedDemandByPriorityClass: demandAtCustomPriorityClass(oneCpu, testfixtures.PriorityClass6Preemptible)},
+				"queueB": {Weight: 1.0, Demand: oneHundredCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneHundredCpu)},
+			},
+			expectedFairShares:                     map[string]float64{"queueA": 0.5, "queueB": 0.5},
+			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 0.01, "queueB": 0.99},
+			expectedUncappedAdjustedFairShares:     map[string]float64{"queueA": 1.0, "queueB": 0.99},
+		},
+		"two queues, equal weights, competing demand at high priority class": {
+			additionalPriorityClasses: map[string]types.PriorityClass{
+				testfixtures.PriorityClass6Preemptible: testfixtures.TestPriorityClasses[testfixtures.PriorityClass6Preemptible],
+			},
+			availableResources: oneHundredCpu,
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Weight: 1.0, Demand: oneHundredCpu, ConstrainedDemandByPriorityClass: demandAtCustomPriorityClass(oneHundredCpu, testfixtures.PriorityClass6Preemptible)},
+				"queueB": {Weight: 1.0, Demand: oneHundredCpu, ConstrainedDemandByPriorityClass: demandAtCustomPriorityClass(oneHundredCpu, testfixtures.PriorityClass6Preemptible)},
+			},
+			expectedFairShares:                     map[string]float64{"queueA": 0.5, "queueB": 0.5},
+			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 0.5, "queueB": 0.5},
+			expectedUncappedAdjustedFairShares:     map[string]float64{"queueA": 0.5, "queueB": 0.5},
+		},
+		"two queues, equal weights, competing demand at low priority class": {
+			additionalPriorityClasses: map[string]types.PriorityClass{
+				testfixtures.PriorityClass6Preemptible: testfixtures.TestPriorityClasses[testfixtures.PriorityClass6Preemptible],
+			},
+			availableResources: oneHundredCpu,
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Weight: 1.0, Demand: oneHundredCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneHundredCpu)},
+				"queueB": {Weight: 1.0, Demand: oneHundredCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneHundredCpu)},
+			},
+			expectedFairShares:                     map[string]float64{"queueA": 0.5, "queueB": 0.5},
+			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 0.5, "queueB": 0.5},
+			expectedUncappedAdjustedFairShares:     map[string]float64{"queueA": 1.0, "queueB": 1.0},
+		},
+		"two queues, non-equal weights, demand at different priority classes. Priority class priority supersedes queue weight": {
+			additionalPriorityClasses: map[string]types.PriorityClass{
+				testfixtures.PriorityClass6Preemptible: testfixtures.TestPriorityClasses[testfixtures.PriorityClass6Preemptible],
+			},
+			availableResources: oneHundredCpu,
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Weight: 1.0, Demand: oneHundredCpu, ConstrainedDemandByPriorityClass: demandAtCustomPriorityClass(oneHundredCpu, testfixtures.PriorityClass6Preemptible)},
+				"queueB": {Weight: 3.0, Demand: oneHundredCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneHundredCpu)},
+			},
+			expectedFairShares:                     map[string]float64{"queueA": 0.25, "queueB": 0.75},
+			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 1.0, "queueB": 0.0},
+			expectedUncappedAdjustedFairShares:     map[string]float64{"queueA": 1.0, "queueB": 0.75},
+		},
+		"two queues, non-equal weights, competing demand at high priority class": {
+			additionalPriorityClasses: map[string]types.PriorityClass{
+				testfixtures.PriorityClass6Preemptible: testfixtures.TestPriorityClasses[testfixtures.PriorityClass6Preemptible],
+			},
+			availableResources: oneHundredCpu,
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Weight: 1.0, Demand: oneHundredCpu, ConstrainedDemandByPriorityClass: demandAtCustomPriorityClass(oneHundredCpu, testfixtures.PriorityClass6Preemptible)},
+				"queueB": {Weight: 3.0, Demand: oneHundredCpu, ConstrainedDemandByPriorityClass: demandAtCustomPriorityClass(oneHundredCpu, testfixtures.PriorityClass6Preemptible)},
+			},
+			expectedFairShares:                     map[string]float64{"queueA": 0.25, "queueB": 0.75},
+			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 0.25, "queueB": 0.75},
+			expectedUncappedAdjustedFairShares:     map[string]float64{"queueA": 0.25, "queueB": 0.75},
+		},
 		"two queues, non equal weights, demand exceeds capacity for both queues": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneThousandCpu},
-				"queueB": {Weight: 3.0, Demand: oneThousandCpu},
+				"queueA": {Weight: 1.0, Demand: oneThousandCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneThousandCpu)},
+				"queueB": {Weight: 3.0, Demand: oneThousandCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneThousandCpu)},
 			},
 			expectedFairShares:                     map[string]float64{"queueA": 0.25, "queueB": 0.75},
 			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 0.25, "queueB": 0.75},
@@ -160,8 +243,8 @@ func TestCalculateFairShares(t *testing.T) {
 		"two queues, non equal weights, demand exceeds capacity for higher priority queue only": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneCpu},
-				"queueB": {Weight: 3.0, Demand: oneThousandCpu},
+				"queueA": {Weight: 1.0, Demand: oneCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneCpu)},
+				"queueB": {Weight: 3.0, Demand: oneThousandCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneThousandCpu)},
 			},
 			expectedFairShares:                     map[string]float64{"queueA": 0.25, "queueB": 0.75},
 			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 0.01, "queueB": 0.99},
@@ -170,8 +253,8 @@ func TestCalculateFairShares(t *testing.T) {
 		"two queues, non equal weights, demand exceeds capacity for lower priority queue only": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneThousandCpu},
-				"queueB": {Weight: 3.0, Demand: oneCpu},
+				"queueA": {Weight: 1.0, Demand: oneThousandCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneThousandCpu)},
+				"queueB": {Weight: 3.0, Demand: oneCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneCpu)},
 			},
 			expectedFairShares:                     map[string]float64{"queueA": 0.25, "queueB": 0.75},
 			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 0.99, "queueB": 0.01},
@@ -180,20 +263,48 @@ func TestCalculateFairShares(t *testing.T) {
 		"three queues, equal weights. Adjusted fair share requires multiple iterations": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneCpu},
-				"queueB": {Weight: 1.0, Demand: fortyCpu},
-				"queueC": {Weight: 1.0, Demand: oneThousandCpu},
+				"queueA": {Weight: 1.0, Demand: oneCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneCpu)},
+				"queueB": {Weight: 1.0, Demand: fortyCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(fortyCpu)},
+				"queueC": {Weight: 1.0, Demand: oneThousandCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneThousandCpu)},
 			},
 			expectedFairShares:                     map[string]float64{"queueA": 1.0 / 3, "queueB": 1.0 / 3, "queueC": 1.0 / 3},
 			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 0.01, "queueB": 0.4, "queueC": 0.59},
 			expectedUncappedAdjustedFairShares:     map[string]float64{"queueA": 0.3808333333333333, "queueB": 0.495, "queueC": 0.59},
 		},
+		"three queues, non-equal weights, competing demand at different priority classes": {
+			additionalPriorityClasses: map[string]types.PriorityClass{
+				testfixtures.PriorityClass6Preemptible: testfixtures.TestPriorityClasses[testfixtures.PriorityClass6Preemptible],
+			},
+			availableResources: oneHundredCpu,
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Weight: 2.0, Demand: oneHundredCpu, ConstrainedDemandByPriorityClass: demandAtCustomPriorityClass(oneHundredCpu, testfixtures.PriorityClass6Preemptible)},
+				"queueB": {Weight: 2.0, Demand: oneHundredCpu, ConstrainedDemandByPriorityClass: demandAtCustomPriorityClass(oneHundredCpu, testfixtures.PriorityClass6Preemptible)},
+				"queueC": {Weight: 1.0, Demand: oneHundredCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneHundredCpu)},
+			},
+			expectedFairShares:                     map[string]float64{"queueA": 0.4, "queueB": 0.4, "queueC": 0.2},
+			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 0.5, "queueB": 0.5, "queueC": 0.0},
+			expectedUncappedAdjustedFairShares:     map[string]float64{"queueA": 0.5, "queueB": 0.5, "queueC": 0.2},
+		},
+		"three queues, equal weights, competing demand at highest priority level. Multiple redistribution passes/iterations.": {
+			additionalPriorityClasses: map[string]types.PriorityClass{
+				testfixtures.PriorityClass6Preemptible: testfixtures.TestPriorityClasses[testfixtures.PriorityClass6Preemptible],
+			},
+			availableResources: cpu(96),
+			queueCtxs: map[string]*QueueSchedulingContext{
+				"queueA": {Weight: 1.0, Demand: cpu(12), ConstrainedDemandByPriorityClass: demandAtCustomPriorityClass(cpu(12), testfixtures.PriorityClass6Preemptible)},
+				"queueB": {Weight: 1.0, Demand: cpu(36), ConstrainedDemandByPriorityClass: demandAtCustomPriorityClass(cpu(36), testfixtures.PriorityClass6Preemptible)},
+				"queueC": {Weight: 1.0, Demand: cpu(96), ConstrainedDemandByPriorityClass: demandAtCustomPriorityClass(cpu(96), testfixtures.PriorityClass6Preemptible)},
+			},
+			expectedFairShares:                     map[string]float64{"queueA": 32.0 / 96, "queueB": 32.0 / 96, "queueC": 32.0 / 96},
+			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 12.0 / 96, "queueB": 36.0 / 96, "queueC": 48.0 / 96},
+			expectedUncappedAdjustedFairShares:     map[string]float64{"queueA": 35.0 / 96, "queueB": 42.0 / 96, "queueC": 48.0 / 96},
+		},
 		"No demand": {
 			availableResources: oneHundredCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: zeroCpu},
-				"queueB": {Weight: 1.0, Demand: zeroCpu},
-				"queueC": {Weight: 1.0, Demand: zeroCpu},
+				"queueA": {Weight: 1.0, Demand: zeroCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(zeroCpu)},
+				"queueB": {Weight: 1.0, Demand: zeroCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(zeroCpu)},
+				"queueC": {Weight: 1.0, Demand: zeroCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(zeroCpu)},
 			},
 			expectedFairShares:                     map[string]float64{"queueA": 1.0 / 3, "queueB": 1.0 / 3, "queueC": 1.0 / 3},
 			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 0.0, "queueB": 0.0, "queueC": 0.0},
@@ -202,9 +313,9 @@ func TestCalculateFairShares(t *testing.T) {
 		"No capacity": {
 			availableResources: zeroCpu,
 			queueCtxs: map[string]*QueueSchedulingContext{
-				"queueA": {Weight: 1.0, Demand: oneCpu},
-				"queueB": {Weight: 1.0, Demand: oneCpu},
-				"queueC": {Weight: 1.0, Demand: oneCpu},
+				"queueA": {Weight: 1.0, Demand: oneCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneCpu)},
+				"queueB": {Weight: 1.0, Demand: oneCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneCpu)},
+				"queueC": {Weight: 1.0, Demand: oneCpu, ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(oneCpu)},
 			},
 			expectedFairShares:                     map[string]float64{"queueA": 1.0 / 3, "queueB": 1.0 / 3, "queueC": 1.0 / 3},
 			expectedDemandCappedAdjustedFairShares: map[string]float64{"queueA": 1.0 / 3, "queueB": 1.0 / 3, "queueC": 1.0 / 3},
@@ -215,16 +326,24 @@ func TestCalculateFairShares(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 			require.NoError(t, err)
+
+			allPriorityClasses := map[string]types.PriorityClass{
+				testfixtures.TestDefaultPriorityClass: testfixtures.TestPriorityClasses[testfixtures.TestDefaultPriorityClass],
+			}
+			if tc.additionalPriorityClasses != nil {
+				maps.Copy(allPriorityClasses, tc.additionalPriorityClasses)
+			}
 			sctx := NewSchedulingContext(
 				"pool",
 				fairnessCostProvider,
 				nil,
 				nil,
 				tc.availableResources,
+				allPriorityClasses,
 			)
 			for qName, q := range tc.queueCtxs {
 				err = sctx.AddQueueSchedulingContext(
-					qName, q.Weight, q.Weight, map[string]internaltypes.ResourceList{}, q.Demand, q.Demand, internaltypes.ResourceList{}, nil)
+					qName, q.Weight, q.Weight, map[string]internaltypes.ResourceList{}, q.Demand, q.ConstrainedDemandByPriorityClass, internaltypes.ResourceList{}, nil)
 				require.NoError(t, err)
 			}
 			sctx.UpdateFairShares()
@@ -314,6 +433,9 @@ func TestCalculateTheoreticalShare(t *testing.T) {
 				nil,
 				nil,
 				tc.availableResources,
+				map[string]types.PriorityClass{
+					testfixtures.TestDefaultPriorityClass: testfixtures.TestPriorityClasses[testfixtures.TestDefaultPriorityClass],
+				},
 			)
 			for qName, q := range tc.queueCtxs {
 				err = sctx.AddQueueSchedulingContext(
@@ -322,7 +444,7 @@ func TestCalculateTheoreticalShare(t *testing.T) {
 					q.Weight,
 					map[string]internaltypes.ResourceList{},
 					q.Demand,
-					q.Demand,
+					demandAtDefaultPriorityClass(q.Demand),
 					q.ShortJobPenalty,
 					nil,
 				)
@@ -372,7 +494,7 @@ func TestRecordNewJobSchedulingDuration(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(cpu(100), "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 			require.NoError(t, err)
-			sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, nil, cpu(100))
+			sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, nil, cpu(100), testfixtures.TestPriorityClasses)
 			if tc.initialTotalSchedulingDuration > 0 {
 				sctx.TotalNewJobSchedulingTime = tc.initialTotalSchedulingDuration
 			}
@@ -394,7 +516,7 @@ func TestRecordNewJobSchedulingDuration(t *testing.T) {
 }
 
 func TestMarkJobPreempted(t *testing.T) {
-	sctx := NewSchedulingContext("pool", nil, nil, nil, cpu(100))
+	sctx := NewSchedulingContext("pool", nil, nil, nil, cpu(100), testfixtures.TestPriorityClasses)
 
 	// Unknown jobs are not preempted.
 	assert.False(t, sctx.IsJobPreempted("job-1"))
@@ -412,7 +534,7 @@ func TestMarkJobPreempted(t *testing.T) {
 }
 
 func TestMarkJobPreempted_ConsumesPreemptionLimiterTokens(t *testing.T) {
-	sctx := NewSchedulingContext("pool", nil, nil, nil, cpu(100))
+	sctx := NewSchedulingContext("pool", nil, nil, nil, cpu(100), testfixtures.TestPriorityClasses)
 	sctx.FairsharePreemptionLimiter = rate.NewLimiter(rate.Limit(1), 5)
 	before := sctx.FairsharePreemptionLimiter.TokensAt(sctx.Started)
 
@@ -427,7 +549,7 @@ func TestMarkJobPreempted_ConsumesPreemptionLimiterTokens(t *testing.T) {
 }
 
 func TestMarkJobPreempted_PreemptionLimiterMayGoNegative(t *testing.T) {
-	sctx := NewSchedulingContext("pool", nil, nil, nil, cpu(100))
+	sctx := NewSchedulingContext("pool", nil, nil, nil, cpu(100), testfixtures.TestPriorityClasses)
 	// Budget of 1 token, but preempt 3 jobs: the bucket is allowed to go negative (retrospective limit).
 	sctx.FairsharePreemptionLimiter = rate.NewLimiter(rate.Limit(1), 1)
 
@@ -519,7 +641,7 @@ func TestCalculateFairnessError(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(tc.availableResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 			require.NoError(t, err)
-			sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, nil, tc.availableResources)
+			sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, nil, tc.availableResources, testfixtures.TestPriorityClasses)
 			sctx.QueueSchedulingContexts = tc.queueCtxs
 			assert.InDelta(t, tc.expected, sctx.FairnessError(), 0.00001)
 		})
@@ -739,7 +861,7 @@ func createSchedulingContext(t *testing.T, jctx *JobSchedulingContext, isJobExis
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 		totalResources, "pool", configuration.SchedulingConfig{DominantResourceFairnessResourcesToConsider: []string{"cpu"}})
 	require.NoError(t, err)
-	sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, nil, totalResources)
+	sctx := NewSchedulingContext("pool", fairnessCostProvider, nil, nil, totalResources, testfixtures.TestPriorityClasses)
 
 	var initialAllocation map[string]internaltypes.ResourceList
 	demand := jctx.Job.AllResourceRequirements()
@@ -747,7 +869,7 @@ func createSchedulingContext(t *testing.T, jctx *JobSchedulingContext, isJobExis
 		rl := jctx.Job.AllResourceRequirements()
 		initialAllocation = map[string]internaltypes.ResourceList{jctx.Job.PriorityClassName(): rl}
 	}
-	err = sctx.AddQueueSchedulingContext(jctx.Job.Queue(), 1.0, 1.0, initialAllocation, demand, demand, internaltypes.ResourceList{}, nil)
+	err = sctx.AddQueueSchedulingContext(jctx.Job.Queue(), 1.0, 1.0, initialAllocation, demand, demandAtDefaultPriorityClass(demand), internaltypes.ResourceList{}, nil)
 	require.NoError(t, err)
 	return sctx
 }
@@ -774,4 +896,16 @@ func cpu(n int) internaltypes.ResourceList {
 	return testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
 		map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
 	)
+}
+
+func demandAtDefaultPriorityClass(demand internaltypes.ResourceList) map[string]internaltypes.ResourceList {
+	return map[string]internaltypes.ResourceList{
+		testfixtures.TestDefaultPriorityClass: demand,
+	}
+}
+
+func demandAtCustomPriorityClass(demand internaltypes.ResourceList, priorityClass string) map[string]internaltypes.ResourceList {
+	return map[string]internaltypes.ResourceList{
+		priorityClass: demand,
+	}
 }
