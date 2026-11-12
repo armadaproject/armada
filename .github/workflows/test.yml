@@ -64,6 +64,30 @@ jobs:
           path: test-reports/
           if-no-files-found: error
 
+  executor-service-race-tests:
+    name: Executor Service Race Tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      CGO_ENABLED: "1"
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: executor-service-race-tests
+
+      - name: Race Tests
+        run: |
+          git rev-parse HEAD
+          go version
+          go test -race -count=20 -timeout=15m ./internal/executor/service/
+
   go-integration-tests:
     name: Golang Integration Tests
     needs:
