@@ -521,6 +521,7 @@ func TestQueueScheduler(t *testing.T) {
 				),
 				nil,
 				totalResources,
+				tc.SchedulingConfig.PriorityClasses,
 			)
 			for _, q := range tc.Queues {
 				demand := testfixtures.TestResourceListFactory.MakeAllZero()
@@ -534,7 +535,7 @@ func TestQueueScheduler(t *testing.T) {
 					q.Name, weight, weight,
 					tc.InitialAllocatedByQueueAndPriorityClass[q.Name],
 					demand,
-					demand,
+					demandAtDefaultPriorityClass(demand),
 					internaltypes.ResourceList{},
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
@@ -725,11 +726,12 @@ func newQueueSchedulerSctx(t *testing.T, config configuration.SchedulingConfig, 
 		rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		nil,
 		totalResources,
+		config.PriorityClasses,
 	)
 	for _, q := range queues {
 		require.NoError(t, sctx.AddQueueSchedulingContext(
 			q, 1, 1, nil,
-			internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{},
+			internaltypes.ResourceList{}, map[string]internaltypes.ResourceList{}, internaltypes.ResourceList{},
 			rate.NewLimiter(rate.Limit(config.MaximumPerQueueSchedulingRate), config.MaximumPerQueueSchedulingBurst),
 		))
 	}
@@ -1193,6 +1195,7 @@ func setupTimeoutTest(t *testing.T, queues []*api.Queue, jobsByQueue map[string]
 		rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		nil,
 		totalResources,
+		config.PriorityClasses,
 	)
 
 	for _, queue := range queues {
@@ -1203,7 +1206,7 @@ func setupTimeoutTest(t *testing.T, queues []*api.Queue, jobsByQueue map[string]
 		}
 		err = sctx.AddQueueSchedulingContext(
 			queue.Name, queue.PriorityFactor, queue.PriorityFactor,
-			nil, demand, demand, internaltypes.ResourceList{},
+			nil, demand, demandAtDefaultPriorityClass(demand), internaltypes.ResourceList{},
 			rate.NewLimiter(rate.Limit(config.MaximumPerQueueSchedulingRate), config.MaximumPerQueueSchedulingBurst),
 		)
 		require.NoError(t, err)
@@ -1292,7 +1295,7 @@ func TestQueuedGangIterator(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+			sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero(), testfixtures.TestPriorityClasses)
 			it := NewQueuedGangIterator(sctx, NewInMemoryJobIterator(tc.jctxs), tc.maxLookback, false)
 			if tc.onlyYieldEvicted {
 				it.OnlyYieldEvicted()
@@ -1327,7 +1330,7 @@ func TestQueuedGangIterator_OnlyYieldEvicted_TopItemEvicted(t *testing.T) {
 		createJctx(true),
 	}
 
-	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero(), testfixtures.TestPriorityClasses)
 	it := NewQueuedGangIterator(sctx, NewInMemoryJobIterator(jctxs), 1, false)
 
 	gctx, err := it.Peek()
@@ -1351,7 +1354,7 @@ func TestQueuedGangIterator_OnlyYieldEvicted_TopItemNonEvicted(t *testing.T) {
 		createJctx(true),
 	}
 
-	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero(), testfixtures.TestPriorityClasses)
 	it := NewQueuedGangIterator(sctx, NewInMemoryJobIterator(jctxs), 1, false)
 
 	gctx, err := it.Peek()
@@ -1380,7 +1383,7 @@ func TestQueuedGangIterator_ResumeNonEvicted(t *testing.T) {
 
 	combined := NewMultiJobsIterator(evictedIt, newIt)
 
-	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero(), testfixtures.TestPriorityClasses)
 	it := NewQueuedGangIterator(sctx, combined, 0, false)
 
 	// Peek gives evicted job prior to only yield evicted
@@ -1417,7 +1420,7 @@ func TestQueuedGangIterator_ResumeNonEvicted_NoEvicted(t *testing.T) {
 
 	combined := NewMultiJobsIterator(evictedIt, newIt)
 
-	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero(), testfixtures.TestPriorityClasses)
 	it := NewQueuedGangIterator(sctx, combined, 0, false)
 
 	// Peek gives new job prior to only yield evicted
@@ -1455,7 +1458,7 @@ func createGangJctx(gangId string, cardinality int) *context.JobSchedulingContex
 }
 
 func TestGangContainsPreemptedJob(t *testing.T) {
-	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero())
+	sctx := context.NewSchedulingContext("pool", nil, nil, nil, testfixtures.TestResourceListFactory.MakeAllZero(), testfixtures.TestPriorityClasses)
 
 	gangJob1 := createGangJctx("gang-1", 2)
 	gangJob2 := createGangJctx("gang-1", 2)
@@ -1598,5 +1601,11 @@ func TestQueueSchedulerTimeouts(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func demandAtDefaultPriorityClass(demand internaltypes.ResourceList) map[string]internaltypes.ResourceList {
+	return map[string]internaltypes.ResourceList{
+		testfixtures.TestDefaultPriorityClass: demand,
 	}
 }
