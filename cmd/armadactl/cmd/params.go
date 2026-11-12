@@ -42,6 +42,7 @@ func initParams(cmd *cobra.Command, params *armadactl.Params) error {
 	params.RetryPolicyAPI.Update = crp.Update(client.ExtractCommandlineArmadaApiConnectionDetails)
 
 	params.JobAPI.Get = cj.Get(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.JobAPI.List = cj.List(client.ExtractCommandlineArmadaApiConnectionDetails)
 
 	params.ExecutorAPI.Cordon = ce.CordonExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.ExecutorAPI.Uncordon = ce.UncordonExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)
