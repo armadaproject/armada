@@ -373,6 +373,10 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 
 			if action != podchecks.ActionWait {
 				retryable := action == podchecks.ActionRetry
+				unsafeToRetry := retryable && isUnsafeToRetry(pod, pod)
+				if unsafeToRetry {
+					retryable = false
+				}
 				message := createStuckPodMessage(retryable, podCheckMessage)
 				debugMessage := p.debugRenderer.Render(pod, podEvents, reporter.TriggerPodFailed)
 				podIssueType := StuckStartingUp
@@ -389,6 +393,10 @@ func (p *PodIssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 					Retryable:        retryable,
 					Type:             podIssueType,
 				}, podEvents)
+				if unsafeToRetry {
+					// Appended after classification, so the categorizer only sees the pod checks' message
+					issue.Message += "\nNot retrying as an app container has started on a node that is unreachable"
+				}
 				p.attemptToRegisterIssue(&runIssue{
 					JobId:    util.ExtractJobId(pod),
 					RunId:    util.ExtractJobRunId(pod),
@@ -711,18 +719,23 @@ func (p *PodIssueHandler) reportDeleteActionFailure(issue *issue, category strin
 // For retryable issues we must:
 //   - Report JobReturnLeaseEvent, carrying the pod error classification when a rule matches
 //
-// If the pod starts up in the middle of being deleted - swap this issue to a nonRetryableIssue where it will be Failed
+// If the pod starts up in the middle of being deleted, or its node becomes unreachable with an app container started,
+// swap this issue to a nonRetryableIssue where it will be Failed
 func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 	log.Infof("Handling retryable issue for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 	if issue.CurrentPodState != nil {
 		originalPodState := issue.RunIssue.PodIssue.OriginalPodState
-		if isStartupPhase(originalPodState) && hasStartedUpSince(originalPodState, issue.CurrentPodState) {
+		if isStartupPhase(originalPodState) && !canRetryStartupIssue(originalPodState, issue.CurrentPodState) {
 			p.markIssuesResolved(issue.RunIssue)
 			if issue.RunIssue.PodIssue.DeletionRequested {
+				reason := "Pod unexpectedly started up after delete was called."
+				if isStartupPhase(issue.CurrentPodState) {
+					reason = "Pod's node became unreachable after delete was called, with an app container started."
+				}
 				handlingError := p.newPodIssue(podIssue{
 					OriginalPodState: issue.RunIssue.PodIssue.OriginalPodState,
-					Message: fmt.Sprintf("Pod unexpectedly started up after delete was called.\n\nDelete was originally called to handle issue:\n%s",
-						issue.RunIssue.PodIssue.Message),
+					Message: fmt.Sprintf("%s\n\nDelete was originally called to handle issue:\n%s",
+						reason, issue.RunIssue.PodIssue.Message),
 					Retryable:         false,
 					DeletionRequested: false,
 					Type:              ErrorDuringIssueHandling,
@@ -739,7 +752,7 @@ func (p *PodIssueHandler) handleRetryableJobIssue(issue *issue) {
 
 		err := p.clusterContext.DeletePodWithCondition(issue.CurrentPodState, func(pod *v1.Pod) bool {
 			if isStartupPhase(originalPodState) {
-				return !hasStartedUpSince(originalPodState, pod)
+				return canRetryStartupIssue(originalPodState, pod)
 			}
 			return pod.Status.Phase == originalPodState.Status.Phase
 		}, true)
@@ -795,7 +808,7 @@ func hasPodIssueSelfResolved(issue *issue) bool {
 		}
 
 		// Pod has started up and we haven't tried to delete the pod yet - so resolve the issue
-		if hasStartedUpSince(issue.RunIssue.PodIssue.OriginalPodState, issue.CurrentPodState) && !issue.RunIssue.PodIssue.DeletionRequested {
+		if !isStartupPhase(issue.CurrentPodState) && !issue.RunIssue.PodIssue.DeletionRequested {
 			return true
 		}
 	}
@@ -809,18 +822,17 @@ func isStartupPhase(pod *v1.Pod) bool {
 	return pod.Status.Phase == v1.PodPending || pod.Status.Phase == v1.PodUnknown
 }
 
-// hasStartedUpSince returns true if a startup issue has evidence of app execution. Unknown
-// does not establish that execution never began: any started app container counts, including
-// one already started at detection. Regular containers cannot be distinguished as sidecars.
-func hasStartedUpSince(originalPod *v1.Pod, pod *v1.Pod) bool {
-	if !isStartupPhase(pod) {
-		return true
-	}
-	if originalPod.Status.Phase == v1.PodUnknown && util.HasAppContainerStarted(originalPod) {
-		return true
-	}
-	return pod.Status.Phase == v1.PodUnknown &&
-		(util.HasAppContainerStarted(originalPod) || util.HasAppContainerStarted(pod))
+// isUnsafeToRetry returns true if the pod is Unknown and an app container has started, now or at detection. The
+// node is unreachable, so deleting the pod may not stop that container and a retry could run alongside it. A Pending
+// pod's node is reachable, so deleting it stops its containers before the lease is returned.
+func isUnsafeToRetry(originalPod *v1.Pod, pod *v1.Pod) bool {
+	return pod.Status.Phase == v1.PodUnknown && (util.HasAppContainerStarted(originalPod) || util.HasAppContainerStarted(pod))
+}
+
+// canRetryStartupIssue returns true if a retryable startup issue can still be handled by deleting the pod and
+// returning its lease - i.e. the pod is still starting up and it is safe to retry.
+func canRetryStartupIssue(originalPod *v1.Pod, pod *v1.Pod) bool {
+	return isStartupPhase(pod) && !isUnsafeToRetry(originalPod, pod)
 }
 
 func createStuckPodMessage(retryable bool, originalMessage string) string {

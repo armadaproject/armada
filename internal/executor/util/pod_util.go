@@ -256,23 +256,20 @@ func GetPodContainerStatuses(pod *v1.Pod) []v1.ContainerStatus {
 //
 // Note: this checks ALL app containers, matching the aggregate semantics used elsewhere
 // (e.g. ExtractFailedPodContainerStatuses). Armada has no notion of a single "main"
-// container, so in a multi-container pod any started regular container counts.
+// container, so in a multi-container pod a started sidecar will mask an app container
+// that never started. This affects whether diagnostic debug data is captured, and whether
+// the pod issue handler retries a startup issue for a pod whose node is unreachable - where
+// treating the pod as started is the safe direction.
 func HasAppContainerStarted(pod *v1.Pod) bool {
 	for _, container := range pod.Status.ContainerStatuses {
-		if HasContainerStarted(container) {
+		if container.State.Running != nil ||
+			container.State.Terminated != nil ||
+			container.LastTerminationState.Running != nil ||
+			container.LastTerminationState.Terminated != nil {
 			return true
 		}
 	}
 	return false
-}
-
-// HasContainerStarted returns true if the container has started - i.e. reached a Running or
-// Terminated state, now or previously.
-func HasContainerStarted(container v1.ContainerStatus) bool {
-	return container.State.Running != nil ||
-		container.State.Terminated != nil ||
-		container.LastTerminationState.Running != nil ||
-		container.LastTerminationState.Terminated != nil
 }
 
 // LongestAppContainerRunDuration returns how long the pod's longest-running app container ran for, or
