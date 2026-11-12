@@ -73,7 +73,34 @@ type runIssue struct {
 
 type IssueHandler interface {
 	HasIssue(runId string) bool
-	DetectAndRegisterIssuesForFailedPod(pod *v1.Pod) (bool, error)
+	DetectAndRegisterIssuesForFailedPod(pod *v1.Pod) (*FailedPodReportClaim, error)
+	ReleaseFailedPodReport(claim *FailedPodReportClaim, sent bool)
+}
+
+// FailedPodReportClaim is the job state reporter's claim on reporting a failed pod's failure
+// itself, rather than leaving it to an issue.
+type FailedPodReportClaim struct {
+	runId string
+	id    uint64
+}
+
+// failedPodDecision is the decision that overlapping failed pod detections of a run share.
+type failedPodDecision struct {
+	// DetectAndRegisterIssuesForFailedPod calls in progress for the run.
+	detections int
+	// The run's issue was resolved while a detection was in progress. Those detections must still
+	// leave the run to the issue handler. Cleared when the last of them finishes.
+	issueResolved bool
+	// Id of the job state reporter's claim on reporting the failure, or 0. Held while the report is
+	// in progress, and kept after it succeeds until the pod is deleted.
+	reportClaim uint64
+	// The failure was sent at least once. Then the run stays the reporter's until the pod is deleted,
+	// even when a report fails to mark the pod or a resend fails: a later observation reports the
+	// failure again, rather than deciding again and handing the reported run to an issue.
+	failureSent bool
+	// The pod was deleted while a detection was in progress. The decision is forgotten when the last
+	// of them finishes.
+	podDeleted bool
 }
 
 type PodIssueHandler struct {
@@ -91,6 +118,13 @@ type PodIssueHandler struct {
 	// JobRunId -> PodIssue
 	knownPodIssues map[string]*runIssue
 	podIssueMutex  sync.Mutex
+
+	// Run id -> decision for a failed pod of the run, while a detection for it is in progress or
+	// the job state reporter holds a claim on reporting it. Guarded by podIssueMutex.
+	failedPodDecisions map[string]*failedPodDecision
+	// Id of the last FailedPodReportClaim handed out. Guarded by podIssueMutex.
+	lastFailedPodReportClaim uint64
+
 	// Run ids a terminated-run debug event has already been reported for. The event is diagnostic,
 	// so losing this across an executor restart is acceptable.
 	reportedTerminationDebugRunIds map[string]struct{}
@@ -126,6 +160,8 @@ func NewPodIssuerHandler(
 		podIssueMutex:             sync.Mutex{},
 		clock:                     clock.RealClock{},
 
+		failedPodDecisions: map[string]*failedPodDecision{},
+
 		reportedTerminationDebugRunIds: map[string]struct{}{},
 		reportedTerminationDebugLock:   sync.Mutex{},
 	}
@@ -138,6 +174,7 @@ func NewPodIssuerHandler(
 			if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 				if pod, ok := tombstone.Obj.(*v1.Pod); ok {
 					issueHandler.recordTerminationOverdue(pod)
+					issueHandler.forgetFailedPodDecision(util.ExtractJobRunId(pod))
 				}
 				return
 			}
@@ -169,21 +206,30 @@ func (p *PodIssueHandler) HasIssue(runId string) bool {
 	return exists
 }
 
+// DetectAndRegisterFailedPodIssue registers a retryable issue for a failed pod
+// that the failed pod checks match. It returns true only when it registers the
+// issue itself, not when the run already has one. DetectAndRegisterIssuesForFailedPod
+// decides whether a failed pod is left to the issue handler.
 func (p *PodIssueHandler) DetectAndRegisterFailedPodIssue(pod *v1.Pod) (bool, error) {
+	registration, err := p.detectAndRegisterFailedPodIssue(pod)
+	return registration == issueRegistered, err
+}
+
+func (p *PodIssueHandler) detectAndRegisterFailedPodIssue(pod *v1.Pod) (issueRegistration, error) {
 	if !util.IsManagedPod(pod) || pod.Status.Phase != v1.PodFailed {
-		return false, nil
+		return noIssueRegistered, nil
 	}
 	jobId := util.ExtractJobId(pod)
 	runId := util.ExtractJobRunId(pod)
 
 	podEvents, err := p.clusterContext.GetPodEvents(pod)
 	if err != nil {
-		return false, fmt.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
+		return noIssueRegistered, fmt.Errorf("Failed retrieving pod events for pod %s: %v", pod.Name, err)
 	}
 
 	isRetryable, message := p.failedPodChecker.IsRetryable(pod, podEvents)
 	if !isRetryable {
-		return false, nil
+		return noIssueRegistered, nil
 	}
 	issue := p.newPodIssue(podIssue{
 		OriginalPodState:  pod.DeepCopy(),
@@ -193,7 +239,7 @@ func (p *PodIssueHandler) DetectAndRegisterFailedPodIssue(pod *v1.Pod) (bool, er
 		DeletionRequested: false,
 		Type:              FailedStartingUp,
 	}, podEvents)
-	return p.registerIssue(&runIssue{
+	return p.tryRegisterFailedPodIssue(&runIssue{
 		JobId:    jobId,
 		RunId:    runId,
 		PodIssue: issue,
@@ -205,19 +251,185 @@ func (p *PodIssueHandler) DetectAndRegisterFailedPodIssue(pod *v1.Pod) (bool, er
 // precedence order: the failed pod checks keep first claim on every pod while
 // they are being deprecated in favour of categories, then the category delete
 // action is considered.
-func (p *PodIssueHandler) DetectAndRegisterIssuesForFailedPod(pod *v1.Pod) (bool, error) {
-	issueAdded, err := p.DetectAndRegisterFailedPodIssue(pod)
-	if issueAdded || err != nil {
-		return issueAdded, err
+//
+// Observations of the same pod can overlap and, when only some of them can
+// read the pod events, classify it differently. So the first decision stands
+// for the run: an issue registered for it, or the caller reporting the failure
+// itself. It returns nil when the run is handled elsewhere, by an issue the
+// detection registers or finds, or by another observation reporting it. The
+// caller must then not report the failure. Otherwise it returns the caller's
+// claim on reporting it, and the caller must call ReleaseFailedPodReport if it
+// cannot report it or mark the pod as reported. It returns an error only when
+// it leaves the report to the caller.
+func (p *PodIssueHandler) DetectAndRegisterIssuesForFailedPod(pod *v1.Pod) (*FailedPodReportClaim, error) {
+	runId := util.ExtractJobRunId(pod)
+	if claim, decided := p.beginFailedPodDetection(runId); decided {
+		return claim, nil
 	}
-	return p.DetectAndRegisterDeleteActionIssue(pod)
+	defer p.endFailedPodDetection(runId)
+
+	registration, checksErr := p.detectAndRegisterFailedPodIssue(pod)
+	if registration == failureReportedByReporter {
+		// Takes over the report if it was sent but the pod could not be marked.
+		return p.claimFailedPodReport(runId), nil
+	}
+	if registration != noIssueRegistered {
+		return nil, nil
+	}
+	// Delete rules that match the pod state need no pod events, so the delete
+	// action is still considered when the failed pod checks could not read them.
+	registration, err := p.detectAndRegisterDeleteActionIssue(pod)
+	if registration == failureReportedByReporter {
+		return p.claimFailedPodReport(runId), nil
+	}
+	if registration != noIssueRegistered {
+		return nil, nil
+	}
+	claim := p.claimFailedPodReport(runId)
+	if claim == nil {
+		return nil, nil
+	}
+	if err != nil {
+		return claim, err
+	}
+	return claim, checksErr
+}
+
+// beginFailedPodDetection records a detection in progress for the run, unless
+// the job state reporter already reports it. Then it returns decided, with a
+// claim taken over from a report that was sent but not marked, or nil if the
+// report is in progress elsewhere.
+func (p *PodIssueHandler) beginFailedPodDetection(runId string) (claim *FailedPodReportClaim, decided bool) {
+	if runId == "" {
+		return nil, false
+	}
+	p.podIssueMutex.Lock()
+	defer p.podIssueMutex.Unlock()
+	decision, exists := p.failedPodDecisions[runId]
+	if !exists {
+		decision = &failedPodDecision{}
+		p.failedPodDecisions[runId] = decision
+	}
+	if decision.reportedByReporter() {
+		return p.takeOverSentFailedPodReportLocked(runId, decision), true
+	}
+	decision.detections++
+	return nil, false
+}
+
+func (p *PodIssueHandler) endFailedPodDetection(runId string) {
+	if runId == "" {
+		return
+	}
+	p.podIssueMutex.Lock()
+	defer p.podIssueMutex.Unlock()
+	decision := p.failedPodDecisions[runId]
+	decision.detections--
+	if decision.detections > 0 {
+		return
+	}
+	decision.issueResolved = false
+	if decision.podDeleted || !decision.reportedByReporter() {
+		delete(p.failedPodDecisions, runId)
+	}
+}
+
+// claimFailedPodReport claims the report of the run's failure for the caller,
+// unless the run already has an issue or another observation reports it.
+func (p *PodIssueHandler) claimFailedPodReport(runId string) *FailedPodReportClaim {
+	if runId == "" {
+		return &FailedPodReportClaim{}
+	}
+	p.podIssueMutex.Lock()
+	defer p.podIssueMutex.Unlock()
+	if _, exists := p.knownPodIssues[runId]; exists {
+		return nil
+	}
+	decision := p.failedPodDecisions[runId]
+	if decision.issueResolved {
+		return nil
+	}
+	if decision.reportedByReporter() {
+		return p.takeOverSentFailedPodReportLocked(runId, decision)
+	}
+	return p.newFailedPodReportClaimLocked(runId, decision)
+}
+
+// reportedByReporter is whether the job state reporter is reporting, or has
+// reported, the run's failure.
+func (d *failedPodDecision) reportedByReporter() bool {
+	return d.reportClaim != 0 || d.failureSent
+}
+
+// takeOverSentFailedPodReportLocked gives the caller the run's report claim if
+// the failure was sent but no report is in progress, because the pod could not
+// be marked as reported or a resend failed. The caller then reports it again.
+// Only one caller takes it over.
+func (p *PodIssueHandler) takeOverSentFailedPodReportLocked(runId string, decision *failedPodDecision) *FailedPodReportClaim {
+	if decision.reportClaim != 0 || !decision.failureSent {
+		return nil
+	}
+	return p.newFailedPodReportClaimLocked(runId, decision)
+}
+
+func (p *PodIssueHandler) newFailedPodReportClaimLocked(runId string, decision *failedPodDecision) *FailedPodReportClaim {
+	p.lastFailedPodReportClaim++
+	decision.reportClaim = p.lastFailedPodReportClaim
+	return &FailedPodReportClaim{runId: runId, id: decision.reportClaim}
+}
+
+// ReleaseFailedPodReport is called when the holder of the claim could not
+// report the failure, or sent it but could not mark the pod as reported. If the
+// failure has never been sent, a later observation decides for the run again.
+// Otherwise a later observation reports it again. A claim since taken over is
+// unaffected.
+func (p *PodIssueHandler) ReleaseFailedPodReport(claim *FailedPodReportClaim, sent bool) {
+	if claim == nil || claim.runId == "" {
+		return
+	}
+	p.podIssueMutex.Lock()
+	defer p.podIssueMutex.Unlock()
+	decision, exists := p.failedPodDecisions[claim.runId]
+	if !exists || decision.reportClaim != claim.id {
+		return
+	}
+	decision.reportClaim = 0
+	if sent {
+		decision.failureSent = true
+	}
+	if decision.detections == 0 && !decision.failureSent {
+		delete(p.failedPodDecisions, claim.runId)
+	}
+}
+
+// forgetFailedPodDecision forgets the decision for a run whose pod was
+// deleted, once no failed pod detection is in progress for it. An observation
+// that has not started detecting by then can still decide for the run again.
+func (p *PodIssueHandler) forgetFailedPodDecision(runId string) {
+	p.podIssueMutex.Lock()
+	defer p.podIssueMutex.Unlock()
+	decision, exists := p.failedPodDecisions[runId]
+	if !exists {
+		return
+	}
+	if decision.detections > 0 {
+		decision.podDeleted = true
+		return
+	}
+	delete(p.failedPodDecisions, runId)
 }
 
 // DetectAndRegisterDeleteActionIssue registers an issue for a failed pod whose
-// matched category has action Delete.
+// matched category has action Delete. Like DetectAndRegisterFailedPodIssue, it
+// returns true only when it registers the issue itself.
 func (p *PodIssueHandler) DetectAndRegisterDeleteActionIssue(pod *v1.Pod) (bool, error) {
+	registration, err := p.detectAndRegisterDeleteActionIssue(pod)
+	return registration == issueRegistered, err
+}
+
+func (p *PodIssueHandler) detectAndRegisterDeleteActionIssue(pod *v1.Pod) (issueRegistration, error) {
 	if !util.IsManagedPod(pod) || pod.Status.Phase != v1.PodFailed {
-		return false, nil
+		return noIssueRegistered, nil
 	}
 	podEvents, err := p.clusterContext.GetPodEvents(pod)
 	if err != nil {
@@ -235,9 +447,9 @@ func (p *PodIssueHandler) DetectAndRegisterDeleteActionIssue(pod *v1.Pod) (bool,
 	failedReason := util.ExtractPodFailedReason(pod)
 	classification := p.classifier.Classify(pod, failedReason, podEvents)
 	if classification.Action != categorizer.PodFailureActionDelete {
-		return false, nil
+		return noIssueRegistered, nil
 	}
-	return p.registerIssue(&runIssue{
+	return p.tryRegisterFailedPodIssue(&runIssue{
 		JobId: util.ExtractJobId(pod),
 		RunId: util.ExtractJobRunId(pod),
 		PodIssue: &podIssue{
@@ -254,13 +466,54 @@ func (p *PodIssueHandler) DetectAndRegisterDeleteActionIssue(pod *v1.Pod) (bool,
 	})
 }
 
+// issueRegistration is the outcome of an attempt to register an issue for a run.
+type issueRegistration int
+
+const (
+	noIssueRegistered issueRegistration = iota
+	issueRegistered
+	// The run already had an issue, which remains responsible for the failure even if resolved.
+	issueAlreadyRegistered
+	// The job state reporter reports the run's failure itself, so the failed pod
+	// detections leave the run to it.
+	failureReportedByReporter
+)
+
 func (p *PodIssueHandler) registerIssue(issue *runIssue) (bool, error) {
+	registration, err := p.tryRegisterIssue(issue)
+	return registration == issueRegistered, err
+}
+
+// tryRegisterIssue registers the issue unless the run already has one, and says which. It decides
+// under the lock that refuses the duplicate, so the caller learns of the run's existing issue even
+// if that issue is resolved straight afterwards.
+func (p *PodIssueHandler) tryRegisterIssue(issue *runIssue) (issueRegistration, error) {
 	p.podIssueMutex.Lock()
 	defer p.podIssueMutex.Unlock()
+	return p.tryRegisterIssueLocked(issue)
+}
 
+// tryRegisterFailedPodIssue registers an issue that a failed pod detection
+// found, unless the job state reporter already reports the run's failure.
+func (p *PodIssueHandler) tryRegisterFailedPodIssue(issue *runIssue) (issueRegistration, error) {
+	p.podIssueMutex.Lock()
+	defer p.podIssueMutex.Unlock()
+	if decision, exists := p.failedPodDecisions[issue.RunId]; exists {
+		if decision.issueResolved {
+			return issueAlreadyRegistered, nil
+		}
+		if decision.reportedByReporter() {
+			log.Infof("Not registering an issue for job %s (runId %s) as its failure is already being reported", issue.JobId, issue.RunId)
+			return failureReportedByReporter, nil
+		}
+	}
+	return p.tryRegisterIssueLocked(issue)
+}
+
+func (p *PodIssueHandler) tryRegisterIssueLocked(issue *runIssue) (issueRegistration, error) {
 	runId := issue.RunId
 	if runId == "" {
-		return false, fmt.Errorf("Not registering an issue for job %s as run id was empty", issue.JobId)
+		return noIssueRegistered, fmt.Errorf("Not registering an issue for job %s as run id was empty", issue.JobId)
 	}
 	_, exists := p.knownPodIssues[issue.RunId]
 	if !exists {
@@ -273,10 +526,10 @@ func (p *PodIssueHandler) registerIssue(issue *runIssue) (bool, error) {
 
 		log.Infof("Issue for job %s run %s is registered - %s", issue.JobId, issue.RunId, description)
 		p.knownPodIssues[issue.RunId] = issue
-		return true, nil
+		return issueRegistered, nil
 	} else {
 		log.Warnf("Not registering an issue for job %s (runId %s) as it already has an issue set", issue.JobId, issue.RunId)
-		return false, nil
+		return issueAlreadyRegistered, nil
 	}
 }
 
@@ -293,6 +546,9 @@ func (p *PodIssueHandler) markIssuesResolved(issue *runIssue) {
 	log.Infof("Issue for job %s run %s is resolved", issue.JobId, issue.RunId)
 
 	delete(p.knownPodIssues, issue.RunId)
+	if decision, exists := p.failedPodDecisions[issue.RunId]; exists && decision.detections > 0 {
+		decision.issueResolved = true
+	}
 }
 
 func (p *PodIssueHandler) markIssueReported(issue *runIssue) {
@@ -801,6 +1057,7 @@ func (p *PodIssueHandler) recordTerminationOverdue(pod *v1.Pod) {
 
 func (p *PodIssueHandler) handleDeletedPod(pod *v1.Pod) {
 	p.forgetTerminationDebug(util.ExtractJobRunId(pod))
+	p.forgetFailedPodDecision(util.ExtractJobRunId(pod))
 
 	jobId := util.ExtractJobId(pod)
 	if jobId != "" {
