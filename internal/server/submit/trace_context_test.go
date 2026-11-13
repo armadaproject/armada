@@ -29,23 +29,27 @@ import (
 )
 
 const (
-	canonicalPrefix = "otel.armadaproject.io/"
-	parentA         = "00-11111111111111111111111111111111-2222222222222222-01"
-	parentB         = "00-33333333333333333333333333333333-4444444444444444-00"
-	serverParent    = "00-33333333333333333333333333333333-5555555555555555-00"
+	canonicalPrefix       = "otel.armadaproject.io/"
+	sampledParentA        = "00-11111111111111111111111111111111-2222222222222222-01"
+	unsampledParentA      = "00-11111111111111111111111111111111-2222222222222222-00"
+	sampledParentB        = "00-33333333333333333333333333333333-4444444444444444-01"
+	unsampledParentB      = "00-33333333333333333333333333333333-4444444444444444-00"
+	unsampledServerParent = "00-33333333333333333333333333333333-5555555555555555-00"
 )
 
 func TestResolveSubmissionTraceContext(t *testing.T) {
+	// Keep the global propagator empty for every case: resolution must also work
+	// when observability is disabled. Restore it for other tests.
 	previous := otel.GetTextMapPropagator()
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator())
 	t.Cleanup(func() { otel.SetTextMapPropagator(previous) })
 	incoming := metadata.NewIncomingContext(context.Background(), metadata.Pairs(
-		"traceparent", parentB, "tracestate", "vendor=grpc", "baggage", "origin=grpc"))
+		"traceparent", unsampledParentB, "tracestate", "vendor=grpc", "baggage", "origin=grpc"))
 	serverSC := trace.SpanContextFromContext(propagation.TraceContext{}.Extract(context.Background(),
-		propagation.MapCarrier{"traceparent": serverParent, "tracestate": "vendor=grpc"}))
+		propagation.MapCarrier{"traceparent": unsampledServerParent, "tracestate": "vendor=grpc"}))
 	serverSC = serverSC.WithRemote(false)
 	withServer := trace.ContextWithSpanContext(incoming, serverSC)
-	unrelated := trace.SpanContextFromContext(propagation.TraceContext{}.Extract(context.Background(), propagation.MapCarrier{"traceparent": parentA})).WithRemote(false)
+	unrelated := trace.SpanContextFromContext(propagation.TraceContext{}.Extract(context.Background(), propagation.MapCarrier{"traceparent": sampledParentA})).WithRemote(false)
 	largeState, err := trace.ParseTraceState("added=longervalue,vendor=grpc")
 	require.NoError(t, err)
 	withLargeServerState := trace.ContextWithSpanContext(incoming, serverSC.WithTraceState(largeState))
@@ -76,9 +80,9 @@ func TestResolveSubmissionTraceContext(t *testing.T) {
 			name:        "canonical wins",
 			ctx:         incoming,
 			config:      cfg,
-			annotations: map[string]string{canonicalPrefix + "traceparent": parentA, canonicalPrefix + "tracestate": "vendor=item", canonicalPrefix + "baggage": "origin=item", "old/traceparent": parentB},
+			annotations: map[string]string{canonicalPrefix + "traceparent": sampledParentA, canonicalPrefix + "tracestate": "vendor=item", canonicalPrefix + "baggage": "origin=item", "old/traceparent": unsampledParentB},
 			wantSource:  "annotation",
-			wantParent:  parentA,
+			wantParent:  sampledParentA,
 			wantState:   "vendor=item",
 			wantBaggage: "origin=item",
 		},
@@ -86,24 +90,24 @@ func TestResolveSubmissionTraceContext(t *testing.T) {
 			name:        "aliases checked in order",
 			ctx:         incoming,
 			config:      cfg,
-			annotations: map[string]string{"old/traceparent": parentA, "old/baggage": "origin=alias", "older/traceparent": parentB},
+			annotations: map[string]string{"old/traceparent": sampledParentA, "old/baggage": "origin=alias", "older/traceparent": unsampledParentB},
 			wantSource:  "alias",
-			wantParent:  parentA,
+			wantParent:  sampledParentA,
 			wantBaggage: "origin=alias",
 		},
 		{
 			name:        "invalid alias continues to next",
 			config:      cfg,
-			annotations: map[string]string{"old/traceparent": "bad", "older/traceparent": parentB},
+			annotations: map[string]string{"old/traceparent": "bad", "older/traceparent": unsampledParentB},
 			wantSource:  "alias",
-			wantParent:  parentB,
+			wantParent:  unsampledParentB,
 		},
 		{
 			name:        "fallback never mixes carriers",
 			config:      cfg,
-			annotations: map[string]string{canonicalPrefix + "traceparent": "bad", canonicalPrefix + "tracestate": "vendor=stale", canonicalPrefix + "baggage": "origin=stale", "old/traceparent": parentA},
+			annotations: map[string]string{canonicalPrefix + "traceparent": "bad", canonicalPrefix + "tracestate": "vendor=stale", canonicalPrefix + "baggage": "origin=stale", "old/traceparent": sampledParentA},
 			wantSource:  "alias",
-			wantParent:  parentA,
+			wantParent:  sampledParentA,
 		},
 		{
 			name:        "invalid canonical falls back to grpc",
@@ -111,7 +115,7 @@ func TestResolveSubmissionTraceContext(t *testing.T) {
 			config:      cfg,
 			annotations: map[string]string{canonicalPrefix + "traceparent": "bad"},
 			wantSource:  "grpc",
-			wantParent:  parentB,
+			wantParent:  unsampledParentB,
 			wantState:   "vendor=grpc",
 			wantBaggage: "origin=grpc",
 		},
@@ -120,7 +124,7 @@ func TestResolveSubmissionTraceContext(t *testing.T) {
 			ctx:         incoming,
 			config:      cfg,
 			wantSource:  "grpc",
-			wantParent:  parentB,
+			wantParent:  unsampledParentB,
 			wantState:   "vendor=grpc",
 			wantBaggage: "origin=grpc",
 		},
@@ -129,7 +133,7 @@ func TestResolveSubmissionTraceContext(t *testing.T) {
 			ctx:         withServer,
 			config:      cfg,
 			wantSource:  "grpc",
-			wantParent:  serverParent,
+			wantParent:  unsampledServerParent,
 			wantState:   "vendor=grpc",
 			wantBaggage: "origin=grpc",
 		},
@@ -152,7 +156,7 @@ func TestResolveSubmissionTraceContext(t *testing.T) {
 			ctx:         trace.ContextWithSpanContext(incoming, unrelated),
 			config:      cfg,
 			wantSource:  "grpc",
-			wantParent:  parentB,
+			wantParent:  unsampledParentB,
 			wantState:   "vendor=grpc",
 			wantBaggage: "origin=grpc",
 		},
@@ -160,7 +164,7 @@ func TestResolveSubmissionTraceContext(t *testing.T) {
 			name:       "oversized server state falls back to valid incoming carrier",
 			ctx:        withLargeServerState,
 			config:     configuration.SubmissionTraceContextConfig{Enabled: true, PropagateGrpcBaggage: true, MaxTraceStateBytes: 11},
-			wantSource: "grpc", wantParent: parentB, wantState: "vendor=grpc", wantBaggage: "origin=grpc",
+			wantSource: "grpc", wantParent: unsampledParentB, wantState: "vendor=grpc", wantBaggage: "origin=grpc",
 		},
 		{
 			name:       "empty request",
@@ -172,9 +176,9 @@ func TestResolveSubmissionTraceContext(t *testing.T) {
 			name:        "default state limit rejects source",
 			ctx:         incoming,
 			config:      cfg,
-			annotations: map[string]string{canonicalPrefix + "traceparent": parentA, canonicalPrefix + "tracestate": strings.Repeat("a", 513)},
+			annotations: map[string]string{canonicalPrefix + "traceparent": sampledParentA, canonicalPrefix + "tracestate": strings.Repeat("a", 513)},
 			wantSource:  "grpc",
-			wantParent:  parentB,
+			wantParent:  unsampledParentB,
 			wantState:   "vendor=grpc",
 			wantBaggage: "origin=grpc",
 		},
@@ -182,40 +186,34 @@ func TestResolveSubmissionTraceContext(t *testing.T) {
 			name:        "default baggage limit rejects source",
 			ctx:         incoming,
 			config:      cfg,
-			annotations: map[string]string{canonicalPrefix + "traceparent": parentA, canonicalPrefix + "baggage": strings.Repeat("a", 8193)},
+			annotations: map[string]string{canonicalPrefix + "traceparent": sampledParentA, canonicalPrefix + "baggage": strings.Repeat("a", 8193)},
 			wantSource:  "grpc",
-			wantParent:  parentB,
+			wantParent:  unsampledParentB,
 			wantState:   "vendor=grpc",
 			wantBaggage: "origin=grpc",
 		},
 		{
 			name:        "exact limits accepted",
 			config:      configuration.SubmissionTraceContextConfig{Enabled: true, MaxTraceStateBytes: 3, MaxBaggageBytes: 3},
-			annotations: map[string]string{canonicalPrefix + "traceparent": parentA, canonicalPrefix + "tracestate": "v=x", canonicalPrefix + "baggage": "k=v"},
+			annotations: map[string]string{canonicalPrefix + "traceparent": sampledParentA, canonicalPrefix + "tracestate": "v=x", canonicalPrefix + "baggage": "k=v"},
 			wantSource:  "annotation",
-			wantParent:  parentA,
+			wantParent:  sampledParentA,
 			wantState:   "v=x",
 			wantBaggage: "k=v",
 		},
-		{
-			name:       "oversized grpc baggage ignored",
-			ctx:        metadata.NewIncomingContext(context.Background(), metadata.Pairs("traceparent", parentA, "baggage", "long=value")),
-			config:     configuration.SubmissionTraceContextConfig{Enabled: true, PropagateGrpcBaggage: true, MaxBaggageBytes: 3},
-			wantSource: "none",
-			unchanged:  true,
-		},
+
 		{
 			name:        "grpc repeated carrier fields joined",
-			ctx:         metadata.NewIncomingContext(context.Background(), metadata.Pairs("traceparent", parentA, "tracestate", "a=1", "tracestate", "b=2", "baggage", "a=1", "baggage", "b=2")),
+			ctx:         metadata.NewIncomingContext(context.Background(), metadata.Pairs("traceparent", sampledParentA, "tracestate", "a=1", "tracestate", "b=2", "baggage", "a=1", "baggage", "b=2")),
 			config:      cfg,
 			wantSource:  "grpc",
-			wantParent:  parentA,
+			wantParent:  sampledParentA,
 			wantState:   "a=1,b=2",
 			wantBaggage: "a=1,b=2",
 		},
 		{
 			name:       "duplicate traceparents rejected",
-			ctx:        metadata.NewIncomingContext(context.Background(), metadata.Pairs("traceparent", parentA, "traceparent", parentB)),
+			ctx:        metadata.NewIncomingContext(context.Background(), metadata.Pairs("traceparent", sampledParentA, "traceparent", unsampledParentB)),
 			config:     cfg,
 			wantSource: "none",
 			unchanged:  true,
@@ -255,17 +253,53 @@ func TestResolveSubmissionTraceContext(t *testing.T) {
 }
 
 func TestResolveSubmissionTraceContextMetrics(t *testing.T) {
-	s := &Server{submissionConfig: configuration.SubmissionConfig{TraceContext: configuration.SubmissionTraceContextConfig{Enabled: true}}}
-	invalidBefore := testutil.ToFloat64(traceContextSource.WithLabelValues("invalid"))
-	noneBefore := testutil.ToFloat64(traceContextSource.WithLabelValues("none"))
-	_, source := s.resolveSubmissionTraceContext(context.Background(), &api.JobSubmitRequestItem{Annotations: map[string]string{canonicalPrefix + "traceparent": "bad"}})
-	require.Equal(t, "none", source)
-	assert.Equal(t, invalidBefore+1, testutil.ToFloat64(traceContextSource.WithLabelValues("invalid")))
-	assert.Equal(t, noneBefore+1, testutil.ToFloat64(traceContextSource.WithLabelValues("none")))
-	s.submissionConfig.TraceContext.Enabled = false
-	s.resolveSubmissionTraceContext(context.Background(), &api.JobSubmitRequestItem{Annotations: map[string]string{canonicalPrefix + "traceparent": "bad"}})
-	assert.Equal(t, invalidBefore+1, testutil.ToFloat64(traceContextSource.WithLabelValues("invalid")))
-	assert.Equal(t, noneBefore+1, testutil.ToFloat64(traceContextSource.WithLabelValues("none")))
+	for _, tc := range []struct {
+		name        string
+		annotations map[string]string
+		incoming    bool
+		disabled    bool
+		wantSource  string
+		wantInvalid float64
+	}{
+		{name: "annotation", annotations: map[string]string{canonicalPrefix + "traceparent": sampledParentA}, wantSource: "annotation"},
+		{name: "alias", annotations: map[string]string{"old/traceparent": sampledParentA}, wantSource: "alias"},
+		{name: "grpc", incoming: true, wantSource: "grpc"},
+		{name: "none", wantSource: "none"},
+		{name: "invalid then none", annotations: map[string]string{canonicalPrefix + "traceparent": "bad"}, wantSource: "none", wantInvalid: 1},
+		{
+			name: "two invalid sources before grpc", incoming: true, wantSource: "grpc", wantInvalid: 2,
+			annotations: map[string]string{canonicalPrefix + "traceparent": "bad", "old/traceparent": "also-bad"},
+		},
+		{name: "disabled", disabled: true, incoming: true, annotations: map[string]string{canonicalPrefix + "traceparent": "bad"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &Server{submissionConfig: configuration.SubmissionConfig{TraceContext: configuration.SubmissionTraceContextConfig{
+				Enabled: !tc.disabled, AliasAnnotationPrefixes: []string{"old/"},
+			}}}
+			ctx := context.Background()
+			if tc.incoming {
+				ctx = metadata.NewIncomingContext(ctx, metadata.Pairs("traceparent", unsampledParentB))
+			}
+			labels := []string{"annotation", "alias", "grpc", "none", "invalid"}
+			before := make(map[string]float64, len(labels))
+			for _, label := range labels {
+				before[label] = testutil.ToFloat64(traceContextSource.WithLabelValues(label))
+			}
+			_, source := s.resolveSubmissionTraceContext(ctx, &api.JobSubmitRequestItem{Annotations: maps.Clone(tc.annotations)})
+			require.Equal(t, tc.wantSource, source)
+			for _, label := range labels {
+				want := float64(0)
+				if label == tc.wantSource {
+					want = 1
+				}
+				if label == "invalid" {
+					want = tc.wantInvalid
+				}
+				got := testutil.ToFloat64(traceContextSource.WithLabelValues(label)) - before[label]
+				assert.Equal(t, want, got, "counter delta for source=%s", label)
+			}
+		})
+	}
 }
 
 // Check the real SubmitJobs path and serialized event, rather than just the resolver.
@@ -277,13 +311,12 @@ func TestSubmit_TraceContext(t *testing.T) {
 		{name: "disabled"}, {name: "enabled without grpc baggage", enabled: true}, {name: "enabled with grpc baggage", enabled: true, baggage: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			enabled := tc.enabled
 			base := armadacontext.WithValue(armadacontext.Background(), "principal", testfixtures.DefaultPrincipal)
-			ctx := armadacontext.FromGrpcCtx(metadata.NewIncomingContext(base, metadata.Pairs("traceparent", parentB, "baggage", "origin=grpc")))
+			ctx := armadacontext.FromGrpcCtx(metadata.NewIncomingContext(base, metadata.Pairs("traceparent", unsampledParentB, "baggage", "origin=grpc")))
 			s, mocks := createTestServer(t)
-			s.submissionConfig.TraceContext = configuration.SubmissionTraceContextConfig{Enabled: enabled, PropagateGrpcBaggage: tc.baggage}
+			s.submissionConfig.TraceContext = configuration.SubmissionTraceContextConfig{Enabled: tc.enabled, PropagateGrpcBaggage: tc.baggage}
 			req := testfixtures.SubmitRequestWithNItems(3)
-			req.JobRequestItems[0].Annotations = map[string]string{canonicalPrefix + "traceparent": parentA}
+			req.JobRequestItems[0].Annotations = map[string]string{canonicalPrefix + "traceparent": sampledParentA}
 			req.JobRequestItems[2].Annotations = map[string]string{canonicalPrefix + "traceparent": "invalid-duplicate"}
 			mocks.queueRepo.EXPECT().GetQueue(ctx, req.Queue).Return(testfixtures.DefaultQueue, nil)
 			mocks.authorizer.EXPECT().AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).Return(nil)
@@ -304,10 +337,10 @@ func TestSubmit_TraceContext(t *testing.T) {
 			require.Len(t, event.Events, 2)
 			first := event.Events[0].GetSubmitJob().ObjectMeta.Annotations
 			second := event.Events[1].GetSubmitJob().ObjectMeta.Annotations
-			assert.Equal(t, parentA, first[canonicalPrefix+"traceparent"])
+			assert.Equal(t, sampledParentA, first[canonicalPrefix+"traceparent"])
 			assert.Empty(t, first[canonicalPrefix+"baggage"], "request baggage must not mix into item context")
-			if enabled {
-				assert.Equal(t, parentB, second[canonicalPrefix+"traceparent"])
+			if tc.enabled {
+				assert.Equal(t, unsampledParentB, second[canonicalPrefix+"traceparent"])
 				if tc.baggage {
 					assert.Equal(t, "origin=grpc", second[canonicalPrefix+"baggage"])
 				} else {
@@ -329,7 +362,7 @@ func TestResolveSubmissionTraceContextGRPCHandler(t *testing.T) {
 		otelgrpc.WithTracerProvider(provider),
 		otelgrpc.WithPropagators(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})),
 	)
-	incoming := metadata.NewIncomingContext(context.Background(), metadata.Pairs("traceparent", parentA, "tracestate", "vendor=grpc", "baggage", "origin=grpc"))
+	incoming := metadata.NewIncomingContext(context.Background(), metadata.Pairs("traceparent", sampledParentA, "tracestate", "vendor=grpc", "baggage", "origin=grpc"))
 	ctx := handler.TagRPC(incoming, &stats.RPCTagInfo{FullMethodName: "/api.Submit/SubmitJobs"})
 	defer trace.SpanFromContext(ctx).End()
 	serverSC := trace.SpanContextFromContext(ctx)
@@ -351,7 +384,7 @@ func TestSubmit_TraceContextLiteralBaggage(t *testing.T) {
 		t.Run(source, func(t *testing.T) {
 			const baggage = "origin={JobId}"
 			base := armadacontext.WithValue(armadacontext.Background(), "principal", testfixtures.DefaultPrincipal)
-			ctx := armadacontext.FromGrpcCtx(metadata.NewIncomingContext(base, metadata.Pairs("traceparent", parentB, "baggage", baggage)))
+			ctx := armadacontext.FromGrpcCtx(metadata.NewIncomingContext(base, metadata.Pairs("traceparent", unsampledParentB, "baggage", baggage)))
 			s, m := createTestServer(t)
 			s.submissionConfig.TraceContext = configuration.SubmissionTraceContextConfig{Enabled: source != "disabled", PropagateGrpcBaggage: true, AliasAnnotationPrefixes: []string{"legacy/"}, MaxBaggageBytes: uint(len(baggage))}
 			req := testfixtures.SubmitRequestWithNItems(1)
@@ -361,7 +394,7 @@ func TestSubmit_TraceContextLiteralBaggage(t *testing.T) {
 				if source == "alias" {
 					prefix = "legacy/"
 				}
-				annotations[prefix+"traceparent"] = parentB
+				annotations[prefix+"traceparent"] = unsampledParentB
 				annotations[prefix+"baggage"] = baggage
 			}
 			req.JobRequestItems[0].Annotations = annotations
@@ -385,7 +418,6 @@ func TestSubmit_TraceContextLiteralBaggage(t *testing.T) {
 				assert.Equal(t, "origin="+resp.JobResponseItems[0].JobId, result[canonicalPrefix+"baggage"])
 			} else {
 				assert.Equal(t, baggage, result[canonicalPrefix+"baggage"])
-				assert.LessOrEqual(t, len(result[canonicalPrefix+"baggage"]), len(baggage), "conversion must not expand validated baggage")
 			}
 		})
 	}
@@ -401,20 +433,45 @@ func TestResolveSubmissionTraceContextGrpcBaggagePolicy(t *testing.T) {
 		{name: "default ignores oversized grpc baggage", baggage: "oversized", wantSource: "grpc"},
 		{name: "opt in forwards exact limit", baggage: "k=v", propagate: true, wantSource: "grpc", wantBaggage: "k=v"},
 		{name: "opt in rejects oversized carrier", baggage: "oversized", propagate: true, wantSource: "none"},
-		{name: "canonical baggage stays explicit", baggage: "mesh=value", wantSource: "annotation", wantBaggage: "k=v", annotations: map[string]string{canonicalPrefix + "traceparent": parentA, canonicalPrefix + "baggage": "k=v"}},
-		{name: "alias baggage stays explicit", baggage: "mesh=value", wantSource: "alias", wantBaggage: "k=v", annotations: map[string]string{"old/traceparent": parentA, "old/baggage": "k=v"}},
-		{name: "fallback clears stale canonical baggage", baggage: "mesh=value", wantSource: "grpc", annotations: map[string]string{canonicalPrefix + "traceparent": "bad", canonicalPrefix + "baggage": "old"}},
+		{
+			name:        "canonical baggage stays explicit",
+			baggage:     "mesh=value",
+			wantSource:  "annotation",
+			wantBaggage: "k=v",
+			annotations: map[string]string{canonicalPrefix + "traceparent": sampledParentA, canonicalPrefix + "baggage": "k=v"},
+		},
+		{
+			name:        "alias baggage stays explicit",
+			baggage:     "mesh=value",
+			wantSource:  "alias",
+			wantBaggage: "k=v",
+			annotations: map[string]string{"old/traceparent": sampledParentA, "old/baggage": "k=v"},
+		},
+		{
+			name:        "fallback clears stale canonical baggage",
+			baggage:     "mesh=value",
+			wantSource:  "grpc",
+			annotations: map[string]string{canonicalPrefix + "traceparent": "bad", canonicalPrefix + "baggage": "old"},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s := &Server{submissionConfig: configuration.SubmissionConfig{TraceContext: configuration.SubmissionTraceContextConfig{Enabled: true, PropagateGrpcBaggage: tc.propagate, MaxBaggageBytes: 3, AliasAnnotationPrefixes: []string{"old/"}}}}
-			ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("traceparent", parentB, "tracestate", "v=x", "baggage", tc.baggage))
+			s := &Server{submissionConfig: configuration.SubmissionConfig{TraceContext: configuration.SubmissionTraceContextConfig{
+				Enabled:                 true,
+				PropagateGrpcBaggage:    tc.propagate,
+				MaxBaggageBytes:         3,
+				AliasAnnotationPrefixes: []string{"old/"},
+			}}}
+			ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("traceparent", unsampledParentB, "tracestate", "v=x", "baggage", tc.baggage))
 			item := &api.JobSubmitRequestItem{Annotations: maps.Clone(tc.annotations)}
 			sc, source := s.resolveSubmissionTraceContext(ctx, item)
 			assert.Equal(t, tc.wantSource, source)
 			assert.Equal(t, tc.wantSource != "none", sc.IsValid())
+			if tc.wantSource == "none" {
+				assert.Equal(t, tc.annotations, item.Annotations, "rejected context must leave annotations unchanged")
+			}
 			assert.Equal(t, tc.wantBaggage, item.Annotations[canonicalPrefix+"baggage"])
 			if tc.wantSource == "grpc" {
-				assert.Equal(t, parentB, item.Annotations[canonicalPrefix+"traceparent"])
+				assert.Equal(t, unsampledParentB, item.Annotations[canonicalPrefix+"traceparent"])
 				assert.Equal(t, "v=x", item.Annotations[canonicalPrefix+"tracestate"])
 				if !tc.propagate {
 					assert.NotContains(t, item.Annotations, canonicalPrefix+"baggage")

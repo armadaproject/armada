@@ -3,6 +3,7 @@ package submit
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -29,15 +30,16 @@ import (
 )
 
 func TestSubmit_JobSpans(t *testing.T) {
-	const sampledB = "00-33333333333333333333333333333333-4444444444444444-01"
 	for _, tc := range []struct {
-		name                                                                                      string
-		disabled, noProvider, unsampled, absent, duplicate, publishFailure, invalid, dedupFailure bool
+		name                                                                           string
+		disabled, noProvider, absent, duplicate, publishFailure, invalid, dedupFailure bool
+		unsampledJobs, wantJobs                                                        []int
 	}{
 		{name: "accepted"},
 		{name: "disabled", disabled: true},
 		{name: "server tracing off", noProvider: true},
-		{name: "unsampled", unsampled: true},
+		{name: "unsampled", unsampledJobs: []int{0, 1, 2}, wantJobs: []int{}},
+		{name: "mixed sampling", unsampledJobs: []int{0, 2}, wantJobs: []int{1}},
 		{name: "absent", absent: true},
 		{name: "duplicate", duplicate: true},
 		{name: "publish failure", publishFailure: true},
@@ -68,23 +70,24 @@ func TestSubmit_JobSpans(t *testing.T) {
 			n := 0
 			s.idGenerator = func() string { id := ids[n]; n++; return id }
 			req := testfixtures.SubmitRequestWithNItems(3)
-			parent := parentA
-			if tc.unsampled {
-				parent = parent[:len(parent)-2] + "00"
+			parent := sampledParentA
+			if slices.Contains(tc.unsampledJobs, 0) {
+				parent = unsampledParentA
 			}
 			req.JobRequestItems[0].Annotations = map[string]string{canonicalPrefix + "traceparent": parent, canonicalPrefix + "tracestate": "vendor=value,ot=th:0"}
-			req.JobRequestItems[1].Annotations = map[string]string{"legacy/traceparent": sampledB}
+			req.JobRequestItems[1].Annotations = map[string]string{"legacy/traceparent": sampledParentB}
 			// A distinct request context verifies per-item precedence and the grpc source.
-			ctx = armadacontext.FromGrpcCtx(metadata.NewIncomingContext(ctx, metadata.Pairs("traceparent", sampledB)))
+			ctx = armadacontext.FromGrpcCtx(metadata.NewIncomingContext(ctx, metadata.Pairs("traceparent", sampledParentB)))
 			if tc.absent {
 				for _, item := range req.JobRequestItems {
 					item.Annotations = nil
 				}
 				ctx = armadacontext.WithValue(armadacontext.Background(), "principal", testfixtures.DefaultPrincipal)
 			}
-			if tc.unsampled {
-				req.JobRequestItems[1].Annotations = map[string]string{canonicalPrefix + "traceparent": parent}
-				req.JobRequestItems[2].Annotations = map[string]string{canonicalPrefix + "traceparent": parent}
+			for _, i := range tc.unsampledJobs {
+				if i != 0 {
+					req.JobRequestItems[i].Annotations = map[string]string{canonicalPrefix + "traceparent": unsampledParentB}
+				}
 			}
 			m.queueRepo.EXPECT().GetQueue(ctx, req.Queue).Return(testfixtures.DefaultQueue, nil)
 			m.authorizer.EXPECT().AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).Return(nil)
@@ -128,12 +131,17 @@ func TestSubmit_JobSpans(t *testing.T) {
 				require.Len(t, resp.JobResponseItems, 3)
 			}
 			spans := exporter.GetSpans()
-			if tc.disabled || tc.noProvider || tc.unsampled || tc.absent || tc.duplicate || tc.publishFailure || tc.invalid {
+			if tc.disabled || tc.noProvider || tc.absent || tc.duplicate || tc.publishFailure || tc.invalid {
 				require.Empty(t, spans)
 				return
 			}
-			require.Len(t, spans, 3)
-			for i, span := range spans {
+			wantJobs := tc.wantJobs
+			if wantJobs == nil {
+				wantJobs = []int{0, 1, 2}
+			}
+			require.Len(t, spans, len(wantJobs))
+			for spanIndex, i := range wantJobs {
+				span := spans[spanIndex]
 				assert.Equal(t, "armada.job.submit", span.Name)
 				assert.False(t, span.Parent.IsValid(), "job span must be a root")
 				expectedTrace := []string{"01563e3ab5d3d6764c61efb99302bd5b", "01563e3ab5d3d6764c61efb99302bd5c", "01563e3ab5d3d6764c61efb99302bd5d"}[i]
@@ -144,10 +152,10 @@ func TestSubmit_JobSpans(t *testing.T) {
 				assert.Equal(t, start.Add(2*time.Second), span.EndTime)
 				assert.ElementsMatch(t, []attribute.KeyValue{attribute.String("armada.queue", req.Queue), attribute.String("armada.job_set.id", req.JobSetId), attribute.String("armada.job.id", ids[i])}, span.Attributes)
 				require.Len(t, span.Links, 1)
-				target := sampledB
+				target := sampledParentB
 				state := ""
 				if i == 0 {
-					target = parentA
+					target = sampledParentA
 					state = "vendor=value,ot=th:0"
 					assert.Equal(t, "ot=th:0", span.SpanContext.TraceState().String())
 				} else {
