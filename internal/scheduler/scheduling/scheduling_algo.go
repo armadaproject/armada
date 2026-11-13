@@ -1000,8 +1000,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	fsctx *FairSchedulingAlgoContext,
 	pool configuration.PoolConfig,
 ) (*SchedulingResult, *schedulercontext.SchedulingContext, error) {
-	totalResources := fsctx.nodeDb.TotalKubernetesResources()
-	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name))
+	totalResources := fsctx.schedulingContext.TotalResources
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
 	shouldRunOptimiser := l.shouldRunOptimiser(pool)
 
@@ -1058,7 +1057,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	ctx.Infof(
 		"Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f protectUncappedAdjustedFairShare %t",
 		pool.Name,
-		fsctx.nodeDb.TotalKubernetesResources().Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name)).String(),
+		totalResources.String(),
 		l.schedulingConfig.GetProtectedFractionOfFairShare(pool.Name),
 		l.schedulingConfig.GetProtectUncappedAdjustedFairShare(pool.Name),
 	)
