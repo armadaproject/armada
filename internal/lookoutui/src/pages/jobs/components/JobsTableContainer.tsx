@@ -61,6 +61,7 @@ import {
   changedFilterColumnIds,
   diffOfKeys,
   getFiltersForRowsSelection,
+  matchForColumn,
   PendingData,
   pendingDataForAllVisibleData,
   pruneUnsatisfiedFilters,
@@ -792,7 +793,17 @@ export const JobsTableContainer = ({ debug, autoRefreshMs, commandSpecs }: JobsT
       [columnId]: newMatch,
     }
     setColumnMatches(newColumnMatches)
-    onFilterChange([...columnFilterState])
+
+    // The filter state holds only filter values, so it is unchanged by a new match even though the
+    // filter now selects different jobs. Such a change is applied as a filter change in its own right.
+    const filterState = columnFilterStateRef.current
+    if (
+      matchForColumn(columnId, newColumnMatches) !== matchForColumn(columnId, columnMatches) &&
+      filterState.some(({ id }) => id === columnId)
+    ) {
+      applyFilterState(filterState)
+      return
+    }
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
   }
 
