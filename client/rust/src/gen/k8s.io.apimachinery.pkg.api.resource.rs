@@ -68,6 +68,7 @@
 /// +protobuf.options.(gogoproto.goproto_stringer)=false
 /// +k8s:deepcopy-gen=true
 /// +k8s:openapi-gen=true
+/// +k8s:openapi-model-package=io.k8s.apimachinery.pkg.api.resource
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Quantity {
     #[prost(string, optional, tag = "1")]
@@ -81,6 +82,7 @@ pub struct Quantity {
 /// +protobuf.options.marshal=false
 /// +protobuf.options.(gogoproto.goproto_stringer)=false
 /// +k8s:deepcopy-gen=true
+/// +k8s:openapi-model-package=io.k8s.apimachinery.pkg.api.resource
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct QuantityValue {
     #[prost(string, optional, tag = "1")]

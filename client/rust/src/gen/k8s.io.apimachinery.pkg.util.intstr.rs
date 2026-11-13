@@ -8,6 +8,7 @@
 /// +protobuf=true
 /// +protobuf.options.(gogoproto.goproto_stringer)=false
 /// +k8s:openapi-gen=true
+/// +k8s:openapi-model-package=io.k8s.apimachinery.pkg.util.intstr
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct IntOrString {
     #[prost(int64, optional, tag = "1")]
