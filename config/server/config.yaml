@@ -28,6 +28,8 @@ eventsApiRedis:
 submission:
   traceContext:
     enabled: false
+    # Separate opt-in for request baggage; explicit annotation baggage is unaffected.
+    propagateGrpcBaggage: false
     aliasAnnotationPrefixes: []
     maxTraceStateBytes: 512
     maxBaggageBytes: 8192

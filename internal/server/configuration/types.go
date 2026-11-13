@@ -145,6 +145,9 @@ type QueryApiMirrorConfig struct {
 // SubmissionTraceContextConfig controls W3C context resolution at job submission.
 // Zero byte limits use the defaults below; the feature is disabled by default.
 type SubmissionTraceContextConfig struct {
+	// PropagateGrpcBaggage permits copying incoming gRPC baggage into job annotations.
+	// Default false; explicit canonical and alias annotation baggage is unaffected.
+	PropagateGrpcBaggage    bool
 	Enabled                 bool
 	AliasAnnotationPrefixes []string
 	MaxTraceStateBytes      uint

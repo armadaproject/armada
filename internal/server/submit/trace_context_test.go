@@ -49,7 +49,7 @@ func TestResolveSubmissionTraceContext(t *testing.T) {
 	largeState, err := trace.ParseTraceState("added=longervalue,vendor=grpc")
 	require.NoError(t, err)
 	withLargeServerState := trace.ContextWithSpanContext(incoming, serverSC.WithTraceState(largeState))
-	cfg := configuration.SubmissionTraceContextConfig{Enabled: true, AliasAnnotationPrefixes: []string{"old/", "older/"}}
+	cfg := configuration.SubmissionTraceContextConfig{Enabled: true, PropagateGrpcBaggage: true, AliasAnnotationPrefixes: []string{"old/", "older/"}}
 	tests := []struct {
 		name        string
 		ctx         context.Context
@@ -159,7 +159,7 @@ func TestResolveSubmissionTraceContext(t *testing.T) {
 		{
 			name:       "oversized server state falls back to valid incoming carrier",
 			ctx:        withLargeServerState,
-			config:     configuration.SubmissionTraceContextConfig{Enabled: true, MaxTraceStateBytes: 11},
+			config:     configuration.SubmissionTraceContextConfig{Enabled: true, PropagateGrpcBaggage: true, MaxTraceStateBytes: 11},
 			wantSource: "grpc", wantParent: parentB, wantState: "vendor=grpc", wantBaggage: "origin=grpc",
 		},
 		{
@@ -200,7 +200,7 @@ func TestResolveSubmissionTraceContext(t *testing.T) {
 		{
 			name:       "oversized grpc baggage ignored",
 			ctx:        metadata.NewIncomingContext(context.Background(), metadata.Pairs("traceparent", parentA, "baggage", "long=value")),
-			config:     configuration.SubmissionTraceContextConfig{Enabled: true, MaxBaggageBytes: 3},
+			config:     configuration.SubmissionTraceContextConfig{Enabled: true, PropagateGrpcBaggage: true, MaxBaggageBytes: 3},
 			wantSource: "none",
 			unchanged:  true,
 		},
@@ -270,16 +270,18 @@ func TestResolveSubmissionTraceContextMetrics(t *testing.T) {
 
 // Check the real SubmitJobs path and serialized event, rather than just the resolver.
 func TestSubmit_TraceContext(t *testing.T) {
-	for _, enabled := range []bool{false, true} {
-		name := "disabled"
-		if enabled {
-			name = "enabled"
-		}
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		enabled, baggage bool
+	}{
+		{name: "disabled"}, {name: "enabled without grpc baggage", enabled: true}, {name: "enabled with grpc baggage", enabled: true, baggage: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			enabled := tc.enabled
 			base := armadacontext.WithValue(armadacontext.Background(), "principal", testfixtures.DefaultPrincipal)
 			ctx := armadacontext.FromGrpcCtx(metadata.NewIncomingContext(base, metadata.Pairs("traceparent", parentB, "baggage", "origin=grpc")))
 			s, mocks := createTestServer(t)
-			s.submissionConfig.TraceContext = configuration.SubmissionTraceContextConfig{Enabled: enabled}
+			s.submissionConfig.TraceContext = configuration.SubmissionTraceContextConfig{Enabled: enabled, PropagateGrpcBaggage: tc.baggage}
 			req := testfixtures.SubmitRequestWithNItems(3)
 			req.JobRequestItems[0].Annotations = map[string]string{canonicalPrefix + "traceparent": parentA}
 			req.JobRequestItems[2].Annotations = map[string]string{canonicalPrefix + "traceparent": "invalid-duplicate"}
@@ -306,7 +308,11 @@ func TestSubmit_TraceContext(t *testing.T) {
 			assert.Empty(t, first[canonicalPrefix+"baggage"], "request baggage must not mix into item context")
 			if enabled {
 				assert.Equal(t, parentB, second[canonicalPrefix+"traceparent"])
-				assert.Equal(t, "origin=grpc", second[canonicalPrefix+"baggage"])
+				if tc.baggage {
+					assert.Equal(t, "origin=grpc", second[canonicalPrefix+"baggage"])
+				} else {
+					assert.NotContains(t, second, canonicalPrefix+"baggage")
+				}
 			} else {
 				assert.NotContains(t, second, canonicalPrefix+"traceparent")
 				assert.NotContains(t, second, canonicalPrefix+"baggage")
@@ -330,7 +336,7 @@ func TestResolveSubmissionTraceContextGRPCHandler(t *testing.T) {
 	require.True(t, serverSC.IsValid())
 	require.False(t, serverSC.IsRemote())
 	item := &api.JobSubmitRequestItem{}
-	s := &Server{submissionConfig: configuration.SubmissionConfig{TraceContext: configuration.SubmissionTraceContextConfig{Enabled: true}}}
+	s := &Server{submissionConfig: configuration.SubmissionConfig{TraceContext: configuration.SubmissionTraceContextConfig{Enabled: true, PropagateGrpcBaggage: true}}}
 	sc, source := s.resolveSubmissionTraceContext(ctx, item)
 	require.Equal(t, "grpc", source)
 	assert.Equal(t, serverSC, sc)
@@ -347,7 +353,7 @@ func TestSubmit_TraceContextLiteralBaggage(t *testing.T) {
 			base := armadacontext.WithValue(armadacontext.Background(), "principal", testfixtures.DefaultPrincipal)
 			ctx := armadacontext.FromGrpcCtx(metadata.NewIncomingContext(base, metadata.Pairs("traceparent", parentB, "baggage", baggage)))
 			s, m := createTestServer(t)
-			s.submissionConfig.TraceContext = configuration.SubmissionTraceContextConfig{Enabled: source != "disabled", AliasAnnotationPrefixes: []string{"legacy/"}, MaxBaggageBytes: uint(len(baggage))}
+			s.submissionConfig.TraceContext = configuration.SubmissionTraceContextConfig{Enabled: source != "disabled", PropagateGrpcBaggage: true, AliasAnnotationPrefixes: []string{"legacy/"}, MaxBaggageBytes: uint(len(baggage))}
 			req := testfixtures.SubmitRequestWithNItems(1)
 			annotations := map[string]string{"custom": "id={JobId}"}
 			if source != "grpc" {
@@ -380,6 +386,39 @@ func TestSubmit_TraceContextLiteralBaggage(t *testing.T) {
 			} else {
 				assert.Equal(t, baggage, result[canonicalPrefix+"baggage"])
 				assert.LessOrEqual(t, len(result[canonicalPrefix+"baggage"]), len(baggage), "conversion must not expand validated baggage")
+			}
+		})
+	}
+}
+
+func TestResolveSubmissionTraceContextGrpcBaggagePolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name, baggage, wantSource, wantBaggage string
+		propagate                              bool
+		annotations                            map[string]string
+	}{
+		{name: "default excludes grpc baggage", baggage: "k=v", wantSource: "grpc"},
+		{name: "default ignores oversized grpc baggage", baggage: "oversized", wantSource: "grpc"},
+		{name: "opt in forwards exact limit", baggage: "k=v", propagate: true, wantSource: "grpc", wantBaggage: "k=v"},
+		{name: "opt in rejects oversized carrier", baggage: "oversized", propagate: true, wantSource: "none"},
+		{name: "canonical baggage stays explicit", baggage: "mesh=value", wantSource: "annotation", wantBaggage: "k=v", annotations: map[string]string{canonicalPrefix + "traceparent": parentA, canonicalPrefix + "baggage": "k=v"}},
+		{name: "alias baggage stays explicit", baggage: "mesh=value", wantSource: "alias", wantBaggage: "k=v", annotations: map[string]string{"old/traceparent": parentA, "old/baggage": "k=v"}},
+		{name: "fallback clears stale canonical baggage", baggage: "mesh=value", wantSource: "grpc", annotations: map[string]string{canonicalPrefix + "traceparent": "bad", canonicalPrefix + "baggage": "old"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &Server{submissionConfig: configuration.SubmissionConfig{TraceContext: configuration.SubmissionTraceContextConfig{Enabled: true, PropagateGrpcBaggage: tc.propagate, MaxBaggageBytes: 3, AliasAnnotationPrefixes: []string{"old/"}}}}
+			ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("traceparent", parentB, "tracestate", "v=x", "baggage", tc.baggage))
+			item := &api.JobSubmitRequestItem{Annotations: maps.Clone(tc.annotations)}
+			sc, source := s.resolveSubmissionTraceContext(ctx, item)
+			assert.Equal(t, tc.wantSource, source)
+			assert.Equal(t, tc.wantSource != "none", sc.IsValid())
+			assert.Equal(t, tc.wantBaggage, item.Annotations[canonicalPrefix+"baggage"])
+			if tc.wantSource == "grpc" {
+				assert.Equal(t, parentB, item.Annotations[canonicalPrefix+"traceparent"])
+				assert.Equal(t, "v=x", item.Annotations[canonicalPrefix+"tracestate"])
+				if !tc.propagate {
+					assert.NotContains(t, item.Annotations, canonicalPrefix+"baggage")
+				}
 			}
 		})
 	}

@@ -195,6 +195,7 @@ opt-in and disabled by default, independently of `observability.enabled`:
 submission:
   traceContext:
     enabled: false  # Set true to resolve and propagate submitter context.
+    propagateGrpcBaggage: false  # Separate opt-in for incoming request baggage.
     aliasAnnotationPrefixes: []  # For example: [otel.example.com/]
     maxTraceStateBytes: 512
     maxBaggageBytes: 8192
@@ -209,7 +210,7 @@ For each job, the server chooses the first valid carrier in this order:
 3. Incoming gRPC metadata, provided it contains a valid W3C `traceparent`. With server
    tracing enabled, the server span in that incoming trace becomes the resolved parent.
 
-A malformed `traceparent` or oversized `tracestate`/`baggage` rejects that carrier and
+A malformed `traceparent` or oversized `tracestate`/accepted `baggage` rejects that carrier and
 continues to the next source. Zero byte limits use the defaults shown above. The three
 fields always come from one source: missing state or baggage in a chosen fallback clears
 any stale canonical value. Alias annotations are preserved. If no source is valid, no
@@ -219,8 +220,18 @@ existing behavior when the feature is disabled. Duplicate submissions keep the o
 
 ### Baggage and annotation limits
 
-Baggage is propagated by default within the byte limit. It travels with job annotations
-and may subsequently reach pod environments; do not put secrets in it. For batches from
+**Design deviation from #5381:** the issue proposes forwarding baggage by default
+once submission context is enabled. Incoming gRPC baggage instead requires the separate
+`submission.traceContext.propagateGrpcBaggage: true` opt-in, which defaults to false.
+This avoids implicitly persisting gateway- or mesh-added metadata into job annotations
+and, later, container environments. Traceparent and tracestate still propagate when
+request baggage is disabled, even if the ignored baggage exceeds the configured limit.
+
+Baggage explicitly supplied in canonical or configured alias annotations keeps its
+existing behavior, subject to `maxBaggageBytes`; this flag only controls the gRPC source.
+When request baggage is enabled, it is forwarded within the same byte limit. Baggage
+travels with job annotations and may subsequently reach pod environments; do not put
+secrets in it. For batches from
 different traces, set canonical annotations on each item. Jobs lacking item context use
 the request context. Resolution works even when server span export is disabled.
 Gateways and service meshes may add baggage; operators should audit incoming baggage

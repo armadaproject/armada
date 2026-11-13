@@ -78,6 +78,11 @@ func (s *Server) resolveSubmissionTraceContext(ctx context.Context, item *api.Jo
 	md, _ := metadata.FromIncomingContext(ctx)
 	carrier = propagation.MapCarrier{}
 	for _, key := range []string{"traceparent", "tracestate", "baggage"} {
+		// Ignore unapproved request baggage before allocation and size checks:
+		// dropping it must not prevent traceparent/tracestate propagation.
+		if key == "baggage" && !cfg.PropagateGrpcBaggage {
+			continue
+		}
 		if values := md.Get(key); len(values) > 0 {
 			carrier[key] = strings.Join(values, ",")
 		}
