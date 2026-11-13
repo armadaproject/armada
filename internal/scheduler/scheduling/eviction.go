@@ -143,7 +143,11 @@ func NewOversubscribedEvictor(
 		jobRepo: jobRepo,
 		nodeDb:  nodeDb,
 		nodeFilter: func(_ *armadacontext.Context, node *internaltypes.Node) (bool, string) {
-			overSubscribedPriorities = make(map[int32]bool)
+			if overSubscribedPriorities == nil {
+				overSubscribedPriorities = make(map[int32]bool)
+			} else {
+				clear(overSubscribedPriorities)
+			}
 			for p, rl := range node.AllocatableByPriority() {
 				if p == internaltypes.EvictedPriority {
 					// These jobs are already evicted jobs.
@@ -187,7 +191,7 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 	evictedJctxsByJobId := make(map[string]*schedulercontext.JobSchedulingContext)
 	affectedNodesById := make(map[string]*internaltypes.Node)
 	nodeIdByJobId := make(map[string]string)
-	nodePreemptiblityStats := []NodePreemptiblityStats{}
+	nodePreemptiblityStats := make([]NodePreemptiblityStats, 0)
 
 	it, err := nodedb.NewNodesIterator(nodeDbTxn)
 	if err != nil {
@@ -198,8 +202,15 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 		if evi.nodeFilter != nil {
 			include, skipReason := evi.nodeFilter(ctx, node)
 			if !include {
+				if skipReason == "" && !node.IsUnschedulable() {
+					nodePreemptiblityStats = append(nodePreemptiblityStats, makeNodePreemptiblityStats(node, true, nil))
+					continue
+				}
 				preemptible := true
-				reasons := map[string]bool{skipReason: true}
+				reasons := make(map[string]bool)
+				if skipReason != "" {
+					reasons[skipReason] = true
+				}
 				if node.IsUnschedulable() {
 					preemptible = false
 					reasons["node_unschedulable"] = true
@@ -210,7 +221,7 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 		}
 		allocatedByJobId := node.AllocatedByJob()
 		jobs := make([]*jobdb.Job, 0, len(allocatedByJobId))
-		reasons := map[string]bool{}
+		reasons := make(map[string]bool)
 		for jobId := range allocatedByJobId {
 			if !node.IsJobEvicted(jobId) {
 				job := evi.jobRepo.GetById(jobId)
