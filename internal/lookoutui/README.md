@@ -16,6 +16,9 @@ machine:
    just involve running `corepack enable`
 1. [Docker](https://www.docker.com/)
 
+Use the [UI test workflow](../../.github/workflows/test.yml) as the reference for
+the Node version used by CI.
+
 #### Yarn and registry mirrors
 
 If you need to use a mirror of the Yarn registry instead of
@@ -67,7 +70,7 @@ real-time. This serves the web app on
 [http://localhost:3000](http://localhost:3000). It proxies API requests to the
 target defined by your `PROXY_TARGET` environment variable, or otherwise your
 locally-running instance of the Lookout server at `http://localhost:10000`
-(please see [the main developer docs](https://armadaproject.io/developer-guide) for details
+(please see [the main developer docs](https://armadaproject.io/docs/developer-guide) for details
 of how to set this up).
 
 ```bash
@@ -91,10 +94,14 @@ you are proxying API requests:
 
 ### Run unit tests
 
-Unit tests are run using [Vitest](https://vitest.dev/).
+Unit tests are run using [Vitest](https://vitest.dev/) with jsdom and do not
+require a running Armada backend. For broader check selection, see
+[Validating changes](../../docs/developer_guide.md#validating-changes).
 
 ```bash
 yarn test --run
+# Focus on one test file:
+yarn test --run src/common/formatNumber.test.ts
 ```
 
 If you are actively changing unit tests or code covered by unit tests, you may

@@ -6,6 +6,12 @@
     - [Other developer docs](#other-developer-docs)
     - [Pre-requisites](#pre-requisites)
     - [Using `mage`](#using-mage)
+    - [Validating changes](#validating-changes)
+        - [Focused Go checks](#focused-go-checks)
+        - [Service-backed Go tests](#service-backed-go-tests)
+        - [Lookout UI checks](#lookout-ui-checks)
+        - [Full-stack integration tests](#full-stack-integration-tests)
+        - [Other CI checks](#other-ci-checks)
     - [Setting up the local dev stack](#setting-up-the-local-dev-stack)
         - [Authentication (auth profile)](#authentication-auth-profile)
         - [Fake executor](#fake-executor)
@@ -76,6 +82,79 @@ Before you can start using Armada, you first need to install the following items
 
 `mage` is a build tool that we use to build Armada. It is similar to Make, but written in Go. It is used to build Armada, run tests and run other useful commands. To see a list of available commands, run `mage -l`.
 
+## Validating changes
+
+Start with the check closest to your change, then expand to affected packages or components. A focused pass does not cover callers, lint, generated-file drift or integration behaviour. Run Go and Mage commands from the repository root; UI commands run from `internal/lookoutui/`.
+
+| Change | Start with | Expand to |
+| --- | --- | --- |
+| Go logic without service fixtures | A named test, then its package | Affected packages and the [service-backed Go suite](#service-backed-go-tests) |
+| Database or Redis behaviour | A selected test with dedicated service fixtures | The [service-backed Go suite](#service-backed-go-tests) |
+| Lookout UI logic or components | A selected Vitest file | UI tests, lint, build and browser checks; see [Lookout UI checks](#lookout-ui-checks) |
+| Cross-component or real-executor behaviour | Relevant package checks | [Full-stack integration tests](#full-stack-integration-tests) |
+
+### Focused Go checks
+
+Use Go matching [`go.mod`](../go.mod), module access and writable caches; some dependencies also require a C compiler. You do not need the full development stack for every package. For example, the [`math` package](../internal/common/math) has no service fixtures:
+
+```bash
+go test ./internal/common/math -run '^TestMax$' -count=1
+go test ./internal/common/math -count=1
+```
+
+For another package, inspect its tests, helpers and any `TestMain` before substituting the path and test name. `-run` still compiles the package and its tests and runs package initialization and `TestMain`. Neither `-short` nor `go test ./...` guarantees a service-free run.
+
+### Service-backed Go tests
+
+The broad Go check used by CI is:
+
+```bash
+mage -v tests
+```
+
+The [runner](../magefiles/tests.go) requires Docker and image access, starts Redis and Postgres, and installs test tooling if missing. It covers `cmd`, `pkg` and `internal` packages and writes reports under `test-reports/`. CI calls this “Golang Unit Tests”, but it uses services and does not run the YAML integration suites or UI tests.
+
+The runner uses container names `redis` and `postgres` and ports `6379` and `5432`, which overlap the development stacks. Stop your own stack first and check for existing containers or listeners; remove only containers you created.
+
+For a focused database test, independently provision a ready, dedicated Postgres instance using the [test helper's connection settings](../internal/common/database/db_testutil.go). It needs privileges to create/drop databases and terminate connections; schema tests also manage roles. Then run:
+
+```bash
+go test ./internal/common/database -run '^TestPrepareSchema_SingleRole_CreatesAndSetsSearchPath$' -count=1
+# Expand to the package when changing shared database behaviour:
+go test ./internal/common/database -count=1
+```
+
+Use dedicated services: database tests create and drop databases, retain migration templates, and may manage roles; Redis tests mutate data too. A test filter does not bypass package initialization or service fixtures.
+
+`mage tests` provisions services for the broad suite and removes its Redis/Postgres containers on normal return after both have started; it does not leave services running for a subsequent focused test. A partial startup or interruption can leave containers behind: inspect and remove only those created by that run. Clean up independently provisioned fixtures after focused tests too. `mage dev:down` cleans up the Compose dependency stack, not these directly started test containers.
+
+### Lookout UI checks
+
+For UI logic, start with a test relevant to your change, using the focused example in the [Lookout UI README's unit-test section](../internal/lookoutui/README.md#run-unit-tests), then expand to the full UI tests, lint and build as appropriate. The UI README owns [setup and client generation](../internal/lookoutui/README.md#installing-dependencies-and-generating-openapi-client-code) and the commands for each check. A focused logic test needs no running Armada backend; a fresh application build also needs generated clients.
+
+For visible or API-interaction changes, also follow the UI README's [browser development](../internal/lookoutui/README.md#live-development-server) or [production-preview](../internal/lookoutui/README.md#building-the-application-for-production) instructions. Tests and builds do not replace checking the affected browser paths against the intended backend.
+
+### Full-stack integration tests
+
+Use the containerized full stack for the Mage integration route. Install the [stack prerequisites](#pre-requisites) and tools in [`tools.yaml`](../tools.yaml); `mage checkDeps` checks tool availability. You also need a running Docker daemon, module/image access, free ports and enough disk and memory for image builds and a Kind cluster. See [full Compose](../_local/compose/full.yaml) and [Kind configuration](../_local/kind/cluster.yaml) for resources and ports.
+
+```bash
+mage dev:full
+mage -v testsuite
+# After validation, tear down your disposable full stack:
+mage dev:fullDown
+```
+
+`dev:full` builds and starts the containerized stack and prepares the `armada-test` Kind cluster. `testsuite` waits for that stack; it does not start it. Its [readiness check](../magefiles/ci.go) is specific to the full-stack Compose setup, so this command is not a generic check for the Goreman or fake-executor setup. It submits jobs to a real executor and runs the configured YAML integration suites; it does not cover all Go, UI or language-client tests.
+
+`dev:fullDown` removes the full stack's volumes and deletes `armada-test`. Use it only for your disposable environment. Built images, generated kubeconfigs and test reports are separate artifacts; teardown is not general cache cleanup.
+
+### Other CI checks
+
+Focused tests cover only part of validation. The [test workflow](../.github/workflows/test.yml) also checks module and generated-file drift and runs the broader Go, UI and integration suites. The [lint workflow](../.github/workflows/lint.yml) covers Go and TypeScript lint. Consult these workflows for their tool versions, setup and exact checks; a focused test pass does not establish that lint or generated files are current. Run checks that can modify files in an isolated checkout and review the diff.
+
+For website changes, use [website/README.md](../website/README.md). When reporting validation, name the exact commands, results and relevant environment, and state which broader checks or browser paths were not run.
+
 ## Setting up the local dev stack
 
 There are two ways to run Armada locally:
@@ -109,7 +188,7 @@ armadactl --config _local/.armadactl.yaml --context auth-oidc get queues
 
 The auth profile configures:
 
-- **Keycloak**: OIDC provider running on <http://localhost:8180> with pre-configured realm, users, and clients
+- **Keycloak**: OIDC provider running on [http://localhost:8180](http://localhost:8180) with pre-configured realm, users, and clients
 - **Users**: `admin/admin` (admin group), `user/password` (users group) for both OIDC and basic auth
 - **Service accounts**: Executor and Scheduler use OIDC Client Credentials flow for service-to-service authentication
 - **APIs**: Server, Lookout, and Binoculars APIs are secured with OIDC and basic auth
@@ -180,19 +259,18 @@ For the standard profile, run `./bin/goreman run status` in a second terminal to
 
 ### Testing if the local dev stack is working
 
-Running `mage testsuite` runs the full test suite against the local dev stack. You should therefore use this to test changes to the core components of Armada.
+For the containerized full stack, follow [Full-stack integration tests](#full-stack-integration-tests). `mage testsuite` runs the configured YAML integration suites after `mage dev:full`; it does not cover all Go, UI or language-client tests. Use [Validating changes](#validating-changes) to select those checks.
 
-You can also run the same commands yourself:
+To run only the basic YAML cases against a suitably configured real-executor stack, ensure the CLI configuration targets your local test stack before running either command:
 
 ```bash
 go run cmd/armadactl/main.go create queue e2e-test-queue
-
-# To enable Ingress tests to pass
 export ARMADA_EXECUTOR_INGRESS_URL="http://localhost"
 export ARMADA_EXECUTOR_INGRESS_PORT=5001
-
 go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
 ```
+
+This is a subset of `mage testsuite`, with no Mage readiness check. It requires a running server and real executor with ingress configured for the selected endpoint.
 
 ### Running the UI
 
