@@ -105,12 +105,12 @@ The scheduler balances three goals: **fairness** (queues below their share go fi
 
 Two different things are called "priority" in Armada:
 
-|                             | Priority class                                                                  | Job `priority`                                                      |
-| --------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| What it is                  | A named class, set with `priorityClassName` in the pod spec                     | A number on the job                                                 |
-| Decides                     | How urgent the job is across the whole cluster, and whether it can be preempted | Only the order of jobs **within your own queue**. Lower runs first. |
-| Can cause preemption        | Yes                                                                             | Never                                                               |
-| Can change after submitting | No                                                                              | Yes, with `armadactl reprioritize`                                  |
+|                             | Priority class                                                                  | Job `priority`                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| What it is                  | A named class, set with `priorityClassName` in the pod spec                     | A number on the job                                                                                 |
+| Decides                     | How urgent the job is across the whole cluster, and whether it can be preempted | Order **within your own queue**, among jobs with the same priority-class urgency. Lower runs first. |
+| Can cause preemption        | Yes                                                                             | Never                                                                                               |
+| Can change after submitting | No                                                                              | Yes, with `armadactl reprioritize`                                                                  |
 
 Within a queue, jobs are ordered by their priority class's urgency, then by job `priority`, then by when they were submitted. Jobs that are already running always come before waiting ones.
 
@@ -157,7 +157,7 @@ Try it: [Gang jobs](/docs/gang-jobs).
 
 When a run fails, Armada can label it with a **failure category**, a short name such as `oom` (out of memory) or `user_error` (your program exited with an error), and sometimes a **hint** with a known fix. Your platform team defines the categories. They show in Lookout, and they're what retry policies use to decide whether to run a job again: for example, retry `oom` with more memory, but never retry `user_error`. See [Error categories](/docs/failure-categories).
 
-{/* See [Retry policies](/docs/retry-policies). */}
+See [Retry policies](/docs/retry_policies).
 
 ## How the pieces fit together
 
