@@ -339,3 +339,48 @@ func TestResolveSubmissionTraceContextGRPCHandler(t *testing.T) {
 	assert.Equal(t, "vendor=grpc", item.Annotations[canonicalPrefix+"tracestate"])
 	assert.Equal(t, "origin=grpc", item.Annotations[canonicalPrefix+"baggage"])
 }
+
+func TestSubmit_TraceContextLiteralBaggage(t *testing.T) {
+	for _, source := range []string{"canonical", "alias", "grpc", "disabled"} {
+		t.Run(source, func(t *testing.T) {
+			const baggage = "origin={JobId}"
+			base := armadacontext.WithValue(armadacontext.Background(), "principal", testfixtures.DefaultPrincipal)
+			ctx := armadacontext.FromGrpcCtx(metadata.NewIncomingContext(base, metadata.Pairs("traceparent", parentB, "baggage", baggage)))
+			s, m := createTestServer(t)
+			s.submissionConfig.TraceContext = configuration.SubmissionTraceContextConfig{Enabled: source != "disabled", AliasAnnotationPrefixes: []string{"legacy/"}, MaxBaggageBytes: uint(len(baggage))}
+			req := testfixtures.SubmitRequestWithNItems(1)
+			annotations := map[string]string{"custom": "id={JobId}"}
+			if source != "grpc" {
+				prefix := canonicalPrefix
+				if source == "alias" {
+					prefix = "legacy/"
+				}
+				annotations[prefix+"traceparent"] = parentB
+				annotations[prefix+"baggage"] = baggage
+			}
+			req.JobRequestItems[0].Annotations = annotations
+			m.queueRepo.EXPECT().GetQueue(ctx, req.Queue).Return(testfixtures.DefaultQueue, nil)
+			m.authorizer.EXPECT().AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).Return(nil)
+			m.deduplicator.EXPECT().GetOriginalJobIds(ctx, req.Queue, req.JobRequestItems).Return(nil, nil)
+			m.deduplicator.EXPECT().StoreOriginalJobIds(ctx, req.Queue, gomock.Any()).Return(nil)
+			var published []byte
+			m.publisher.EXPECT().PublishMessages(ctx, gomock.Any()).DoAndReturn(func(_ *armadacontext.Context, es *armadaevents.EventSequence) error {
+				var err error
+				published, err = proto.Marshal(es)
+				return err
+			})
+			resp, err := s.SubmitJobs(ctx, req)
+			require.NoError(t, err)
+			event := &armadaevents.EventSequence{}
+			require.NoError(t, proto.Unmarshal(published, event))
+			result := event.Events[0].GetSubmitJob().ObjectMeta.Annotations
+			assert.Equal(t, "id="+resp.JobResponseItems[0].JobId, result["custom"])
+			if source == "disabled" {
+				assert.Equal(t, "origin="+resp.JobResponseItems[0].JobId, result[canonicalPrefix+"baggage"])
+			} else {
+				assert.Equal(t, baggage, result[canonicalPrefix+"baggage"])
+				assert.LessOrEqual(t, len(result[canonicalPrefix+"baggage"]), len(baggage), "conversion must not expand validated baggage")
+			}
+		})
+	}
+}

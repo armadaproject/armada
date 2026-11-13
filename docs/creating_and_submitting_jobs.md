@@ -186,6 +186,8 @@ Use `ARMADA_JOB_ID` as a stable key for a job, for example for checkpoints. Use 
 
 ## Submitter trace context
 
+### Configuration
+
 The server can copy W3C trace context into each new job's annotations. This feature is
 opt-in and disabled by default, independently of `observability.enabled`:
 
@@ -197,6 +199,8 @@ submission:
     maxTraceStateBytes: 512
     maxBaggageBytes: 8192
 ```
+
+### Resolution order
 
 For each job, the server chooses the first valid carrier in this order:
 
@@ -213,15 +217,29 @@ context is added. A locally created server span alone does not establish submitt
 Existing canonical annotations are preserved when valid, and all annotations retain their
 existing behavior when the feature is disabled. Duplicate submissions keep the original job.
 
+### Baggage and annotation limits
+
 Baggage is propagated by default within the byte limit. It travels with job annotations
 and may subsequently reach pod environments; do not put secrets in it. For batches from
 different traces, set canonical annotations on each item. Jobs lacking item context use
 the request context. Resolution works even when server span export is disabled.
+Gateways and service meshes may add baggage; operators should audit incoming baggage
+before enabling propagation. Size limits do not filter sensitive contents.
+
+Resolution runs after submission validation. Its byte limits apply to the carrier, not
+the total size of existing annotations. Copying alias or gRPC fields consumes additional
+annotation space. With the feature enabled, canonical trace fields are literal: unlike
+ordinary annotations, `{JobId}` in baggage is not expanded during conversion.
+
+### Resolution metrics
 
 `armada_trace_context_source_total{source="annotation|alias|grpc|none|invalid"}` records
 resolution while the feature is enabled. Each new job increments its selected source (or
 `none`); `invalid` additionally counts each rejected carrier encountered before selection.
 Consequently, the sum across source labels is not a job count. Duplicate jobs are excluded.
+
+### Submission spans
+
 When both `submission.traceContext.enabled` and `observability.enabled` are true, each
 accepted new job with sampled context emits an `armada.job.submit` root after successful
 publication. The trace ID is the job ULID's 16 bytes; the span ID is its last eight bytes.
@@ -230,6 +248,23 @@ link targets the resolved submitter, with `armada.trace_context.source` attribut
 full submitter tracestate. The root retains only the `ot` tracestate entry. Sampling
 follows the resolved submitter rather than applying the server's ratio again.
 Duplicates, failed submissions and jobs without sampled context emit no job roots.
+The server installs the job ID and sampling adapters only when submission tracing is
+explicitly enabled. Other components and a server with the feature disabled keep the
+SDK's ordinary ID generator and configured sampler.
+
+### Sampling and export caveats
+
+ULID-derived trace IDs are deterministic lookup keys, not uniformly random identifiers.
+Their first six bytes encode the millisecond timestamp, and IDs generated within the
+same millisecond use monotonic random increments. Job trace IDs and root span IDs in a
+batch are therefore correlated. The server honors the resolved submitter's sampling
+instead of applying trace-ID-ratio sampling to these IDs.
+
+Downstream samplers that assume independent, uniformly random trace IDs can make
+correlated decisions for these jobs. Avoid additional trace-ID-ratio or probabilistic
+sampling based on that assumption; honor the propagated decision or use a policy that
+explicitly handles ULID-derived IDs. Hashing job IDs would change the specified
+job-ID-to-trace-ID mapping and requires a coordinated design change.
 Export uses the existing bounded, nonblocking batch queue; collector failures do not
 fail submission, and spans can be dropped on backpressure. A ULID with an all-zero
 span-ID suffix cannot form a valid W3C span and is skipped with a warning.

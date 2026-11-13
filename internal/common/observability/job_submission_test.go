@@ -53,7 +53,17 @@ func TestJobSubmissionLifecycle(t *testing.T) {
 	cfg.Exporter.Endpoint = collector.URL
 	cfg.Exporter.Protocol = "http/protobuf"
 	cfg.Traces.Sampler = "always_off"
+	// Shared initialization keeps the SDK's ordinary IDs/sampler even if a
+	// caller attempts to record a job submission.
 	require.NoError(t, InitOTel(cfg))
+	RecordJobSubmission("01ARZ3NDEKTSV4RRFFQ69G5FAV", "queue", "set", "annotation", sampledSubmitter(), time.Now(), time.Now())
+	require.NoError(t, ShutdownOTel(context.Background()))
+	select {
+	case <-requests:
+		t.Fatal("shared initializer enabled submission adapters")
+	default:
+	}
+	require.NoError(t, InitOTelWithJobSubmissionSpans(cfg))
 	t.Cleanup(func() { require.NoError(t, ShutdownOTel(context.Background())) })
 	start := time.Date(2026, 11, 13, 12, 0, 0, 0, time.UTC)
 	RecordJobSubmission("01ARZ3NDEKTSV4RRFFQ69G5FAV", "queue", "set", "annotation", sampledSubmitter(), start, start.Add(time.Second))
