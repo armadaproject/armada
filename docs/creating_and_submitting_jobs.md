@@ -183,3 +183,54 @@ The executor sets these environment variables in every container and init contai
 Gang jobs also get `ARMADA_GANG_ID` and `ARMADA_GANG_CARDINALITY`. When the gang has a node uniformity label, they also get `ARMADA_GANG_NODE_UNIFORMITY_LABEL_NAME` and `ARMADA_GANG_NODE_UNIFORMITY_LABEL_VALUE`.
 
 Use `ARMADA_JOB_ID` as a stable key for a job, for example for checkpoints. Use `ARMADA_JOB_RUN_ID` to keep the output of each run apart.
+
+## Submitter trace context
+
+The server can copy W3C trace context into each new job's annotations. This feature is
+opt-in and disabled by default, independently of `observability.enabled`:
+
+```yaml
+submission:
+  traceContext:
+    enabled: false  # Set true to resolve and propagate submitter context.
+    aliasAnnotationPrefixes: []  # For example: [otel.example.com/]
+    maxTraceStateBytes: 512
+    maxBaggageBytes: 8192
+```
+
+For each job, the server chooses the first valid carrier in this order:
+
+1. `otel.armadaproject.io/{traceparent,tracestate,baggage}` on the job item.
+2. The same three suffixes under each configured alias prefix, in order.
+3. Incoming gRPC metadata, provided it contains a valid W3C `traceparent`. With server
+   tracing enabled, the server span in that incoming trace becomes the resolved parent.
+
+A malformed `traceparent` or oversized `tracestate`/`baggage` rejects that carrier and
+continues to the next source. Zero byte limits use the defaults shown above. The three
+fields always come from one source: missing state or baggage in a chosen fallback clears
+any stale canonical value. Alias annotations are preserved. If no source is valid, no
+context is added. A locally created server span alone does not establish submitter context.
+Existing canonical annotations are preserved when valid, and all annotations retain their
+existing behavior when the feature is disabled. Duplicate submissions keep the original job.
+
+Baggage is propagated by default within the byte limit. It travels with job annotations
+and may subsequently reach pod environments; do not put secrets in it. For batches from
+different traces, set canonical annotations on each item. Jobs lacking item context use
+the request context. Resolution works even when server span export is disabled.
+
+`armada_trace_context_source_total{source="annotation|alias|grpc|none|invalid"}` records
+resolution while the feature is enabled. Each new job increments its selected source (or
+`none`); `invalid` additionally counts each rejected carrier encountered before selection.
+Consequently, the sum across source labels is not a job count. Duplicate jobs are excluded.
+When both `submission.traceContext.enabled` and `observability.enabled` are true, each
+accepted new job with sampled context emits an `armada.job.submit` root after successful
+publication. The trace ID is the job ULID's 16 bytes; the span ID is its last eight bytes.
+The span covers request handling and carries the queue, job set and job ID. Its single
+link targets the resolved submitter, with `armada.trace_context.source` attribution and
+full submitter tracestate. The root retains only the `ot` tracestate entry. Sampling
+follows the resolved submitter rather than applying the server's ratio again.
+Duplicates, failed submissions and jobs without sampled context emit no job roots.
+Export uses the existing bounded, nonblocking batch queue; collector failures do not
+fail submission, and spans can be dropped on backpressure. A ULID with an all-zero
+span-ID suffix cannot form a valid W3C span and is skipped with a warning.
+Automatic client injection and executor environment/transport changes are separate additions.

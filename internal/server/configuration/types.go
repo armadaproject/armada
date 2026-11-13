@@ -45,6 +45,8 @@ type ArmadaConfig struct {
 
 // SubmissionConfig contains config relating to job submission.
 type SubmissionConfig struct {
+	// TraceContext controls opt-in propagation of submitter context into job annotations.
+	TraceContext SubmissionTraceContextConfig
 	// The priorityClassName field on submitted pod must be either empty or in this list.
 	// These names should correspond to priority classes defined in schedulingConfig.
 	AllowedPriorityClassNames map[string]bool
@@ -139,3 +141,17 @@ type QueryApiMirrorConfig struct {
 	// a sensible default is used.
 	MaxInFlight int
 }
+
+// SubmissionTraceContextConfig controls W3C context resolution at job submission.
+// Zero byte limits use the defaults below; the feature is disabled by default.
+type SubmissionTraceContextConfig struct {
+	Enabled                 bool
+	AliasAnnotationPrefixes []string
+	MaxTraceStateBytes      uint
+	MaxBaggageBytes         uint
+}
+
+const (
+	DefaultMaxTraceStateBytes uint = 512
+	DefaultMaxBaggageBytes    uint = 8192
+)

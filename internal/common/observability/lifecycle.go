@@ -139,7 +139,8 @@ func InitOTel(cfg ObservabilityConfig) error {
 			sdktrace.WithBatchTimeout(batchTimeout),
 		),
 		sdktrace.WithResource(res),
-		sdktrace.WithSampler(sampler),
+		sdktrace.WithSampler(JobSpanSampler{Fallback: sampler}),
+		sdktrace.WithIDGenerator(JobSpanIDGenerator{}),
 	)
 
 	// Set global tracer provider and propagators.

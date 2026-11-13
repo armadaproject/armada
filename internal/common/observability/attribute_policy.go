@@ -85,6 +85,7 @@ func NewDefaultSpanAttributePolicy() *SpanAttributePolicy {
 			"trace_id":        {},
 			"span_id":         {},
 			"http.user_agent": {},
+			"armada.job.id":   {},
 		},
 		cardinality: newAttributeCardinalityTracker(DefaultAttributeCardinalityLimit),
 	}
