@@ -55,6 +55,9 @@ echo "CP_NODE=$CP_NODE ETCD_POD=$ETCD_POD"
 
 ### 2. Extract etcd client certificates
 
+This step and the `docker exec` calls below are kind-specific; for a real
+cluster see [dev-cluster-insert-bench.md](./dev-cluster-insert-bench.md).
+
 The apiserver's etcd client certificate is at the pki root of the
 control-plane node, not under `etcd/`:
 

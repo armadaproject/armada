@@ -97,6 +97,82 @@ Tunables (`CONFIRM=yes SIZES=... ./script`):
 Each run leaves `<tag>.json` (full metrics), `<tag>.log` (console output) and,
 after the sweep, `summary.csv`.
 
+## Direct etcd writes (optional path)
+
+Everything above measures the API path, which is what the 1.6k/s question is
+about. To benchmark the POC's direct writer instead, `bulk-bench -mode=etcd`
+talks to etcd, and the executor's `podWrite` config drives the same path in the
+real component. The script does not do this for you: etcd access is
+cluster-specific and bypasses the apiserver, so it is a deliberate manual run.
+
+### bulk-bench flags
+
+| Flag | Default | Notes |
+|---|---|---|
+| `-endpoints` | `https://127.0.0.1:2379` | comma-separated, scheme required |
+| `-ca` / `-cert` / `-key` | empty | TLS is all-or-nothing; one without the others is an error |
+| `-prefix` | `/registry` | `/registry-bench` writes keys the apiserver never sees; `/registry` creates real pods |
+| `-batch-size` | `64` | `MaxTxnOps` is 2× this, so keep ≤64 against etcd's default `--max-txn-ops=128` |
+| `-txn-concurrency` | `1` | parallel transactions per batch; the POC found 8 best |
+| `-max-request-bytes` | `1572864` | chunks split by bytes automatically; a single larger pod is rejected |
+| `-concurrency` | `1` | batch-level parallelism |
+
+```sh
+kubectl -n kube-system port-forward pod/<etcd-pod> 2379:2379 &
+
+./bulk-bench -mode=etcd -count=5000 -concurrency=4 -batch-size=64 -txn-concurrency=8 \
+  -endpoints=https://127.0.0.1:2379 \
+  -ca=ca.crt -cert=apiserver-etcd-client.crt -key=apiserver-etcd-client.key \
+  -prefix=/registry-bench -name-prefix=bench-etcd -output=out.json
+```
+
+`-mode=etcd` reports client-side throughput and latency only; it skips the
+apiserver metrics section by design, since the writes bypass the apiserver.
+
+### Executor config
+
+Only `kubernetes.podWrite.etcd.endpoints` is required when `mode: etcd`;
+everything else has a usable zero value. The block is commented out in
+`config/executor/config.yaml` and filled in in
+`_local/executor/config-etcd-poc.yaml`.
+
+```yaml
+kubernetes:
+  podWrite:
+    mode: etcd
+    maxBatchPods: 64          # ≤64, same max-txn-ops rule
+    maxRequestBytes: 1572864
+    requestTimeout: 30s
+    etcd:
+      endpoints: ["https://<control-plane>:2379"]
+      caFile: /etc/armada/etcd/ca.crt
+      certFile: /etc/armada/etcd/client.crt
+      keyFile: /etc/armada/etcd/client.key
+      prefix: /registry        # must be /registry for real pods
+      dialTimeout: 5s
+      txnConcurrency: 8
+```
+
+Run the executor with `--config=_local/executor/config-etcd-poc.yaml`. The cert
+paths are read by the process running the executor, so they must exist there
+(mounted into the pod if it runs in-cluster).
+
+### Before you try
+
+- **Reachability is the usual blocker.** On a self-managed cluster, copy
+  `apiserver-etcd-client.crt/key` and `etcd/ca.crt` off a control-plane node and
+  port-forward the etcd static pod. Managed control planes (EKS/GKE/AKS)
+  generally do not expose etcd at all, so the direct path cannot be benchmarked
+  there. The `docker exec` cert extraction in
+  [bulk-pod-creation-benchmark.md](./bulk-pod-creation-benchmark.md) is
+  kind-specific.
+- **`/registry` is destructive.** The POC writer has no authorizer, so the
+  direct path bypasses apiserver auth entirely. Point it at a disposable
+  cluster only, and use `/registry-bench` unless you are deliberately creating
+  real pods.
+- **Memory.** Unlike the api mode, `-mode=etcd` materializes every pod in the
+  batch, so 20k × 33 KB is about 660 MB. Use a smaller `-count` for large specs.
+
 ## Reading the result
 
 `summary.csv` is the table to look at:
