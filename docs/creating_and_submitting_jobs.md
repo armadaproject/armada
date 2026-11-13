@@ -4,6 +4,7 @@
   - [Submitting preemptive jobs](#submitting-preemptive-jobs)
     - [Example: Creating and submitting an Armada job](#example-creating-and-submitting-an-armada-job)
   - [Job parameters](#job-parameters)
+  - [Submitter trace context](#submitter-trace-context)
 
 This document is meant to be a guide for new users of how to create and submit Jobs to Armada. Before you can create and submit jobs, make sure you have a basic understanding of Docker and Kubernetes. This is because Armada jobs are run as containers in Kubernetes. To learn more, see:
 
@@ -186,71 +187,15 @@ Use `ARMADA_JOB_ID` as a stable key for a job, for example for checkpoints. Use 
 
 ## Submitter trace context
 
-### Configuration
-
-Enable context propagation with `submission.traceContext.enabled`. It defaults to off
-and works independently of span export:
+If your operator has enabled submission tracing, you can connect a job to the trace that submitted it. Add `traceparent` and optional `tracestate`/`baggage` annotations to the job entry in your submission file:
 
 ```yaml
-submission:
-  traceContext:
-    enabled: false  # Set true to propagate submitter context.
-    propagateGrpcBaggage: false  # Separate opt-in for request baggage.
-    aliasAnnotationPrefixes: []  # For example: [otel.example.com/]
-    maxTraceStateBytes: 512
-    maxBaggageBytes: 8192
+annotations:
+  otel.armadaproject.io/traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+  otel.armadaproject.io/tracestate: "vendor=value"  # Optional.
+  otel.armadaproject.io/baggage: "team=research"  # Optional; never include secrets.
 ```
 
-### Choosing the context
+Use values from your current trace; the values above are examples. Alternatively, send W3C `traceparent` and optional `tracestate` as gRPC metadata. Forwarding gRPC baggage requires an additional operator opt-in.
 
-For each new job, the server uses the first valid context from:
-
-1. `otel.armadaproject.io/{traceparent,tracestate,baggage}` annotations on the item.
-2. The same keys under each configured alias prefix, in order.
-3. Incoming gRPC metadata containing a valid W3C `traceparent`.
-
-The selected fields are stored together under the `otel.armadaproject.io/` prefix;
-alias annotations are retained. Invalid traceparents or fields exceeding the byte limits
-cause the server to try the next source. Zero limits use the defaults shown above.
-No valid source means no job trace. Duplicate submissions keep their original context.
-For batches containing jobs from different traces, set context annotations on each item.
-
-### Baggage
-
-Incoming gRPC baggage is omitted unless `propagateGrpcBaggage: true` is set. Traceparent
-and tracestate still propagate when it is off, regardless of the ignored baggage's size.
-Baggage explicitly supplied in canonical or alias annotations is unaffected by this flag.
-Forwarded baggage must fit within `maxBaggageBytes`.
-
-Baggage may eventually reach job containers. Audit baggage added by gateways or service
-meshes before enabling request baggage; do not include secrets. Size limits do not filter
-sensitive contents or limit the total size of a job's annotations. When this feature is
-enabled, canonical trace fields are literal: `{JobId}` in baggage is not expanded.
-
-### Submission spans
-
-With both context propagation and `observability.enabled` on, each accepted new job
-with sampled context gets an `armada.job.submit` root span after successful publication.
-Its trace ID is the job ULID's 16 bytes; its span ID is the last eight bytes. It covers
-request handling and includes the queue, job set and job ID.
-
-The root links to the selected submitter span, with `armada.trace_context.source`
-attribution. For gRPC context with server tracing enabled, it links to the server span
-in that incoming trace. The link keeps the full tracestate; the job root keeps only `ot`.
-Sampling follows the selected context. Duplicates, failed submissions and jobs without
-sampled context emit no job roots.
-
-ULID-derived IDs are correlated within a batch. Avoid downstream ratio or probabilistic
-sampling that assumes independent, uniformly random trace IDs; honor the propagated
-decision or use a policy that supports ULID-derived IDs. Export failures do not fail
-submission, but a full export queue can drop spans. A job ID with an all-zero span-ID
-suffix cannot form a valid W3C span and is skipped with a warning.
-
-### Metrics
-
-`armada_trace_context_source_total{source="annotation|alias|grpc|none|invalid"}` records
-context resolution for new jobs while the feature is enabled. Each job increments its
-selected source or `none`; `invalid` additionally counts rejected sources, so summing
-all labels does not give a job count. Duplicates are excluded.
-
-Executor propagation and automatic client injection are separate follow-up changes.
+Item annotations take precedence over request metadata. Set them on each item when batching jobs from different traces. See the [operator tracing guide](tracing.md) for configuration and troubleshooting.
