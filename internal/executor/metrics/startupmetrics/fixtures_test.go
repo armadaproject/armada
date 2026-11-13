@@ -1,6 +1,7 @@
 package startupmetrics
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/constants"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -108,4 +110,20 @@ func observationCount(t *testing.T, vec *prometheus.HistogramVec, labelValues ..
 	t.Helper()
 	count, _ := observations(t, vec, labelValues...)
 	return count
+}
+
+func clusterWithNodes(names ...string) *fakecontext.SyncFakeClusterContext {
+	cluster := fakecontext.NewSyncFakeClusterContext()
+	for _, name := range names {
+		cluster.Nodes[name] = &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: name}}
+	}
+	return cluster
+}
+
+type clusterWhoseNodeListingFails struct {
+	*fakecontext.SyncFakeClusterContext
+}
+
+func (c clusterWhoseNodeListingFails) GetNodes() ([]*v1.Node, error) {
+	return nil, errors.New("no connection to the cluster")
 }
