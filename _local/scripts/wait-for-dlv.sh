@@ -17,7 +17,6 @@ COMMON_SERVICES=(
 case "$MODE" in
   standard)      MODE_SERVICE=2349:executor ;;
   fake-executor) MODE_SERVICE=2353:fakeexecutor ;;
-  hot-cold)      MODE_SERVICE=2349:executor ;;
   *)
     echo "Unknown mode: $MODE (expected standard or fake-executor)"
     exit 1
@@ -25,12 +24,6 @@ case "$MODE" in
 esac
 
 ENTRIES=("${COMMON_SERVICES[@]}" "$MODE_SERVICE")
-
-case "$MODE" in
-  hot-cold)
-    ENTRIES+=("2354:lookouthc" "2355:lookouthcingester")
-    ;;
-esac
 
 for entry in "${ENTRIES[@]}"; do
   port="${entry%%:*}"
