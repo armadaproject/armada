@@ -2,11 +2,15 @@ package armadactl
 
 import (
 	"bytes"
+	"context"
+	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc"
 
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/api"
@@ -79,4 +83,145 @@ func TestKubectlLogsHint(t *testing.T) {
 			assert.Equal(t, tc.want, kubectlLogsHint(tc.event, tc.jobInfo))
 		})
 	}
+}
+
+// fakeEventClient serves the events of a single job set. A request that does not watch gets the history only. A
+// request that watches gets the history followed by the live events, after which the stream ends and the live events
+// become part of the history. The events in recordedAfterFirstRequest become part of the history once the first
+// request has been served.
+type fakeEventClient struct {
+	api.EventClient
+	history                   []*api.EventMessage
+	live                      []*api.EventMessage
+	recordedAfterFirstRequest []*api.EventMessage
+	requests                  []*api.JobSetRequest
+}
+
+func (c *fakeEventClient) GetJobSetEvents(_ context.Context, in *api.JobSetRequest, _ ...grpc.CallOption) (api.Event_GetJobSetEventsClient, error) {
+	c.requests = append(c.requests, in)
+	messages := append([]*api.EventMessage{}, c.history...)
+	if in.Watch {
+		messages = append(messages, c.live...)
+		c.history = append(c.history, c.live...)
+		c.live = nil
+	}
+	if len(c.requests) == 1 {
+		c.history = append(c.history, c.recordedAfterFirstRequest...)
+	}
+	return &fakeEventStream{messages: messages}, nil
+}
+
+type fakeEventStream struct {
+	grpc.ClientStream
+	messages []*api.EventMessage
+	next     int
+}
+
+func (s *fakeEventStream) Recv() (*api.EventStreamMessage, error) {
+	if s.next >= len(s.messages) {
+		return nil, io.EOF
+	}
+	message := s.messages[s.next]
+	s.next++
+	return &api.EventStreamMessage{Id: fmt.Sprint(s.next), Message: message}, nil
+}
+
+func submitted(jobId string) *api.EventMessage {
+	return &api.EventMessage{Events: &api.EventMessage_Submitted{Submitted: &api.JobSubmittedEvent{JobId: jobId, Job: &api.Job{Id: jobId}, Created: protoutil.ToTimestamp(time.Unix(0, 0))}}}
+}
+
+func running(jobId string) *api.EventMessage {
+	return &api.EventMessage{Events: &api.EventMessage_Running{Running: &api.JobRunningEvent{JobId: jobId, Created: protoutil.ToTimestamp(time.Unix(0, 0))}}}
+}
+
+func succeeded(jobId string) *api.EventMessage {
+	return &api.EventMessage{Events: &api.EventMessage_Succeeded{Succeeded: &api.JobSucceededEvent{JobId: jobId, Created: protoutil.ToTimestamp(time.Unix(0, 0))}}}
+}
+
+func printedJobEvents(output string) []string {
+	var events []string
+	for _, line := range strings.Split(output, "\n") {
+		if i := strings.Index(line, "Event, job id: "); i >= 0 {
+			events = append(events, strings.Split(line[strings.LastIndex(line[:i], " ")+1:], " pod:")[0])
+		}
+	}
+	return events
+}
+
+func TestWatch_ExitOnInactive(t *testing.T) {
+	tests := map[string]struct {
+		history          []*api.EventMessage
+		live             []*api.EventMessage
+		recordedLater    []*api.EventMessage
+		expectedEvents   []string
+		expectedRequests []bool // the Watch field of each request
+	}{
+		"exits at the end of the history if the job set is inactive": {
+			history:          []*api.EventMessage{submitted("1"), running("1"), succeeded("1")},
+			live:             []*api.EventMessage{submitted("2")},
+			expectedEvents:   []string{"JobSubmittedEvent, job id: 1", "JobRunningEvent, job id: 1", "JobSucceededEvent, job id: 1"},
+			expectedRequests: []bool{false},
+		},
+		"does not exit at a moment of inactivity in the history if the job set is active now": {
+			history: []*api.EventMessage{submitted("1"), succeeded("1"), submitted("2"), running("2")},
+			expectedEvents: []string{
+				"JobSubmittedEvent, job id: 1", "JobSucceededEvent, job id: 1",
+				"JobSubmittedEvent, job id: 2", "JobRunningEvent, job id: 2",
+			},
+			expectedRequests: []bool{false, true},
+		},
+		"exits when the job set becomes inactive after an active history": {
+			history: []*api.EventMessage{submitted("1"), succeeded("1"), submitted("2"), running("2")},
+			live:    []*api.EventMessage{succeeded("2")},
+			expectedEvents: []string{
+				"JobSubmittedEvent, job id: 1", "JobSucceededEvent, job id: 1",
+				"JobSubmittedEvent, job id: 2", "JobRunningEvent, job id: 2",
+				"JobSucceededEvent, job id: 2",
+			},
+			expectedRequests: []bool{false, true, false},
+		},
+		"does not exit at a moment of inactivity that was recorded after the history was read": {
+			history:       []*api.EventMessage{submitted("1"), running("1")},
+			recordedLater: []*api.EventMessage{succeeded("1"), submitted("2"), running("2")},
+			expectedEvents: []string{
+				"JobSubmittedEvent, job id: 1", "JobRunningEvent, job id: 1",
+				"JobSucceededEvent, job id: 1", "JobSubmittedEvent, job id: 2", "JobRunningEvent, job id: 2",
+			},
+			expectedRequests: []bool{false, true, false, true},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			buf := new(bytes.Buffer)
+			app := &App{Out: buf}
+			fake := &fakeEventClient{history: tc.history, live: tc.live, recordedAfterFirstRequest: tc.recordedLater}
+
+			err := app.watch(fake, "queue", "job-set", false, true, false, false)
+			assert.NoError(t, err)
+
+			assert.Equal(t, tc.expectedEvents, printedJobEvents(buf.String()))
+			var requests []bool
+			for _, r := range fake.requests {
+				requests = append(requests, r.Watch)
+			}
+			assert.Equal(t, tc.expectedRequests, requests)
+		})
+	}
+}
+
+func TestWatch_WithoutExitOnInactiveWatchesTheWholeJobSet(t *testing.T) {
+	buf := new(bytes.Buffer)
+	app := &App{Out: buf}
+	fake := &fakeEventClient{
+		history: []*api.EventMessage{submitted("1"), succeeded("1")},
+		live:    []*api.EventMessage{submitted("2")},
+	}
+
+	assert.NoError(t, app.watch(fake, "queue", "job-set", false, false, false, false))
+
+	assert.Equal(t,
+		[]string{"JobSubmittedEvent, job id: 1", "JobSucceededEvent, job id: 1", "JobSubmittedEvent, job id: 2"},
+		printedJobEvents(buf.String()))
+	assert.Len(t, fake.requests, 1)
+	assert.True(t, fake.requests[0].Watch)
 }

@@ -95,7 +95,7 @@ armadactl watch my-team demo-1
 
 `watch` streams every change to the jobs in one job set. See [Submitting jobs](/docs/submitting-jobs#5-watch-it-run) for what the output means.
 
-`watch` keeps running until you press Ctrl-C. To stop it when every job in the job set has finished, add `--exit-if-inactive`. It counts only the jobs it has seen so far, so in a job set with older finished jobs it can stop before a newer job ends. If it's still running after the last job finishes, press Ctrl-C.
+`watch` keeps running until you press Ctrl-C. To stop it when every job in the job set has finished, add `--exit-if-inactive`. It first replays the job set's history and stops only if every job is finished at the end of it, so a quiet moment earlier in the history does not stop it. If it's still running after the last job finishes, press Ctrl-C.
 
 `watch` covers one job set at a time. For everything in a queue, use Lookout.
 
