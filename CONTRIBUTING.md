@@ -24,6 +24,7 @@ Setup everything you’ll need to get started running and developing Armada:
 
 * [Developer setup](https://armadaproject.io/docs/developer-guide)
 * [Detailed local-development reference](docs/developer_guide.md)
+* [Finding the Submit API implementation](docs/developer/armada-api.md#finding-the-submit-api-implementation)
 * [Regenerating code and API clients](docs/developer/generation.md)
 
 ### Issues
