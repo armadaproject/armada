@@ -230,6 +230,21 @@ Operators can change these.
 | `armadaproject.io/gangNodeUniformityLabel` | Places every gang member on nodes with the same value of this node label.                                                                                                                                           |
 | `armadaproject.io/failFast`                | When `"true"`, Armada never retries the job: if a run fails or its node is lost, the job fails at once, even if the queue has a retry policy. Gang jobs get this automatically. `"true"` is the only allowed value. |
 
+### Submitter trace context
+
+If your operator has enabled submission tracing, you can connect a job to the trace that submitted it. Add `traceparent` and optional `tracestate`/`baggage` annotations to the job entry in your submission file:
+
+```yaml
+annotations:
+  otel.armadaproject.io/traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+  otel.armadaproject.io/tracestate: 'vendor=value' # Optional.
+  otel.armadaproject.io/baggage: 'team=research' # Optional; never include secrets.
+```
+
+Use values from your current trace; the values above are examples. Alternatively, send W3C `traceparent` and optional `tracestate` as gRPC metadata. Forwarding gRPC baggage requires an additional operator opt-in.
+
+Item annotations take precedence over request metadata. Set them on each item when batching jobs from different traces. See the [operator tracing guide](/docs/tracing) for configuration and troubleshooting.
+
 ### Environment variables in every job
 
 Armada adds these to every container, including init containers, unless you set a variable with the same name:
