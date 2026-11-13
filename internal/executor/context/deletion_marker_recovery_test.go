@@ -129,6 +129,7 @@ func recoveryAPI(t *testing.T) (*fake.Clientset, *v1.Pod, func() *v1.Pod) {
 	})
 	return client, pod, live
 }
+
 func recoveryContext(t *testing.T, client kubernetes.Interface, hook func(metav1.DeleteOptions) error) *KubernetesClusterContext {
 	t.Helper()
 	previous := prometheus.DefaultRegisterer
@@ -138,6 +139,7 @@ func recoveryContext(t *testing.T, client kubernetes.Interface, hook func(metav1
 	t.Cleanup(ctx.Stop)
 	return ctx
 }
+
 func rejectRecoveryDelete(metav1.DeleteOptions) error {
 	return apierrors.NewForbidden(v1.Resource("pods"), "test", fmt.Errorf("delete denied"))
 }

@@ -43,7 +43,11 @@ type deletionReportingContext struct {
 func (c *deletionReportingContext) GetActiveBatchPods() ([]*v1.Pod, error) { return c.pods, nil }
 
 func TestConditionalDeletionLifecycleReporting(t *testing.T) {
-	for _, scenario := range []string{"live recovery", "GET failure", "PATCH failure", "PATCH conflict", "DELETE conflict", "DELETE failure", "accepted deletion", "concurrent cancellation", "cancellation after PATCH", "PATCH committed response lost", "DELETE committed response lost"} {
+	for _, scenario := range []string{
+		"live recovery", "GET failure", "PATCH failure", "PATCH conflict",
+		"DELETE conflict", "DELETE failure", "accepted deletion", "concurrent cancellation",
+		"cancellation after PATCH", "PATCH committed response lost", "DELETE committed response lost",
+	} {
 		t.Run(scenario, func(t *testing.T) {
 			stateReporter, _, events, _ := setUpJobStateReporterTest(t)
 			stateReporter.startUpTimings = nil
