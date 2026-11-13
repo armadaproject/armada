@@ -19,6 +19,7 @@ import (
 
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/client/executor"
+	"github.com/armadaproject/armada/pkg/client/job"
 	"github.com/armadaproject/armada/pkg/client/node"
 	"github.com/armadaproject/armada/pkg/client/queue"
 	"github.com/armadaproject/armada/pkg/client/retrypolicy"
@@ -45,6 +46,7 @@ type Params struct {
 	Output         OutputFormat
 	QueueAPI       *QueueAPI
 	RetryPolicyAPI *RetryPolicyAPI
+	JobAPI         *JobAPI
 	ExecutorAPI    *ExecutorAPI
 	NodeAPI        *NodeAPI
 }
@@ -64,6 +66,10 @@ type QueueAPI struct {
 	Uncordon queue.UncordonAPI
 	Cancel   queue.CancelAPI
 	Preempt  queue.PreemptAPI
+}
+
+type JobAPI struct {
+	Get job.GetAPI
 }
 
 type ExecutorAPI struct {
@@ -94,6 +100,7 @@ func New() *App {
 		Params: &Params{
 			QueueAPI:       &QueueAPI{},
 			RetryPolicyAPI: &RetryPolicyAPI{},
+			JobAPI:         &JobAPI{},
 			ExecutorAPI:    &ExecutorAPI{},
 			NodeAPI:        &NodeAPI{},
 		},

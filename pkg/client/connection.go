@@ -27,6 +27,8 @@ import (
 type ApiConnectionDetails struct {
 	ArmadaUrl     string
 	ArmadaRestUrl string
+	// LookoutUrl is the url of the Lookout API, for the commands that query Lookout rather than Armada.
+	LookoutUrl string
 	// Names of executor clusters as they appear in the local kubeconfig file.
 	// Used by the test suite to download logs from pods running tests.
 	ExecutorClusters []string
