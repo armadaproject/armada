@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -148,7 +149,9 @@ func decodeStrict(data []byte, v any) error {
 	if err := d.Decode(v); err != nil {
 		return err
 	}
-	if d.More() {
+	// d.More() is not enough, as it reports false at a closing delimiter, so "[] ]" would pass. Anything but the end of
+	// the input after the value is a mistake, whether another value or a syntax error.
+	if err := d.Decode(&json.RawMessage{}); err != io.EOF {
 		return fmt.Errorf("unexpected data after the JSON value")
 	}
 	return nil
