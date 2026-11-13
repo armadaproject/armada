@@ -76,6 +76,8 @@ type FairSchedulingAlgo struct {
 	useQueuedAggregateDemand bool
 	// Whether to compare the running aggregate against the scan.
 	compareRunningAggregateDemand bool
+	// Whether running demand is sourced from the aggregate.
+	useRunningAggregateDemand bool
 }
 
 func NewFairSchedulingAlgo(
@@ -116,6 +118,7 @@ func NewFairSchedulingAlgo(
 		compareQueuedAggregateDemand:  config.ExperimentalQueuedAggregate.Compare,
 		useQueuedAggregateDemand:      config.ExperimentalQueuedAggregate.Use,
 		compareRunningAggregateDemand: config.ExperimentalRunningAggregate.Compare,
+		useRunningAggregateDemand:     config.ExperimentalRunningAggregate.Use,
 	}, nil
 }
 
@@ -449,15 +452,14 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	allPools = append(allPools, awayAllocationPools...)
 	allPools = armadaslices.Unique(allPools)
 
-	leasedJobs := txn.GetAllLeasedJobs()
-	var queuedJobs []*jobdb.Job
-	if l.queuedScanRequired() {
-		queuedJobs = getQueuedJobs(txn, allPools)
+	// Only fetch queued and running jobs when the scan needs them.
+	allJobs := make([]*jobdb.Job, 0)
+	if l.runningScanRequired() {
+		allJobs = append(allJobs, txn.GetAllLeasedJobs()...)
 	}
-
-	allJobs := make([]*jobdb.Job, 0, len(leasedJobs)+len(queuedJobs))
-	allJobs = append(allJobs, leasedJobs...)
-	allJobs = append(allJobs, queuedJobs...)
+	if l.queuedScanRequired() {
+		allJobs = append(allJobs, getQueuedJobs(txn, allPools)...)
+	}
 
 	jobSchedulingInfo, err := l.newCalculateJobSchedulingInfo(ctx,
 		txn,
@@ -609,6 +611,17 @@ func (l *FairSchedulingAlgo) queuedScanRequired() bool {
 	return !l.useQueuedAggregateDemand || l.compareQueuedAggregateDemand
 }
 
+// runningScanRequired reports whether leased jobs must be fetched and scanned.
+func (l *FairSchedulingAlgo) runningScanRequired() bool {
+	return !l.useRunningAggregateDemand || l.compareRunningAggregateDemand
+}
+
+// computeRunningAggregateDemand reports whether the running aggregate must be
+// computed, i.e. it is either compared against the scan or used as the source.
+func (l *FairSchedulingAlgo) computeRunningAggregateDemand() bool {
+	return l.compareRunningAggregateDemand || l.useRunningAggregateDemand
+}
+
 // newCalculateJobSchedulingInfo returns the per-round scheduling info.
 func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 	ctx *armadacontext.Context,
@@ -629,10 +642,10 @@ func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 		observeJobAggregateLookupDuration(currentPool, time.Since(lookupStart).Seconds())
 	}
 
-	// Running scheduling info, derived from the aggregate. Only read when it is
-	// being compared against the scan.
+	// Running scheduling info, derived from the aggregate. Read whenever it is
+	// compared against the scan or used as the source.
 	var aggregateRunningInfo *jobdb.SchedulingInfo
-	if l.compareRunningAggregateDemand {
+	if l.computeRunningAggregateDemand() {
 		knownQueues := make(map[string]bool, len(queues))
 		for name := range queues {
 			knownQueues[name] = true
@@ -666,6 +679,18 @@ func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 			for pc := range byPriorityClass {
 				info.inUsePriorityClasses[pc] = true
 			}
+		}
+	}
+	if l.useRunningAggregateDemand {
+		// Running demand, allocation, jobs and in-use priority classes come from
+		// the aggregate instead of the scan.
+		info.runningDemandByQueueAndPriorityClass = aggregateRunningInfo.DemandByQueueAndPriorityClass
+		info.allocatedByQueueAndPriorityClass = aggregateRunningInfo.AllocatedByQueueAndPriorityClass
+		info.awayAllocatedByQueueAndPriorityClass = aggregateRunningInfo.AwayAllocatedByQueueAndPriorityClass
+		info.jobsByPool = aggregateRunningInfo.JobsByPool
+		info.jobsByExecutorId = aggregateRunningInfo.JobsByExecutorId
+		for pc := range aggregateRunningInfo.InUsePriorityClasses {
+			info.inUsePriorityClasses[pc] = true
 		}
 	}
 	return info, nil
