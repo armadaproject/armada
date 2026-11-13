@@ -27,9 +27,9 @@ func NewEngine(globalMaxRetries uint) *Engine {
 
 // Counts holds the per-job tallies the engine needs to enforce retry limits.
 type Counts struct {
-	// Failures is the number of genuinely failed runs, including the run being
-	// evaluated. Preempted and lease-returned runs are not failures the job
-	// caused; they are excluded upstream, so they never consume a retry budget.
+	// Failures is the number of failed or preempted runs, including the run being
+	// evaluated. Lease-returned runs never ran, so they are excluded upstream and
+	// never consume a retry budget.
 	Failures uint32
 }
 

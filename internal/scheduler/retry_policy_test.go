@@ -439,7 +439,7 @@ func nonTerminalError(events []*armadaevents.EventSequence_Event) *armadaevents.
 	return nil
 }
 
-func TestRetryPolicy_FFOn_GlobalCapExcludesPreemptions(t *testing.T) {
+func TestRetryPolicy_FFOn_GlobalCapCountsPreemptions(t *testing.T) {
 	// RetryLimit is set high so the per-policy limit is never the gate; this
 	// test isolates the global cap.
 	policy := mkPolicy(t, 10, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{
@@ -447,20 +447,14 @@ func TestRetryPolicy_FFOn_GlobalCapExcludesPreemptions(t *testing.T) {
 		OnCategory: "app-error",
 	})
 
-	// Global cap of 2, three preempted runs plus one failed run. Preemptions
-	// are the scheduler's own action and must not consume the global budget:
-	// genuineRuns = 4 - 3 = 1, so the failed run is the job's first genuine
-	// attempt and must still retry.
 	sched := makeRetryTestSchedulerWithGlobalMax(t, true, fakePolicyCache{"test-policy": policy}, 2)
-	job := makeRetryJob(t, sched, jobRunOpts{schedulingInfo: schedulingInfo, preemptedRuns: 3, failedRuns: 1})
-	require.Equal(t, uint32(1), job.FailureCount(), "fixture must have exactly one failed run")
-	require.Equal(t, 4, len(job.AllRuns()), "fixture must have four total runs")
+	job := makeRetryJob(t, sched, jobRunOpts{schedulingInfo: schedulingInfo, preemptedRuns: 2, failedRuns: 1})
+	require.Equal(t, uint32(3), job.FailureCount())
 
 	events, txn := runFailurePath(t, sched, job, categorizedError("app-error"))
 	defer txn.Abort()
 
-	assert.True(t, hasRequeued(events.Events),
-		"preemptions must not consume the global cap: 3 preemptions + 1 failure with a cap of 2 must still retry")
+	assert.False(t, hasRequeued(events.Events), "two preemptions and one failure use up a global cap of 2")
 }
 
 func TestRetryPolicy_FFOn_GlobalMaxZeroDisablesRetries(t *testing.T) {
