@@ -21,13 +21,7 @@ import (
 const conditionalDeletionPrefix = "conditional:"
 
 func isConditionalDeletionMarker(marker string) bool {
-	token, ok := strings.CutPrefix(marker, conditionalDeletionPrefix)
-	if !ok {
-		return false
-	}
-	id, _, _ := strings.Cut(token, " ")
-	_, err := uuid.Parse(id)
-	return err == nil
+	return strings.HasPrefix(marker, conditionalDeletionPrefix)
 }
 
 func (c *KubernetesClusterContext) claimDeletion(pod *v1.Pod, resourceVersion string, conditional bool) (*v1.Pod, error) {
@@ -35,7 +29,13 @@ func (c *KubernetesClusterContext) claimDeletion(pod *v1.Pod, resourceVersion st
 	if conditional {
 		marker = conditionalDeletionPrefix + marker
 	}
-	patch := &domain.Patch{MetaData: metav1.ObjectMeta{UID: pod.UID, ResourceVersion: resourceVersion, Annotations: map[string]string{domain.MarkedForDeletion: marker}}}
+	patch := &domain.Patch{
+		MetaData: metav1.ObjectMeta{
+			UID:             pod.UID,
+			ResourceVersion: resourceVersion,
+			Annotations:     map[string]string{domain.MarkedForDeletion: marker},
+		},
+	}
 	data, err := json.Marshal(patch)
 	if err != nil {
 		return nil, err
@@ -67,7 +67,13 @@ func (c *KubernetesClusterContext) removeAbandonedDeletionMarker(claim *v1.Pod) 
 		}
 		// The version protects both the token and deletionTimestamp checks from
 		// concurrent adoption/acceptance. Remove only this key, never all annotations.
-		patch := map[string]interface{}{"metadata": map[string]interface{}{"uid": current.UID, "resourceVersion": current.ResourceVersion, "annotations": map[string]interface{}{domain.MarkedForDeletion: nil}}}
+		patch := map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"uid":             current.UID,
+				"resourceVersion": current.ResourceVersion,
+				"annotations":     map[string]interface{}{domain.MarkedForDeletion: nil},
+			},
+		}
 		data, err := json.Marshal(patch)
 		if err != nil {
 			return err

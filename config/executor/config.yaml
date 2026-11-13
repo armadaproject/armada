@@ -6,6 +6,8 @@ application:
   submitConcurrencyLimit: 2
   updateConcurrencyLimit: 10
   deleteConcurrencyLimit: 2
+  # Enable only after all old executors have stopped and their deletion requests have drained.
+  enableConditionalDeletionMarkerCleanup: false
   jobLeaseRequestTimeout: "30s"
   maxLeasedJobs: 100
   errorCategories:

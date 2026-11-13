@@ -47,6 +47,7 @@ func TestConditionalDeletionLifecycleReporting(t *testing.T) {
 		"live recovery", "GET failure", "PATCH failure", "PATCH conflict",
 		"DELETE conflict", "DELETE failure", "accepted deletion", "concurrent cancellation",
 		"cancellation after PATCH", "PATCH committed response lost", "DELETE committed response lost",
+		"DELETE conflict after suppressed update",
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			stateReporter, _, events, _ := setUpJobStateReporterTest(t)
@@ -57,7 +58,7 @@ func TestConditionalDeletionLifecycleReporting(t *testing.T) {
 			pod := makeTestPod(v1.PodStatus{Phase: v1.PodPending})
 			pod.Name, pod.Namespace, pod.ResourceVersion = "conditional-delete", "default", "1"
 			client := fake.NewSimpleClientset(pod.DeepCopy())
-			realContext := clustercontext.NewClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", DeleteConcurrencyLimit: 1}, time.Minute, deletionReportingClient{client}, time.Minute)
+			realContext := clustercontext.NewClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", DeleteConcurrencyLimit: 1, EnableConditionalDeletionMarkerCleanup: true}, time.Minute, deletionReportingClient{client}, time.Minute)
 			realContext.Stop()
 			ctx := &deletionReportingContext{ClusterContext: realContext}
 			stateReporter.clusterContext = ctx
@@ -70,6 +71,7 @@ func TestConditionalDeletionLifecycleReporting(t *testing.T) {
 			updateLive := func(p *v1.Pod) { require.NoError(t, client.Tracker().Update(gvr, p, p.Namespace)) }
 			injected := errors.New("injected API failure")
 			deletionAttempt := true
+			var suppressed *v1.Pod
 			client.PrependReactor("get", "pods", func(clienttesting.Action) (bool, runtime.Object, error) {
 				if scenario == "GET failure" {
 					return true, nil, injected
@@ -109,7 +111,7 @@ func TestConditionalDeletionLifecycleReporting(t *testing.T) {
 					updateLive(live)
 					return true, nil, apierrors.NewConflict(v1.Resource("pods"), pod.Name, injected)
 				}
-				if scenario == "DELETE conflict" {
+				if scenario == "DELETE conflict" || scenario == "DELETE conflict after suppressed update" {
 					options := action.(clienttesting.DeleteAction).GetDeleteOptions()
 					require.NotNil(t, options.Preconditions.ResourceVersion)
 					live := getLive()
@@ -117,6 +119,11 @@ func TestConditionalDeletionLifecycleReporting(t *testing.T) {
 					live.ResourceVersion = "3"
 					updateLive(live)
 					require.NotEqual(t, live.ResourceVersion, *options.Preconditions.ResourceVersion)
+					if scenario == "DELETE conflict after suppressed update" {
+						suppressed = live.DeepCopy()
+						stateReporter.reportStatusUpdate(pod, suppressed)
+						require.Empty(t, events.GetReceivedEvents())
+					}
 					return true, nil, apierrors.NewConflict(v1.Resource("pods"), pod.Name, injected)
 				}
 				if scenario == "DELETE failure" {
@@ -150,7 +157,14 @@ func TestConditionalDeletionLifecycleReporting(t *testing.T) {
 			running := live.DeepCopy()
 			running.Status.Phase = v1.PodRunning
 			updateLive(running)
-			stateReporter.reportStatusUpdate(pod, running)
+			if suppressed != nil {
+				stateReporter.reportStatusUpdate(suppressed, running)
+				require.Empty(t, events.GetReceivedEvents(), "removing a marker does not replay the suppressed phase change")
+				ctx.pods = []*v1.Pod{running}
+				stateReporter.ReportMissingJobEvents()
+			} else {
+				stateReporter.reportStatusUpdate(pod, running)
+			}
 			normalEvents := 1
 			if intentional {
 				normalEvents = 0

@@ -33,7 +33,10 @@ type ApplicationConfiguration struct {
 	SubmitConcurrencyLimit int
 	UpdateConcurrencyLimit int
 	DeleteConcurrencyLimit int
-	JobLeaseRequestTimeout time.Duration
+	// EnableConditionalDeletionMarkerCleanup removes abandoned conditional markers.
+	// Leave disabled until all overlapping executors support ownership renewal.
+	EnableConditionalDeletionMarkerCleanup bool `yaml:"enableConditionalDeletionMarkerCleanup"`
+	JobLeaseRequestTimeout                 time.Duration
 	// MaxLeasedJobs is the maximum jobs the executor should have in Leased state ay any one time (i.e jobs not submitted to kubernetes)
 	// It is largely used to calculate how many new jobs to request from the scheduler
 	MaxLeasedJobs int

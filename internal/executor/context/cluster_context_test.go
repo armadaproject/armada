@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
@@ -47,11 +48,31 @@ func setupTestWithMinRepeatedDeletePeriod(minRepeatedDeletePeriod time.Duration)
 	client := fake.NewSimpleClientset()
 	clientProvider := &FakeClientProvider{FakeClient: client}
 	clusterContext := NewClusterContext(
-		configuration.ApplicationConfiguration{ClusterId: "test-cluster-1", Pool: "pool", DeleteConcurrencyLimit: 1},
+		configuration.ApplicationConfiguration{ClusterId: "test-cluster-1", Pool: "pool", DeleteConcurrencyLimit: 1, EnableConditionalDeletionMarkerCleanup: true},
 		minRepeatedDeletePeriod,
 		clientProvider,
 		5*time.Minute,
 	)
+	// Cache sync finishes after the initial lists, before every reflector has
+	// necessarily opened its watch. Wait for those requests too, so action-count
+	// tests cannot confuse background startup with the operation under test.
+	if !waitForCondition(func() bool {
+		actions := client.Fake.Actions()
+		watched := map[schema.GroupVersionResource]bool{}
+		for _, action := range actions {
+			if action.GetVerb() == "watch" {
+				watched[action.GetResource()] = true
+			}
+		}
+		for _, action := range actions {
+			if action.GetVerb() == "list" && !watched[action.GetResource()] {
+				return false
+			}
+		}
+		return true
+	}) {
+		panic("initial informer watches did not start")
+	}
 	return clusterContext, clientProvider
 }
 
@@ -410,9 +431,8 @@ func TestKubernetesClusterContext_DeletePodWithCondition_ForceDeletesPod(t *test
 		return true
 	}, true)
 	assert.NoError(t, err)
-	require.Len(t, client.Fake.Actions(), 2)
+	require.Len(t, client.Fake.Actions(), 1)
 	assert.True(t, client.Fake.Actions()[0].Matches("get", "pods"))
-	assert.True(t, client.Fake.Actions()[1].Matches("patch", "pods"))
 
 	// At the exact deadline, no force kill is issued. Immediately after it, force kill is allowed.
 	pod = createBatchPod()
@@ -426,9 +446,8 @@ func TestKubernetesClusterContext_DeletePodWithCondition_ForceDeletesPod(t *test
 		return true
 	}, true)
 	assert.NoError(t, err)
-	require.Len(t, client.Fake.Actions(), 2)
+	require.Len(t, client.Fake.Actions(), 1)
 	assert.True(t, client.Fake.Actions()[0].Matches("get", "pods"))
-	assert.True(t, client.Fake.Actions()[1].Matches("patch", "pods"))
 	client.Fake.ClearActions()
 	testClock.Step(time.Nanosecond)
 	err = clusterContext.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, true)

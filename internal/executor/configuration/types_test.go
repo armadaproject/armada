@@ -138,3 +138,23 @@ func TestWellKnownTaintsLiteralAndRegexMatching(t *testing.T) {
 		})
 	}
 }
+
+func TestConditionalDeletionMarkerCleanupConfig(t *testing.T) {
+	for _, test := range []struct {
+		name, document string
+		enabled        bool
+	}{
+		{"omitted", "application: {}", false},
+		{"disabled", "application:\n  enableConditionalDeletionMarkerCleanup: false", false},
+		{"enabled", "application:\n  enableConditionalDeletionMarkerCleanup: true", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			v := viper.New()
+			v.SetConfigType("yaml")
+			require.NoError(t, v.ReadConfig(strings.NewReader(test.document)))
+			var cfg ExecutorConfiguration
+			require.NoError(t, v.Unmarshal(&cfg, commonconfig.CustomHooks...))
+			assert.Equal(t, test.enabled, cfg.Application.EnableConditionalDeletionMarkerCleanup)
+		})
+	}
+}

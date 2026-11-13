@@ -132,10 +132,15 @@ func recoveryAPI(t *testing.T) (*fake.Clientset, *v1.Pod, func() *v1.Pod) {
 
 func recoveryContext(t *testing.T, client kubernetes.Interface, hook func(metav1.DeleteOptions) error) *KubernetesClusterContext {
 	t.Helper()
+	return recoveryContextWithCleanup(t, client, hook, true)
+}
+
+func recoveryContextWithCleanup(t *testing.T, client kubernetes.Interface, hook func(metav1.DeleteOptions) error, enabled bool) *KubernetesClusterContext {
+	t.Helper()
 	previous := prometheus.DefaultRegisterer
 	prometheus.DefaultRegisterer = prometheus.NewRegistry()
 	t.Cleanup(func() { prometheus.DefaultRegisterer = previous })
-	ctx := NewClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", DeleteConcurrencyLimit: 1}, time.Minute, recoveryProvider{recoveryClient{client, hook}}, time.Minute)
+	ctx := NewClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", DeleteConcurrencyLimit: 1, EnableConditionalDeletionMarkerCleanup: enabled}, time.Minute, recoveryProvider{recoveryClient{client, hook}}, time.Minute)
 	t.Cleanup(ctx.Stop)
 	return ctx
 }
@@ -397,7 +402,7 @@ func TestDeletionMarkerRecovery_CleanupCASProtectsConcurrentAdoption(t *testing.
 }
 
 func TestDeletionMarkerRecovery_UnknownMarkersRemainPermanent(t *testing.T) {
-	for _, marker := range []string{"legacy", "conditional:not-a-uuid"} {
+	for _, marker := range []string{"legacy", "another-format"} {
 		t.Run(marker, func(t *testing.T) {
 			client, pod, live := recoveryAPI(t)
 			current := live()
@@ -467,4 +472,28 @@ func TestDeletionMarkerRecovery_NonPessimisticClaims(t *testing.T) {
 		require.NotNil(t, live().DeletionTimestamp)
 		require.True(t, util.IsMarkedForDeletion(live()))
 	})
+}
+
+func TestDeletionMarkerRecovery_CleanupGate(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
+			client, pod, live := recoveryAPI(t)
+			var legacySnapshot *v1.Pod
+			ctx := recoveryContextWithCleanup(t, client, func(metav1.DeleteOptions) error {
+				// A legacy executor can observe the marker and prepare an unconditional
+				// DELETE without renewing ownership. Keep that request outstanding.
+				legacySnapshot = live()
+				return rejectRecoveryDelete(metav1.DeleteOptions{})
+			}, enabled)
+			err := ctx.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, true)
+			require.True(t, apierrors.IsForbidden(err))
+			require.NotNil(t, legacySnapshot)
+			require.NotEmpty(t, legacySnapshot.Annotations[domain.MarkedForDeletion])
+			require.Equal(t, !enabled, util.IsMarkedForDeletion(live()))
+			if !enabled {
+				require.NoError(t, client.CoreV1().Pods(pod.Namespace).Delete(context.Background(), legacySnapshot.Name, metav1.DeleteOptions{}))
+				require.True(t, util.IsMarkedForDeletion(live()), "cleanup disabled preserves suppression for an unobservable legacy DELETE")
+			}
+		})
+	}
 }
