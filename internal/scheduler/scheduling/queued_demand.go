@@ -49,11 +49,11 @@ func queuedDemandFromAggregate(
 // queuedDemandEqual reports whether the scan-derived and aggregate-derived
 // queued demand are equivalent.
 //
-// An absent bucket is treated as an empty (zero) bucket. The aggregate drops
-// buckets once their resources reach zero, so a queue/priority-class that only
-// ever held zero-resource jobs may be present in one side and absent in the
-// other; that is not a difference in demand. A bucket holding non-zero demand
-// on either side must be present and equal on both.
+// An absent bucket is treated as an empty (zero) bucket. Both sides keep a
+// bucket (with all-zero resources) while any job contributes to it and drop it
+// when the last contributing job leaves, so absence and zero demand are
+// equivalent. A bucket holding non-zero demand on either side must be present
+// and equal on both.
 func queuedDemandEqual(a, b map[string]map[string]internaltypes.ResourceList) bool {
 	return queuedDemandSubsetEqual(a, b) && queuedDemandSubsetEqual(b, a)
 }
