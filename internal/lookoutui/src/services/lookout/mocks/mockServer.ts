@@ -4,6 +4,7 @@ import { setupServer, SetupServerApi } from "msw/node"
 import { compareValues, getActiveJobSets, mergeFilters } from "../../../common/fakeJobsUtils"
 import { Job, JobFilter, JobGroup, JobId, JobKey, JobOrder, SortDirection } from "../../../models/lookoutModels"
 import { CancelJobsRequest } from "../../../openapi/armada"
+import { JobRunDebugMessage, JobRunDebugMessageToJSON } from "../../../openapi/lookout"
 import { FAKE_ARMADA_API_BASE_URL } from "../../../setupTests"
 
 const GET_QUEUES_ENDPOINT = `${FAKE_ARMADA_API_BASE_URL}/v1/batched/queues`
@@ -161,17 +162,16 @@ export class MockServer {
     )
   }
 
-  setPostJobRunDebugMessageResponseForRunId(runId: string, errorMessage: string) {
+  setPostJobRunDebugMessageResponseForRunId(runId: string, response: JobRunDebugMessage) {
     this.server.use(
-      http.post<object, { runId: string }, { errorMessage: string }>(
-        POST_JOB_RUN_DEBUG_MESSAGE_ENDPOINT,
-        async (req) => {
-          const reqJson = await req.request.json()
-          if (reqJson.runId === runId) {
-            return HttpResponse.json({ errorMessage })
-          }
-        },
-      ),
+      http.post<object, { runId: string }>(POST_JOB_RUN_DEBUG_MESSAGE_ENDPOINT, async (req) => {
+        const reqJson = await req.request.json()
+        if (reqJson.runId === runId) {
+          // Send what the API sends: the generated models rename some fields (exists -> _exists), and the hook
+          // reads the response with the generated parser, which expects the names on the wire
+          return HttpResponse.json(JobRunDebugMessageToJSON(response))
+        }
+      }),
     )
   }
 

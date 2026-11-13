@@ -17,6 +17,7 @@ import {
 import { ErrorBoundary } from "react-error-boundary"
 
 import { Analytics, ANALYTICS_EVENTS } from "../../../../analytics"
+import { tryFormatJson } from "../../../../common/formatJson"
 import { formatDuration, TimestampFormat } from "../../../../common/formatTime"
 import { formatJobRunState } from "../../../../common/jobsTableFormatters"
 import { SPACING } from "../../../../common/spacing"
@@ -30,6 +31,7 @@ import { useGetJobRunDebugMessage } from "../../../../services/lookout/useGetJob
 import { useGetJobRunError } from "../../../../services/lookout/useGetJobRunError"
 import { useGetJobRunSchedulerTerminationReason } from "../../../../services/lookout/useGetJobRunSchedulerTerminationReason"
 
+import { DebugInfo } from "./DebugInfo"
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import { SidebarTabSubheading } from "./sidebarTabContentComponents"
 
@@ -186,13 +188,10 @@ export const JobRunDetails = ({
   // Ignore any errors from this call - the API returns an error if there is no scheduler termination reason, which is happy-path
   const { data: schedulerTerminationReason, status: schedulerTerminationReasonStatus } =
     useGetJobRunSchedulerTerminationReason(runId)
-  const prettyTerminationReason = useMemo(() => {
-    try {
-      return JSON.stringify(JSON.parse(schedulerTerminationReason ?? ""), undefined, 2)
-    } catch {
-      return schedulerTerminationReason ?? ""
-    }
-  }, [schedulerTerminationReason])
+  const prettyTerminationReason = useMemo(
+    () => tryFormatJson(schedulerTerminationReason ?? "") ?? schedulerTerminationReason ?? "",
+    [schedulerTerminationReason],
+  )
 
   const headingTextParts = ["Run", (runIndex + 1).toString()]
   const runIndicativeTimestamp = started || pending || leased || ""
@@ -323,17 +322,11 @@ export const JobRunDetails = ({
               </AccordionSummary>
             </Accordion>
           )}
-          {debugMessageStatus === "success" && debugMessage && (
+          {debugMessageStatus === "success" && (debugMessage.errorString || debugMessage.debugInfo) && (
             <Accordion variant="elevation" square>
               <AccordionSummary>Debug</AccordionSummary>
               <AccordionDetails>
-                <CodeBlock
-                  code={debugMessage}
-                  language="text"
-                  downloadable={false}
-                  showLineNumbers={false}
-                  loading={false}
-                />
+                <DebugInfo debugMessage={debugMessage} formatIsoTimestamp={formatIsoTimestamp} />
               </AccordionDetails>
             </Accordion>
           )}

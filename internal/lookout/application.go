@@ -20,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/lookout/configuration"
 	"github.com/armadaproject/armada/internal/lookout/conversions"
+	"github.com/armadaproject/armada/internal/lookout/gen/models"
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi"
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi/operations"
 	"github.com/armadaproject/armada/internal/lookout/repository"
@@ -129,8 +130,9 @@ func Serve(configuration configuration.LookoutConfig) error {
 			if err != nil {
 				return operations.NewGetJobRunDebugMessageBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
-			return operations.NewGetJobRunDebugMessageOK().WithPayload(&operations.GetJobRunDebugMessageOKBody{
+			return operations.NewGetJobRunDebugMessageOK().WithPayload(&models.JobRunDebugMessage{
 				ErrorString: result,
+				DebugInfo:   conversions.ParseDebugInfo(result),
 			})
 		},
 	)
