@@ -335,8 +335,9 @@ func (c *KubernetesClusterContext) DeletePodWithCondition(pod *v1.Pod, condition
 		return fmt.Errorf("pod does not match provided condition")
 	}
 
-	// Waiting for an accepted deletion needs no new ownership claim.
-	if currentPod.DeletionTimestamp != nil && !c.clock.Now().After(currentPod.DeletionTimestamp.Add(c.podKillTimeout)) {
+	// Waiting for an already marked deletion needs no new ownership claim.
+	// An unmarked terminating pod still needs reporting suppression before returning success.
+	if currentPod.DeletionTimestamp != nil && util.IsMarkedForDeletion(currentPod) && !c.clock.Now().After(currentPod.DeletionTimestamp.Add(c.podKillTimeout)) {
 		log.Debugf("Asked to delete pod %s/%s but this pod is already being deleted", currentPod.Namespace, currentPod.Name)
 		return nil
 	}

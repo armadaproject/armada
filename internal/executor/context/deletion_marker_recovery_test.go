@@ -497,3 +497,54 @@ func TestDeletionMarkerRecovery_CleanupGate(t *testing.T) {
 		})
 	}
 }
+
+func TestDeletionMarkerRecovery_AlreadyTerminatingOwnership(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		for _, cachedMarked := range []bool{false, true} {
+			for _, liveMarked := range []bool{false, true} {
+				t.Run(fmt.Sprintf("cleanup=%t/cached=%t/live=%t", enabled, cachedMarked, liveMarked), func(t *testing.T) {
+					client, pod, live := recoveryAPI(t)
+					pod.DeletionTimestamp = &metav1.Time{Time: time.Now().Add(-10 * time.Second)}
+					if cachedMarked {
+						pod.Annotations = map[string]string{domain.MarkedForDeletion: "cached-owner"}
+					}
+					require.NoError(t, client.Tracker().Update(v1.SchemeGroupVersion.WithResource("pods"), pod, pod.Namespace))
+					ctx := recoveryContextWithCleanup(t, client, nil, enabled)
+					client.PrependReactor("get", "pods", func(clienttesting.Action) (bool, runtime.Object, error) {
+						current := live()
+						if current.Annotations == nil {
+							current.Annotations = map[string]string{}
+						}
+						if liveMarked {
+							current.Annotations[domain.MarkedForDeletion] = "live-owner"
+						} else {
+							delete(current.Annotations, domain.MarkedForDeletion)
+						}
+						require.NoError(t, client.Tracker().Update(v1.SchemeGroupVersion.WithResource("pods"), current, pod.Namespace))
+						return true, current, nil
+					})
+					client.Fake.ClearActions()
+					require.NoError(t, ctx.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, true))
+					writes := 0
+					for _, action := range client.Actions() {
+						if action.GetVerb() == "patch" {
+							writes++
+						}
+						require.NotEqual(t, "delete", action.GetVerb())
+					}
+					expectedWrites := 1
+					if liveMarked {
+						expectedWrites = 0
+					}
+					require.Equal(t, expectedWrites, writes, "only an already marked live pod may skip the claim")
+					current := live()
+					require.True(t, util.IsMarkedForDeletion(current))
+					require.NotNil(t, current.DeletionTimestamp)
+					if liveMarked {
+						require.Equal(t, "live-owner", current.Annotations[domain.MarkedForDeletion])
+					}
+				})
+			}
+		}
+	}
+}

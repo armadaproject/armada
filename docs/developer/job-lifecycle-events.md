@@ -708,7 +708,7 @@ The `deletion_requested` annotation tells phase reporting that Armada is deletin
 
 Removing the marker does not replay a phase change that was suppressed while it was present: the marker-only update leaves the phase unchanged. The periodic missing-event reconciler can report the current phase if the pod remains available; it cannot reconstruct every missed intermediate transition.
 
-Each actual deletion attempt writes a new UUID token, even when the pod is already marked. That adds one PATCH for a previously marked cancellation or force-kill attempt. A conditional call that finds the live pod already terminating before its kill deadline only performs the GET and returns.
+Each actual deletion attempt writes a new UUID token, even when the pod is already marked. That adds one PATCH for a previously marked cancellation or force-kill attempt. A conditional call that finds the live pod already marked and terminating before its kill deadline only performs the GET and returns. An unmarked terminating pod still gets a marker before success is returned, preserving phase-report suppression and preventing its deletion from being classified as unexpected.
 
 Conditional deletion checks the live UID and condition before writing a token with a resourceVersion guard. Pessimistic DELETE uses that returned version; every DELETE also checks UID to avoid deleting a replacement pod with the same name. The conditional DELETE shares the ten-second deadline started by its live GET. A timeout retains suppression because deletion may have succeeded.
 
