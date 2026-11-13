@@ -11,19 +11,36 @@ import (
 	"github.com/armadaproject/armada/pkg/client/httpapi"
 )
 
-// Job is a job as Lookout reports it: its state, queue, resources, runs and so on, with its job spec.
+// Job is a job as Lookout reports it: its state, queue, resources, runs and so on, with its job spec and, if it did not
+// succeed, why. Make one with NewJob: the runs are replaced by ones that can carry what is recorded about them, so a
+// Job made without it has no runs when it is written.
 type Job struct {
 	*models.Job
+	// Runs replaces the runs of the job, which this has the same JSON key as, to add to each what Lookout has recorded.
+	Runs    []*Run          `json:"runs"`
 	JobSpec json.RawMessage `json:"jobSpec,omitempty"`
+	// Error is why Lookout rejected the job, which is the only error it records for a job itself. Any other failure is
+	// on the runs.
+	Error string `json:"error,omitempty"`
+}
+
+// Run is a run of a job as Lookout reports it, with what Lookout has recorded about why it did not succeed.
+type Run struct {
+	*models.Run
+	RunDetails *RunDetails `json:"runDetails,omitempty"`
 }
 
 // NewJob makes a Job of a job Lookout reported.
 func NewJob(job *models.Job) *Job {
-	return &Job{Job: job}
+	runs := make([]*Run, len(job.Runs))
+	for i, run := range job.Runs {
+		runs[i] = &Run{Run: run}
+	}
+	return &Job{Job: job, Runs: runs}
 }
 
-// GetAPI returns the job with the given id from Lookout, with its job spec. It is an error if Lookout does not know the
-// job.
+// GetAPI returns the job with the given id from Lookout, with its job spec and, if it did not succeed, why. It is an
+// error if Lookout does not know the job.
 type GetAPI func(jobId string) (*Job, error)
 
 func Get(getConnectionDetails client.ConnectionDetails) GetAPI {
@@ -45,6 +62,9 @@ func Get(getConnectionDetails client.ConnectionDetails) GetAPI {
 			return nil, errors.New("not found")
 		}
 		if job.JobSpec, err = getJobSpec(api, jobId); err != nil {
+			return nil, err
+		}
+		if err := addDiagnostics(api, job); err != nil {
 			return nil, err
 		}
 		return job, nil
