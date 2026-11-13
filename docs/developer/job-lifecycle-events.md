@@ -698,7 +698,11 @@ The scheduler generates its events again in two cases:
 
 ## Pod deletion and debug events
 
-Before the executor deletes a pod, it adds the `deletion_requested` annotation (`domain.MarkedForDeletion`) to the pod. The state reporter does not report phase changes of a pod with this annotation. This stops a second terminal event for a pod that the executor deletes. Only the informer update path checks the annotation. The reconciliation pass does not check it.
+Before the executor deletes a pod, it adds the `deletion_requested` annotation (`domain.MarkedForDeletion`) to the pod. Every deletion attempt renews the annotation so concurrent attempts can distinguish ownership. Conditional deletion checks the live pod and guards its claim and pessimistic DELETE with resourceVersion. If that DELETE is definitively rejected, the executor removes its abandoned marker using UID/resourceVersion guards, unless another attempt adopted it or deletion has begun. Cleanup conflicts are retried up to three times; cleanup failure is returned with the deletion error. Timeouts and other uncertain API outcomes retain suppression.
+
+Versioned conditional claims use a `conditional:` UUID prefix. A later versioned claim can supersede them and fence an earlier outstanding DELETE. Cancellation, non-versioned deletion and unknown or legacy markers retain permanent intent through all successors. The value is otherwise opaque to reporting: presence controls suppression. This recovery protocol requires all overlapping executor instances to renew ownership before deletion; an older executor can adopt a marker invisibly, so mixed-version overlap requires rollout coordination.
+
+The state reporter does not report phase changes of a pod with this annotation. This stops a second terminal event for a pod that the executor deletes. Only the informer update path checks the annotation. The reconciliation pass does not check it.
 
 The executor emits one `JobRunTerminatedDebugInfo` event in two cases:
 
