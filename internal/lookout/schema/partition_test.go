@@ -177,7 +177,10 @@ func TestPartitionJobTable_RowInsertedDuringConversionIsNotLost(t *testing.T) {
 		ctx := armadacontext.Background()
 
 		insertDone := make(chan error, 1)
-		testHookAfterCopy = func() {
+		testHookBeforeStep = func(step conversionStep) {
+			if step.sql != "DROP TABLE job" {
+				return
+			}
 			ready := make(chan struct{})
 			go func() {
 				conn, err := db.Acquire(ctx)
@@ -199,7 +202,7 @@ func TestPartitionJobTable_RowInsertedDuringConversionIsNotLost(t *testing.T) {
 			}()
 			<-ready // return only after the goroutine has reached Exec
 		}
-		t.Cleanup(func() { testHookAfterCopy = nil })
+		t.Cleanup(func() { testHookBeforeStep = nil })
 
 		require.NoError(t, PartitionJobTable(ctx, db))
 		require.NoError(t, <-insertDone, "concurrent insert should complete without error")

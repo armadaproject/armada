@@ -71,7 +71,7 @@ run_migration() {
 }
 
 run_migration Scheduler $GO_BIN run ./cmd/scheduler/main.go migrateDatabase --config ./_local/scheduler/config.yaml
-run_migration Lookout $GO_BIN run ./cmd/lookout/main.go --migrateDatabase --config ./_local/lookout/config.yaml
+run_migration Lookout $GO_BIN run ./cmd/lookout --migrateDatabase --config ./_local/lookout/config.yaml
 
 print_success "All migrations completed successfully!"
 
