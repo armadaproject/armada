@@ -49,21 +49,25 @@ const (
 // inspect per-container state from pod.Status; ContainerName scopes them to a
 // specific container when set, otherwise any container can match.
 //
-// OnPodError is pod-level: it matches a regex against the failure message the
-// executor captured for the issue. For a failed pod, the message is the pod
+// OnPodError is pod-level: it matches a regex against the failure message that
+// the executor reports for the run. For a failed pod, the message is the pod
 // status message, or else one line for each failed container with its exit
 // code and termination message. So a rule can also match text that the
-// program wrote. Use it for failures where no container has
-// a useful terminationMessage, including kubelet/runtime errors (image pull,
-// missing volume, missing config) and Armada-detected conditions (stuck
-// terminating, active deadline exceeded, externally deleted). ContainerName
-// is ignored for OnPodError because the message has no container attribution.
+// program wrote. Use it for failures where no container has a useful
+// terminationMessage, for example kubelet and runtime errors (image pull,
+// missing volume, missing config). ContainerName is ignored for OnPodError
+// because the message has no container attribution.
 //
-// OnPodEvents is also pod-level: it matches the pod's Kubernetes events.
-// Events carry failures that often do not reach pod or container status, for
-// example kubelet admission and device-plugin errors. The rule matches only
-// on classification paths that receive the events (failed pod detection). On
-// other paths it never matches. ContainerName is ignored for OnPodEvents.
+// OnPodEvents is also pod-level: it matches the Kubernetes events of the pod
+// when the executor detects the failure. Events carry failures that often do
+// not reach pod or container status, for example kubelet admission and
+// device-plugin errors. The kubelet writes events asynchronously, so an event
+// that arrives after the executor detects the failure does not count.
+// ContainerName is ignored for OnPodEvents.
+//
+// Armada gives the failures that it detects itself, for example stuck
+// terminating or externally deleted, the built-in category internal. The
+// classifier does not evaluate rules for them.
 type CategoryRule struct {
 	ContainerName        string                      `yaml:"containerName,omitempty"`
 	OnExitCodes          *errormatch.ExitCodeMatcher `yaml:"onExitCodes,omitempty"`

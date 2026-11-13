@@ -45,7 +45,7 @@ func (job *Job) SchedulingOrderCompare(other *Job) int {
 // Specifically, compare returns
 //   - 0 if the jobs have equal job id,
 //   - -1 if job should be scheduled before other,
-//   - +1 if other should be scheduled before other.
+//   - +1 if other should be scheduled before job.
 func SchedulingOrderCompare(job, other *Job) int {
 	// Jobs with equal id are always considered equal.
 	// This ensures at most one job with a particular id can exist in the jobDb.
@@ -71,7 +71,7 @@ func SchedulingOrderCompare(job, other *Job) int {
 		return 1
 	}
 
-	// Jobs higher in queue-priority come first.
+	// Among jobs of the same urgency, a lower job priority number comes first.
 	if job.priority < other.priority {
 		return -1
 	} else if job.priority > other.priority {

@@ -30,10 +30,12 @@ import (
 	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/metrics/pod_metrics"
 	"github.com/armadaproject/armada/internal/executor/metrics/runstate"
+	"github.com/armadaproject/armada/internal/executor/metrics/startupmetrics"
 	"github.com/armadaproject/armada/internal/executor/node"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
 	"github.com/armadaproject/armada/internal/executor/podchecks/failedpodchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/reporter/startup"
 	"github.com/armadaproject/armada/internal/executor/service"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
 	"github.com/armadaproject/armada/internal/podwriter"
@@ -125,12 +127,16 @@ func StartUpWithContext(
 	taskManager *task.BackgroundTaskManager,
 	wg *sync.WaitGroup,
 ) (func(), *sync.WaitGroup) {
+	wellKnownTaints, err := config.Kubernetes.NewWellKnownTaints()
+	if err != nil {
+		ctx.Fatalf("Config error in well-known taints: %s", err)
+	}
 	nodeInfoService := node.NewKubernetesNodeInfoService(
 		clusterContext,
 		config.Kubernetes.NodeTypeLabel,
 		config.Kubernetes.NodePoolLabel,
 		config.Application.ReservedNodePoolSuffix,
-		config.Kubernetes.ToleratedTaints)
+		wellKnownTaints)
 	podUtilisationService := utilisation.NewPodUtilisationService(
 		clusterContext,
 		nodeInfoService,
@@ -146,7 +152,7 @@ func StartUpWithContext(
 		ctx.Fatalf("Config error in pending pod checks: %s", err)
 	}
 
-	stopExecutorApiComponents := setupExecutorApiComponents(ctx, config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService)
+	stopExecutorApiComponents := setupExecutorApiComponents(ctx, config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService, wellKnownTaints)
 
 	resourceCleanupService, err := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
 	if err != nil {
@@ -178,6 +184,7 @@ func setupExecutorApiComponents(
 	pendingPodChecker *podchecks.PodChecks,
 	nodeInfoService node.NodeInfoService,
 	podUtilisationService utilisation.PodUtilisationService,
+	wellKnownTaints *configuration.WellKnownTaints,
 ) func() {
 	conn, err := createConnectionToApi(config.ExecutorApiConnection, config.Client.MaxMessageSizeBytes, config.GRPC)
 	if err != nil {
@@ -192,6 +199,8 @@ func setupExecutorApiComponents(
 		clusterContext,
 		podUtilisationService,
 		nodeInfoService,
+		wellKnownTaints,
+		config.Kubernetes.TaintCategorisation.CategoriseUnknownTaints,
 		config.Kubernetes.TrackedNodeLabels,
 		config.Kubernetes.NodeIdLabel,
 		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
@@ -233,6 +242,19 @@ func setupExecutorApiComponents(
 
 	debugConfig := config.Application.DebugEvents
 	debugRenderer := reporter.NewDebugMessageRenderer(clusterContext, debugConfig)
+	// Left nil when capture is disabled, which is how the state reporter knows not to measure.
+	var startUpTimings *startup.Timings
+	// Left nil when the metrics are disabled, or when there is no breakdown to summarise.
+	var startUpMetrics *startupmetrics.Recorder
+	if config.Application.StartUpTimings.Enabled {
+		startUpTimings, err = startup.NewTimings(config.Application.StartUpTimings)
+		if err != nil {
+			ctx.Fatalf("Config error in start up timings: %s", err)
+		}
+		if config.Application.StartUpTimings.Metrics.Enabled {
+			startUpMetrics = startupmetrics.NewRecorder(config.Application.StartUpTimings.Metrics)
+		}
+	}
 
 	leaseRequester := service.NewJobLeaseRequester(executorApiClient, clusterContext)
 	preemptRunProcessor := processors.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter, debugRenderer)
@@ -277,6 +299,8 @@ func setupExecutorApiComponents(
 		podIssueService,
 		classifier,
 		debugRenderer,
+		startUpTimings,
+		startUpMetrics,
 		debugConfig.MinAppContainerRuntimeForFailureDebug,
 	)
 	if err != nil {
@@ -394,6 +418,9 @@ func validateConfig(config configuration.ExecutorConfiguration) error {
 	}
 	if config.Application.DeleteConcurrencyLimit <= 0 {
 		return fmt.Errorf("DeleteConcurrencyLimit was %d, must be greater or equal to 1", config.Application.DeleteConcurrencyLimit)
+	}
+	if _, err := config.Kubernetes.NewWellKnownTaints(); err != nil {
+		return fmt.Errorf("invalid kubernetes.taintCategorisation.wellKnownTaints configuration: %w", err)
 	}
 	return nil
 }

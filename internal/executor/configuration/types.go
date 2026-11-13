@@ -1,16 +1,25 @@
 package configuration
 
 import (
+	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/observability"
 	profilingconfig "github.com/armadaproject/armada/internal/common/profiling/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/categorizer"
 	"github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 	"github.com/armadaproject/armada/pkg/client"
+)
+
+const (
+	UserWellKnownTaintCategory = "user"
+	UnknownTaintCategory       = "unknown"
 )
 
 type ApplicationConfiguration struct {
@@ -32,6 +41,46 @@ type ApplicationConfiguration struct {
 	// Set ErrorCategories.Enabled to true to turn classification on.
 	ErrorCategories categorizer.ErrorCategoriesConfig `yaml:"errorCategories"`
 	DebugEvents     DebugEventsConfig                 `yaml:"debugEvents"`
+	StartUpTimings  StartUpTimingsConfig              `yaml:"startUpTimings"`
+}
+
+// StartUpTimingsConfig controls capture of the pod start-up breakdown attached to JobRunRunning.
+// Experimental - shape subject to change.
+type StartUpTimingsConfig struct {
+	Enabled bool `yaml:"enabled"`
+	// ExtraSteps are site-specific phases measured between two Kubernetes events on the pod, for
+	// setup Armada has no built-in knowledge of - such as CNI plugins, device plugins configuration.
+	// Each step's name becomes a label, so keep the list short and the names stable.
+	ExtraSteps []StartUpStepConfig  `yaml:"extraSteps"`
+	Metrics    StartUpMetricsConfig `yaml:"metrics"`
+}
+
+type StartUpMetricsConfig struct {
+	Enabled               bool     `yaml:"enabled"`
+	TrackedInitContainers []string `yaml:"trackedInitContainers"`
+}
+
+// StartUpStepConfig measures the interval between two Kubernetes events on the pod. Both markers
+// must match or the step is left out of the event entirely
+type StartUpStepConfig struct {
+	Name  string               `yaml:"name"`
+	Start *StartUpMarkerConfig `yaml:"start"`
+	End   *StartUpMarkerConfig `yaml:"end"`
+}
+
+// StartUpMarkerConfig identifies one Kubernetes event on the pod.
+// At least one of Reason or Message must be configured, if both provided then both must match.
+type StartUpMarkerConfig struct {
+	// Reason is matched against the event's reason, e.g. "^IBConfigured$".
+	// Regex - must compile or executor will fail to start up
+	Reason string `yaml:"reason"`
+	// Message is matched against the event's message, e.g. "^bound \\d+ devices".
+	// Regex - must compile or executor will fail to start up
+	Message string `yaml:"message"`
+	// Match selects which matching event to take when several match, valid options
+	// - "first" (the default)
+	// - "last"
+	Match string `yaml:"match"`
 }
 
 // DebugEventsConfig controls capture of pod diagnostics. Experimental - shape subject to change.
@@ -113,6 +162,7 @@ type KubernetesConfiguration struct {
 	// ToleratedTaints specifies taints which are tolerated by the executor.
 	// If a node has a taint that is not in this list, the executor will consider it for scheduling Armada jobs.
 	ToleratedTaints           []string
+	TaintCategorisation       TaintCategorisationConfiguration
 	MinimumPodAge             time.Duration
 	StuckTerminatingPodExpiry time.Duration
 	FailedPodExpiry           time.Duration
@@ -158,6 +208,100 @@ type EtcdWriterConfiguration struct {
 	Prefix         string
 	DialTimeout    time.Duration
 	TxnConcurrency int
+}
+
+type TaintCategorisationConfiguration struct {
+	// CategoriseUnknownTaints controls whether unknown node taints receive the "unknown" category.
+	CategoriseUnknownTaints bool
+	WellKnownTaints         WellKnownTaintsConfiguration
+}
+
+type WellKnownTaintsConfiguration struct {
+	// Taint keys used by end users that the executor recognizes. Supports regex and will eventually replace ToleratedTaints.
+	// Keys match literally unless they contain regex syntax other than dots
+	// (*+?[](){}|^$ or backslash). Regex patterns must match the entire taint key.
+	// Nodes with unrecognized NoSchedule taints are not considered available for scheduling.
+	// Matching taints are reported to the scheduler as user-facing metadata.
+	Keys  []string
+	Admin []WellKnownTaintAdminConfiguration
+}
+
+type WellKnownTaintAdminConfiguration struct {
+	// Name of a category to for admins to place taints in.
+	Category string
+	// Taint keys used by admins and operators that the executor recognizes. Supports regex.
+	// Literal and regex matching follow the same rules as WellKnownTaintsConfiguration.Keys.
+	// Nodes with unrecognized NoSchedule taints are not considered available for scheduling.
+	// Matching taints are reported to the scheduler with the configured admin category.
+	Keys []string
+}
+
+type WellKnownTaint struct {
+	Pattern    string
+	Category   string
+	UserFacing bool
+	regexp     *regexp.Regexp
+}
+
+type WellKnownTaints struct {
+	Taints []WellKnownTaint
+}
+
+func (c KubernetesConfiguration) NewWellKnownTaints() (*WellKnownTaints, error) {
+	taints := make([]WellKnownTaint, 0, len(c.TaintCategorisation.WellKnownTaints.Keys)+len(c.ToleratedTaints)+1)
+	appendTaint := func(pattern, category string, userFacing bool) error {
+		expression := pattern
+		if !strings.ContainsAny(expression, `*+?[](){}|^$\`) {
+			expression = regexp.QuoteMeta(expression)
+		}
+		re, err := regexp.Compile("^(?:" + expression + ")$")
+		if err != nil {
+			return err
+		}
+		taints = append(taints, WellKnownTaint{Pattern: pattern, Category: category, UserFacing: userFacing, regexp: re})
+		return nil
+	}
+	// Convert legacy tolerated taints and the reservation taint key to user-facing well-known taints.
+	for _, taintKey := range append(append([]string{}, c.ToleratedTaints...), constants.ReservationTaintKey) {
+		if err := appendTaint("^"+regexp.QuoteMeta(taintKey)+"$", "", true); err != nil {
+			return nil, err
+		}
+	}
+	// Convert kubernetes.taintCategorisation.wellKnownTaints.keys to user-facing well-known taints.
+	for _, pattern := range c.TaintCategorisation.WellKnownTaints.Keys {
+		if err := appendTaint(pattern, UserWellKnownTaintCategory, true); err != nil {
+			return nil, err
+		}
+	}
+	// Convert kubernetes.taintCategorisation.wellKnownTaints.admin.keys to categorized well-known taints with
+	// their respective category strings
+	for i, admin := range c.TaintCategorisation.WellKnownTaints.Admin {
+		if strings.TrimSpace(admin.Category) == "" {
+			return nil, fmt.Errorf("taintCategorisation.wellKnownTaints.admin[%d].category must not be empty", i)
+		}
+		if admin.Category == UserWellKnownTaintCategory {
+			return nil, fmt.Errorf("taintCategorisation.wellKnownTaints.admin[%d].category must not be %q, as that is the implied category for outer level wellKnownTaints", i, UserWellKnownTaintCategory)
+		}
+		if admin.Category == UnknownTaintCategory {
+			return nil, fmt.Errorf("taintCategorisation.wellKnownTaints.admin[%d].category must not be %q, as it is reserved for unknown taints", i, UnknownTaintCategory)
+		}
+		for _, pattern := range admin.Keys {
+			if err := appendTaint(pattern, admin.Category, false); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return &WellKnownTaints{Taints: taints}, nil
+}
+
+// MatchWellKnownTaint reports whether taintKey matches a configured well-known taint.
+func (q *WellKnownTaints) MatchWellKnownTaint(taintKey string) (WellKnownTaint, bool) {
+	for _, taint := range q.Taints {
+		if taint.regexp.MatchString(taintKey) {
+			return taint, true
+		}
+	}
+	return WellKnownTaint{}, false
 }
 
 type EtcdConfiguration struct {
