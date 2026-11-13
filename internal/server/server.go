@@ -13,9 +13,11 @@ import (
 	"github.com/redis/go-redis/extra/redisprometheus/v9"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
+	"github.com/armadaproject/armada/internal/common/cache"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
@@ -181,6 +183,20 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	defer controlPlaneEventsPublisher.Close()
 
 	retryPolicyRepo := retrypolicy.NewPostgresRetryPolicyRepository(dbPool)
+	retryPolicyNames := cache.NewGenericCache(func(ctx *armadacontext.Context) (sets.Set[string], error) {
+		policies, err := retryPolicyRepo.GetAllRetryPolicies(ctx)
+		if err != nil {
+			return nil, err
+		}
+		names := sets.New[string]()
+		for _, policy := range policies {
+			names.Insert(policy.Name)
+		}
+		return names, nil
+	}, config.QueueCacheRefreshPeriod)
+	services = append(services, func() error {
+		return retryPolicyNames.Run(ctx)
+	})
 
 	queueServer := queue.NewServer(controlPlaneEventsPublisher, queueRepository, authorizer)
 	retryPolicyServer := retrypolicy.NewServer(retryPolicyRepo, authorizer)
@@ -191,7 +207,8 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		queueCache,
 		config.Submission,
 		submit.NewDeduplicator(dbPool),
-		authorizer)
+		authorizer,
+		retryPolicyNames)
 
 	schedulerApiConnection, err := createApiConnection(config.SchedulerApiConnection)
 	if err != nil {

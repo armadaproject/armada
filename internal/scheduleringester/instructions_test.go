@@ -66,7 +66,7 @@ func TestConvertEventSequence(t *testing.T) {
 					QueuedVersion:  0,
 					Priority:       int64(f.Priority),
 					Submitted:      f.BaseTime.UnixNano(),
-					SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
+					SchedulingInfo: protoutil.MustMarshall(withRetryPoliciesAnnotation(getExpectedSubmitMessageSchedulingInfo(t))),
 					PriceBand:      1,
 				},
 				Metadata: JobInsertionMetadata{
@@ -616,6 +616,11 @@ func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobS
 		},
 	}
 	return expectedSubmitSchedulingInfo
+}
+
+func withRetryPoliciesAnnotation(info *schedulerobjects.JobSchedulingInfo) *schedulerobjects.JobSchedulingInfo {
+	info.ObjectRequirements[0].GetPodRequirements().Annotations[constants.RetryPoliciesAnnotation] = "team-default"
+	return info
 }
 
 func multipleEventsMultipleTimeStamps() []*armadaevents.EventSequence_Event {

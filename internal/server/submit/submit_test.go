@@ -5,17 +5,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/status"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc/codes"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/sets"
 	clock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/internal/common/cache"
+	"github.com/armadaproject/armada/internal/common/constants"
 	commonMocks "github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/server/mocks"
@@ -46,9 +51,10 @@ func createMocks(t *testing.T) *mockObjects {
 
 func TestSubmit_Success(t *testing.T) {
 	tests := map[string]struct {
-		req              *api.JobSubmitRequest
-		deduplicationIds map[string]string
-		expectedEvents   []*armadaevents.EventSequence_Event
+		req                    *api.JobSubmitRequest
+		deduplicationIds       map[string]string
+		retryPoliciesNotLoaded bool
+		expectedEvents         []*armadaevents.EventSequence_Event
 	}{
 		"Submit request with one job": {
 			req:            testfixtures.SubmitRequestWithNItems(1),
@@ -75,6 +81,16 @@ func TestSubmit_Success(t *testing.T) {
 			req:            withPriorityClass(testfixtures.SubmitRequestWithNItems(1), ""),
 			expectedEvents: testfixtures.NEventSequenceEvents(1),
 		},
+		"Submit request with retry policies keeps the annotation": {
+			req: withAnnotation(testfixtures.SubmitRequestWithNItems(1), constants.RetryPoliciesAnnotation, "team-default"),
+			expectedEvents: withEventAnnotation(
+				testfixtures.NEventSequenceEvents(1), constants.RetryPoliciesAnnotation, "team-default"),
+		},
+		"Submit request without retry policies does not need the retry policies to be loaded": {
+			req:                    testfixtures.SubmitRequestWithNItems(1),
+			retryPoliciesNotLoaded: true,
+			expectedEvents:         testfixtures.NEventSequenceEvents(1),
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -82,6 +98,9 @@ func TestSubmit_Success(t *testing.T) {
 			ctx = armadacontext.WithValue(ctx, "principal", testfixtures.DefaultPrincipal)
 
 			server, mockedObjects := createTestServer(t)
+			if tc.retryPoliciesNotLoaded {
+				server.retryPolicies = cache.NewGenericCache[sets.Set[string]](nil, time.Minute)
+			}
 
 			mockedObjects.queueRepo.
 				EXPECT().
@@ -129,6 +148,72 @@ func TestSubmit_Success(t *testing.T) {
 			cancel()
 		})
 	}
+}
+
+func TestSubmit_RetryPolicyErrorCodes(t *testing.T) {
+	tests := map[string]struct {
+		annotation      string
+		policiesNotLoad bool
+		wantCode        codes.Code
+	}{
+		"a policy that does not exist is rejected": {
+			annotation: "other-policy",
+			wantCode:   codes.InvalidArgument,
+		},
+		"a policy name is unavailable until the policies load": {
+			annotation:      "team-default",
+			policiesNotLoad: true,
+			wantCode:        codes.Unavailable,
+		},
+		"an invalid annotation is rejected without the policies": {
+			annotation:      "team-default,,gpu-transient",
+			policiesNotLoad: true,
+			wantCode:        codes.InvalidArgument,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			defer cancel()
+			server, mockedObjects := createTestServer(t)
+			if tc.policiesNotLoad {
+				server.retryPolicies = cache.NewGenericCache[sets.Set[string]](nil, time.Minute)
+			}
+			req := withAnnotation(testfixtures.SubmitRequestWithNItems(1), constants.RetryPoliciesAnnotation, tc.annotation)
+			mockedObjects.queueRepo.EXPECT().GetQueue(ctx, req.Queue).Return(testfixtures.DefaultQueue, nil).Times(1)
+			mockedObjects.authorizer.EXPECT().
+				AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).
+				Return(nil).
+				Times(1)
+			mockedObjects.deduplicator.EXPECT().
+				GetOriginalJobIds(ctx, testfixtures.DefaultQueue.Name, req.JobRequestItems).
+				Return(nil, nil).
+				MaxTimes(1)
+
+			_, err := server.SubmitJobs(ctx, req)
+			assert.Equal(t, tc.wantCode, status.Code(err))
+		})
+	}
+}
+
+func TestSubmit_ResentJobWithDeletedRetryPolicyReturnsOriginalId(t *testing.T) {
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+	defer cancel()
+	server, mockedObjects := createTestServer(t)
+	req := withAnnotation(testfixtures.SubmitRequestWithNItems(1), constants.RetryPoliciesAnnotation, "deleted-policy")
+	mockedObjects.queueRepo.EXPECT().GetQueue(ctx, req.Queue).Return(testfixtures.DefaultQueue, nil).Times(1)
+	mockedObjects.authorizer.EXPECT().
+		AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).
+		Return(nil).
+		Times(1)
+	mockedObjects.deduplicator.EXPECT().
+		GetOriginalJobIds(ctx, testfixtures.DefaultQueue.Name, req.JobRequestItems).
+		Return(map[string]string{req.JobRequestItems[0].ClientId: "original-job-id"}, nil).
+		Times(1)
+
+	resp, err := server.SubmitJobs(ctx, req)
+	require.NoError(t, err)
+	assert.Equal(t, []*api.JobSubmitResponseItem{{JobId: "original-job-id"}}, resp.JobResponseItems)
 }
 
 func TestSubmit_FailedValidation(t *testing.T) {
@@ -187,7 +272,7 @@ func TestSubmit_FailedValidation(t *testing.T) {
 				Times(1)
 
 			resp, err := server.SubmitJobs(ctx, tc.req)
-			assert.Error(t, err)
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
 			assert.Nil(t, resp)
 			cancel()
 		})
@@ -531,6 +616,23 @@ func withNamespace(req *api.JobSubmitRequest, n string) *api.JobSubmitRequest {
 	return req
 }
 
+func withAnnotation(req *api.JobSubmitRequest, key string, value string) *api.JobSubmitRequest {
+	for _, item := range req.JobRequestItems {
+		if item.Annotations == nil {
+			item.Annotations = map[string]string{}
+		}
+		item.Annotations[key] = value
+	}
+	return req
+}
+
+func withEventAnnotation(events []*armadaevents.EventSequence_Event, key string, value string) []*armadaevents.EventSequence_Event {
+	for _, event := range events {
+		event.GetSubmitJob().ObjectMeta.Annotations = map[string]string{key: value}
+	}
+	return events
+}
+
 func withQueue(req *api.JobSubmitRequest, q string) *api.JobSubmitRequest {
 	req.Queue = q
 	return req
@@ -591,8 +693,17 @@ func createTestServer(t *testing.T) (*Server, *mockObjects) {
 		m.queueRepo,
 		testfixtures.DefaultSubmissionConfig(),
 		m.deduplicator,
-		m.authorizer)
+		m.authorizer,
+		retryPolicies(t))
 	server.clock = clock.NewFakeClock(testfixtures.DefaultTime)
 	server.idGenerator = testfixtures.TestUlidGenerator()
 	return server, m
+}
+
+func retryPolicies(t *testing.T) *cache.GenericCache[sets.Set[string]] {
+	c := cache.NewGenericCache(func(*armadacontext.Context) (sets.Set[string], error) {
+		return sets.New("team-default"), nil
+	}, time.Minute)
+	require.NoError(t, c.Initialise(armadacontext.Background()))
+	return c
 }
