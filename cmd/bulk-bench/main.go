@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -22,7 +25,7 @@ import (
 )
 
 var (
-	mode      = flag.String("mode", "etcd", "write path: etcd or api")
+	mode      = flag.String("mode", "etcd", "write path: etcd, api, or delete")
 	endpoints = flag.String("endpoints", "https://127.0.0.1:2379", "comma-separated etcd endpoints")
 	caFile    = flag.String("ca", "", "etcd CA certificate")
 	certFile  = flag.String("cert", "", "etcd client certificate")
@@ -47,6 +50,11 @@ var (
 	kubeconfig = flag.String("kubeconfig", "", "kubeconfig for verification")
 	timeout    = flag.Duration("timeout", 10*time.Minute, "overall timeout")
 	output     = flag.String("output", "", "write a JSON summary to this file")
+
+	rateLimit           = flag.Float64("rate", 0, "target creates per second (api mode); 0 means unpaced, max throughput")
+	podAnnotationsBytes = flag.Int("pod-annotations-bytes", 0, "pad each pod with one annotation of this many bytes, to vary pod object size")
+	collectMetrics      = flag.Bool("apiserver-metrics", true, "scrape apiserver /metrics to measure control-plane impact (api mode)")
+	metricsInterval     = flag.Duration("metrics-interval", 2*time.Second, "apiserver inflight sampling interval")
 )
 
 func main() {
@@ -60,29 +68,53 @@ func main() {
 	if *batchSize <= 0 {
 		fatal("-batch-size must be positive")
 	}
+	if *rateLimit < 0 {
+		fatal("-rate must not be negative")
+	}
+	// 256KiB is the apiserver's total annotation size limit; keep the single
+	// padding annotation well below it so the pod is admitted.
+	if *podAnnotationsBytes < 0 || *podAnnotationsBytes > 200*1024 {
+		fatal("-pod-annotations-bytes must be between 0 and 204800")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
 
-	pods := make([]*v1.Pod, *count)
-	for i := range pods {
-		pods[i] = makePod(i)
-	}
 	prepareOptions := podwriter.PrepareOptions{
 		SchedulerName: *schedulerName,
 		NodeIdLabel:   *nodeIdLabel,
 	}
 
 	if *dryRun {
-		dryRunPods(pods, prepareOptions)
+		dryRunPods(*count, prepareOptions)
 		return
 	}
 
 	switch *mode {
 	case "api":
+		client, err := kubeClient()
+		if err != nil {
+			fatal("create Kubernetes client: %v", err)
+		}
+		controlPlane := newApiserverMetrics(client, *collectMetrics, *metricsInterval)
+		controlPlane.Start()
 		start := time.Now()
-		results := runAPI(ctx, pods)
-		finish(ctx, results, time.Since(start))
+		results, latencies := runAPI(ctx, client, *count)
+		elapsed := time.Since(start)
+		summary := summarize(results, latencies, elapsed)
+		summary.Apiserver = controlPlane.Stop()
+		finish(ctx, summary)
+		return
+	case "delete":
+		// Parallel cleanup: the namespace controller deletes pods at roughly
+		// 10/s, which makes a 20k batch take half an hour to disappear.
+		client, err := kubeClient()
+		if err != nil {
+			fatal("create Kubernetes client: %v", err)
+		}
+		start := time.Now()
+		results, latencies := runDelete(ctx, client, *count)
+		finish(ctx, summarize(results, latencies, time.Since(start)))
 		return
 	case "etcd":
 		if *prefix == "/registry" {
@@ -119,15 +151,14 @@ func main() {
 		warmCancel()
 
 		start := time.Now()
-		results := runConcurrent(ctx, writer, pods)
-		finish(ctx, results, time.Since(start))
+		results := runConcurrent(ctx, writer, *count)
+		finish(ctx, summarize(results, nil, time.Since(start)))
 	default:
 		fatal("unknown -mode %q; use api or etcd", *mode)
 	}
 }
 
-func finish(ctx context.Context, results []podwriter.PodResult, elapsed time.Duration) {
-	summary := summarize(results, elapsed)
+func finish(ctx context.Context, summary summary) {
 	printSummary(summary)
 	if *output != "" {
 		if err := writeJSON(*output, summary); err != nil {
@@ -144,17 +175,7 @@ func finish(ctx context.Context, results []podwriter.PodResult, elapsed time.Dur
 		fmt.Fprintf(os.Stderr, "warning: -verify requires -prefix=/registry; skipping\n")
 		return
 	}
-	name := ""
-	for _, result := range results {
-		if result.Name != "" {
-			name = result.Name
-			break
-		}
-	}
-	if name == "" {
-		fatal("verify: no pod name in results")
-	}
-	if err := verifyPod(ctx, name); err != nil {
+	if err := verifyPod(ctx, makePod(0).Name); err != nil {
 		fatal("verify pod: %v", err)
 	}
 }
@@ -185,50 +206,66 @@ func makePod(index int) *v1.Pod {
 			RestartPolicy: v1.RestartPolicyNever,
 		},
 	}
+	// Real Armada pods carry labels, annotations and env; padding one
+	// annotation is a cheap proxy for object size on the write path.
+	if *podAnnotationsBytes > 0 {
+		pod.Annotations = map[string]string{"bench/padding": strings.Repeat("x", *podAnnotationsBytes)}
+	}
 	if *nodeName != "" {
 		pod.Spec.NodeName = *nodeName
 	}
 	return pod
 }
 
-func dryRunPods(pods []*v1.Pod, options podwriter.PrepareOptions) {
+func makePods(start, end int) []*v1.Pod {
+	pods := make([]*v1.Pod, end-start)
+	for i := range pods {
+		pods[i] = makePod(start + i)
+	}
+	return pods
+}
+
+func dryRunPods(count int, options podwriter.PrepareOptions) {
 	encoder := podwriter.NewEncoder()
 	totalBytes := 0
-	for _, pod := range pods {
-		prepared := pod.DeepCopy()
+	for i := 0; i < count; i++ {
+		prepared := makePod(i)
 		if err := podwriter.Prepare(prepared, options); err != nil {
-			fatal("prepare %s: %v", pod.Name, err)
+			fatal("prepare %s: %v", prepared.Name, err)
 		}
 		if err := podwriter.Validate(prepared); err != nil {
-			fatal("validate %s: %v", pod.Name, err)
+			fatal("validate %s: %v", prepared.Name, err)
 		}
 		value, err := encoder.EncodePod(prepared)
 		if err != nil {
-			fatal("encode %s: %v", pod.Name, err)
+			fatal("encode %s: %v", prepared.Name, err)
 		}
 		totalBytes += len(value)
 	}
-	fmt.Printf("prepared %d pods, %d bytes total, %.0f bytes/pod\n", len(pods), totalBytes, float64(totalBytes)/float64(len(pods)))
+	fmt.Printf("prepared %d pods, %d bytes total, %.0f bytes/pod\n", count, totalBytes, float64(totalBytes)/float64(count))
 }
 
-func runConcurrent(ctx context.Context, writer podwriter.Writer, pods []*v1.Pod) []podwriter.PodResult {
+func runConcurrent(ctx context.Context, writer podwriter.Writer, count int) []podwriter.PodResult {
+	// shortcut: every concurrency batch materializes its pods up front, so peak
+	// memory is count*objectSize; chunk this if etcd mode ever needs 20k large pods.
 	batches := *concurrency
-	if batches > len(pods) {
-		batches = len(pods)
+	if batches > count {
+		batches = count
 	}
-	perBatch := (len(pods) + batches - 1) / batches
+	perBatch := (count + batches - 1) / batches
 
 	var wg sync.WaitGroup
 	var mutex sync.Mutex
-	results := make([]podwriter.PodResult, 0, len(pods))
-	for start := 0; start < len(pods); start += perBatch {
+	results := make([]podwriter.PodResult, 0, count)
+	for start := 0; start < count; start += perBatch {
 		end := start + perBatch
-		if end > len(pods) {
-			end = len(pods)
+		if end > count {
+			end = count
 		}
 		wg.Add(1)
-		go func(batch []*v1.Pod) {
+		go func(start, end int) {
 			defer wg.Done()
+			batch := makePods(start, end)
 			request := podwriter.BatchRequest{
 				User: "bulk-bench",
 				Pods: make([]podwriter.PodRequest, len(batch)),
@@ -244,45 +281,121 @@ func runConcurrent(ctx context.Context, writer podwriter.Writer, pods []*v1.Pod)
 			mutex.Lock()
 			results = append(results, result.Results...)
 			mutex.Unlock()
-		}(pods[start:end])
+		}(start, end)
 	}
 	wg.Wait()
 	return results
 }
 
-func runAPI(ctx context.Context, pods []*v1.Pod) []podwriter.PodResult {
-	client, err := kubeClient()
-	if err != nil {
-		fatal("create Kubernetes client: %v", err)
+// runAPI creates pods through the API server. Pods are generated inside the
+// workers rather than up front: 20k large specs would otherwise allocate
+// gigabytes and push GC into the measured window.
+func runAPI(ctx context.Context, client kubernetes.Interface, count int) ([]podwriter.PodResult, []time.Duration) {
+	results := make([]podwriter.PodResult, count)
+	latencies := make([]time.Duration, count)
+	// Burst 1 paces evenly; a larger burst lets a run front-load requests and
+	// makes the measured rate look better than the sustained one.
+	var limiter *rate.Limiter
+	if *rateLimit > 0 {
+		limiter = rate.NewLimiter(rate.Limit(*rateLimit), 1)
 	}
-	results := make([]podwriter.PodResult, len(pods))
-	semaphore := make(chan struct{}, *concurrency)
+
+	indexes := make(chan int)
 	var wg sync.WaitGroup
-	for i, pod := range pods {
+	for w := 0; w < *concurrency; w++ {
 		wg.Add(1)
-		go func(index int, pod *v1.Pod) {
+		go func() {
 			defer wg.Done()
-			semaphore <- struct{}{}
-			defer func() { <-semaphore }()
-			_, createErr := client.CoreV1().Pods(pod.Namespace).Create(ctx, pod, metav1.CreateOptions{})
-			result := podwriter.PodResult{Namespace: pod.Namespace, Name: pod.Name, Pod: pod}
-			switch {
-			case createErr == nil:
-				result.Status = podwriter.Created
-			case k8s_errors.IsAlreadyExists(createErr):
-				result.Status = podwriter.AlreadyExists
-			default:
-				result.Status = podwriter.Failed
-				result.Reason = createErr.Error()
-				result.Transient = k8s_errors.IsServerTimeout(createErr) ||
-					k8s_errors.IsTooManyRequests(createErr) ||
-					k8s_errors.IsServiceUnavailable(createErr)
+			for index := range indexes {
+				pod := makePod(index)
+				result := podwriter.PodResult{Namespace: pod.Namespace, Name: pod.Name, Pod: pod}
+				if limiter != nil {
+					if err := limiter.Wait(ctx); err != nil {
+						result.Status = podwriter.Failed
+						result.Reason = err.Error()
+						results[index] = result
+						return
+					}
+				}
+				started := time.Now()
+				_, createErr := client.CoreV1().Pods(pod.Namespace).Create(ctx, pod, metav1.CreateOptions{})
+				latencies[index] = time.Since(started)
+				switch {
+				case createErr == nil:
+					result.Status = podwriter.Created
+				case k8s_errors.IsAlreadyExists(createErr):
+					result.Status = podwriter.AlreadyExists
+				default:
+					result.Status = podwriter.Failed
+					result.Reason = createErr.Error()
+					result.Transient = k8s_errors.IsServerTimeout(createErr) ||
+						k8s_errors.IsTooManyRequests(createErr) ||
+						k8s_errors.IsServiceUnavailable(createErr)
+				}
+				results[index] = result
 			}
-			results[index] = result
-		}(i, pod)
+		}()
 	}
+	for index := 0; index < count; index++ {
+		select {
+		case indexes <- index:
+		case <-ctx.Done():
+			close(indexes)
+			wg.Wait()
+			return results, latencies
+		}
+	}
+	close(indexes)
 	wg.Wait()
-	return results
+	return results, latencies
+}
+
+// runDelete removes the pods a -mode=api run created, in parallel. The
+// namespace controller is far slower, so cleanup goes through the API directly;
+// NotFound counts as success so a partial create run still cleans up.
+func runDelete(ctx context.Context, client kubernetes.Interface, count int) ([]podwriter.PodResult, []time.Duration) {
+	results := make([]podwriter.PodResult, count)
+	latencies := make([]time.Duration, count)
+	indexes := make(chan int)
+	var wg sync.WaitGroup
+	for w := 0; w < *concurrency; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for index := range indexes {
+				pod := makePod(index)
+				started := time.Now()
+				// Grace 0: pods are bound to a node that does not exist, so
+				// nothing would ever confirm a graceful delete and they would
+				// sit in Terminating for minutes.
+				grace := int64(0)
+				err := client.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name,
+					metav1.DeleteOptions{GracePeriodSeconds: &grace})
+				latencies[index] = time.Since(started)
+				result := podwriter.PodResult{Namespace: pod.Namespace, Name: pod.Name, Pod: pod}
+				switch {
+				case err == nil, k8s_errors.IsNotFound(err):
+					result.Status = podwriter.Created
+				default:
+					result.Status = podwriter.Failed
+					result.Reason = err.Error()
+				}
+				results[index] = result
+			}
+		}()
+	}
+	for index := 0; index < count; index++ {
+		select {
+		case indexes <- index:
+		case <-ctx.Done():
+			close(indexes)
+			wg.Wait()
+			return results, latencies
+		}
+	}
+	close(indexes)
+	wg.Wait()
+	return results, latencies
 }
 
 func kubeClient() (*kubernetes.Clientset, error) {
@@ -304,23 +417,40 @@ func kubeClient() (*kubernetes.Clientset, error) {
 }
 
 type summary struct {
-	Count           int      `json:"count"`
-	Created         int      `json:"created"`
-	AlreadyExists   int      `json:"alreadyExists"`
-	Rejected        int      `json:"rejected"`
-	Failed          int      `json:"failed"`
-	TransientFailed int      `json:"transientFailed"`
-	DurationSeconds float64  `json:"durationSeconds"`
-	PodsPerSecond   float64  `json:"podsPerSecond"`
-	Errors          []string `json:"errors,omitempty"`
+	Mode                string           `json:"mode"`
+	Namespace           string           `json:"namespace"`
+	Count               int              `json:"count"`
+	Concurrency         int              `json:"concurrency"`
+	RateLimit           float64          `json:"rateLimit"`
+	PodAnnotationsBytes int              `json:"podAnnotationsBytes"`
+	Created             int              `json:"created"`
+	AlreadyExists       int              `json:"alreadyExists"`
+	Rejected            int              `json:"rejected"`
+	Failed              int              `json:"failed"`
+	TransientFailed     int              `json:"transientFailed"`
+	DurationSeconds     float64          `json:"durationSeconds"`
+	PodsPerSecond       float64          `json:"podsPerSecond"`
+	ClientMeanMs        float64          `json:"clientMeanMs"`
+	ClientP50Ms         float64          `json:"clientP50Ms"`
+	ClientP90Ms         float64          `json:"clientP90Ms"`
+	ClientP99Ms         float64          `json:"clientP99Ms"`
+	ClientMaxMs         float64          `json:"clientMaxMs"`
+	Apiserver           *apiserverReport `json:"apiserver,omitempty"`
+	Errors              []string         `json:"errors,omitempty"`
 }
 
-func summarize(results []podwriter.PodResult, elapsed time.Duration) summary {
+func summarize(results []podwriter.PodResult, latencies []time.Duration, elapsed time.Duration) summary {
 	summary := summary{
-		Count:           len(results),
-		DurationSeconds: elapsed.Seconds(),
+		Mode:                *mode,
+		Namespace:           *namespace,
+		Count:               len(results),
+		Concurrency:         *concurrency,
+		RateLimit:           *rateLimit,
+		PodAnnotationsBytes: *podAnnotationsBytes,
+		DurationSeconds:     elapsed.Seconds(),
 	}
-	for _, result := range results {
+	var created []time.Duration
+	for index, result := range results {
 		switch result.Status {
 		case podwriter.Created:
 			summary.Created++
@@ -337,17 +467,71 @@ func summarize(results []podwriter.PodResult, elapsed time.Duration) summary {
 		if result.Status != podwriter.Created && result.Status != podwriter.AlreadyExists && len(summary.Errors) < 20 {
 			summary.Errors = append(summary.Errors, fmt.Sprintf("%s/%s: %s", result.Namespace, result.Name, result.Reason))
 		}
+		if result.Status == podwriter.Created && index < len(latencies) {
+			created = append(created, latencies[index])
+		}
 	}
+	// Insert rate counts pods that actually landed, so a run that mostly got
+	// 429s cannot look fast.
 	if elapsed > 0 {
-		summary.PodsPerSecond = float64(len(results)) / elapsed.Seconds()
+		summary.PodsPerSecond = float64(summary.Created) / elapsed.Seconds()
 	}
+	summary.ClientMeanMs, summary.ClientP50Ms, summary.ClientP90Ms, summary.ClientP99Ms, summary.ClientMaxMs = latencyStats(created)
 	return summary
+}
+
+func latencyStats(latencies []time.Duration) (mean, p50, p90, p99, maxMs float64) {
+	if len(latencies) == 0 {
+		return 0, 0, 0, 0, 0
+	}
+	sorted := append([]time.Duration(nil), latencies...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+	var total time.Duration
+	for _, d := range sorted {
+		total += d
+	}
+	return float64(total.Microseconds()) / 1000 / float64(len(sorted)),
+		percentileMs(sorted, 0.50),
+		percentileMs(sorted, 0.90),
+		percentileMs(sorted, 0.99),
+		float64(sorted[len(sorted)-1].Microseconds()) / 1000
+}
+
+// percentileMs uses nearest-rank, which is accurate enough at 20k samples and
+// avoids interpolation edge cases.
+func percentileMs(sorted []time.Duration, p float64) float64 {
+	index := int(math.Ceil(p*float64(len(sorted)))) - 1
+	if index < 0 {
+		index = 0
+	}
+	if index >= len(sorted) {
+		index = len(sorted) - 1
+	}
+	return float64(sorted[index].Microseconds()) / 1000
 }
 
 func printSummary(summary summary) {
 	fmt.Printf("pods=%d created=%d alreadyExists=%d rejected=%d failed=%d transient=%d\n",
 		summary.Count, summary.Created, summary.AlreadyExists, summary.Rejected, summary.Failed, summary.TransientFailed)
 	fmt.Printf("duration=%.3fs pods/s=%.1f\n", summary.DurationSeconds, summary.PodsPerSecond)
+	if summary.Created > 0 {
+		fmt.Printf("client latency: mean=%.1fms p50=%.1fms p90=%.1fms p99=%.1fms max=%.1fms\n",
+			summary.ClientMeanMs, summary.ClientP50Ms, summary.ClientP90Ms, summary.ClientP99Ms, summary.ClientMaxMs)
+	}
+	if pressure := summary.Apiserver; pressure != nil {
+		if !pressure.Enabled {
+			fmt.Printf("apiserver metrics: unavailable (%s)\n", pressure.Reason)
+		} else {
+			fmt.Printf("apiserver: post=%d (%.0f/s) mean=%.1fms etcdCreate=%.1fms webhook=%.1fms inflightPeak=%.0f cpu=%.2fcores rss=%.0fMiB\n",
+				int(pressure.PostRequests), pressure.PostRatePerSecond, pressure.PostMeanMs,
+				pressure.EtcdCreateMeanMs, pressure.WebhookAdmitMeanMs, pressure.InflightMutatingPeak,
+				pressure.CPUCoresMean, pressure.RSSAfterBytes/(1<<20))
+			fmt.Printf("apiserver codes: 201=%d 429=%d 5xx=%d apfRejected=%d allRequests=%.0f/s podsInStorage=%d->%d dbSize=%.0fMiB->%.0fMiB\n",
+				int(pressure.Code201), int(pressure.Code429), int(pressure.Code5xx), int(pressure.APFRejected),
+				pressure.AllRequestsPerSecond, int(pressure.PodsInStorageBefore), int(pressure.PodsInStorageAfter),
+				pressure.DBSizeBytesBefore/(1<<20), pressure.DBSizeBytesAfter/(1<<20))
+		}
+	}
 	for _, message := range summary.Errors {
 		fmt.Fprintf(os.Stderr, "error: %s\n", message)
 	}

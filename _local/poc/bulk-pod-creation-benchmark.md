@@ -5,6 +5,10 @@ measured 2026-11-06 on the `poc/direct-etcd-pod-writer` branch.
 Everything here is from a disposable kind cluster; treat the numbers as
 relative ratios, not capacity figures for production.
 
+For running the API-path measurement against a real dev cluster (20k batches,
+swept pod sizes, apiserver impact), see
+[dev-cluster-insert-bench.md](./dev-cluster-insert-bench.md).
+
 ## How the testing was performed
 
 Reproduction procedure, written to be runnable as-is by a person or an agent.
