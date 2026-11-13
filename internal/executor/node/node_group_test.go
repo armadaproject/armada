@@ -62,6 +62,25 @@ func TestGetPool_WhenReservedNodeHasNodePoolLabel(t *testing.T) {
 	assert.Equal(t, result, "example-node-pool-reserved")
 }
 
+func TestGetPool_WhenReservedNodeHasNodePoolLabel_CustomSuffix(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context,
+		nodeTypeLabel,
+		nodePoolLabel,
+		"-custom-suffix",
+		mustWellKnownTaints(t, []string{"tolerated1", "tolerated2"}, configuration.WellKnownTaintsConfiguration{}))
+	node := createNodeWithTaints("node1", constants.ReservationTaintKey)
+	node.Labels = map[string]string{nodePoolLabel: "example-node-pool"}
+
+	result := nodeInfoService.GetPool(node)
+	assert.Equal(t, "example-node-pool-custom-suffix", result)
+
+	// A node without the reservation taint keeps its pool unchanged
+	unreservedNode := createNodeWithTaints("node2")
+	unreservedNode.Labels = map[string]string{nodePoolLabel: "example-node-pool"}
+	assert.Equal(t, "example-node-pool", nodeInfoService.GetPool(unreservedNode))
+}
+
 func TestGetPool_WhenReservedNodeHasNodePoolLabel_SuffixDisabled(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
 	nodeInfoService := NewKubernetesNodeInfoService(context,
