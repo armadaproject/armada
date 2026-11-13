@@ -42,11 +42,18 @@ func (report *TestCaseReport) JunitTestCase() junit.Testcase {
 			Message: report.FailureReason,
 		}
 	}
+	var skipped *junit.Result
+	if report.SkipReason != "" {
+		skipped = &junit.Result{
+			Message: report.SkipReason,
+		}
+	}
 	return junit.Testcase{
 		Name:      report.TestSpec.Name,
 		Classname: report.TestSpec.Name,
 		Time:      report.Finish.Sub(report.Start).String(),
 		Failure:   failure,
+		Skipped:   skipped,
 		SystemOut: &junit.Output{
 			Data: report.Out.String(),
 		},
@@ -59,6 +66,9 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	out := io.MultiWriter(srv.Out, report.Out)
 
 	fmt.Fprintf(out, "test case started %s\n", srv.testSpec.ShortString())
+	if config, err := canonicalConfig(srv.testSpec.Config); err == nil && config != "" {
+		fmt.Fprintf(out, "test case %s runs with config overrides %s\n", srv.testSpec.Name, config)
+	}
 	defer func() {
 		report.Finish = time.Now()
 		srv.TestCaseReport = report
