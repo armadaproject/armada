@@ -62,6 +62,16 @@ func init() {
 //
 // Returns an error only if configuration is invalid or critical setup fails (not collector reachability).
 func InitOTel(cfg ObservabilityConfig) error {
+	return initOTel(cfg, false)
+}
+
+// InitOTelWithJobSubmissionSpans enables deterministic job root IDs and resolved
+// sampling. Only the server with submission trace context enabled should use it.
+func InitOTelWithJobSubmissionSpans(cfg ObservabilityConfig) error {
+	return initOTel(cfg, true)
+}
+
+func initOTel(cfg ObservabilityConfig, jobSubmissionSpans bool) error {
 	if !cfg.Enabled {
 		setNoopOTel()
 		logging.Info("OpenTelemetry disabled by config")
@@ -129,7 +139,7 @@ func InitOTel(cfg ObservabilityConfig) error {
 	//   - max queue size: 2048 spans (drop-on-backpressure above this bound)
 	//   - batch timeout: 5s
 	//   - export timeout: 10s
-	tp := sdktrace.NewTracerProvider(
+	options := []sdktrace.TracerProviderOption{
 		sdktrace.WithSpanProcessor(NewSpanAttributePolicyProcessor(NewDefaultSpanAttributePolicy())),
 		sdktrace.WithBatcher(
 			exporter,
@@ -140,7 +150,11 @@ func InitOTel(cfg ObservabilityConfig) error {
 		),
 		sdktrace.WithResource(res),
 		sdktrace.WithSampler(sampler),
-	)
+	}
+	if jobSubmissionSpans {
+		options = append(options, sdktrace.WithSampler(JobSpanSampler{Fallback: sampler}), sdktrace.WithIDGenerator(JobSpanIDGenerator{}))
+	}
+	tp := sdktrace.NewTracerProvider(options...)
 
 	// Set global tracer provider and propagators.
 	globalTracerProviderMu.Lock()

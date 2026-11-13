@@ -6,6 +6,7 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	"github.com/gogo/status"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"k8s.io/utils/clock"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	log "github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/observability"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/slices"
@@ -71,6 +73,7 @@ func NewServer(
 //   - The SubmitMessages are published to Pulsar.
 func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+	start := s.clock.Now()
 
 	// Check that the user is actually allowed to submit jobs
 	userId, groups, err := s.authorize(ctx, req.Queue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
@@ -95,6 +98,12 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 	jobResponses := make([]*api.JobSubmitResponseItem, 0, len(req.JobRequestItems))
 	idMappings := make(map[string]string, len(req.JobRequestItems))
 
+	type jobTrace struct {
+		jobID, source string
+		submitter     trace.SpanContext
+	}
+	var jobTraces []jobTrace
+
 	for _, jobRequest := range req.JobRequestItems {
 
 		// Check if this job has already been submitted. If so we can simply return the previously submitted id
@@ -105,8 +114,14 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 			continue
 		}
 
+		// Resolve only new jobs; duplicates retain their original submission context.
+		submitter, source := s.resolveSubmissionTraceContext(ctx, jobRequest)
+
 		// If we get to here then it isn't a duplicate. Create a Job submission and a job response
 		submitMsg := conversion.SubmitJobFromApiRequest(jobRequest, s.submissionConfig, req.JobSetId, req.Queue, userId, s.idGenerator)
+		if submitter.IsValid() && submitter.IsSampled() {
+			jobTraces = append(jobTraces, jobTrace{submitMsg.JobId, source, submitter})
+		}
 		eventTime := protoutil.ToTimestamp(s.clock.Now().UTC())
 		submitMsgs = append(submitMsgs, &armadaevents.EventSequence_Event{
 			Created: eventTime,
@@ -148,6 +163,10 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 	// a partial pulsar submission can result in duplicate jobs.
 	if err = s.deduplicator.StoreOriginalJobIds(ctx, req.Queue, idMappings); err != nil {
 		log.WithError(err).Warn("failed to store deduplication ids")
+	}
+	end := s.clock.Now()
+	for _, job := range jobTraces {
+		observability.RecordJobSubmission(job.jobID, req.Queue, req.JobSetId, job.source, job.submitter, start, end)
 	}
 	return &api.JobSubmitResponse{JobResponseItems: jobResponses}, nil
 }

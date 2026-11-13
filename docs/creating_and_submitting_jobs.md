@@ -4,6 +4,7 @@
   - [Submitting preemptive jobs](#submitting-preemptive-jobs)
     - [Example: Creating and submitting an Armada job](#example-creating-and-submitting-an-armada-job)
   - [Job parameters](#job-parameters)
+  - [Submitter trace context](#submitter-trace-context)
 
 This document is meant to be a guide for new users of how to create and submit Jobs to Armada. Before you can create and submit jobs, make sure you have a basic understanding of Docker and Kubernetes. This is because Armada jobs are run as containers in Kubernetes. To learn more, see:
 
@@ -183,3 +184,18 @@ The executor sets these environment variables in every container and init contai
 Gang jobs also get `ARMADA_GANG_ID` and `ARMADA_GANG_CARDINALITY`. When the gang has a node uniformity label, they also get `ARMADA_GANG_NODE_UNIFORMITY_LABEL_NAME` and `ARMADA_GANG_NODE_UNIFORMITY_LABEL_VALUE`.
 
 Use `ARMADA_JOB_ID` as a stable key for a job, for example for checkpoints. Use `ARMADA_JOB_RUN_ID` to keep the output of each run apart.
+
+## Submitter trace context
+
+If your operator has enabled submission tracing, you can connect a job to the trace that submitted it. Add `traceparent` and optional `tracestate`/`baggage` annotations to the job entry in your submission file:
+
+```yaml
+annotations:
+  otel.armadaproject.io/traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+  otel.armadaproject.io/tracestate: "vendor=value"  # Optional.
+  otel.armadaproject.io/baggage: "team=research"  # Optional; never include secrets.
+```
+
+Use values from your current trace; the values above are examples. Alternatively, send W3C `traceparent` and optional `tracestate` as gRPC metadata. Forwarding gRPC baggage requires an additional operator opt-in.
+
+Item annotations take precedence over request metadata. Set them on each item when batching jobs from different traces. See the [operator tracing guide](tracing.md) for configuration and troubleshooting.
