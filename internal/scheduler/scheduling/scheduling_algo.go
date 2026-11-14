@@ -79,9 +79,9 @@ type FairSchedulingAlgo struct {
 // FairSchedulingAlgoOption configures a scheduling algorithm at construction.
 type FairSchedulingAlgoOption func(*FairSchedulingAlgo)
 
-// WithPolicyClock supplies the time used for scheduling policy decisions and
-// result timestamps. The default is a real clock. Operational timeouts and
-// computation-duration measurements continue to use host time.
+// WithPolicyClock supplies policy time for tests and future replay callers.
+// The clock must be non-nil. Production callers use the default real clock;
+// operational timeouts and computation durations remain on host time.
 func WithPolicyClock(clk clock.Clock) FairSchedulingAlgoOption {
 	return func(algo *FairSchedulingAlgo) { algo.clock = clk }
 }
@@ -126,9 +126,6 @@ func NewFairSchedulingAlgo(
 		useAggregateDemand:           config.ExperimentalAggregateDemand.Use,
 	}
 	for _, option := range options {
-		if option == nil {
-			return nil, errors.New("nil fair scheduling algorithm option")
-		}
 		option(algo)
 	}
 	if algo.clock == nil {

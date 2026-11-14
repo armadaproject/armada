@@ -1,26 +1,9 @@
 # Scheduler policy clock
 
-`scheduling.NewFairSchedulingAlgo` uses a real clock by default. A caller that
-models elapsed policy time can pass `scheduling.WithPolicyClock(clk)` as its final
-constructor argument. `clk` implements the existing `k8s.io/utils/clock.Clock`
-interface. Keep one algorithm instance across rounds so its global, per-queue,
-and per-pool fairshare-preemption limiters retain their reservations. Advance the
-clock monotonically before each round; do not move a live policy clock backwards.
+Production scheduling behavior is unchanged: `NewFairSchedulingAlgo` uses real time by default. `WithPolicyClock(clk)` is currently used only by tests and provides a seam for planned replay. No production caller supplies this option. Pass a non-nil `k8s.io/utils/clock.Clock` (and non-nil constructor options).
 
-The supplied clock controls token refill, executor expiry, optimiser cadence,
-reconciliation timestamps, and scheduling result timestamps. Each pool's
-`SchedulingContext.Started`, `Finished`, and queue `Created` timestamps use this
-same policy-time domain. The context report's `Duration` is elapsed **policy**
-time; it can be zero when the policy clock is frozen for a round.
+The policy clock governs token refill, executor expiry, optimiser cadence, reconciliation timestamps, and scheduling context `Started`, `Finished`, and queue `Created`. Keep one algorithm instance across rounds so limiters retain reservations, advance its policy clock monotonically, and supply consistent lifecycle state. This option does not replay job completions.
 
-`SchedulingContext.ComputationDuration` measures host elapsed time inside
-`PreemptingQueueScheduler.Schedule`. Queue scheduling duration accounting,
-hard context deadlines, and operational timeout checks also use host time.
-Job and gang context `Created` values and timing log messages remain host-time
-diagnostics. A supplied policy clock does not simulate scheduler computation
-cost or change the wall-time budgets. A later replay with unbounded rounds
-must state that budget fidelity is outside its model.
+`SchedulingContext` report `Duration` is policy elapsed time, which may be zero with a frozen clock. `ComputationDuration` and queue soft-budget accounting use host elapsed time. Context deadlines and operational timeouts remain real. Job and gang diagnostic timestamps also remain host based. Clock injection does not model computation cost; a later replay with unbounded rounds must disclose that budget fidelity is outside its model.
 
-Clock injection changes policy timing only. The caller still supplies
-consistent executor and job lifecycle state for each round; this option does
-not replay completions or restore production scheduler state.
+The legacy simulator constructs contexts at its simulated time and supplies that time directly to the core scheduler. It does not use `WithPolicyClock`, and its scheduling, execution, and CLI behavior are unchanged.

@@ -16,10 +16,47 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/scheduling"
+	"github.com/armadaproject/armada/internal/scheduler/simulator/model"
 	"github.com/armadaproject/armada/internal/scheduler/simulator/sink"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
+
+type timestampSink struct {
+	cycles int
+	check  func(time.Time, *scheduling.SchedulingResult)
+}
+
+func (s *timestampSink) OnNewStateTransitions([]*model.StateTransition) error { return nil }
+func (s *timestampSink) OnCycleEnd(at time.Time, result *scheduling.SchedulingResult) error {
+	s.cycles++
+	s.check(at, result)
+	return nil
+}
+func (s *timestampSink) Close(*armadacontext.Context) {}
+
+func TestSimulatorCycleReportUsesSimulatedTime(t *testing.T) {
+	capture := &timestampSink{}
+	capture.check = func(at time.Time, result *scheduling.SchedulingResult) {
+		require.NotNil(t, result.SchedulingContext)
+		sctx := result.SchedulingContext
+		require.Equal(t, at, sctx.Started)
+		require.Equal(t, at, sctx.Finished)
+		require.Equal(t, time.Duration(0), sctx.Finished.Sub(sctx.Started))
+		for _, qctx := range sctx.QueueSchedulingContexts {
+			require.Equal(t, at, qctx.Created)
+		}
+	}
+	sim, err := NewSimulator(
+		&ClusterSpec{Name: "clock-test", Clusters: []*Cluster{{Name: "cluster", Pool: "TestPool", NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)}}}},
+		&WorkloadSpec{Queues: []*Queue{WithJobTemplatesQueue(&Queue{Name: "A", Weight: 1}, JobTemplate1Cpu(1, "clock-test", testfixtures.TestDefaultPriorityClass))}},
+		testfixtures.TestSchedulingConfig(), false, 5, 10, capture,
+	)
+	require.NoError(t, err)
+	require.NoError(t, sim.Run(armadacontext.Background()))
+	require.Positive(t, capture.cycles)
+}
 
 func TestSimulator(t *testing.T) {
 	enableFastForward := false

@@ -378,3 +378,28 @@ func TestFairSchedulingAlgoPolicyClockNoNodesFinishesContext(t *testing.T) {
 	require.Nil(t, stored.LatestRun())
 	require.Len(t, txn.GetAllLeasedJobs(), 0)
 }
+
+func TestPreemptingQueueSchedulerHostClockControlsSoftBudget(t *testing.T) {
+	fixture := setupGangEvictionTest(t, 1)
+	defer fixture.jobDbTxn.Abort()
+	fixture.config.MaxNewJobSchedulingDuration = 500 * time.Millisecond
+	jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 3)
+	for i, job := range jobs {
+		jobs[i] = job.WithQueued(true)
+	}
+	require.NoError(t, fixture.jobDbTxn.Upsert(jobs))
+	fixture.addQueueAndBuildScheduler(t, jobs)
+	policyClock := clocktesting.NewFakeClock(testfixtures.BaseTime)
+	fixture.sctx.Started = policyClock.Now()
+	fixture.scheduler.clock = policyClock
+	fixture.scheduler.hostClock = testfixtures.NewSteppingClock(testfixtures.BaseTime, time.Second)
+
+	result, err := fixture.scheduler.Schedule(armadacontext.Background())
+	require.NoError(t, err)
+	require.Len(t, result.ScheduledJobs, 1, "host budget stops later new jobs")
+	require.Equal(t, testfixtures.BaseTime, fixture.sctx.Finished)
+	require.GreaterOrEqual(t, fixture.sctx.TotalNewJobSchedulingTime, time.Second)
+	require.GreaterOrEqual(t, fixture.sctx.ComputationDuration, time.Second)
+	require.Less(t, fixture.sctx.ComputationDuration, 10*time.Second)
+	require.Equal(t, "global new job scheduling duration exceeded", fixture.sctx.TerminationReason)
+}
