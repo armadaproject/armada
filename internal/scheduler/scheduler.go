@@ -1102,15 +1102,9 @@ func (s *Scheduler) evaluateRetryPolicy(
 		return retry.Result{}, "", false
 	}
 
-	// Lease returns are not decided by the engine. A returned lease usually
-	// means the run's pod did not fully start (node drain, image-pull return,
-	// recoverable submit error). Some of its containers may still have run, for
-	// example in a multi-container pod whose other container never started, or
-	// in a failed pod matched by the executor's opt-in
-	// failedPodChecks.containerStatuses. The executor can attach a failure
-	// category, but these runs are deferred to the legacy lease-return retry
-	// path: attempted lease returns are bounded by the attempt limit instead of
-	// the policy's budgets.
+	// Lease returns bypass the retry engine even when they carry a failure
+	// category: attempted returns use the legacy attempt limit, not policy
+	// budgets. A returned lease does not guarantee that no containers ran.
 	if _, ok := runError.Reason.(*armadaevents.Error_PodLeaseReturned); ok {
 		return retry.Result{}, "", false
 	}
