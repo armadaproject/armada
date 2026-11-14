@@ -429,8 +429,8 @@ func TestJob_FailureCount(t *testing.T) {
 		return run
 	}
 	failed := func() *JobRun { return newRun(func(r *JobRun) { r.failed = true }) }
-	// Preempted and lease-returned runs are marked failed but never ran to a
-	// genuine failure. everPreempted is set alongside preempted, mirroring
+	// Preempted and lease-returned runs are marked failed but are not charged as
+	// genuine failures. everPreempted is set alongside preempted, mirroring
 	// WithPreempted and CreateRun.
 	preempted := func() *JobRun {
 		return newRun(func(r *JobRun) { r.failed = true; r.preempted = true; r.everPreempted = true })
