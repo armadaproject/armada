@@ -28,9 +28,9 @@ import (
 
 // SchedulingContext contains information necessary for scheduling and records what happened in a scheduling round.
 type SchedulingContext struct {
-	// Policy time at which the scheduling cycle started.
+	// Time at which the scheduling cycle started.
 	Started time.Time
-	// Policy time at which the scheduling cycle finished.
+	// Time at which the scheduling cycle finished.
 	Finished time.Time
 	// Host elapsed time spent in PreemptingQueueScheduler.Schedule.
 	ComputationDuration time.Duration
