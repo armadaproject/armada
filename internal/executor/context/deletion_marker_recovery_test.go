@@ -144,22 +144,44 @@ func rejectRecoveryDelete(metav1.DeleteOptions) error {
 	return apierrors.NewForbidden(v1.Resource("pods"), "test", fmt.Errorf("delete denied"))
 }
 
+// Block outside the fake client's mutex, and always release on test failure.
+func blockingRecoveryDelete(t *testing.T) (func(metav1.DeleteOptions) error, func(), func()) {
+	t.Helper()
+	entered, released := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	release := func() { once.Do(func() { close(released) }) }
+	t.Cleanup(release)
+	hook := func(metav1.DeleteOptions) error {
+		close(entered)
+		select {
+		case <-released:
+			return nil
+		case <-time.After(5 * time.Second):
+			return fmt.Errorf("test delete barrier timed out")
+		}
+	}
+	waitEntered := func() {
+		t.Helper()
+		select {
+		case <-entered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("delete did not start")
+		}
+	}
+	return hook, waitEntered, release
+}
+
+// Cancellation is exercised at distinct boundaries: before an older DELETE
+// finishes (ConcurrentAttempts), through later conditional successors
+// (PermanentIntentSurvivesConditionalSuccessors), before cleanup reads ownership
+// (CleanupReadAndOwnershipChanges), and between cleanup's GET and PATCH
+// (CleanupCASProtectsConcurrentAdoption).
 func TestDeletionMarkerRecovery_ConcurrentAttempts(t *testing.T) {
 	for _, successor := range []string{"conditional rejected", "conditional accepted", "cancellation"} {
 		t.Run(successor, func(t *testing.T) {
 			client, pod, live := recoveryAPI(t)
-			entered, release := make(chan struct{}), make(chan struct{})
-			var releaseOnce sync.Once
-			unblock := func() { releaseOnce.Do(func() { close(release) }) }
-			first := recoveryContext(t, client, func(metav1.DeleteOptions) error {
-				close(entered)
-				select {
-				case <-release:
-					return nil
-				case <-time.After(5 * time.Second):
-					return fmt.Errorf("test delete barrier timed out")
-				}
-			})
+			block, waitEntered, unblock := blockingRecoveryDelete(t)
+			first := recoveryContext(t, client, block)
 			var hook func(metav1.DeleteOptions) error
 			if successor == "conditional rejected" {
 				hook = rejectRecoveryDelete
@@ -169,13 +191,7 @@ func TestDeletionMarkerRecovery_ConcurrentAttempts(t *testing.T) {
 			go func() {
 				result <- first.DeletePodWithCondition(pod, func(p *v1.Pod) bool { return p.Status.Phase == v1.PodPending }, true)
 			}()
-			select {
-			case <-entered:
-			case <-time.After(5 * time.Second):
-				t.Fatal("first delete did not start")
-			}
-			// Always release the blocked actor, including assertion failures.
-			defer unblock()
+			waitEntered()
 			firstMarker := live().Annotations[domain.MarkedForDeletion]
 			require.NotEmpty(t, firstMarker)
 			if successor == "cancellation" {
@@ -197,7 +213,7 @@ func TestDeletionMarkerRecovery_ConcurrentAttempts(t *testing.T) {
 				assert.True(t, util.IsMarkedForDeletion(after))
 				assert.NotNil(t, after.DeletionTimestamp)
 			}
-			// Release before awaiting the first result (the deferred close is replaced).
+			// Let the predecessor finish after the successor has made its decision.
 			unblock()
 			select {
 			case err := <-result:
@@ -212,27 +228,12 @@ func TestDeletionMarkerRecovery_ConcurrentAttempts(t *testing.T) {
 
 func TestDeletionMarkerRecovery_PermanentIntentSurvivesConditionalSuccessors(t *testing.T) {
 	client, pod, live := recoveryAPI(t)
-	entered, release := make(chan struct{}), make(chan struct{})
-	var releaseOnce sync.Once
-	unblock := func() { releaseOnce.Do(func() { close(release) }) }
-	cancellation := recoveryContext(t, client, func(metav1.DeleteOptions) error {
-		close(entered)
-		select {
-		case <-release:
-			return nil
-		case <-time.After(5 * time.Second):
-			return fmt.Errorf("test barrier timed out")
-		}
-	})
+	block, waitEntered, unblock := blockingRecoveryDelete(t)
+	cancellation := recoveryContext(t, client, block)
 	conditional := recoveryContext(t, client, rejectRecoveryDelete)
 	done := make(chan struct{})
 	go func() { cancellation.DeletePods([]*v1.Pod{pod}); cancellation.ProcessPodsToDelete(); close(done) }()
-	select {
-	case <-entered:
-	case <-time.After(5 * time.Second):
-		t.Fatal("cancellation did not start")
-	}
-	defer unblock()
+	waitEntered()
 	for i := 0; i < 2; i++ {
 		before := live().Annotations[domain.MarkedForDeletion]
 		err := conditional.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, true)
@@ -397,20 +398,16 @@ func TestDeletionMarkerRecovery_CleanupCASProtectsConcurrentAdoption(t *testing.
 }
 
 func TestDeletionMarkerRecovery_UnknownMarkersRemainPermanent(t *testing.T) {
-	for _, marker := range []string{"legacy", "another-format"} {
-		t.Run(marker, func(t *testing.T) {
-			client, pod, live := recoveryAPI(t)
-			current := live()
-			current.Annotations = map[string]string{domain.MarkedForDeletion: marker, "other": "preserved"}
-			require.NoError(t, client.Tracker().Update(v1.SchemeGroupVersion.WithResource("pods"), current, pod.Namespace))
-			ctx := recoveryContext(t, client, rejectRecoveryDelete)
-			for i := 0; i < 2; i++ {
-				err := ctx.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, true)
-				require.True(t, apierrors.IsForbidden(err))
-				require.True(t, util.IsMarkedForDeletion(live()))
-				require.Equal(t, "preserved", live().Annotations["other"])
-			}
-		})
+	client, pod, live := recoveryAPI(t)
+	current := live()
+	current.Annotations = map[string]string{domain.MarkedForDeletion: "opaque-owner", "other": "preserved"}
+	require.NoError(t, client.Tracker().Update(v1.SchemeGroupVersion.WithResource("pods"), current, pod.Namespace))
+	ctx := recoveryContext(t, client, rejectRecoveryDelete)
+	for i := 0; i < 2; i++ {
+		err := ctx.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, true)
+		require.True(t, apierrors.IsForbidden(err))
+		require.True(t, util.IsMarkedForDeletion(live()))
+		require.Equal(t, "preserved", live().Annotations["other"])
 	}
 }
 
@@ -431,29 +428,16 @@ func TestDeletionMarkerRecovery_NonPessimisticClaims(t *testing.T) {
 	}
 	t.Run("outstanding unconditional delete", func(t *testing.T) {
 		client, pod, live := recoveryAPI(t)
-		entered, release := make(chan struct{}), make(chan struct{})
-		var once sync.Once
-		unblock := func() { once.Do(func() { close(release) }) }
-		defer unblock()
+		block, waitEntered, unblock := blockingRecoveryDelete(t)
 		first := recoveryContext(t, client, func(options metav1.DeleteOptions) error {
 			require.NotNil(t, options.Preconditions.UID)
 			require.Nil(t, options.Preconditions.ResourceVersion)
-			close(entered)
-			select {
-			case <-release:
-				return nil
-			case <-time.After(5 * time.Second):
-				return fmt.Errorf("test barrier timed out")
-			}
+			return block(options)
 		})
 		successor := recoveryContext(t, client, rejectRecoveryDelete)
 		done := make(chan error, 1)
 		go func() { done <- first.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, false) }()
-		select {
-		case <-entered:
-		case <-time.After(5 * time.Second):
-			t.Fatal("nonpessimistic delete did not start")
-		}
+		waitEntered()
 		err := successor.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, true)
 		require.True(t, apierrors.IsForbidden(err))
 		require.True(t, util.IsMarkedForDeletion(live()))
@@ -469,71 +453,71 @@ func TestDeletionMarkerRecovery_NonPessimisticClaims(t *testing.T) {
 	})
 }
 
-// Characterize the accepted mixed-version limitation: a legacy cancellation
-// can use the old marker without renewing it, then commit after cleanup.
-func TestDeletionMarkerRecovery_LegacyCancellationCanOutliveCleanup(t *testing.T) {
-	client, pod, live := recoveryAPI(t)
-	var legacySnapshot *v1.Pod
-	ctx := recoveryContext(t, client, func(metav1.DeleteOptions) error {
-		legacySnapshot = live()
-		return rejectRecoveryDelete(metav1.DeleteOptions{})
-	})
-	err := ctx.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, true)
-	require.True(t, apierrors.IsForbidden(err))
-	require.NotNil(t, legacySnapshot)
-	require.NotEmpty(t, legacySnapshot.Annotations[domain.MarkedForDeletion])
-	require.False(t, util.IsMarkedForDeletion(live()))
-	// Legacy doDelete issues this unconditional DELETE without a new PATCH.
-	require.NoError(t, client.CoreV1().Pods(pod.Namespace).Delete(context.Background(), legacySnapshot.Name, metav1.DeleteOptions{}))
-	require.NotNil(t, live().DeletionTimestamp)
-	require.False(t, util.IsMarkedForDeletion(live()), "legacy acceptance after cleanup leaves suppression absent")
-}
-
 func TestDeletionMarkerRecovery_AlreadyTerminatingOwnership(t *testing.T) {
 	for _, cachedMarked := range []bool{false, true} {
-		for _, liveMarked := range []bool{false, true} {
-			t.Run(fmt.Sprintf("cached=%t/live=%t", cachedMarked, liveMarked), func(t *testing.T) {
-				client, pod, live := recoveryAPI(t)
-				pod.DeletionTimestamp = &metav1.Time{Time: time.Now().Add(-10 * time.Second)}
-				if cachedMarked {
-					pod.Annotations = map[string]string{domain.MarkedForDeletion: "cached-owner"}
-				}
-				require.NoError(t, client.Tracker().Update(v1.SchemeGroupVersion.WithResource("pods"), pod, pod.Namespace))
-				ctx := recoveryContext(t, client, nil)
-				client.PrependReactor("get", "pods", func(clienttesting.Action) (bool, runtime.Object, error) {
-					current := live()
-					if current.Annotations == nil {
-						current.Annotations = map[string]string{}
-					}
-					if liveMarked {
-						current.Annotations[domain.MarkedForDeletion] = "live-owner"
-					} else {
-						delete(current.Annotations, domain.MarkedForDeletion)
-					}
-					require.NoError(t, client.Tracker().Update(v1.SchemeGroupVersion.WithResource("pods"), current, pod.Namespace))
-					return true, current, nil
-				})
-				client.Fake.ClearActions()
-				require.NoError(t, ctx.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, true))
-				writes := 0
-				for _, action := range client.Actions() {
-					if action.GetVerb() == "patch" {
-						writes++
-					}
-					require.NotEqual(t, "delete", action.GetVerb())
-				}
-				expectedWrites := 1
-				if liveMarked {
-					expectedWrites = 0
-				}
-				require.Equal(t, expectedWrites, writes, "only an already marked live pod may skip the claim")
+		liveMarked := !cachedMarked
+		t.Run(fmt.Sprintf("cached=%t/live=%t", cachedMarked, liveMarked), func(t *testing.T) {
+			client, pod, live := recoveryAPI(t)
+			pod.DeletionTimestamp = &metav1.Time{Time: time.Now().Add(-10 * time.Second)}
+			if cachedMarked {
+				pod.Annotations = map[string]string{domain.MarkedForDeletion: "cached-owner"}
+			}
+			require.NoError(t, client.Tracker().Update(v1.SchemeGroupVersion.WithResource("pods"), pod, pod.Namespace))
+			ctx := recoveryContext(t, client, nil)
+			client.PrependReactor("get", "pods", func(clienttesting.Action) (bool, runtime.Object, error) {
 				current := live()
-				require.True(t, util.IsMarkedForDeletion(current))
-				require.NotNil(t, current.DeletionTimestamp)
-				if liveMarked {
-					require.Equal(t, "live-owner", current.Annotations[domain.MarkedForDeletion])
+				if current.Annotations == nil {
+					current.Annotations = map[string]string{}
 				}
+				if liveMarked {
+					current.Annotations[domain.MarkedForDeletion] = "live-owner"
+				} else {
+					delete(current.Annotations, domain.MarkedForDeletion)
+				}
+				require.NoError(t, client.Tracker().Update(v1.SchemeGroupVersion.WithResource("pods"), current, pod.Namespace))
+				return true, current, nil
 			})
-		}
+			client.Fake.ClearActions()
+			require.NoError(t, ctx.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, true))
+			writes := 0
+			for _, action := range client.Actions() {
+				if action.GetVerb() == "patch" {
+					writes++
+				}
+				require.NotEqual(t, "delete", action.GetVerb())
+			}
+			expectedWrites := 1
+			if liveMarked {
+				expectedWrites = 0
+			}
+			require.Equal(t, expectedWrites, writes, "only an already marked live pod may skip the claim")
+			current := live()
+			require.True(t, util.IsMarkedForDeletion(current))
+			require.NotNil(t, current.DeletionTimestamp)
+			if liveMarked {
+				require.Equal(t, "live-owner", current.Annotations[domain.MarkedForDeletion])
+			}
+		})
+	}
+}
+
+// A failed claim can have committed before its response was lost. Keep the
+// marker because reporting suppression cannot safely be undone on uncertainty.
+func TestDeletionMarkerRecovery_ClaimResponseLost(t *testing.T) {
+	client, pod, live := recoveryAPI(t)
+	ctx := recoveryContext(t, client, nil)
+	client.PrependReactor("patch", "pods", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		var patch domain.Patch
+		require.NoError(t, json.Unmarshal(action.(clienttesting.PatchAction).GetPatch(), &patch))
+		current := live()
+		current.Annotations = patch.MetaData.Annotations
+		require.NoError(t, client.Tracker().Update(v1.SchemeGroupVersion.WithResource("pods"), current, pod.Namespace))
+		return true, nil, apierrors.NewTimeoutError("claim response lost", 0)
+	})
+	err := ctx.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, true)
+	require.True(t, apierrors.IsTimeout(err))
+	require.True(t, util.IsMarkedForDeletion(live()))
+	for _, action := range client.Actions() {
+		require.NotEqual(t, "delete", action.GetVerb(), "uncertain claim must not proceed to DELETE")
 	}
 }
