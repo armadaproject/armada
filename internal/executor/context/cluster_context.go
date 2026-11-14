@@ -27,7 +27,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/cluster"
 	log "github.com/armadaproject/armada/internal/common/logging"
-	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/metrics"
@@ -315,34 +314,51 @@ func (c *KubernetesClusterContext) DeletePodWithCondition(pod *v1.Pod, condition
 		return errors.Errorf("unable to find current pod state for pod %s because %s", pod.Name, err)
 	}
 
-	if !util.IsMarkedForDeletion(currentPod) {
-		_, err := c.markForDeletion(currentPod)
-		if err != nil {
-			return err
-		}
-		// Get latest pod state - bypassing cache
-		timeout, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Second*10)
-		defer cancel()
-		currentPod, err = c.kubernetesClient.CoreV1().Pods(currentPod.Namespace).Get(timeout, currentPod.Name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		if !util.IsMarkedForDeletion(currentPod) {
-			return errors.Errorf("failed to get updated version of pod from kubernetes")
-		}
-	}
-
 	if !condition(currentPod) {
 		return fmt.Errorf("pod does not match provided condition")
 	}
 
-	deleteOptions := metav1.DeleteOptions{GracePeriodSeconds: nil}
+	// Always refresh, including cached marked pods: an earlier failed attempt
+	// may have removed its marker while this informer snapshot was in flight.
+	timeout, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+	defer cancel()
+	currentPod, err = c.kubernetesClient.CoreV1().Pods(pod.Namespace).Get(timeout, pod.Name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	if currentPod.UID != pod.UID {
+		return fmt.Errorf("pod %s was replaced", pod.Name)
+	}
+	if !condition(currentPod) {
+		return fmt.Errorf("pod does not match provided condition")
+	}
+
+	// Waiting for an already marked deletion needs no new ownership claim.
+	// An unmarked terminating pod still needs reporting suppression before returning success.
+	if currentPod.DeletionTimestamp != nil && util.IsMarkedForDeletion(currentPod) && !c.clock.Now().After(currentPod.DeletionTimestamp.Add(c.podKillTimeout)) {
+		log.Debugf("Asked to delete pod %s/%s but this pod is already being deleted", currentPod.Namespace, currentPod.Name)
+		return nil
+	}
+
+	// Opaque/preexisting cancellation intent must remain permanent through all
+	// successors. A versioned conditional predecessor can instead be fenced by
+	// this claim's PATCH, so its abandoned marker can safely be recovered.
+	previousMarker, marked := currentPod.Annotations[domain.MarkedForDeletion]
+	canRemoveMarker := !marked || pessimistic && isConditionalDeletionMarker(previousMarker)
+	currentPod, err = c.claimDeletion(currentPod, currentPod.ResourceVersion, pessimistic && canRemoveMarker)
+	if err != nil {
+		return err
+	}
+
+	deleteOptions := metav1.DeleteOptions{GracePeriodSeconds: nil, Preconditions: &metav1.Preconditions{UID: &currentPod.UID}}
 	if pessimistic {
 		deleteOptions.Preconditions = &metav1.Preconditions{
 			ResourceVersion: &currentPod.ResourceVersion,
+			UID:             &currentPod.UID,
 		}
 	}
 
+	// Deletion may have started while the ownership PATCH was in flight.
 	if currentPod.DeletionTimestamp != nil {
 		killTime := currentPod.DeletionTimestamp.Add(c.podKillTimeout)
 		if c.clock.Now().After(killTime) {
@@ -356,9 +372,14 @@ func (c *KubernetesClusterContext) DeletePodWithCondition(pod *v1.Pod, condition
 	}
 
 	log.Infof("Calling delete on pod %s/%s (%s)", currentPod.Namespace, currentPod.Name, podIdentifiers(currentPod))
-	err = c.deletePod(currentPod, deleteOptions)
+	err = c.kubernetesClient.CoreV1().Pods(currentPod.Namespace).Delete(timeout, currentPod.Name, deleteOptions)
 	if err != nil && k8s_errors.IsNotFound(err) {
 		return nil
+	}
+	if err != nil && canRemoveMarker && deletionDefinitelyRejected(err) {
+		if cleanupErr := c.removeAbandonedDeletionMarker(currentPod); cleanupErr != nil {
+			return fmt.Errorf("%w; failed to remove abandoned deletion marker: %w", err, cleanupErr)
+		}
 	}
 	return err
 }
@@ -424,18 +445,16 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 
 func (c *KubernetesClusterContext) doDelete(pod *v1.Pod, force bool) {
 	podId := util.ExtractPodKey(pod)
-	var err error
-	if !util.IsMarkedForDeletion(pod) {
-		updatedPod, annotationErr := c.markForDeletion(pod)
-		err = annotationErr
-		if annotationErr == nil {
-			pod = updatedPod
-			c.podsToDelete.Update(podId, pod)
-		}
+	// Even a previously marked pod needs a new claim. Conditional recovery
+	// must be able to observe cancellation adopting its marker before DELETE.
+	updatedPod, err := c.claimDeletion(pod, "", false)
+	if err == nil {
+		pod = updatedPod
+		c.podsToDelete.Update(podId, pod)
 	}
 
 	if err == nil {
-		deleteOptions := metav1.DeleteOptions{GracePeriodSeconds: nil}
+		deleteOptions := metav1.DeleteOptions{GracePeriodSeconds: nil, Preconditions: &metav1.Preconditions{UID: &pod.UID}}
 		if force {
 			deleteOptions.GracePeriodSeconds = pointer.Int64(0)
 			log.Infof("Calling delete on pod %s/%s (%s) - with force", pod.Namespace, pod.Name, podIdentifiers(pod))
@@ -456,16 +475,6 @@ func (c *KubernetesClusterContext) doDelete(pod *v1.Pod, force bool) {
 
 func (c *KubernetesClusterContext) deletePod(pod *v1.Pod, deleteOptions metav1.DeleteOptions) error {
 	return c.kubernetesClient.CoreV1().Pods(pod.Namespace).Delete(armadacontext.Background(), pod.Name, deleteOptions)
-}
-
-func (c *KubernetesClusterContext) markForDeletion(pod *v1.Pod) (*v1.Pod, error) {
-	annotations := make(map[string]string)
-	annotationName := domain.MarkedForDeletion
-	annotations[annotationName] = time.Now().String()
-
-	err := c.AddAnnotation(pod, annotations)
-	pod.Annotations = util2.MergeMaps(pod.Annotations, annotations)
-	return pod, err
 }
 
 func (c *KubernetesClusterContext) GetServices(pod *v1.Pod) ([]*v1.Service, error) {

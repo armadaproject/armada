@@ -698,7 +698,21 @@ The scheduler generates its events again in two cases:
 
 ## Pod deletion and debug events
 
-Before the executor deletes a pod, it adds the `deletion_requested` annotation (`domain.MarkedForDeletion`) to the pod. The state reporter does not report phase changes of a pod with this annotation. This stops a second terminal event for a pod that the executor deletes. Only the informer update path checks the annotation. The reconciliation pass does not check it.
+The `deletion_requested` annotation tells phase reporting that Armada is deleting a pod. Its presence suppresses ordinary phase-change events, so shutdown caused by cancellation does not become a second application failure.
+
+| What happens | Marker and reporting |
+| --- | --- |
+| The live pod fails the deletion condition | No new marker is written; normal reporting remains eligible. |
+| DELETE is definitely rejected | Remove this attempt's recoverable marker if no other attempt took it over and deletion has not started. |
+| Cancellation takes over, or the API outcome is uncertain | Keep the marker and reporting suppression. |
+
+Removing the marker does not replay a phase change that was suppressed while it was present: the marker-only update leaves the phase unchanged. The periodic missing-event reconciler can report the current phase if the pod remains available; it cannot reconstruct every missed intermediate transition.
+
+Each actual deletion attempt writes a new UUID ownership token before DELETE, even when the pod is already marked. A conditional call that finds the live pod already marked and terminating before its kill deadline only performs the GET and returns. An unmarked terminating pod still gets a marker before success is returned, preserving phase-report suppression and preventing its deletion from being classified as unexpected.
+
+Conditional deletion checks the live UID and condition before writing a token with a resourceVersion guard. Pessimistic DELETE uses that returned version; every DELETE also checks UID to avoid deleting a replacement pod with the same name. The conditional DELETE shares the ten-second deadline started by its live GET. A timeout retains suppression because deletion may have succeeded.
+
+The `conditional:` prefix identifies a token that a later version-guarded attempt can safely replace. Tokens for cancellation or non-versioned deletion are preserved by later attempts. Cleanup checks UID, token, resourceVersion and deletionTimestamp; it retries conflicts at most three times and returns failures alongside the DELETE error.
 
 The executor emits one `JobRunTerminatedDebugInfo` event in two cases:
 

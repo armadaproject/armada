@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
@@ -52,6 +53,26 @@ func setupTestWithMinRepeatedDeletePeriod(minRepeatedDeletePeriod time.Duration)
 		clientProvider,
 		5*time.Minute,
 	)
+	// Cache sync finishes after the initial lists, before every reflector has
+	// necessarily opened its watch. Wait for those requests too, so action-count
+	// tests cannot confuse background startup with the operation under test.
+	if !waitForCondition(func() bool {
+		actions := client.Fake.Actions()
+		watched := map[schema.GroupVersionResource]bool{}
+		for _, action := range actions {
+			if action.GetVerb() == "watch" {
+				watched[action.GetResource()] = true
+			}
+		}
+		for _, action := range actions {
+			if action.GetVerb() == "list" && !watched[action.GetResource()] {
+				return false
+			}
+		}
+		return true
+	}) {
+		panic("initial informer watches did not start")
+	}
 	return clusterContext, clientProvider
 }
 
@@ -346,10 +367,11 @@ func TestKubernetesClusterContext_DeletePodWithCondition(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, len(client.Fake.Actions()), 3)
-	assert.True(t, client.Fake.Actions()[0].Matches("patch", "pods"))
+	assert.True(t, client.Fake.Actions()[0].Matches("get", "pods"))
+	assert.True(t, client.Fake.Actions()[1].Matches("patch", "pods"))
 
 	// Marks pod for deletion before deleting
-	patchAction, ok := client.Fake.Actions()[0].(clientTesting.PatchAction)
+	patchAction, ok := client.Fake.Actions()[1].(clientTesting.PatchAction)
 	assert.True(t, ok)
 	assert.Equal(t, patchAction.GetName(), pod.Name)
 	patch := &domain.Patch{}
@@ -362,7 +384,7 @@ func TestKubernetesClusterContext_DeletePodWithCondition(t *testing.T) {
 	assert.True(t, client.Fake.Actions()[2].Matches("delete", "pods"))
 }
 
-func TestKubernetesClusterContext_DeletePodWithCondition_DoesNotReapplyMarkForDeletion(t *testing.T) {
+func TestKubernetesClusterContext_DeletePodWithCondition_RenewsDeletionOwnership(t *testing.T) {
 	clusterContext, client := setupTest()
 	pod := createBatchPod()
 	pod.ObjectMeta.Annotations = map[string]string{domain.MarkedForDeletion: "now"}
@@ -374,8 +396,11 @@ func TestKubernetesClusterContext_DeletePodWithCondition_DoesNotReapplyMarkForDe
 	}, true)
 
 	assert.NoError(t, err)
-	assert.Equal(t, len(client.Fake.Actions()), 1)
-	assert.True(t, client.Fake.Actions()[0].Matches("delete", "pods"))
+	assert.Len(t, client.Fake.Actions(), 3)
+	assert.True(t, client.Fake.Actions()[0].Matches("get", "pods"))
+	assert.True(t, client.Fake.Actions()[1].Matches("patch", "pods"))
+	assert.True(t, client.Fake.Actions()[2].Matches("delete", "pods"))
+	assert.Equal(t, "now", pod.Annotations[domain.MarkedForDeletion], "claim must not mutate caller snapshot")
 }
 
 func TestKubernetesClusterContext_DeletePodWithCondition_WhenPodDoesNotExist(t *testing.T) {
@@ -391,7 +416,9 @@ func TestKubernetesClusterContext_DeletePodWithCondition_WhenPodDoesNotExist(t *
 
 func TestKubernetesClusterContext_DeletePodWithCondition_ForceDeletesPod(t *testing.T) {
 	clusterContext, client := setupTest()
-	testClock := clock.NewFakeClock(time.Now())
+	testClock := clock.NewFakeClock(time.Now().UTC().Truncate(time.Second))
+	clusterContext.clock = testClock
+	t.Cleanup(clusterContext.Stop)
 	// create a pod with a deletion event 4 minutes and 59 seconds in the past. This should be ignored as timeout is 5 mins
 	pod := createBatchPod()
 	pod.ObjectMeta.Annotations = map[string]string{domain.MarkedForDeletion: "now"}
@@ -404,9 +431,10 @@ func TestKubernetesClusterContext_DeletePodWithCondition_ForceDeletesPod(t *test
 		return true
 	}, true)
 	assert.NoError(t, err)
-	assert.Equal(t, len(client.Fake.Actions()), 0)
+	require.Len(t, client.Fake.Actions(), 1)
+	assert.True(t, client.Fake.Actions()[0].Matches("get", "pods"))
 
-	// create another pod with a deletion event 5 minutes in the past. This should be force killed
+	// At the exact deadline, no force kill is issued. Immediately after it, force kill is allowed.
 	pod = createBatchPod()
 	pod.ObjectMeta.Annotations = map[string]string{domain.MarkedForDeletion: "now"}
 	pod.DeletionGracePeriodSeconds = pointer.Int64(10)
@@ -418,11 +446,25 @@ func TestKubernetesClusterContext_DeletePodWithCondition_ForceDeletesPod(t *test
 		return true
 	}, true)
 	assert.NoError(t, err)
-	assert.Equal(t, len(client.Fake.Actions()), 1)
+	require.Len(t, client.Fake.Actions(), 1)
+	assert.True(t, client.Fake.Actions()[0].Matches("get", "pods"))
+	client.Fake.ClearActions()
+	testClock.Step(time.Nanosecond)
+	err = clusterContext.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, true)
+	require.NoError(t, err)
+	require.Len(t, client.Fake.Actions(), 3)
+	deletion, ok := client.Fake.Actions()[2].(clientTesting.DeleteAction)
+	require.True(t, ok)
+	options := deletion.GetDeleteOptions()
+	require.NotNil(t, options.GracePeriodSeconds)
+	assert.Zero(t, *options.GracePeriodSeconds)
+	require.NotNil(t, options.Preconditions)
+	assert.Equal(t, pod.UID, *options.Preconditions.UID)
 }
 
 func TestKubernetesClusterContext_DeletePodWithCondition_DoesNotDelete_WhenPodDoesNotMatchCondition(t *testing.T) {
-	clusterContext, _ := setupTest()
+	clusterContext, client := setupTest()
+	t.Cleanup(clusterContext.Stop)
 
 	pod := createSubmittedBatchPod(t, clusterContext)
 	err := clusterContext.DeletePodWithCondition(pod, func(pod *v1.Pod) bool {
@@ -430,6 +472,149 @@ func TestKubernetesClusterContext_DeletePodWithCondition_DoesNotDelete_WhenPodDo
 	}, true)
 
 	assert.Error(t, err)
+	obj, err := client.Tracker().Get(v1.SchemeGroupVersion.WithResource("pods"), pod.Namespace, pod.Name)
+	require.NoError(t, err)
+	assert.False(t, util.IsMarkedForDeletion(obj.(*v1.Pod)))
+}
+
+func TestKubernetesClusterContext_DeletePodWithCondition_RejectsLiveChangeWithoutLeavingMarker(t *testing.T) {
+	for _, marker := range []string{"", "another-deletion-attempt"} {
+		t.Run("existing-live-marker="+marker, func(t *testing.T) {
+			clusterContext, client := setupTest()
+			t.Cleanup(clusterContext.Stop)
+			pod := createBatchPod()
+			pod.Status.Phase = v1.PodPending
+			submitPodsWithWait(t, clusterContext, pod)
+			cachedPod, err := clusterContext.podInformer.Lister().Pods(pod.Namespace).Get(pod.Name)
+			require.NoError(t, err)
+			require.False(t, util.IsMarkedForDeletion(cachedPod))
+
+			// Simulate the pod starting between the informer snapshot and the direct API read.
+			client.PrependReactor("get", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
+				obj, err := client.Tracker().Get(v1.SchemeGroupVersion.WithResource("pods"), pod.Namespace, pod.Name)
+				if err != nil {
+					return true, nil, err
+				}
+				livePod := obj.(*v1.Pod).DeepCopy()
+				livePod.Status.Phase = v1.PodRunning
+				if marker != "" {
+					if livePod.Annotations == nil {
+						livePod.Annotations = map[string]string{}
+					}
+					livePod.Annotations[domain.MarkedForDeletion] = marker
+				}
+				if err := client.Tracker().Update(v1.SchemeGroupVersion.WithResource("pods"), livePod, pod.Namespace); err != nil {
+					return true, nil, err
+				}
+				return true, livePod, nil
+			})
+
+			err = clusterContext.DeletePodWithCondition(pod, func(current *v1.Pod) bool {
+				return current.Status.Phase == v1.PodPending
+			}, true)
+			require.ErrorContains(t, err, "pod does not match provided condition")
+			obj, err := client.Tracker().Get(v1.SchemeGroupVersion.WithResource("pods"), pod.Namespace, pod.Name)
+			require.NoError(t, err)
+			livePod := obj.(*v1.Pod)
+			assert.Equal(t, v1.PodRunning, livePod.Status.Phase)
+			assert.Equal(t, marker, livePod.Annotations[domain.MarkedForDeletion], "rejecting the condition must preserve live annotation ownership")
+			assert.False(t, util.IsMarkedForDeletion(cachedPod), "deletion attempts must not mutate informer-owned objects")
+		})
+	}
+}
+
+func TestKubernetesClusterContext_DeletePodWithCondition_DoesNotMarkWhenLiveReadFails(t *testing.T) {
+	clusterContext, client := setupTest()
+	t.Cleanup(clusterContext.Stop)
+	pod := createSubmittedBatchPod(t, clusterContext)
+	client.PrependReactor("get", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
+		return true, nil, fmt.Errorf("live read unavailable")
+	})
+	err := clusterContext.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, true)
+	require.ErrorContains(t, err, "live read unavailable")
+	obj, err := client.Tracker().Get(v1.SchemeGroupVersion.WithResource("pods"), pod.Namespace, pod.Name)
+	require.NoError(t, err)
+	assert.False(t, util.IsMarkedForDeletion(obj.(*v1.Pod)))
+}
+
+func TestKubernetesClusterContext_DeletePodWithCondition_MarkUsesCheckedVersion(t *testing.T) {
+	clusterContext, client := setupTest()
+	t.Cleanup(clusterContext.Stop)
+	pod := createBatchPod()
+	pod.ResourceVersion = "checked-version"
+	pod.Status.Phase = v1.PodPending
+	submitPodsWithWait(t, clusterContext, pod)
+	client.PrependReactor("patch", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
+		patch := &domain.Patch{}
+		require.NoError(t, json.Unmarshal(action.(clientTesting.PatchAction).GetPatch(), patch))
+		assert.Equal(t, pod.UID, patch.MetaData.UID)
+		assert.Equal(t, "checked-version", patch.MetaData.ResourceVersion)
+		// The fake API does not enforce optimistic locking. Model the server's
+		// rejection when the pod changes after the GET but before the PATCH.
+		obj, err := client.Tracker().Get(v1.SchemeGroupVersion.WithResource("pods"), pod.Namespace, pod.Name)
+		require.NoError(t, err)
+		livePod := obj.(*v1.Pod).DeepCopy()
+		livePod.Status.Phase = v1.PodRunning
+		livePod.ResourceVersion = "newer-version"
+		require.NoError(t, client.Tracker().Update(v1.SchemeGroupVersion.WithResource("pods"), livePod, pod.Namespace))
+		return true, nil, errors2.NewConflict(v1.Resource("pods"), pod.Name, fmt.Errorf("version changed"))
+	})
+	err := clusterContext.DeletePodWithCondition(pod, func(current *v1.Pod) bool {
+		return current.Status.Phase == v1.PodPending
+	}, true)
+	require.True(t, errors2.IsConflict(err))
+	obj, err := client.Tracker().Get(v1.SchemeGroupVersion.WithResource("pods"), pod.Namespace, pod.Name)
+	require.NoError(t, err)
+	assert.False(t, util.IsMarkedForDeletion(obj.(*v1.Pod)))
+	assert.Equal(t, v1.PodRunning, obj.(*v1.Pod).Status.Phase)
+}
+
+func TestKubernetesClusterContext_DeletePodWithCondition_DeleteUsesMarkedVersion(t *testing.T) {
+	for _, deleteConflict := range []bool{false, true} {
+		t.Run(fmt.Sprintf("deleteConflict=%t", deleteConflict), func(t *testing.T) {
+			clusterContext, client := setupTest()
+			t.Cleanup(clusterContext.Stop)
+			pod := createBatchPod()
+			pod.ResourceVersion = "checked-version"
+			submitPodsWithWait(t, clusterContext, pod)
+			client.PrependReactor("patch", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
+				patch := &domain.Patch{}
+				require.NoError(t, json.Unmarshal(action.(clientTesting.PatchAction).GetPatch(), patch))
+				if patch.MetaData.Annotations[domain.MarkedForDeletion] == "" {
+					return false, nil, nil
+				}
+				obj, err := client.Tracker().Get(v1.SchemeGroupVersion.WithResource("pods"), pod.Namespace, pod.Name)
+				require.NoError(t, err)
+				markedPod := obj.(*v1.Pod).DeepCopy()
+				markedPod.ResourceVersion = "marked-version"
+				markedPod.Annotations = util2.MergeMaps(markedPod.Annotations, patch.MetaData.Annotations)
+				require.NoError(t, client.Tracker().Update(v1.SchemeGroupVersion.WithResource("pods"), markedPod, pod.Namespace))
+				return true, markedPod, nil
+			})
+			deleteCalled := false
+			client.PrependReactor("delete", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
+				deleteCalled = true
+				options := action.(clientTesting.DeleteAction).GetDeleteOptions()
+				require.NotNil(t, options.Preconditions)
+				require.NotNil(t, options.Preconditions.ResourceVersion)
+				assert.Equal(t, "marked-version", *options.Preconditions.ResourceVersion)
+				if deleteConflict {
+					return true, nil, errors2.NewConflict(v1.Resource("pods"), pod.Name, fmt.Errorf("changed after marking"))
+				}
+				return false, nil, nil
+			})
+			err := clusterContext.DeletePodWithCondition(pod, func(*v1.Pod) bool { return true }, true)
+			assert.True(t, deleteCalled)
+			if deleteConflict {
+				require.True(t, errors2.IsConflict(err))
+				obj, err := client.Tracker().Get(v1.SchemeGroupVersion.WithResource("pods"), pod.Namespace, pod.Name)
+				require.NoError(t, err)
+				assert.False(t, util.IsMarkedForDeletion(obj.(*v1.Pod)), "definitive rejection must relinquish this unadopted conditional marker")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_CallDeleteOnClient_WhenPodsMarkedForDeletion(t *testing.T) {
@@ -505,6 +690,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_ForceKill_IncrementsCounte
 	pod := createSubmittedBatchPod(t, clusterContext)
 	pod.Annotations = map[string]string{constants.PoolAnnotation: "pool-1"}
 	pod.DeletionTimestamp = &metav1.Time{Time: clusterContext.clock.Now().Add(-6 * time.Minute)}
+	require.NoError(t, client.Tracker().Update(v1.SchemeGroupVersion.WithResource("pods"), pod, pod.Namespace))
 	client.Fake.ClearActions()
 
 	before := forceDeletedCount(t, "pool-1")
@@ -554,7 +740,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotForceKillUntilRepea
 	// A successful graceful delete leaves a cache record behind.
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	require.Equal(t, 1, len(client.Fake.Actions()))
+	require.Len(t, client.Fake.Actions(), 2)
 
 	// Now past podKillTimeout, so the stuck-terminating detection re-adds the pod on every interval.
 	pod.DeletionTimestamp = &metav1.Time{Time: clusterContext.clock.Now().Add(-6 * time.Minute)}
@@ -570,14 +756,14 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotForceKillUntilRepea
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	require.Equal(t, 1, len(client.Fake.Actions()), "the re-add is accepted once the record expires")
-	deleteAction, ok := client.Fake.Actions()[0].(clientTesting.DeleteAction)
+	require.Len(t, client.Fake.Actions(), 2, "the re-add renews ownership then deletes once the record expires")
+	deleteAction, ok := client.Fake.Actions()[1].(clientTesting.DeleteAction)
 	require.True(t, ok)
 	assert.Equal(t, pod.Name, deleteAction.GetName())
 	assert.Equal(t, int64(0), *deleteAction.GetDeleteOptions().GracePeriodSeconds, "the escalated delete must be a force delete")
 }
 
-func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedPatchCallsToClient_WhenPodAlreadyMarkedForDeletion(t *testing.T) {
+func TestKubernetesClusterContext_ProcessPodsToDelete_RenewsOwnershipWhenAlreadyMarked(t *testing.T) {
 	clusterContext, client := setupTest()
 
 	pod := createSubmittedBatchPod(t, clusterContext)
@@ -587,8 +773,10 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedPatchCalls
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
 
-	assert.Equal(t, len(client.Fake.Actions()), 1)
-	assert.True(t, client.Fake.Actions()[0].Matches("delete", "pods"))
+	assert.Len(t, client.Fake.Actions(), 2)
+	assert.True(t, client.Fake.Actions()[0].Matches("patch", "pods"))
+	assert.True(t, client.Fake.Actions()[1].Matches("delete", "pods"))
+	assert.Equal(t, "now", pod.Annotations[domain.MarkedForDeletion])
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCallsToClient_OnDeleteClientSuccess(t *testing.T) {
