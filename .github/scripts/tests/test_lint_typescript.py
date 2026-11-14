@@ -35,7 +35,7 @@ class TypeScriptLint(unittest.TestCase):
             ("clean", 0, "Done\n"),
             ("successful_output_mentions_problem", 0, "No problem found\n"),
             ("lint_finding", 1, "1 problem (1 error, 0 warnings)\n"),
-            ("warning_limit", 1, "ESLint found too many warnings (maximum: 0).\n"),
+            ("failure_without_problem_marker", 1, "Lint command failed\n"),
             ("operational_error", 2, "ESLint could not find a configuration file\n"),
             ("empty_failure", 2, ""),
             ("command_unavailable", 127, "command not found\n"),
