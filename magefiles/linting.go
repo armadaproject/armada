@@ -10,7 +10,23 @@ import (
 	"github.com/pkg/errors"
 )
 
-const GOLANGCI_LINT_VERSION_CONSTRAINT = ">= 2.5.0"
+const golangciLintModule = "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
+
+const golangciLintInstallHint = "run `mage BootstrapTools` and put Go's tool folder ($(go env GOPATH)/bin, or GOBIN if set) first on your PATH"
+
+// Extract the golangci-lint version pinned in tools.yaml. The Go lint workflow pins the same version separately.
+func golangciLintPinnedVersion() (*semver.Version, error) {
+	tools := &struct{ Tools []string }{}
+	if err := readYaml("tools.yaml", tools); err != nil {
+		return nil, err
+	}
+	for _, tool := range tools.Tools {
+		if version, found := strings.CutPrefix(tool, golangciLintModule+"@"); found {
+			return semver.NewVersion(version)
+		}
+	}
+	return nil, errors.Errorf("%s not found in tools.yaml", golangciLintModule)
+}
 
 // Extract the version of golangci-lint
 func golangciLintVersion() (*semver.Version, error) {
@@ -29,13 +45,20 @@ func golangciLintVersion() (*semver.Version, error) {
 	return version, nil
 }
 
-// Check if the version of golangci-lint meets the predefined constraints
+// Check that golangci-lint is the version pinned in tools.yaml
 func golangciLintCheck() error {
+	pinned, err := golangciLintPinnedVersion()
+	if err != nil {
+		return errors.Errorf("error getting pinned version: %v", err)
+	}
 	version, err := golangciLintVersion()
 	if err != nil {
-		return errors.Errorf("error getting version: %v", err)
+		return errors.Errorf("error getting version: %v; to install golangci-lint %v, %s", err, pinned, golangciLintInstallHint)
 	}
-	return constraintCheck(version, GOLANGCI_LINT_VERSION_CONSTRAINT, "golangci-lint")
+	if !version.Equal(pinned) {
+		return errors.Errorf("found golangci-lint version %v but tools.yaml pins %v; to install it, %s", version, pinned, golangciLintInstallHint)
+	}
+	return nil
 }
 
 // Fixing Linting
@@ -50,6 +73,7 @@ func LintFix() error {
 		if err != nil {
 			fmt.Printf("error fixing linting cmd: %v", err)
 			fmt.Printf("\nOutput: %s\n", output)
+			return err
 		}
 	} else {
 		cmd = append(cmd, "golangci-lint", "run", "--fix", "--timeout", "10m")
@@ -72,8 +96,9 @@ func LintCheck() error {
 	if len(cmd) == 0 {
 		output, err := golangcilintOutput("run", "--timeout", "10m")
 		if err != nil {
-			fmt.Printf("error fixing linting cmd: %v", err)
+			fmt.Printf("error running linting cmd: %v", err)
 			fmt.Printf("\nOutput: %s\n", output)
+			return err
 		}
 	} else {
 		cmd = append(cmd, "golangci-lint", "run", "--timeout", "10m")
