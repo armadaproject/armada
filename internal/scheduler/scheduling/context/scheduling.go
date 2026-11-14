@@ -28,10 +28,12 @@ import (
 
 // SchedulingContext contains information necessary for scheduling and records what happened in a scheduling round.
 type SchedulingContext struct {
-	// Time at which the scheduling cycle started.
+	// Policy time at which the scheduling cycle started.
 	Started time.Time
-	// Time at which the scheduling cycle finished.
+	// Policy time at which the scheduling cycle finished.
 	Finished time.Time
+	// Host elapsed time spent in PreemptingQueueScheduler.Schedule.
+	ComputationDuration time.Duration
 	// Pool for which we're currently scheduling jobs.
 	Pool string
 	// PriorityClasses stores all available priority classes, by name. schedulingtypes.PriorityClass includes priority
@@ -90,8 +92,21 @@ func NewSchedulingContext(
 	totalResources internaltypes.ResourceList,
 	priorityClasses map[string]schedulingtypes.PriorityClass,
 ) *SchedulingContext {
+	return NewSchedulingContextAt(pool, fairnessCostProvider, limiter, fairsharePreemptionLimiter, totalResources, priorityClasses, time.Now())
+}
+
+// NewSchedulingContextAt creates a context at the supplied policy time.
+func NewSchedulingContextAt(
+	pool string,
+	fairnessCostProvider fairness.FairnessCostProvider,
+	limiter *rate.Limiter,
+	fairsharePreemptionLimiter *rate.Limiter,
+	totalResources internaltypes.ResourceList,
+	priorityClasses map[string]schedulingtypes.PriorityClass,
+	started time.Time,
+) *SchedulingContext {
 	return &SchedulingContext{
-		Started:                      time.Now(),
+		Started:                      started,
 		Pool:                         pool,
 		FairnessCostProvider:         fairnessCostProvider,
 		Limiter:                      limiter,
@@ -150,7 +165,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 
 	qctx := &QueueSchedulingContext{
 		SchedulingContext:                 sctx,
-		Created:                           time.Now(),
+		Created:                           sctx.Started,
 		Queue:                             queue,
 		Weight:                            weight,
 		RawWeight:                         rawWeight,
@@ -407,6 +422,7 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 	fmt.Fprintf(w, "Started:\t%s\n", sctx.Started)
 	fmt.Fprintf(w, "Finished:\t%s\n", sctx.Finished)
 	fmt.Fprintf(w, "Duration:\t%s\n", sctx.Finished.Sub(sctx.Started))
+	fmt.Fprintf(w, "Computation duration:\t%s\n", sctx.ComputationDuration)
 	fmt.Fprintf(w, "Termination reason:\t%s\n", sctx.TerminationReason)
 	fmt.Fprintf(w, "Total capacity:\t%s\n", sctx.TotalResources.String())
 	fmt.Fprintf(w, "Scheduled resources:\t%s\n", sctx.ScheduledResources.String())
