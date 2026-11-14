@@ -2,8 +2,13 @@ package scheduling
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -16,9 +21,6 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
-	clocktesting "k8s.io/utils/clock/testing"
 )
 
 func TestFairSchedulingAlgoPolicyClockRefillsGlobalLimiter(t *testing.T) {
@@ -49,7 +51,11 @@ func testGlobalRate(t *testing.T, advance time.Duration, expected int) {
 	cfg.MaximumSchedulingRate = 0.1
 	cfg.MaximumSchedulingBurst = 1
 	clk := clocktesting.NewFakeClock(testfixtures.BaseTime)
-	sch, err := NewFairSchedulingAlgo(cfg, 0, repo, queues, reports.NewSchedulingContextRepository(), testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources, priorityoverride.NewNoOpProvider(), nil, &testRunReconciler{}, WithPolicyClock(clk))
+	sch, err := NewFairSchedulingAlgo(
+		cfg, 0, repo, queues, reports.NewSchedulingContextRepository(),
+		testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources,
+		priorityoverride.NewNoOpProvider(), nil, &testRunReconciler{}, WithPolicyClock(clk),
+	)
 	require.NoError(t, err)
 	db := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 	db.SetClock(clk)
@@ -118,7 +124,11 @@ func TestFairSchedulingAlgoPolicyClockRefillsQueueLimiter(t *testing.T) {
 	cfg.MaximumSchedulingRate, cfg.MaximumSchedulingBurst = 100, 100
 	cfg.MaximumPerQueueSchedulingRate, cfg.MaximumPerQueueSchedulingBurst = 0.1, 1
 	clk := clocktesting.NewFakeClock(testfixtures.BaseTime)
-	sch, err := NewFairSchedulingAlgo(cfg, 0, repo, queues, reports.NewSchedulingContextRepository(), testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources, priorityoverride.NewNoOpProvider(), nil, &testRunReconciler{}, WithPolicyClock(clk))
+	sch, err := NewFairSchedulingAlgo(
+		cfg, 0, repo, queues, reports.NewSchedulingContextRepository(),
+		testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources,
+		priorityoverride.NewNoOpProvider(), nil, &testRunReconciler{}, WithPolicyClock(clk),
+	)
 	require.NoError(t, err)
 	db := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 	db.SetClock(clk)
@@ -170,7 +180,11 @@ func TestFairSchedulingAlgoPolicyClockRefillsFairsharePreemption(t *testing.T) {
 	cfg := testfixtures.TestSchedulingConfig()
 	cfg.Pools[0].FairsharePreemptionRateLimit = &configuration.RateLimit{MaximumRate: 0.1, MaximumBurst: 1}
 	clk := clocktesting.NewFakeClock(testfixtures.BaseTime)
-	sch, err := NewFairSchedulingAlgo(cfg, 0, repo, queues, reports.NewSchedulingContextRepository(), testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources, priorityoverride.NewNoOpProvider(), nil, &testRunReconciler{}, WithPolicyClock(clk))
+	sch, err := NewFairSchedulingAlgo(
+		cfg, 0, repo, queues, reports.NewSchedulingContextRepository(),
+		testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources,
+		priorityoverride.NewNoOpProvider(), nil, &testRunReconciler{}, WithPolicyClock(clk),
+	)
 	require.NoError(t, err)
 	db := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 	db.SetClock(clk)
@@ -259,7 +273,11 @@ func TestFairSchedulingAlgoPolicyClockKeepsHostCancellation(t *testing.T) {
 			queues := schedulermocks.NewMockQueueCache(ctrl)
 			queues.EXPECT().GetAll(gomock.Any()).Return([]*api.Queue{testfixtures.MakeTestQueue()}, nil).AnyTimes()
 			clk := clocktesting.NewFakeClock(testfixtures.BaseTime)
-			sch, err := NewFairSchedulingAlgo(testfixtures.TestSchedulingConfig(), time.Minute, repo, queues, reports.NewSchedulingContextRepository(), testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources, priorityoverride.NewNoOpProvider(), nil, &testRunReconciler{}, WithPolicyClock(clk))
+			sch, err := NewFairSchedulingAlgo(
+				testfixtures.TestSchedulingConfig(), time.Minute, repo, queues, reports.NewSchedulingContextRepository(),
+				testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources,
+				priorityoverride.NewNoOpProvider(), nil, &testRunReconciler{}, WithPolicyClock(clk),
+			)
 			require.NoError(t, err)
 			db := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 			db.SetClock(clk)
@@ -287,7 +305,11 @@ func TestFairSchedulingAlgoDefaultClockUsesHostTime(t *testing.T) {
 	repo.EXPECT().GetExecutorSettings(gomock.Any()).Return([]*schedulerobjects.ExecutorSettings{}, nil).AnyTimes()
 	queues := schedulermocks.NewMockQueueCache(ctrl)
 	queues.EXPECT().GetAll(gomock.Any()).Return([]*api.Queue{testfixtures.MakeTestQueue()}, nil).AnyTimes()
-	sch, err := NewFairSchedulingAlgo(testfixtures.TestSchedulingConfig(), 0, repo, queues, reports.NewSchedulingContextRepository(), testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources, priorityoverride.NewNoOpProvider(), nil, &testRunReconciler{})
+	sch, err := NewFairSchedulingAlgo(
+		testfixtures.TestSchedulingConfig(), 0, repo, queues, reports.NewSchedulingContextRepository(),
+		testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources,
+		priorityoverride.NewNoOpProvider(), nil, &testRunReconciler{},
+	)
 	require.NoError(t, err)
 	db := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
 	txn := db.WriteTxn()
@@ -306,4 +328,53 @@ func TestFairSchedulingAlgoDefaultClockUsesHostTime(t *testing.T) {
 	require.Equal(t, sctx.Started, sctx.QueueSchedulingContexts[testfixtures.TestQueue].Created)
 	require.Greater(t, sctx.ComputationDuration, time.Duration(0))
 	require.Greater(t, sctx.TotalNewJobSchedulingTime, time.Duration(0))
+}
+
+func TestFairSchedulingAlgoPolicyClockNoNodesFinishesContext(t *testing.T) {
+	ctx := armadacontext.Background()
+	ctrl := gomock.NewController(t)
+	executor := makeTestExecutor("empty-pool")
+	repo := schedulermocks.NewMockExecutorRepository(ctrl)
+	repo.EXPECT().GetExecutors(gomock.Any()).Return([]*schedulerobjects.Executor{executor}, nil).AnyTimes()
+	repo.EXPECT().GetExecutorSettings(gomock.Any()).Return([]*schedulerobjects.ExecutorSettings{}, nil).AnyTimes()
+	queues := schedulermocks.NewMockQueueCache(ctrl)
+	queues.EXPECT().GetAll(gomock.Any()).Return([]*api.Queue{testfixtures.MakeTestQueue()}, nil).AnyTimes()
+	clk := clocktesting.NewFakeClock(testfixtures.BaseTime)
+	sch, err := NewFairSchedulingAlgo(
+		testfixtures.TestSchedulingConfig(), 0, repo, queues, reports.NewSchedulingContextRepository(),
+		testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources,
+		priorityoverride.NewNoOpProvider(), nil, &testRunReconciler{}, WithPolicyClock(clk),
+	)
+	require.NoError(t, err)
+	db := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+	db.SetClock(clk)
+	txn := db.WriteTxn()
+	defer txn.Abort()
+	job := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass1).WithQueued(true).WithPools([]string{testfixtures.TestPool})
+	require.NoError(t, txn.Upsert([]*jobdb.Job{job}))
+
+	result, err := sch.Schedule(ctx, txn)
+	require.NoError(t, err)
+	require.Len(t, result.PoolResults, 1)
+	pool := result.PoolResults[0]
+	require.Equal(t, PoolSchedulingTerminationReasonCompleted, pool.Outcome.TerminationReason())
+	require.Empty(t, pool.SchedulingResult.ScheduledJobs)
+	require.Empty(t, pool.SchedulingResult.PreemptedJobs)
+	sctx := pool.SchedulingResult.SchedulingContext
+	require.Equal(t, clk.Now(), sctx.Started)
+	require.Equal(t, clk.Now(), sctx.Finished)
+	require.Equal(t, time.Duration(0), sctx.ComputationDuration)
+	require.GreaterOrEqual(t, sctx.Finished.Sub(sctx.Started), time.Duration(0))
+	durationLine := ""
+	for _, line := range strings.Split(sctx.ReportString(0), "\n") {
+		if strings.HasPrefix(line, "Duration:") {
+			durationLine = line
+		}
+	}
+	require.NotEmpty(t, durationLine)
+	require.Equal(t, "0s", strings.Fields(durationLine)[1])
+	stored := txn.GetById(job.Id())
+	require.True(t, stored.Queued())
+	require.Nil(t, stored.LatestRun())
+	require.Len(t, txn.GetAllLeasedJobs(), 0)
 }

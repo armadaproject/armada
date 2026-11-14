@@ -274,6 +274,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 
 	if fsctx.nodeDb.NumNodes() <= 0 {
 		ctx.Infof("Skipping pool %s as it has no active nodes", pool.Name)
+		fsctx.schedulingContext.Finished = l.clock.Now()
 		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonCompleted, nil),
 			&SchedulingResult{
 				SchedulingContext: fsctx.schedulingContext,
