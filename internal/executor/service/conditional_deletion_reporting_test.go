@@ -2,7 +2,6 @@ package service
 
 import (
 	"errors"
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -59,7 +58,7 @@ func TestConditionalDeletionLifecycleReporting(t *testing.T) {
 			pod := makeTestPod(v1.PodStatus{Phase: v1.PodPending})
 			pod.Name, pod.Namespace, pod.ResourceVersion = "conditional-delete", "default", "1"
 			client := fake.NewSimpleClientset(pod.DeepCopy())
-			realContext := clustercontext.NewClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", DeleteConcurrencyLimit: 1, EnableConditionalDeletionMarkerCleanup: true}, time.Minute, deletionReportingClient{client}, time.Minute)
+			realContext := clustercontext.NewClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", DeleteConcurrencyLimit: 1}, time.Minute, deletionReportingClient{client}, time.Minute)
 			realContext.Stop()
 			ctx := &deletionReportingContext{ClusterContext: realContext}
 			stateReporter.clusterContext = ctx
@@ -206,36 +205,32 @@ func TestConditionalDeletionLifecycleReporting(t *testing.T) {
 }
 
 func TestConditionalDeletion_UnmarkedTerminatingPodKeepsIntentionalReporting(t *testing.T) {
-	for _, enabled := range []bool{false, true} {
-		t.Run(fmt.Sprintf("cleanup=%t", enabled), func(t *testing.T) {
-			stateReporter, _, events, _ := setUpJobStateReporterTest(t)
-			previous := prometheus.DefaultRegisterer
-			prometheus.DefaultRegisterer = prometheus.NewRegistry()
-			t.Cleanup(func() { prometheus.DefaultRegisterer = previous })
-			pod := makeTestPod(v1.PodStatus{Phase: v1.PodPending})
-			pod.Name, pod.Namespace, pod.ResourceVersion = "already-terminating", "default", "1"
-			pod.DeletionTimestamp = &metav1.Time{Time: time.Now().Add(-time.Minute)}
-			client := fake.NewSimpleClientset(pod.DeepCopy())
-			ctx := clustercontext.NewClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", DeleteConcurrencyLimit: 1, EnableConditionalDeletionMarkerCleanup: enabled}, time.Minute, deletionReportingClient{client}, 5*time.Minute)
-			t.Cleanup(ctx.Stop)
-			stateReporter.clusterContext = ctx
-			require.NoError(t, ctx.DeletePodWithCondition(pod, func(p *v1.Pod) bool { return p.Status.Phase == v1.PodPending }, true))
-			obj, err := client.Tracker().Get(v1.SchemeGroupVersion.WithResource("pods"), pod.Namespace, pod.Name)
-			require.NoError(t, err)
-			terminating := obj.(*v1.Pod)
-			failed := terminating.DeepCopy()
-			failed.Status.Phase = v1.PodFailed
-			stateReporter.reportStatusUpdate(terminating, failed)
-			assert.Empty(t, events.GetReceivedEvents(), "shutdown after intentional handling must remain suppressed")
-			handler, _, _, _, err := setupTestComponents(nil)
-			require.NoError(t, err)
-			handler.handleDeletedPod(failed)
-			assert.False(t, handler.HasIssue(util.ExtractJobRunId(pod)), "marked deletion must not become an unexpected-deletion issue")
-			// Confirm the callback check is meaningful independently of the phase.
-			unmarked := failed.DeepCopy()
-			delete(unmarked.Annotations, domain.MarkedForDeletion)
-			handler.handleDeletedPod(unmarked)
-			require.True(t, handler.HasIssue(util.ExtractJobRunId(pod)))
-		})
-	}
+	stateReporter, _, events, _ := setUpJobStateReporterTest(t)
+	previous := prometheus.DefaultRegisterer
+	prometheus.DefaultRegisterer = prometheus.NewRegistry()
+	t.Cleanup(func() { prometheus.DefaultRegisterer = previous })
+	pod := makeTestPod(v1.PodStatus{Phase: v1.PodPending})
+	pod.Name, pod.Namespace, pod.ResourceVersion = "already-terminating", "default", "1"
+	pod.DeletionTimestamp = &metav1.Time{Time: time.Now().Add(-time.Minute)}
+	client := fake.NewSimpleClientset(pod.DeepCopy())
+	ctx := clustercontext.NewClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", DeleteConcurrencyLimit: 1}, time.Minute, deletionReportingClient{client}, 5*time.Minute)
+	t.Cleanup(ctx.Stop)
+	stateReporter.clusterContext = ctx
+	require.NoError(t, ctx.DeletePodWithCondition(pod, func(p *v1.Pod) bool { return p.Status.Phase == v1.PodPending }, true))
+	obj, err := client.Tracker().Get(v1.SchemeGroupVersion.WithResource("pods"), pod.Namespace, pod.Name)
+	require.NoError(t, err)
+	terminating := obj.(*v1.Pod)
+	failed := terminating.DeepCopy()
+	failed.Status.Phase = v1.PodFailed
+	stateReporter.reportStatusUpdate(terminating, failed)
+	assert.Empty(t, events.GetReceivedEvents(), "shutdown after intentional handling must remain suppressed")
+	handler, _, _, _, err := setupTestComponents(nil)
+	require.NoError(t, err)
+	handler.handleDeletedPod(failed)
+	assert.False(t, handler.HasIssue(util.ExtractJobRunId(pod)), "marked deletion must not become an unexpected-deletion issue")
+	// Confirm the callback check is meaningful independently of the phase.
+	unmarked := failed.DeepCopy()
+	delete(unmarked.Annotations, domain.MarkedForDeletion)
+	handler.handleDeletedPod(unmarked)
+	require.True(t, handler.HasIssue(util.ExtractJobRunId(pod)))
 }

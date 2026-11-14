@@ -703,8 +703,8 @@ The `deletion_requested` annotation tells phase reporting that Armada is deletin
 | What happens | Marker and reporting |
 | --- | --- |
 | The live pod fails the deletion condition | No new marker is written; normal reporting remains eligible. |
-| DELETE is definitely rejected, and cleanup is enabled | Remove this attempt's recoverable marker if no other attempt took it over and deletion has not started. |
-| Cancellation takes over, or the API outcome is uncertain | Keep the marker and reporting suppression. |
+| DELETE is definitely rejected | Remove this attempt's recoverable marker if no other attempt took it over and deletion has not started. |
+| An updated executor takes over cancellation, or the API outcome is uncertain | Keep the marker and reporting suppression. |
 
 Removing the marker does not replay a phase change that was suppressed while it was present: the marker-only update leaves the phase unchanged. The periodic missing-event reconciler can report the current phase if the pod remains available; it cannot reconstruct every missed intermediate transition.
 
@@ -712,13 +712,15 @@ Each actual deletion attempt writes a new UUID token, even when the pod is alrea
 
 Conditional deletion checks the live UID and condition before writing a token with a resourceVersion guard. Pessimistic DELETE uses that returned version; every DELETE also checks UID to avoid deleting a replacement pod with the same name. The conditional DELETE shares the ten-second deadline started by its live GET. A timeout retains suppression because deletion may have succeeded.
 
-By default, `application.enableConditionalDeletionMarkerCleanup` is false: rejected DELETEs retain their markers. The condition-before-marker check and ownership renewal are always enabled.
-
 The `conditional:` prefix identifies a token that a later version-guarded attempt can safely replace. Other tokens, including cancellation and legacy markers, stay non-removable through later attempts. Cleanup checks UID, token, resourceVersion and deletionTimestamp; it retries conflicts at most three times and returns failures alongside the DELETE error.
 
-The [executor chart](../../deployment/executor/templates/deployment.yaml) requests one replica but omits a rollout strategy; Kubernetes therefore uses RollingUpdate, which permits old/new overlap. The executor startup path does not use leader election. Older executors can use a marker without changing its token, so the replica count does not make cleanup safe during an upgrade.
+### Compatibility during executor upgrades
 
-To enable recovery, first roll out supporting executors with cleanup disabled. Once all old executors have stopped and their outstanding deletion requests have drained, set `application.enableConditionalDeletionMarkerCleanup: true`. In Helm values, the path is `applicationConfig.application.enableConditionalDeletionMarkerCleanup`. Updated executors continue renewing ownership even while cleanup is disabled, so a later configuration rollout can safely overlap supporting instances. Before rolling back to an older binary, disable cleanup across the supporting executors and let their outstanding cleanup requests drain.
+The [executor chart](../../deployment/executor/templates/deployment.yaml) requests one replica but omits a rollout strategy; Kubernetes therefore uses RollingUpdate, which permits old/new overlap. The executor startup path does not use leader election.
+
+An older executor can observe a marker and prepare cancellation without writing a new token. If a new executor then removes that marker after its own DELETE is rejected, the older executor's unconditional DELETE can still succeed. The resulting shutdown can produce ordinary failed-run reporting or unexpected-deletion diagnostics instead of being suppressed. This window exists during mixed-version upgrades and rollbacks; its frequency has not been measured. Cleanup is always active, with no configuration flag.
+
+For already-cancelled jobs, scheduler cancellation/terminal-state checks take precedence over retry handling; a late error can still make Lookout attempt history inconsistent. This is based on source tracing, not a complete mixed-version end-to-end test, and is not a universal no-retry guarantee for other deletion paths. Avoid overlapping legacy executors and drain their outstanding deletion requests if strict reporting consistency during the transition is required. Once every overlapping executor renews ownership, the token/version guards protect cleanup against concurrent cancellation.
 
 The executor emits one `JobRunTerminatedDebugInfo` event in two cases:
 

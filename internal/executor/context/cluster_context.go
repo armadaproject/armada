@@ -73,23 +73,22 @@ type ClusterContext interface {
 }
 
 type KubernetesClusterContext struct {
-	clusterId                              string
-	pool                                   string
-	deleteThreadCount                      int
-	enableConditionalDeletionMarkerCleanup bool
-	submittedPods                          util.PodCache
-	podsToDelete                           util.PodCache
-	podInformer                            informer.PodInformer
-	nodeInformer                           informer.NodeInformer
-	serviceInformer                        informer.ServiceInformer
-	ingressInformer                        network_informer.IngressInformer
-	endpointSliceInformer                  discovery_informer.EndpointSliceInformer
-	stopper                                chan struct{}
-	kubernetesClient                       kubernetes.Interface
-	kubernetesClientProvider               cluster.KubernetesClientProvider
-	eventInformer                          informer.EventInformer
-	podKillTimeout                         time.Duration
-	clock                                  clock.Clock
+	clusterId                string
+	pool                     string
+	deleteThreadCount        int
+	submittedPods            util.PodCache
+	podsToDelete             util.PodCache
+	podInformer              informer.PodInformer
+	nodeInformer             informer.NodeInformer
+	serviceInformer          informer.ServiceInformer
+	ingressInformer          network_informer.IngressInformer
+	endpointSliceInformer    discovery_informer.EndpointSliceInformer
+	stopper                  chan struct{}
+	kubernetesClient         kubernetes.Interface
+	kubernetesClientProvider cluster.KubernetesClientProvider
+	eventInformer            informer.EventInformer
+	podKillTimeout           time.Duration
+	clock                    clock.Clock
 }
 
 func (c *KubernetesClusterContext) GetClusterId() string {
@@ -111,23 +110,22 @@ func NewClusterContext(
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
 
 	context := &KubernetesClusterContext{
-		clusterId:                              configuration.ClusterId,
-		pool:                                   configuration.Pool,
-		deleteThreadCount:                      configuration.DeleteConcurrencyLimit,
-		enableConditionalDeletionMarkerCleanup: configuration.EnableConditionalDeletionMarkerCleanup,
-		submittedPods:                          util.NewTimeExpiringPodCache(time.Minute, time.Second, "submitted_job"),
-		podsToDelete:                           util.NewTimeExpiringPodCache(minTimeBetweenRepeatDeletionCalls, time.Second, "deleted_job"),
-		stopper:                                make(chan struct{}),
-		podInformer:                            factory.Core().V1().Pods(),
-		nodeInformer:                           factory.Core().V1().Nodes(),
-		eventInformer:                          factory.Core().V1().Events(),
-		serviceInformer:                        factory.Core().V1().Services(),
-		ingressInformer:                        factory.Networking().V1().Ingresses(),
-		endpointSliceInformer:                  factory.Discovery().V1().EndpointSlices(),
-		kubernetesClient:                       kubernetesClient,
-		kubernetesClientProvider:               kubernetesClientProvider,
-		podKillTimeout:                         killTimeout,
-		clock:                                  clock.RealClock{},
+		clusterId:                configuration.ClusterId,
+		pool:                     configuration.Pool,
+		deleteThreadCount:        configuration.DeleteConcurrencyLimit,
+		submittedPods:            util.NewTimeExpiringPodCache(time.Minute, time.Second, "submitted_job"),
+		podsToDelete:             util.NewTimeExpiringPodCache(minTimeBetweenRepeatDeletionCalls, time.Second, "deleted_job"),
+		stopper:                  make(chan struct{}),
+		podInformer:              factory.Core().V1().Pods(),
+		nodeInformer:             factory.Core().V1().Nodes(),
+		eventInformer:            factory.Core().V1().Events(),
+		serviceInformer:          factory.Core().V1().Services(),
+		ingressInformer:          factory.Networking().V1().Ingresses(),
+		endpointSliceInformer:    factory.Discovery().V1().EndpointSlices(),
+		kubernetesClient:         kubernetesClient,
+		kubernetesClientProvider: kubernetesClientProvider,
+		podKillTimeout:           killTimeout,
+		clock:                    clock.RealClock{},
 	}
 
 	_, err := context.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
@@ -378,7 +376,7 @@ func (c *KubernetesClusterContext) DeletePodWithCondition(pod *v1.Pod, condition
 	if err != nil && k8s_errors.IsNotFound(err) {
 		return nil
 	}
-	if err != nil && c.enableConditionalDeletionMarkerCleanup && canRemoveMarker && deletionDefinitelyRejected(err) {
+	if err != nil && canRemoveMarker && deletionDefinitelyRejected(err) {
 		if cleanupErr := c.removeAbandonedDeletionMarker(currentPod); cleanupErr != nil {
 			return fmt.Errorf("%w; failed to remove abandoned deletion marker: %w", err, cleanupErr)
 		}

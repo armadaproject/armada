@@ -48,7 +48,7 @@ func setupTestWithMinRepeatedDeletePeriod(minRepeatedDeletePeriod time.Duration)
 	client := fake.NewSimpleClientset()
 	clientProvider := &FakeClientProvider{FakeClient: client}
 	clusterContext := NewClusterContext(
-		configuration.ApplicationConfiguration{ClusterId: "test-cluster-1", Pool: "pool", DeleteConcurrencyLimit: 1, EnableConditionalDeletionMarkerCleanup: true},
+		configuration.ApplicationConfiguration{ClusterId: "test-cluster-1", Pool: "pool", DeleteConcurrencyLimit: 1},
 		minRepeatedDeletePeriod,
 		clientProvider,
 		5*time.Minute,
