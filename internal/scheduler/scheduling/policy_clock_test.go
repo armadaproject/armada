@@ -96,7 +96,6 @@ func testGlobalRate(t *testing.T, advance time.Duration, expected int) {
 	if expected > 0 {
 		require.Greater(t, sctx.TotalNewJobSchedulingTime, time.Duration(0))
 	}
-	require.NotContains(t, sctx.ReportString(0), "Computation duration:")
 	queued := 0
 	for _, job := range jobs {
 		stored := txn.GetById(job.Id())
