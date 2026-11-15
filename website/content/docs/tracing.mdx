@@ -34,24 +34,26 @@ The server tries these sources in order and uses the first valid context:
 
 Traceparent, tracestate and baggage always come from one source. A missing field in a selected fallback clears any stale canonical value. Invalid traceparents, oversized tracestate or oversized forwarded baggage cause the server to try the next source. Zero byte limits use the defaults above. Duplicate submissions keep their original context.
 
+These checks select a usable context; they do not sanitize or remove supplied annotations when no source is selected. Malformed optional tracestate is ignored when extracting the context, but the original annotation is retained; baggage contents are not parsed.
+
 ## Baggage controls and limits
 
 - Incoming gRPC baggage is omitted unless `propagateGrpcBaggage: true` is set. Traceparent and tracestate still propagate with the flag off, even if the ignored baggage is oversized.
-- Baggage explicitly supplied in canonical or configured alias annotations is unaffected by that flag. All forwarded baggage must fit within `maxBaggageBytes`.
+- Baggage explicitly supplied in canonical or configured alias annotations is unaffected by that flag. A carrier is selected only when its baggage fits within `maxBaggageBytes`.
 - Audit baggage added by gateways or service meshes before enabling request baggage. It is stored in job annotations and may reach job containers; do not include secrets.
 - The byte limits do not filter sensitive contents or cap the total size of existing annotations. Copying context adds to that metadata budget.
-- With submission tracing enabled, canonical trace fields are literal: `{JobId}` in baggage is not expanded.
+- With submission tracing enabled, canonical trace fields are literal: `{JobId}` in baggage is not expanded. Legacy alias annotations retain their normal templating behavior, so they can differ from the canonical copy.
 
 ## Submission spans
 
-When propagation and server observability are both enabled, each accepted new job with sampled context emits an `armada.job.submit` root after successful publication. It covers request handling and includes `armada.queue`, `armada.job_set.id` and `armada.job.id`.
+When propagation and server observability are both enabled, each accepted new job with sampled context creates an `armada.job.submit` root after successful publication. Export is best effort. It covers request handling and includes `armada.queue`, `armada.job_set.id` and `armada.job.id`.
 
 | Identifier   | Value                                                |
 | ------------ | ---------------------------------------------------- |
 | Trace ID     | The job ULID's 16 bytes, represented as hexadecimal. |
 | Root span ID | The job ULID's last eight bytes.                     |
 
-The root has one link to the selected submitter span, attributed with `armada.trace_context.source`. For gRPC context with server tracing enabled, the target is the server span in that incoming trace. The link keeps the full tracestate; the root keeps only `ot`. Sampling follows the selected context. Duplicates, failed submissions and jobs without sampled context emit no job roots.
+The root has one link to the selected submitter span, attributed with `armada.trace_context.source`. For gRPC context with server tracing enabled, the target is the server span in that incoming trace. The link keeps the full tracestate; the root keeps only `ot`. Job sampling follows the selected caller's decision, even when the server span is the link target and its own sampler makes a different decision. The caller's tracestate accompanies that decision. Duplicates, failed submissions and jobs without sampled context emit no job roots.
 
 ### Sampling and export
 
@@ -66,3 +68,5 @@ Export failures do not fail submission. A full export queue can drop spans, so a
 - Each new job increments its selected source or `none`.
 - `invalid` additionally counts rejected sources before fallback; summing all labels is not a job count.
 - Duplicate jobs are excluded.
+
+With submission tracing and server observability enabled, `armada_otel_export_spans_total{result="success|error"}` counts spans in completed exporter calls for the shared server provider, including ordinary server spans. An error does not prove that the backend lost every span in that call. This counter does not measure spans dropped before export when the queue is full.

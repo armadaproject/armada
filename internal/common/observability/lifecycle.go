@@ -134,6 +134,11 @@ func initOTel(cfg ObservabilityConfig, jobSubmissionSpans bool) error {
 		return fmt.Errorf("unsupported sampler: %s", cfg.Traces.Sampler)
 	}
 
+	if jobSubmissionSpans {
+		sampler = JobSpanSampler{Fallback: sampler}
+		exporter = &meteredTraceExporter{SpanExporter: exporter}
+	}
+
 	// Create tracer provider with bounded batch processing guardrails:
 	//   - max export batch size: 512 spans
 	//   - max queue size: 2048 spans (drop-on-backpressure above this bound)
@@ -152,7 +157,7 @@ func initOTel(cfg ObservabilityConfig, jobSubmissionSpans bool) error {
 		sdktrace.WithSampler(sampler),
 	}
 	if jobSubmissionSpans {
-		options = append(options, sdktrace.WithSampler(JobSpanSampler{Fallback: sampler}), sdktrace.WithIDGenerator(JobSpanIDGenerator{}))
+		options = append(options, sdktrace.WithIDGenerator(JobSpanIDGenerator{}))
 	}
 	tp := sdktrace.NewTracerProvider(options...)
 

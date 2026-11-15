@@ -161,10 +161,10 @@ func TestResolveSubmissionTraceContext(t *testing.T) {
 			wantBaggage: "origin=grpc",
 		},
 		{
-			name:       "oversized server state falls back to valid incoming carrier",
+			name:       "server state cannot replace bounded caller state",
 			ctx:        withLargeServerState,
 			config:     configuration.SubmissionTraceContextConfig{Enabled: true, PropagateGrpcBaggage: true, MaxTraceStateBytes: 11},
-			wantSource: "grpc", wantParent: unsampledParentB, wantState: "vendor=grpc", wantBaggage: "origin=grpc",
+			wantSource: "grpc", wantParent: unsampledServerParent, wantState: "vendor=grpc", wantBaggage: "origin=grpc",
 		},
 		{
 			name:       "empty request",
@@ -477,6 +477,51 @@ func TestResolveSubmissionTraceContextGrpcBaggagePolicy(t *testing.T) {
 					assert.NotContains(t, item.Annotations, canonicalPrefix+"baggage")
 				}
 			}
+		})
+	}
+}
+
+// The server span identifies the submit call; its sampler must not change the
+// caller's decision for the independent job trace.
+func TestResolveSubmissionTraceContextGRPCSampling(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		parent            string
+		sampler           sdktrace.Sampler
+		wantServerSampled bool
+		wantJobSampled    bool
+	}{
+		{"always on with unsampled caller", unsampledParentA, sdktrace.AlwaysSample(), true, false},
+		{"always off with sampled caller", sampledParentA, sdktrace.NeverSample(), false, true},
+		{"ratio zero with sampled caller", sampledParentA, sdktrace.TraceIDRatioBased(0), false, true},
+		{"ratio one with unsampled caller", unsampledParentA, sdktrace.TraceIDRatioBased(1), true, false},
+		{"parent based with sampled caller", sampledParentA, sdktrace.ParentBased(sdktrace.NeverSample()), true, true},
+		{"parent based with unsampled caller", unsampledParentA, sdktrace.ParentBased(sdktrace.AlwaysSample()), false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			provider := sdktrace.NewTracerProvider(sdktrace.WithSampler(tc.sampler))
+			t.Cleanup(func() { require.NoError(t, provider.Shutdown(context.Background())) })
+			handler := otelgrpc.NewServerHandler(
+				otelgrpc.WithTracerProvider(provider),
+				otelgrpc.WithPropagators(propagation.TraceContext{}),
+			)
+			incoming := metadata.NewIncomingContext(context.Background(), metadata.Pairs("traceparent", tc.parent, "tracestate", "vendor=caller"))
+			ctx := handler.TagRPC(incoming, &stats.RPCTagInfo{FullMethodName: "/api.Submit/SubmitJobs"})
+			defer trace.SpanFromContext(ctx).End()
+			server := trace.SpanContextFromContext(ctx)
+			require.Equal(t, tc.wantServerSampled, server.IsSampled())
+			item := &api.JobSubmitRequestItem{}
+			s := &Server{submissionConfig: configuration.SubmissionConfig{TraceContext: configuration.SubmissionTraceContextConfig{Enabled: true}}}
+			resolved, source := s.resolveSubmissionTraceContext(ctx, item)
+			require.Equal(t, "grpc", source)
+			assert.Equal(t, server.TraceID(), resolved.TraceID())
+			assert.Equal(t, server.SpanID(), resolved.SpanID())
+			assert.Equal(t, tc.wantJobSampled, resolved.IsSampled())
+			stored := trace.SpanContextFromContext(propagation.TraceContext{}.Extract(context.Background(), annotationTraceCarrier(item.Annotations, canonicalPrefix)))
+			assert.Equal(t, resolved.TraceID(), stored.TraceID())
+			assert.Equal(t, resolved.SpanID(), stored.SpanID())
+			assert.Equal(t, tc.wantJobSampled, stored.IsSampled())
+			assert.Equal(t, "vendor=caller", stored.TraceState().String())
 		})
 	}
 }

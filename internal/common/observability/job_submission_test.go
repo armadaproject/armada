@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -63,6 +64,7 @@ func TestJobSubmissionLifecycle(t *testing.T) {
 		t.Fatal("shared initializer enabled submission adapters")
 	default:
 	}
+	successBefore := testutil.ToFloat64(traceExportSpans.WithLabelValues("success"))
 	require.NoError(t, InitOTelWithJobSubmissionSpans(cfg))
 	t.Cleanup(func() { require.NoError(t, ShutdownOTel(context.Background())) })
 	start := time.Date(2026, 11, 13, 12, 0, 0, 0, time.UTC)
@@ -73,6 +75,7 @@ func TestJobSubmissionLifecycle(t *testing.T) {
 	assert.True(t, span.SpanContext().IsValid())
 	span.End()
 	require.NoError(t, ShutdownOTel(context.Background()))
+	assert.Equal(t, successBefore+1, testutil.ToFloat64(traceExportSpans.WithLabelValues("success")), "the opt-in provider meters actual OTLP export")
 	select {
 	case req := <-requests:
 		require.Len(t, req.ResourceSpans, 1)
@@ -121,10 +124,14 @@ func TestJobSpanRandomFallback(t *testing.T) {
 	assert.NotEqual(t, root.SpanContext().SpanID(), child.SpanContext().SpanID())
 }
 
-func TestJobIDsExemptFromCardinality(t *testing.T) {
+func TestJobSubmissionAttributesExemptFromCardinality(t *testing.T) {
 	policy := NewDefaultSpanAttributePolicy()
 	for i := 0; i < DefaultAttributeCardinalityLimit+10; i++ {
-		attrs := []attribute.KeyValue{attribute.String("armada.job.id", fmt.Sprintf("job-%d", i))}
+		attrs := []attribute.KeyValue{
+			attribute.String("armada.job.id", fmt.Sprintf("job-%d", i)),
+			attribute.String("armada.job_set.id", fmt.Sprintf("set-%d", i)),
+			attribute.String("armada.queue", fmt.Sprintf("queue-%d", i)),
+		}
 		require.Equal(t, attrs, policy.SanitizeForSpan(attrs))
 		require.Empty(t, policy.ViolationsForSpan(attrs))
 	}

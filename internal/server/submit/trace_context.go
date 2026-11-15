@@ -92,13 +92,14 @@ func (s *Server) resolveSubmissionTraceContext(ctx context.Context, item *api.Jo
 		// the valid incoming trace. Otherwise retain the explicitly extracted caller.
 		server := trace.SpanContextFromContext(ctx)
 		if server.IsValid() && !server.IsRemote() && server.TraceID() == sc.TraceID() {
+			// The link uses the server span's identity, but job sampling and
+			// sampling tracestate follow the caller, independently of the server sampler.
+			server = server.WithTraceFlags(sc.TraceFlags()).WithTraceState(sc.TraceState())
 			updated := propagation.MapCarrier{}
 			propagation.TraceContext{}.Inject(trace.ContextWithSpanContext(context.Background(), server), updated)
-			if uint(len(updated["tracestate"])) <= maxState {
-				carrier["traceparent"] = updated["traceparent"]
-				carrier["tracestate"] = updated["tracestate"]
-				sc = server
-			}
+			carrier["traceparent"] = updated["traceparent"]
+			carrier["tracestate"] = updated["tracestate"]
+			sc = server
 		}
 		return store(carrier, "grpc", sc)
 	}
