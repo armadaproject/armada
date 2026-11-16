@@ -1323,6 +1323,33 @@ func TestQueuedGangIterator(t *testing.T) {
 	}
 }
 
+func TestQueuedGangIterator_PreservesCachedFailureDiagnostics(t *testing.T) {
+	jctxs := context.JobSchedulingContextsFromJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 2))
+	first, next := jctxs[0], jctxs[1]
+	require.Equal(t, first.Job.SchedulingKey(), next.Job.SchedulingKey())
+	first.UnschedulableReason = schedulerconstraints.JobDoesNotFitUnschedulableReason
+	first.PodSchedulingContext = &context.PodSchedulingContext{
+		NumNodes:                 2,
+		NumExcludedNodesByReason: map[string]int{"node selector mismatch": 2},
+	}
+	sctx := context.NewSchedulingContext(testfixtures.TestPool, nil, nil, nil, testfixtures.CpuMem("100", "500Gi"), testfixtures.TestPriorityClasses)
+	require.NoError(t, sctx.AddQueueSchedulingContext("A", 1, 1, nil, internaltypes.ResourceList{}, map[string]internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil))
+	sctx.UnfeasibleSchedulingKeys[first.Job.SchedulingKey()] = first
+
+	it := NewQueuedGangIterator(sctx, NewInMemoryJobIterator(jctxs[1:]), 100, true)
+	gctx, err := it.Peek()
+	require.NoError(t, err)
+	assert.Nil(t, gctx)
+	assert.Equal(t, first.UnschedulableReason, next.UnschedulableReason)
+	require.NotNil(t, next.PodSchedulingContext)
+	assert.Equal(t, 2, next.PodSchedulingContext.NumNodes)
+	assert.Equal(t, map[string]int{"node selector mismatch": 2}, next.PodSchedulingContext.NumExcludedNodesByReason)
+	qctx := sctx.QueueSchedulingContexts["A"]
+	assert.Equal(t, next, qctx.UnsuccessfulJobSchedulingContexts[next.JobId])
+	assert.Empty(t, qctx.SuccessfulJobSchedulingContexts)
+	assert.Zero(t, sctx.NumScheduledJobs)
+}
+
 func TestQueuedGangIterator_OnlyYieldEvicted_TopItemEvicted(t *testing.T) {
 	jctxs := []*context.JobSchedulingContext{
 		createJctx(true),
