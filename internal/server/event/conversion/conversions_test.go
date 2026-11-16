@@ -27,6 +27,8 @@ const (
 	namespace  = "test-ns"
 	priority   = 3
 	podNumber  = 6
+
+	externalJobUri = "airflow://dag/task/run/0"
 )
 
 var (
@@ -40,8 +42,9 @@ func TestConvertSubmitted(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_SubmitJob{
 			SubmitJob: &armadaevents.SubmitJob{
-				JobId:    jobId,
-				Priority: priority,
+				JobId:          jobId,
+				Priority:       priority,
+				ExternalJobUri: externalJobUri,
 				ObjectMeta: &armadaevents.ObjectMeta{
 					Namespace: namespace,
 					Name:      "test-job",
@@ -92,6 +95,7 @@ func TestConvertSubmitted(t *testing.T) {
 							Requests: make(v1.ResourceList),
 							Limits:   make(v1.ResourceList),
 						},
+						ExternalJobUri: externalJobUri,
 					},
 				},
 			},
