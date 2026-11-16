@@ -241,7 +241,7 @@ describe("ReprioritizeDialog", () => {
 
     // Check the user can re-attempt the request after a refetch
     await userEvent.click(getByRole("button", { name: /Refetch jobs/i }))
-    waitFor(async () => {
+    await waitFor(async () => {
       expect(await findByRole("button", { name: /Reprioritize 2 jobs/i })).toBeEnabled()
     })
   })
