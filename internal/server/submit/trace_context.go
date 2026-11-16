@@ -75,33 +75,22 @@ func (s *Server) resolveSubmissionTraceContext(ctx context.Context, item *api.Jo
 			return store(carrier, "alias", sc)
 		}
 	}
-	md, _ := metadata.FromIncomingContext(ctx)
-	carrier = propagation.MapCarrier{}
-	for _, key := range []string{"traceparent", "tracestate", "baggage"} {
-		// Ignore unapproved request baggage before allocation and size checks:
-		// dropping it must not prevent traceparent/tracestate propagation.
-		if key == "baggage" && !cfg.PropagateGrpcBaggage {
-			continue
-		}
-		if values := md.Get(key); len(values) > 0 {
-			carrier[key] = strings.Join(values, ",")
-		}
-	}
+	carrier = grpcTraceCarrier(ctx, cfg.PropagateGrpcBaggage)
 	if sc, ok := valid(carrier); ok {
-		// otelgrpc's local server span is the link target when it belongs to
-		// the valid incoming trace. Otherwise retain the explicitly extracted caller.
-		server := trace.SpanContextFromContext(ctx)
-		if server.IsValid() && !server.IsRemote() && server.TraceID() == sc.TraceID() {
-			// The link uses the server span's identity, but job sampling and
-			// sampling tracestate follow the caller, independently of the server sampler.
-			server = server.WithTraceFlags(sc.TraceFlags()).WithTraceState(sc.TraceState())
+		linked := submissionLinkContext(ctx, sc)
+		if !linked.Equal(sc) {
 			updated := propagation.MapCarrier{}
-			propagation.TraceContext{}.Inject(trace.ContextWithSpanContext(context.Background(), server), updated)
+			propagation.TraceContext{}.Inject(trace.ContextWithSpanContext(context.Background(), linked), updated)
 			carrier["traceparent"] = updated["traceparent"]
 			carrier["tracestate"] = updated["tracestate"]
-			sc = server
 		}
+		sc = linked
 		return store(carrier, "grpc", sc)
+	}
+	// No source was accepted. Do not persist rejected canonical fields for a
+	// later consumer to mistake for resolved context; other annotations remain.
+	for _, key := range []string{"traceparent", "tracestate", "baggage"} {
+		delete(item.Annotations, traceAnnotationPrefix+key)
 	}
 	traceContextSource.WithLabelValues("none").Inc()
 	return trace.SpanContext{}, "none"
@@ -115,4 +104,29 @@ func annotationTraceCarrier(annotations map[string]string, prefix string) propag
 		}
 	}
 	return carrier
+}
+
+func grpcTraceCarrier(ctx context.Context, propagateBaggage bool) propagation.MapCarrier {
+	md, _ := metadata.FromIncomingContext(ctx)
+	carrier := propagation.MapCarrier{}
+	for _, key := range []string{"traceparent", "tracestate", "baggage"} {
+		// Ignore unapproved request baggage before allocation and size checks.
+		if key == "baggage" && !propagateBaggage {
+			continue
+		}
+		if values := md.Get(key); len(values) > 0 {
+			carrier[key] = strings.Join(values, ",")
+		}
+	}
+	return carrier
+}
+
+func submissionLinkContext(ctx context.Context, caller trace.SpanContext) trace.SpanContext {
+	server := trace.SpanContextFromContext(ctx)
+	if server.IsValid() && !server.IsRemote() && server.TraceID() == caller.TraceID() {
+		// The server identifies the submit call even when its span is not sampled.
+		// Independent job traces retain the caller's sampling decision and state.
+		return server.WithTraceFlags(caller.TraceFlags()).WithTraceState(caller.TraceState())
+	}
+	return caller
 }

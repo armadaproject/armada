@@ -115,6 +115,8 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 		}
 
 		// Resolve only new jobs; duplicates retain their original submission context.
+		// This may add bounded trace annotations after request validation. If
+		// annotation-size validation is introduced, it must cover these additions.
 		submitter, source := s.resolveSubmissionTraceContext(ctx, jobRequest)
 
 		// If we get to here then it isn't a duplicate. Create a Job submission and a job response

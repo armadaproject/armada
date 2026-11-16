@@ -525,3 +525,72 @@ func TestResolveSubmissionTraceContextGRPCSampling(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveSubmissionTraceContextRejectsCanonicalWithoutFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		carrier map[string]string
+		config  configuration.SubmissionTraceContextConfig
+	}{
+		{"malformed parent", map[string]string{"traceparent": "invalid", "tracestate": "v=x", "baggage": "k=v"}, configuration.SubmissionTraceContextConfig{Enabled: true}},
+		{"oversized baggage", map[string]string{"traceparent": sampledParentA, "baggage": strings.Repeat("x", 100_000)}, configuration.SubmissionTraceContextConfig{Enabled: true}},
+		{"oversized state", map[string]string{"traceparent": sampledParentA, "tracestate": strings.Repeat("x", 513)}, configuration.SubmissionTraceContextConfig{Enabled: true}},
+		{"custom limit", map[string]string{"traceparent": sampledParentA, "baggage": "key=value"}, configuration.SubmissionTraceContextConfig{Enabled: true, MaxBaggageBytes: 3}},
+		{"missing parent", map[string]string{"baggage": "k=v"}, configuration.SubmissionTraceContextConfig{Enabled: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			annotations := map[string]string{"custom": "keep", "legacy/baggage": "keep", canonicalPrefix + "other": "keep"}
+			for key, value := range tc.carrier {
+				annotations[canonicalPrefix+key] = value
+			}
+			item := &api.JobSubmitRequestItem{Annotations: annotations}
+			s := &Server{submissionConfig: configuration.SubmissionConfig{TraceContext: tc.config}}
+			sc, source := s.resolveSubmissionTraceContext(context.Background(), item)
+			assert.False(t, sc.IsValid())
+			assert.Equal(t, "none", source)
+			assert.Equal(t, map[string]string{"custom": "keep", "legacy/baggage": "keep", canonicalPrefix + "other": "keep"}, item.Annotations)
+		})
+	}
+}
+
+func TestSubmit_RejectedCanonicalContext(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		name := "disabled preserves annotations"
+		if enabled {
+			name = "enabled removes rejected carrier"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := armadacontext.WithValue(armadacontext.Background(), "principal", testfixtures.DefaultPrincipal)
+			s, mocks := createTestServer(t)
+			s.submissionConfig.TraceContext.Enabled = enabled
+			req := testfixtures.SubmitRequestWithNItems(1)
+			annotations := map[string]string{
+				canonicalPrefix + "traceparent": "invalid",
+				canonicalPrefix + "tracestate":  "v=x",
+				canonicalPrefix + "baggage":     strings.Repeat("x", 100_000),
+				"custom":                        "keep",
+			}
+			req.JobRequestItems[0].Annotations = maps.Clone(annotations)
+			mocks.queueRepo.EXPECT().GetQueue(ctx, req.Queue).Return(testfixtures.DefaultQueue, nil)
+			mocks.authorizer.EXPECT().AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit).Return(nil)
+			mocks.deduplicator.EXPECT().GetOriginalJobIds(ctx, req.Queue, req.JobRequestItems).Return(nil, nil)
+			mocks.deduplicator.EXPECT().StoreOriginalJobIds(ctx, req.Queue, gomock.Any()).Return(nil)
+			var published []byte
+			mocks.publisher.EXPECT().PublishMessages(ctx, gomock.Any()).DoAndReturn(func(_ *armadacontext.Context, es *armadaevents.EventSequence) error {
+				var err error
+				published, err = proto.Marshal(es)
+				return err
+			})
+			_, err := s.SubmitJobs(ctx, req)
+			require.NoError(t, err)
+			event := &armadaevents.EventSequence{}
+			require.NoError(t, proto.Unmarshal(published, event))
+			require.Len(t, event.Events, 1)
+			want := annotations
+			if enabled {
+				want = map[string]string{"custom": "keep"}
+			}
+			assert.Equal(t, want, event.Events[0].GetSubmitJob().ObjectMeta.Annotations)
+		})
+	}
+}

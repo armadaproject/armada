@@ -33,7 +33,10 @@ func RecordJobSubmission(jobID, queue, jobSet, source string, submitter trace.Sp
 		state, _ = state.Insert("ot", value)
 	}
 	sc := trace.NewSpanContext(trace.SpanContextConfig{
-		TraceID: trace.TraceID(id), SpanID: trace.SpanID(id[8:]), TraceFlags: trace.FlagsSampled, TraceState: state,
+		TraceID:    trace.TraceID(id),
+		SpanID:     trace.SpanID(id[8:]),
+		TraceFlags: trace.FlagsSampled,
+		TraceState: state,
 	})
 	// W3C forbids zero IDs; skip the exceedingly rare zero ULID suffix.
 	if !sc.IsValid() {
@@ -42,9 +45,17 @@ func RecordJobSubmission(jobID, queue, jobSet, source string, submitter trace.Sp
 	}
 	ctx := context.WithValue(context.Background(), jobSpanKey{}, sc)
 	_, span := otel.Tracer("armada/job-submission").Start(ctx, "armada.job.submit",
-		trace.WithNewRoot(), trace.WithTimestamp(start),
-		trace.WithAttributes(attribute.String("armada.queue", queue), attribute.String("armada.job_set.id", jobSet), attribute.String("armada.job.id", jobID)),
-		trace.WithLinks(trace.Link{SpanContext: submitter, Attributes: []attribute.KeyValue{attribute.String("armada.trace_context.source", source)}}),
+		trace.WithNewRoot(),
+		trace.WithTimestamp(start),
+		trace.WithAttributes(
+			attribute.String("armada.queue", queue),
+			attribute.String("armada.job_set.id", jobSet),
+			attribute.String("armada.job.id", jobID),
+		),
+		trace.WithLinks(trace.Link{
+			SpanContext: submitter,
+			Attributes:  []attribute.KeyValue{attribute.String("armada.trace_context.source", source)},
+		}),
 	)
 	span.End(trace.WithTimestamp(end))
 }

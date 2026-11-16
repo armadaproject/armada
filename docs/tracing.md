@@ -2,6 +2,10 @@
 
 This guide is for operators configuring submitter context propagation and server submission spans. For an annotation example, see [Submitter trace context](creating_and_submitting_jobs.md#submitter-trace-context).
 
+This feature provides submission tracing only. It stores submitter context with jobs and can emit per-job submission spans. It does not inject tracing environment variables into job containers or record job execution and lifecycle spans.
+
+Enable selectively and monitor exporter outcomes. Span export is best effort: large sampled batches can fill the shared export queue, and representative large-batch overhead has not been measured.
+
 ## Server configuration
 
 Set `submission.traceContext.enabled: true` in the server configuration to store submitter context with new jobs. Propagation works independently of span export. These are the defaults:
@@ -31,7 +35,7 @@ The server tries these sources in order and uses the first valid context:
 
 Traceparent, tracestate and baggage always come from one source. A missing field in a selected fallback clears any stale canonical value. Invalid traceparents, oversized tracestate or oversized forwarded baggage cause the server to try the next source. Zero byte limits use the defaults above. Duplicate submissions keep their original context.
 
-These checks select a usable context; they do not sanitize or remove supplied annotations when no source is selected. Malformed optional tracestate is ignored when extracting the context, but the original annotation is retained; baggage contents are not parsed.
+If no source is accepted, the server removes the three canonical trace fields; other annotations, including aliases, are retained. With the feature disabled, annotations are unchanged. Malformed optional tracestate is ignored when extracting the context, but the original annotation is retained; baggage contents are not parsed.
 
 ## Baggage controls and limits
 
@@ -43,7 +47,7 @@ These checks select a usable context; they do not sanitize or remove supplied an
 
 ## Submission spans
 
-When propagation and server observability are both enabled, each accepted new job with sampled context creates an `armada.job.submit` root after successful publication. Export is best effort. It covers request handling and includes `armada.queue`, `armada.job_set.id` and `armada.job.id`.
+When propagation and server observability are both enabled, each accepted new job with sampled context creates an `armada.job.submit` root after successful publication. Export is best effort. All job roots in a batch share the request handling interval, starting before authorization and ending after publication and the deduplication storage attempt. They include `armada.queue`, `armada.job_set.id` and `armada.job.id`.
 
 | Identifier | Value |
 | --- | --- |
@@ -53,6 +57,10 @@ When propagation and server observability are both enabled, each accepted new jo
 The root has one link to the selected submitter span, attributed with `armada.trace_context.source`. For gRPC context with server tracing enabled, the target is the server span in that incoming trace. The link keeps the full tracestate; the root keeps only `ot`. Job sampling follows the selected caller's decision, even when the server span is the link target and its own sampler makes a different decision. The caller's tracestate accompanies that decision. Duplicates, failed submissions and jobs without sampled context emit no job roots.
 
 ### Sampling and export
+
+Enabling submission tracing trusts the submitter's sampled flag for job roots. The server's configured sampler, including `always_off`, still controls ordinary server spans but does not cap or resample job roots. A sampled request can therefore create one root per new job; use this opt-in only where that client-controlled volume is acceptable.
+
+The gRPC link uses the server span's identity even when that span is not sampled and is absent from the backend. Links do not guarantee that their targets were exported. The job root is in its own trace; it is not a child of the server span.
 
 ULID-derived IDs are correlated within a batch. Avoid downstream ratio or probabilistic sampling that assumes independent, uniformly random trace IDs; honor the propagated decision or use a policy that supports ULID-derived IDs.
 
