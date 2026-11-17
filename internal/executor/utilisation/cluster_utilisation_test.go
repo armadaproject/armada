@@ -58,7 +58,7 @@ func TestGetAvailableClusterCapacity_ReportsAllNodeTaints(t *testing.T) {
 		"unknown taints categorised":   {categoriseUnknown: true, unknownCategory: "unknown"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, "node-type", "node-pool", "", wellKnownTaints, tc.categoriseUnknown)
+			nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, "node-type", "node-pool", "", wellKnownTaints)
 			// No pods are present, so this report does not need a pod utilisation service.
 			service := NewClusterUtilisationService(clusterContext, nil, nodeInfoService, wellKnownTaints, tc.categoriseUnknown, nil, nodeIdLabel, nil, 0)
 			report, err := service.GetAvailableClusterCapacity()

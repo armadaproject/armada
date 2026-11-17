@@ -135,8 +135,7 @@ func StartUpWithContext(
 		config.Kubernetes.NodeTypeLabel,
 		config.Kubernetes.NodePoolLabel,
 		config.Application.ReservedNodePoolSuffix,
-		wellKnownTaints,
-		config.Kubernetes.TaintCategorisation.CategoriseUnknownTaints)
+		wellKnownTaints)
 	podUtilisationService := utilisation.NewPodUtilisationService(
 		clusterContext,
 		nodeInfoService,

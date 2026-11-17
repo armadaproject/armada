@@ -26,12 +26,11 @@ type NodeInfoService interface {
 }
 
 type KubernetesNodeInfoService struct {
-	clusterContext          context.ClusterContext
-	nodeTypeLabel           string
-	nodePoolLabel           string
-	reservedNodePoolSuffix  string
-	categoriseUnknownTaints bool
-	wellKnownTaints         *configuration.WellKnownTaints
+	clusterContext         context.ClusterContext
+	nodeTypeLabel          string
+	nodePoolLabel          string
+	reservedNodePoolSuffix string
+	wellKnownTaints        *configuration.WellKnownTaints
 }
 
 func NewKubernetesNodeInfoService(
@@ -40,15 +39,13 @@ func NewKubernetesNodeInfoService(
 	nodePoolLabel string,
 	reservedNodePoolSuffix string,
 	wellKnownTaints *configuration.WellKnownTaints,
-	categoriseUnknownTaints bool,
 ) *KubernetesNodeInfoService {
 	return &KubernetesNodeInfoService{
-		clusterContext:          clusterContext,
-		nodePoolLabel:           nodePoolLabel,
-		nodeTypeLabel:           nodeTypeLabel,
-		reservedNodePoolSuffix:  reservedNodePoolSuffix,
-		categoriseUnknownTaints: categoriseUnknownTaints,
-		wellKnownTaints:         wellKnownTaints,
+		clusterContext:         clusterContext,
+		nodePoolLabel:          nodePoolLabel,
+		nodeTypeLabel:          nodeTypeLabel,
+		reservedNodePoolSuffix: reservedNodePoolSuffix,
+		wellKnownTaints:        wellKnownTaints,
 	}
 }
 
