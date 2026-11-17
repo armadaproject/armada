@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
@@ -15,7 +16,7 @@ const (
 )
 
 // CategoriseNodeByTaints classifies reported taint metadata for node metrics:
-//   - If any admin taints exist, it returns their keys sorted and joined by "|".
+//   - If any admin taints exist, it returns their unique keys sorted and joined by "|".
 //   - Otherwise, it returns "user" if any taint has the user category or is
 //     user-facing with no category.
 //   - Otherwise, it returns "none". Unknown taints are ignored.
@@ -36,7 +37,7 @@ func CategoriseNodeByTaints(taints []internaltypes.NodeTaint) string {
 
 	if len(adminTaintKeys) > 0 {
 		sort.Strings(adminTaintKeys)
-		return strings.Join(adminTaintKeys, "|")
+		return strings.Join(slices.Compact(adminTaintKeys), "|")
 	}
 	if hasUserTaints {
 		return taintCategoryUser
