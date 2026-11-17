@@ -2745,7 +2745,7 @@ func NewSchedulerResultForTest[S ~[]T, T *jobdb.Job](
 				SchedulingResult: &scheduling.SchedulingResult{
 					PreemptedJobs:     schedulercontext.JobSchedulingContextsFromJobs(preemptedJobs),
 					ScheduledJobs:     schedulercontext.JobSchedulingContextsFromJobs(scheduledJobs),
-					SchedulingContext: &schedulercontext.SchedulingContext{},
+					SchedulingContext: &schedulercontext.SchedulingContext{PriorityClasses: testfixtures.TestPriorityClasses},
 				},
 				ReconciliationResult: &scheduling.ReconciliationResult{
 					FailedJobs:    FailedReconciliationResultFromJobs(failedReconciliationJobs, "reconciliation failure"),

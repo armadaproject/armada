@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 
 	semver "github.com/Masterminds/semver/v3"
@@ -12,6 +15,15 @@ const GO_VERSION_CONSTRAINT = ">= 1.27.1"
 
 func goBinary() string {
 	return binaryWithExt("go")
+}
+
+func installDependency(binDir, dependency, version string) error {
+	fmt.Println("Installing", dependency+"@"+version, "to", binDir)
+	cmd := exec.Command(goBinary(), "install", dependency+"@"+version)
+	cmd.Env = append(os.Environ(), "GOBIN="+binDir)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func goOutput(args ...string) (string, error) {

@@ -46,12 +46,12 @@ func TestReportStateTransitions(t *testing.T) {
 						FairnessCostProvider: fairnessCostProvider,
 						QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 							"queue1": {
-								Allocated:                     cpu(10),
-								Demand:                        cpu(20),
-								ConstrainedDemand:             cpu(15),
-								DemandCappedAdjustedFairShare: 0.15,
-								UncappedAdjustedFairShare:     0.2,
-								ShortJobPenalty:               cpu(28),
+								Allocated:                        cpu(10),
+								Demand:                           cpu(20),
+								ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(cpu(15)),
+								DemandCappedAdjustedFairShare:    0.15,
+								UncappedAdjustedFairShare:        0.2,
+								ShortJobPenalty:                  cpu(28),
 								SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
 									"job1": {
 										Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
@@ -327,11 +327,11 @@ func TestPublishCycleMetrics(t *testing.T) {
 						TotalResources:       cpu(100),
 						QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 							"queue1": {
-								Queue:             "queue1",
-								Allocated:         cpu(10),
-								Demand:            cpu(20),
-								ConstrainedDemand: cpu(15),
-								BillableResource:  cpu(9),
+								Queue:                            "queue1",
+								Allocated:                        cpu(10),
+								Demand:                           cpu(20),
+								ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(cpu(15)),
+								BillableResource:                 cpu(9),
 							},
 						},
 						SpotPrice: &spotPrice,
@@ -463,4 +463,10 @@ func cpu(n int) internaltypes.ResourceList {
 	return testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
 		map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
 	)
+}
+
+func demandAtDefaultPriorityClass(demand internaltypes.ResourceList) map[string]internaltypes.ResourceList {
+	return map[string]internaltypes.ResourceList{
+		testfixtures.TestDefaultPriorityClass: demand,
+	}
 }

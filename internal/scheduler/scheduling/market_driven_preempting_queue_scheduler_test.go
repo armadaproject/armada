@@ -724,6 +724,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					limiter,
 					nil,
 					totalResources,
+					tc.SchedulingConfig.PriorityClasses,
 				)
 				sctx.Started = schedulingStarted.Add(time.Duration(i) * schedulingInterval)
 
@@ -736,7 +737,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 						weight,
 						allocatedByQueueAndPriorityClass[queue],
 						queueDemand,
-						queueDemand,
+						demandAtDefaultPriorityClass(queueDemand),
 						internaltypes.ResourceList{},
 						limiterByQueue[queue],
 					)

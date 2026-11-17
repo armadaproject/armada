@@ -25,6 +25,7 @@ def test_updates_job_context():
 JOB_ID = "01hcq4x7d2k9m3n5p8r0s1t2v4"
 DEFAULT_POD_NAME = f"armada-{JOB_ID}-0"
 LAST_LOG_TIME = DateTime(2026, 1, 1, 1)
+LAST_LOG_OFFSET = 12
 
 
 NO_FIELD = object()
@@ -106,6 +107,7 @@ def test_refresh_context(
         job_state=JobState.RUNNING.name,
         pod_name=context_pod_name,
         last_log_time=LAST_LOG_TIME,
+        last_log_offset=LAST_LOG_OFFSET,
     )
 
     with patch.object(ArmadaHook, "client", new=client):
@@ -116,6 +118,7 @@ def test_refresh_context(
     assert refreshed.cluster == latest_run.cluster
     assert refreshed.pod_name == want_pod_name
     assert refreshed.last_log_time == want_last_log_time
+    assert refreshed.last_log_offset == (LAST_LOG_OFFSET if want_last_log_time else 0)
 
 
 def test_context_keeps_the_pod_name_through_xcom():
@@ -131,3 +134,23 @@ def test_context_keeps_the_pod_name_through_xcom():
         restored = hook.context_from_xcom(ti)
 
     assert restored.pod_name == DEFAULT_POD_NAME
+
+
+def test_context_keeps_the_log_position_through_xcom():
+    ti = MagicMock()
+    hook = ArmadaHook(GrpcChannelArgs(target="localhost:50051"))
+    job_context = RunningJobContext(
+        "queue",
+        JOB_ID,
+        "job-set",
+        DateTime(2026, 1, 1),
+        last_log_time=LAST_LOG_TIME,
+        last_log_offset=LAST_LOG_OFFSET,
+    )
+
+    hook.context_to_xcom(ti, job_context)
+    pushed = ti.xcom_push.call_args.kwargs["value"]
+    with patch("armada.hooks.xcom_pull_for_ti", return_value=pushed):
+        restored = hook.context_from_xcom(ti)
+
+    assert restored.log_position == job_context.log_position

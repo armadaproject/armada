@@ -14,6 +14,7 @@ def test_roundtrip_running_job_context():
         "cluster-1.armada.localhost",
         DateTime.utcnow().add(minutes=-2),
         JobState.RUNNING.name,
+        last_log_offset=12,
     )
 
     result = deserialize(serialize(context))

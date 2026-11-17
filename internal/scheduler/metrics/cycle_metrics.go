@@ -610,7 +610,7 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 					jobsConsidered := float64(len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts))
 					actualShare := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.GetAllocation())
 					demand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.Demand)
-					constrainedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.ConstrainedDemand)
+					constrainedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(internaltypes.RlMapSumValues(queueContext.ConstrainedDemandByPriorityClass))
 					shortJobPenalty := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.ShortJobPenalty)
 
 					currentCycle.consideredJobs.WithLabelValues(pool, queue).Set(jobsConsidered)
@@ -881,9 +881,9 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 			queueMetrics[qName] = &metricevents.QueueMetrics{
 				ActualShare:                      sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.GetAllocation()),
 				Demand:                           sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.Demand),
-				ConstrainedDemand:                sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ConstrainedDemand),
+				ConstrainedDemand:                sc.FairnessCostProvider.UnweightedCostFromAllocation(internaltypes.RlMapSumValues(qCtx.ConstrainedDemandByPriorityClass)),
 				DemandByResourceType:             armadamaps.MapValues(qCtx.Demand.ToMap(), toQtyPtr),
-				ConstrainedDemandByResourceType:  armadamaps.MapValues(qCtx.ConstrainedDemand.ToMap(), toQtyPtr),
+				ConstrainedDemandByResourceType:  armadamaps.MapValues(internaltypes.RlMapSumValues(qCtx.ConstrainedDemandByPriorityClass).ToMap(), toQtyPtr),
 				ShortJobPenalty:                  sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ShortJobPenalty),
 				BillableAllocationByResourceType: armadamaps.MapValues(qCtx.GetBillableResource().ToMap(), toQtyPtr),
 			}

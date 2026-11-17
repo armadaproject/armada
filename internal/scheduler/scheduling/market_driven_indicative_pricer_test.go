@@ -355,6 +355,7 @@ func createSctx(t *testing.T, totalResource internaltypes.ResourceList, queues [
 		nil,
 		nil,
 		totalResource,
+		testfixtures.TestPriorityClasses,
 	)
 	for _, q := range queues {
 		weight := 1.0 / float64(q.PriorityFactor)
@@ -363,7 +364,7 @@ func createSctx(t *testing.T, totalResource internaltypes.ResourceList, queues [
 			q.Name, weight, weight,
 			map[string]internaltypes.ResourceList{testfixtures.PriorityClass2: sumRequestedResource(runningJobsByQueue[q.Name])},
 			unlimitedDemand,
-			unlimitedDemand,
+			demandAtDefaultPriorityClass(unlimitedDemand),
 			internaltypes.ResourceList{},
 			nil,
 		)

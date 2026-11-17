@@ -1,12 +1,16 @@
 package scheduling
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -18,6 +22,7 @@ import (
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pointer"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -32,6 +37,7 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
+	apischeduleobjects "github.com/armadaproject/armada/pkg/api/schedulerobjects"
 )
 
 func TestConstructSchedulingContext_SetsFairsharePreemptionLimiter(t *testing.T) {
@@ -350,6 +356,76 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSchedule_FloatingCapacityQueueLimit(t *testing.T) {
+	var logBuffer bytes.Buffer
+	ctx := armadacontext.New(armadacontext.Background(), logging.FromZerolog(zerolog.New(&logBuffer)))
+	config := testfixtures.WithPerPriorityLimitsConfig(
+		map[string]map[string]float64{
+			testfixtures.PriorityClass3: {"test-floating-resource": 0.5},
+		},
+		testfixtures.TestSchedulingConfig(),
+	)
+
+	ctrl := gomock.NewController(t)
+	executorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
+	executorRepo.EXPECT().GetExecutors(gomock.Any()).Return([]*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")}, nil)
+	executorRepo.EXPECT().GetExecutorSettings(gomock.Any()).Return([]*schedulerobjects.ExecutorSettings{}, nil)
+	queueCache := schedulermocks.NewMockQueueCache(ctrl)
+	queueCache.EXPECT().GetAll(gomock.Any()).Return([]*api.Queue{testfixtures.MakeTestQueue()}, nil)
+	// The shared floating fixture uses pool "pool"; match this scheduler fixture's pool.
+	floatingConfig := slices.Clone(testfixtures.TestFloatingResourceConfig)
+	floatingConfig[0].Pools = slices.Clone(floatingConfig[0].Pools)
+	floatingConfig[0].Pools[0].Name = testfixtures.TestPool
+	reportRepo := reports.NewSchedulingContextRepository()
+	sch, err := NewFairSchedulingAlgo(
+		config, 0, executorRepo, queueCache, reportRepo,
+		testfixtures.TestResourceListFactory, testfixtures.MakeTestFloatingResourceTypes(floatingConfig),
+		priorityoverride.NewNoOpProvider(), nil, &testRunReconciler{},
+	)
+	require.NoError(t, err)
+	sch.clock = clock.NewFakeClock(testfixtures.BaseTime)
+
+	jobs := addFloatingResourceRequest("2", testfixtures.N1Cpu4GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 3))
+	for i, job := range jobs {
+		jobs[i] = job.WithQueued(true).WithSubmittedTime(testfixtures.BaseTime.Add(time.Duration(i) * time.Second).UnixNano())
+	}
+	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+	txn := jobDb.WriteTxn()
+	defer txn.Abort()
+	require.NoError(t, txn.Upsert(jobs))
+
+	result, err := sch.Schedule(ctx, txn)
+	require.NoError(t, err)
+
+	// The queue cap is 5 floating units: requests totalling 4 fit, but 6 do not.
+	assert.ElementsMatch(t, []string{jobs[0].Id(), jobs[1].Id()}, armadaslices.Map(ScheduledJobsFromSchedulerResult(result), func(job *jobdb.Job) string { return job.Id() }))
+	for i, job := range jobs {
+		assert.Equal(t, i == 2, txn.GetById(job.Id()).Queued(), "job %d", i)
+	}
+	expectedCapacity := testfixtures.TestResourceListFactory.FromNodeProto(map[string]*k8sResource.Quantity{
+		"cpu":                    pointer.MustParseResource("32"),
+		"memory":                 pointer.MustParseResource("256Gi"),
+		"test-floating-resource": pointer.MustParseResource("10"),
+	})
+	contexts := result.GetAllSchedulingContexts()
+	require.Len(t, contexts, 1)
+	assert.True(t, expectedCapacity.Equal(contexts[0].TotalResources), "got %s", contexts[0].TotalResources)
+	report, err := reports.NewServer(reportRepo).GetSchedulingReport(ctx, &apischeduleobjects.SchedulingReportRequest{})
+	require.NoError(t, err)
+	assert.Regexp(t, `Total capacity:\s+`+regexp.QuoteMeta(expectedCapacity.String()), report.Report)
+
+	messages := []string{}
+	decoder := json.NewDecoder(&logBuffer)
+	for decoder.More() {
+		var entry struct {
+			Message string `json:"message"`
+		}
+		require.NoError(t, decoder.Decode(&entry))
+		messages = append(messages, entry.Message)
+	}
+	assert.Contains(t, messages, "Scheduling on pool testPool with capacity (memory=274877906944,cpu=32,test-floating-resource=10) protectedFractionOfFairShare 0.000000 protectUncappedAdjustedFairShare false")
 }
 
 func TestSchedule(t *testing.T) {

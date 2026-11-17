@@ -1,6 +1,7 @@
 package context
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"strings"
@@ -16,6 +17,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	log "github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	schedulingtypes "github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -31,6 +34,9 @@ type SchedulingContext struct {
 	Finished time.Time
 	// Pool for which we're currently scheduling jobs.
 	Pool string
+	// PriorityClasses stores all available priority classes, by name. schedulingtypes.PriorityClass includes priority
+	// and preemptibility metadata.
+	PriorityClasses map[string]schedulingtypes.PriorityClass
 	// Determines how fairness is computed.
 	FairnessCostProvider fairness.FairnessCostProvider
 	// Limits job scheduling rate globally across all queues.
@@ -82,6 +88,7 @@ func NewSchedulingContext(
 	limiter *rate.Limiter,
 	fairsharePreemptionLimiter *rate.Limiter,
 	totalResources internaltypes.ResourceList,
+	priorityClasses map[string]schedulingtypes.PriorityClass,
 ) *SchedulingContext {
 	return &SchedulingContext{
 		Started:                      time.Now(),
@@ -97,6 +104,7 @@ func NewSchedulingContext(
 		UnfeasibleSchedulingKeys:     make(map[internaltypes.SchedulingKey]*JobSchedulingContext),
 		PreemptedJobIds:              make(map[string]bool),
 		ExperimentalIndicativeShares: make(map[int]float64),
+		PriorityClasses:              priorityClasses,
 	}
 }
 
@@ -117,7 +125,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 	rawWeight float64,
 	initialAllocatedByPriorityClass map[string]internaltypes.ResourceList,
 	demand internaltypes.ResourceList,
-	constrainedDemand internaltypes.ResourceList,
+	constrainedDemand map[string]internaltypes.ResourceList,
 	shortJobPenalty internaltypes.ResourceList,
 	limiter *rate.Limiter,
 ) error {
@@ -150,7 +158,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		Allocated:                         allocated,
 		ShortJobPenalty:                   shortJobPenalty,
 		Demand:                            demand,
-		ConstrainedDemand:                 constrainedDemand,
+		ConstrainedDemandByPriorityClass:  constrainedDemand,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
 		ScheduledResourcesByPriorityClass: make(map[string]internaltypes.ResourceList),
 		EvictedResourcesByPriorityClass:   make(map[string]internaltypes.ResourceList),
@@ -178,21 +186,62 @@ func (sctx *SchedulingContext) GetQueue(queue string) (fairness.Queue, bool) {
 type queueInfo struct {
 	// Name of queue
 	queueName string
-	// Demand of this queue, capped by constraints, as a fraction of total available resource.
-	constrainedDemandShare float64
+	// Demand of this queue by numeric priority class level, capped by constraints, as a fraction of total available resource.
+	constrainedDemandShareByPriorityClassLevel map[int32]float64
 	// Weight of this queue, or zero if this queue already has all its constrainedDemandShare.
 	weight float64
 	// Plain fair share, just weight_of_this_queue / sum(weights_of_all_active_queues)
 	fairShare float64
 	// Fair share including this queue's proportion of any share unused by other queues, capped at this queue's constrainedDemandShare.
-	demandCappedAdjustedFairShare float64
+	// This Fair Share value is stored per numeric priority class level.
+	demandCappedAdjustedFairShareByPriorityClassLevel map[int32]float64
 	// Fair share including this queue's proportion of any share unused by other queues, uncapped It's effectively the share this
 	// queue would get if it had infinite demand. This measure is designed to not punish queues for being undemanding.
 	uncappedAdjustedFairShare float64
-	// Has this queue got all the demand it wants
-	achievedDemand bool
+	// Has this queue got all the demand it wants at the specified priority class level.
+	achievedDemandByPriorityClassLevel map[int32]bool
 	// Any share the queue isn't using because it's demanding less than it can get.
 	spareShare float64
+}
+
+// defaultQueueInfoFromQueueSchedulingContext returns queueInfo populated from the provided QueueSchedulingContext.
+// This method does not make any attempt to allocate share.
+func (sctx *SchedulingContext) defaultQueueInfoFromQueueSchedulingContext(qctx *QueueSchedulingContext, priorityClassLevels []int32) *queueInfo {
+	// We need to determine constrained demand cost by priority level in order to allocate share properly.
+	// This involves first merging demand by level, then taking the unweighted cost.
+	//  - In general, cost(d1+d2) != cost(d1) + cost(d2)
+	constrainedDemandByPriorityClassLevel := armadamaps.DefaultMapFromKeys(priorityClassLevels, internaltypes.ResourceList{})
+	for priorityClass, classDefinition := range sctx.PriorityClasses {
+		demand, demandExists := qctx.ConstrainedDemandByPriorityClass[priorityClass]
+		if demandExists {
+			sum := constrainedDemandByPriorityClassLevel[classDefinition.Priority].Add(demand)
+
+			if !constrainedDemandByPriorityClassLevel[classDefinition.Priority].Exceeds(sum) {
+				constrainedDemandByPriorityClassLevel[classDefinition.Priority] = sum
+			} else {
+				// In rare cases, we may see numeric overflows. In these cases, we'll set demand to max.
+				constrainedDemandByPriorityClassLevel[classDefinition.Priority] = sctx.TotalResources.Factory().MakeAllMax()
+			}
+		}
+	}
+
+	constrainedDemandShareByPriorityClassLevel := armadamaps.DefaultMapFromKeys(priorityClassLevels, 1.0)
+	for priorityClassLevel, constrainedDemand := range constrainedDemandByPriorityClassLevel {
+		if !sctx.TotalResources.AllZero() {
+			constrainedDemandShareByPriorityClassLevel[priorityClassLevel] = sctx.FairnessCostProvider.UnweightedCostFromAllocation(constrainedDemand)
+		}
+	}
+
+	return &queueInfo{
+		queueName: qctx.Queue,
+		demandCappedAdjustedFairShareByPriorityClassLevel: armadamaps.DefaultMapFromKeys(priorityClassLevels, 0.0),
+		uncappedAdjustedFairShare:                         0,
+		fairShare:                                         qctx.Weight / sctx.WeightSum,
+		weight:                                            qctx.Weight,
+		constrainedDemandShareByPriorityClassLevel: constrainedDemandShareByPriorityClassLevel,
+		achievedDemandByPriorityClassLevel:         armadamaps.DefaultMapFromKeys(priorityClassLevels, false),
+		spareShare:                                 0,
+	}
 }
 
 // UpdateFairShares updates FairShare/DemandCappedAdjustedFairShare/UncappedAdjustedFairShare for every
@@ -204,7 +253,7 @@ func (sctx *SchedulingContext) UpdateFairShares() {
 	for _, q := range queueInfos {
 		qtx := sctx.QueueSchedulingContexts[q.queueName]
 		qtx.FairShare = q.fairShare
-		qtx.DemandCappedAdjustedFairShare = q.demandCappedAdjustedFairShare
+		qtx.DemandCappedAdjustedFairShare = armadaslices.Sum(maps.Values(q.demandCappedAdjustedFairShareByPriorityClassLevel))
 		qtx.UncappedAdjustedFairShare = q.uncappedAdjustedFairShare
 	}
 }
@@ -242,17 +291,30 @@ func (sctx *SchedulingContext) CalculateTheoreticalShare(priority float64) float
 	qctxs := maps.Clone(sctx.QueueSchedulingContexts)
 	queueName := util.NewULID()
 	qctxs[queueName] = &QueueSchedulingContext{
-		Queue:             queueName,
-		Weight:            1 / priority,
-		ConstrainedDemand: sctx.TotalResources.Factory().MakeAllMax(), // Infinite demand
+		Queue:                            queueName,
+		Weight:                           1 / priority,
+		ConstrainedDemandByPriorityClass: armadamaps.DefaultMapFromKeys(maps.Keys(sctx.PriorityClasses), sctx.TotalResources.Factory().MakeAllMax()), // Infinite demand
 	}
 	queueInfos := sctx.updateFairShares(qctxs)
 	for _, q := range queueInfos {
 		if q.queueName == queueName {
-			return q.demandCappedAdjustedFairShare
+			return armadaslices.Sum(maps.Values(q.demandCappedAdjustedFairShareByPriorityClassLevel))
 		}
 	}
 	return math.NaN()
+}
+
+func (sctx *SchedulingContext) distinctPriorityClassLevelsDescending() []int32 {
+	distinctPriorityClassLevels := []int32{}
+	for _, priorityClass := range sctx.PriorityClasses {
+		distinctPriorityClassLevels = append(distinctPriorityClassLevels, priorityClass.Priority)
+	}
+
+	distinctPriorityClassLevels = armadaslices.Unique(distinctPriorityClassLevels)
+	slices.SortFunc(distinctPriorityClassLevels, func(a, b int32) int {
+		return cmp.Compare(b, a)
+	})
+	return distinctPriorityClassLevels
 }
 
 // UpdateFairShares updates FairShare/DemandCappedAdjustedFairShare/UncappedAdjustedFairShare for every
@@ -262,22 +324,10 @@ func (sctx *SchedulingContext) CalculateTheoreticalShare(priority float64) float
 func (sctx *SchedulingContext) updateFairShares(qctxs map[string]*QueueSchedulingContext) []*queueInfo {
 	const maxIterations = 10
 
+	priorityClassLevels := sctx.distinctPriorityClassLevelsDescending()
 	queueInfos := make([]*queueInfo, 0, len(qctxs))
-	for queueName, qctx := range qctxs {
-		constrainedDemandShare := 1.0
-		if !sctx.TotalResources.AllZero() {
-			constrainedDemandShare = sctx.FairnessCostProvider.UnweightedCostFromAllocation(qctx.ConstrainedDemand)
-		}
-		queueInfos = append(queueInfos, &queueInfo{
-			queueName:                     queueName,
-			demandCappedAdjustedFairShare: 0,
-			uncappedAdjustedFairShare:     0,
-			fairShare:                     qctx.Weight / sctx.WeightSum,
-			weight:                        qctx.Weight,
-			constrainedDemandShare:        constrainedDemandShare,
-			achievedDemand:                false,
-			spareShare:                    0,
-		})
+	for _, qctx := range qctxs {
+		queueInfos = append(queueInfos, sctx.defaultQueueInfoFromQueueSchedulingContext(qctx, priorityClassLevels))
 	}
 
 	// We do this so that we get deterministic output
@@ -285,59 +335,69 @@ func (sctx *SchedulingContext) updateFairShares(qctxs map[string]*QueueSchedulin
 		return strings.Compare(a.queueName, b.queueName)
 	})
 
+	highestPriorityClassLevel := priorityClassLevels[0]
 	unallocated := 1.0 // this is the proportion of the cluster that we can share each time
 
-	// We will reshare unused capacity until we've reshared 99% of all capacity or we've completed 5 iteration
-	for i := 0; i < maxIterations && unallocated > 0.01; i++ {
-		totalWeight := 0.0
-		for _, q := range queueInfos {
-			if q.achievedDemand {
-				continue
-			}
-			totalWeight += q.weight
-		}
-
-		for _, q := range queueInfos {
-
-			// Add this queue's share to uncappedAdjustedFairShare.
-			// UncappedAdjustedFairShare means "the share of the pool this queue would get it if had infinite demand"
-			// This measure is designed to not punish queues for being undemanding.
-			totalWeightInclThisQueue := totalWeight
-			if q.achievedDemand {
-				// this queue was not added when calculating totalWeight above so add now
-				totalWeightInclThisQueue += q.weight
+	// We want to distribute share by numeric priority level, descending
+	for _, priorityClassLevel := range priorityClassLevels {
+		// We will reshare unused capacity until we've reshared 99% of all capacity or we've completed 5 iteration
+		for i := 0; i < maxIterations && unallocated > 0.01; i++ {
+			totalWeight := 0.0
+			for _, q := range queueInfos {
+				if q.achievedDemandByPriorityClassLevel[priorityClassLevel] {
+					continue
+				}
+				totalWeight += q.weight
 			}
 
-			// Subtract spareShare here as it makes no sense to give this queue's spareShare back to this queue,
-			// it would not have a spareShare if it really had infinite demand.
-			q.uncappedAdjustedFairShare += (q.weight / totalWeightInclThisQueue) * (unallocated - q.spareShare)
-		}
+			// When computing uncappedAdjustedFairShare, we assume infinite demand at the highest (by numeric priority)
+			//  priority class. There are limitations to this approach, but this most closely aligns to the existing
+			//  definition.
+			if priorityClassLevel == highestPriorityClassLevel {
+				for _, q := range queueInfos {
 
-		if totalWeight <= 0.0 {
-			break
-		}
+					// Add this queue's share to uncappedAdjustedFairShare.
+					// UncappedAdjustedFairShare means "the share of the pool this queue would get it if had infinite demand"
+					// This measure is designed to not punish queues for being undemanding.
+					totalWeightInclThisQueue := totalWeight
+					if q.achievedDemandByPriorityClassLevel[priorityClassLevel] {
+						// this queue was not added when calculating totalWeight above so add now
+						totalWeightInclThisQueue += q.weight
+					}
 
-		for _, q := range queueInfos {
-			// Add this queue's share to demandCappedAdjustedFairShare.
-			// DemandCappedAdjustedFairShare means "the share of the pool this queue should get with current demand"
-			if !q.achievedDemand {
-				q.demandCappedAdjustedFairShare += (q.weight / totalWeight) * unallocated
+					// Subtract spareShare here as it makes no sense to give this queue's spareShare back to this queue,
+					// it would not have a spareShare if it really had infinite demand.
+					q.uncappedAdjustedFairShare += (q.weight / totalWeightInclThisQueue) * (unallocated - q.spareShare)
+				}
 			}
-		}
 
-		unallocated = 0.0
-		for _, q := range queueInfos {
-			spareShare := q.demandCappedAdjustedFairShare - q.constrainedDemandShare
-			if spareShare > 0 {
-				q.demandCappedAdjustedFairShare = q.constrainedDemandShare
-				q.achievedDemand = true
-				q.spareShare = spareShare
-				unallocated += spareShare
-			} else {
-				q.spareShare = 0
+			if totalWeight <= 0.0 {
+				break
+			}
+
+			for _, q := range queueInfos {
+				// Add this queue's share to demandCappedAdjustedFairShare.
+				// DemandCappedAdjustedFairShare means "the share of the pool this queue should get with current demand"
+				if !q.achievedDemandByPriorityClassLevel[priorityClassLevel] {
+					q.demandCappedAdjustedFairShareByPriorityClassLevel[priorityClassLevel] += (q.weight / totalWeight) * unallocated
+				}
+			}
+
+			unallocated = 0.0
+			for _, q := range queueInfos {
+				spareShare := q.demandCappedAdjustedFairShareByPriorityClassLevel[priorityClassLevel] - q.constrainedDemandShareByPriorityClassLevel[priorityClassLevel]
+				if spareShare > 0 {
+					q.demandCappedAdjustedFairShareByPriorityClassLevel[priorityClassLevel] = q.constrainedDemandShareByPriorityClassLevel[priorityClassLevel]
+					q.achievedDemandByPriorityClassLevel[priorityClassLevel] = true
+					q.spareShare = spareShare
+					unallocated += spareShare
+				} else {
+					q.spareShare = 0
+				}
 			}
 		}
 	}
+
 	return queueInfos
 }
 

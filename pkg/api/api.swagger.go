@@ -1116,6 +1116,10 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
+		"        \"externalJobUri\": {\n" +
+		"          \"description\": \"URI identifying this job in an external system (e.g. Airflow).\\nPopulated from JobSubmitRequestItem.external_job_uri, or from the\\n\\\"armadaproject.io/externalJobUri\\\" annotation if that was not set. Empty if the job has neither.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"id\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
