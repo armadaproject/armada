@@ -11,6 +11,7 @@
         - [Service-backed Go tests](#service-backed-go-tests)
         - [Lookout UI checks](#lookout-ui-checks)
         - [Full-stack integration tests](#full-stack-integration-tests)
+        - [Go lint and module checks](#go-lint-and-module-checks)
         - [Other CI checks](#other-ci-checks)
     - [Setting up the local dev stack](#setting-up-the-local-dev-stack)
         - [Authentication (auth profile)](#authentication-auth-profile)
@@ -84,7 +85,7 @@ Before you can start using Armada, you first need to install the following items
 
 ## Validating changes
 
-Start with the check closest to your change, then expand to affected packages or components. A focused pass does not cover callers, lint, generated-file drift or integration behaviour. Run Go and Mage commands from the repository root; UI commands run from `internal/lookoutui/`.
+Start with the check closest to your change, then expand to affected packages or components. A focused pass does not cover callers, [lint or module drift](#go-lint-and-module-checks), generated-file drift or integration behaviour. Run Go and Mage commands from the repository root; UI commands run from `internal/lookoutui/`.
 
 | Change | Start with | Expand to |
 | --- | --- | --- |
@@ -103,6 +104,14 @@ go test ./internal/common/math -count=1
 ```
 
 For another package, inspect its tests, helpers and any `TestMain` before substituting the path and test name. `-run` still compiles the package and its tests and runs package initialization and `TestMain`. Neither `-short` nor `go test ./...` guarantees a service-free run.
+
+If you change concurrent code, also run the affected packages with the race detector:
+
+```bash
+go test -race ./internal/common/math -count=1
+```
+
+The race detector needs a [supported platform](https://go.dev/doc/articles/race_detector#Requirements) with cgo enabled and, except on macOS, a C compiler. It reports only races that occur while the tests run, so the tests must exercise the concurrent paths you changed.
 
 ### Service-backed Go tests
 
@@ -149,9 +158,22 @@ mage dev:fullDown
 
 `dev:fullDown` removes the full stack's volumes and deletes `armada-test`. Use it only for your disposable environment. Built images, generated kubeconfigs and test reports are separate artifacts; teardown is not general cache cleanup.
 
+### Go lint and module checks
+
+Before opening a pull request that changes Go code or dependencies, also run these checks from the repository root. Neither modifies files.
+
+```bash
+mage lintCheck
+go mod tidy -diff
+```
+
+`mage lintCheck` runs golangci-lint across the repository with [`.golangci.yml`](../.golangci.yml), whose formatters make it fail on formatting drift as well as lint findings. It needs the golangci-lint version pinned in [`tools.yaml`](../tools.yaml) first on your `PATH`, which [Step 2 of the published developer guide](https://armadaproject.io/docs/developer-guide#step-2-set-up-mage-and-the-build-tools) installs; with another version or none, it fails before linting and says how to install it. `mage lintFix` applies the available fixes, including formatting, in place; review its changes before committing.
+
+`go mod tidy -diff` prints the changes that `go mod tidy` would make to `go.mod` and `go.sum` and fails if there are any. Builds and tests can pass despite this drift, for example when a module that tests import directly is still marked `// indirect`. Run `go mod tidy` to apply the changes, then review them.
+
 ### Other CI checks
 
-Focused tests cover only part of validation. The [test workflow](../.github/workflows/test.yml) also checks module and generated-file drift and runs the broader Go, UI and integration suites. The [lint workflow](../.github/workflows/lint.yml) covers Go and TypeScript lint. Consult these workflows for their tool versions, setup and exact checks; a focused test pass does not establish that lint or generated files are current. Run checks that can modify files in an isolated checkout and review the diff.
+Focused tests cover only part of validation. The [test workflow](../.github/workflows/test.yml) also checks module and generated-file drift and runs the broader Go, UI and integration suites. The [lint workflow](../.github/workflows/lint.yml) covers Go and TypeScript lint. Consult these workflows for their tool versions, setup and exact checks; a focused test pass does not establish that lint or generated files are current. Run other checks that can modify files in an isolated checkout and review the diff.
 
 For website changes, use [website/README.md](../website/README.md). When reporting validation, name the exact commands, results and relevant environment, and state which broader checks or browser paths were not run.
 

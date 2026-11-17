@@ -100,7 +100,7 @@ Armada maintains automated test suites for its Go and TypeScript code, run in CI
 
 **Pull requests that add or change significant functionality are expected to include tests** covering that functionality. Reviewers will request tests where they are missing. Bug fixes should, where practical, include a test that reproduces the issue being fixed.
 
-Tests live alongside the code they cover (Go `_test.go` files, TypeScript `.test.ts` files) and must pass in CI before a pull request can be merged. See [Validating changes](docs/developer_guide.md#validating-changes) to choose focused Go checks, the service-backed Go suite, Lookout UI checks or full-stack integration tests, with their prerequisites and coverage limits.
+Tests live alongside the code they cover (Go `_test.go` files, TypeScript `.test.ts` files) and must pass in CI before a pull request can be merged. See [Validating changes](docs/developer_guide.md#validating-changes) to choose focused Go checks, the service-backed Go suite, Lookout UI checks or full-stack integration tests, with their prerequisites and coverage limits. Run its [Go lint and module checks](docs/developer_guide.md#go-lint-and-module-checks) before opening a pull request.
 
 
 ## Chat & Discussions
