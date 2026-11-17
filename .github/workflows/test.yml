@@ -66,6 +66,9 @@ jobs:
 
   executor-service-race-tests:
     name: Executor Service Race Tests
+    needs:
+      - go-mod-up-to-date
+      - sqlc-up-to-date
     runs-on: ubuntu-22.04
     timeout-minutes: 20
 
