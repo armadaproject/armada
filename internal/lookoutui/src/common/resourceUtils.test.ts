@@ -1,6 +1,6 @@
 import { EmptyInputError, ParseError, parseBytes, formatBytes, parseCpu, formatCpu } from "./resourceUtils"
 
-const MULTIPLIERS = [
+const MULTIPLIERS: [string, number][] = [
   ["K", 1000],
   ["M", 1000 ** 2],
   ["G", 1000 ** 3],
@@ -29,19 +29,19 @@ describe("parseBytes", () => {
   })
 
   it.each(MULTIPLIERS)("should return correct value for %s", (unit, multiplier) => {
-    expect(parseBytes(`123${unit}`)).toEqual(123 * (multiplier as number))
+    expect(parseBytes(`123${unit}`)).toEqual(123 * multiplier)
   })
 
   it.each(MULTIPLIERS)("should return correct value for %s with space between value and unit", (unit, multiplier) => {
-    expect(parseBytes(`123 ${unit}`)).toEqual(123 * (multiplier as number))
+    expect(parseBytes(`123 ${unit}`)).toEqual(123 * multiplier)
   })
 
   it.each(MULTIPLIERS)("should return correct value for %s with several spaces", (unit, multiplier) => {
-    expect(parseBytes(`  123   ${unit}  `)).toEqual(123 * (multiplier as number))
+    expect(parseBytes(`  123   ${unit}  `)).toEqual(123 * multiplier)
   })
 
   it.each(MULTIPLIERS)("should return correct value for %s with float value", (unit, multiplier) => {
-    expect(parseBytes(`123.456 ${unit}`)).toEqual(Math.round(123.456 * (multiplier as number)))
+    expect(parseBytes(`123.456 ${unit}`)).toEqual(Math.round(123.456 * multiplier))
   })
 
   it.each(["123Oi", "hello world", "123.31.64", "-123.4"])(
@@ -58,7 +58,7 @@ describe("formatBytes", () => {
   })
 
   it.each(MULTIPLIERS)("should return correct string for %s", (unit, multiplier) => {
-    expect(formatBytes(123 * (multiplier as number))).toEqual(`123${unit}`)
+    expect(formatBytes(123 * multiplier)).toEqual(`123${unit}`)
   })
 
   it.each([
@@ -94,7 +94,7 @@ describe("parseCpu", () => {
     },
   )
 
-  it.each([["hello", "123.456.789", "123.", "123.5m"]])("should throw for invalid input %s", (s) => {
+  it.each(["hello", "123.456.789", "123.", "123.5m"])("should throw for invalid input %s", (s) => {
     expect(() => parseCpu(s)).toThrow(ParseError)
   })
 })
