@@ -58,8 +58,8 @@ func TestCategoriseNodeByTaints(t *testing.T) {
 		"user-facing unknown category": {taints: []internaltypes.NodeTaint{taint("unknown", true)}, want: "none"},
 		"admin category":               {taints: []internaltypes.NodeTaint{taint("platform", false)}, want: "example"},
 		"another admin category":       {taints: []internaltypes.NodeTaint{taint("maintenance", false)}, want: "example"},
-		"admin keys sorted":            {taints: []internaltypes.NodeTaint{adminTaint("example.com/z"), adminTaint("example.com/a")}, want: "example.com/a|example.com/z"},
-		"admin keys already sorted":    {taints: []internaltypes.NodeTaint{adminTaint("example.com/a"), adminTaint("example.com/z")}, want: "example.com/a|example.com/z"},
+		"admin keys sorted":            {taints: []internaltypes.NodeTaint{adminTaint("example.com/z"), adminTaint("example.com/a")}, want: "example.com/a,example.com/z"},
+		"admin keys already sorted":    {taints: []internaltypes.NodeTaint{adminTaint("example.com/a"), adminTaint("example.com/z")}, want: "example.com/a,example.com/z"},
 		"duplicate admin keys":         {taints: []internaltypes.NodeTaint{adminTaint("example.com/a"), adminTaint("example.com/a")}, want: "example.com/a"},
 		"duplicate admin keys with different metadata and user taints": {taints: []internaltypes.NodeTaint{
 			adminTaint("example.com/z"),
@@ -67,8 +67,8 @@ func TestCategoriseNodeByTaints(t *testing.T) {
 			taint("user", true),
 			internaltypes.NewNodeTaint(v1.Taint{Key: "example.com/a", Value: "two", Effect: v1.TaintEffectNoExecute}, "maintenance", false),
 			adminTaint("example.com/z"),
-		}, want: "example.com/a|example.com/z"},
-		"admin keys with other taints": {taints: []internaltypes.NodeTaint{adminTaint("example.com/z"), taint("unknown", false), unschedulable, taint("user", true), adminTaint("example.com/a")}, want: "example.com/a|example.com/z"},
+		}, want: "example.com/a,example.com/z"},
+		"admin keys with other taints": {taints: []internaltypes.NodeTaint{adminTaint("example.com/z"), taint("unknown", false), unschedulable, taint("user", true), adminTaint("example.com/a")}, want: "example.com/a,example.com/z"},
 		"unknown after user":           {taints: []internaltypes.NodeTaint{taint("user", false), taint("unknown", false)}, want: "user"},
 		"unknown before user":          {taints: []internaltypes.NodeTaint{taint("unknown", false), taint("user", false)}, want: "user"},
 		"unspecified and user":         {taints: []internaltypes.NodeTaint{taint("", false), taint("user", false)}, want: "user"},
@@ -151,7 +151,7 @@ func TestReportSchedulerResult_ReportsCategory(t *testing.T) {
 			for _, label := range metric.GetLabel() {
 				labels[label.GetName()] = label.GetValue()
 			}
-			assert.Equal(t, "example.com/a|example.com/z", labels["category"], family.GetName())
+			assert.Equal(t, "example.com/a,example.com/z", labels["category"], family.GetName())
 		}
 	}
 }

@@ -630,13 +630,13 @@ func TestMetricsCollector_ClusterCapacityByCategory(t *testing.T) {
 		}
 	}
 	capacity := map[string]float64{
-		"none/cpu": 32, "user/cpu": 32, "example.com/a|example.com/z/cpu": 32,
-		"none/nodes": 1, "user/nodes": 1, "example.com/a|example.com/z/nodes": 1,
+		"none/cpu": 32, "user/cpu": 32, "example.com/a,example.com/z/cpu": 32,
+		"none/nodes": 1, "user/nodes": 1, "example.com/a,example.com/z/nodes": 1,
 	}
 	assert.Equal(t, capacity, values["armada_cluster_capacity"])
 	assert.Equal(t, capacity, values["armada_cluster_available_capacity"])
 	assert.Equal(t, map[string]float64{
-		"none/cpu": 32, "user/cpu": 32, "example.com/a|example.com/z/cpu": 32,
+		"none/cpu": 32, "user/cpu": 32, "example.com/a,example.com/z/cpu": 32,
 	}, values["armada_cluster_farm_capacity"])
 }
 
