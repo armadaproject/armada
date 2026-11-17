@@ -17,6 +17,10 @@ import (
 
 const MAGE_VERSION_CONSTRAINT = ">= 1.16.0"
 
+type ToolsList struct {
+	Tools []string
+}
+
 // mageCheck verifies that any mage binary on PATH is new enough to register targets with
 // optional arguments (a mage 1.16 feature). Older mage silently hides such targets, so
 // `mage dev:up` fails with "Unknown target" before any magefile code runs. This check
@@ -47,10 +51,6 @@ func mageCheck() error {
 // For the list of tools this will install, see tools.yaml in the root directory
 func BootstrapTools() error {
 	mg.Deps(goCheck)
-	type ToolsList struct {
-		Tools []string
-	}
-
 	requiredTools := &ToolsList{}
 	if err := readYaml("tools.yaml", requiredTools); err != nil {
 		return err
