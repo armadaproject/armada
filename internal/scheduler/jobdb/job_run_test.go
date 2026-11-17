@@ -118,6 +118,21 @@ func TestJobRun_TestReturned(t *testing.T) {
 	assert.True(t, returnedRun.Returned())
 }
 
+func TestJobRun_Equal(t *testing.T) {
+	tests := map[string]struct {
+		other *JobRun
+		want  bool
+	}{
+		"the same run is equal":                    {other: baseJobRun.DeepCopy(), want: true},
+		"a run that is now preempted is not equal": {other: baseJobRun.WithPreempted(true), want: false},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, baseJobRun.Equal(tc.other))
+		})
+	}
+}
+
 func TestJobRun_TestRunAttempted(t *testing.T) {
 	attemptedRun := baseJobRun.WithAttempted(true)
 	assert.False(t, baseJobRun.RunAttempted())
