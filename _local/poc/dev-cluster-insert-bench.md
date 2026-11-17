@@ -118,14 +118,33 @@ CONFIRM=yes SIZES="small 200000" ./_local/poc/dev-cluster-sequential-bench.sh
 
 All other tunables from the table above still apply through the environment.
 
-## Max throughput with running pods (local cluster)
+## Max throughput with running pods
 
-To find the absolute ceiling of the API create path on a local cluster — where
-pods schedule and actually run — use the other wrapper:
+To find the absolute ceiling of the API create path — pods schedule and actually
+run, so scheduler and kubelet cost is part of the number — use the other
+wrapper, pointed at the target cluster by kubeconfig:
 
 ```sh
-CONFIRM=yes ./_local/poc/local-cluster-api-throughput.sh
+export KUBECONFIG=/path/to/dev.kubeconfig   # current-context must be the target
+CONFIRM=yes ./_local/poc/api-throughput-bench.sh
 ```
+
+Nothing runs locally: `bulk-bench` reads the kubeconfig and sends HTTPS creates
+straight to `clusters[].cluster.server`; `kubectl` is only used for namespaces
+and cleanup, and the preflight prints the context and server URL before it asks
+for confirmation. To take one context out of a shared kubeconfig:
+
+```sh
+kubectl config view --minify --raw --context dev > /tmp/dev.kubeconfig
+export KUBECONFIG=/tmp/dev.kubeconfig
+kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}'
+```
+
+If the dev API server is only reachable from inside the cluster (no direct
+route from your machine), no kubeconfig will help: build `bulk-bench` into an
+image and run it as a Job in the target namespace instead. Its in-cluster
+ServiceAccount needs `create`/`delete` on pods and `create`/`delete` on
+namespaces.
 
 Differences from the dev-cluster runs above:
 

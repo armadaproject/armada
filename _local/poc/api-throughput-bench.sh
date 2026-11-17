@@ -1,18 +1,31 @@
 #!/usr/bin/env bash
 #
-# Absolute max pod-create throughput through the Kubernetes API on a local
-# cluster, sweeping concurrency to find where the rate plateaus.
+# Absolute max pod-create throughput through the Kubernetes API, sweeping
+# concurrency to find where the rate plateaus.
 #
-# Unlike dev-cluster-insert-bench.sh, pods are NOT pinned to a fake node: they
-# schedule and actually run, so scheduler/kubelet load is part of the number and
-# the cluster only runs what fits (the rest stay Pending; creates still count).
+# This does not start or use a local cluster. bulk-bench reads the kubeconfig
+# and sends HTTPS creates straight to clusters[].cluster.server; kubectl is only
+# used for namespaces and cleanup. Pin the target before confirming:
+#
+#   export KUBECONFIG=/path/to/dev.kubeconfig   # current-context must be dev
+#   kubectl config current-context
+#   kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}'
+#
+# For a multi-context kubeconfig, materialize just the dev one:
+#
+#   kubectl config view --minify --raw --context dev > /tmp/dev.kubeconfig
+#   export KUBECONFIG=/tmp/dev.kubeconfig
+#
+# Pods are NOT pinned to a fake node: they schedule and actually run, so
+# scheduler/kubelet load is part of the number and the cluster only runs what
+# fits (the rest stay Pending; creates still count).
 #
 # The workload is inert by design: registry.k8s.io/pause, 100m CPU / 64Mi,
 # RestartPolicy Never, no volumes, no host namespaces, no privileges. It sleeps
 # and exits with the namespace. Never override IMAGE with a real workload.
 #
-#   CONFIRM=yes ./_local/poc/local-cluster-api-throughput.sh
-#   CONFIRM=yes COUNT=2000 CONCURRENCY="32 64 128" ./_local/poc/local-cluster-api-throughput.sh
+#   CONFIRM=yes ./_local/poc/api-throughput-bench.sh
+#   CONFIRM=yes COUNT=2000 CONCURRENCY="32 64 128" ./_local/poc/api-throughput-bench.sh
 #
 # Everything else (sizes, cleanup, summary) comes from
 # dev-cluster-insert-bench.sh; see its doc for reading summary.csv.
