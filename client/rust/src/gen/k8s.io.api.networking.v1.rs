@@ -44,6 +44,53 @@ pub struct HttpIngressRuleValue {
     #[prost(message, repeated, tag = "1")]
     pub paths: ::prost::alloc::vec::Vec<HttpIngressPath>,
 }
+/// IPAddress represents a single IP of a single IP Family. The object is designed to be used by APIs
+/// that operate on IP addresses. The object is used by the Service core API for allocation of IP addresses.
+/// An IP address can be represented in different formats, to guarantee the uniqueness of the IP,
+/// the name of the object is the IP address in canonical format, four decimal digits separated
+/// by dots suppressing leading zeros for IPv4 and the representation defined by RFC 5952 for IPv6.
+/// Valid: 192.168.1.5 or 2001:db8::1 or 2001:db8:aaaa:bbbb:cccc:dddd:eeee:1
+/// Invalid: 10.01.2.3 or 2001:db8:0:0:0::1
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IpAddress {
+    /// Standard object's metadata.
+    /// More info: <https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata>
+    /// +optional
+    #[prost(message, optional, tag = "1")]
+    pub metadata: ::core::option::Option<
+        super::super::super::apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    >,
+    /// spec is the desired state of the IPAddress.
+    /// More info: <https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status>
+    /// +required
+    #[prost(message, optional, tag = "2")]
+    pub spec: ::core::option::Option<IpAddressSpec>,
+}
+/// IPAddressList contains a list of IPAddress.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IpAddressList {
+    /// Standard object's metadata.
+    /// More info: <https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata>
+    /// +optional
+    #[prost(message, optional, tag = "1")]
+    pub metadata: ::core::option::Option<
+        super::super::super::apimachinery::pkg::apis::meta::v1::ListMeta,
+    >,
+    /// items is the list of IPAddresses.
+    #[prost(message, repeated, tag = "2")]
+    pub items: ::prost::alloc::vec::Vec<IpAddress>,
+}
+/// IPAddressSpec describe the attributes in an IP Address.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct IpAddressSpec {
+    /// ParentRef references the resource that an IPAddress is attached to.
+    /// An IPAddress must reference a parent object.
+    /// +required
+    /// +k8s:alpha(since: "1.36")=+k8s:required
+    /// +k8s:alpha(since: "1.36")=+k8s:immutable
+    #[prost(message, optional, tag = "1")]
+    pub parent_ref: ::core::option::Option<ParentReference>,
+}
 /// IPBlock describes a particular CIDR (Ex. "192.168.1.0/24","2001:db8::/64") that is allowed
 /// to the pods matched by a NetworkPolicySpec's podSelector. The except entry describes CIDRs
 /// that should not be included within this rule.
@@ -51,6 +98,8 @@ pub struct HttpIngressRuleValue {
 pub struct IpBlock {
     /// cidr is a string representing the IPBlock
     /// Valid examples are "192.168.1.0/24" or "2001:db8::/64"
+    /// +required
+    /// +k8s:alpha(since: "1.36")=+k8s:required
     #[prost(string, optional, tag = "1")]
     pub cidr: ::core::option::Option<::prost::alloc::string::String>,
     /// except is a slice of CIDRs that should not be included within an IPBlock
@@ -147,9 +196,13 @@ pub struct IngressClassParametersReference {
     #[prost(string, optional, tag = "1")]
     pub a_pi_group: ::core::option::Option<::prost::alloc::string::String>,
     /// kind is the type of resource being referenced.
+    /// +required
+    /// +k8s:alpha(since: "1.36")=+k8s:required
     #[prost(string, optional, tag = "2")]
     pub kind: ::core::option::Option<::prost::alloc::string::String>,
     /// name is the name of resource being referenced.
+    /// +required
+    /// +k8s:alpha(since: "1.36")=+k8s:required
     #[prost(string, optional, tag = "3")]
     pub name: ::core::option::Option<::prost::alloc::string::String>,
     /// scope represents if this refers to a cluster or namespace scoped resource.
@@ -179,6 +232,7 @@ pub struct IngressClassSpec {
     /// configuration for the controller. This is optional if the controller does
     /// not require extra parameters.
     /// +optional
+    /// +k8s:alpha(since: "1.36")=+k8s:optional
     #[prost(message, optional, tag = "2")]
     pub parameters: ::core::option::Option<IngressClassParametersReference>,
 }
@@ -418,6 +472,7 @@ pub struct NetworkPolicyEgressRule {
     /// allows traffic only if the traffic matches at least one item in the to list.
     /// +optional
     /// +listType=atomic
+    /// +k8s:alpha(since: "1.36")=+k8s:optional
     #[prost(message, repeated, tag = "2")]
     pub to: ::prost::alloc::vec::Vec<NetworkPolicyPeer>,
 }
@@ -441,6 +496,7 @@ pub struct NetworkPolicyIngressRule {
     /// allows traffic only if the traffic matches at least one item in the from list.
     /// +optional
     /// +listType=atomic
+    /// +k8s:alpha(since: "1.36")=+k8s:optional
     #[prost(message, repeated, tag = "2")]
     pub from: ::prost::alloc::vec::Vec<NetworkPolicyPeer>,
 }
@@ -487,6 +543,7 @@ pub struct NetworkPolicyPeer {
     /// ipBlock defines policy on a particular IPBlock. If this field is set then
     /// neither of the other fields can be.
     /// +optional
+    /// +k8s:alpha(since: "1.36")=+k8s:optional
     #[prost(message, optional, tag = "3")]
     pub ip_block: ::core::option::Option<IpBlock>,
 }
@@ -519,11 +576,12 @@ pub struct NetworkPolicyPort {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct NetworkPolicySpec {
     /// podSelector selects the pods to which this NetworkPolicy object applies.
-    /// The array of ingress rules is applied to any pods selected by this field.
+    /// The array of rules is applied to any pods selected by this field. An empty
+    /// selector matches all pods in the policy's namespace.
     /// Multiple network policies can select the same set of pods. In this case,
     /// the ingress rules for each are combined additively.
-    /// This field is NOT optional and follows standard label selector semantics.
-    /// An empty podSelector matches all pods in this namespace.
+    /// This field is optional. If it is not specified, it defaults to an empty selector.
+    /// +optional
     #[prost(message, optional, tag = "1")]
     pub pod_selector: ::core::option::Option<
         super::super::super::apimachinery::pkg::apis::meta::v1::LabelSelector,
@@ -537,6 +595,7 @@ pub struct NetworkPolicySpec {
     /// solely to ensure that the pods it selects are isolated by default)
     /// +optional
     /// +listType=atomic
+    /// +k8s:alpha(since: "1.36")=+k8s:optional
     #[prost(message, repeated, tag = "2")]
     pub ingress: ::prost::alloc::vec::Vec<NetworkPolicyIngressRule>,
     /// egress is a list of egress rules to be applied to the selected pods. Outgoing traffic
@@ -548,6 +607,7 @@ pub struct NetworkPolicySpec {
     /// This field is beta-level in 1.8
     /// +optional
     /// +listType=atomic
+    /// +k8s:alpha(since: "1.36")=+k8s:optional
     #[prost(message, repeated, tag = "3")]
     pub egress: ::prost::alloc::vec::Vec<NetworkPolicyEgressRule>,
     /// policyTypes is a list of rule types that the NetworkPolicy relates to.
@@ -565,6 +625,28 @@ pub struct NetworkPolicySpec {
     #[prost(string, repeated, tag = "4")]
     pub policy_types: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+/// ParentReference describes a reference to a parent object.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ParentReference {
+    /// Group is the group of the object being referenced.
+    /// +optional
+    #[prost(string, optional, tag = "1")]
+    pub group: ::core::option::Option<::prost::alloc::string::String>,
+    /// Resource is the resource of the object being referenced.
+    /// +required
+    /// +k8s:alpha(since: "1.36")=+k8s:required
+    #[prost(string, optional, tag = "2")]
+    pub resource: ::core::option::Option<::prost::alloc::string::String>,
+    /// Namespace is the namespace of the object being referenced.
+    /// +optional
+    #[prost(string, optional, tag = "3")]
+    pub namespace: ::core::option::Option<::prost::alloc::string::String>,
+    /// Name is the name of the object being referenced.
+    /// +required
+    /// +k8s:alpha(since: "1.36")=+k8s:required
+    #[prost(string, optional, tag = "4")]
+    pub name: ::core::option::Option<::prost::alloc::string::String>,
+}
 /// ServiceBackendPort is the service port being referenced.
 /// +structType=atomic
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -579,4 +661,66 @@ pub struct ServiceBackendPort {
     /// +optional
     #[prost(int32, optional, tag = "2")]
     pub number: ::core::option::Option<i32>,
+}
+/// ServiceCIDR defines a range of IP addresses using CIDR format (e.g. 192.168.0.0/24 or 2001:db2::/64).
+/// This range is used to allocate ClusterIPs to Service objects.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ServiceCidr {
+    /// Standard object's metadata.
+    /// More info: <https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata>
+    /// +optional
+    #[prost(message, optional, tag = "1")]
+    pub metadata: ::core::option::Option<
+        super::super::super::apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    >,
+    /// spec is the desired state of the ServiceCIDR.
+    /// More info: <https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status>
+    /// +optional
+    #[prost(message, optional, tag = "2")]
+    pub spec: ::core::option::Option<ServiceCidrSpec>,
+    /// status represents the current state of the ServiceCIDR.
+    /// More info: <https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status>
+    /// +optional
+    #[prost(message, optional, tag = "3")]
+    pub status: ::core::option::Option<ServiceCidrStatus>,
+}
+/// ServiceCIDRList contains a list of ServiceCIDR objects.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ServiceCidrList {
+    /// Standard object's metadata.
+    /// More info: <https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata>
+    /// +optional
+    #[prost(message, optional, tag = "1")]
+    pub metadata: ::core::option::Option<
+        super::super::super::apimachinery::pkg::apis::meta::v1::ListMeta,
+    >,
+    /// items is the list of ServiceCIDRs.
+    #[prost(message, repeated, tag = "2")]
+    pub items: ::prost::alloc::vec::Vec<ServiceCidr>,
+}
+/// ServiceCIDRSpec define the CIDRs the user wants to use for allocating ClusterIPs for Services.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ServiceCidrSpec {
+    /// CIDRs defines the IP blocks in CIDR notation (e.g. "192.168.0.0/24" or "2001:db8::/64")
+    /// from which to assign service cluster IPs. Max of two CIDRs is allowed, one of each IP family.
+    /// This field is immutable.
+    /// +optional
+    /// +listType=atomic
+    #[prost(string, repeated, tag = "1")]
+    pub cidrs: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+/// ServiceCIDRStatus describes the current state of the ServiceCIDR.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ServiceCidrStatus {
+    /// conditions holds an array of metav1.Condition that describe the state of the ServiceCIDR.
+    /// Current service state
+    /// +optional
+    /// +patchMergeKey=type
+    /// +patchStrategy=merge
+    /// +listType=map
+    /// +listMapKey=type
+    #[prost(message, repeated, tag = "1")]
+    pub conditions: ::prost::alloc::vec::Vec<
+        super::super::super::apimachinery::pkg::apis::meta::v1::Condition,
+    >,
 }
