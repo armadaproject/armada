@@ -8,8 +8,11 @@
 // on a subcategory that narrows the match. The first rule that matches wins.
 // If no rule matches, the policy's default action applies.
 //
+// A queue or a job can list several policies in priority order, and the
+// engine evaluates the whole list.
+//
 // [Engine.Evaluate] makes the decision. It is a pure function of the
-// compiled policy, the run error, and the job's failure counts. Its doc
+// compiled policies, the run error, and the job's failure counts. Its doc
 // comment defines the check order and the exact limit semantics.
 //
 // [ConvertPolicy] compiles api.RetryPolicy protos into the [Policy] type the

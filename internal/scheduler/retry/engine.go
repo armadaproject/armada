@@ -33,7 +33,14 @@ type Counts struct {
 	Failures uint32
 }
 
-// Evaluate applies the policy rules to runError and returns a retry decision.
+// Evaluate applies the rules of the policies to runError and returns a retry
+// decision and the policy that made it.
+//
+// The policies are in priority order, and index 0 has the highest priority.
+// The first rule that matches, in the first policy that has one, decides with
+// the RetryLimit of its policy. When no rule of any policy matches, the
+// DefaultAction and the RetryLimit of index 0 apply. A list of one policy thus
+// behaves like that policy alone.
 //
 // Checks run in a fixed order: missing run error, global cap, rule match,
 // then the per-policy limit.
@@ -42,14 +49,16 @@ type Counts struct {
 // the initial failure, i.e. 4 attempts total. RetryLimit=0 means the policy
 // never retries. globalMaxRetries=0 disables all retries (kill switch).
 //
-// policy must not be nil. runError may be nil (treated as "no decision").
-func (e *Engine) Evaluate(policy *Policy, runError *armadaevents.Error, counts Counts) Result {
+// policies must not be empty and must not contain nil. runError may be nil
+// (treated as "no decision").
+func (e *Engine) Evaluate(policies []*Policy, runError *armadaevents.Error, counts Counts) (Result, *Policy) {
+	policy := policies[0]
 	if runError == nil {
-		return Result{ShouldRetry: false, Reason: reasonNoErrorAvailable, Decision: DecisionNoError}
+		return Result{ShouldRetry: false, Reason: reasonNoErrorAvailable, Decision: DecisionNoError}, policy
 	}
 
 	if e.globalMaxRetries == 0 {
-		return Result{ShouldRetry: false, Reason: reasonRetriesDisabled, Decision: DecisionFailGlobalLimit}
+		return Result{ShouldRetry: false, Reason: reasonRetriesDisabled, Decision: DecisionFailGlobalLimit}, policy
 	}
 
 	retriesUsed := uint(0)
@@ -61,13 +70,20 @@ func (e *Engine) Evaluate(policy *Policy, runError *armadaevents.Error, counts C
 			ShouldRetry: false,
 			Reason:      fmt.Sprintf("global max retries exceeded (%d/%d)", retriesUsed, e.globalMaxRetries),
 			Decision:    DecisionFailGlobalLimit,
-		}
+		}, policy
 	}
 
-	matched := matchRules(policy.Rules, matchInput{
+	input := matchInput{
 		category:    runError.GetFailureCategory(),
 		subcategory: runError.GetFailureSubcategory(),
-	})
+	}
+	var matched *Rule
+	for _, candidate := range policies {
+		if matched = matchRules(candidate.Rules, input); matched != nil {
+			policy = candidate
+			break
+		}
+	}
 
 	action, reason := policy.DefaultAction, reasonDefault
 	if matched != nil {
@@ -83,7 +99,7 @@ func (e *Engine) Evaluate(policy *Policy, runError *armadaevents.Error, counts C
 		if matched != nil {
 			decision = DecisionFailRule
 		}
-		return Result{ShouldRetry: false, Reason: reason, Decision: decision}
+		return Result{ShouldRetry: false, Reason: reason, Decision: decision}, policy
 	}
 
 	if retriesUsed >= uint(policy.RetryLimit) {
@@ -91,7 +107,7 @@ func (e *Engine) Evaluate(policy *Policy, runError *armadaevents.Error, counts C
 			ShouldRetry: false,
 			Reason:      fmt.Sprintf("policy retry limit exceeded (%d/%d)", retriesUsed, policy.RetryLimit),
 			Decision:    DecisionFailPolicyLimit,
-		}
+		}, policy
 	}
 
 	// The retry carries the matched rule's mutation, if any. A default-action
@@ -100,5 +116,5 @@ func (e *Engine) Evaluate(policy *Policy, runError *armadaevents.Error, counts C
 	if matched != nil {
 		mutation = matched.Mutation
 	}
-	return Result{ShouldRetry: true, Reason: reason, Decision: DecisionRetry, Mutation: mutation}
+	return Result{ShouldRetry: true, Reason: reason, Decision: DecisionRetry, Mutation: mutation}, policy
 }
