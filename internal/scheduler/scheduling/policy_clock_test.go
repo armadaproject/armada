@@ -378,10 +378,12 @@ func TestFairSchedulingAlgoPolicyClockNoNodesFinishesContext(t *testing.T) {
 	require.Len(t, txn.GetAllLeasedJobs(), 0)
 }
 
+// The soft budget cut-off itself is covered for QueueScheduler in
+// TestQueueSchedulerTimeouts; this test checks that policy time does not feed it.
 func TestPreemptingQueueSchedulerPolicyClockDoesNotConsumeSoftBudget(t *testing.T) {
 	fixture := setupGangEvictionTest(t, 1)
 	defer fixture.jobDbTxn.Abort()
-	fixture.config.MaxNewJobSchedulingDuration = 500 * time.Millisecond
+	fixture.config.MaxNewJobSchedulingDuration = 5 * time.Second
 	jobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 3)
 	for i, job := range jobs {
 		jobs[i] = job.WithQueued(true)
@@ -389,11 +391,14 @@ func TestPreemptingQueueSchedulerPolicyClockDoesNotConsumeSoftBudget(t *testing.
 	require.NoError(t, fixture.jobDbTxn.Upsert(jobs))
 	fixture.addQueueAndBuildScheduler(t, jobs)
 	fixture.sctx.Started = testfixtures.BaseTime
-	fixture.scheduler.clock = testfixtures.NewSteppingClock(testfixtures.BaseTime, time.Second)
+	// Each policy clock read advances a minute, so any policy time leaking into
+	// the host budget or ComputationDuration exceeds the limits below.
+	fixture.scheduler.clock = testfixtures.NewSteppingClock(testfixtures.BaseTime, time.Minute)
 
 	result, err := fixture.scheduler.Schedule(armadacontext.Background())
 	require.NoError(t, err)
 	require.Len(t, result.ScheduledJobs, 3, "policy time does not consume the host budget")
+	// Finished is the only policy clock read in Schedule, so it gets the start time.
 	require.Equal(t, testfixtures.BaseTime, fixture.sctx.Finished)
-	require.Less(t, fixture.sctx.ComputationDuration, 10*time.Second)
+	require.Less(t, fixture.sctx.ComputationDuration, time.Minute)
 }
