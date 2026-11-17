@@ -27,10 +27,5 @@ export const summarizeDebugInfo = ({ trigger, pod }: PodDebugInfo): DebugSummary
     summary.push({ label: "Containers", value: containers.join("; ") })
   }
 
-  const warnings = (pod.events ?? []).filter((event) => event.type === "Warning").length
-  if (warnings > 0) {
-    summary.push({ label: "Warnings", value: String(warnings) })
-  }
-
   return summary
 }

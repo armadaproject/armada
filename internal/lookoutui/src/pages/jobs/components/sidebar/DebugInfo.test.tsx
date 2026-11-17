@@ -99,7 +99,7 @@ describe("DebugInfo", () => {
     within(summary).getByText("podFailed")
     within(summary).getByText("Pending")
     within(summary).getByText("alpine waiting (ContainerCreating)")
-    within(summary).getByText("1")
+    expect(within(summary).queryByText("Warnings:")).toBeNull()
   })
 
   it("keeps the pod, containers and node sections collapsed until opened", async () => {

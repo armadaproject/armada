@@ -41,20 +41,13 @@ describe("summarizeDebugInfo", () => {
     })
   })
 
-  it("counts warning events on the pod, and says nothing when there are none", () => {
-    const warnings = (info: PodDebugInfo) => summarizeDebugInfo(info).find((item) => item.label === "Warnings")
+  it("does not report warning events, which the events table already shows", () => {
+    const summary = summarizeDebugInfo({
+      ...base,
+      pod: { events: [{ type: "Warning" }, { type: "Normal" }] },
+      node: { name: "node-1", events: [{ type: "Warning" }] },
+    })
 
-    expect(warnings({ ...base, pod: { events: [{ type: "Normal" }] } })).toBeUndefined()
-    expect(
-      warnings({ ...base, pod: { events: [{ type: "Warning" }, { type: "Normal" }, { type: "Warning" }] } }),
-    ).toEqual({ label: "Warnings", value: "2" })
-  })
-
-  it("does not count node events as pod warnings", () => {
-    expect(
-      summarizeDebugInfo({ ...base, node: { name: "node-1", events: [{ type: "Warning" }] } }).find(
-        (item) => item.label === "Warnings",
-      ),
-    ).toBeUndefined()
+    expect(summary.map((item) => item.label)).toEqual(["Trigger"])
   })
 })
