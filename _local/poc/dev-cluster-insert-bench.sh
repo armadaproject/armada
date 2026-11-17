@@ -19,14 +19,14 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 COUNT=${COUNT:-20000}            # pods per measured batch
 SIZES=${SIZES:-"small medium large"}
 CONCURRENCY=${CONCURRENCY:-"32 64"}
-RATES=${RATES:-"1600"}           # paced runs, to test a sustained target rate
-PACE_SIZES=${PACE_SIZES:-"medium"}
+RATES=${RATES-"1600"}            # paced runs, to test a sustained target rate; empty skips
+PACE_SIZES=${PACE_SIZES-"medium"}
 PACED_CONCURRENCY=${PACED_CONCURRENCY:-64}
 COOLDOWN=${COOLDOWN:-20}         # seconds between runs, lets etcd settle
 DELETE_CONCURRENCY=${DELETE_CONCURRENCY:-64}
 CLEANUP_TIMEOUT=${CLEANUP_TIMEOUT:-900}
 BENCH_TIMEOUT=${BENCH_TIMEOUT:-15m}
-NODE=${NODE:-bench-nonexistent}  # pods stay Pending: no kubelet/scheduler noise
+NODE=${NODE-bench-nonexistent}    # set empty to let pods schedule and actually run
 IMAGE=${IMAGE:-registry.k8s.io/pause:3.9}
 OUT=${OUT:-/tmp/armada-insert-bench-$(date +%Y%m%d-%H%M%S)}
 SMOKE=${SMOKE:-0}
@@ -73,7 +73,11 @@ preflight() {
   for _ in $PACE_SIZES; do for _ in $RATES; do runs=$((runs + 1)); done; done
 
   log "plan: $runs runs x $COUNT pods = $((runs * COUNT)) creates (plus as many deletes)"
-  log "pods bound to node '$NODE' stay Pending; scheduler and kubelet are out of the measurement"
+  if [[ -n "$NODE" ]]; then
+    log "pods bound to node '$NODE' stay Pending; scheduler and kubelet are out of the measurement"
+  else
+    log "pods are scheduler-placed and will actually run (pause image only); scheduler and kubelet are in the measurement"
+  fi
 
   if [[ "${CONFIRM:-}" != "yes" ]]; then
     echo
@@ -112,9 +116,12 @@ preflight() {
 ensure_namespace() {
   local ns=$1
   kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-  # PSA restricted namespaces reject a minimal pause pod; benchmark pods are
-  # unschedulable and never run, so privileged enforcement is fine here.
-  kubectl label namespace "$ns" pod-security.kubernetes.io/enforce=privileged --overwrite >/dev/null 2>&1 || true
+  # PSA restricted namespaces reject a minimal pause pod. Only relax the policy
+  # when the pods are unschedulable and never run; a namespace whose pods do run
+  # keeps whatever policy the cluster gives it.
+  if [[ -n "$NODE" ]]; then
+    kubectl label namespace "$ns" pod-security.kubernetes.io/enforce=privileged --overwrite >/dev/null 2>&1 || true
+  fi
 }
 
 wait_namespace_gone() {
@@ -204,7 +211,8 @@ summarize() {
 
 # Reads summary.csv and states whether the target rate was reached, and whether
 # it was sustainable. Cause hints are heuristics from the same row, labelled as
-# such; the doc has the full diagnosis table.
+# such; the doc has the full diagnosis table. TARGET_RATE=0 disables the target
+# check, for sweeps whose point is the achieved rate itself (sequential writes).
 verdict() {
   local csv="$OUT/summary.csv" target=${TARGET_RATE:-1600}
   [[ -s "$csv" ]] || return 0
@@ -229,6 +237,7 @@ verdict() {
       print "=== verdict ==="
       if (best == "") { print "no unpaced runs to judge"; exit }
       printf "best unpaced: %.0f pods/s (%s, concurrency %s)\n", bestps, best, bestconc
+      if (target <= 0) exit
       printf "target %.0f/s: %s at peak\n", target, (bestps >= target ? "REACHED" : "NOT reached")
       if (paced) {
         sustained = (pacedpps >= target * 0.95 && paced429 == 0 && paced5xx == 0)

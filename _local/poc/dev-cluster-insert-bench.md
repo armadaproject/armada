@@ -90,12 +90,63 @@ Tunables (`CONFIRM=yes SIZES=... ./script`):
 | `PACED_CONCURRENCY` | `64` | concurrency for paced runs |
 | `COOLDOWN` | `20` | seconds between runs |
 | `DELETE_CONCURRENCY` | `64` | parallel deletes during cleanup |
-| `TARGET_RATE` | `1600` | rate the final verdict judges against |
-| `NODE` | `bench-nonexistent` | node name bound into each pod |
+| `TARGET_RATE` | `1600` | rate the final verdict judges against (`0` disables the target check) |
+| `NODE` | `bench-nonexistent` | node name bound into each pod; empty lets pods schedule and run |
 | `OUT` | `/tmp/armada-insert-bench-<ts>` | results directory |
 
 Each run leaves `<tag>.json` (full metrics), `<tag>.log` (console output) and,
 after the sweep, `summary.csv`.
+
+## Sequential writes (one at a time)
+
+For the single-writer question — how fast one create after another lands, and
+what pod object size costs — run the wrapper:
+
+```sh
+CONFIRM=yes ./_local/poc/dev-cluster-sequential-bench.sh
+```
+
+It fixes `CONCURRENCY=1`, `COUNT=500`, `SIZES="small large"`, skips the paced
+run, and disables the target-rate verdict. `summary.csv` is the result:
+`podsPerSecond` is then `1 / create round-trip`, so read the `small` and `large`
+rows against each other — the drop is the per-object encode/admit/store cost,
+not queueing. For a pod near the 200 KB annotation padding limit:
+
+```sh
+CONFIRM=yes SIZES="small 200000" ./_local/poc/dev-cluster-sequential-bench.sh
+```
+
+All other tunables from the table above still apply through the environment.
+
+## Max throughput with running pods (local cluster)
+
+To find the absolute ceiling of the API create path on a local cluster — where
+pods schedule and actually run — use the other wrapper:
+
+```sh
+CONFIRM=yes ./_local/poc/local-cluster-api-throughput.sh
+```
+
+Differences from the dev-cluster runs above:
+
+- **No fake node.** `NODE=""`, so the scheduler and kubelets are in the
+  measurement. The cluster only runs what fits; the rest stay `Pending`, but
+  every successful create still counts towards `podsPerSecond`.
+- **Unpaced concurrency sweep.** `CONCURRENCY="1 8 32 64 128"` (1 is the
+  sequential baseline), `COUNT=500`, sizes `small` and `large`. `summary.csv`
+  shows the plateau and where it turns over.
+- **Inert workload.** `registry.k8s.io/pause`, 100m CPU / 64Mi, no volumes, no
+  host namespaces, no privileges. The wrapper refuses any other image unless
+  `ALLOW_NONPAUSE_IMAGE=1` is set. Pods are deleted in parallel after each run
+  and the namespace is removed, as usual.
+- **Pod Security is not relaxed.** With running pods the benchmark keeps the
+  cluster's pod-security policy instead of labelling the namespace
+  `privileged`; on a cluster that enforces `restricted` the canary will fail
+  rather than run something with wider privileges.
+
+`COUNT=500` is deliberately small; running thousands of pods on a local cluster
+is what gets a laptop cluster into trouble. Raise it and the concurrency list
+on purpose.
 
 ## Direct etcd writes (optional path)
 
