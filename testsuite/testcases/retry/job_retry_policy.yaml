@@ -1,0 +1,44 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: default
+    annotations:
+      # The queue has no retry policy, so without this annotation exit 1 fails
+      # the job at the first attempt. The policy retries user_error two times.
+      armadaproject.io/retryPolicies: "e2e-retry-policy"
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: fail
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          command: ["sh", "-c", "exit 1"]
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+timeout: "600s"
+expectedEvents:
+  - submitted:
+  - queued:
+  - leased:
+  - pending:
+  - failed:
+      failureCategory: "user_error"
+      retryable: true
+  - leased:
+  - pending:
+  - failed:
+      failureCategory: "user_error"
+      retryable: true
+  - leased:
+  - pending:
+  - failed:
+      failureCategory: "user_error"
