@@ -13,9 +13,7 @@ import (
 )
 
 const (
-	defaultNodeType     = "none"
-	masterRoleKey       = "node-role.kubernetes.io/master"
-	controlPlaneRoleKey = "node-role.kubernetes.io/control-plane"
+	defaultNodeType = "none"
 )
 
 type NodeInfoService interface {
