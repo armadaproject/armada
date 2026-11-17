@@ -148,31 +148,14 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetAllNodes() ([]*v1
 }
 
 func (kubernetesNodeInfoService *KubernetesNodeInfoService) IsAvailableProcessingNode(node *v1.Node) bool {
-	// Cordoned nodes are not available
 	if node.Spec.Unschedulable {
 		return false
 	}
 
-	// Control plane nodes are not available
-	if _, ok := node.Labels[masterRoleKey]; ok {
-		return false
-	}
-	if _, ok := node.Labels[controlPlaneRoleKey]; ok {
-		return false
-	}
 	for _, taint := range node.Spec.Taints {
-		if taint.Key == masterRoleKey || taint.Key == controlPlaneRoleKey {
+		_, isWellKnown := kubernetesNodeInfoService.wellKnownTaints.MatchWellKnownTaint(taint.Key)
+		if taint.Effect == v1.TaintEffectNoSchedule && !isWellKnown {
 			return false
-		}
-	}
-
-	// When unknown taints are not categorised, nodes with unknown taints are not available
-	if !kubernetesNodeInfoService.categoriseUnknownTaints {
-		for _, taint := range node.Spec.Taints {
-			_, isWellKnown := kubernetesNodeInfoService.wellKnownTaints.MatchWellKnownTaint(taint.Key)
-			if taint.Effect == v1.TaintEffectNoSchedule && !isWellKnown {
-				return false
-			}
 		}
 	}
 

@@ -64,7 +64,7 @@ func TestGetAvailableClusterCapacity_ReportsAllNodeTaints(t *testing.T) {
 			report, err := service.GetAvailableClusterCapacity()
 			require.NoError(t, err)
 			require.Len(t, report.Nodes, 1)
-			assert.Equal(t, !tc.categoriseUnknown, report.Nodes[0].Unschedulable)
+			assert.True(t, report.Nodes[0].Unschedulable)
 			assert.Equal(t, []*v1.Taint{legacy, user, admin, reservation, other}, report.Nodes[0].Taints)
 			assert.Equal(t, []*executorapi.NodeTaint{
 				{Taint: legacy, UserFacing: true},

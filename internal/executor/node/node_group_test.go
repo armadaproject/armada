@@ -1,7 +1,6 @@
 package node
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -302,65 +301,6 @@ func TestFilterAvailableProcessingNodes_IsTrue_NodeWithWellKnownTaint(t *testing
 
 	node := v1.Node{Spec: v1.NodeSpec{Taints: []v1.Taint{{Key: "taint", Effect: v1.TaintEffectNoSchedule}}}}
 	assert.True(t, nodeInfoService.IsAvailableProcessingNode(&node))
-}
-
-func TestIsAvailableProcessingNode_CategoriseUnknownTaints(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	for name, tc := range map[string]struct {
-		categoriseUnknown bool
-		unschedulable     bool
-		taints            []v1.Taint
-		want              bool
-	}{
-		"unknown NoSchedule rejected when disabled": {taints: []v1.Taint{{Key: "unknown", Effect: v1.TaintEffectNoSchedule}}},
-		"unknown NoSchedule accepted when enabled":  {categoriseUnknown: true, taints: []v1.Taint{{Key: "unknown", Effect: v1.TaintEffectNoSchedule}}, want: true},
-		"known NoSchedule accepted when disabled":   {taints: []v1.Taint{{Key: "known", Effect: v1.TaintEffectNoSchedule}}, want: true},
-		"unknown NoExecute accepted when disabled":  {taints: []v1.Taint{{Key: "unknown", Effect: v1.TaintEffectNoExecute}}, want: true},
-		"cordoned rejected when enabled":            {categoriseUnknown: true, unschedulable: true, taints: []v1.Taint{{Key: "unknown", Effect: v1.TaintEffectNoSchedule}}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			config := configuration.TaintCategorisationConfiguration{
-				CategoriseUnknownTaints: tc.categoriseUnknown,
-				WellKnownTaints:         configuration.WellKnownTaintsConfiguration{Keys: []string{"known"}},
-			}
-			wellKnownTaints, err := (configuration.KubernetesConfiguration{TaintCategorisation: config}).NewWellKnownTaints()
-			require.NoError(t, err)
-			service := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, wellKnownTaints, tc.categoriseUnknown)
-			node := &v1.Node{Spec: v1.NodeSpec{Unschedulable: tc.unschedulable, Taints: tc.taints}}
-			assert.Equal(t, tc.want, service.IsAvailableProcessingNode(node))
-		})
-	}
-}
-
-func TestIsAvailableProcessingNode_ControlPlaneRoles(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
-	for _, categoriseUnknown := range []bool{false, true} {
-		config := configuration.TaintCategorisationConfiguration{
-			CategoriseUnknownTaints: categoriseUnknown,
-			WellKnownTaints: configuration.WellKnownTaintsConfiguration{Keys: []string{
-				"node-role.kubernetes.io/master", "node-role.kubernetes.io/control-plane",
-			}},
-		}
-		wellKnownTaints, err := (configuration.KubernetesConfiguration{TaintCategorisation: config}).NewWellKnownTaints()
-		require.NoError(t, err)
-		service := NewKubernetesNodeInfoService(context, nodeTypeLabel, nodePoolLabel, reservedNodePoolSuffix, wellKnownTaints, categoriseUnknown)
-		for name, tc := range map[string]struct {
-			labels map[string]string
-			taints []v1.Taint
-			want   bool
-		}{
-			"master label":        {labels: map[string]string{"node-role.kubernetes.io/master": ""}},
-			"control-plane label": {labels: map[string]string{"node-role.kubernetes.io/control-plane": "true"}},
-			"master taint":        {taints: []v1.Taint{{Key: "node-role.kubernetes.io/master", Effect: v1.TaintEffectNoSchedule}}},
-			"control-plane taint": {taints: []v1.Taint{{Key: "node-role.kubernetes.io/control-plane", Value: "true", Effect: v1.TaintEffectNoExecute}}},
-			"worker":              {labels: map[string]string{"node-role.kubernetes.io/worker": ""}, want: true},
-		} {
-			t.Run(fmt.Sprintf("categorise=%t/%s", categoriseUnknown, name), func(t *testing.T) {
-				node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Labels: tc.labels}, Spec: v1.NodeSpec{Taints: tc.taints}}
-				assert.Equal(t, tc.want, service.IsAvailableProcessingNode(node))
-			})
-		}
-	}
 }
 
 func TestNewWellKnownTaints_RejectsInvalidTaintPattern(t *testing.T) {
