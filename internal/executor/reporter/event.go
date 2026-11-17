@@ -349,7 +349,7 @@ func CreateReturnLeaseEvent(pod *v1.Pod, reason string, debugMessage string, clu
 				JobId: jobId,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal:           true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
+						Terminal:           true, // The run is over; the scheduler decides whether to re-lease the job.
 						FailureCategory:    failureCategory,
 						FailureSubcategory: failureSubcategory,
 						Reason: &armadaevents.Error_PodLeaseReturned{

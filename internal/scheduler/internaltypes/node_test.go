@@ -153,6 +153,41 @@ func TestNodeTaintConstructorAndGetters(t *testing.T) {
 	assert.Equal(t, time.Unix(1, 0), nodeTaint.GetTaint().TimeAdded.Time)
 }
 
+func TestNodeTaintsFromSchedulerObjects(t *testing.T) {
+	first := &v1.Taint{Key: "example.com/gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}
+	second := &v1.Taint{Key: "example.com/maintenance", Effect: v1.TaintEffectNoExecute}
+	for name, tc := range map[string]struct {
+		input []*schedulerobjects.NodeTaint
+		want  []NodeTaint
+	}{
+		"nil input":   {want: []NodeTaint{}},
+		"empty input": {input: []*schedulerobjects.NodeTaint{}, want: []NodeTaint{}},
+		"nil entries are skipped": {
+			input: []*schedulerobjects.NodeTaint{nil, {}, {Taint: first, Category: "user", UserFacing: true}},
+			want:  []NodeTaint{{taint: *first, category: "user", userFacing: true}},
+		},
+		"metadata and order are preserved": {
+			input: []*schedulerobjects.NodeTaint{{Taint: first, Category: "user", UserFacing: true}, {Taint: second, Category: "platform"}},
+			want:  []NodeTaint{{taint: *first, category: "user", userFacing: true}, {taint: *second, category: "platform"}},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, NodeTaintsFromSchedulerObjects(tc.input))
+		})
+	}
+}
+
+func TestNodeTaintsFromSchedulerObjects_CopiesTaints(t *testing.T) {
+	originalTime := metav1.NewTime(time.Unix(1, 0))
+	source := &schedulerobjects.NodeTaint{Taint: &v1.Taint{Key: "example", TimeAdded: &originalTime}, Category: "user", UserFacing: true}
+	converted := NodeTaintsFromSchedulerObjects([]*schedulerobjects.NodeTaint{source})
+	require.Len(t, converted, 1)
+	source.Taint.Key = "changed"
+	source.Taint.TimeAdded.Time = time.Unix(2, 0)
+	assert.Equal(t, "example", converted[0].GetTaint().Key)
+	assert.Equal(t, time.Unix(1, 0), converted[0].GetTaint().TimeAdded.Time)
+}
+
 func TestNodeTaintIsUserFacing(t *testing.T) {
 	for name, tc := range map[string]struct {
 		nodeTaint NodeTaint
