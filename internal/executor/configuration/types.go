@@ -186,7 +186,6 @@ type KubernetesConfiguration struct {
 
 type TaintCategorisationConfiguration struct {
 	// CategoriseUnknownTaints controls whether unknown node taints receive the "unknown" category.
-	// When enabled, unrecognized NoSchedule taints do not make a node unavailable to Armada.
 	CategoriseUnknownTaints bool
 	WellKnownTaints         WellKnownTaintsConfiguration
 }
