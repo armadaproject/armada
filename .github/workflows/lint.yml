@@ -17,6 +17,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Test TypeScript lint wrapper
+        run: python3 -m unittest discover -s .github/scripts/tests -v
+
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -31,20 +34,7 @@ jobs:
 
       - name: Generating TypeScript lint results as summary
         working-directory: ./internal/lookoutui
-        run: |
-          yarn lint &> lint_results.txt || true
-          lint_results=$(cat lint_results.txt)
-          echo -e "## 🪧 Typescript Lint Results\n" >> $GITHUB_STEP_SUMMARY
-          if [[ $lint_results =~ "problem" ]]; then
-             echo -e "### List of Lint Issues \n" >> $GITHUB_STEP_SUMMARY
-             echo -e "${lint_results}" >> $GITHUB_STEP_SUMMARY
-             echo -e "${lint_results}"
-             exit 1
-          else
-             echo -e "### No Lint issues found.\n" >> $GITHUB_STEP_SUMMARY
-             echo -e "No Lint issues found."
-             exit 0
-          fi
+        run: bash ../../.github/scripts/lint-typescript.sh
 
   go-lint:
     name: Lint Go
