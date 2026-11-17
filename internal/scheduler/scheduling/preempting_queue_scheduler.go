@@ -46,7 +46,6 @@ type PreemptingQueueScheduler struct {
 	marketConfig                     *configuration.MarketSchedulingConfig
 	marketDriven                     bool
 	clock                            clock.Clock
-	hostClock                        clock.Clock
 }
 
 func NewPreemptingQueueScheduler(
@@ -78,7 +77,6 @@ func NewPreemptingQueueScheduler(
 		marketConfig:                     marketConfig,
 		marketDriven:                     marketDriven,
 		clock:                            clk,
-		hostClock:                        clock.RealClock{},
 	}
 }
 
@@ -86,10 +84,10 @@ func NewPreemptingQueueScheduler(
 // - preempts jobs belonging to queues with total allocation above their fair share and
 // - schedules new jobs belonging to queues with total allocation less than their fair share.
 func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResult, error) {
-	computationStarted := sch.hostClock.Now()
+	computationStarted := time.Now()
 	defer func() {
 		sch.schedulingContext.Finished = sch.clock.Now()
-		sch.schedulingContext.ComputationDuration = sch.hostClock.Since(computationStarted)
+		sch.schedulingContext.ComputationDuration = time.Since(computationStarted)
 	}()
 
 	preemptedJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
@@ -760,7 +758,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 		sch.maxQueueLookBack,
 		sch.marketDriven,
 		spotPriceCutoff,
-		sch.hostClock,
+		clock.RealClock{},
 	)
 	if err != nil {
 		return nil, err
