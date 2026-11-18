@@ -402,3 +402,57 @@ func TestPreemptingQueueSchedulerPolicyClockDoesNotConsumeSoftBudget(t *testing.
 	require.Equal(t, testfixtures.BaseTime, fixture.sctx.Finished)
 	require.Less(t, fixture.sctx.ComputationDuration, time.Minute)
 }
+
+func TestFairSchedulingAlgoShortJobPenaltyExpiresOnPolicyTime(t *testing.T) {
+	ctx := armadacontext.Background()
+	start := testfixtures.BaseTime
+	clk := clocktesting.NewFakeClock(start)
+	penalty := NewShortJobPenaltyWithClock(map[string]time.Duration{testfixtures.TestPool: 10 * time.Second}, clk)
+	ctrl := gomock.NewController(t)
+	repo := schedulermocks.NewMockExecutorRepository(ctrl)
+	executor := makeTestExecutor("penalty-clock", testfixtures.TestPool)
+	repo.EXPECT().GetExecutors(gomock.Any()).Return([]*schedulerobjects.Executor{executor}, nil).AnyTimes()
+	repo.EXPECT().GetExecutorSettings(gomock.Any()).Return(nil, nil).AnyTimes()
+	queues := schedulermocks.NewMockQueueCache(ctrl)
+	queues.EXPECT().GetAll(gomock.Any()).Return([]*api.Queue{testfixtures.MakeTestQueue()}, nil).AnyTimes()
+	algo, err := NewFairSchedulingAlgo(
+		testfixtures.TestSchedulingConfig(), 0, repo, queues, reports.NewSchedulingContextRepository(),
+		testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources,
+		priorityoverride.NewNoOpProvider(), penalty, &testRunReconciler{}, WithPolicyClock(clk),
+	)
+	require.NoError(t, err)
+
+	finishedJob := func() *jobdb.Job {
+		job := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass1).
+			WithNewRun(executor.Id, executor.Nodes[0].Id, executor.Nodes[0].Name, testfixtures.TestPool, 0).
+			WithSucceeded(true)
+		return job.WithUpdatedRun(job.LatestRun().WithRunningTime(&start))
+	}
+	completed := finishedJob()
+	preempted := finishedJob()
+	preempted = preempted.WithUpdatedRun(preempted.LatestRun().WithPreempted(true))
+	clk.Step(2 * time.Second)
+	penalty.ReportFinishedJob(completed)
+	penalty.ReportFinishedJob(completed)
+	penalty.ReportFinishedJob(preempted)
+
+	txn := testfixtures.NewJobDb(testfixtures.TestResourceListFactory).WriteTxn()
+	defer txn.Abort()
+	backlog := testfixtures.Test64Cpu512GiJob(testfixtures.TestQueue, testfixtures.PriorityClass1).WithQueued(true)
+	require.NoError(t, txn.Upsert([]*jobdb.Job{backlog}))
+	clk.Step(7 * time.Second)
+	before, err := algo.Schedule(ctx, txn)
+	require.NoError(t, err)
+	queue := before.PoolResults[0].SchedulingResult.SchedulingContext.QueueSchedulingContexts[testfixtures.TestQueue]
+	require.True(t, queue.ShortJobPenalty.Equal(completed.AllResourceRequirements()))
+
+	clk.Step(time.Second)
+	after, err := algo.Schedule(ctx, txn)
+	require.NoError(t, err)
+	queue = after.PoolResults[0].SchedulingResult.SchedulingContext.QueueSchedulingContexts[testfixtures.TestQueue]
+	require.True(t, queue.ShortJobPenalty.AllZero())
+
+	atCutoff := finishedJob()
+	penalty.ReportFinishedJob(atCutoff)
+	require.NotContains(t, penalty.penaltyByJobID, atCutoff.Id())
+}

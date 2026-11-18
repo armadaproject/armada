@@ -5,6 +5,8 @@ import (
 	"maps"
 	"time"
 
+	"k8s.io/utils/clock"
+
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 )
@@ -18,6 +20,16 @@ func NewShortJobPenalty(cutoffDurationByPool map[string]time.Duration) *ShortJob
 	}
 }
 
+// NewShortJobPenaltyWithClock uses clk for completion reports and snapshots.
+// For replay, pass the same clock to WithPolicyClock and report terminal jobs
+// after advancing it to their completion-processing time.
+func NewShortJobPenaltyWithClock(cutoffDurationByPool map[string]time.Duration, clk clock.PassiveClock) *ShortJobPenalty {
+	penalty := NewShortJobPenalty(cutoffDurationByPool)
+	penalty.clock = clk
+	return penalty
+}
+
+// SetNow supplies the cycle time for a tracker without an injected clock.
 func (sjp *ShortJobPenalty) SetNow(now time.Time) {
 	if sjp == nil {
 		return
@@ -27,8 +39,19 @@ func (sjp *ShortJobPenalty) SetNow(now time.Time) {
 	sjp.now = now
 }
 
-func (sjp *ShortJobPenalty) shouldApplyPenalty(job *jobdb.Job) bool {
-	if sjp == nil || sjp.now.IsZero() {
+// currentTime is sampled under mu during reporting and snapshotting.
+func (sjp *ShortJobPenalty) currentTime() time.Time {
+	if sjp == nil {
+		return time.Time{}
+	}
+	if sjp.clock != nil {
+		return sjp.clock.Now()
+	}
+	return sjp.now
+}
+
+func (sjp *ShortJobPenalty) shouldApplyPenalty(job *jobdb.Job, now time.Time) bool {
+	if now.IsZero() {
 		return false
 	}
 
@@ -50,7 +73,7 @@ func (sjp *ShortJobPenalty) shouldApplyPenalty(job *jobdb.Job) bool {
 		return false
 	}
 
-	return sjp.now.Sub(*jobStart) < sjp.cutoffDurationByPool[jobRun.Pool()]
+	return now.Sub(*jobStart) < sjp.cutoffDurationByPool[jobRun.Pool()]
 }
 
 // ReportFinishedJob applies a terminal short job's resources to its (pool, queue) sums once.
@@ -61,12 +84,13 @@ func (sjp *ShortJobPenalty) ReportFinishedJob(job *jobdb.Job) {
 	}
 	sjp.mu.Lock()
 	defer sjp.mu.Unlock()
-	sjp.expireUpTo(sjp.now)
+	now := sjp.currentTime()
+	sjp.expireUpTo(now)
 
 	if _, alreadyCounted := sjp.penaltyByJobID[job.Id()]; alreadyCounted {
 		return
 	}
-	if !sjp.shouldApplyPenalty(job) {
+	if !sjp.shouldApplyPenalty(job, now) {
 		return
 	}
 
@@ -88,7 +112,7 @@ func (sjp *ShortJobPenalty) ReportFinishedJob(job *jobdb.Job) {
 	sjp.addToSums(pool, queue, resources)
 }
 
-// Snapshot expires entries up to the current now and returns an immutable,
+// Snapshot expires entries up to the current time and returns an immutable,
 // deep-copied view of the per-(pool,queue) penalty sums.
 func (sjp *ShortJobPenalty) Snapshot() *ShortJobPenaltySnapshot {
 	if sjp == nil {
@@ -96,7 +120,7 @@ func (sjp *ShortJobPenalty) Snapshot() *ShortJobPenaltySnapshot {
 	}
 	sjp.mu.Lock()
 	defer sjp.mu.Unlock()
-	sjp.expireUpTo(sjp.now)
+	sjp.expireUpTo(sjp.currentTime())
 
 	sums := make(map[string]map[string]internaltypes.ResourceList, len(sjp.sums))
 	for pool, queueSums := range sjp.sums {

@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/utils/clock"
+
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
 )
 
@@ -22,6 +24,7 @@ type ShortJobPenalty struct {
 	mu                   sync.Mutex
 	cutoffDurationByPool map[string]time.Duration
 	now                  time.Time
+	clock                clock.PassiveClock
 
 	penaltyByJobID map[string]*penaltyEntry
 	expiry         *entryHeap

@@ -163,7 +163,7 @@ func TestShouldApplyPenalty(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, tc.sut.shouldApplyPenalty(tc.job))
+			assert.Equal(t, tc.expected, tc.sut.shouldApplyPenalty(tc.job, tc.sut.currentTime()))
 		})
 	}
 }
