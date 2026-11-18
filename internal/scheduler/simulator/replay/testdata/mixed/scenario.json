@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "candidate_id": "synthetic-mixed",
+  "workload": "workload",
+  "farm": "farm.yaml",
+  "scheduler_config": "scheduler.yaml",
+  "seed": 17,
+  "window": {
+    "warmup_start_us": 1735684200000000,
+    "measurement_start_us": 1735689600000000,
+    "end_us": 1735702200000000,
+    "cycle_us": 60000000
+  },
+  "bucket_us": 1800000000,
+  "scratch_bytes": 16777216,
+  "acknowledge_unbounded_rounds": true,
+  "queues": [{"name": "offered", "weight": 1}]
+}

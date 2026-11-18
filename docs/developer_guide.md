@@ -52,6 +52,8 @@ For more information about Armada's design, see the following pages:
 
 ## Other developer docs
 
+- [Recorded workload replay](developer/recorded-replay.md) through the Armada scheduler.
+
 - [Armada API](./developer/armada-api.md)
 - [Regenerating code and API clients](./developer/generation.md)
 - [Scheduler policy clock](./developer/scheduler-policy-clock.md)

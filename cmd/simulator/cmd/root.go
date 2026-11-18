@@ -31,6 +31,7 @@ func RootCmd() *cobra.Command {
 	cmd.Flags().Int("hardTerminationMinutes", -1, "Limit the time simulated.  -1 for no limit.")
 	cmd.Flags().Int("schedulerCyclePeriodSeconds", 10, "How often we should trigger schedule events")
 	cmd.Flags().Bool("profile", false, "If true then the simulator will be profiled and a profiling file written to the output directory")
+	cmd.AddCommand(replayCmd())
 	return cmd
 }
 
