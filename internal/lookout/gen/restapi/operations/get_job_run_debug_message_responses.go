@@ -26,7 +26,7 @@ type GetJobRunDebugMessageOK struct {
 	/*
 	  In: Body
 	*/
-	Payload *GetJobRunDebugMessageOKBody `json:"body,omitempty"`
+	Payload *models.JobRunDebugMessage `json:"body,omitempty"`
 }
 
 // NewGetJobRunDebugMessageOK creates GetJobRunDebugMessageOK with default headers values
@@ -36,13 +36,13 @@ func NewGetJobRunDebugMessageOK() *GetJobRunDebugMessageOK {
 }
 
 // WithPayload adds the payload to the get job run debug message o k response
-func (o *GetJobRunDebugMessageOK) WithPayload(payload *GetJobRunDebugMessageOKBody) *GetJobRunDebugMessageOK {
+func (o *GetJobRunDebugMessageOK) WithPayload(payload *models.JobRunDebugMessage) *GetJobRunDebugMessageOK {
 	o.Payload = payload
 	return o
 }
 
 // SetPayload sets the payload to the get job run debug message o k response
-func (o *GetJobRunDebugMessageOK) SetPayload(payload *GetJobRunDebugMessageOKBody) {
+func (o *GetJobRunDebugMessageOK) SetPayload(payload *models.JobRunDebugMessage) {
 	o.Payload = payload
 }
 

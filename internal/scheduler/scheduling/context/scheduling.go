@@ -32,6 +32,8 @@ type SchedulingContext struct {
 	Started time.Time
 	// Time at which the scheduling cycle finished.
 	Finished time.Time
+	// Host elapsed time spent in PreemptingQueueScheduler.Schedule.
+	ComputationDuration time.Duration
 	// Pool for which we're currently scheduling jobs.
 	Pool string
 	// PriorityClasses stores all available priority classes, by name. schedulingtypes.PriorityClass includes priority
@@ -90,8 +92,21 @@ func NewSchedulingContext(
 	totalResources internaltypes.ResourceList,
 	priorityClasses map[string]schedulingtypes.PriorityClass,
 ) *SchedulingContext {
+	return NewSchedulingContextAt(pool, fairnessCostProvider, limiter, fairsharePreemptionLimiter, totalResources, priorityClasses, time.Now())
+}
+
+// NewSchedulingContextAt creates a context at the supplied policy time.
+func NewSchedulingContextAt(
+	pool string,
+	fairnessCostProvider fairness.FairnessCostProvider,
+	limiter *rate.Limiter,
+	fairsharePreemptionLimiter *rate.Limiter,
+	totalResources internaltypes.ResourceList,
+	priorityClasses map[string]schedulingtypes.PriorityClass,
+	started time.Time,
+) *SchedulingContext {
 	return &SchedulingContext{
-		Started:                      time.Now(),
+		Started:                      started,
 		Pool:                         pool,
 		FairnessCostProvider:         fairnessCostProvider,
 		Limiter:                      limiter,
@@ -150,7 +165,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 
 	qctx := &QueueSchedulingContext{
 		SchedulingContext:                 sctx,
-		Created:                           time.Now(),
+		Created:                           sctx.Started,
 		Queue:                             queue,
 		Weight:                            weight,
 		RawWeight:                         rawWeight,
