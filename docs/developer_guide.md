@@ -54,7 +54,6 @@ For more information about Armada's design, see the following pages:
 
 - [Armada API](./developer/armada-api.md)
 - [Regenerating code and API clients](./developer/generation.md)
-- [Scheduler policy clock](./developer/scheduler-policy-clock.md)
 - [Running Armada in an EC2 instance](https://armadaproject.io/developer/aws-ec2)
 - [Armada UI](https://armadaproject.io/developer/ui)
 - [Usage metrics](./developer/usage_metrics.md)
