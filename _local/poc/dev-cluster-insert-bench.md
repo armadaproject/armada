@@ -95,6 +95,7 @@ Tunables (`CONFIRM=yes SIZES=... ./script`):
 | `DELETE_CONCURRENCY` | `64` | parallel deletes during cleanup |
 | `TARGET_RATE` | `1600` | rate the final verdict judges against (`0` disables the target check) |
 | `NODE` | `bench-nonexistent` | node name bound into each pod; empty lets pods schedule and run |
+| `NAMESPACE` | empty | reuse this existing namespace for every run; nothing is created or deleted at namespace level |
 | `CONTEXT` | current context | kubeconfig context to target; the positional argument overrides it. Minified to a private temp kubeconfig for both kubectl and bulk-bench |
 | `EXPECT_CLUSTER_UID` | unset | refuse unless kube-system's namespace UID matches this fingerprint |
 | `OUT` | `/tmp/armada-insert-bench-<ts>` | results directory |
@@ -102,6 +103,12 @@ Tunables (`CONFIRM=yes SIZES=... ./script`):
 Each run leaves `<tag>.json` (full metrics), `<tag>.log` (console output) and,
 after the sweep, `summary.csv` and `benchmark.md` (markdown table + verdict, for
 attaching to a PR or issue).
+
+By default the script creates a fresh `ins-bench-<tag>` namespace per run and
+deletes it afterwards. Set `NAMESPACE=<existing>` to use a namespace you already
+have instead: no namespace is created or deleted, pods are named with a unique
+per-invocation prefix and deleted by name, and your namespace's Pod Security
+policy applies unchanged. That mode only needs pod create/delete rights.
 
 ## Sequential writes (one at a time)
 
@@ -136,6 +143,8 @@ context and run:
 kubectl --context <context> get ns kube-system -o jsonpath='{.metadata.uid}{"\n"}'
 
 CONFIRM=yes ./_local/poc/api-throughput-bench.sh <context>
+# run in a namespace you already have instead of creating ins-bench-* ones:
+NAMESPACE=<existing-namespace> CONFIRM=yes ./_local/poc/api-throughput-bench.sh <context>
 # optionally pin the fingerprint as well:
 EXPECT_CLUSTER_UID=<uid> CONFIRM=yes ./_local/poc/api-throughput-bench.sh <context>
 ```
@@ -329,12 +338,18 @@ Diagnosis when it caps below target:
 ## Cleanup
 
 The script force-deletes each batch's pods in parallel, then deletes the
-namespace and waits for it to disappear. If a run is interrupted, clean up with:
+namespace and waits for it to disappear. With `NAMESPACE` set it only deletes
+the pods and leaves the namespace in place. If a run is interrupted, clean up
+with:
 
 ```sh
 kubectl get namespaces | grep ins-bench
 kubectl delete namespace <name> --wait=false
 ```
+
+With `NAMESPACE` set there is no namespace to delete; leftover pods live there
+under `bench-*` names and are removed the same way with
+`bulk-bench -mode=delete -namespace=<namespace> -name-prefix=<prefix>`.
 
 Deleting through the namespace controller is slow (~10 pods/s) but correct; for
 tens of thousands of leftovers use the binary built by the script:
