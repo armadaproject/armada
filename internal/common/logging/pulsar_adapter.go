@@ -4,10 +4,10 @@ import (
 	pulsarlog "github.com/apache/pulsar-client-go/pulsar/log"
 )
 
-var pulsarAdapterSkipFrames = StdSkipFrames
-
 // Wrapper to adapt Logger to the logger interface expected by the pulsar client
 type pulsarWrapper struct {
+	// l already skips this wrapper's frame when reporting the caller (see newPulsarLogger). Loggers derived
+	// from it keep that skip, so they are wrapped directly rather than through newPulsarLogger.
 	l *Logger
 }
 
@@ -17,27 +17,19 @@ func NewPulsarLogger() pulsarlog.Logger {
 }
 
 func (p pulsarWrapper) SubLogger(fs pulsarlog.Fields) pulsarlog.Logger {
-	return newPulsarLogger(
-		p.l.WithFields(fs),
-	)
+	return &pulsarWrapper{l: p.l.WithFields(fs)}
 }
 
 func (p pulsarWrapper) WithFields(fs pulsarlog.Fields) pulsarlog.Entry {
-	return newPulsarLogger(
-		p.l.WithFields(fs),
-	)
+	return &pulsarWrapper{l: p.l.WithFields(fs)}
 }
 
 func (p pulsarWrapper) WithField(name string, value interface{}) pulsarlog.Entry {
-	return newPulsarLogger(
-		p.l.WithField(name, value),
-	)
+	return &pulsarWrapper{l: p.l.WithField(name, value)}
 }
 
 func (p pulsarWrapper) WithError(err error) pulsarlog.Entry {
-	return newPulsarLogger(
-		p.l.WithError(err),
-	)
+	return &pulsarWrapper{l: p.l.WithError(err)}
 }
 
 func (p pulsarWrapper) Debug(args ...any) {
@@ -72,8 +64,9 @@ func (p pulsarWrapper) Errorf(format string, args ...any) {
 	p.l.Errorf(format, args...)
 }
 
-func newPulsarLogger(l *Logger) pulsarlog.Logger {
+// newPulsarLogger wraps l, skipping the wrapper's own frame when reporting the caller.
+func newPulsarLogger(l *Logger) *pulsarWrapper {
 	return &pulsarWrapper{
-		l: l.WithCallerSkip(pulsarAdapterSkipFrames),
+		l: l.WithCallerSkip(1),
 	}
 }
