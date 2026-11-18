@@ -80,19 +80,9 @@ type FairSchedulingAlgo struct {
 type FairSchedulingAlgoOption func(*FairSchedulingAlgo)
 
 // WithPolicyClock supplies policy time for tests and future replay callers:
-// the time used for rate-limit token refill, executor expiry, optimiser
+// the time used for rate-limit token refill, executor eligibility, optimiser
 // cadence and scheduling context timestamps. The clock must be non-nil.
 // Production callers use the default real clock.
-//
-// Reuse one algorithm instance across rounds so rate limiters keep their
-// reservations. Advance the clock monotonically, call ShortJobPenalty.SetNow
-// with the policy time before each round, and pass a job database whose state
-// matches the policy time.
-//
-// The option only changes the clock. It does not simulate job completions or
-// scheduler computation time, and with a frozen clock the scheduling durations
-// and the cycle time metrics derived from them read zero. Soft budgets,
-// deadlines and timeouts stay on host time.
 func WithPolicyClock(clk clock.Clock) FairSchedulingAlgoOption {
 	return func(algo *FairSchedulingAlgo) { algo.clock = clk }
 }
