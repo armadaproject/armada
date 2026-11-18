@@ -349,28 +349,43 @@ func readParquet[T any](t *testing.T, path string) []T {
 }
 
 func TestReplayTimeAloneRefillsRateLimiters(t *testing.T) {
-	dir := copyScenario(t)
-	source := filepath.Join(dir, "scheduler.yaml")
-	raw, err := os.ReadFile(source)
-	require.NoError(t, err)
-	rates := strings.NewReplacer(
-		`maximumSchedulingRate: "+Inf"`, "maximumSchedulingRate: 0.1",
-		"maximumSchedulingBurst: 1000", "maximumSchedulingBurst: 1",
-		`maximumPerQueueSchedulingRate: "+Inf"`, "maximumPerQueueSchedulingRate: 0.05",
-		"maximumPerQueueSchedulingBurst: 1000", "maximumPerQueueSchedulingBurst: 1",
-	)
-	require.NoError(t, os.WriteFile(source, []byte(rates.Replace(string(raw))), 0o644))
-	updateScenario(t, dir, func(s map[string]any) { s["window"].(map[string]any)["cycle_us"] = 10_000_000 })
-	first := cpuJob("a", measurementStart)
-	first.Requests = `{"resourceRequirements":{"requests":{"cpu":"500m"}}}`
-	second := first
-	second.ID = "b"
-	writeInput(t, dir, [][]recordedJob{{first, second}})
-	run := filepath.Join(dir, "out")
-	require.NoError(t, replay.RunScenario(t.Context(), filepath.Join(dir, "scenario.json"), run, ""))
-	rows := readParquet[checkedAttempt](t, filepath.Join(run, "attempts.parquet"))
-	require.Len(t, rows, 2)
-	require.Equal(t, []int64{measurementStart, measurementStart + 20_000_000}, []int64{rows[0].AllocatedUS, rows[1].AllocatedUS})
+	for _, tc := range []struct {
+		name                  string
+		globalRate, queueRate string
+		secondAllocationUS    int64
+	}{
+		{"global rate binds", "0.05", "0.1", measurementStart + 20_000_000},
+		{"per-queue rate binds", "0.1", "0.05", measurementStart + 20_000_000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := copyScenario(t)
+			editSchedulerConfig(t, dir, func(config string) string {
+				rates := strings.NewReplacer(
+					`maximumSchedulingRate: "+Inf"`, "maximumSchedulingRate: "+tc.globalRate,
+					"maximumSchedulingBurst: 1000", "maximumSchedulingBurst: 1",
+					`maximumPerQueueSchedulingRate: "+Inf"`, "maximumPerQueueSchedulingRate: "+tc.queueRate,
+					"maximumPerQueueSchedulingBurst: 1000", "maximumPerQueueSchedulingBurst: 1",
+				)
+				return rates.Replace(config)
+			})
+			updateScenario(t, dir, func(s map[string]any) {
+				window := s["window"].(map[string]any)
+				window["warmup_start_us"] = measurementStart
+				window["end_us"] = measurementStart + minuteUS
+				window["cycle_us"] = 10_000_000
+			})
+			first := cpuJob("a", measurementStart)
+			first.Requests = `{"resourceRequirements":{"requests":{"cpu":"500m"}}}`
+			second := first
+			second.ID = "b"
+			writeInput(t, dir, [][]recordedJob{{first, second}})
+			run := filepath.Join(dir, "out")
+			require.NoError(t, replay.RunScenario(t.Context(), filepath.Join(dir, "scenario.json"), run, ""))
+			rows := readParquet[checkedAttempt](t, filepath.Join(run, "attempts.parquet"))
+			require.Len(t, rows, 2)
+			require.Equal(t, []int64{measurementStart, tc.secondAllocationUS}, []int64{rows[0].AllocatedUS, rows[1].AllocatedUS})
+		})
+	}
 }
 
 func TestReplayEmptyWorkloadProducesReadableOutputs(t *testing.T) {
@@ -491,10 +506,9 @@ func TestReplayAppliesPerPoolFairSharePreemptionRate(t *testing.T) {
 		}
 	}
 	require.ElementsMatch(t, []int64{measurementStart, measurementStart + 20_000_000}, challengerStarts)
-	for _, row := range readParquet[checkedLogical](t, filepath.Join(out, "logical_jobs.parquet")) {
-		if row.ID == "cordoned" {
-			require.Equal(t, "queued", row.State)
-			require.Empty(t, row.Reason, "cordoned is eligible but queued")
-		}
-	}
+	jobs := readParquet[checkedLogical](t, filepath.Join(out, "logical_jobs.parquet"))
+	require.Contains(t, jobs, checkedLogical{
+		ID: "cordoned", State: "queued", ObservedUS: measurementStart + 40_000_000,
+		UsefulUS: 120 * minuteUS, Censored: true,
+	}, "cordoned job stays in eligible queued demand")
 }
