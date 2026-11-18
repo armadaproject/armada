@@ -5,16 +5,14 @@
 #
 # This does not start or use a local cluster. bulk-bench reads the kubeconfig
 # and sends HTTPS creates straight to clusters[].cluster.server; kubectl is only
-# used for namespaces and cleanup. Pin the target before confirming:
+# used for namespaces and cleanup. Pass the target context as the only argument:
 #
-#   export KUBECONFIG=/path/to/dev.kubeconfig   # current-context must be dev
-#   kubectl config current-context
-#   kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}'
+#   ./_local/poc/api-throughput-bench.sh <context>
 #
-# For a multi-context kubeconfig, materialize just the dev one:
-#
-#   kubectl config view --minify --raw --context dev > /tmp/dev.kubeconfig
-#   export KUBECONFIG=/tmp/dev.kubeconfig
+# The preflight prints the resolved context, server and kube-system UID and
+# refuses without CONFIRM=yes. EXPECT_CLUSTER_UID=<uid> additionally pins the
+# cluster fingerprint (a stable per-cluster value, unlike a context name).
+# See the available names with: kubectl config get-contexts -o name
 #
 # Pods are NOT pinned to a fake node: they schedule and actually run, so
 # scheduler/kubelet load is part of the number and the cluster only runs what
@@ -24,11 +22,11 @@
 # RestartPolicy Never, no volumes, no host namespaces, no privileges. It sleeps
 # and exits with the namespace. Never override IMAGE with a real workload.
 #
-#   CONFIRM=yes ./_local/poc/api-throughput-bench.sh
-#   CONFIRM=yes COUNT=2000 CONCURRENCY="32 64 128" ./_local/poc/api-throughput-bench.sh
+#   CONFIRM=yes ./_local/poc/api-throughput-bench.sh <context>
+#   CONFIRM=yes COUNT=2000 CONCURRENCY="32 64 128" ./_local/poc/api-throughput-bench.sh <context>
 #
-# Everything else (sizes, cleanup, summary) comes from
-# dev-cluster-insert-bench.sh; see its doc for reading summary.csv.
+# Results: $OUT/summary.csv plus $OUT/benchmark.md (table + verdict); the path
+# is printed at the end.
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
@@ -49,4 +47,4 @@ if [[ "${IMAGE:-registry.k8s.io/pause:3.9}" != registry.k8s.io/pause:* && "${ALL
   exit 1
 fi
 
-exec ./_local/poc/dev-cluster-insert-bench.sh
+exec ./_local/poc/dev-cluster-insert-bench.sh "$@"

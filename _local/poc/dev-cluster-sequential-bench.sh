@@ -6,11 +6,12 @@
 # Answers "how fast can a single writer insert a pod, and what does object size
 # cost?" — not the parallel ceiling (use dev-cluster-insert-bench.sh for that).
 #
-#   CONFIRM=yes ./_local/poc/dev-cluster-sequential-bench.sh
-#   CONFIRM=yes SIZES="small 200000" ./_local/poc/dev-cluster-sequential-bench.sh
+#   CONFIRM=yes ./_local/poc/dev-cluster-sequential-bench.sh <context>
+#   CONFIRM=yes SIZES="small 200000" ./_local/poc/dev-cluster-sequential-bench.sh <context>
 #
 # Runs the matrix and cleanup from dev-cluster-insert-bench.sh; see
 # dev-cluster-insert-bench.md for the tunables and how to read the result.
+# Results: $OUT/summary.csv plus $OUT/benchmark.md (table + verdict).
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
@@ -25,4 +26,4 @@ export RATES=""
 export PACE_SIZES=""
 export TARGET_RATE=0 # no rate target: the achieved sequential rate is the result
 
-exec ./_local/poc/dev-cluster-insert-bench.sh
+exec ./_local/poc/dev-cluster-insert-bench.sh "$@"

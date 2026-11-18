@@ -5,8 +5,10 @@
 #
 # Read _local/poc/dev-cluster-insert-bench.md before the first run.
 #
-#   SMOKE=1 ./_local/poc/dev-cluster-insert-bench.sh          # 500 pods, sanity
-#   CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh      # full matrix
+#   SMOKE=1 CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh   # 500 pods, sanity
+#   CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh           # full matrix
+#   CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh <context> # target a context
+#   EXPECT_CLUSTER_UID=<uid> CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh <context>
 #
 # Everything is tunable through the environment; see the tunables below.
 
@@ -60,13 +62,40 @@ require_tools() {
 
 preflight() {
   require_tools
+
+  # A pinned context must be what both kubectl and bulk-bench use; minify it
+  # into a private temp file (it holds credentials) and point both at that.
+  if [[ -n "${CONTEXT:-}" ]]; then
+    PINNED_KUBECONFIG=$(mktemp)
+    trap 'rm -f "$PINNED_KUBECONFIG"' EXIT
+    if ! kubectl config view --minify --raw --context "$CONTEXT" >"$PINNED_KUBECONFIG"; then
+      printf 'error: cannot resolve context %q; available contexts:\n' "$CONTEXT" >&2
+      kubectl config get-contexts -o name 2>/dev/null | sed 's/^/  /' >&2 || true
+      exit 1
+    fi
+    export KUBECONFIG="$PINNED_KUBECONFIG"
+  fi
+
   kubectl version >/dev/null 2>&1 || die "kubectl cannot reach a cluster"
 
-  local context server
+  local context server uid
   context=$(kubectl config current-context)
   server=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+  if [[ -n "${CONTEXT:-}" && "$context" != "$CONTEXT" ]]; then
+    die "resolved context '$context' does not match CONTEXT=$CONTEXT"
+  fi
+  # kube-system's UID is a stable per-cluster fingerprint, unlike a context name.
+  uid=$(kubectl get namespace kube-system -o jsonpath='{.metadata.uid}' 2>/dev/null || true)
   log "context: $context"
   log "server:  $server"
+  log "cluster UID: ${uid:-<kube-system UID unreadable>}"
+  if [[ -n "${EXPECT_CLUSTER_UID:-}" && "$uid" != "$EXPECT_CLUSTER_UID" ]]; then
+    die "cluster UID ${uid:-<unreadable>} != EXPECT_CLUSTER_UID=$EXPECT_CLUSTER_UID; refusing to run"
+  fi
+  # Keep the target identity for the markdown report.
+  TARGET_CONTEXT=$context
+  TARGET_SERVER=$server
+  TARGET_UID=$uid
 
   local runs=0
   for _ in $SIZES; do for _ in $CONCURRENCY; do runs=$((runs + 1)); done; done
@@ -266,7 +295,54 @@ verdict() {
     }' "$csv"
 }
 
+# Writes the table and verdict as a self-contained markdown report, so the run
+# can be attached to a PR or issue without the scratch directory.
+markdown_report() {
+  local csv="$OUT/summary.csv" report="$OUT/benchmark.md" pacing node
+  [[ -s "$csv" ]] || return 0
+  if [[ -n "$RATES" ]]; then pacing="paced ($RATES/s)"; else pacing="unpaced (max throughput)"; fi
+  if [[ -n "$NODE" ]]; then
+    node="$NODE (Pending: scheduler/kubelet excluded)"
+  else
+    node="scheduler-placed (pods actually run)"
+  fi
+  {
+    printf '# Pod insert benchmark — %s\n\n' "${TARGET_CONTEXT:-unknown}"
+    printf -- '- Date: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf -- '- Context: `%s`\n' "${TARGET_CONTEXT:-unknown}"
+    printf -- '- Server: `%s`\n' "${TARGET_SERVER:-unknown}"
+    printf -- '- Cluster UID: `%s`\n' "${TARGET_UID:-unreadable}"
+    printf -- '- Pods per run: %s\n' "$COUNT"
+    printf -- '- Sizes: `%s` (annotation bytes), concurrency `%s`\n' "$SIZES" "$CONCURRENCY"
+    printf -- '- Pacing: %s\n' "$pacing"
+    printf -- '- Node binding: %s\n' "$node"
+    printf -- '- Image: `%s`\n\n' "$IMAGE"
+    printf '## Results\n\n'
+    awk -F, '
+      BEGIN {
+        print "| run | pods | conc | rate | pod bytes | pods/s | client p50 ms | client p99 ms | apiserver POST/s | POST mean ms | etcd create ms | webhook ms | inflight peak | apiserver CPU | 201 | 429 | 5xx | APF rejected |"
+        print "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
+      }
+      NR > 1 {
+        printf "| %s | %s | %s | %s | %s | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.0f | %.2f | %s | %s | %s | %s |\n",
+          $1, $2, $3, ($4 == "0" ? "none" : $4), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+      }' "$csv"
+    printf '\n## Verdict\n\n```\n'
+    verdict
+    printf '```\n'
+  } >"$report"
+  log "markdown report: $report"
+}
+
 main() {
+  if [[ $# -gt 1 ]]; then
+    printf 'usage: %s [context]\n' "${BASH_SOURCE[0]}" >&2
+    exit 2
+  fi
+  # Optional positional argument: the kubeconfig context to target.
+  if [[ $# -eq 1 ]]; then
+    export CONTEXT=$1
+  fi
   preflight
 
   # Canary: one pod, so an admission rejection or a broken path fails fast and
@@ -296,6 +372,7 @@ main() {
 
   summarize
   verdict
+  markdown_report
   log "raw JSON and logs are in $OUT"
   log "to stop anything left behind: kubectl get ns | grep ins-bench"
 }

@@ -69,14 +69,17 @@ prints the table, and ends with a verdict:
 
 ```sh
 # 1. Smoke test: 500 pods, ~1 minute. Proves the path works end to end.
-SMOKE=1 CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh
+SMOKE=1 CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh <context>
 
 # 2. Full sweep: 3 sizes x 2 concurrencies + a paced 1600/s run.
-CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh
+CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh <context>
 ```
 
-The script refuses to run without `CONFIRM=yes` and prints the context, the
-server URL and the total number of pods it is about to create first.
+The first positional argument is the kubeconfig context to target (optional;
+the current context is used otherwise). `kubectl config get-contexts -o name`
+lists the names, and a wrong name prints them again. The script refuses to run
+without `CONFIRM=yes` and prints the context, the server URL, the cluster UID
+and the total number of pods it is about to create first.
 
 Tunables (`CONFIRM=yes SIZES=... ./script`):
 
@@ -92,10 +95,13 @@ Tunables (`CONFIRM=yes SIZES=... ./script`):
 | `DELETE_CONCURRENCY` | `64` | parallel deletes during cleanup |
 | `TARGET_RATE` | `1600` | rate the final verdict judges against (`0` disables the target check) |
 | `NODE` | `bench-nonexistent` | node name bound into each pod; empty lets pods schedule and run |
+| `CONTEXT` | current context | kubeconfig context to target; the positional argument overrides it. Minified to a private temp kubeconfig for both kubectl and bulk-bench |
+| `EXPECT_CLUSTER_UID` | unset | refuse unless kube-system's namespace UID matches this fingerprint |
 | `OUT` | `/tmp/armada-insert-bench-<ts>` | results directory |
 
 Each run leaves `<tag>.json` (full metrics), `<tag>.log` (console output) and,
-after the sweep, `summary.csv`.
+after the sweep, `summary.csv` and `benchmark.md` (markdown table + verdict, for
+attaching to a PR or issue).
 
 ## Sequential writes (one at a time)
 
@@ -103,17 +109,18 @@ For the single-writer question — how fast one create after another lands, and
 what pod object size costs — run the wrapper:
 
 ```sh
-CONFIRM=yes ./_local/poc/dev-cluster-sequential-bench.sh
+CONFIRM=yes ./_local/poc/dev-cluster-sequential-bench.sh <context>
 ```
 
 It fixes `CONCURRENCY=1`, `COUNT=500`, `SIZES="small large"`, skips the paced
 run, and disables the target-rate verdict. `summary.csv` is the result:
 `podsPerSecond` is then `1 / create round-trip`, so read the `small` and `large`
 rows against each other — the drop is the per-object encode/admit/store cost,
-not queueing. For a pod near the 200 KB annotation padding limit:
+not queueing. The same numbers are written to `benchmark.md`. For a pod near the
+200 KB annotation padding limit:
 
 ```sh
-CONFIRM=yes SIZES="small 200000" ./_local/poc/dev-cluster-sequential-bench.sh
+CONFIRM=yes SIZES="small 200000" ./_local/poc/dev-cluster-sequential-bench.sh <context>
 ```
 
 All other tunables from the table above still apply through the environment.
@@ -121,23 +128,31 @@ All other tunables from the table above still apply through the environment.
 ## Max throughput with running pods
 
 To find the absolute ceiling of the API create path — pods schedule and actually
-run, so scheduler and kubelet cost is part of the number — use the other
-wrapper, pointed at the target cluster by kubeconfig:
+run, so scheduler and kubelet cost is part of the number — pin the target
+context and run:
 
 ```sh
-export KUBECONFIG=/path/to/dev.kubeconfig   # current-context must be the target
-CONFIRM=yes ./_local/poc/api-throughput-bench.sh
+# fingerprint the candidate once; the UID is stable and unique per cluster
+kubectl --context <context> get ns kube-system -o jsonpath='{.metadata.uid}{"\n"}'
+
+CONFIRM=yes ./_local/poc/api-throughput-bench.sh <context>
+# optionally pin the fingerprint as well:
+EXPECT_CLUSTER_UID=<uid> CONFIRM=yes ./_local/poc/api-throughput-bench.sh <context>
 ```
 
-Nothing runs locally: `bulk-bench` reads the kubeconfig and sends HTTPS creates
-straight to `clusters[].cluster.server`; `kubectl` is only used for namespaces
-and cleanup, and the preflight prints the context and server URL before it asks
-for confirmation. To take one context out of a shared kubeconfig:
+The positional argument is minified into a private temp kubeconfig and exported,
+so `kubectl` and `bulk-bench` hit the same apiserver; `EXPECT_CLUSTER_UID` makes
+the script refuse before the canary if that is not the cluster you meant.
+Nothing runs locally: `bulk-bench` sends HTTPS creates straight to
+`clusters[].cluster.server`; `kubectl` is only used for namespaces and cleanup.
+The run writes `benchmark.md` (target identity, results table, verdict) next to
+`summary.csv` in the results directory, whose path is printed at the end.
+
+To pin by kubeconfig file instead:
 
 ```sh
-kubectl config view --minify --raw --context dev > /tmp/dev.kubeconfig
-export KUBECONFIG=/tmp/dev.kubeconfig
-kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}'
+kubectl config view --minify --raw --context <context> > /tmp/target.kubeconfig
+export KUBECONFIG=/tmp/target.kubeconfig
 ```
 
 If the dev API server is only reachable from inside the cluster (no direct
