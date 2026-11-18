@@ -80,9 +80,8 @@ type FairSchedulingAlgo struct {
 type FairSchedulingAlgoOption func(*FairSchedulingAlgo)
 
 // WithPolicyClock supplies policy time for tests and future replay callers.
-// The clock must be non-nil. Production callers use the default real clock;
-// operational timeouts, context deadlines and the new-job scheduling soft
-// budgets remain on host time.
+// The clock must be non-nil. Production callers use the default real clock.
+// See docs/developer/scheduler-policy-clock.md for what remains on host time.
 func WithPolicyClock(clk clock.Clock) FairSchedulingAlgoOption {
 	return func(algo *FairSchedulingAlgo) { algo.clock = clk }
 }
