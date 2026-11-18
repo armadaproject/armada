@@ -15,7 +15,7 @@
   <p>
     <a href="https://armadaproject.io">Website</a> ·
     <a href="https://armadaproject.io/getting-started">Quickstart</a> ·
-    <a href="https://armadaproject.io/docs">Documentation</a> ·
+    <a href="https://armadaproject.io/docs/core-concepts">Documentation</a> ·
     <a href="https://cloud-native.slack.com/archives/C03T9CBCEMC">Slack</a>
   </p>
 </div>
@@ -261,11 +261,11 @@ For documentation, see the following:
 
 - [Overview](https://armadaproject.io/)
 - [Getting Started](https://armadaproject.io/getting-started)
-- [Architecture](https://armadaproject.io/understanding-armada/architecture)
-- [User guide](https://armadaproject.io/user-guide)
-- [Development guide](https://armadaproject.io/developer-guide)
+- [Architecture](https://armadaproject.io/docs/architecture)
+- [User guide](https://armadaproject.io/docs/user-guide)
+- [Development guide](https://armadaproject.io/docs/developer-guide)
 - [Release notes/Version history](https://github.com/armadaproject/armada/releases)
-- [API Documentation](https://armadaproject.io/user-guide/api)
+- [API Documentation](https://armadaproject.io/docs/api)
 
 We expect readers of the documentation to have a basic understanding of Docker and Kubernetes; see, e.g., the following links:
 
