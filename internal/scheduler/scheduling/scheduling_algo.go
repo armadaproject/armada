@@ -91,8 +91,8 @@ type FairSchedulingAlgoOption func(*FairSchedulingAlgo)
 //
 // The option only changes the clock. It does not simulate job completions or
 // scheduler computation time, and with a frozen clock the scheduling durations
-// and cycle metrics read zero. Soft budgets, deadlines and timeouts stay on
-// host time.
+// and the cycle time metrics derived from them read zero. Soft budgets,
+// deadlines and timeouts stay on host time.
 func WithPolicyClock(clk clock.Clock) FairSchedulingAlgoOption {
 	return func(algo *FairSchedulingAlgo) { algo.clock = clk }
 }
