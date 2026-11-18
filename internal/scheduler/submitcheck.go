@@ -298,6 +298,10 @@ func (srv *SubmitChecker) getGangSchedulingResult(gangJobs []*jobdb.Job, state *
 // TODO: there are a number of things this won't catch:
 //   - Gang jobs that will use more than the allowed capacity limit
 func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSchedulingContext, state *schedulerState) schedulingResult {
+	if len(srv.schedulingConfig.Pools) == 0 {
+		return schedulingResult{reason: "no scheduler pools are configured; configure scheduling.pools"}
+	}
+
 	successfulPools := map[string]bool{}
 	var sb strings.Builder
 
