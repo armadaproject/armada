@@ -70,8 +70,19 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		queue             *api.Queue
 		submitCheckConfig *configuration.SubmitCheckConfig
 		clockStep         time.Duration
+		noConfiguredPools bool
 	}
 	tests := map[string]submitCheckCase{
+		"No pools configured": {
+			executors:         []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
+			jobs:              []*jobdb.Job{smallJob1, smallGangJob[0], smallGangJob[1]},
+			noConfiguredPools: true,
+			expectedResult: map[string]schedulingResult{
+				smallJob1.Id():       {reason: "no scheduler pools are configured; configure scheduling.pools"},
+				smallGangJob[0].Id(): {reason: "no scheduler pools are configured; configure scheduling.pools"},
+				smallGangJob[1].Id(): {reason: "no scheduler pools are configured; configure scheduling.pools"},
+			},
+		},
 		"One job schedulable": {
 			executorTimeout: defaultTimeout,
 			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
@@ -480,7 +491,11 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				testSubmitCheckConfig = *tc.submitCheckConfig
 			}
 			fakeClock := testclock.NewFakeClock(baseTime)
-			submitCheck := NewSubmitChecker(schedulingConfig,
+			caseSchedulingConfig := schedulingConfig
+			if tc.noConfiguredPools {
+				caseSchedulingConfig.Pools = nil
+			}
+			submitCheck := NewSubmitChecker(caseSchedulingConfig,
 				testSubmitCheckConfig,
 				mockExecutorRepo,
 				mockQueueCache,
@@ -500,7 +515,9 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			for id, expected := range tc.expectedResult {
 				actualResult, ok := results[id]
 				require.True(t, ok)
-				actualResult.reason = ""
+				if expected.reason == "" {
+					actualResult.reason = ""
+				}
 
 				slices.Sort(actualResult.pools)
 				slices.Sort(expected.pools)
