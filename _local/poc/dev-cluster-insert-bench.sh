@@ -297,16 +297,28 @@ markdown_report() {
     printf -- '- Pacing: %s\n' "$pacing"
     printf -- '- Node binding: %s\n' "$node"
     printf -- '- Namespace: %s\n' "$ns_note"
+    if [[ "${METRICS:-false}" == "true" ]]; then
+      printf -- '- Apiserver metrics: readable (server-side columns populated)\n'
+    else
+      printf -- '- Apiserver metrics: unavailable (server-side columns are n/a; throughput and latency are client-side)\n'
+    fi
     printf -- '- Image: `%s`\n\n' "$IMAGE"
     printf '## Results\n\n'
-    awk -F, '
+    awk -F, -v metrics="${METRICS:-false}" '
+      function cell(value, format) {
+        return metrics == "true" ? sprintf(format, value) : "n/a"
+      }
       BEGIN {
         print "| run | pods | conc | rate | pod bytes | pods/s | client p50 ms | client p99 ms | apiserver POST/s | POST mean ms | etcd create ms | webhook ms | inflight peak | apiserver CPU | 201 | 429 | 5xx | APF rejected |"
         print "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
       }
       NR > 1 {
-        printf "| %s | %s | %s | %s | %s | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.0f | %.2f | %s | %s | %s | %s |\n",
-          $1, $2, $3, ($4 == "0" ? "none" : $4), $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+        printf "| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n",
+          $1, $2, $3, ($4 == "0" ? "none" : $4), $5,
+          sprintf("%.1f", $6), sprintf("%.1f", $7), sprintf("%.1f", $8),
+          cell($9, "%.1f"), cell($10, "%.1f"), cell($11, "%.1f"), cell($12, "%.1f"),
+          cell($13, "%.0f"), cell($14, "%.2f"),
+          cell($15, "%s"), cell($16, "%s"), cell($17, "%s"), cell($18, "%s")
       }' "$csv"
     printf '\n## Verdict\n\n```\n'
     verdict

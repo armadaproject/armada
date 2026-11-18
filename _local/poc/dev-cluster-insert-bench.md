@@ -32,6 +32,13 @@ Per run, written to a JSON file and printed as two lines:
 | `podsInStorageBefore/After` | `apiserver_resource_objects` | stored pod count (alpha metric, refreshed periodically; `code201` is authoritative) |
 | `dbSizeBytesBefore/After` | `apiserver_storage_size_bytes` | etcd space growth |
 
+If `/metrics` is not readable by your identity, preflight disables server-side
+collection with a warning and the sweep continues. `podsPerSecond` and the
+client-side latency percentiles are still valid; the server-side columns are
+reported as `n/a` in `benchmark.md`. The probe is `kubectl get --raw /metrics`,
+so grant `get` on the non-resource `/metrics` URL (or run as a control-plane
+identity) to populate them.
+
 ## How the load is shaped
 
 - **Batches of 20k.** `COUNT=20000` per run, then the pods are force-deleted in

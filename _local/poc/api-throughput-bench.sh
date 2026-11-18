@@ -14,6 +14,9 @@
 # cluster fingerprint (a stable per-cluster value, unlike a context name).
 # See the available names with: kubectl config get-contexts -o name
 #
+# apiserver /metrics is optional: if your identity cannot read it, the run
+# continues with client-side throughput/latency and server columns marked n/a.
+#
 # Pods are NOT pinned to a fake node: they schedule and actually run, so
 # scheduler/kubelet load is part of the number and the cluster only runs what
 # fits (the rest stay Pending; creates still count).
