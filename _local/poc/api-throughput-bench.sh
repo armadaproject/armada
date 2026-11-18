@@ -22,12 +22,11 @@
 # RestartPolicy Never, no volumes, no host namespaces, no privileges. It sleeps
 # and is deleted afterwards. Never override IMAGE with a real workload.
 #
-# NAMESPACE=<existing> uses a namespace you already have: nothing is created or
-# deleted at namespace level, only uniquely named pods. Empty (default) creates
-# a fresh ins-bench-<tag> namespace per run and removes it afterwards.
+# NAMESPACE=<existing> is required: runs never create or delete namespaces,
+# only uniquely named pods in it, which are deleted afterwards.
 #
-#   CONFIRM=yes ./_local/poc/api-throughput-bench.sh <context>
-#   CONFIRM=yes COUNT=2000 CONCURRENCY="32 64 128" ./_local/poc/api-throughput-bench.sh <context>
+#   NAMESPACE=<existing-namespace> CONFIRM=yes ./_local/poc/api-throughput-bench.sh <context>
+#   NAMESPACE=<existing-namespace> CONFIRM=yes COUNT=2000 CONCURRENCY="32 64 128" ./_local/poc/api-throughput-bench.sh <context>
 #
 # Results: $OUT/summary.csv plus $OUT/benchmark.md (table + verdict); the path
 # is printed at the end.

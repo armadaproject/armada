@@ -35,11 +35,11 @@ Per run, written to a JSON file and printed as two lines:
 ## How the load is shaped
 
 - **Batches of 20k.** `COUNT=20000` per run, then the pods are force-deleted in
-  parallel (`bulk-bench -mode=delete`, a few hundred per second) and the empty
-  namespace is removed before the next run starts. Going through the namespace
-  controller instead deletes pods at roughly 10/s, which would make a 20k
-  cleanup take half an hour. Deletes are as expensive as creates, so they are
-  never in flight during a measured window.
+  parallel (`bulk-bench -mode=delete`, a few hundred per second) before the next
+  run starts. Waiting for pod GC or the namespace controller instead deletes
+  pods at roughly 10/s, which would make a 20k cleanup take half an hour.
+  Deletes are as expensive as creates, so they are never in flight during a
+  measured window.
 - **Pods stay Pending.** Each pod is bound to a node name that does not exist
   (`-node-name=bench-nonexistent`). The scheduler skips bound pods and no
   kubelet sees them, so the numbers isolate the create path. Real Armada inserts
@@ -69,17 +69,19 @@ prints the table, and ends with a verdict:
 
 ```sh
 # 1. Smoke test: 500 pods, ~1 minute. Proves the path works end to end.
-SMOKE=1 CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh <context>
+NAMESPACE=bench SMOKE=1 CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh <context>
 
 # 2. Full sweep: 3 sizes x 2 concurrencies + a paced 1600/s run.
-CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh <context>
+NAMESPACE=bench CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh <context>
 ```
 
-The first positional argument is the kubeconfig context to target (optional;
-the current context is used otherwise). `kubectl config get-contexts -o name`
-lists the names, and a wrong name prints them again. The script refuses to run
-without `CONFIRM=yes` and prints the context, the server URL, the cluster UID
-and the total number of pods it is about to create first.
+`NAMESPACE` is required and must already exist; the script never creates or
+deletes namespaces. The first positional argument is the kubeconfig context to
+target (optional; the current context is used otherwise).
+`kubectl config get-contexts -o name` lists the names, and a wrong name prints
+them again. The script refuses to run without `CONFIRM=yes` and prints the
+context, server URL, cluster UID, namespace and the total number of pods it is
+about to create first.
 
 Tunables (`CONFIRM=yes SIZES=... ./script`):
 
@@ -95,7 +97,7 @@ Tunables (`CONFIRM=yes SIZES=... ./script`):
 | `DELETE_CONCURRENCY` | `64` | parallel deletes during cleanup |
 | `TARGET_RATE` | `1600` | rate the final verdict judges against (`0` disables the target check) |
 | `NODE` | `bench-nonexistent` | node name bound into each pod; empty lets pods schedule and run |
-| `NAMESPACE` | empty | reuse this existing namespace for every run; nothing is created or deleted at namespace level |
+| `NAMESPACE` | none (required) | existing namespace to run in; never created, labelled or deleted |
 | `CONTEXT` | current context | kubeconfig context to target; the positional argument overrides it. Minified to a private temp kubeconfig for both kubectl and bulk-bench |
 | `EXPECT_CLUSTER_UID` | unset | refuse unless kube-system's namespace UID matches this fingerprint |
 | `OUT` | `/tmp/armada-insert-bench-<ts>` | results directory |
@@ -104,11 +106,9 @@ Each run leaves `<tag>.json` (full metrics), `<tag>.log` (console output) and,
 after the sweep, `summary.csv` and `benchmark.md` (markdown table + verdict, for
 attaching to a PR or issue).
 
-By default the script creates a fresh `ins-bench-<tag>` namespace per run and
-deletes it afterwards. Set `NAMESPACE=<existing>` to use a namespace you already
-have instead: no namespace is created or deleted, pods are named with a unique
-per-invocation prefix and deleted by name, and your namespace's Pod Security
-policy applies unchanged. That mode only needs pod create/delete rights.
+Pods are named with a unique per-invocation prefix and deleted by name
+afterwards; the namespace's Pod Security policy applies unchanged. That only
+needs pod create/delete rights — no namespace permissions at all.
 
 ## Sequential writes (one at a time)
 
@@ -116,7 +116,7 @@ For the single-writer question — how fast one create after another lands, and
 what pod object size costs — run the wrapper:
 
 ```sh
-CONFIRM=yes ./_local/poc/dev-cluster-sequential-bench.sh <context>
+NAMESPACE=<existing-namespace> CONFIRM=yes ./_local/poc/dev-cluster-sequential-bench.sh <context>
 ```
 
 It fixes `CONCURRENCY=1`, `COUNT=500`, `SIZES="small large"`, skips the paced
@@ -127,7 +127,7 @@ not queueing. The same numbers are written to `benchmark.md`. For a pod near the
 200 KB annotation padding limit:
 
 ```sh
-CONFIRM=yes SIZES="small 200000" ./_local/poc/dev-cluster-sequential-bench.sh <context>
+NAMESPACE=<existing-namespace> CONFIRM=yes SIZES="small 200000" ./_local/poc/dev-cluster-sequential-bench.sh <context>
 ```
 
 All other tunables from the table above still apply through the environment.
@@ -142,18 +142,17 @@ context and run:
 # fingerprint the candidate once; the UID is stable and unique per cluster
 kubectl --context <context> get ns kube-system -o jsonpath='{.metadata.uid}{"\n"}'
 
-CONFIRM=yes ./_local/poc/api-throughput-bench.sh <context>
-# run in a namespace you already have instead of creating ins-bench-* ones:
 NAMESPACE=<existing-namespace> CONFIRM=yes ./_local/poc/api-throughput-bench.sh <context>
 # optionally pin the fingerprint as well:
-EXPECT_CLUSTER_UID=<uid> CONFIRM=yes ./_local/poc/api-throughput-bench.sh <context>
+NAMESPACE=<existing-namespace> EXPECT_CLUSTER_UID=<uid> CONFIRM=yes ./_local/poc/api-throughput-bench.sh <context>
 ```
 
 The positional argument is minified into a private temp kubeconfig and exported,
 so `kubectl` and `bulk-bench` hit the same apiserver; `EXPECT_CLUSTER_UID` makes
 the script refuse before the canary if that is not the cluster you meant.
-Nothing runs locally: `bulk-bench` sends HTTPS creates straight to
-`clusters[].cluster.server`; `kubectl` is only used for namespaces and cleanup.
+`NAMESPACE` must already exist and is never created or deleted; only the
+benchmark's pods are. Nothing runs locally: `bulk-bench` sends HTTPS creates
+straight to `clusters[].cluster.server`.
 The run writes `benchmark.md` (target identity, results table, verdict) next to
 `summary.csv` in the results directory, whose path is printed at the end.
 
@@ -167,8 +166,7 @@ export KUBECONFIG=/tmp/target.kubeconfig
 If the dev API server is only reachable from inside the cluster (no direct
 route from your machine), no kubeconfig will help: build `bulk-bench` into an
 image and run it as a Job in the target namespace instead. Its in-cluster
-ServiceAccount needs `create`/`delete` on pods and `create`/`delete` on
-namespaces.
+ServiceAccount only needs `create`/`delete` on pods in that namespace.
 
 Differences from the dev-cluster runs above:
 
@@ -180,12 +178,10 @@ Differences from the dev-cluster runs above:
   shows the plateau and where it turns over.
 - **Inert workload.** `registry.k8s.io/pause`, 100m CPU / 64Mi, no volumes, no
   host namespaces, no privileges. The wrapper refuses any other image unless
-  `ALLOW_NONPAUSE_IMAGE=1` is set. Pods are deleted in parallel after each run
-  and the namespace is removed, as usual.
-- **Pod Security is not relaxed.** With running pods the benchmark keeps the
-  cluster's pod-security policy instead of labelling the namespace
-  `privileged`; on a cluster that enforces `restricted` the canary will fail
-  rather than run something with wider privileges.
+  `ALLOW_NONPAUSE_IMAGE=1` is set. Pods are deleted in parallel after each run.
+- **Pod Security is not touched.** The namespace's policy is never modified;
+  on a cluster that enforces `restricted` the canary will fail rather than the
+  benchmark relaxing anything.
 
 `COUNT=500` is deliberately small; running thousands of pods on a local cluster
 is what gets a laptop cluster into trouble. Raise it and the concurrency list
@@ -337,26 +333,20 @@ Diagnosis when it caps below target:
 
 ## Cleanup
 
-The script force-deletes each batch's pods in parallel, then deletes the
-namespace and waits for it to disappear. With `NAMESPACE` set it only deletes
-the pods and leaves the namespace in place. If a run is interrupted, clean up
-with:
+The script force-deletes each batch's pods in parallel; the namespace is never
+touched, so there is nothing to remove at namespace level. If a run is
+interrupted, leftover pods live in that namespace under `bench-*` names:
 
 ```sh
-kubectl get namespaces | grep ins-bench
-kubectl delete namespace <name> --wait=false
+kubectl -n <namespace> get pods | grep bench-
 ```
 
-With `NAMESPACE` set there is no namespace to delete; leftover pods live there
-under `bench-*` names and are removed the same way with
-`bulk-bench -mode=delete -namespace=<namespace> -name-prefix=<prefix>`.
-
-Deleting through the namespace controller is slow (~10 pods/s) but correct; for
-tens of thousands of leftovers use the binary built by the script:
+Delete them with the binary built by the script (pod names carry the run ID,
+shown in the logs):
 
 ```sh
 $OUT/bulk-bench -mode=delete -count=20000 -concurrency=64 \
-  -namespace=<name> -name-prefix=bench-<tag>
+  -namespace=<namespace> -name-prefix=bench-<tag>-<run-id>
 ```
 
 Deleting 20k pods writes to etcd once per pod; if the cluster has a small etcd

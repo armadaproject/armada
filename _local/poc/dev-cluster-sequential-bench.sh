@@ -6,8 +6,8 @@
 # Answers "how fast can a single writer insert a pod, and what does object size
 # cost?" — not the parallel ceiling (use dev-cluster-insert-bench.sh for that).
 #
-#   CONFIRM=yes ./_local/poc/dev-cluster-sequential-bench.sh <context>
-#   CONFIRM=yes SIZES="small 200000" ./_local/poc/dev-cluster-sequential-bench.sh <context>
+#   NAMESPACE=<existing-namespace> CONFIRM=yes ./_local/poc/dev-cluster-sequential-bench.sh <context>
+#   NAMESPACE=<existing-namespace> CONFIRM=yes SIZES="small 200000" ./_local/poc/dev-cluster-sequential-bench.sh <context>
 #
 # Runs the matrix and cleanup from dev-cluster-insert-bench.sh; see
 # dev-cluster-insert-bench.md for the tunables and how to read the result.

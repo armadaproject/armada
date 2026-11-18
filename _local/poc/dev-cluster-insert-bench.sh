@@ -5,10 +5,13 @@
 #
 # Read _local/poc/dev-cluster-insert-bench.md before the first run.
 #
-#   SMOKE=1 CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh   # 500 pods, sanity
-#   CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh           # full matrix
-#   CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh <context> # target a context
-#   EXPECT_CLUSTER_UID=<uid> CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh <context>
+#   NAMESPACE=bench SMOKE=1 CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh  # 500 pods, sanity
+#   NAMESPACE=bench CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh          # full matrix
+#   NAMESPACE=bench CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh <context>
+#   NAMESPACE=bench EXPECT_CLUSTER_UID=<uid> CONFIRM=yes ./_local/poc/dev-cluster-insert-bench.sh <context>
+#
+# NAMESPACE is required and must already exist: the script never creates or
+# deletes namespaces, only the pods it names.
 #
 # Everything is tunable through the environment; see the tunables below.
 
@@ -26,11 +29,10 @@ PACE_SIZES=${PACE_SIZES-"medium"}
 PACED_CONCURRENCY=${PACED_CONCURRENCY:-64}
 COOLDOWN=${COOLDOWN:-20}         # seconds between runs, lets etcd settle
 DELETE_CONCURRENCY=${DELETE_CONCURRENCY:-64}
-CLEANUP_TIMEOUT=${CLEANUP_TIMEOUT:-900}
 BENCH_TIMEOUT=${BENCH_TIMEOUT:-15m}
 NODE=${NODE-bench-nonexistent}    # set empty to let pods schedule and actually run
 IMAGE=${IMAGE:-registry.k8s.io/pause:3.9}
-NAMESPACE=${NAMESPACE:-}          # reuse this namespace; empty creates ins-bench-<tag> per run
+NAMESPACE=${NAMESPACE:-}          # existing namespace to use; required, never created
 RUN_ID=${RUN_ID:-$(date +%Y%m%d-%H%M%S)}  # keeps pod names unique across invocations
 OUT=${OUT:-/tmp/armada-insert-bench-$(date +%Y%m%d-%H%M%S)}
 SMOKE=${SMOKE:-0}
@@ -64,6 +66,8 @@ require_tools() {
 
 preflight() {
   require_tools
+  [[ -n "$NAMESPACE" ]] ||
+    die "set NAMESPACE=<existing namespace>; this benchmark does not create namespaces"
 
   # A pinned context must be what both kubectl and bulk-bench use; minify it
   # into a private temp file (it holds credentials) and point both at that.
@@ -91,6 +95,7 @@ preflight() {
   log "context: $context"
   log "server:  $server"
   log "cluster UID: ${uid:-<kube-system UID unreadable>}"
+  log "namespace: $NAMESPACE"
   if [[ -n "${EXPECT_CLUSTER_UID:-}" && "$uid" != "$EXPECT_CLUSTER_UID" ]]; then
     die "cluster UID ${uid:-<unreadable>} != EXPECT_CLUSTER_UID=$EXPECT_CLUSTER_UID; refusing to run"
   fi
@@ -144,29 +149,6 @@ preflight() {
   done
 }
 
-ensure_namespace() {
-  local ns=$1
-  kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-  # PSA restricted namespaces reject a minimal pause pod. Only relax the policy
-  # when the pods are unschedulable and never run; a namespace whose pods do run
-  # keeps whatever policy the cluster gives it.
-  if [[ -n "$NODE" ]]; then
-    kubectl label namespace "$ns" pod-security.kubernetes.io/enforce=privileged --overwrite >/dev/null 2>&1 || true
-  fi
-}
-
-wait_namespace_gone() {
-  local ns=$1 waited=0
-  while kubectl get namespace "$ns" -o name >/dev/null 2>&1; do
-    if (( waited >= CLEANUP_TIMEOUT )); then
-      log "warning: namespace $ns still terminating after ${CLEANUP_TIMEOUT}s; later runs may be contaminated"
-      return 0
-    fi
-    sleep 5
-    waited=$((waited + 5))
-  done
-}
-
 # run_one <size-label> <concurrency> <rate>
 run_one() {
   local size=$1 conc=$2 rate=$3
@@ -180,20 +162,13 @@ run_one() {
   else
     tag="${size}-r${rate}-c${conc}"
   fi
-  if [[ -n "$NAMESPACE" ]]; then
-    ns=$NAMESPACE
-  else
-    ns="ins-bench-${tag}"
-    # DNS label: keep it inside 63 chars for long size labels.
-    ns=${ns:0:63}
-  fi
-  # Unique per invocation, so reruns in a reused namespace never collide.
+  ns=$NAMESPACE
+  # Unique per invocation, so reruns in the namespace never collide.
   prefix="bench-${tag}-${RUN_ID}"
   out="$OUT/${tag}.json"
   logfile="$OUT/${tag}.log"
 
   log "=== $tag: annotations=${bytes}B concurrency=$conc rate=$rate_label ns=$ns"
-  [[ -n "$NAMESPACE" ]] || ensure_namespace "$ns"
 
   set +e
   "$OUT/bulk-bench" -mode=api -count="$COUNT" -concurrency="$conc" -rate="$rate" \
@@ -213,12 +188,6 @@ run_one() {
     -namespace="$ns" -name-prefix="$prefix" -timeout="$BENCH_TIMEOUT" \
     -output="$OUT/cleanup/${tag}-delete.json" 2>&1 | tee "$OUT/cleanup/${tag}-delete.log"
   set -e
-  if [[ -z "$NAMESPACE" ]]; then
-    # Remaining objects (events, the namespace itself) go through the controller;
-    # with the pods already gone this is quick.
-    kubectl delete namespace "$ns" --wait=false >/dev/null 2>&1 || true
-    wait_namespace_gone "$ns"
-  fi
   log "cooling down ${COOLDOWN}s"
   sleep "$COOLDOWN"
 }
@@ -316,11 +285,7 @@ markdown_report() {
   else
     node="scheduler-placed (pods actually run)"
   fi
-  if [[ -n "$NAMESPACE" ]]; then
-    ns_note="$NAMESPACE (existing; pods deleted by name, namespace kept)"
-  else
-    ns_note="ins-bench-<tag> per run (deleted after each run)"
-  fi
+  ns_note="$NAMESPACE (existing; pods deleted by name, namespace kept)"
   {
     printf '# Pod insert benchmark — %s\n\n' "${TARGET_CONTEXT:-unknown}"
     printf -- '- Date: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -363,31 +328,16 @@ main() {
 
   # Canary: one pod, so an admission rejection or a broken path fails fast and
   # cheaply instead of after a 20k run.
-  local canary_ns canary_prefix
-  if [[ -n "$NAMESPACE" ]]; then
-    canary_ns=$NAMESPACE
-  else
-    canary_ns=ins-bench-canary
-    ensure_namespace "$canary_ns"
-  fi
-  canary_prefix="bench-canary-${RUN_ID}"
-  log "canary: creating one pod in $canary_ns"
-  if ! "$OUT/bulk-bench" -mode=api -count=1 -concurrency=1 -namespace="$canary_ns" \
+  local canary_prefix="bench-canary-${RUN_ID}"
+  log "canary: creating one pod in $NAMESPACE"
+  if ! "$OUT/bulk-bench" -mode=api -count=1 -concurrency=1 -namespace="$NAMESPACE" \
       -name-prefix="$canary_prefix" -node-name="$NODE" -image="$IMAGE" \
       -apiserver-metrics=false -timeout=2m 2>&1 | tee "$OUT/canary.log"; then
-    if [[ -z "$NAMESPACE" ]]; then
-      kubectl delete namespace "$canary_ns" --wait=false >/dev/null 2>&1 || true
-    fi
     die "canary create failed; check admission policies and $OUT/canary.log"
   fi
-  if [[ -n "$NAMESPACE" ]]; then
-    "$OUT/bulk-bench" -mode=delete -count=1 -concurrency=1 -namespace="$canary_ns" \
-      -name-prefix="$canary_prefix" -timeout=2m >/dev/null 2>&1 ||
-      log "warning: could not delete the canary pod in $canary_ns"
-  else
-    kubectl delete namespace "$canary_ns" --wait=false >/dev/null 2>&1 || true
-    wait_namespace_gone "$canary_ns"
-  fi
+  "$OUT/bulk-bench" -mode=delete -count=1 -concurrency=1 -namespace="$NAMESPACE" \
+    -name-prefix="$canary_prefix" -timeout=2m >/dev/null 2>&1 ||
+    log "warning: could not delete the canary pod in $NAMESPACE"
 
   local size conc rate
   for size in $SIZES; do
@@ -405,11 +355,7 @@ main() {
   verdict
   markdown_report
   log "raw JSON and logs are in $OUT"
-  if [[ -n "$NAMESPACE" ]]; then
-    log "leftover pods (if any) are in namespace $NAMESPACE"
-  else
-    log "to stop anything left behind: kubectl get ns | grep ins-bench"
-  fi
+  log "leftover pods (if any) are in namespace $NAMESPACE"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
