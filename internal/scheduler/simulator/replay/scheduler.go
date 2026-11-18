@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/oklog/ulid/v2"
+	"github.com/oklog/ulid"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
@@ -60,6 +60,9 @@ func NewProductionScheduler(
 	if config.AsyncSchedulingEnabled || config.RetryPolicy.Enabled || config.RespectNodePodLimits || len(config.FloatingResources) > 0 {
 		return nil, errors.New("replay does not support asynchronous scheduling, retry policies, pod-slot limits or floating resources")
 	}
+	if config.ExecutorTimeout <= 0 {
+		return nil, errors.New("executorTimeout must be positive for the fixed healthy farm")
+	}
 	if len(config.Pools) == 0 {
 		return nil, errors.New("replay requires at least one configured scheduler pool")
 	}
@@ -74,6 +77,9 @@ func NewProductionScheduler(
 			return nil, fmt.Errorf("empty or duplicate pool name %q", pool.Name)
 		}
 		pools[pool.Name] = true
+		if err := validateTolerations(pool.GetDefaultJobTolerations()); err != nil {
+			return nil, fmt.Errorf("pool %q default tolerations: %w", pool.Name, err)
+		}
 		if len(pool.AwayPools) > 0 || pool.ShortJobPenaltyCutoff != 0 ||
 			(pool.ExperimentalOptimiser != nil && pool.ExperimentalOptimiser.Enabled) ||
 			(pool.ExperimentalMarketScheduling != nil && pool.ExperimentalMarketScheduling.Enabled) ||
@@ -200,27 +206,8 @@ func (s *productionScheduler) makeJob(offered Job) (*jobdb.Job, error) {
 		return nil, errors.New("job submission exceeds Armada nanosecond timestamp range")
 	}
 	submitted := time.UnixMicro(offered.SubmittedUS).UTC()
-	for _, toleration := range offered.Tolerations {
-		if toleration.TolerationSeconds != nil {
-			return nil, errors.New("timed tolerations are outside the static replay profile")
-		}
-		switch toleration.Operator {
-		case "", v1.TolerationOpEqual:
-			if toleration.Key == "" {
-				return nil, errors.New("Equal toleration requires a key")
-			}
-		case v1.TolerationOpExists:
-			if toleration.Value != "" {
-				return nil, errors.New("Exists toleration must have an empty value")
-			}
-		default:
-			return nil, fmt.Errorf("unknown toleration operator %q", toleration.Operator)
-		}
-		switch toleration.Effect {
-		case "", v1.TaintEffectNoExecute, v1.TaintEffectNoSchedule:
-		default:
-			return nil, fmt.Errorf("unsupported toleration effect %q", toleration.Effect)
-		}
+	if err := validateTolerations(offered.Tolerations); err != nil {
+		return nil, err
 	}
 	pod := &internaltypes.PodRequirements{
 		NodeSelector: offered.NodeSelector, Tolerations: offered.Tolerations,
@@ -382,6 +369,32 @@ func checkPoolOutcomes(ctx context.Context, result *scheduling.SchedulerResult) 
 
 func replayContext(ctx context.Context) *armadacontext.Context {
 	return armadacontext.New(ctx, log.NullLogger)
+}
+
+func validateTolerations(tolerations []v1.Toleration) error {
+	for _, toleration := range tolerations {
+		if toleration.TolerationSeconds != nil {
+			return errors.New("timed tolerations are outside the static replay profile")
+		}
+		switch toleration.Operator {
+		case "", v1.TolerationOpEqual:
+			if toleration.Key == "" {
+				return errors.New("Equal toleration requires a key")
+			}
+		case v1.TolerationOpExists:
+			if toleration.Value != "" {
+				return errors.New("Exists toleration must have an empty value")
+			}
+		default:
+			return fmt.Errorf("unknown toleration operator %q", toleration.Operator)
+		}
+		switch toleration.Effect {
+		case "", v1.TaintEffectNoExecute, v1.TaintEffectNoSchedule:
+		default:
+			return fmt.Errorf("unsupported toleration effect %q", toleration.Effect)
+		}
+	}
+	return nil
 }
 
 func checkExactResources(factory *internaltypes.ResourceListFactory, requests map[string]resource.Quantity) error {

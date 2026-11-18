@@ -142,3 +142,17 @@ func TestPreemptionKeepsOnlyCompletedCheckpoints(t *testing.T) {
 		})
 	}
 }
+
+func TestReplayCutoffDoesNotFinalizeCheckpointAtEnd(t *testing.T) {
+	job := replay.Job{ID: "checkpoint", UsefulUS: 30, CheckpointUS: 10}
+	out := &observations{}
+	scheduler := &scriptedScheduler{rounds: map[int64]replay.Decisions{
+		0: {Allocate: []replay.Placement{{JobID: job.ID}}},
+	}}
+	_, err := replay.Run(t.Context(), replay.Window{EndUS: 20, CycleUS: 1}, readJobs([]replay.Job{job}), scheduler, out)
+	require.NoError(t, err)
+	require.Empty(t, scheduler.completed)
+	require.Len(t, out.attempts, 1)
+	require.Equal(t, int64(10), out.attempts[0].RetainedUS)
+	require.Equal(t, int64(10), out.attempts[0].ProvisionalUS)
+}

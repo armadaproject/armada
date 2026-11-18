@@ -48,6 +48,8 @@ type checkedLogical struct {
 }
 
 type checkedAttempt struct {
+	Pool        string `parquet:"name=pool, type=BYTE_ARRAY, convertedtype=UTF8"`
+	Node        string `parquet:"name=node, type=BYTE_ARRAY, convertedtype=UTF8"`
 	ID          string `parquet:"name=logical_job_id, type=BYTE_ARRAY, convertedtype=UTF8"`
 	Ordinal     int64  `parquet:"name=attempt, type=INT64"`
 	AllocatedUS int64  `parquet:"name=allocated_at_us, type=INT64"`
@@ -210,6 +212,28 @@ func TestInvalidInputsAndCancellationLeaveIncompleteStatus(t *testing.T) {
 		{"scratch budget exhausted", func(t *testing.T, dir string) {
 			updateScenario(t, dir, func(s map[string]any) { s["scratch_bytes"] = 1 })
 		}, false, "needs more than 1 bytes of scratch space"},
+		{"absent executor timeout", func(t *testing.T, dir string) {
+			editSchedulerConfig(t, dir, func(config string) string {
+				return strings.ReplaceAll(config, "executorTimeout: 15m\n", "")
+			})
+		}, false, "executorTimeout must be positive"},
+		{"timed default toleration", func(t *testing.T, dir string) {
+			editSchedulerConfig(t, dir, func(config string) string {
+				return strings.Replace(config, "  - name: test-pool\n", "  - name: test-pool\n    jobDefaults:\n      tolerations:\n        - {key: temporary, operator: Exists, effect: NoExecute, tolerationSeconds: 1}\n", 1)
+			})
+		}, false, "timed tolerations"},
+		{"overlapping away pools", func(t *testing.T, dir string) {
+			editSchedulerConfig(t, dir, func(config string) string {
+				return strings.Replace(config, "  - name: test-pool\n", "  - name: test-pool\n    awayPools: [other]\n  - name: other\n", 1)
+			})
+		}, false, "away-pool placement"},
+		{"oversize page rows", func(t *testing.T, dir string) {
+			rows := make([]recordedJob, 1025)
+			for i := range rows {
+				rows[i] = cpuJob(fmt.Sprintf("j-%04d", i), measurementStart)
+			}
+			writeInput(t, dir, [][]recordedJob{rows})
+		}, false, "invalid page value count 1025"},
 		{"already canceled", nil, true, "context canceled"},
 	}
 	for _, tc := range tests {
@@ -277,6 +301,14 @@ func writeInput(t *testing.T, dir string, partitions [][]recordedJob) {
 		"converter_version": "xitongsys", "work_estimation_method": "synthetic", "quality_counts": map[string]int{},
 		"partitions": entries,
 	})
+}
+
+func editSchedulerConfig(t *testing.T, dir string, edit func(string) string) {
+	t.Helper()
+	path := filepath.Join(dir, "scheduler.yaml")
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, []byte(edit(string(raw))), 0o644))
 }
 
 func updateScenario(t *testing.T, dir string, change func(map[string]any)) {
@@ -349,4 +381,65 @@ func TestReplayEmptyWorkloadProducesReadableOutputs(t *testing.T) {
 	require.Equal(t, "complete", readJSON[manifestStatus](t, filepath.Join(out, "run.json")).Status)
 	require.Empty(t, readParquet[checkedLogical](t, filepath.Join(out, "logical_jobs.parquet")))
 	require.Empty(t, readParquet[checkedAttempt](t, filepath.Join(out, "attempts.parquet")))
+}
+
+func TestDuckDBShortNullablePage(t *testing.T) {
+	dir := copyScenario(t)
+	input, err := filepath.Abs("testdata/duckdb-nullable")
+	require.NoError(t, err)
+	updateScenario(t, dir, func(s map[string]any) { s["workload"] = input })
+	out := filepath.Join(dir, "out")
+	require.NoError(t, replay.RunScenario(t.Context(), filepath.Join(dir, "scenario.json"), out, ""))
+	require.Len(t, readParquet[checkedLogical](t, filepath.Join(out, "logical_jobs.parquet")), 4)
+}
+
+func TestReplayPlacementRepeatsAcrossInputPartitions(t *testing.T) {
+	dir := copyScenario(t)
+	editSchedulerConfig(t, dir, func(config string) string {
+		return strings.Replace(config, "  - name: test-pool\n", "  - name: test-pool\n  - name: other\n", 1)
+	})
+	farm := `schemaVersion: 1
+clusters:
+  - name: east
+    pool: test-pool
+    nodeTemplates:
+      - number: 1
+        labels: {site: east}
+        totalResources: {resources: {cpu: "8"}}
+  - name: west
+    pool: other
+    nodeTemplates:
+      - number: 1
+        labels: {site: west}
+        taints: [{key: dedicated, value: west, effect: NoSchedule}]
+        totalResources: {resources: {cpu: "8"}}
+`
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "farm.yaml"), []byte(farm), 0o644))
+	east := cpuJob("east", measurementStart)
+	east.Requests = `{"resourceRequirements":{"requests":{"cpu":"8"}},"nodeSelector":{"site":"east"}}`
+	west := cpuJob("west", measurementStart)
+	west.Requests = `{
+		"resourceRequirements":{"requests":{"cpu":"8"}},
+		"affinity":{"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{
+			"nodeSelectorTerms":[{"matchExpressions":[{"key":"site","operator":"In","values":["west"]}]}]
+		}}},
+		"tolerations":[{"key":"dedicated","operator":"Equal","value":"west","effect":"NoSchedule"}]
+	}`
+	var previous []checkedAttempt
+	for i, input := range [][][]recordedJob{{{east, west}}, {{east}, {west}}, {{east, west}}} {
+		writeInput(t, dir, input)
+		out := filepath.Join(dir, fmt.Sprintf("out-%d", i))
+		require.NoError(t, replay.RunScenario(t.Context(), filepath.Join(dir, "scenario.json"), out, ""))
+		actual := readParquet[checkedAttempt](t, filepath.Join(out, "attempts.parquet"))
+		require.Len(t, actual, 2)
+		require.Equal(t, "test-pool", actual[0].Pool)
+		require.Equal(t, "other", actual[1].Pool)
+		for j := range actual {
+			actual[j].RunID = ""
+		}
+		if i > 0 {
+			require.Equal(t, previous, actual)
+		}
+		previous = actual
+	}
 }

@@ -224,6 +224,10 @@ func (r *replayRun) closeAttempt(j *activeJob, nowUS int64, state State, reason 
 		retained = 0
 		if interval := j.job.CheckpointUS; interval > 0 {
 			retained = useful / interval * interval
+			// The cutoff observes the state immediately before events at end.
+			if state == Running && useful > 0 && retained == useful {
+				retained -= interval
+			}
 		}
 	}
 	row := AttemptResult{

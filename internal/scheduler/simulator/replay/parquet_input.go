@@ -21,6 +21,7 @@ const (
 	maxGroupDisk   = 32 << 20
 	maxGroupMemory = 64 << 20
 	maxPageBytes   = 8 << 20
+	maxPageValues  = 1024
 	maxPageHeader  = 64 << 10
 )
 
@@ -82,9 +83,8 @@ func readParquetPartition(ctx context.Context, file *os.File) (*partitionReader,
 	section := io.NewSectionReader(file, footerStart, footerBytes)
 	stream := thrift.NewStreamTransportR(section)
 	footer := parquet.NewFileMetaData()
-	if err := footer.Read(ctx, thrift.NewTCompactProtocolConf(stream, &thrift.TConfiguration{
-		MaxMessageSize: int32(footerBytes),
-	})); err != nil {
+	protocol := thrift.NewTCompactProtocolConf(stream, &thrift.TConfiguration{MaxMessageSize: int32(footerBytes)})
+	if err := footer.Read(ctx, boundedParquetLists{protocol}); err != nil {
 		return nil, fmt.Errorf("decode Parquet footer: %w", err)
 	}
 	if len(footer.RowGroups) > maxGroups || footer.NumRows < 0 {
@@ -157,6 +157,18 @@ func readParquetPartition(ctx context.Context, file *os.File) (*partitionReader,
 		return nil, fmt.Errorf("Parquet footer declares %d rows but row groups contain %d", footer.NumRows, rows)
 	}
 	return &partitionReader{file: file, footer: footer, optional: optional}, nil
+}
+
+// Parquet metadata uses Thrift lists whose declared lengths otherwise drive
+// allocations before the generated schema reader has seen a single element.
+type boundedParquetLists struct{ thrift.TProtocol }
+
+func (p boundedParquetLists) ReadListBegin(ctx context.Context) (thrift.TType, int, error) {
+	kind, count, err := p.TProtocol.ReadListBegin(ctx)
+	if err == nil && (count < 0 || count > maxGroups) {
+		err = fmt.Errorf("Parquet metadata list exceeds %d entries", maxGroups)
+	}
+	return kind, count, err
 }
 
 func validateParquetSchema(elements []*parquet.SchemaElement) error {
@@ -268,9 +280,8 @@ func (c *columnPages) load(ctx context.Context, file *os.File, remaining int64) 
 	buffered := bufio.NewReader(section)
 	stream := thrift.NewStreamTransportR(buffered)
 	header := parquet.NewPageHeader()
-	if err := header.Read(ctx, thrift.NewTCompactProtocolConf(stream, &thrift.TConfiguration{
-		MaxMessageSize: maxPageHeader,
-	})); err != nil {
+	protocol := thrift.NewTCompactProtocolConf(stream, &thrift.TConfiguration{MaxMessageSize: maxPageHeader})
+	if err := header.Read(ctx, boundedParquetLists{protocol}); err != nil {
 		return fmt.Errorf("read page header: %w", err)
 	}
 	read, err := section.Seek(0, io.SeekCurrent)
@@ -291,7 +302,7 @@ func (c *columnPages) load(ctx context.Context, file *os.File, remaining int64) 
 			return fmt.Errorf("unexpected dictionary page")
 		}
 		values = int64(header.DictionaryPageHeader.NumValues)
-		remaining = maxGroupRows
+		remaining = maxPageValues
 	case parquet.PageType_DATA_PAGE:
 		if header.DataPageHeader == nil || c.offset < c.meta.DataPageOffset {
 			return fmt.Errorf("unexpected data page")
@@ -309,7 +320,7 @@ func (c *columnPages) load(ctx context.Context, file *os.File, remaining int64) 
 	default:
 		return fmt.Errorf("unsupported page type %s", header.Type)
 	}
-	if values <= 0 || values > remaining {
+	if values <= 0 || values > min(remaining, maxPageValues) {
 		return fmt.Errorf("invalid page value count %d", values)
 	}
 	pageSize := headerSize + compressed

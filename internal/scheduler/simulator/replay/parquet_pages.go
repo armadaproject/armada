@@ -161,7 +161,7 @@ func (c *columnPages) decodeDictionary(raw []byte, count int) ([]any, error) {
 }
 
 // The page value count bounds RLE runs and packed groups. A final packed group
-// can pad to eight values; padding never appears in the returned values.
+// may be padded by the writer. Padding never appears in the returned values.
 func readHybrid(raw []byte, width, count int) ([]uint32, error) {
 	values := make([]uint32, 0, count)
 	for len(raw) > 0 && len(values) < count {
@@ -190,11 +190,18 @@ func readHybrid(raw []byte, width, count int) ([]uint32, error) {
 			raw = raw[bytes:]
 			continue
 		}
-		if run > uint64((remaining+7)/8) || run*uint64(width) > uint64(len(raw)) {
-			return nil, fmt.Errorf("bit-packed run exceeds the page value count or bytes")
+		if width > 0 && run > uint64(len(raw)/width) {
+			return nil, fmt.Errorf("bit-packed run exceeds the page bytes")
 		}
-		bytes := int(run) * width
-		for i := range min(int(run)*8, remaining) {
+		bytes := int(run * uint64(width))
+		// Some writers pad a final packed run beyond the next group of
+		// eight. The encoded byte count is bounded above and padding
+		// does not increase the number of values decoded.
+		filled := remaining
+		if run < uint64((remaining+7)/8) {
+			filled = int(run) * 8
+		}
+		for i := range filled {
 			var value uint32
 			for bit := range width {
 				offset := i*width + bit

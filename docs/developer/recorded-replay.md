@@ -48,7 +48,8 @@ accepts Armada's `maximumResourceFraction` and `maximumResourceFractionByPool`,
 where each pool has its own `maximumResourceFraction`. Fractions range from
 zero to one. A larger scenario weight increases relative fair share.
 The scheduler config supplies the priority classes, preemptibility, scheduling
-rates, node indexes and pool settings. `scheduler_config` contains the fields
+rates, node indexes and pool settings. Set a positive `executorTimeout` so a
+heartbeat at the round time establishes a healthy executor. `scheduler_config` contains the fields
 of Armada's `SchedulingConfig` directly.
 
 The farm YAML has `schemaVersion: 1` and `clusters`. Each cluster has a unique
@@ -63,7 +64,7 @@ State starts empty at warm-up. Rows before warm-up are counted and excluded.
 Rows at warm-up and before the end keep their original submission times.
 Each scheduling instant processes completions and admissions before scheduling.
 The end is exclusive. An attempt completing exactly at the end is observed
-running, with only the durable checkpoints known at that point. Run a longer
+running, with only checkpoints reached before the cutoff treated as durable. Run a longer
 warm-up to measure sensitivity to empty initialization.
 
 The initial profile models static healthy executors, immediate acknowledgment,
@@ -119,8 +120,11 @@ Write flat, nonrepeated UTF-8 and signed INT64 columns. Use uncompressed or Snap
 Parquet and PLAIN or dictionary-encoded data pages. Each partition allows up to
 1,024 row groups and an 8 MiB footer. A row group allows up to 65,536 rows,
 32 MiB compressed and 64 MiB uncompressed column data. Compressed and uncompressed
-page sizes are capped at 8 MiB. A logical row is capped at 64 KiB. Split large
-files or reduce row group and page sizes at conversion. The reader validates
+page sizes are capped at 8 MiB with at most 1,024 values per page. A logical row
+is capped at 64 KiB. With DuckDB, export at most 1,024 sorted rows per partition
+to keep page and dictionary counts within the profile. The manifest supports up
+to 4,096 partitions. Writers with configurable page counts can put many
+conforming row groups in each partition. The reader validates
 all listed data first, checks identity uniqueness with bounded sorted scratch
 runs, and reads one partition and one row of lookahead during simulation.
 An actual running or queued backlog still occupies memory.

@@ -4,13 +4,12 @@ package replay
 
 import (
 	"runtime"
-
-	"golang.org/x/sys/unix"
+	"syscall"
 )
 
 func hostUsage() (cpuUS int64, peakRSSBytes uint64) {
-	var usage unix.Rusage
-	if unix.Getrusage(unix.RUSAGE_SELF, &usage) != nil {
+	var usage syscall.Rusage
+	if syscall.Getrusage(syscall.RUSAGE_SELF, &usage) != nil {
 		return 0, 0
 	}
 	cpuUS = usage.Utime.Nano()/1000 + usage.Stime.Nano()/1000
