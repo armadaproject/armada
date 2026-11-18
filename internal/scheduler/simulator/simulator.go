@@ -16,7 +16,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	serverconfig "github.com/armadaproject/armada/internal/common/constants"
@@ -562,16 +562,15 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 		if err != nil {
 			return err
 		}
-		sctx := schedulercontext.NewSchedulingContext(
+		sctx := schedulercontext.NewSchedulingContextAt(
 			pool,
 			fairnessCostProvider,
 			s.limiter,
 			nil, // no fairshare preemption rate limit in the simulator
 			totalResources,
 			s.schedulingConfig.PriorityClasses,
+			s.time,
 		)
-
-		sctx.Started = s.time
 		for _, queue := range s.WorkloadSpec.Queues {
 			demand, hasDemand := s.accounting.demandByQueueAndPriorityClass[queue.Name]
 			if !hasDemand {
@@ -608,7 +607,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			txn,
 			nodeDb,
 			shouldRunOptimiser,
-			clock.RealClock{},
+			clocktesting.NewFakeClock(s.time),
 		)
 
 		schedulerCtx := ctx
