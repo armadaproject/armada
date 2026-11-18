@@ -2,11 +2,9 @@ package jobdb
 
 import (
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -31,7 +29,6 @@ var (
 	}
 	TestDefaultPriorityClass = PriorityClass3
 	SchedulingKeyGenerator   = internaltypes.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
-	testClock                = clock.NewFakeClock(time.Now())
 	jobDb                    = NewJobDbWithSchedulingKeyGenerator(
 		TestPriorityClasses,
 		TestDefaultPriorityClass,
@@ -42,10 +39,6 @@ var (
 	scheduledAtPriority = int32(5)
 	testPreemptReason   = "test preempt reason"
 )
-
-func init() {
-	jobDb.clock = testClock
-}
 
 var baseJobRun = jobDb.CreateRun(
 	uuid.New().String(),

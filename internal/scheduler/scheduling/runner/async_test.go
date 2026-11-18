@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/internaltypes"
@@ -365,7 +366,7 @@ func TestReconcile_Reconciliation_PreemptedJobs(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// A preempted job is one that was running; model it as leased in the result's sctx.
 			preemptedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass).
-				WithQueued(false).WithNewRun("executor", "node", "node", reconcileTestPool, 0)
+				WithQueued(false).WithNewRunAt("executor", "node", "node", reconcileTestPool, 0, testfixtures.BaseTime)
 			jctx := schedulercontext.JobSchedulingContextFromJob(preemptedJob)
 			poolResult := &scheduling.PoolSchedulingResult{
 				SchedulingResult: &scheduling.SchedulingResult{
@@ -462,7 +463,14 @@ func TestReconcile_ScheduledJob_PreservesCurrentJobUpdates(t *testing.T) {
 	currentJob := setKnownJobUpdates(scheduledJob)
 	txn := txnWithJobs(currentJob)
 
-	result := getSchedulerResultFromAsyncRunner(t, poolResult, txn)
+	applyTime := testfixtures.BaseTime.Add(time.Minute)
+	algo := &fakeSchedulingAlgo{result: &scheduling.SchedulerResult{PoolResults: []*scheduling.PoolSchedulingResult{poolResult}}}
+	runner, _ := newTestRunner(t, algo)
+	runner.clock = clocktesting.NewFakeClock(applyTime)
+	require.True(t, runner.Trigger())
+	waitForResultReady(t, runner)
+	result, err := runner.GetSchedulerResult(armadacontext.Background(), txn)
+	require.NoError(t, err)
 
 	require.Len(t, result.PoolResults, 1)
 	require.Len(t, result.PoolResults[0].SchedulingResult.ScheduledJobs, 1)
@@ -474,7 +482,12 @@ func TestReconcile_ScheduledJob_PreservesCurrentJobUpdates(t *testing.T) {
 	// Scheduling decision is applied.
 	assert.False(t, resultScheduledJob.Queued(), "scheduled job should be dequeued")
 	assert.Equal(t, scheduledJob.QueuedVersion()+1, resultScheduledJob.QueuedVersion(), "queued version should be bumped")
-	require.NotNil(t, resultScheduledJob.LatestRun())
+	run := txn.GetById(currentJob.Id()).LatestRun()
+	require.NotNil(t, run)
+	require.NotEqual(t, originalResultJob.LatestRun().Id(), run.Id())
+	require.Equal(t, applyTime.UnixNano(), run.Created())
+	require.NotNil(t, run.LeaseTime())
+	require.True(t, applyTime.Equal(*run.LeaseTime()))
 	assert.Equal(t, resultScheduledJob.LatestRun().Executor(), originalResultJob.LatestRun().Executor())
 	assert.Equal(t, resultScheduledJob.LatestRun().NodeId(), originalResultJob.LatestRun().NodeId())
 	assert.Equal(t, resultScheduledJob.LatestRun().NodeName(), originalResultJob.LatestRun().NodeName())
@@ -483,7 +496,7 @@ func TestReconcile_ScheduledJob_PreservesCurrentJobUpdates(t *testing.T) {
 
 func TestReconcile_PreemptedJob_PreservesCurrentJobUpdates(t *testing.T) {
 	preemptedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass).
-		WithQueued(false).WithNewRun("executor", "node", "node", reconcileTestPool, 0)
+		WithQueued(false).WithNewRunAt("executor", "node", "node", reconcileTestPool, 0, testfixtures.BaseTime)
 	jctx := schedulercontext.JobSchedulingContextFromJob(preemptedJob)
 	poolResult := &scheduling.PoolSchedulingResult{
 		SchedulingResult: &scheduling.SchedulingResult{
@@ -519,9 +532,9 @@ func TestReconcile_PreemptedJob_PreservesCurrentJobUpdates(t *testing.T) {
 
 func TestReconcile_ReconciliationJob_PreservesCurrentJobUpdates(t *testing.T) {
 	failedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.TestDefaultPriorityClass).
-		WithQueued(false).WithNewRun("executor", "node", "node", reconcileTestPool, 0)
+		WithQueued(false).WithNewRunAt("executor", "node", "node", reconcileTestPool, 0, testfixtures.BaseTime)
 	preemptedJob := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass6Preemptible).
-		WithQueued(false).WithNewRun("executor", "node", "node", reconcileTestPool, 0)
+		WithQueued(false).WithNewRunAt("executor", "node", "node", reconcileTestPool, 0, testfixtures.BaseTime)
 	poolResult := &scheduling.PoolSchedulingResult{
 		ReconciliationResult: &scheduling.ReconciliationResult{
 			FailedJobs:    []*scheduling.FailedReconciliationResult{{Job: failedJob, Reason: "failed"}},
@@ -613,7 +626,7 @@ func inState(job *jobdb.Job, state jobState) *jobdb.Job {
 	case jobStateQueued:
 		return job.WithQueued(true)
 	case jobStateLeased:
-		return job.WithQueued(false).WithNewRun("executor", "node", "node", reconcileTestPool, 0)
+		return job.WithQueued(false).WithNewRunAt("executor", "node", "node", reconcileTestPool, 0, testfixtures.BaseTime)
 	case jobStateTerminal:
 		return job.WithQueued(false).WithSucceeded(true)
 	default:
@@ -677,7 +690,7 @@ func asScheduled(job *jobdb.Job) *jobdb.Job {
 	return job.
 		WithQueuedVersion(job.QueuedVersion()+1).
 		WithQueued(false).
-		WithNewRun("executor", "nodeId", "node", reconcileTestPool, 0)
+		WithNewRunAt("executor", "nodeId", "node", reconcileTestPool, 0, testfixtures.BaseTime)
 }
 
 // txnWithJobs returns a jobDb txn containing the given jobs.

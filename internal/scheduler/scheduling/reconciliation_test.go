@@ -134,7 +134,7 @@ func TestReconcileJobRuns(t *testing.T) {
 
 func createQueuedJob(nodeId string, pool string) *jobdb.Job {
 	job := testfixtures.Test1Cpu4GiJob("testQueue", testfixtures.PriorityClass6Preemptible).
-		WithNewRun("testExecutor", nodeId, "node", pool, 5).WithQueued(true)
+		WithNewRunAt("testExecutor", nodeId, "node", pool, 5, testfixtures.BaseTime).WithQueued(true)
 	job = job.WithUpdatedRun(job.LatestRun().WithReturned(true).WithFailed(true))
 	return job
 }
@@ -149,21 +149,21 @@ func createExecutor(clusterName string, nodes ...*schedulerobjects.Node) *schedu
 
 func createTerminalJob(nodeId string, pool string) *jobdb.Job {
 	job := testfixtures.Test1Cpu4GiJob("testQueue", testfixtures.PriorityClass6Preemptible).
-		WithSucceeded(true).WithNewRun("testExecutor", nodeId, "node", pool, 5)
+		WithSucceeded(true).WithNewRunAt("testExecutor", nodeId, "node", pool, 5, testfixtures.BaseTime)
 	job = job.WithUpdatedRun(job.LatestRun().WithSucceeded(true))
 	return job
 }
 
 func createLeasedJob(nodeId string, pool string) *jobdb.Job {
 	return testfixtures.Test1Cpu4GiJob("testQueue", testfixtures.PriorityClass6Preemptible).
-		WithNewRun("testExecutor", nodeId, "node", pool, 5)
+		WithNewRunAt("testExecutor", nodeId, "node", pool, 5, testfixtures.BaseTime)
 }
 
 func createLeasedGangJob(nodeId string, pool string) *jobdb.Job {
 	gangInfo := jobdb.CreateGangInfo("test-gang-id", 2, "")
 	return testfixtures.Test1Cpu4GiJob("testQueue", testfixtures.PriorityClass6Preemptible).
 		WithGangInfo(gangInfo).
-		WithNewRun("testExecutor", nodeId, "node", pool, 5)
+		WithNewRunAt("testExecutor", nodeId, "node", pool, 5, testfixtures.BaseTime)
 }
 
 func withReservations(job *jobdb.Job, reservations []string) *jobdb.Job {

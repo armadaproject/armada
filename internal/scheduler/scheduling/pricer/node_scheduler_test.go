@@ -197,8 +197,8 @@ func TestSchedule_JobChecks(t *testing.T) {
 
 func markedScheduledOnNode(jobs []*jobdb.Job, node *internaltypes.Node) []*jobdb.Job {
 	result := make([]*jobdb.Job, 0, len(jobs))
-	for _, job := range jobs {
-		result = append(result, job.WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[job.PriorityClassName()].Priority))
+	for i, job := range jobs {
+		result = append(result, job.WithNewRunAt(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, testfixtures.TestPriorityClasses[job.PriorityClassName()].Priority, testfixtures.BaseTime.Add(time.Duration(i)*time.Second)))
 	}
 	return result
 }

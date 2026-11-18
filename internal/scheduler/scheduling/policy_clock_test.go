@@ -135,7 +135,6 @@ func TestFairSchedulingAlgoPolicyClockRefillsQueueLimiter(t *testing.T) {
 	)
 	require.NoError(t, err)
 	db := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
-	db.SetClock(clk)
 	txn := db.WriteTxn()
 	defer txn.Abort()
 	a := testfixtures.N1Cpu4GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass1, 3)
@@ -191,7 +190,6 @@ func TestFairSchedulingAlgoPolicyClockRefillsFairsharePreemption(t *testing.T) {
 	)
 	require.NoError(t, err)
 	db := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
-	db.SetClock(clk)
 	txn := db.WriteTxn()
 	defer txn.Abort()
 	node := executor.Nodes[0]
@@ -199,7 +197,7 @@ func TestFairSchedulingAlgoPolicyClockRefillsFairsharePreemption(t *testing.T) {
 	protected := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass2NonPreemptible)
 	running = append(running, protected)
 	for i, job := range running {
-		job = job.WithQueued(false).WithPools([]string{testfixtures.TestPool}).WithNewRun(executor.Id, node.Id, node.Name, node.Pool, job.PriorityClass().Priority)
+		job = job.WithQueued(false).WithPools([]string{testfixtures.TestPool}).WithNewRunAt(executor.Id, node.Id, node.Name, node.Pool, job.PriorityClass().Priority, testfixtures.BaseTime)
 		running[i] = job
 		node.StateByJobRunId[job.LatestRun().Id()] = schedulerobjects.JobRunState_RUNNING
 	}
@@ -284,7 +282,6 @@ func TestFairSchedulingAlgoPolicyClockKeepsHostCancellation(t *testing.T) {
 			)
 			require.NoError(t, err)
 			db := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
-			db.SetClock(clk)
 			txn := db.WriteTxn()
 			defer txn.Abort()
 			job := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass1).WithQueued(true).WithPools([]string{testfixtures.TestPool})
@@ -351,7 +348,6 @@ func TestFairSchedulingAlgoPolicyClockNoNodesFinishesContext(t *testing.T) {
 	)
 	require.NoError(t, err)
 	db := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
-	db.SetClock(clk)
 	txn := db.WriteTxn()
 	defer txn.Abort()
 	job := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass1).WithQueued(true).WithPools([]string{testfixtures.TestPool})

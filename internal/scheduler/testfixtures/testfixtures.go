@@ -157,8 +157,7 @@ func NewJobDb(resourceListFactory *internaltypes.ResourceListFactory) *jobdb.Job
 		resourceListFactory,
 	)
 	jobDb.SetAggregateEnabled(true)
-	// Mock out the clock and job run ID provider to ensure consistent IDs and timestamps are generated.
-	jobDb.SetClock(NewMockPassiveClock())
+	// Use predictable run IDs in tests.
 	jobDb.SetJobRunIDProvider(NewMockIDProvider())
 	return jobDb
 }
@@ -1121,28 +1120,6 @@ func UUIDFromInt(i uint64) uuid.UUID {
 	var rv uuid.UUID
 	binary.LittleEndian.PutUint64(rv[:], i)
 	return rv
-}
-
-type MockPassiveClock struct {
-	t  time.Time
-	d  time.Duration
-	mu sync.Mutex
-}
-
-func NewMockPassiveClock() *MockPassiveClock {
-	return &MockPassiveClock{t: time.Unix(0, 0), d: time.Second}
-}
-
-func (p *MockPassiveClock) Now() time.Time {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	rv := p.t
-	p.t = p.t.Add(p.d)
-	return rv
-}
-
-func (p *MockPassiveClock) Since(time.Time) time.Duration {
-	panic("Not implemented")
 }
 
 // SteppingClock advances time by a fixed step on each Now() call.

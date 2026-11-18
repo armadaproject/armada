@@ -116,7 +116,7 @@ func TestShouldApplyPenalty(t *testing.T) {
 		},
 		"job with no running time returns false": {
 			sut:      withNow(),
-			job:      testfixtures.Test32Cpu256GiJob("q", testfixtures.PriorityClass2).WithNewRun("testExecutor", "test-node", "node", testfixtures.TestPool, 5).WithSucceeded(true),
+			job:      testfixtures.Test32Cpu256GiJob("q", testfixtures.PriorityClass2).WithNewRunAt("testExecutor", "test-node", "node", testfixtures.TestPool, 5, testfixtures.BaseTime).WithSucceeded(true),
 			expected: false,
 		},
 		"long succeeded job returns false": {
@@ -181,7 +181,7 @@ func longTestJob(now time.Time) *jobdb.Job {
 }
 
 func testJob(runningTime time.Time) *jobdb.Job {
-	job := testfixtures.Test32Cpu256GiJob("q", testfixtures.PriorityClass2).WithNewRun("testExecutor", "test-node", "node", testfixtures.TestPool, 5)
+	job := testfixtures.Test32Cpu256GiJob("q", testfixtures.PriorityClass2).WithNewRunAt("testExecutor", "test-node", "node", testfixtures.TestPool, 5, testfixtures.BaseTime)
 	run := job.LatestRun()
 	return job.WithUpdatedRun(run.WithRunningTime(&runningTime))
 }
@@ -366,7 +366,7 @@ func testJobForQueue(queue string, runningTime time.Time) *jobdb.Job {
 }
 
 func testJobForPool(queue string, pool string, runningTime time.Time) *jobdb.Job {
-	job := testfixtures.Test32Cpu256GiJob(queue, testfixtures.PriorityClass2).WithNewRun("testExecutor", "test-node", "node", pool, 5)
+	job := testfixtures.Test32Cpu256GiJob(queue, testfixtures.PriorityClass2).WithNewRunAt("testExecutor", "test-node", "node", pool, 5, testfixtures.BaseTime)
 	run := job.LatestRun()
 	return job.WithUpdatedRun(run.WithRunningTime(&runningTime))
 }

@@ -944,7 +944,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 						scheduledJobs,
 						job.WithQueuedVersion(job.QueuedVersion()+1).
 							WithQueued(false).
-							WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority),
+							WithNewRunAt(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority, testfixtures.BaseTime),
 					)
 				}
 				err = jobDbTxn.Upsert(scheduledJobs)

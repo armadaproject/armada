@@ -11,7 +11,6 @@ import (
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/utils/clock"
 
 	log "github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
@@ -95,9 +94,6 @@ type JobDb struct {
 	// Mutexes protecting the jobDb.
 	copyMutex   sync.Mutex
 	writerMutex sync.Mutex
-	// Clock used when assigning timestamps to created job runs.
-	// Set here so that it can be mocked.
-	clock clock.PassiveClock
 	// Used for generating job run ids.
 	jobRunIDProvider IDProvider
 	// Used to make efficient ResourceList types.
@@ -162,14 +158,9 @@ func NewJobDbWithSchedulingKeyGenerator(
 		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
 		stringInterner:         stringInterner,
-		clock:                  clock.RealClock{},
 		jobRunIDProvider:       RealULIDProvider{},
 		resourceListFactory:    resourceListFactory,
 	}
-}
-
-func (jobDb *JobDb) SetClock(clock clock.PassiveClock) {
-	jobDb.clock = clock
 }
 
 func (jobDb *JobDb) SetRespectNodePodLimits(enabled bool) {

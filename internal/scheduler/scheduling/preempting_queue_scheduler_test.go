@@ -65,8 +65,8 @@ func TestEvict_JobsEvictedInFairshareOrder(t *testing.T) {
 	for _, queue := range queueNames {
 		demand := internaltypes.ResourceList{}
 		for _, job := range testfixtures.N1Cpu4GiJobs(queue, config.DefaultPriorityClassName, jobsPerQueue) {
-			running := job.WithQueued(false).WithNewRun(
-				node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), job.PriorityClass().Priority,
+			running := job.WithQueued(false).WithNewRunAt(
+				node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), job.PriorityClass().Priority, testfixtures.BaseTime,
 			)
 			allJobs = append(allJobs, running)
 			demand = demand.Add(running.AllResourceRequirements())
@@ -180,12 +180,12 @@ func TestEvictOversubscribed_CrossPoolJobsEvicted(t *testing.T) {
 	crossPoolJobs := make([]*jobdb.Job, 20)
 	for i := range crossPoolJobs {
 		j := testfixtures.Test1Cpu4GiJob("away-queue", testfixtures.PriorityClass0)
-		crossPoolJobs[i] = j.WithQueued(false).WithNewRun("executor-01", node.GetId(), node.GetName(), "away", j.PriorityClass().Priority)
+		crossPoolJobs[i] = j.WithQueued(false).WithNewRunAt("executor-01", node.GetId(), node.GetName(), "away", j.PriorityClass().Priority, testfixtures.BaseTime)
 	}
 	homeJobs := make([]*jobdb.Job, 20)
 	for i := range homeJobs {
 		j := testfixtures.Test1Cpu4GiJob("home-queue", testfixtures.PriorityClass0)
-		homeJobs[i] = j.WithQueued(false).WithNewRun("executor-01", node.GetId(), node.GetName(), "home", j.PriorityClass().Priority)
+		homeJobs[i] = j.WithQueued(false).WithNewRunAt("executor-01", node.GetId(), node.GetName(), "home", j.PriorityClass().Priority, testfixtures.BaseTime)
 	}
 	allJobs := append(append([]*jobdb.Job{}, crossPoolJobs...), homeJobs...)
 
@@ -2273,7 +2273,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				for _, job := range jobs {
 					err := jobDbTxn.Upsert([]*jobdb.Job{
 						job.WithQueued(false).
-							WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), job.PriorityClass().Priority),
+							WithNewRunAt(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), job.PriorityClass().Priority, testfixtures.BaseTime),
 					})
 					require.NoError(t, err)
 				}
@@ -2587,7 +2587,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						scheduledJobs,
 						job.WithQueuedVersion(job.QueuedVersion()+1).
 							WithQueued(false).
-							WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority),
+							WithNewRunAt(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority, testfixtures.BaseTime),
 					)
 				}
 				err = jobDbTxn.Upsert(scheduledJobs)
@@ -2864,7 +2864,7 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 		jobDbTxn := jobDb.WriteTxn()
 		for _, job := range runningJobs {
 			err := jobDbTxn.Upsert([]*jobdb.Job{
-				job.WithQueued(false).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), job.PriorityClass().Priority),
+				job.WithQueued(false).WithNewRunAt(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), job.PriorityClass().Priority, testfixtures.BaseTime),
 			})
 			require.NoError(t, err)
 		}
@@ -3084,7 +3084,7 @@ func makeGangBaseJobs(gangId string, n int) []*jobdb.Job {
 
 func withRun(job *jobdb.Job, nodeId string, queued bool) *jobdb.Job {
 	return job.
-		WithNewRun("executor", nodeId, "node-name", testfixtures.TestPool, job.PriorityClass().Priority).
+		WithNewRunAt("executor", nodeId, "node-name", testfixtures.TestPool, job.PriorityClass().Priority, testfixtures.BaseTime).
 		WithQueued(queued)
 }
 
@@ -3371,7 +3371,7 @@ func TestPreemptingQueueScheduler_RespectNodePodLimits(t *testing.T) {
 			incumbents := make([]*jobdb.Job, tc.incumbentCount)
 			for i := 0; i < tc.incumbentCount; i++ {
 				j := makeJob(tc.incumbentPriorityClass, false)
-				incumbents[i] = j.WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), j.PriorityClass().Priority)
+				incumbents[i] = j.WithNewRunAt(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), j.PriorityClass().Priority, testfixtures.BaseTime)
 			}
 			challengers := make([]*jobdb.Job, tc.challengerCount)
 			for i := 0; i < tc.challengerCount; i++ {
@@ -3472,7 +3472,7 @@ func TestPreemptingQueueScheduler_NonPreemptibleOverPack(t *testing.T) {
 	incumbents := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass2NonPreemptible, 5)
 	for i, j := range incumbents {
 		incumbents[i] = j.WithQueued(false).
-			WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), j.PriorityClass().Priority)
+			WithNewRunAt(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), j.PriorityClass().Priority, testfixtures.BaseTime)
 	}
 
 	// Higher-priority challenger (priority 3, also non-preemptible by default).
@@ -3571,7 +3571,7 @@ func TestPreemptingQueueScheduler_CrossPoolPreemptedFirst(t *testing.T) {
 			crossPoolJobs := testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass2, 5)
 			for i, j := range crossPoolJobs {
 				crossPoolJobs[i] = j.WithQueued(false).
-					WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), awayPool, j.PriorityClass().Priority)
+					WithNewRunAt(node.GetExecutor(), node.GetId(), node.GetName(), awayPool, j.PriorityClass().Priority, testfixtures.BaseTime)
 			}
 
 			// Home new jobs: preemptible, priority 0 (lower than the cross-pool jobs), queued.

@@ -81,10 +81,10 @@ func TestJobDb_TestGetById(t *testing.T) {
 
 func TestJobDb_TestGetLeased(t *testing.T) {
 	jobDb := NewTestJobDb()
-	job1 := newJob().WithQueued(false).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	job1 := newJob().WithQueued(false).WithNewRunAt("executor", "nodeId", "nodeName", "pool", 5, time.Unix(0, 0))
 	job2 := newJob().WithQueued(true)
 	job3 := newJob().WithQueued(false).WithSucceeded(true)
-	job4 := newJob().WithQueued(false).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	job4 := newJob().WithQueued(false).WithNewRunAt("executor", "nodeId", "nodeName", "pool", 5, time.Unix(0, 0))
 	txn := jobDb.WriteTxn()
 
 	err := txn.Upsert([]*Job{job1, job2, job3, job4})
@@ -112,7 +112,7 @@ func TestJobDb_LeasedJobs_Lifecycle(t *testing.T) {
 	assert.Empty(t, jobDb.ReadTxn().GetAllLeasedJobs())
 
 	// leased
-	job1 = job1.WithQueued(false).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	job1 = job1.WithQueued(false).WithNewRunAt("executor", "nodeId", "nodeName", "pool", 5, time.Unix(0, 0))
 	upsert(jobDb, job1)
 	assert.NotEmpty(t, jobDb.ReadTxn().GetAllLeasedJobs())
 
@@ -122,7 +122,7 @@ func TestJobDb_LeasedJobs_Lifecycle(t *testing.T) {
 	assert.Empty(t, jobDb.ReadTxn().GetAllLeasedJobs())
 
 	// leased
-	job1 = job1.WithQueued(false).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	job1 = job1.WithQueued(false).WithNewRunAt("executor", "nodeId", "nodeName", "pool", 5, time.Unix(0, 0))
 	upsert(jobDb, job1)
 	assert.NotEmpty(t, jobDb.ReadTxn().GetAllLeasedJobs())
 
@@ -134,7 +134,7 @@ func TestJobDb_LeasedJobs_Lifecycle(t *testing.T) {
 
 func TestJobDb_LeasedJobs_Deleted(t *testing.T) {
 	jobDb := NewTestJobDb()
-	job1 := newJob().WithQueued(false).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
+	job1 := newJob().WithQueued(false).WithNewRunAt("executor", "nodeId", "nodeName", "pool", 5, time.Unix(0, 0))
 	txn := jobDb.WriteTxn()
 
 	err := txn.Upsert([]*Job{job1})
@@ -223,8 +223,8 @@ func TestJobDb_TestGetJobsByGangId_NonGangJob(t *testing.T) {
 
 func TestJobDb_TestGetByRunId(t *testing.T) {
 	jobDb := NewTestJobDb()
-	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
-	job2 := newJob().WithNewRun("executor", "nodeId", "nodeName", "pool", 10)
+	job1 := newJob().WithNewRunAt("executor", "nodeId", "nodeName", "pool", 5, time.Unix(0, 0))
+	job2 := newJob().WithNewRunAt("executor", "nodeId", "nodeName", "pool", 10, time.Unix(0, 0))
 	txn := jobDb.WriteTxn()
 
 	err := txn.Upsert([]*Job{job1, job2})
@@ -262,8 +262,8 @@ func TestJobDb_TestGetQueuedJobsByPool(t *testing.T) {
 
 func TestJobDb_TestHasQueuedJobs(t *testing.T) {
 	jobDb := NewTestJobDb()
-	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
-	job2 := newJob().WithNewRun("executor", "nodeId", "nodeName", "pool", 10)
+	job1 := newJob().WithNewRunAt("executor", "nodeId", "nodeName", "pool", 5, time.Unix(0, 0))
+	job2 := newJob().WithNewRunAt("executor", "nodeId", "nodeName", "pool", 10, time.Unix(0, 0))
 	txn := jobDb.WriteTxn()
 
 	err := txn.Upsert([]*Job{job1, job2})
@@ -333,8 +333,8 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 
 func TestJobDb_TestGetAll(t *testing.T) {
 	jobDb := NewTestJobDb()
-	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
-	job2 := newJob().WithNewRun("executor", "nodeId", "nodeName", "pool", 10)
+	job1 := newJob().WithNewRunAt("executor", "nodeId", "nodeName", "pool", 5, time.Unix(0, 0))
+	job2 := newJob().WithNewRunAt("executor", "nodeId", "nodeName", "pool", 10, time.Unix(0, 0))
 	txn := jobDb.WriteTxn()
 	assert.Equal(t, []*Job{}, txn.GetAll())
 
@@ -460,8 +460,8 @@ func TestDryRunTxn_AbortDoesNotModifyDb(t *testing.T) {
 
 func TestJobDb_TestBatchDelete(t *testing.T) {
 	jobDb := NewTestJobDb()
-	job1 := newJob().WithQueued(true).WithNewRun("executor", "nodeId", "nodeName", "pool", 5)
-	job2 := newJob().WithQueued(true).WithNewRun("executor", "nodeId", "nodeName", "pool", 10)
+	job1 := newJob().WithQueued(true).WithNewRunAt("executor", "nodeId", "nodeName", "pool", 5, time.Unix(0, 0))
+	job2 := newJob().WithQueued(true).WithNewRunAt("executor", "nodeId", "nodeName", "pool", 10, time.Unix(0, 0))
 	txn := jobDb.WriteTxn()
 
 	// Insert Job

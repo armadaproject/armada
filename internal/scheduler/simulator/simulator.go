@@ -185,7 +185,6 @@ func NewSimulator(
 			totalResourcesByPool:                     make(map[string]internaltypes.ResourceList),
 		},
 	}
-	jobDb.SetClock(s)
 	if err := s.setupClusters(); err != nil {
 		return nil, err
 	}
@@ -197,10 +196,6 @@ func NewSimulator(
 
 func (s *Simulator) Now() time.Time {
 	return s.time
-}
-
-func (s *Simulator) Since(t time.Time) time.Duration {
-	return s.Now().Sub(t)
 }
 
 // Run runs the scheduler until all jobs have finished successfully.
@@ -669,7 +664,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				if !ok {
 					return errors.Errorf("job %s not mapped to a priority", job.Id())
 				}
-				scheduledJobs[i].Job = job.WithQueued(false).WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority)
+				scheduledJobs[i].Job = job.WithQueued(false).WithNewRunAt(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), priority, s.Now())
 			}
 		}
 		if err := txn.Upsert(armadaslices.Map(preemptedJobs, func(jctx *schedulercontext.JobSchedulingContext) *jobdb.Job { return jctx.Job })); err != nil {

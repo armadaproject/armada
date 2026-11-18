@@ -821,7 +821,7 @@ func TestGangScheduler_MarksPreemptedJobs(t *testing.T) {
 }
 
 func createAwayJob() *jobdb.Job {
-	return testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass2).WithNewRun("executor-1", "node-1", "node-1", "away", 1)
+	return testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass2).WithNewRunAt("executor-1", "node-1", "node-1", "away", 1, testfixtures.BaseTime)
 }
 
 func TestGangScheduler_FairsharePreemption_PreemptsWholeGang(t *testing.T) {

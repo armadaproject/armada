@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -71,9 +72,9 @@ func TestJobAggregate_JobAggregate(t *testing.T) {
 	jobB := newAggregateTestJob(t, jobDb, "jobB", "queue-1", true, []string{"pool-1"}, 2)
 	// Leased jobs never contribute to the queued-demand aggregate.
 	jobC := newAggregateTestJob(t, jobDb, "jobC", "queue-2", false, []string{"pool-1"}, 3).
-		WithNewRun("executor-1", "node-1", "node-1", "pool-1", 5)
+		WithNewRunAt("executor-1", "node-1", "node-1", "pool-1", 5, time.Unix(0, 0))
 	jobD := newAggregateTestJob(t, jobDb, "jobD", "queue-3", false, []string{"pool-2"}, 4).
-		WithNewRun("executor-2", "node-2", "node-2", "pool-2", 5)
+		WithNewRunAt("executor-2", "node-2", "node-2", "pool-2", 5, time.Unix(0, 0))
 
 	txn := jobDb.WriteTxn()
 	require.NoError(t, txn.Upsert([]*Job{jobA, jobB, jobC, jobD}))
@@ -132,7 +133,7 @@ func TestJobAggregate_QueuedToLeasedTransition(t *testing.T) {
 
 	// Queued jobA becomes leased: removal of the old queued state must drop it
 	// from the aggregate, and the leased state must not re-add it.
-	jobAUpdated := jobA.WithQueued(false).WithNewRun("executor-2", "node-2", "node-2", "pool-2", 5)
+	jobAUpdated := jobA.WithQueued(false).WithNewRunAt("executor-2", "node-2", "node-2", "pool-2", 5, time.Unix(0, 0))
 	txn = jobDb.WriteTxn()
 	require.NoError(t, txn.Upsert([]*Job{jobAUpdated}))
 	txn.Commit()
@@ -243,7 +244,7 @@ func TestJobAggregate_Transitions(t *testing.T) {
 	}
 	leased := func(t *testing.T, jobDb *JobDb) *Job {
 		return newAggregateTestJob(t, jobDb, "job", "queue-1", false, []string{pool}, 1).
-			WithNewRun("executor-1", "node-1", "node-1", pool, 0)
+			WithNewRunAt("executor-1", "node-1", "node-1", pool, 0, time.Unix(0, 0))
 	}
 
 	tests := map[string]struct {
@@ -251,7 +252,9 @@ func TestJobAggregate_Transitions(t *testing.T) {
 		updated func(*Job) *Job
 		wantCPU int64
 	}{
-		"queued to leased":    {queued, func(j *Job) *Job { return j.WithQueued(false).WithNewRun("executor-1", "node-1", "node-1", pool, 0) }, 0},
+		"queued to leased": {queued, func(j *Job) *Job {
+			return j.WithQueued(false).WithNewRunAt("executor-1", "node-1", "node-1", pool, 0, time.Unix(0, 0))
+		}, 0},
 		"queued to cancelled": {queued, func(j *Job) *Job { return j.WithCancelled(true) }, 0},
 		"queued to failed":    {queued, func(j *Job) *Job { return j.WithFailed(true) }, 0},
 		"queued to succeeded": {queued, func(j *Job) *Job { return j.WithSucceeded(true) }, 0},
@@ -311,7 +314,7 @@ func TestJobAggregate_BatchUpsertAndDelete(t *testing.T) {
 
 	// One batch mixing an unchanged job, a queued->leased transition, a new job,
 	// duplicate IDs, and a terminal job.
-	bLeased := b.WithQueued(false).WithNewRun("executor-1", "node-1", "node-1", "pool-1", 0)
+	bLeased := b.WithQueued(false).WithNewRunAt("executor-1", "node-1", "node-1", "pool-1", 0, time.Unix(0, 0))
 	c := newAggregateTestJob(t, jobDb, "c", "queue-1", true, []string{"pool-1"}, 4)
 	dFirst := newAggregateTestJob(t, jobDb, "d", "queue-1", true, []string{"pool-1"}, 5)
 	dLast := newAggregateTestJob(t, jobDb, "d", "queue-1", true, []string{"pool-1"}, 6)
@@ -488,7 +491,7 @@ func TestJobAggregate_ChurnMatchesReference(t *testing.T) {
 				queued, selectedPools, cpuAndMemory(int64(1+rng.Intn(4)), int64(rng.Intn(8))),
 			)
 			if !queued && rng.Intn(2) == 0 {
-				job = job.WithNewRun("executor", "node", id, selectedPools[0], 0)
+				job = job.WithNewRunAt("executor", "node", id, selectedPools[0], 0, time.Unix(0, 0))
 			}
 			if rng.Intn(7) == 0 {
 				job = job.WithFailed(true)

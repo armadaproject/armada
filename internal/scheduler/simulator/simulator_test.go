@@ -1,6 +1,7 @@
 package simulator
 
 import (
+	"container/heap"
 	"math/rand"
 	"testing"
 	"time"
@@ -56,6 +57,36 @@ func TestSimulatorCycleReportUsesSimulatedTime(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, sim.Run(armadacontext.Background()))
 	require.Positive(t, capture.cycles)
+}
+
+func TestSimulatorCreatesRunsAtSimulatedTime(t *testing.T) {
+	sim, err := NewSimulator(
+		&ClusterSpec{Name: "clock-test", Clusters: []*Cluster{{Name: "cluster", Pool: "TestPool", NodeTemplates: []*NodeTemplate{NodeTemplate32Cpu(1)}}}},
+		&WorkloadSpec{Queues: []*Queue{WithJobTemplatesQueue(&Queue{Name: "A", Weight: 1}, JobTemplate1Cpu(1, "clock-test", testfixtures.TestDefaultPriorityClass))}},
+		testfixtures.TestSchedulingConfig(), false, 5, 10, sink.NullSink{},
+	)
+	require.NoError(t, err)
+	ctx := armadacontext.Background()
+	sim.pushScheduleEvent(sim.Now())
+	deadline := sim.Now().Add(time.Minute)
+	for sim.eventLog.Len() > 0 {
+		event := heap.Pop(&sim.eventLog).(Event)
+		require.False(t, event.time.After(deadline), "no lease in the first simulated minute")
+		require.NoError(t, sim.handleSimulatorEvent(ctx, event))
+		txn := sim.jobDb.ReadTxn()
+		leased := txn.GetAllLeasedJobs()
+		txn.Abort()
+		if len(leased) > 0 {
+			require.Len(t, leased, 1)
+			run := leased[0].LatestRun()
+			require.NotNil(t, run)
+			require.Equal(t, event.time.UnixNano(), run.Created())
+			require.NotNil(t, run.LeaseTime())
+			require.True(t, event.time.Equal(*run.LeaseTime()))
+			return
+		}
+	}
+	t.Fatal("no job was leased")
 }
 
 func TestSimulator(t *testing.T) {

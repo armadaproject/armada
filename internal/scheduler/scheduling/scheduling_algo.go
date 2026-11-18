@@ -65,7 +65,6 @@ type FairSchedulingAlgo struct {
 	// Max amount of time each scheduling round is allowed to take (hard timeout).
 	maxSchedulingDuration time.Duration
 	clock                 clock.Clock
-	policyClockConfigured bool
 	resourceListFactory   *internaltypes.ResourceListFactory
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
 	shortJobPenalty       *ShortJobPenalty
@@ -85,10 +84,7 @@ type FairSchedulingAlgoOption func(*FairSchedulingAlgo)
 // The clock must be non-nil. Production callers use the default real clock;
 // operational timeouts and computation durations remain on host time.
 func WithPolicyClock(clk clock.Clock) FairSchedulingAlgoOption {
-	return func(algo *FairSchedulingAlgo) {
-		algo.clock = clk
-		algo.policyClockConfigured = true
-	}
+	return func(algo *FairSchedulingAlgo) { algo.clock = clk }
 }
 
 func NewFairSchedulingAlgo(
@@ -1112,12 +1108,10 @@ func (l *FairSchedulingAlgo) SchedulePool(
 		if !ok {
 			return nil, nil, errors.Errorf("job %s not mapped to a priority", jobId)
 		}
-		jobDbJob = jobDbJob.WithQueuedVersion(jobDbJob.QueuedVersion() + 1).WithQueued(false)
-		if l.policyClockConfigured {
-			result.ScheduledJobs[i].Job = jobDbJob.WithNewRunAt(node.GetExecutor(), node.GetId(), node.GetName(), pool.Name, priority, l.clock.Now())
-		} else {
-			result.ScheduledJobs[i].Job = jobDbJob.WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), pool.Name, priority)
-		}
+		result.ScheduledJobs[i].Job = jobDbJob.
+			WithQueuedVersion(jobDbJob.QueuedVersion()+1).
+			WithQueued(false).
+			WithNewRunAt(node.GetExecutor(), node.GetId(), node.GetName(), pool.Name, priority, l.clock.Now())
 	}
 
 	for _, priority := range l.schedulingConfig.ExperimentalIndicativeShare.BasePriorities {

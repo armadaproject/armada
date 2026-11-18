@@ -190,7 +190,7 @@ func TestCalculateIdealisedValue(t *testing.T) {
 			for _, jobs := range tc.runningJobsByQueue {
 				for _, job := range jobs {
 					job = job.
-						WithNewRun("executor-01", "some-node", "some-node", testfixtures.TestPool, job.PriorityClass().Priority).
+						WithNewRunAt("executor-01", "some-node", "some-node", testfixtures.TestPool, job.PriorityClass().Priority, testfixtures.BaseTime).
 						WithPriceBand(bidstore.PriceBand_PRICE_BAND_UNSPECIFIED).WithBidPrices(map[string]pricing.Bid{
 						testfixtures.TestPool: {
 							RunningBid: 2.0,

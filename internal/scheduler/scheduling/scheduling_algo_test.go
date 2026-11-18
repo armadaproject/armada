@@ -103,7 +103,7 @@ func TestSchedule_DisableSchedulingSkipsReconciliation(t *testing.T) {
 
 	executors := []*schedulerobjects.Executor{makeTestExecutor("executor1", testfixtures.TestPool)}
 	job := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass2NonPreemptible)
-	job = job.WithQueued(false).WithPools([]string{testfixtures.TestPool}).WithNewRun(executors[0].Id, executors[0].Nodes[0].Id, executors[0].Nodes[0].Name, testfixtures.TestPool, job.PriorityClass().Priority)
+	job = job.WithQueued(false).WithPools([]string{testfixtures.TestPool}).WithNewRunAt(executors[0].Id, executors[0].Nodes[0].Id, executors[0].Nodes[0].Name, testfixtures.TestPool, job.PriorityClass().Priority, testfixtures.BaseTime)
 	executors[0].Nodes[0].StateByJobRunId[job.LatestRun().Id()] = schedulerobjects.JobRunState_RUNNING
 
 	mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
@@ -246,7 +246,7 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 				job := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass2NonPreemptible)
 				job = job.WithQueued(false).
 					WithPools([]string{p.name}).
-					WithNewRun(executor.Id, executor.Nodes[0].Id, executor.Nodes[0].Name, p.name, job.PriorityClass().Priority)
+					WithNewRunAt(executor.Id, executor.Nodes[0].Id, executor.Nodes[0].Name, p.name, job.PriorityClass().Priority, testfixtures.BaseTime)
 				executor.Nodes[0].StateByJobRunId[job.LatestRun().Id()] = schedulerobjects.JobRunState_RUNNING
 				executors = append(executors, executor)
 				runningJobsByPool[p.name] = job
@@ -1192,7 +1192,7 @@ func TestSchedule(t *testing.T) {
 				for nodeIndex, existingJobs := range existingJobsByExecutorNodeIndex {
 					node := executor.Nodes[nodeIndex]
 					for jobIndex, job := range existingJobs.jobs {
-						job = job.WithQueued(false).WithNewRun(executor.Id, node.Id, node.Name, node.Pool, job.PriorityClass().Priority)
+						job = job.WithQueued(false).WithNewRunAt(executor.Id, node.Id, node.Name, node.Pool, job.PriorityClass().Priority, testfixtures.BaseTime)
 						if existingJobs.acknowledged {
 							run := job.LatestRun()
 							node.StateByJobRunId[run.Id()] = schedulerobjects.JobRunState_RUNNING
@@ -1422,7 +1422,7 @@ func TestPopulateNodeDb(t *testing.T) {
 			require.NoError(t, err)
 
 			for i, job := range tc.Jobs {
-				tc.Jobs[i] = tc.Jobs[i].WithNewRun("executor-01", tc.Node.GetId(), tc.Node.GetName(), tc.Node.GetPool(), job.PriorityClass().Priority)
+				tc.Jobs[i] = tc.Jobs[i].WithNewRunAt("executor-01", tc.Node.GetId(), tc.Node.GetName(), tc.Node.GetPool(), job.PriorityClass().Priority, testfixtures.BaseTime)
 			}
 
 			err = populateNodeDb(*schedulingConfig.GetPoolConfig(testfixtures.TestPool), nodeDb, tc.Jobs, []*jobdb.Job{}, []*internaltypes.Node{tc.Node})
@@ -1458,7 +1458,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 			nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
 			for i, node := range nodes {
 				for j := 32 * i; j < 32*(i+1); j++ {
-					jobs[j] = jobs[j].WithNewRun("executor-01", node.GetId(), node.GetName(), node.GetPool(), jobs[j].PriorityClass().Priority)
+					jobs[j] = jobs[j].WithNewRunAt("executor-01", node.GetId(), node.GetName(), node.GetPool(), jobs[j].PriorityClass().Priority, testfixtures.BaseTime)
 				}
 			}
 			armadaslices.Shuffle(jobs)
@@ -1785,7 +1785,7 @@ func TestCalculateJobSchedulingInfo_UsesAggregateForQueuedDemand(t *testing.T) {
 	// Same pc as the running job, so the queued pc is only present via the aggregate.
 	unscanned := testfixtures.Test1Cpu4GiJob("q1", runningPc).WithQueued(true).WithPools([]string{pool})
 	leased := testfixtures.Test1Cpu4GiJob("q1", runningPc).
-		WithNewRun("executor-1", "node-1", "node-1", pool, 0)
+		WithNewRunAt("executor-1", "node-1", "node-1", pool, 0, testfixtures.BaseTime)
 
 	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued, leased})
 	txn := jobDb.ReadTxn()

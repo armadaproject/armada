@@ -3,6 +3,7 @@ package optimiser
 import (
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -124,15 +125,15 @@ func TestSchedule_JobChecks(t *testing.T) {
 			expectSuccess:                  true,
 		},
 		"preempts job - preempted job scheduled in previous round": {
-			existingJob: existingJob.DeepCopy().WithQueued(false).WithNewRun(
+			existingJob: existingJob.DeepCopy().WithQueued(false).WithNewRunAt(
 				node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool,
-				testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority),
+				testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority, testfixtures.BaseTime),
 			expectSuccess: true,
 		},
 		"preempts cross-pool job": {
-			existingJob: existingJob.DeepCopy().WithQueued(false).WithNewRun(
+			existingJob: existingJob.DeepCopy().WithQueued(false).WithNewRunAt(
 				node.GetExecutor(), node.GetId(), node.GetName(), "away",
-				testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority),
+				testfixtures.TestPriorityClasses[testfixtures.PriorityClass2].Priority, testfixtures.BaseTime),
 			expectSuccess: true,
 		},
 		"will not preempt non-preemptible jobs": {
@@ -159,9 +160,9 @@ func TestSchedule_JobChecks(t *testing.T) {
 			expectSuccess:                  false,
 		},
 		"will not preempt jobs scheduled at higher priority - preempted job scheduled in previous round": {
-			existingJob: existingJob.DeepCopy().WithQueued(false).WithNewRun(
+			existingJob: existingJob.DeepCopy().WithQueued(false).WithNewRunAt(
 				node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool,
-				testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority),
+				testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority, testfixtures.BaseTime),
 			expectSuccess: false,
 		},
 	}
@@ -169,7 +170,7 @@ func TestSchedule_JobChecks(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			node := node.DeepCopyNilKeys()
 			if tc.existingJob.Queued() {
-				tc.existingJob = tc.existingJob.WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, tc.existingJobScheduledAtPriority)
+				tc.existingJob = tc.existingJob.WithNewRunAt(node.GetExecutor(), node.GetId(), node.GetName(), testfixtures.TestPool, tc.existingJobScheduledAtPriority, testfixtures.BaseTime)
 			}
 			jctx := context.JobSchedulingContextFromJob(jobToSchedule)
 			nodeDb, err := NewNodeDb(testfixtures.TestSchedulingConfig())
@@ -306,8 +307,8 @@ func markedScheduledOnNode(jobs []*jobdb.Job, node *internaltypes.Node) []*jobdb
 
 func markedScheduledOnNodeWithPool(jobs []*jobdb.Job, node *internaltypes.Node, pool string) []*jobdb.Job {
 	result := make([]*jobdb.Job, 0, len(jobs))
-	for _, job := range jobs {
-		result = append(result, job.WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), pool, testfixtures.TestPriorityClasses[job.PriorityClassName()].Priority))
+	for i, job := range jobs {
+		result = append(result, job.WithNewRunAt(node.GetExecutor(), node.GetId(), node.GetName(), pool, testfixtures.TestPriorityClasses[job.PriorityClassName()].Priority, testfixtures.BaseTime.Add(time.Duration(i)*time.Second)))
 	}
 	return result
 }
@@ -683,7 +684,7 @@ func TestSchedule_GangPreemption(t *testing.T) {
 			if tc.higherPriority {
 				siblingPriority = testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority
 			}
-			sibling := tc.sibling.WithNewRun(nodes[1].GetExecutor(), nodes[1].GetId(), nodes[1].GetName(), testfixtures.TestPool, siblingPriority)
+			sibling := tc.sibling.WithNewRunAt(nodes[1].GetExecutor(), nodes[1].GetId(), nodes[1].GetName(), testfixtures.TestPool, siblingPriority, testfixtures.BaseTime)
 			jobs := []*jobdb.Job{local, sibling}
 			jobDb := testfixtures.NewJobDbWithJobs(jobs)
 			nodeDb, err := NewNodeDb(testfixtures.TestSchedulingConfig())

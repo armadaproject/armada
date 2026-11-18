@@ -339,7 +339,7 @@ func (r *AsyncSchedulingRunner) updateScheduledJobs(ctx *armadacontext.Context, 
 	for _, scheduledJob := range nonGangJobs {
 		currentJob := txn.GetById(scheduledJob.JobId)
 		if isQueuedJobActionable(currentJob) {
-			updatedCurrentJob, err := markJobScheduled(currentJob, scheduledJob)
+			updatedCurrentJob, err := markJobScheduled(currentJob, scheduledJob, r.clock.Now())
 			if err != nil {
 				return err
 			}
@@ -384,7 +384,7 @@ func (r *AsyncSchedulingRunner) updateScheduledJobs(ctx *armadacontext.Context, 
 		allActionable := slices.AllFunc(gang, func(jobInfo *gangJobInfo) bool { return jobInfo.isActionable })
 		if allActionable {
 			for _, jobInfo := range gang {
-				updatedCurrentJob, err := markJobScheduled(jobInfo.currentJob, jobInfo.scheduledJctx)
+				updatedCurrentJob, err := markJobScheduled(jobInfo.currentJob, jobInfo.scheduledJctx, r.clock.Now())
 				if err != nil {
 					return err
 				}
@@ -484,7 +484,7 @@ func isJobActionable(job *jobdb.Job) bool {
 	return job != nil && !job.InTerminalState()
 }
 
-func markJobScheduled(currentJob *jobdb.Job, jctx *schedulercontext.JobSchedulingContext) (*jobdb.Job, error) {
+func markJobScheduled(currentJob *jobdb.Job, jctx *schedulercontext.JobSchedulingContext, now time.Time) (*jobdb.Job, error) {
 	newRun := jctx.Job.LatestRun()
 	if newRun == nil {
 		return nil, errors.Errorf("scheduled job %s has no associated run", jctx.JobId)
@@ -497,7 +497,7 @@ func markJobScheduled(currentJob *jobdb.Job, jctx *schedulercontext.JobSchedulin
 	currentJob = currentJob.
 		WithQueuedVersion(currentJob.QueuedVersion()+1).
 		WithQueued(false).
-		WithNewRun(newRun.Executor(), newRun.NodeId(), newRun.NodeName(), newRun.Pool(), *scheduledAtPriority)
+		WithNewRunAt(newRun.Executor(), newRun.NodeId(), newRun.NodeName(), newRun.Pool(), *scheduledAtPriority, now)
 	return currentJob, nil
 }
 

@@ -392,7 +392,7 @@ func newNodeDb(config configuration.SchedulingConfig) (*nodedb.NodeDb, error) {
 func assignJobsToNode(jobs []*jobdb.Job, node *internaltypes.Node) []*jobdb.Job {
 	updated := make([]*jobdb.Job, 0, len(jobs))
 	for _, job := range jobs {
-		j := job.WithNewRun(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), job.PriorityClass().Priority)
+		j := job.WithNewRunAt(node.GetExecutor(), node.GetId(), node.GetName(), node.GetPool(), job.PriorityClass().Priority, testfixtures.BaseTime)
 		updated = append(updated, j)
 	}
 	return updated

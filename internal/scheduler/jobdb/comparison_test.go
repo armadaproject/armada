@@ -2,6 +2,7 @@ package jobdb
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -53,7 +54,7 @@ func TestJobPriorityComparer(t *testing.T) {
 		},
 		"Running jobs come before queued jobs": {
 			a:        &Job{id: "a", priority: 1},
-			b:        (&Job{id: "b", priority: 2, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory)}).WithNewRun("", "", "", "", 0),
+			b:        (&Job{id: "b", priority: 2, jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory)}).WithNewRunAt("", "", "", "", 0, time.Unix(0, 0)),
 			expected: 1,
 		},
 		"Running jobs are ordered third by runtime": {
@@ -129,7 +130,7 @@ func TestMarketJobPriorityComparer(t *testing.T) {
 			b: (&Job{
 				id: "b", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesB,
 				jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory),
-			}).WithNewRun("", "", "", "", 0),
+			}).WithNewRunAt("", "", "", "", 0, time.Unix(0, 0)),
 			currentPool: "a",
 			expected:    -1,
 		},
@@ -138,7 +139,7 @@ func TestMarketJobPriorityComparer(t *testing.T) {
 			b: (&Job{
 				id: "b", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesB,
 				jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory),
-			}).WithNewRun("", "", "", "", 0),
+			}).WithNewRunAt("", "", "", "", 0, time.Unix(0, 0)),
 			currentPool: "b",
 			expected:    -1,
 		},
@@ -147,7 +148,7 @@ func TestMarketJobPriorityComparer(t *testing.T) {
 			b: (&Job{
 				id: "b", priorityClass: types.PriorityClass{Priority: 1, Preemptible: true}, bidPricesPool: bidPricesA,
 				jobDb: NewJobDb(map[string]types.PriorityClass{"foo": {}}, "foo", stringinterner.New(1), testResourceListFactory),
-			}).WithNewRun("", "", "", "", 0),
+			}).WithNewRunAt("", "", "", "", 0, time.Unix(0, 0)),
 			currentPool: "a",
 			expected:    1,
 		},

@@ -654,8 +654,8 @@ func TestIsWithinFloatingResourceLimits(t *testing.T) {
 
 	job := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass2)
 	jobWithFloatingResource := addFloatingResourceRequest("1", job)
-	homeJob := jobWithFloatingResource.WithNewRun("executor-1", "node-1", "node-1", homePool, 1)
-	awayJob := jobWithFloatingResource.WithNewRun("executor-1", "node-1", "node-1", awayPool, 1)
+	homeJob := jobWithFloatingResource.WithNewRunAt("executor-1", "node-1", "node-1", homePool, 1, testfixtures.BaseTime)
+	awayJob := jobWithFloatingResource.WithNewRunAt("executor-1", "node-1", "node-1", awayPool, 1, testfixtures.BaseTime)
 
 	allocatedWithinLimits := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"test-floating-resource": resource.MustParse("5")})
 	allocatedAboveLimits := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"test-floating-resource": resource.MustParse("15")})

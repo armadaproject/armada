@@ -361,7 +361,7 @@ func TestBindCrossPoolJobBucketing(t *testing.T) {
 			require.NoError(t, err)
 
 			job := testfixtures.Test1Cpu4GiJob("queue-a", testfixtures.PriorityClass0)
-			job = job.WithQueued(false).WithNewRun("executor-01", node.GetId(), node.GetName(), jobRunPool, job.PriorityClass().Priority)
+			job = job.WithQueued(false).WithNewRunAt("executor-01", node.GetId(), node.GetName(), jobRunPool, job.PriorityClass().Priority, testfixtures.BaseTime)
 
 			_, err = nodeDb.BindJobToNode(entry, job, job.PriorityClass().Priority)
 			require.NoError(t, err)

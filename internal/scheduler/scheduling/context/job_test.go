@@ -37,17 +37,17 @@ func TestJobSchedulingContext_IsHomePool(t *testing.T) {
 	assert.True(t, jctx.IsHomeJob(testfixtures.TestPool))
 
 	// Add run for the current pool
-	job = job.WithNewRun("executor", "node-id", "node", testfixtures.TestPool, 1)
+	job = job.WithNewRunAt("executor", "node-id", "node", testfixtures.TestPool, 1, testfixtures.BaseTime)
 	jctx = &JobSchedulingContext{Job: job}
 	assert.True(t, jctx.IsHomeJob(testfixtures.TestPool))
 
 	// Add run for a different pool
-	job = job.WithNewRun("executor", "node-id", "node", "other", 1)
+	job = job.WithNewRunAt("executor", "node-id", "node", "other", 1, testfixtures.BaseTime)
 	jctx = &JobSchedulingContext{Job: job}
 	assert.False(t, jctx.IsHomeJob(testfixtures.TestPool))
 
 	// Add returned run for a different pool
-	job = job.WithNewRun("executor", "node-id", "node", "other", 1).WithQueued(true)
+	job = job.WithNewRunAt("executor", "node-id", "node", "other", 1, testfixtures.BaseTime).WithQueued(true)
 	jctx = &JobSchedulingContext{Job: job}
 	assert.True(t, jctx.IsHomeJob(testfixtures.TestPool))
 }

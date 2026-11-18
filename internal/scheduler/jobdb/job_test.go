@@ -2,6 +2,7 @@ package jobdb
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -261,15 +262,15 @@ func TestJob_GetAllBidPrices(t *testing.T) {
 
 func TestJob_TestHasRuns(t *testing.T) {
 	assert.Equal(t, false, baseJob.HasRuns())
-	assert.Equal(t, true, baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId", "pool", 5).HasRuns())
+	assert.Equal(t, true, baseJob.WithNewRunAt("test-executor", "test-nodeId", "nodeId", "pool", 5, time.Unix(0, 0)).HasRuns())
 }
 
-func TestJob_TestWithNewRun(t *testing.T) {
+func TestJob_TestWithNewRunAt(t *testing.T) {
 	scheduledAtPriority := int32(10)
-	jobWithRun := baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId", "pool", scheduledAtPriority)
+	created := time.Unix(123, 0)
+	jobWithRun := baseJob.WithNewRunAt("test-executor", "test-nodeId", "nodeId", "pool", scheduledAtPriority, created)
 	assert.Equal(t, true, jobWithRun.HasRuns())
 	run := jobWithRun.LatestRun()
-	created := jobDb.clock.Now()
 	assert.NotNil(t, run)
 	assert.Equal(
 		t,
@@ -583,7 +584,7 @@ func TestJob_TestResolvedPools(t *testing.T) {
 	jobWithPool := baseJob.WithPools([]string{"testPool"})
 	jobWithJobRunPool := jobWithPool.
 		WithQueued(false).
-		WithNewRun("testExecutor", "testNode", "testNode", "testPool2", 1)
+		WithNewRunAt("testExecutor", "testNode", "testNode", "testPool2", 1, time.Unix(0, 0))
 
 	// Job without pool
 	assert.Equal(t, []string{}, jobWithNoPool.ResolvedPools())
