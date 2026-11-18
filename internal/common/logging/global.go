@@ -7,15 +7,18 @@ import (
 )
 
 var (
-	StdSkipFrames = 4
 	// The global Logger.  Comes configured with some sensible defaults for e.g. unit tests, but applications should
 	// generally configure their own logging config via ReplaceStdLogger
 	stdLogger = createDefaultLogger()
+	// stdLogger with one extra caller frame skipped. Used by the package-level log functions below, which
+	// sit between the logging site and the Logger.
+	loggerWithSkip = stdLogger.WithCallerSkip(1)
 )
 
 // ReplaceStdLogger Replaces the global logger.  This should be called once at app startup!
 func ReplaceStdLogger(l *Logger) {
-	stdLogger = l.WithCallerSkip(StdSkipFrames)
+	stdLogger = l
+	loggerWithSkip = l.WithCallerSkip(1)
 }
 
 // StdLogger Returns the default logger
@@ -25,57 +28,57 @@ func StdLogger() *Logger {
 
 // Debug logs a message at level Debug on the default logger.
 func Debug(args ...any) {
-	stdLogger.Debug(args...)
+	loggerWithSkip.Debug(args...)
 }
 
 // Info logs a message at level Info on the default logger.
 func Info(args ...any) {
-	stdLogger.Info(args...)
+	loggerWithSkip.Info(args...)
 }
 
 // Warn logs a message at level Warn on the default logger.
 func Warn(args ...any) {
-	stdLogger.Warn(args...)
+	loggerWithSkip.Warn(args...)
 }
 
 // Error logs a message at level Error on the default logger.
 func Error(args ...any) {
-	stdLogger.Error(args...)
+	loggerWithSkip.Error(args...)
 }
 
 // Panic logs a message at level Panic on the default logger.
 func Panic(args ...any) {
-	stdLogger.Panic(args...)
+	loggerWithSkip.Panic(args...)
 }
 
 // Fatal logs a message at level Fatal on the default logger then the process will exit with status set to 1.
 func Fatal(args ...any) {
-	stdLogger.Fatal(args...)
+	loggerWithSkip.Fatal(args...)
 }
 
 // Debugf logs a message at level Debug on the default logger.
 func Debugf(format string, args ...any) {
-	stdLogger.Debugf(format, args...)
+	loggerWithSkip.Debugf(format, args...)
 }
 
 // Infof logs a message at level Info on the default logger.
 func Infof(format string, args ...any) {
-	stdLogger.Infof(format, args...)
+	loggerWithSkip.Infof(format, args...)
 }
 
 // Warnf logs a message at level Warn on the default logger.
 func Warnf(format string, args ...any) {
-	stdLogger.Warnf(format, args...)
+	loggerWithSkip.Warnf(format, args...)
 }
 
 // Errorf logs a message at level Error on the default logger.
 func Errorf(format string, args ...any) {
-	stdLogger.Errorf(format, args...)
+	loggerWithSkip.Errorf(format, args...)
 }
 
 // Fatalf logs a message at level Fatal on the default logger then the process will exit with status set to 1.
 func Fatalf(format string, args ...any) {
-	stdLogger.Fatalf(format, args...)
+	loggerWithSkip.Fatalf(format, args...)
 }
 
 // WithField returns a new Logger with the key-value pair added as a new field
@@ -109,7 +112,6 @@ func createDefaultLogger() *Logger {
 	zerologLogger := zerolog.New(consoleWriter).
 		Level(zerolog.InfoLevel).
 		With().
-		CallerWithSkipFrameCount(StdSkipFrames).
 		Timestamp().
 		Logger()
 
