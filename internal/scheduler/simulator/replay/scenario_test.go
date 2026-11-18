@@ -443,3 +443,58 @@ clusters:
 		previous = actual
 	}
 }
+
+func TestReplayAppliesPerPoolFairSharePreemptionRate(t *testing.T) {
+	dir := copyScenario(t)
+	updateScenario(t, dir, func(s map[string]any) {
+		s["queues"] = []any{
+			map[string]any{"name": "offered", "weight": 1},
+			map[string]any{"name": "challenger", "weight": 2},
+			map[string]any{"name": "cordoned", "weight": 1, "cordoned": true},
+		}
+		s["window"].(map[string]any)["cycle_us"] = 10_000_000
+		s["window"].(map[string]any)["end_us"] = measurementStart + 40_000_000
+	})
+	editSchedulerConfig(t, dir, func(config string) string {
+		return strings.Replace(config, "  - name: test-pool\n",
+			"  - name: test-pool\n    fairsharePreemptionRateLimit: {maximumRate: 0.05, maximumBurst: 1}\n", 1)
+	})
+	farm := "schemaVersion: 1\nclusters:\n  - name: capacity\n    pool: test-pool\n    nodeTemplates:\n      - number: 1\n        totalResources: {resources: {cpu: \"8\"}}\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "farm.yaml"), []byte(farm), 0o644))
+	input := make([]recordedJob, 0, 11)
+	for i := range 8 {
+		job := cpuJob(fmt.Sprintf("incumbent-%d", i), measurementStart-minuteUS)
+		job.Requests = `{"resourceRequirements":{"requests":{"cpu":"1"}}}`
+		input = append(input, job)
+	}
+	for i := range 2 {
+		job := cpuJob(fmt.Sprintf("challenger-%d", i), measurementStart)
+		job.Queue = "challenger"
+		job.Requests = `{"resourceRequirements":{"requests":{"cpu":"1"}}}`
+		input = append(input, job)
+	}
+	job := cpuJob("cordoned", measurementStart)
+	job.Queue = "cordoned"
+	job.Requests = `{"resourceRequirements":{"requests":{"cpu":"1"}}}`
+	input = append(input, job)
+	writeInput(t, dir, [][]recordedJob{input})
+	out := filepath.Join(dir, "out")
+	require.NoError(t, replay.RunScenario(t.Context(), filepath.Join(dir, "scenario.json"), out, ""))
+	attempts := readParquet[checkedAttempt](t, filepath.Join(out, "attempts.parquet"))
+	var challengerStarts []int64
+	for _, row := range attempts {
+		switch {
+		case strings.HasPrefix(row.ID, "challenger-"):
+			challengerStarts = append(challengerStarts, row.AllocatedUS)
+		case strings.HasPrefix(row.ID, "incumbent-") && row.EndUS < measurementStart+40_000_000:
+			require.Contains(t, []int64{measurementStart, measurementStart + 20_000_000}, row.EndUS)
+		}
+	}
+	require.ElementsMatch(t, []int64{measurementStart, measurementStart + 20_000_000}, challengerStarts)
+	for _, row := range readParquet[checkedLogical](t, filepath.Join(out, "logical_jobs.parquet")) {
+		if row.ID == "cordoned" {
+			require.Equal(t, "queued", row.State)
+			require.Empty(t, row.Reason, "cordoned is eligible but queued")
+		}
+	}
+}
