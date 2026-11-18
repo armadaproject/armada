@@ -83,6 +83,7 @@ type FairSchedulingAlgoOption func(*FairSchedulingAlgo)
 // the time used for rate-limit token refill, executor eligibility, optimiser
 // cadence and scheduling context timestamps. The clock must be non-nil.
 // Production callers use the default real clock.
+// Computation budgets and deadlines use real time.
 func WithPolicyClock(clk clock.Clock) FairSchedulingAlgoOption {
 	return func(algo *FairSchedulingAlgo) { algo.clock = clk }
 }
