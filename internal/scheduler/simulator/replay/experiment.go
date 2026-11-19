@@ -220,7 +220,7 @@ func prepareCandidate(ctx context.Context, base, id string, spec candidate, inpu
 	if err != nil {
 		return candidateRun{}, err
 	}
-	hash, err := hashExecutable(ctx, binary)
+	hash, err := hashFile(ctx, binary)
 	if err != nil {
 		return candidateRun{}, err
 	}
@@ -323,6 +323,9 @@ func (c candidateRun) execute(parent context.Context, output string, timeout tim
 	if err := result.validate(c, digest(raw)); err != nil {
 		return nil, fmt.Errorf("candidate %s result: %w", c.input.ID, err)
 	}
+	if err := verifyObservations(ctx, dir); err != nil {
+		return nil, fmt.Errorf("candidate %s observations: %w", c.input.ID, err)
+	}
 	return &result, nil
 }
 
@@ -330,13 +333,13 @@ func digest(raw []byte) string {
 	return fmt.Sprintf("%x", sha256.Sum256(raw))
 }
 
-func hashExecutable(ctx context.Context, path string) (string, error) {
+func hashFile(ctx context.Context, path string) (string, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return "", err
 	}
 	if !info.Mode().IsRegular() {
-		return "", fmt.Errorf("expected a regular executable file at %s", path)
+		return "", fmt.Errorf("expected a regular file at %s", path)
 	}
 	f, err := os.Open(path)
 	if err != nil {

@@ -5,10 +5,14 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/xitongsys/parquet-go-source/local"
+	"github.com/xitongsys/parquet-go/reader"
 )
 
 func TestCompareCapacityAndCordon(t *testing.T) {
@@ -36,16 +40,23 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 			if tc.cordon {
 				spec.Queues = append(spec.Queues, queueSpec{Name: "priority", Weight: 1})
 			}
-			a := runTestCandidate(t, base, "a", spec, input)
+			a, aAttempts, aQueue := runTestCandidate(t, base, "a", spec, input)
 			spec.Farm = tc.farm
 			if tc.cordon {
 				spec.Queues[1].Cordoned = true
 			}
-			b := runTestCandidate(t, base, "b", spec, input)
+			b, bAttempts, bQueue := runTestCandidate(t, base, "b", spec, input)
 			report := compareResults(tc.name, nil, a, b)
 			require.Len(t, report.Jobs, 2)
+			checkAttemptCPU(t, aAttempts, *report.Allocated.A)
+			checkAttemptCPU(t, bAttempts, *report.Allocated.B)
+			require.Equal(t, []queueIntervalRow{{JobID: "first"}, {JobID: "second", EndUS: 60_000_000}}, aQueue)
+
 			if tc.cordon {
 				require.Equal(t, values(360, 240), report.Allocated)
+				require.Equal(t, []queueIntervalRow{{JobID: "first", EndUS: 90_000_000, Censored: true}, {JobID: "second"}}, bQueue)
+				require.Len(t, bAttempts, 1)
+				require.Equal(t, "second", bAttempts[0].JobID)
 				require.Equal(t, values(360, 360), report.Available)
 				require.Equal(t, values(1, 2.0/3), report.Utilisation)
 				require.Equal(t, values(60_000_000, 0), report.Jobs[1].Delay)
@@ -58,6 +69,10 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 				return
 			}
 			require.Equal(t, values(480, 480), report.Allocated)
+			require.Equal(t, []queueIntervalRow{{JobID: "first"}, {JobID: "second"}}, bQueue)
+			require.Len(t, aAttempts, 2)
+			require.Equal(t, int64(60_000_000), aAttempts[1].AllocatedUS)
+			require.Equal(t, "second", aAttempts[1].JobID)
 			require.Equal(t, values(720, 1440), report.Available)
 			require.Equal(t, values(2.0/3, 1.0/3), report.Utilisation)
 			require.Equal(t, values(0, 0), report.Jobs[0].Delay)
@@ -67,7 +82,7 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 	}
 }
 
-func runTestCandidate(t *testing.T, base, id string, spec candidate, input candidateInput) *runResult {
+func runTestCandidate(t *testing.T, base, id string, spec candidate, input candidateInput) (*runResult, []attemptRow, []queueIntervalRow) {
 	t.Helper()
 	c, err := prepareCandidate(t.Context(), base, id, spec, input)
 	require.NoError(t, err)
@@ -91,7 +106,58 @@ func runTestCandidate(t *testing.T, base, id string, spec candidate, input candi
 	broken = result
 	broken.AllocatedCPUSeconds = nil
 	require.ErrorContains(t, broken.validate(c, digest(raw)), "invalid CPU accounting")
-	return &result
+	require.NoError(t, verifyObservations(t.Context(), dir))
+	attempts := readTestParquet[attemptRow](t, filepath.Join(dir, attemptsFile))
+	queue := readTestParquet[queueIntervalRow](t, filepath.Join(dir, queueIntervalsFile))
+	slices.SortFunc(queue, func(a, b queueIntervalRow) int { return strings.Compare(a.JobID, b.JobID) })
+	return &result, attempts, queue
+}
+
+func readTestParquet[T any](t *testing.T, path string) []T {
+	t.Helper()
+	f, err := local.NewLocalFileReader(path)
+	require.NoError(t, err)
+	defer f.Close()
+	p, err := reader.NewParquetReader(f, new(T), 1)
+	require.NoError(t, err)
+	defer p.ReadStop()
+	rows := make([]T, p.GetNumRows())
+	require.NoError(t, p.Read(&rows))
+	return rows
+}
+
+func checkAttemptCPU(t *testing.T, attempts []attemptRow, expected float64) {
+	t.Helper()
+	var allocated float64
+	for _, attempt := range attempts {
+		require.JSONEq(t, `{"cpu":"4"}`, attempt.Requests)
+		require.NotEmpty(t, attempt.RunID)
+		require.NotEmpty(t, attempt.Node)
+		require.Equal(t, int64(1), attempt.Ordinal)
+		allocated += 4 * float64(attempt.EndUS-attempt.AllocatedUS) / 1_000_000
+	}
+	require.Equal(t, expected, allocated)
+}
+
+func TestEmptyAttemptsStillWriteReadableParquet(t *testing.T) {
+	path := filepath.Join(t.TempDir(), attemptsFile)
+	output, err := createParquet(path, new(attemptRow))
+	require.NoError(t, err)
+	require.NoError(t, output.close())
+	require.Empty(t, readTestParquet[attemptRow](t, path))
+}
+
+func TestVerifyObservationsRequiresCompleteChecksummedFiles(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, verifyObservations(t.Context(), dir)) // Older worker.
+	attemptPath := filepath.Join(dir, attemptsFile)
+	require.NoError(t, os.WriteFile(attemptPath, []byte("attempts"), 0o644))
+	require.ErrorContains(t, verifyObservations(t.Context(), dir), "missing Parquet observations manifest")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, queueIntervalsFile), []byte("queue"), 0o644))
+	require.NoError(t, writeObservationsManifest(t.Context(), dir))
+	require.NoError(t, verifyObservations(t.Context(), dir))
+	require.NoError(t, os.WriteFile(attemptPath, []byte("damaged"), 0o644))
+	require.ErrorContains(t, verifyObservations(t.Context(), dir), "checksum mismatch for attempts.parquet")
 }
 
 func TestValidateChangeRejectsUndeclaredInputs(t *testing.T) {

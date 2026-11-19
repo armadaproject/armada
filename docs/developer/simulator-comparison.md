@@ -70,3 +70,19 @@ its process log, and its successful run manifest. The manifest records the
 workload, executable, configuration and farm hashes, replay and result versions,
 the window and logical outcomes. A failed or incompatible run leaves its
 available diagnostics under the output directory. Use a fresh directory to retry.
+
+Each candidate also writes two raw Parquet files. Join their
+`logical_job_id` to the job outcomes in `run.json` and to the supplied jobs
+in `input.json`.
+
+| File | Rows |
+| --- | --- |
+| `attempts.parquet` | One row per allocation attempt, including placement, resource requests, timing, end state and useful-work accounting. A running attempt is observed at cutoff. |
+| `queue_intervals.parquet` | One row per period a job waited for an allocation, including immediate allocations and waits still in progress at cutoff (`censored=true`). |
+
+Timestamp columns ending in `_at_us` are UTC epoch microseconds on the replay
+clock. The records include warm-up. Clip the intervals to the measurement
+window to reconstruct its CPU-seconds. `observations.json` records the
+Parquet schema version and file checksums. Older simulator builds that
+support the version 1 comparison protocol can still be compared. Use builds
+with Parquet support on both sides to get both sets of raw observations.

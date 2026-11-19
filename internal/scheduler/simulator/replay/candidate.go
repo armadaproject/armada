@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/big"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -115,7 +116,7 @@ func (o outcome) valid(window Window, usefulUS int64) bool {
 }
 
 // RunComparisonCandidate executes the versioned worker protocol for Compare.
-func RunComparisonCandidate(ctx context.Context, inputPath, resultPath string) error {
+func RunComparisonCandidate(ctx context.Context, inputPath, resultPath string) (resultErr error) {
 	raw, err := readLocal(inputPath, maxProtocol)
 	if err != nil {
 		return err
@@ -149,7 +150,20 @@ func RunComparisonCandidate(ctx context.Context, inputPath, resultPath string) e
 	if err != nil {
 		return err
 	}
-	observations := comparisonObservations{window: input.Window, jobs: make([]outcome, 0, len(input.Jobs))}
+	dir := filepath.Dir(resultPath)
+	attempts, err := createParquet(filepath.Join(dir, attemptsFile), new(attemptRow))
+	if err != nil {
+		return err
+	}
+	defer func() { resultErr = errors.Join(resultErr, attempts.close()) }()
+	queuesOutput, err := createParquet(filepath.Join(dir, queueIntervalsFile), new(queueIntervalRow))
+	if err != nil {
+		return err
+	}
+	defer func() { resultErr = errors.Join(resultErr, queuesOutput.close()) }()
+	observations := comparisonObservations{
+		window: input.Window, jobs: make([]outcome, 0, len(input.Jobs)), attempts: attempts, queues: queuesOutput,
+	}
 	nextIndex := 0
 	next := func() (Job, error) {
 		if nextIndex == len(input.Jobs) {
@@ -166,11 +180,17 @@ func RunComparisonCandidate(ctx context.Context, inputPath, resultPath string) e
 	if _, err := Run(ctx, input.Window, next, scheduler, &observations); err != nil {
 		return err
 	}
+	if err := errors.Join(attempts.close(), queuesOutput.close()); err != nil {
+		return err
+	}
+	if err := writeObservationsManifest(ctx, dir); err != nil {
+		return err
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	hash, err := hashExecutable(ctx, executable)
+	hash, err := hashFile(ctx, executable)
 	if err != nil {
 		return err
 	}
@@ -189,9 +209,9 @@ type comparisonObservations struct {
 	window     Window
 	jobs       []outcome
 	cpuSeconds big.Rat
+	attempts   *parquetOutput
+	queues     *parquetOutput
 }
-
-func (o *comparisonObservations) Queue(QueueInterval) error { return nil }
 
 func (o *comparisonObservations) Job(row JobResult) error {
 	o.jobs = append(o.jobs, outcome{
@@ -210,7 +230,7 @@ func (o *comparisonObservations) Attempt(row AttemptResult) error {
 	if end > start {
 		o.cpuSeconds.Add(&o.cpuSeconds, cpuSeconds(row.Offered.Requests[v1.ResourceCPU], end-start))
 	}
-	return nil
+	return o.writeAttempt(row)
 }
 
 func cpuSeconds(cpu resource.Quantity, durationUS int64) *big.Rat {
