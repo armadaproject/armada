@@ -6,10 +6,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/armadaproject/armada/internal/common/errormatch"
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
@@ -122,24 +124,28 @@ func TestAllocateSpareClusterCapacity_HandlesFailedPodCreations(t *testing.T) {
 
 			if tc.expectLeaseReturnedEvent {
 				run := runStore.Get(leaseRun.Meta.RunId)
-				assert.Equal(t, run.Phase, job.FailedSubmission)
-				assert.Len(t, eventReporter.ReceivedEvents, 1)
-				assert.Len(t, eventReporter.ReceivedEvents[0].Event.Events, 1)
+				assert.Equal(t, job.FailedSubmission, run.Phase)
+				require.Len(t, eventReporter.ReceivedEvents, 1)
+				require.Len(t, eventReporter.ReceivedEvents[0].Event.Events, 1)
 				event, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
-				assert.True(t, ok)
-				assert.Len(t, event.JobRunErrors.Errors, 1)
-				assert.True(t, event.JobRunErrors.Errors[0].GetPodLeaseReturned() != nil)
+				require.True(t, ok)
+				require.Len(t, event.JobRunErrors.Errors, 1)
+				assert.NotNil(t, event.JobRunErrors.Errors[0].GetPodLeaseReturned())
+				assert.Equal(t, errormatch.CategoryInternal, event.JobRunErrors.Errors[0].FailureCategory)
+				assert.Equal(t, errormatch.SubcategoryPodSubmissionFailed, event.JobRunErrors.Errors[0].FailureSubcategory)
 			}
 
 			if tc.expectFailEvent {
 				run := runStore.Get(leaseRun.Meta.RunId)
-				assert.Equal(t, run.Phase, job.FailedSubmission)
-				assert.Len(t, eventReporter.ReceivedEvents, 1)
-				assert.Len(t, eventReporter.ReceivedEvents[0].Event.Events, 1)
+				assert.Equal(t, job.FailedSubmission, run.Phase)
+				require.Len(t, eventReporter.ReceivedEvents, 1)
+				require.Len(t, eventReporter.ReceivedEvents[0].Event.Events, 1)
 				event, ok := eventReporter.ReceivedEvents[0].Event.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunErrors)
-				assert.True(t, ok)
-				assert.Len(t, event.JobRunErrors.Errors, 1)
-				assert.True(t, event.JobRunErrors.Errors[0].GetPodError() != nil)
+				require.True(t, ok)
+				require.Len(t, event.JobRunErrors.Errors, 1)
+				assert.NotNil(t, event.JobRunErrors.Errors[0].GetPodError())
+				assert.Equal(t, errormatch.CategoryInternal, event.JobRunErrors.Errors[0].FailureCategory)
+				assert.Equal(t, errormatch.SubcategoryPodSubmissionFailed, event.JobRunErrors.Errors[0].FailureSubcategory)
 			}
 		})
 	}
