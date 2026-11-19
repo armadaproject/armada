@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 1,
   "workload": "workload.json",
   "window": {
     "warmup_start_s": 0,

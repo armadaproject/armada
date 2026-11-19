@@ -47,8 +47,8 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 				spec.Queues[1].Cordoned = true
 			}
 			b, bAttempts, bQueue := runTestCandidate(t, base, "b", spec, input)
-			report := compareResults(tc.name, nil, a, b)
-			require.Equal(t, 4, report.Version)
+			report := compareResults(tc.name, a, b)
+			require.Equal(t, 1, report.Version)
 			checkAttemptCPU(t, aAttempts, *report.Allocated.A)
 			checkAttemptCPU(t, bAttempts, *report.Allocated.B)
 			require.Equal(t, []queueIntervalRow{{JobID: "first"}, {JobID: "second", EndSeconds: 60}}, aQueue)
@@ -100,7 +100,7 @@ func runTestCandidate(t *testing.T, base, id string, spec candidate, input candi
 	require.NoError(t, result.validate(c, digest(raw)))
 	broken := result
 	broken.Version = 2
-	require.ErrorContains(t, broken.validate(c, digest(raw)), "worker result protocol version 2 is incompatible with version 3")
+	require.ErrorContains(t, broken.validate(c, digest(raw)), "worker result protocol version 2 is incompatible with version 1")
 	broken = result
 	broken.Outcomes = broken.Outcomes[:1]
 	require.ErrorContains(t, broken.validate(c, digest(raw)), "missing 1 logical outcomes")
@@ -110,7 +110,7 @@ func runTestCandidate(t *testing.T, base, id string, spec candidate, input candi
 	broken = result
 	broken.AllocatedCPUSeconds = nil
 	require.ErrorContains(t, broken.validate(c, digest(raw)), "invalid CPU accounting")
-	require.NoError(t, verifyObservations(t.Context(), dir))
+	require.NoError(t, verifyObservations(dir))
 	attempts := readTestParquet[attemptRow](t, filepath.Join(dir, attemptsFile))
 	queue := readTestParquet[queueIntervalRow](t, filepath.Join(dir, queueIntervalsFile))
 	slices.SortFunc(queue, func(a, b queueIntervalRow) int { return strings.Compare(a.JobID, b.JobID) })
@@ -151,25 +151,48 @@ func TestEmptyAttemptsStillWriteReadableParquet(t *testing.T) {
 	require.Empty(t, readTestParquet[attemptRow](t, path))
 }
 
-func TestVerifyObservationsRequiresCompleteChecksummedFiles(t *testing.T) {
+func TestVerifyObservationsRequiresBothReadableParquetFiles(t *testing.T) {
 	dir := t.TempDir()
-	require.ErrorContains(t, verifyObservations(t.Context(), dir), "missing Parquet observations manifest")
 	attemptPath := filepath.Join(dir, attemptsFile)
 	attempts, err := createParquet(attemptPath, new(attemptRow))
 	require.NoError(t, err)
 	require.NoError(t, attempts.close())
-	require.ErrorContains(t, verifyObservations(t.Context(), dir), "missing Parquet observations manifest")
+	require.ErrorIs(t, verifyObservations(dir), os.ErrNotExist)
 	queuePath := filepath.Join(dir, queueIntervalsFile)
 	queue, err := createParquet(queuePath, new(queueIntervalRow))
 	require.NoError(t, err)
 	require.NoError(t, queue.close())
-	require.NoError(t, writeObservationsManifest(t.Context(), dir))
-	require.NoError(t, verifyObservations(t.Context(), dir))
+	require.NoError(t, verifyObservations(dir))
 	require.NoError(t, os.WriteFile(attemptPath, []byte("PAR1X\x01\x00\x00\x00PAR1"), 0o644))
-	require.ErrorContains(t, verifyObservations(t.Context(), dir), "checksum mismatch for attempts.parquet")
-	require.NoError(t, os.Remove(filepath.Join(dir, observationsManifestFile)))
-	require.NoError(t, writeObservationsManifest(t.Context(), dir))
-	require.ErrorContains(t, verifyObservations(t.Context(), dir), "attempts.parquet: invalid Parquet footer")
+	require.ErrorContains(t, verifyObservations(dir), "attempts.parquet: invalid Parquet footer")
+}
+
+func TestObservationSchemaAcceptsReorderedColumns(t *testing.T) {
+	type reorderedQueueRow struct {
+		Censored bool   `parquet:"name=censored, type=BOOLEAN"`
+		End      int64  `parquet:"name=end_at_s, type=INT64"`
+		Queued   int64  `parquet:"name=queued_at_s, type=INT64"`
+		JobID    string `parquet:"name=logical_job_id, type=BYTE_ARRAY, convertedtype=UTF8"`
+	}
+	path := filepath.Join(t.TempDir(), queueIntervalsFile)
+	out, err := createParquet(path, new(reorderedQueueRow))
+	require.NoError(t, err)
+	require.NoError(t, out.close())
+	require.NoError(t, checkParquetSchema(path, new(queueIntervalRow)))
+}
+
+func TestObservationSchemaRejectsWrongPhysicalType(t *testing.T) {
+	type queueWithFractionalTimes struct {
+		JobID    string  `parquet:"name=logical_job_id, type=BYTE_ARRAY, convertedtype=UTF8"`
+		Queued   float64 `parquet:"name=queued_at_s, type=DOUBLE"`
+		End      int64   `parquet:"name=end_at_s, type=INT64"`
+		Censored bool    `parquet:"name=censored, type=BOOLEAN"`
+	}
+	path := filepath.Join(t.TempDir(), queueIntervalsFile)
+	out, err := createParquet(path, new(queueWithFractionalTimes))
+	require.NoError(t, err)
+	require.NoError(t, out.close())
+	require.ErrorContains(t, checkParquetSchema(path, new(queueIntervalRow)), `Parquet column "queued_at_s" has type DOUBLE, expected INT64`)
 }
 
 func TestObservationsRejectLegacyParquetColumns(t *testing.T) {
@@ -186,8 +209,7 @@ func TestObservationsRejectLegacyParquetColumns(t *testing.T) {
 	queue, err := createParquet(filepath.Join(dir, queueIntervalsFile), new(legacyQueueRow))
 	require.NoError(t, err)
 	require.NoError(t, queue.close())
-	require.NoError(t, writeObservationsManifest(t.Context(), dir))
-	require.ErrorContains(t, verifyObservations(t.Context(), dir), `unexpected Parquet schema element "queued_at_us", expected "queued_at_s"`)
+	require.ErrorContains(t, verifyObservations(dir), `missing Parquet column "queued_at_s"`)
 }
 
 func TestValidateChangeRejectsUndeclaredInputs(t *testing.T) {
@@ -196,14 +218,16 @@ func TestValidateChangeRejectsUndeclaredInputs(t *testing.T) {
 	}}
 	b := a
 	b.input.Farm = []byte("farm-b")
-	require.NoError(t, validateChange("capacity", nil, a, b))
-	b.binarySHA256 = "binary-b"
-	require.ErrorContains(t, validateChange("capacity", nil, a, b), "do not match")
-	b.input.Farm = a.input.Farm
-	require.ErrorContains(t, validateChange("binary", &codeChange{Path: "short-job penalties", Behavior: "penalise"}, a, b), "supported path")
-	require.NoError(t, validateChange("binary", &codeChange{Path: orderingPath, Behavior: "reverse priorities"}, a, b))
+	require.NoError(t, validateChange("capacity", a, b))
+	require.ErrorContains(t, validateChange("none", a, b), "do not match")
+	binaryB := b
+	binaryB.binarySHA256 = "binary-b"
+	for _, mode := range []string{"none", "capacity", "queue_cordon"} {
+		require.ErrorContains(t, validateChange(mode, a, binaryB), "requires the same executable")
+	}
+	require.ErrorContains(t, validateChange("binary", a, a), "unknown experiment change")
 	b.input.Config = []byte("other-config")
-	require.ErrorContains(t, validateChange("binary", &codeChange{Path: orderingPath, Behavior: "reverse priorities"}, a, b), "scheduler_config differs")
+	require.ErrorContains(t, validateChange("capacity", a, b), "scheduler_config differs")
 }
 
 func TestCandidateProcessFailuresKeepDiagnostics(t *testing.T) {
@@ -249,7 +273,7 @@ func TestWaitPercentilesUseAllocatedArrivalsDuringMeasurement(t *testing.T) {
 	}
 	cpu := float64(1)
 	run := &runResult{Window: Window{EndSeconds: 500}, Outcomes: arrivals, AllocatedCPUSeconds: &cpu, AvailableCPUSeconds: &cpu}
-	group := compareResults("none", nil, run, run).Groups[0]
+	group := compareResults("none", run, run).Groups[0]
 	require.Equal(t, values(101, 101), group.Arrivals)
 	require.Equal(t, values(100, 100), group.Allocated)
 	require.Equal(t, values(1, 1), group.Unallocated)
@@ -266,7 +290,7 @@ func TestReportKeepsExactSeconds(t *testing.T) {
 			Outcomes: []outcome{{FirstAllocationSeconds: wait, ObservedSeconds: b, State: Completed}},
 		}
 	}
-	report := compareResults("capacity", nil, run(&a), run(&b))
+	report := compareResults("capacity", run(&a), run(&b))
 	raw, err := json.Marshal(report)
 	require.NoError(t, err)
 	require.Contains(t, string(raw), `"p50":{"a":9223372034,"b":9223372035,"delta":1}`)
@@ -280,12 +304,12 @@ func waitValues(a, b int64) metric[int64] {
 	return difference(&a, &b)
 }
 
-func TestWorkerRejectsOlderInputProtocol(t *testing.T) {
+func TestWorkerRejectsUnsupportedInputProtocol(t *testing.T) {
 	dir := t.TempDir()
 	input := filepath.Join(dir, "input.json")
 	result := filepath.Join(dir, "run.json")
 	require.NoError(t, os.WriteFile(input, []byte(`{"version":2,"candidate_id":"a"}`), 0o644))
-	require.ErrorContains(t, RunComparisonCandidate(t.Context(), input, result), "worker input protocol version 2 is incompatible with version 3")
+	require.ErrorContains(t, RunComparisonCandidate(t.Context(), input, result), "worker input protocol version 2 is incompatible with version 1")
 	require.NoFileExists(t, result)
 }
 

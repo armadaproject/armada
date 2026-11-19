@@ -31,7 +31,7 @@ func difference[T metricValue](a, b *T) metric[T] {
 	return m
 }
 
-const comparisonReportVersion = 4
+const comparisonReportVersion = 1
 
 type waitPercentiles struct {
 	P50 metric[int64] `json:"p50"`
@@ -53,9 +53,9 @@ type groupComparison struct {
 }
 
 type comparisonReport struct {
-	Version     int               `json:"version"`
-	Change      string            `json:"change"`
-	Code        *codeChange       `json:"code,omitempty"`
+	Version int    `json:"version"`
+	Change  string `json:"change"`
+
 	Window      Window            `json:"window"`
 	Allocated   metric[float64]   `json:"allocated_cpu_seconds"`
 	Available   metric[float64]   `json:"available_cpu_seconds"`
@@ -70,9 +70,9 @@ type counts struct {
 	waitsSeconds                                  []int64
 }
 
-func compareResults(change string, code *codeChange, a, b *runResult) comparisonReport {
+func compareResults(change string, a, b *runResult) comparisonReport {
 	report := comparisonReport{
-		Version: comparisonReportVersion, Change: change, Code: code, Window: a.Window,
+		Version: comparisonReportVersion, Change: change, Window: a.Window,
 		Allocated:   difference(a.AllocatedCPUSeconds, b.AllocatedCPUSeconds),
 		Available:   difference(a.AvailableCPUSeconds, b.AvailableCPUSeconds),
 		Utilisation: difference(utilisation(a), utilisation(b)),
@@ -173,9 +173,6 @@ func (r comparisonReport) print(out io.Writer) error {
 		line("%s\t%s\t%s\t%s\n", label, values[0], values[1], values[2])
 	}
 	line("Change %s\n", r.Change)
-	if r.Code != nil {
-		line("Declared code change %q in %q\n", r.Code.Behavior, r.Code.Path)
-	}
 	line("Metric\tA\tB\tB−A\n")
 	row("Allocated CPU-seconds", r.Allocated)
 	row("Available CPU-seconds", r.Available)

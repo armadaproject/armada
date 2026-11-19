@@ -185,9 +185,6 @@ func RunComparisonCandidate(ctx context.Context, inputPath, resultPath string) (
 	if err := errors.Join(attempts.close(), queuesOutput.close()); err != nil {
 		return err
 	}
-	if err := writeObservationsManifest(ctx, dir); err != nil {
-		return err
-	}
 	executable, err := os.Executable()
 	if err != nil {
 		return err

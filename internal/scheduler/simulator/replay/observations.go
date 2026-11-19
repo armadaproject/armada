@@ -1,26 +1,23 @@
 package replay
 
 import (
-	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 
 	"github.com/xitongsys/parquet-go-source/local"
+	"github.com/xitongsys/parquet-go/parquet"
 	parquetreader "github.com/xitongsys/parquet-go/reader"
 	"github.com/xitongsys/parquet-go/schema"
 	parquetwriter "github.com/xitongsys/parquet-go/writer"
 )
 
 const (
-	attemptsFile             = "attempts.parquet"
-	queueIntervalsFile       = "queue_intervals.parquet"
-	observationsManifestFile = "observations.json"
-	observationsVersion      = 2
+	attemptsFile       = "attempts.parquet"
+	queueIntervalsFile = "queue_intervals.parquet"
 )
 
 type attemptRow struct {
@@ -46,11 +43,6 @@ type queueIntervalRow struct {
 	QueuedSeconds int64  `parquet:"name=queued_at_s, type=INT64"`
 	EndSeconds    int64  `parquet:"name=end_at_s, type=INT64"`
 	Censored      bool   `parquet:"name=censored, type=BOOLEAN"`
-}
-
-type observationsManifest struct {
-	Version int               `json:"version"`
-	SHA256  map[string]string `json:"sha256"`
 }
 
 type parquetOutput struct {
@@ -104,33 +96,7 @@ func (o *comparisonObservations) Queue(interval QueueInterval) error {
 	})
 }
 
-func writeObservationsManifest(ctx context.Context, dir string) error {
-	manifest := observationsManifest{Version: observationsVersion, SHA256: make(map[string]string, 2)}
-	for _, name := range []string{attemptsFile, queueIntervalsFile} {
-		hash, err := hashFile(ctx, filepath.Join(dir, name))
-		if err != nil {
-			return err
-		}
-		manifest.SHA256[name] = hash
-	}
-	return writeJSON(filepath.Join(dir, observationsManifestFile), manifest)
-}
-
-func verifyObservations(ctx context.Context, dir string) error {
-	raw, err := readLocal(filepath.Join(dir, observationsManifestFile), maxInput)
-	if errors.Is(err, os.ErrNotExist) {
-		return errors.New("missing Parquet observations manifest")
-	}
-	if err != nil {
-		return err
-	}
-	var manifest observationsManifest
-	if err := strictJSON(raw, &manifest); err != nil {
-		return err
-	}
-	if manifest.Version != observationsVersion || len(manifest.SHA256) != 2 {
-		return errors.New("invalid Parquet observations manifest")
-	}
+func verifyObservations(dir string) error {
 	for _, artifact := range []struct {
 		name string
 		row  any
@@ -139,13 +105,6 @@ func verifyObservations(ctx context.Context, dir string) error {
 		{queueIntervalsFile, new(queueIntervalRow)},
 	} {
 		path := filepath.Join(dir, artifact.name)
-		hash, err := hashFile(ctx, path)
-		if err != nil {
-			return err
-		}
-		if hash != manifest.SHA256[artifact.name] {
-			return fmt.Errorf("Parquet observations checksum mismatch for %s", artifact.name)
-		}
 		if err := checkParquetSchema(path, artifact.row); err != nil {
 			return fmt.Errorf("%s: %w", artifact.name, err)
 		}
@@ -155,15 +114,18 @@ func verifyObservations(ctx context.Context, dir string) error {
 
 func checkParquetSchema(path string, row any) error {
 	const magic = "PAR1"
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return errors.New("expected a regular Parquet file")
+	}
 	file, err := os.Open(path)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return err
-	}
 	var header [4]byte
 	var trailer [8]byte
 	maxFooterSize := info.Size() - int64(len(header)+len(trailer))
@@ -190,16 +152,27 @@ func checkParquetSchema(path string, row any) error {
 		return err
 	}
 	actual := reader.Footer.Schema
-	if len(actual) != len(expected.SchemaElements) {
-		return errors.New("unexpected Parquet schema size")
+	if len(actual) == 0 || int(actual[0].GetNumChildren()) != len(actual)-1 {
+		return errors.New("expected a flat Parquet schema")
 	}
-	for i, want := range expected.SchemaElements {
-		want.Name = expected.Infos[i].ExName
-		if actual[i].Name != want.Name {
-			return fmt.Errorf("unexpected Parquet schema element %q, expected %q", actual[i].Name, want.Name)
+	columns := make(map[string]parquet.Type, len(actual)-1)
+	for _, column := range actual[1:] {
+		if column.Type == nil || column.GetNumChildren() != 0 {
+			return errors.New("expected a flat Parquet schema")
 		}
-		if !reflect.DeepEqual(actual[i], want) {
-			return fmt.Errorf("unexpected Parquet type or attributes for %q", want.Name)
+		if _, exists := columns[column.Name]; exists {
+			return fmt.Errorf("duplicate Parquet column %q", column.Name)
+		}
+		columns[column.Name] = *column.Type
+	}
+	for i, column := range expected.SchemaElements[1:] {
+		name := expected.Infos[i+1].ExName
+		kind, ok := columns[name]
+		if !ok {
+			return fmt.Errorf("missing Parquet column %q", name)
+		}
+		if kind != *column.Type {
+			return fmt.Errorf("Parquet column %q has type %s, expected %s", name, kind, *column.Type)
 		}
 	}
 	return nil

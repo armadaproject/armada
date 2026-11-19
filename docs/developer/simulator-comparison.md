@@ -22,10 +22,9 @@ so utilisation falls from 2/3 to 1/3.
 
 ## Define an experiment
 
-Paths in the experiment are relative to that file or absolute. Use local
-simulator executables that implement worker protocol version 3. Rebuild both
-binaries when upgrading from older versions. The experiment and workload
-files use version 2 and whole seconds for timestamps and durations.
+Paths in the experiment are relative to that file or absolute. Use the same local
+simulator executable for both candidates. The experiment and workload
+files use version 1 and whole seconds for timestamps and durations.
 The command executes the supplied binaries with your local permissions; use
 builds you trust. Set `--timeout` to the wall-clock deadline per candidate
 (default 30 seconds). Both runs use the same measurement window and fixed
@@ -40,17 +39,14 @@ Choose one value for `change`.
 | `none` | Identical inputs and binary. The command checks that logical outcomes and CPU accounting match. |
 | `capacity` | Farm definition. |
 | `queue_cordon` | One or more queue cordon flags. |
-| `binary` | Different executable hashes. Include a `code` object with `path` set to `jobdb.SchedulingOrderCompare/queue-priority` and a `behavior` description. Verify with a fixture that exercises the declared change. |
 
 Both sides must supply byte-identical scheduler configurations. The runner
 calls the scheduler synchronously on a fixed farm of healthy nodes. It
 disables round-duration budgets. Set `acknowledge_unbounded_rounds` to true
 to acknowledge that behavior. The adapter rejects unsupported settings such as
 asynchronous scheduling, short-job penalties, away pools, and floating resources.
-The binary declaration identifies the intended change. Use fixture outcomes and
-source review to establish what the binary actually changes.
 
-Use a version 2 JSON workload with a work estimation method and at most 10,000
+Use a version 1 JSON workload with a work estimation method and at most 10,000
 jobs. Record how the estimates were made once in the workload’s
 `work_estimation_method`. Job IDs are unique. Resource quantities are strings. Useful duration
 excludes startup and discarded work. Optional `startup_s` applies on each
@@ -62,7 +58,7 @@ the production queue, priority class, resource and placement checks.
 
 `comparison.json` contains the table values, including B−A deltas,
 first-allocation wait percentiles and per-queue/priority counts. Report
-version 4 summarises waits at p50, p95 and p99 by queue and priority class,
+version 1 summarises waits at p50, p95 and p99 by queue and priority class,
 using exact nearest-rank percentiles. The sample is arrivals during the
 measurement window that received an allocation before cutoff. Allocated and
 unallocated arrival counts show the sample size and the excluded waits.
@@ -89,5 +85,4 @@ in `input.json`.
 
 Timestamp columns ending in `_at_s` are UTC epoch seconds on the replay
 clock. The records include warm-up. Clip the intervals to the measurement
-window to reconstruct its CPU-seconds. `observations.json` records the
-Parquet schema version and file checksums.
+window to reconstruct its CPU-seconds.

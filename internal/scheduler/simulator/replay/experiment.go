@@ -21,30 +21,24 @@ import (
 )
 
 const (
-	experimentVersion = 2
-	workloadVersion   = 2
-	workerVersion     = 3
+	experimentVersion = 1
+	workloadVersion   = 1
+	workerVersion     = 1
 	maxInput          = 4 << 20
 	maxProtocol       = 32 << 20
 	maxJobs           = 10_000
 	workerCommand     = "compare-candidate"
-	orderingPath      = "jobdb.SchedulingOrderCompare/queue-priority"
 )
 
 type experiment struct {
-	Version                    int         `json:"version"`
-	Workload                   string      `json:"workload"`
-	Window                     Window      `json:"window"`
-	AcknowledgeUnboundedRounds bool        `json:"acknowledge_unbounded_rounds"`
-	Change                     string      `json:"change"`
-	Code                       *codeChange `json:"code,omitempty"`
-	A                          candidate   `json:"a"`
-	B                          candidate   `json:"b"`
-}
+	Version                    int    `json:"version"`
+	Workload                   string `json:"workload"`
+	Window                     Window `json:"window"`
+	AcknowledgeUnboundedRounds bool   `json:"acknowledge_unbounded_rounds"`
+	Change                     string `json:"change"`
 
-type codeChange struct {
-	Path     string `json:"path"`
-	Behavior string `json:"behavior"`
+	A candidate `json:"a"`
+	B candidate `json:"b"`
 }
 
 type candidate struct {
@@ -95,7 +89,7 @@ func Compare(ctx context.Context, manifest, output string, timeout time.Duration
 		return fmt.Errorf("experiment: %w", err)
 	}
 	if spec.Version != experimentVersion || !spec.AcknowledgeUnboundedRounds || timeout <= 0 {
-		return errors.New("comparison requires version 2, acknowledge_unbounded_rounds=true and a positive timeout")
+		return errors.New("comparison requires version 1, acknowledge_unbounded_rounds=true and a positive timeout")
 	}
 	if err := validateWindow(spec.Window); err != nil {
 		return err
@@ -113,7 +107,7 @@ func Compare(ctx context.Context, manifest, output string, timeout time.Duration
 	if err != nil {
 		return fmt.Errorf("candidate B: %w", err)
 	}
-	if err := validateChange(spec.Change, spec.Code, a, b); err != nil {
+	if err := validateChange(spec.Change, a, b); err != nil {
 		return err
 	}
 	output, err = filepath.Abs(output)
@@ -138,7 +132,7 @@ func Compare(ctx context.Context, manifest, output string, timeout time.Duration
 		*left.AllocatedCPUSeconds != *right.AllocatedCPUSeconds || *left.AvailableCPUSeconds != *right.AvailableCPUSeconds) {
 		return errors.New("identical candidates produced different logical outcomes or CPU accounting")
 	}
-	report := compareResults(spec.Change, spec.Code, left, right)
+	report := compareResults(spec.Change, left, right)
 	if err := writeJSON(filepath.Join(output, "comparison.json"), report); err != nil {
 		return err
 	}
@@ -165,7 +159,7 @@ func loadWorkload(path string, window Window) (candidateInput, error) {
 		return candidateInput{}, fmt.Errorf("workload: %w", err)
 	}
 	if spec.Version != workloadVersion || strings.TrimSpace(spec.WorkEstimationMethod) == "" || spec.Jobs == nil || len(spec.Jobs) > maxJobs {
-		return candidateInput{}, fmt.Errorf("workload requires version 2, a work estimation method and an explicit list of at most %d jobs", maxJobs)
+		return candidateInput{}, fmt.Errorf("workload requires version 1, a work estimation method and an explicit list of at most %d jobs", maxJobs)
 	}
 	jobs := make([]Job, 0, len(spec.Jobs))
 	ids := make(map[string]bool, len(spec.Jobs))
@@ -234,34 +228,26 @@ func prepareCandidate(ctx context.Context, base, id string, spec candidate, inpu
 	return candidateRun{binary: binary, binarySHA256: hash, input: input}, nil
 }
 
-func validateChange(change string, code *codeChange, a, b candidateRun) error {
+func validateChange(change string, a, b candidateRun) error {
 	farmChanged := !bytes.Equal(a.input.Farm, b.input.Farm)
-	binaryChanged := a.binarySHA256 != b.binarySHA256
 	queuesChanged := !reflect.DeepEqual(a.input.Queues, b.input.Queues)
 	if !bytes.Equal(a.input.Config, b.input.Config) {
 		return errors.New("scheduler_config differs: initial comparisons require identical config files")
 	}
-	if change != "binary" && code != nil {
-		return errors.New("code declaration requires the binary change")
+	if a.binarySHA256 != b.binarySHA256 {
+		return errors.New("comparison requires the same executable on both sides")
 	}
 	switch change {
 	case "none":
-		if !farmChanged && !binaryChanged && !queuesChanged {
+		if !farmChanged && !queuesChanged {
 			return nil
 		}
 	case "capacity":
-		if farmChanged && !binaryChanged && !queuesChanged {
+		if farmChanged && !queuesChanged {
 			return nil
 		}
 	case "queue_cordon":
-		if !farmChanged && !binaryChanged && queuesChanged && sameQueuesWithoutCordons(a.input.Queues, b.input.Queues) {
-			return nil
-		}
-	case "binary":
-		if code == nil || code.Path != orderingPath || strings.TrimSpace(code.Behavior) == "" {
-			return fmt.Errorf("binary comparison requires a behavior declaration on supported path %q", orderingPath)
-		}
-		if !farmChanged && binaryChanged && !queuesChanged {
+		if !farmChanged && queuesChanged && sameQueuesWithoutCordons(a.input.Queues, b.input.Queues) {
 			return nil
 		}
 	default:
@@ -322,7 +308,7 @@ func (c candidateRun) execute(parent context.Context, output string, timeout tim
 	if err := result.validate(c, digest(raw)); err != nil {
 		return nil, fmt.Errorf("candidate %s result: %w", c.input.ID, err)
 	}
-	if err := verifyObservations(ctx, dir); err != nil {
+	if err := verifyObservations(dir); err != nil {
 		return nil, fmt.Errorf("candidate %s observations: %w", c.input.ID, err)
 	}
 	return &result, nil
