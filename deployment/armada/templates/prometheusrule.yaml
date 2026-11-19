@@ -95,12 +95,6 @@ spec:
             namespace: "{{ .Release.Namespace }}"
           expr: armada:resource:available_capacity{namespace="{{ .Release.Namespace }}", category="user"}
 
-        - record: armada:user:resource:available_capacity
-          labels:
-            namespace: "{{ .Release.Namespace }}"
-          expr: >
-            armada:resource:available_capacity{classification="user"}
-
         - record: armada:resource:farm_capacity
           labels:
             namespace: "{{ .Release.Namespace }}"
