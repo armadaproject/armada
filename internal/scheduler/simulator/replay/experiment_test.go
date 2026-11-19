@@ -167,8 +167,11 @@ func TestVerifyObservationsRequiresBothReadableParquetFiles(t *testing.T) {
 	require.ErrorContains(t, verifyObservations(dir), "attempts.parquet: invalid Parquet footer")
 }
 
-func TestObservationSchemaAcceptsReorderedColumns(t *testing.T) {
+func TestObservationSchemaAcceptsReorderingAndExtraFields(t *testing.T) {
 	type reorderedQueueRow struct {
+		Annotations struct {
+			Note string `parquet:"name=note, type=BYTE_ARRAY, convertedtype=UTF8"`
+		} `parquet:"name=annotations"`
 		Censored bool   `parquet:"name=censored, type=BOOLEAN"`
 		End      int64  `parquet:"name=end_at_s, type=INT64"`
 		Queued   int64  `parquet:"name=queued_at_s, type=INT64"`

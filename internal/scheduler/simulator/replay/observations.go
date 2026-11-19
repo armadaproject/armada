@@ -152,27 +152,42 @@ func checkParquetSchema(path string, row any) error {
 		return err
 	}
 	actual := reader.Footer.Schema
-	if len(actual) == 0 || int(actual[0].GetNumChildren()) != len(actual)-1 {
-		return errors.New("expected a flat Parquet schema")
+	if len(actual) == 0 || actual[0].Type != nil {
+		return errors.New("invalid Parquet schema root")
 	}
-	columns := make(map[string]parquet.Type, len(actual)-1)
+	rootFields := make(map[string]*parquet.SchemaElement)
+	var descendants int64
+	// The footer lists schema elements in preorder. Only root fields satisfy
+	// the observation contract. Skip the descendants of extra fields.
 	for _, column := range actual[1:] {
-		if column.Type == nil || column.GetNumChildren() != 0 {
-			return errors.New("expected a flat Parquet schema")
+		children := column.GetNumChildren()
+		if children < 0 {
+			return errors.New("invalid Parquet schema shape")
 		}
-		if _, exists := columns[column.Name]; exists {
-			return fmt.Errorf("duplicate Parquet column %q", column.Name)
+		if descendants == 0 {
+			if _, exists := rootFields[column.Name]; exists {
+				return fmt.Errorf("duplicate Parquet field %q", column.Name)
+			}
+			rootFields[column.Name] = column
+		} else {
+			descendants--
 		}
-		columns[column.Name] = *column.Type
+		descendants += int64(children)
+	}
+	if descendants != 0 || len(rootFields) != int(actual[0].GetNumChildren()) {
+		return errors.New("invalid Parquet schema shape")
 	}
 	for i, column := range expected.SchemaElements[1:] {
 		name := expected.Infos[i+1].ExName
-		kind, ok := columns[name]
+		field, ok := rootFields[name]
 		if !ok {
 			return fmt.Errorf("missing Parquet column %q", name)
 		}
-		if kind != *column.Type {
-			return fmt.Errorf("Parquet column %q has type %s, expected %s", name, kind, *column.Type)
+		if field.Type == nil || field.GetNumChildren() != 0 {
+			return fmt.Errorf("Parquet column %q is a group, expected %s", name, *column.Type)
+		}
+		if *field.Type != *column.Type {
+			return fmt.Errorf("Parquet column %q has type %s, expected %s", name, *field.Type, *column.Type)
 		}
 	}
 	return nil
