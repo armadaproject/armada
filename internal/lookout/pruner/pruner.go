@@ -19,14 +19,15 @@ func PruneDb(
 	jobLifetime time.Duration,
 	deduplicationLifetime time.Duration,
 	zombieRepairThreshold time.Duration,
+	leaseReturnedZombieRepairThreshold time.Duration,
 	batchLimit int,
 	clock clock.Clock,
 	hotColdSplit bool,
 ) error {
 	var result *multierror.Error
 
-	if zombieRepairThreshold > 0 {
-		if _, err := ReconcileZombieJobs(ctx, db, zombieRepairThreshold, batchLimit, clock); err != nil {
+	if zombieRepairThreshold > 0 || leaseReturnedZombieRepairThreshold > 0 {
+		if _, err := ReconcileZombieJobs(ctx, db, zombieRepairThreshold, leaseReturnedZombieRepairThreshold, batchLimit, clock); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
@@ -43,7 +44,10 @@ func PruneDb(
 }
 
 func deleteDeduplications(ctx *armadacontext.Context, db *pgx.Conn, deduplicationLifetime time.Duration, clock clock.Clock) error {
-	cutOffTime := clock.Now().Add(-deduplicationLifetime)
+	// job_deduplication.inserted is written in UTC; clock.Now() is not
+	// guaranteed to be, so normalize before using it as a cutoff bind
+	// parameter (see the identical reasoning in reconcile_zombies.go).
+	cutOffTime := clock.Now().UTC().Add(-deduplicationLifetime)
 	log.Infof("Deleting all rows from job_deduplication older than %s", cutOffTime)
 	cmdTag, err := db.Exec(ctx, "DELETE FROM job_deduplication WHERE inserted <= $1", cutOffTime)
 	if err != nil {
@@ -55,7 +59,11 @@ func deleteDeduplications(ctx *armadacontext.Context, db *pgx.Conn, deduplicatio
 
 func deleteJobs(ctx *armadacontext.Context, db *pgx.Conn, jobLifetime time.Duration, batchLimit int, clock clock.Clock, hotColdSplit bool) error {
 	now := clock.Now()
-	cutOffTime := now.Add(-jobLifetime)
+	// job.last_transition_time is written in UTC; normalize before using it
+	// as a cutoff bind parameter (see the identical reasoning in
+	// reconcile_zombies.go). now itself is left as-is since it is only used
+	// below for elapsed-time logging, where the zone does not matter.
+	cutOffTime := now.UTC().Add(-jobLifetime)
 	totalJobsToDelete, err := createJobIdsToDeleteTempTable(ctx, db, cutOffTime, hotColdSplit)
 	if err != nil {
 		return errors.WithStack(err)
