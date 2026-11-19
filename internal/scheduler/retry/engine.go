@@ -31,6 +31,16 @@ type Counts struct {
 	// run being evaluated. Preempted runs are excluded upstream, because the job
 	// did not cause them, so they never consume a retry budget.
 	Failures uint32
+	// EarlierCauses holds the cause of each earlier run that Failures counts.
+	// The engine counts the causes that the matched rule decides, to apply the
+	// limit of that rule.
+	EarlierCauses []Cause
+}
+
+// Cause is the failure category and subcategory of the end of a run.
+type Cause struct {
+	Category    string
+	Subcategory string
 }
 
 // Evaluate applies the policy rules to runError and returns a retry decision.
@@ -84,6 +94,22 @@ func (e *Engine) Evaluate(policy *Policy, runError *armadaevents.Error, counts C
 			decision = DecisionFailRule
 		}
 		return Result{ShouldRetry: false, Reason: reason, Decision: decision}
+	}
+
+	if matched != nil && matched.RetryLimit > 0 {
+		ruleRetriesUsed := uint(0)
+		for _, cause := range counts.EarlierCauses {
+			if matchRules(policy.Rules, matchInput{category: cause.Category, subcategory: cause.Subcategory}) == matched {
+				ruleRetriesUsed++
+			}
+		}
+		if ruleRetriesUsed >= uint(matched.RetryLimit) {
+			return Result{
+				ShouldRetry: false,
+				Reason:      fmt.Sprintf("rule retry limit exceeded (%d/%d)", ruleRetriesUsed, matched.RetryLimit),
+				Decision:    DecisionFailRuleLimit,
+			}
+		}
 	}
 
 	if retriesUsed >= uint(policy.RetryLimit) {

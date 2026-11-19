@@ -67,10 +67,11 @@ rules:
   # Known-fatal user errors: fail immediately, never retry.
   - action: Fail
     onCategory: user-error
-  # Transient GPU faults are worth another attempt.
+  # Transient GPU faults are worth another attempt, but at most twice.
   - action: Retry
     onCategory: gpu
     onSubcategory: transient
+    retryLimit: 2
   # Infrastructure failures categorised by Armada.
   - action: Retry
     onCategory: internal
@@ -80,7 +81,7 @@ rules:
 * `name`: unique name of the policy. Queues reference policies by this name.
 * `retryLimit`: maximum number of retries after the initial failure. See [Retry budgets](#retry-budgets).
 * `defaultAction`: `Retry` or `Fail`. Applied when no rule matches.
-* `rules`: an ordered list of matching rules, each with an `action` (`Retry` or `Fail`) and one or more match fields.
+* `rules`: an ordered list of matching rules, each with an `action` (`Retry` or `Fail`) and one or more match fields. A `Retry` rule can set its own `retryLimit`. [Retry budgets](#retry-budgets) describes how it counts.
 
 ### Matching semantics
 
@@ -131,6 +132,7 @@ Mutations apply on the failed-run retry path only. A lease-expiry retry (a lost 
 Two limits bound how often a job is retried: the per-policy `retryLimit` and the scheduler-wide `globalMaxRetries`.
 
 * `retryLimit` counts retries, not attempts. `retryLimit: 3` allows 3 retries after the initial failure, so 4 total attempts before the job fails terminally. `retryLimit: 0` allows no retries, so a job under that policy fails terminally on its first failure.
+* A `retryLimit` on a rule limits the retries of the runs that this rule decides. It counts the earlier runs of the job whose category the policy routes to the same rule, so each cause gets its own limit. The policy `retryLimit` and `globalMaxRetries` still apply. A rule `retryLimit` of 0, or no value, means that the rule has no limit of its own. Only a `Retry` rule can set it.
 * Returned leases and expired leases (lost executors) count against both `retryLimit` and `globalMaxRetries`, like any other failure. A returned lease carries the category that the executor gave it, so a rule can match it. The returns of the executor's pending and failed pod checks are returned leases too, so a policy needs rules for their categories.
 * Preemptions never consume the failure budget. A preempted run does not count against `retryLimit` or `globalMaxRetries`, so a job that was preempted earlier can still use its full failure budget when it later fails on its own. This version does not retry preempted runs themselves: a preemption is not treated as a job failure, and preemption-driven retries are planned for a later version.
 * `globalMaxRetries` is a scheduler-wide cap on top of every policy. It counts the same retries that `retryLimit` counts, with one ceiling for the whole scheduler, so no policy can grant more retries than the cap allows.

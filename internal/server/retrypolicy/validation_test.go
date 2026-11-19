@@ -59,6 +59,21 @@ func TestValidatePolicy(t *testing.T) {
 				},
 			},
 		},
+		"a rule limit on a Retry rule accepted": {
+			policy: &api.RetryPolicy{
+				Name:          "rule-limit",
+				DefaultAction: api.RetryAction_RETRY_ACTION_FAIL,
+				Rules:         []*api.RetryRule{{Action: api.RetryAction_RETRY_ACTION_RETRY, OnCategory: "oom", RetryLimit: 2}},
+			},
+		},
+		"a rule limit on a Fail rule rejected": {
+			policy: &api.RetryPolicy{
+				Name:          "rule-limit",
+				DefaultAction: api.RetryAction_RETRY_ACTION_FAIL,
+				Rules:         []*api.RetryRule{{Action: api.RetryAction_RETRY_ACTION_FAIL, OnCategory: "oom", RetryLimit: 2}},
+			},
+			wantErr: "retry_limit is only valid for a rule with action Retry",
+		},
 		"nil policy": {
 			policy:  nil,
 			wantErr: "must not be nil",
