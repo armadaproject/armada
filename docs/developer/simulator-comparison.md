@@ -1,7 +1,7 @@
 # Compare local Armada simulator candidates
 
-Use `simulator compare` to replay one small, fixed workload through two local
-Armada simulator builds. The command uses the production scheduler with a
+Use `simulator compare` to replay one small, fixed workload through two
+configurations of the same local Armada simulator executable. The command uses the production scheduler with a
 simulated policy clock and writes a terminal table and JSON report.
 
 ## Run the capacity example
@@ -25,8 +25,8 @@ so utilisation falls from 2/3 to 1/3.
 Paths in the experiment are relative to that file or absolute. Use the same local
 simulator executable for both candidates. The experiment and workload
 files use version 1 and whole seconds for timestamps and durations.
-The command executes the supplied binaries with your local permissions; use
-builds you trust. Set `--timeout` to the wall-clock deadline per candidate
+The command runs the supplied executable with your local permissions. Use
+a build you trust. Set `--timeout` to the wall-clock deadline per candidate
 (default 30 seconds). Both runs use the same measurement window and fixed
 offered jobs. The simulator starts empty at warm-up and schedules at the
 specified cycle. Times and durations in the JSON files use integer

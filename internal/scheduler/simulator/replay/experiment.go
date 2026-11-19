@@ -77,8 +77,8 @@ type candidateRun struct {
 	input        candidateInput
 }
 
-// Compare runs both local simulator binaries with the same offered workload and
-// prints the same metrics written to comparison.json. The output must be new.
+// Compare runs both candidates with the same executable and offered workload
+// and prints the metrics written to comparison.json. The output must be new.
 func Compare(ctx context.Context, manifest, output string, timeout time.Duration, table io.Writer) error {
 	raw, err := readLocal(manifest, maxInput)
 	if err != nil {
