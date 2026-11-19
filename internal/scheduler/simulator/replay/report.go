@@ -31,7 +31,7 @@ func difference[T metricValue](a, b *T) metric[T] {
 	return m
 }
 
-const comparisonReportVersion = 3
+const comparisonReportVersion = 4
 
 type waitPercentiles struct {
 	P50 metric[int64] `json:"p50"`
@@ -40,16 +40,16 @@ type waitPercentiles struct {
 }
 
 type groupComparison struct {
-	Queue                 string          `json:"queue"`
-	Priority              string          `json:"priority_class"`
-	Arrivals              metric[float64] `json:"arrivals"`
-	CarryIn               metric[float64] `json:"carry_in"`
-	Allocated             metric[float64] `json:"allocated_arrivals"`
-	Unallocated           metric[float64] `json:"unallocated_arrivals"`
-	Completed             metric[float64] `json:"completed"`
-	QueuedAtCutoff        metric[float64] `json:"queued_at_cutoff"`
-	RunningAtCutoff       metric[float64] `json:"running_at_cutoff"`
-	FirstAllocationWaitUS waitPercentiles `json:"first_allocation_wait_us"`
+	Queue                      string          `json:"queue"`
+	Priority                   string          `json:"priority_class"`
+	Arrivals                   metric[float64] `json:"arrivals"`
+	CarryIn                    metric[float64] `json:"carry_in"`
+	Allocated                  metric[float64] `json:"allocated_arrivals"`
+	Unallocated                metric[float64] `json:"unallocated_arrivals"`
+	Completed                  metric[float64] `json:"completed"`
+	QueuedAtCutoff             metric[float64] `json:"queued_at_cutoff"`
+	RunningAtCutoff            metric[float64] `json:"running_at_cutoff"`
+	FirstAllocationWaitSeconds waitPercentiles `json:"first_allocation_wait_s"`
 }
 
 type comparisonReport struct {
@@ -67,7 +67,7 @@ type groupKey struct{ queue, priority string }
 
 type counts struct {
 	arrivals, carryIn, completed, queued, running float64
-	waitsUS                                       []int64
+	waitsSeconds                                  []int64
 }
 
 func compareResults(change string, code *codeChange, a, b *runResult) comparisonReport {
@@ -88,17 +88,17 @@ func compareResults(change string, code *codeChange, a, b *runResult) comparison
 	}
 	for key := range keys {
 		x, y := left[key], right[key]
-		allocatedA, allocatedB := float64(len(x.waitsUS)), float64(len(y.waitsUS))
+		allocatedA, allocatedB := float64(len(x.waitsSeconds)), float64(len(y.waitsSeconds))
 		report.Groups = append(report.Groups, groupComparison{
 			Queue: key.queue, Priority: key.priority, Arrivals: values(x.arrivals, y.arrivals),
 			CarryIn: values(x.carryIn, y.carryIn), Allocated: values(allocatedA, allocatedB),
 			Unallocated: values(x.arrivals-allocatedA, y.arrivals-allocatedB),
 			Completed:   values(x.completed, y.completed), QueuedAtCutoff: values(x.queued, y.queued),
 			RunningAtCutoff: values(x.running, y.running),
-			FirstAllocationWaitUS: waitPercentiles{
-				P50: difference(percentile(x.waitsUS, 50), percentile(y.waitsUS, 50)),
-				P95: difference(percentile(x.waitsUS, 95), percentile(y.waitsUS, 95)),
-				P99: difference(percentile(x.waitsUS, 99), percentile(y.waitsUS, 99)),
+			FirstAllocationWaitSeconds: waitPercentiles{
+				P50: difference(percentile(x.waitsSeconds, 50), percentile(y.waitsSeconds, 50)),
+				P95: difference(percentile(x.waitsSeconds, 95), percentile(y.waitsSeconds, 95)),
+				P99: difference(percentile(x.waitsSeconds, 99), percentile(y.waitsSeconds, 99)),
 			},
 		})
 	}
@@ -114,15 +114,15 @@ func compareResults(change string, code *codeChange, a, b *runResult) comparison
 func countGroups(run *runResult) map[groupKey]counts {
 	result := make(map[groupKey]counts)
 	for _, row := range run.Outcomes {
-		if row.ObservedUS < run.Window.StartUS {
+		if row.ObservedSeconds < run.Window.StartSeconds {
 			continue
 		}
 		key := groupKey{row.Queue, row.Priority}
 		count := result[key]
-		if row.SubmittedUS >= run.Window.StartUS {
+		if row.SubmittedSeconds >= run.Window.StartSeconds {
 			count.arrivals++
-			if row.FirstAllocationUS != nil {
-				count.waitsUS = append(count.waitsUS, *row.FirstAllocationUS-row.SubmittedUS)
+			if row.FirstAllocationSeconds != nil {
+				count.waitsSeconds = append(count.waitsSeconds, *row.FirstAllocationSeconds-row.SubmittedSeconds)
 			}
 		} else {
 			count.carryIn++
@@ -138,7 +138,7 @@ func countGroups(run *runResult) map[groupKey]counts {
 		result[key] = count
 	}
 	for _, group := range result {
-		slices.Sort(group.waitsUS)
+		slices.Sort(group.waitsSeconds)
 	}
 	return result
 }
@@ -189,9 +189,9 @@ func (r comparisonReport) print(out io.Writer) error {
 		row("Completed", g.Completed)
 		row("Queued at cutoff", g.QueuedAtCutoff)
 		row("Running at cutoff", g.RunningAtCutoff)
-		row("First-allocation wait p50 (µs)", g.FirstAllocationWaitUS.P50)
-		row("First-allocation wait p95 (µs)", g.FirstAllocationWaitUS.P95)
-		row("First-allocation wait p99 (µs)", g.FirstAllocationWaitUS.P99)
+		row("First-allocation wait p50 (s)", g.FirstAllocationWaitSeconds.P50)
+		row("First-allocation wait p95 (s)", g.FirstAllocationWaitSeconds.P95)
+		row("First-allocation wait p99 (s)", g.FirstAllocationWaitSeconds.P99)
 	}
 	return errors.Join(err, w.Flush())
 }

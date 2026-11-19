@@ -21,9 +21,9 @@ import (
 )
 
 const (
-	experimentVersion = 1
-	workloadVersion   = 1
-	workerVersion     = 2
+	experimentVersion = 2
+	workloadVersion   = 2
+	workerVersion     = 3
 	maxInput          = 4 << 20
 	maxProtocol       = 32 << 20
 	maxJobs           = 10_000
@@ -95,7 +95,7 @@ func Compare(ctx context.Context, manifest, output string, timeout time.Duration
 		return fmt.Errorf("experiment: %w", err)
 	}
 	if spec.Version != experimentVersion || !spec.AcknowledgeUnboundedRounds || timeout <= 0 {
-		return errors.New("comparison requires version 1, acknowledge_unbounded_rounds=true and a positive timeout")
+		return errors.New("comparison requires version 2, acknowledge_unbounded_rounds=true and a positive timeout")
 	}
 	if err := validateWindow(spec.Window); err != nil {
 		return err
@@ -149,7 +149,7 @@ func validateWindow(window Window) error {
 	if err := window.validate(); err != nil {
 		return err
 	}
-	if window.WarmupUS < -maxDurationUS || window.EndUS > maxDurationUS {
+	if window.WarmupSeconds < -maxDurationSeconds || window.EndSeconds > maxDurationSeconds {
 		return errors.New("replay window exceeds Armada nanosecond timestamp range")
 	}
 	return nil
@@ -165,7 +165,7 @@ func loadWorkload(path string, window Window) (candidateInput, error) {
 		return candidateInput{}, fmt.Errorf("workload: %w", err)
 	}
 	if spec.Version != workloadVersion || strings.TrimSpace(spec.WorkEstimationMethod) == "" || spec.Jobs == nil || len(spec.Jobs) > maxJobs {
-		return candidateInput{}, fmt.Errorf("workload requires version 1, a work estimation method and an explicit list of at most %d jobs", maxJobs)
+		return candidateInput{}, fmt.Errorf("workload requires version 2, a work estimation method and an explicit list of at most %d jobs", maxJobs)
 	}
 	jobs := make([]Job, 0, len(spec.Jobs))
 	ids := make(map[string]bool, len(spec.Jobs))
@@ -174,11 +174,10 @@ func loadWorkload(path string, window Window) (candidateInput, error) {
 		if err := job.validate(); err != nil {
 			return candidateInput{}, err
 		}
-		if ids[job.ID] || len(entry.Requests) == 0 || job.WorkEstimationMethod != "" {
-			return candidateInput{}, fmt.Errorf("job %q must have a unique ID, resource requests and use the workload-wide work estimation method", job.ID)
+		if ids[job.ID] || len(entry.Requests) == 0 {
+			return candidateInput{}, fmt.Errorf("job %q must have a unique ID and resource requests", job.ID)
 		}
 		ids[job.ID] = true
-		job.WorkEstimationMethod = spec.WorkEstimationMethod
 		job.Requests = make(v1.ResourceList, len(entry.Requests))
 		for name, text := range entry.Requests {
 			quantity, err := exactQuantity(text)
@@ -190,8 +189,8 @@ func loadWorkload(path string, window Window) (candidateInput, error) {
 		jobs = append(jobs, job)
 	}
 	slices.SortFunc(jobs, func(a, b Job) int {
-		if a.SubmittedUS != b.SubmittedUS {
-			return cmp.Compare(a.SubmittedUS, b.SubmittedUS)
+		if a.SubmittedSeconds != b.SubmittedSeconds {
+			return cmp.Compare(a.SubmittedSeconds, b.SubmittedSeconds)
 		}
 		return strings.Compare(a.ID, b.ID)
 	})

@@ -46,7 +46,7 @@ type productionScheduler struct {
 // NewProductionScheduler composes Armada's scheduler and submit checker with
 // fixed healthy executors, static queues and one simulated policy clock.
 func NewProductionScheduler(
-	ctx context.Context, warmupUS int64, config configuration.SchedulingConfig,
+	ctx context.Context, warmupSeconds int64, config configuration.SchedulingConfig,
 	executors []*schedulerobjects.Executor, queues []*api.Queue,
 ) (*productionScheduler, error) {
 	validate := validator.New()
@@ -98,7 +98,7 @@ func NewProductionScheduler(
 	if err != nil {
 		return nil, err
 	}
-	clock := clocktesting.NewFakeClock(time.UnixMicro(warmupUS).UTC())
+	clock := clocktesting.NewFakeClock(time.Unix(warmupSeconds, 0).UTC())
 	farm := make(staticFarm, 0, len(executors))
 	nodes := make(map[string]*schedulerobjects.Node)
 	executorIDs := make(map[string]bool)
@@ -184,8 +184,8 @@ func NewProductionScheduler(
 	return &productionScheduler{clock, db, algo, checker, farm, nodes, queueNames, config, factory}, nil
 }
 
-func (s *productionScheduler) advance(nowUS int64) time.Time {
-	now := time.UnixMicro(nowUS).UTC()
+func (s *productionScheduler) advance(nowSeconds int64) time.Time {
+	now := time.Unix(nowSeconds, 0).UTC()
 	if !s.clock.Now().Equal(now) {
 		s.clock.SetTime(now)
 	}
@@ -202,10 +202,10 @@ func (s *productionScheduler) makeJob(offered Job) (*jobdb.Job, error) {
 	if err := checkExactResources(s.resources, adapters.K8sResourceListToMap(offered.Requests)); err != nil {
 		return nil, err
 	}
-	if offered.SubmittedUS < -maxDurationUS || offered.SubmittedUS > maxDurationUS {
+	if offered.SubmittedSeconds < -maxDurationSeconds || offered.SubmittedSeconds > maxDurationSeconds {
 		return nil, errors.New("job submission exceeds Armada nanosecond timestamp range")
 	}
-	submitted := time.UnixMicro(offered.SubmittedUS).UTC()
+	submitted := time.Unix(offered.SubmittedSeconds, 0).UTC()
 	if err := validateTolerations(offered.Tolerations); err != nil {
 		return nil, err
 	}
@@ -233,8 +233,8 @@ func (s *productionScheduler) makeJob(offered Job) (*jobdb.Job, error) {
 		true, 0, false, false, false, submitted.UnixNano(), true, nil, 0)
 }
 
-func (s *productionScheduler) Admit(ctx context.Context, nowUS int64, offered Job) (string, error) {
-	s.advance(nowUS)
+func (s *productionScheduler) Admit(ctx context.Context, nowSeconds int64, offered Job) (string, error) {
+	s.advance(nowSeconds)
 	job, err := s.makeJob(offered)
 	if err != nil {
 		return "", err
@@ -259,11 +259,11 @@ func (s *productionScheduler) Admit(ctx context.Context, nowUS int64, offered Jo
 	return "", nil
 }
 
-func (s *productionScheduler) Complete(ctx context.Context, nowUS int64, id string) error {
+func (s *productionScheduler) Complete(ctx context.Context, nowSeconds int64, id string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	now := s.advance(nowUS)
+	now := s.advance(nowSeconds)
 	txn := s.db.WriteTxn()
 	defer txn.Abort()
 	job := txn.GetById(id)
@@ -282,12 +282,12 @@ func (s *productionScheduler) Complete(ctx context.Context, nowUS int64, id stri
 	return nil
 }
 
-func (s *productionScheduler) Schedule(ctx context.Context, nowUS int64) (Decisions, error) {
+func (s *productionScheduler) Schedule(ctx context.Context, nowSeconds int64) (Decisions, error) {
 	var decisions Decisions
-	if nowUS < -maxDurationUS || nowUS > maxDurationUS {
+	if nowSeconds < -maxDurationSeconds || nowSeconds > maxDurationSeconds {
 		return decisions, errors.New("round time exceeds Armada nanosecond timestamp range")
 	}
-	now := s.advance(nowUS)
+	now := s.advance(nowSeconds)
 	for _, executor := range s.farm {
 		executor.LastUpdateTime = protoutil.ToTimestamp(now)
 	}

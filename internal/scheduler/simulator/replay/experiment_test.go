@@ -17,7 +17,7 @@ import (
 )
 
 func TestCompareCapacityAndCordon(t *testing.T) {
-	window := Window{EndUS: 180_000_000, CycleUS: 1_000_000}
+	window := Window{EndSeconds: 180, CycleSeconds: 1}
 	for _, tc := range []struct {
 		name   string
 		farm   string
@@ -25,7 +25,7 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 		cordon bool
 	}{
 		{name: "capacity", farm: "farm-two.yaml", window: window},
-		{name: "cordon", farm: "farm-one.yaml", window: Window{EndUS: 90_000_000, CycleUS: 1_000_000}, cordon: true},
+		{name: "cordon", farm: "farm-one.yaml", window: Window{EndSeconds: 90, CycleSeconds: 1}, cordon: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			base := filepath.Join("testdata", "compare")
@@ -48,21 +48,21 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 			}
 			b, bAttempts, bQueue := runTestCandidate(t, base, "b", spec, input)
 			report := compareResults(tc.name, nil, a, b)
-			require.Equal(t, 3, report.Version)
+			require.Equal(t, 4, report.Version)
 			checkAttemptCPU(t, aAttempts, *report.Allocated.A)
 			checkAttemptCPU(t, bAttempts, *report.Allocated.B)
-			require.Equal(t, []queueIntervalRow{{JobID: "first"}, {JobID: "second", EndUS: 60_000_000}}, aQueue)
+			require.Equal(t, []queueIntervalRow{{JobID: "first"}, {JobID: "second", EndSeconds: 60}}, aQueue)
 
 			if tc.cordon {
 				require.Equal(t, values(360, 240), report.Allocated)
-				require.Equal(t, []queueIntervalRow{{JobID: "first", EndUS: 90_000_000, Censored: true}, {JobID: "second"}}, bQueue)
+				require.Equal(t, []queueIntervalRow{{JobID: "first", EndSeconds: 90, Censored: true}, {JobID: "second"}}, bQueue)
 				require.Len(t, bAttempts, 1)
 				require.Equal(t, "second", bAttempts[0].JobID)
 				require.Equal(t, values(360, 360), report.Available)
 				require.Equal(t, values(1, 2.0/3), report.Utilisation)
-				require.Equal(t, waitValues(60_000_000, 0), report.Groups[1].FirstAllocationWaitUS.P50)
+				require.Equal(t, waitValues(60, 0), report.Groups[1].FirstAllocationWaitSeconds.P50)
 				zero := int64(0)
-				require.Equal(t, difference(&zero, nil), report.Groups[0].FirstAllocationWaitUS.P95)
+				require.Equal(t, difference(&zero, nil), report.Groups[0].FirstAllocationWaitSeconds.P95)
 				require.Equal(t, values(1, 0), report.Groups[0].Allocated)
 				require.Equal(t, values(1, 0), report.Groups[0].Completed)
 				require.Equal(t, values(0, 1), report.Groups[0].QueuedAtCutoff)
@@ -73,11 +73,11 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 			require.Equal(t, values(480, 480), report.Allocated)
 			require.Equal(t, []queueIntervalRow{{JobID: "first"}, {JobID: "second"}}, bQueue)
 			require.Len(t, aAttempts, 2)
-			require.Equal(t, int64(60_000_000), aAttempts[1].AllocatedUS)
+			require.Equal(t, int64(60), aAttempts[1].AllocatedSeconds)
 			require.Equal(t, "second", aAttempts[1].JobID)
 			require.Equal(t, values(720, 1440), report.Available)
 			require.Equal(t, values(2.0/3, 1.0/3), report.Utilisation)
-			require.Equal(t, waitPercentiles{P50: waitValues(0, 0), P95: waitValues(60_000_000, 0), P99: waitValues(60_000_000, 0)}, report.Groups[0].FirstAllocationWaitUS)
+			require.Equal(t, waitPercentiles{P50: waitValues(0, 0), P95: waitValues(60, 0), P99: waitValues(60, 0)}, report.Groups[0].FirstAllocationWaitSeconds)
 			require.Equal(t, values(2, 2), report.Groups[0].Completed)
 		})
 	}
@@ -99,13 +99,13 @@ func runTestCandidate(t *testing.T, base, id string, spec candidate, input candi
 	require.NoError(t, strictJSON(resultRaw, &result))
 	require.NoError(t, result.validate(c, digest(raw)))
 	broken := result
-	broken.Version = 1
-	require.ErrorContains(t, broken.validate(c, digest(raw)), "worker result protocol version 1 is incompatible with version 2")
+	broken.Version = 2
+	require.ErrorContains(t, broken.validate(c, digest(raw)), "worker result protocol version 2 is incompatible with version 3")
 	broken = result
 	broken.Outcomes = broken.Outcomes[:1]
 	require.ErrorContains(t, broken.validate(c, digest(raw)), "missing 1 logical outcomes")
 	broken = result
-	broken.Window.EndUS++
+	broken.Window.EndSeconds++
 	require.ErrorContains(t, broken.validate(c, digest(raw)), "incompatible run")
 	broken = result
 	broken.AllocatedCPUSeconds = nil
@@ -138,7 +138,7 @@ func checkAttemptCPU(t *testing.T, attempts []attemptRow, expected float64) {
 		require.NotEmpty(t, attempt.RunID)
 		require.NotEmpty(t, attempt.Node)
 		require.Equal(t, int64(1), attempt.Ordinal)
-		allocated += 4 * float64(attempt.EndUS-attempt.AllocatedUS) / 1_000_000
+		allocated += 4 * float64(attempt.EndSeconds-attempt.AllocatedSeconds)
 	}
 	require.Equal(t, expected, allocated)
 }
@@ -214,48 +214,48 @@ func TestCandidateProcessFailuresKeepDiagnostics(t *testing.T) {
 
 func TestStrictJSONRejectsAmbiguousWindow(t *testing.T) {
 	var window Window
-	require.ErrorContains(t, strictJSON([]byte(`{"end_us":180000000,"END_US":90000000}`), &window), "unknown field")
-	require.ErrorContains(t, strictJSON([]byte(`{"end_us":180000000,"end_us":90000000}`), &window), "duplicate field")
+	require.ErrorContains(t, strictJSON([]byte(`{"end_s":180,"END_S":90}`), &window), "unknown field")
+	require.ErrorContains(t, strictJSON([]byte(`{"end_s":180,"end_s":90}`), &window), "duplicate field")
 }
 
 func TestWaitPercentilesUseAllocatedArrivalsDuringMeasurement(t *testing.T) {
 	zero := int64(0)
 	arrivals := []outcome{
-		{Queue: "q", SubmittedUS: -10, ObservedUS: 300, FirstAllocationUS: &zero, State: Completed},
-		{Queue: "q", SubmittedUS: 0, ObservedUS: 500, State: Queued},
+		{Queue: "q", SubmittedSeconds: -10, ObservedSeconds: 300, FirstAllocationSeconds: &zero, State: Completed},
+		{Queue: "q", SubmittedSeconds: 0, ObservedSeconds: 500, State: Queued},
 	}
 	for wait := int64(100); wait >= 1; wait-- {
 		arrivals = append(arrivals, outcome{
-			Queue: "q", SubmittedUS: 0, ObservedUS: 300, FirstAllocationUS: &wait, State: Completed,
+			Queue: "q", SubmittedSeconds: 0, ObservedSeconds: 300, FirstAllocationSeconds: &wait, State: Completed,
 		})
 	}
 	cpu := float64(1)
-	run := &runResult{Window: Window{EndUS: 500}, Outcomes: arrivals, AllocatedCPUSeconds: &cpu, AvailableCPUSeconds: &cpu}
+	run := &runResult{Window: Window{EndSeconds: 500}, Outcomes: arrivals, AllocatedCPUSeconds: &cpu, AvailableCPUSeconds: &cpu}
 	group := compareResults("none", nil, run, run).Groups[0]
 	require.Equal(t, values(101, 101), group.Arrivals)
 	require.Equal(t, values(100, 100), group.Allocated)
 	require.Equal(t, values(1, 1), group.Unallocated)
 	require.Equal(t, values(1, 1), group.CarryIn)
-	require.Equal(t, waitPercentiles{P50: waitValues(50, 50), P95: waitValues(95, 95), P99: waitValues(99, 99)}, group.FirstAllocationWaitUS)
+	require.Equal(t, waitPercentiles{P50: waitValues(50, 50), P95: waitValues(95, 95), P99: waitValues(99, 99)}, group.FirstAllocationWaitSeconds)
 }
 
-func TestReportKeepsExactMicroseconds(t *testing.T) {
-	a, b := int64(1<<53)+1, int64(1<<53)+2
+func TestReportKeepsExactSeconds(t *testing.T) {
+	a, b := maxDurationSeconds-2, maxDurationSeconds-1
 	cpu := float64(1)
 	run := func(wait *int64) *runResult {
 		return &runResult{
-			Window: Window{EndUS: b + 1}, AllocatedCPUSeconds: &cpu, AvailableCPUSeconds: &cpu,
-			Outcomes: []outcome{{FirstAllocationUS: wait, ObservedUS: b, State: Completed}},
+			Window: Window{EndSeconds: b + 1}, AllocatedCPUSeconds: &cpu, AvailableCPUSeconds: &cpu,
+			Outcomes: []outcome{{FirstAllocationSeconds: wait, ObservedSeconds: b, State: Completed}},
 		}
 	}
 	report := compareResults("capacity", nil, run(&a), run(&b))
 	raw, err := json.Marshal(report)
 	require.NoError(t, err)
-	require.Contains(t, string(raw), `"p50":{"a":9007199254740993,"b":9007199254740994,"delta":1}`)
+	require.Contains(t, string(raw), `"p50":{"a":9223372034,"b":9223372035,"delta":1}`)
 	var table bytes.Buffer
 	require.NoError(t, report.print(&table))
-	require.Contains(t, table.String(), "9007199254740993")
-	require.Contains(t, table.String(), "9007199254740994")
+	require.Contains(t, table.String(), "9223372034")
+	require.Contains(t, table.String(), "9223372035")
 }
 
 func waitValues(a, b int64) metric[int64] {
@@ -266,7 +266,17 @@ func TestWorkerRejectsOlderInputProtocol(t *testing.T) {
 	dir := t.TempDir()
 	input := filepath.Join(dir, "input.json")
 	result := filepath.Join(dir, "run.json")
-	require.NoError(t, os.WriteFile(input, []byte(`{"version":1,"candidate_id":"a"}`), 0o644))
-	require.ErrorContains(t, RunComparisonCandidate(t.Context(), input, result), "worker input protocol version 1 is incompatible with version 2")
+	require.NoError(t, os.WriteFile(input, []byte(`{"version":2,"candidate_id":"a"}`), 0o644))
+	require.ErrorContains(t, RunComparisonCandidate(t.Context(), input, result), "worker input protocol version 2 is incompatible with version 3")
 	require.NoFileExists(t, result)
+}
+
+func TestComparisonRequiresWholeSecondFields(t *testing.T) {
+	var window Window
+	require.Error(t, strictJSON([]byte(`{"end_s":1.5}`), &window))
+	require.ErrorContains(t, strictJSON([]byte(`{"end_us":1000000}`), &window), "unknown field")
+
+	var job workloadJob
+	require.Error(t, strictJSON([]byte(`{"useful_s":0.5}`), &job))
+	require.ErrorContains(t, strictJSON([]byte(`{"useful_us":1000000}`), &job), "unknown field")
 }

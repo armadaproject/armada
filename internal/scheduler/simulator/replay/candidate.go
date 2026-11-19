@@ -19,36 +19,35 @@ import (
 )
 
 type runResult struct {
-	Version              int       `json:"version"`
-	ID                   string    `json:"candidate_id"`
-	Status               string    `json:"status"`
-	Window               Window    `json:"window"`
-	InputSHA256          string    `json:"input_sha256"`
-	WorkloadSHA256       string    `json:"workload_sha256"`
-	WorkEstimationMethod string    `json:"work_estimation_method"`
-	ConfigSHA256         string    `json:"scheduler_config_sha256"`
-	FarmSHA256           string    `json:"farm_sha256"`
-	BinarySHA256         string    `json:"binary_sha256"`
-	AllocatedCPUSeconds  *float64  `json:"allocated_cpu_seconds"`
-	AvailableCPUSeconds  *float64  `json:"available_cpu_seconds"`
-	Outcomes             []outcome `json:"outcomes"`
+	Version             int       `json:"version"`
+	ID                  string    `json:"candidate_id"`
+	Status              string    `json:"status"`
+	Window              Window    `json:"window"`
+	InputSHA256         string    `json:"input_sha256"`
+	WorkloadSHA256      string    `json:"workload_sha256"`
+	ConfigSHA256        string    `json:"scheduler_config_sha256"`
+	FarmSHA256          string    `json:"farm_sha256"`
+	BinarySHA256        string    `json:"binary_sha256"`
+	AllocatedCPUSeconds *float64  `json:"allocated_cpu_seconds"`
+	AvailableCPUSeconds *float64  `json:"available_cpu_seconds"`
+	Outcomes            []outcome `json:"outcomes"`
 }
 
 type outcome struct {
-	ID                string `json:"logical_job_id"`
-	State             State  `json:"state"`
-	Reason            string `json:"reason,omitempty"`
-	Queue             string `json:"queue"`
-	Priority          string `json:"priority_class"`
-	SubmittedUS       int64  `json:"submitted_at_us"`
-	ObservedUS        int64  `json:"observed_at_us"`
-	FirstAllocationUS *int64 `json:"first_allocation_us"`
-	FirstUsefulUS     *int64 `json:"first_useful_us"`
-	Attempts          int64  `json:"attempts"`
-	RemainingUS       int64  `json:"remaining_us"`
-	StartupUS         int64  `json:"startup_us"`
-	LostUS            int64  `json:"lost_us"`
-	ProvisionalUS     int64  `json:"provisional_us"`
+	ID                     string `json:"logical_job_id"`
+	State                  State  `json:"state"`
+	Reason                 string `json:"reason,omitempty"`
+	Queue                  string `json:"queue"`
+	Priority               string `json:"priority_class"`
+	SubmittedSeconds       int64  `json:"submitted_at_s"`
+	ObservedSeconds        int64  `json:"observed_at_s"`
+	FirstAllocationSeconds *int64 `json:"first_allocation_s"`
+	FirstUsefulSeconds     *int64 `json:"first_useful_s"`
+	Attempts               int64  `json:"attempts"`
+	RemainingSeconds       int64  `json:"remaining_s"`
+	StartupSeconds         int64  `json:"startup_s"`
+	LostSeconds            int64  `json:"lost_s"`
+	ProvisionalSeconds     int64  `json:"provisional_s"`
 }
 
 func (r *runResult) validate(c candidateRun, inputHash string) error {
@@ -59,7 +58,6 @@ func (r *runResult) validate(c candidateRun, inputHash string) error {
 	if r.ID != input.ID || r.Status != "complete" || r.Window != input.Window ||
 		r.BinarySHA256 != c.binarySHA256 ||
 		r.InputSHA256 != inputHash || r.WorkloadSHA256 != input.WorkloadSHA256 ||
-		r.WorkEstimationMethod != input.WorkEstimationMethod ||
 		r.FarmSHA256 != digest(input.Farm) || r.ConfigSHA256 != digest(input.Config) {
 		return errors.New("incompatible run identity, status or input provenance")
 	}
@@ -71,14 +69,14 @@ func (r *runResult) validate(c candidateRun, inputHash string) error {
 	}
 	offered := make(map[string]Job, len(input.Jobs))
 	for _, job := range input.Jobs {
-		if job.SubmittedUS >= r.Window.WarmupUS && job.SubmittedUS < r.Window.EndUS {
+		if job.SubmittedSeconds >= r.Window.WarmupSeconds && job.SubmittedSeconds < r.Window.EndSeconds {
 			offered[job.ID] = job
 		}
 	}
 	for _, row := range r.Outcomes {
 		job, ok := offered[row.ID]
-		if !ok || row.Queue != job.Queue || row.Priority != job.PriorityClass || row.SubmittedUS != job.SubmittedUS ||
-			!row.valid(r.Window, job.UsefulUS) {
+		if !ok || row.Queue != job.Queue || row.Priority != job.PriorityClass || row.SubmittedSeconds != job.SubmittedSeconds ||
+			!row.valid(r.Window, job.UsefulSeconds) {
 			return fmt.Errorf("invalid, duplicate or unexpected outcome for %q", row.ID)
 		}
 		delete(offered, row.ID)
@@ -90,27 +88,27 @@ func (r *runResult) validate(c candidateRun, inputHash string) error {
 	return nil
 }
 
-func (o outcome) valid(window Window, usefulUS int64) bool {
-	if o.ObservedUS < o.SubmittedUS || o.Attempts < 0 || o.StartupUS < 0 || o.LostUS < 0 ||
-		o.ProvisionalUS < 0 || o.RemainingUS < 0 || o.RemainingUS > usefulUS ||
-		(o.FirstAllocationUS == nil) != (o.Attempts == 0) {
+func (o outcome) valid(window Window, usefulSeconds int64) bool {
+	if o.ObservedSeconds < o.SubmittedSeconds || o.Attempts < 0 || o.StartupSeconds < 0 || o.LostSeconds < 0 ||
+		o.ProvisionalSeconds < 0 || o.RemainingSeconds < 0 || o.RemainingSeconds > usefulSeconds ||
+		(o.FirstAllocationSeconds == nil) != (o.Attempts == 0) {
 		return false
 	}
-	if o.FirstAllocationUS != nil && (*o.FirstAllocationUS < o.SubmittedUS || *o.FirstAllocationUS > o.ObservedUS ||
-		*o.FirstAllocationUS >= window.EndUS) {
+	if o.FirstAllocationSeconds != nil && (*o.FirstAllocationSeconds < o.SubmittedSeconds || *o.FirstAllocationSeconds > o.ObservedSeconds ||
+		*o.FirstAllocationSeconds >= window.EndSeconds) {
 		return false
 	}
-	if o.FirstUsefulUS != nil && (o.FirstAllocationUS == nil || *o.FirstUsefulUS < *o.FirstAllocationUS ||
-		*o.FirstUsefulUS > o.ObservedUS) {
+	if o.FirstUsefulSeconds != nil && (o.FirstAllocationSeconds == nil || *o.FirstUsefulSeconds < *o.FirstAllocationSeconds ||
+		*o.FirstUsefulSeconds > o.ObservedSeconds) {
 		return false
 	}
 	switch o.State {
 	case Completed:
-		return o.ObservedUS < window.EndUS && o.Attempts > 0 && o.RemainingUS == 0
+		return o.ObservedSeconds < window.EndSeconds && o.Attempts > 0 && o.RemainingSeconds == 0
 	case Running:
-		return o.ObservedUS == window.EndUS && o.Attempts > 0
+		return o.ObservedSeconds == window.EndSeconds && o.Attempts > 0
 	case Queued:
-		return o.ObservedUS == window.EndUS
+		return o.ObservedSeconds == window.EndSeconds
 	default:
 		return false
 	}
@@ -150,7 +148,7 @@ func RunComparisonCandidate(ctx context.Context, inputPath, resultPath string) (
 			ResourceLimitsByPriorityClassName: queue.Limits,
 		})
 	}
-	scheduler, err := NewProductionScheduler(ctx, input.Window.WarmupUS, cfg, farm, queues)
+	scheduler, err := NewProductionScheduler(ctx, input.Window.WarmupSeconds, cfg, farm, queues)
 	if err != nil {
 		return err
 	}
@@ -175,7 +173,7 @@ func RunComparisonCandidate(ctx context.Context, inputPath, resultPath string) (
 		}
 		job := input.Jobs[nextIndex]
 		nextIndex++
-		if job.SubmittedUS < input.Window.WarmupUS || job.SubmittedUS >= input.Window.EndUS {
+		if job.SubmittedSeconds < input.Window.WarmupSeconds || job.SubmittedSeconds >= input.Window.EndSeconds {
 			_, err := scheduler.makeJob(job)
 			return job, err
 		}
@@ -200,11 +198,11 @@ func RunComparisonCandidate(ctx context.Context, inputPath, resultPath string) (
 	}
 
 	allocated, _ := observations.cpuSeconds.Float64()
-	available, _ := cpuSeconds(capacity, input.Window.EndUS-input.Window.StartUS).Float64()
+	available, _ := cpuSeconds(capacity, input.Window.EndSeconds-input.Window.StartSeconds).Float64()
 	return writeJSON(resultPath, runResult{
 		Version: workerVersion, ID: input.ID, Status: "complete", Window: input.Window,
 		InputSHA256: digest(raw), BinarySHA256: hash, WorkloadSHA256: input.WorkloadSHA256,
-		WorkEstimationMethod: input.WorkEstimationMethod, ConfigSHA256: digest(input.Config), FarmSHA256: digest(input.Farm),
+		ConfigSHA256: digest(input.Config), FarmSHA256: digest(input.Farm),
 		AllocatedCPUSeconds: &allocated, AvailableCPUSeconds: &available, Outcomes: observations.jobs,
 	})
 }
@@ -220,25 +218,25 @@ type comparisonObservations struct {
 func (o *comparisonObservations) Job(row JobResult) error {
 	o.jobs = append(o.jobs, outcome{
 		ID: row.Offered.ID, Queue: row.Offered.Queue, Priority: row.Offered.PriorityClass,
-		SubmittedUS: row.Offered.SubmittedUS, ObservedUS: row.ObservedUS,
-		FirstAllocationUS: row.FirstAllocationUS, FirstUsefulUS: row.FirstUsefulUS,
-		State: row.State, Reason: row.Reason, Attempts: row.Attempts, RemainingUS: row.RemainingUS,
-		StartupUS: row.TotalStartupUS, LostUS: row.TotalLostUS, ProvisionalUS: row.ProvisionalUS,
+		SubmittedSeconds: row.Offered.SubmittedSeconds, ObservedSeconds: row.ObservedSeconds,
+		FirstAllocationSeconds: row.FirstAllocationSeconds, FirstUsefulSeconds: row.FirstUsefulSeconds,
+		State: row.State, Reason: row.Reason, Attempts: row.Attempts, RemainingSeconds: row.RemainingSeconds,
+		StartupSeconds: row.TotalStartupSeconds, LostSeconds: row.TotalLostSeconds, ProvisionalSeconds: row.ProvisionalSeconds,
 	})
 	return nil
 }
 
 func (o *comparisonObservations) Attempt(row AttemptResult) error {
-	start := max(row.AllocatedUS, o.window.StartUS)
-	end := min(row.EndUS, o.window.EndUS)
+	start := max(row.AllocatedSeconds, o.window.StartSeconds)
+	end := min(row.EndSeconds, o.window.EndSeconds)
 	if end > start {
 		o.cpuSeconds.Add(&o.cpuSeconds, cpuSeconds(row.Offered.Requests[v1.ResourceCPU], end-start))
 	}
 	return o.writeAttempt(row)
 }
 
-func cpuSeconds(cpu resource.Quantity, durationUS int64) *big.Rat {
+func cpuSeconds(cpu resource.Quantity, durationSeconds int64) *big.Rat {
 	// Quantity.AsDec produces a decimal string that big.Rat parses exactly.
 	cores, _ := new(big.Rat).SetString(cpu.AsDec().String())
-	return cores.Mul(cores, big.NewRat(durationUS, 1_000_000))
+	return cores.Mul(cores, new(big.Rat).SetInt64(durationSeconds))
 }

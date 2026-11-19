@@ -31,8 +31,8 @@ import (
 )
 
 func TestProductionSchedulerPreemptsAndResumesOfferedWork(t *testing.T) {
-	const minute = int64(time.Minute / time.Microsecond)
-	origin := testfixtures.BaseTime.UnixMicro()
+	const minute = int64(time.Minute / time.Second)
+	origin := testfixtures.BaseTime.Unix()
 	at := func(offset int64) int64 { return origin + offset*minute }
 
 	cpu, gpu := resource.MustParse("1"), resource.MustParse("1")
@@ -58,18 +58,18 @@ func TestProductionSchedulerPreemptsAndResumesOfferedWork(t *testing.T) {
 
 	job := func(id, priority string, offset, work int64, requests v1.ResourceList) replay.Job {
 		return replay.Job{
-			ID: id, Queue: queue.Name, PriorityClass: priority, SubmittedUS: at(offset),
-			UsefulUS: work * minute, Requests: requests,
+			ID: id, Queue: queue.Name, PriorityClass: priority, SubmittedSeconds: at(offset),
+			UsefulSeconds: work * minute, Requests: requests,
 		}
 	}
 	cpuJob := job("cpu", testfixtures.PriorityClass1, -90, 180, v1.ResourceList{"cpu": cpu})
 	gpuJob := job("gpu", testfixtures.PriorityClass1, -90, 180, v1.ResourceList{"nvidia.com/gpu": gpu})
-	cpuJob.StartupUS, gpuJob.StartupUS, gpuJob.CheckpointUS = 45*minute, 45*minute, 60*minute
+	cpuJob.StartupSeconds, gpuJob.StartupSeconds, gpuJob.CheckpointSeconds = 45*minute, 45*minute, 60*minute
 	preemptor := job("preemptor", testfixtures.PriorityClass3, 30, 10, v1.ResourceList{"cpu": cpu, "nvidia.com/gpu": gpu})
 
 	out := &observations{}
 	_, err = replay.Run(ctx, replay.Window{
-		WarmupUS: at(-90), StartUS: at(0), EndUS: at(210), CycleUS: minute,
+		WarmupSeconds: at(-90), StartSeconds: at(0), EndSeconds: at(210), CycleSeconds: minute,
 	}, readJobs([]replay.Job{cpuJob, gpuJob, preemptor}), scheduler, out)
 	require.NoError(t, err)
 
@@ -84,9 +84,9 @@ func TestProductionSchedulerPreemptsAndResumesOfferedWork(t *testing.T) {
 		require.Equal(t, "node", row.Placement.Node)
 		require.NotEmpty(t, row.Placement.RunID)
 		actual = append(actual, attempt{
-			row.JobID, row.Ordinal, (row.AllocatedUS - origin) / minute,
-			(row.EndUS - origin) / minute, row.State, row.StartupUS / minute,
-			row.RetainedUS / minute, row.LostUS / minute, row.ProvisionalUS / minute,
+			row.JobID, row.Ordinal, (row.AllocatedSeconds - origin) / minute,
+			(row.EndSeconds - origin) / minute, row.State, row.StartupSeconds / minute,
+			row.RetainedSeconds / minute, row.LostSeconds / minute, row.ProvisionalSeconds / minute,
 		})
 	}
 	require.Equal(t, []attempt{
@@ -102,13 +102,13 @@ func TestProductionSchedulerPreemptsAndResumesOfferedWork(t *testing.T) {
 	for _, row := range out.attempts {
 		placement := row.Placement
 		placement.RunID = ""
-		round := replayRounds[row.AllocatedUS]
+		round := replayRounds[row.AllocatedSeconds]
 		round.Allocate = append(round.Allocate, placement)
-		replayRounds[row.AllocatedUS] = round
+		replayRounds[row.AllocatedSeconds] = round
 		if row.State == replay.Preempted {
-			round := replayRounds[row.EndUS]
+			round := replayRounds[row.EndSeconds]
 			round.Preempt = append(round.Preempt, replay.Preemption{JobID: row.JobID, Reason: row.Reason})
-			replayRounds[row.EndUS] = round
+			replayRounds[row.EndSeconds] = round
 		}
 	}
 	for when, expected := range reference {
@@ -132,7 +132,7 @@ func productionTimeline(
 ) map[int64]replay.Decisions {
 	t.Helper()
 	logger := armadacontext.New(t.Context(), log.NullLogger)
-	clock := clocktesting.NewFakeClock(time.UnixMicro(at(-90)))
+	clock := clocktesting.NewFakeClock(time.Unix(at(-90), 0))
 	node := *source
 	node.StateByJobRunId = make(map[string]schedulerobjects.JobRunState)
 	executor := &schedulerobjects.Executor{Id: node.Executor, Pool: node.Pool, Nodes: []*schedulerobjects.Node{&node}}
@@ -155,7 +155,7 @@ func productionTimeline(
 
 	admit := func(tx *jobdb.Txn, input replay.Job) {
 		t.Helper()
-		created := time.UnixMicro(input.SubmittedUS)
+		created := time.Unix(input.SubmittedSeconds, 0)
 		info := &internaltypes.JobSchedulingInfo{
 			PriorityClass: input.PriorityClass, SubmitTime: created,
 			PodRequirements: &internaltypes.PodRequirements{ResourceRequirements: v1.ResourceRequirements{Requests: input.Requests}},
@@ -170,12 +170,12 @@ func productionTimeline(
 	}
 	timeline := make(map[int64]replay.Decisions)
 	for _, minute := range []int64{-90, -89, 30, 40, 205} {
-		now := time.UnixMicro(at(minute))
+		now := time.Unix(at(minute), 0)
 		clock.SetTime(now)
 		executor.LastUpdateTime = protoutil.ToTimestamp(now)
 		txn := db.WriteTxn()
 		for _, input := range jobs {
-			if input.SubmittedUS == at(minute) {
+			if input.SubmittedSeconds == at(minute) {
 				admit(txn, input)
 			}
 		}

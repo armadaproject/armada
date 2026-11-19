@@ -13,11 +13,11 @@ import (
 func TestRunObservesHalfOpenHorizon(t *testing.T) {
 	ctx := context.Background()
 	arrivals := []replay.Job{
-		{ID: "excluded", SubmittedUS: 99, UsefulUS: 120},
-		{ID: "complete", SubmittedUS: 100, UsefulUS: 120},
-		{ID: "running", SubmittedUS: 100, UsefulUS: 200},
-		{ID: "queued", SubmittedUS: 101, UsefulUS: 100},
-		{ID: "after", SubmittedUS: 300, UsefulUS: 10},
+		{ID: "excluded", SubmittedSeconds: 99, UsefulSeconds: 120},
+		{ID: "complete", SubmittedSeconds: 100, UsefulSeconds: 120},
+		{ID: "running", SubmittedSeconds: 100, UsefulSeconds: 200},
+		{ID: "queued", SubmittedSeconds: 101, UsefulSeconds: 100},
+		{ID: "after", SubmittedSeconds: 300, UsefulSeconds: 10},
 	}
 	results := &observations{}
 	scheduler := &scriptedScheduler{
@@ -26,7 +26,7 @@ func TestRunObservesHalfOpenHorizon(t *testing.T) {
 		},
 	}
 	stats, err := replay.Run(ctx, replay.Window{
-		WarmupUS: 100, StartUS: 150, EndUS: 300, CycleUS: 10,
+		WarmupSeconds: 100, StartSeconds: 150, EndSeconds: 300, CycleSeconds: 10,
 	}, readJobs(arrivals), scheduler, results)
 	require.NoError(t, err)
 	require.Equal(t, replay.Stats{BeforeWarmup: 1, AtOrAfterEnd: 1, Admitted: 3, PeakQueued: 2, PeakRunning: 2, PeakCompletionEvents: 1, PeakLookahead: 1}, stats)
@@ -34,25 +34,25 @@ func TestRunObservesHalfOpenHorizon(t *testing.T) {
 	require.Equal(t, []string{"complete"}, scheduler.completed)
 	for i := range results.jobs {
 		results.jobs[i].Offered = replay.Job{}
-		results.jobs[i].FirstAllocationUS = nil
-		results.jobs[i].FirstUsefulUS = nil
+		results.jobs[i].FirstAllocationSeconds = nil
+		results.jobs[i].FirstUsefulSeconds = nil
 	}
 	for i := range results.attempts {
 		results.attempts[i].Offered = replay.Job{}
 	}
 	require.Equal(t, []replay.JobResult{
-		{JobID: "complete", State: replay.Completed, Attempts: 1, ObservedUS: 220, DurableUS: 120},
-		{JobID: "queued", State: replay.Queued, ObservedUS: 300, RemainingUS: 100},
-		{JobID: "running", State: replay.Running, Attempts: 1, ObservedUS: 300, ProvisionalUS: 200},
+		{JobID: "complete", State: replay.Completed, Attempts: 1, ObservedSeconds: 220, DurableSeconds: 120},
+		{JobID: "queued", State: replay.Queued, ObservedSeconds: 300, RemainingSeconds: 100},
+		{JobID: "running", State: replay.Running, Attempts: 1, ObservedSeconds: 300, ProvisionalSeconds: 200},
 	}, results.jobs)
 	require.Equal(t, []replay.AttemptResult{
 		{
 			JobID: "complete", Ordinal: 1, Placement: replay.Placement{JobID: "complete"},
-			AllocatedUS: 100, EndUS: 220, State: replay.Completed, RetainedUS: 120,
+			AllocatedSeconds: 100, EndSeconds: 220, State: replay.Completed, RetainedSeconds: 120,
 		},
 		{
 			JobID: "running", Ordinal: 1, Placement: replay.Placement{JobID: "running"},
-			AllocatedUS: 100, EndUS: 300, State: replay.Running, ProvisionalUS: 200,
+			AllocatedSeconds: 100, EndSeconds: 300, State: replay.Running, ProvisionalSeconds: 200,
 		},
 	}, results.attempts)
 }
@@ -116,7 +116,7 @@ func TestPreemptionKeepsOnlyCompletedCheckpoints(t *testing.T) {
 		{"after checkpoint", 6, 2, 3, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			job := replay.Job{ID: "job", UsefulUS: 8, StartupUS: 2, CheckpointUS: 3}
+			job := replay.Job{ID: "job", UsefulSeconds: 8, StartupSeconds: 2, CheckpointSeconds: 3}
 			out := &observations{}
 			scheduler := &scriptedScheduler{rounds: map[int64]replay.Decisions{
 				0: {Allocate: []replay.Placement{{JobID: job.ID, RunID: "first"}}},
@@ -125,34 +125,34 @@ func TestPreemptionKeepsOnlyCompletedCheckpoints(t *testing.T) {
 					Allocate: []replay.Placement{{JobID: job.ID, RunID: "replacement"}},
 				},
 			}}
-			_, err := replay.Run(t.Context(), replay.Window{EndUS: 20, CycleUS: 1}, readJobs([]replay.Job{job}), scheduler, out)
+			_, err := replay.Run(t.Context(), replay.Window{EndSeconds: 20, CycleSeconds: 1}, readJobs([]replay.Job{job}), scheduler, out)
 			require.NoError(t, err)
 			require.Equal(t, []string{job.ID}, scheduler.completed)
 			require.Len(t, out.attempts, 2)
 			first, restart := out.attempts[0], out.attempts[1]
 			require.Equal(t, replay.Preempted, first.State)
 			require.Equal(t, "urgency", first.Reason)
-			require.Equal(t, tc.startup, first.StartupUS)
-			require.Equal(t, tc.retained, first.RetainedUS)
-			require.Equal(t, tc.lost, first.LostUS)
+			require.Equal(t, tc.startup, first.StartupSeconds)
+			require.Equal(t, tc.retained, first.RetainedSeconds)
+			require.Equal(t, tc.lost, first.LostSeconds)
 			require.Equal(t, replay.Completed, restart.State)
-			require.Equal(t, tc.preemptAt+2+8-tc.retained, restart.EndUS)
-			require.Equal(t, int64(2), restart.StartupUS)
-			require.Equal(t, job.UsefulUS, out.jobs[0].DurableUS)
+			require.Equal(t, tc.preemptAt+2+8-tc.retained, restart.EndSeconds)
+			require.Equal(t, int64(2), restart.StartupSeconds)
+			require.Equal(t, job.UsefulSeconds, out.jobs[0].DurableSeconds)
 		})
 	}
 }
 
 func TestReplayCutoffDoesNotFinalizeCheckpointAtEnd(t *testing.T) {
-	job := replay.Job{ID: "checkpoint", UsefulUS: 30, CheckpointUS: 10}
+	job := replay.Job{ID: "checkpoint", UsefulSeconds: 30, CheckpointSeconds: 10}
 	out := &observations{}
 	scheduler := &scriptedScheduler{rounds: map[int64]replay.Decisions{
 		0: {Allocate: []replay.Placement{{JobID: job.ID}}},
 	}}
-	_, err := replay.Run(t.Context(), replay.Window{EndUS: 20, CycleUS: 1}, readJobs([]replay.Job{job}), scheduler, out)
+	_, err := replay.Run(t.Context(), replay.Window{EndSeconds: 20, CycleSeconds: 1}, readJobs([]replay.Job{job}), scheduler, out)
 	require.NoError(t, err)
 	require.Empty(t, scheduler.completed)
 	require.Len(t, out.attempts, 1)
-	require.Equal(t, int64(10), out.attempts[0].RetainedUS)
-	require.Equal(t, int64(10), out.attempts[0].ProvisionalUS)
+	require.Equal(t, int64(10), out.attempts[0].RetainedSeconds)
+	require.Equal(t, int64(10), out.attempts[0].ProvisionalSeconds)
 }

@@ -18,32 +18,32 @@ const (
 	attemptsFile             = "attempts.parquet"
 	queueIntervalsFile       = "queue_intervals.parquet"
 	observationsManifestFile = "observations.json"
-	observationsVersion      = 1
+	observationsVersion      = 2
 )
 
 type attemptRow struct {
-	JobID          string `parquet:"name=logical_job_id, type=BYTE_ARRAY, convertedtype=UTF8"`
-	Ordinal        int64  `parquet:"name=attempt, type=INT64"`
-	RunID          string `parquet:"name=run_id, type=BYTE_ARRAY, convertedtype=UTF8"`
-	SchedulingPool string `parquet:"name=scheduling_pool, type=BYTE_ARRAY, convertedtype=UTF8"`
-	Pool           string `parquet:"name=pool, type=BYTE_ARRAY, convertedtype=UTF8"`
-	Node           string `parquet:"name=node, type=BYTE_ARRAY, convertedtype=UTF8"`
-	Requests       string `parquet:"name=requests_json, type=BYTE_ARRAY, convertedtype=UTF8"`
-	AllocatedUS    int64  `parquet:"name=allocated_at_us, type=INT64"`
-	EndUS          int64  `parquet:"name=end_at_us, type=INT64"`
-	State          string `parquet:"name=state, type=BYTE_ARRAY, convertedtype=UTF8"`
-	Reason         string `parquet:"name=reason, type=BYTE_ARRAY, convertedtype=UTF8"`
-	StartupUS      int64  `parquet:"name=startup_us, type=INT64"`
-	RetainedUS     int64  `parquet:"name=retained_us, type=INT64"`
-	LostUS         int64  `parquet:"name=lost_us, type=INT64"`
-	ProvisionalUS  int64  `parquet:"name=provisional_us, type=INT64"`
+	JobID              string `parquet:"name=logical_job_id, type=BYTE_ARRAY, convertedtype=UTF8"`
+	Ordinal            int64  `parquet:"name=attempt, type=INT64"`
+	RunID              string `parquet:"name=run_id, type=BYTE_ARRAY, convertedtype=UTF8"`
+	SchedulingPool     string `parquet:"name=scheduling_pool, type=BYTE_ARRAY, convertedtype=UTF8"`
+	Pool               string `parquet:"name=pool, type=BYTE_ARRAY, convertedtype=UTF8"`
+	Node               string `parquet:"name=node, type=BYTE_ARRAY, convertedtype=UTF8"`
+	Requests           string `parquet:"name=requests_json, type=BYTE_ARRAY, convertedtype=UTF8"`
+	AllocatedSeconds   int64  `parquet:"name=allocated_at_s, type=INT64"`
+	EndSeconds         int64  `parquet:"name=end_at_s, type=INT64"`
+	State              string `parquet:"name=state, type=BYTE_ARRAY, convertedtype=UTF8"`
+	Reason             string `parquet:"name=reason, type=BYTE_ARRAY, convertedtype=UTF8"`
+	StartupSeconds     int64  `parquet:"name=startup_s, type=INT64"`
+	RetainedSeconds    int64  `parquet:"name=retained_s, type=INT64"`
+	LostSeconds        int64  `parquet:"name=lost_s, type=INT64"`
+	ProvisionalSeconds int64  `parquet:"name=provisional_s, type=INT64"`
 }
 
 type queueIntervalRow struct {
-	JobID    string `parquet:"name=logical_job_id, type=BYTE_ARRAY, convertedtype=UTF8"`
-	QueuedUS int64  `parquet:"name=queued_at_us, type=INT64"`
-	EndUS    int64  `parquet:"name=end_at_us, type=INT64"`
-	Censored bool   `parquet:"name=censored, type=BOOLEAN"`
+	JobID         string `parquet:"name=logical_job_id, type=BYTE_ARRAY, convertedtype=UTF8"`
+	QueuedSeconds int64  `parquet:"name=queued_at_s, type=INT64"`
+	EndSeconds    int64  `parquet:"name=end_at_s, type=INT64"`
+	Censored      bool   `parquet:"name=censored, type=BOOLEAN"`
 }
 
 type observationsManifest struct {
@@ -89,16 +89,16 @@ func (o *comparisonObservations) writeAttempt(row AttemptResult) error {
 	return o.attempts.writer.Write(attemptRow{
 		JobID: row.JobID, Ordinal: row.Ordinal, RunID: row.Placement.RunID,
 		SchedulingPool: row.Placement.SchedulingPool, Pool: row.Placement.Pool, Node: row.Placement.Node,
-		Requests: string(requests), AllocatedUS: row.AllocatedUS, EndUS: row.EndUS,
-		State: string(row.State), Reason: row.Reason, StartupUS: row.StartupUS,
-		RetainedUS: row.RetainedUS, LostUS: row.LostUS, ProvisionalUS: row.ProvisionalUS,
+		Requests: string(requests), AllocatedSeconds: row.AllocatedSeconds, EndSeconds: row.EndSeconds,
+		State: string(row.State), Reason: row.Reason, StartupSeconds: row.StartupSeconds,
+		RetainedSeconds: row.RetainedSeconds, LostSeconds: row.LostSeconds, ProvisionalSeconds: row.ProvisionalSeconds,
 	})
 }
 
 func (o *comparisonObservations) Queue(interval QueueInterval) error {
 	return o.queues.writer.Write(queueIntervalRow{
-		JobID: interval.Offered.ID, QueuedUS: interval.QueuedUS,
-		EndUS: interval.EndUS, Censored: interval.Censored,
+		JobID: interval.Offered.ID, QueuedSeconds: interval.QueuedSeconds,
+		EndSeconds: interval.EndSeconds, Censored: interval.Censored,
 	})
 }
 

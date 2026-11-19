@@ -1,11 +1,11 @@
 {
-  "version": 1,
+  "version": 2,
   "work_estimation_method": "synthetic fixed duration",
   "jobs": [
     {
       "logical_job_id": "second",
-      "submitted_at_us": 0,
-      "useful_us": 60000000,
+      "submitted_at_s": 0,
+      "useful_s": 60,
       "queue": "shared",
       "queue_priority": 1,
       "priority_class": "low",
@@ -13,8 +13,8 @@
     },
     {
       "logical_job_id": "first",
-      "submitted_at_us": 0,
-      "useful_us": 60000000,
+      "submitted_at_s": 0,
+      "useful_s": 60,
       "queue": "shared",
       "queue_priority": 0,
       "priority_class": "low",
