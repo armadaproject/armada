@@ -1,0 +1,8 @@
+schemaVersion: 1
+clusters:
+  - name: test-executor
+    pool: test-pool
+    nodeTemplates:
+      - number: 2
+        totalResources:
+          resources: {cpu: "4"}

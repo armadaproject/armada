@@ -52,6 +52,8 @@ For more information about Armada's design, see the following pages:
 
 ## Other developer docs
 
+- [Compare local simulator candidates](developer/simulator-comparison.md)
+
 - [Armada API](./developer/armada-api.md)
 - [Regenerating code and API clients](./developer/generation.md)
 - [Scheduler policy clock](./developer/scheduler-policy-clock.md)
