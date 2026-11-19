@@ -73,8 +73,8 @@ type counts struct {
 func compareResults(change string, code *codeChange, a, b *runResult) comparisonReport {
 	report := comparisonReport{
 		Version: version, Change: change, Code: code, Profile: a.Profile, Model: a.Model, Window: a.Window,
-		Allocated:   values(a.AllocatedCPUSeconds, b.AllocatedCPUSeconds),
-		Available:   values(a.AvailableCPUSeconds, b.AvailableCPUSeconds),
+		Allocated:   difference(a.AllocatedCPUSeconds, b.AllocatedCPUSeconds),
+		Available:   difference(a.AvailableCPUSeconds, b.AvailableCPUSeconds),
 		Utilisation: difference(utilisation(a), utilisation(b)),
 		Groups:      []groupComparison{}, Jobs: []jobComparison{},
 	}
@@ -153,10 +153,10 @@ func delay(row outcome) *float64 {
 }
 
 func utilisation(r *runResult) *float64 {
-	if r.AvailableCPUSeconds == 0 {
+	if *r.AvailableCPUSeconds == 0 {
 		return nil
 	}
-	ratio := r.AllocatedCPUSeconds / r.AvailableCPUSeconds
+	ratio := *r.AllocatedCPUSeconds / *r.AvailableCPUSeconds
 	return &ratio
 }
 

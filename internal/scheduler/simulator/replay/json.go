@@ -8,11 +8,20 @@ import (
 	"io"
 	"os"
 	"unicode/utf8"
+
+	kubejson "sigs.k8s.io/json"
 )
 
 const maxJSONEntries = 20_000
 
 func readLocal(path string, limit int64) ([]byte, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("expected a regular file at %s", path)
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -41,9 +50,8 @@ func strictJSON(raw []byte, dst any) error {
 	if _, err := dec.Token(); err != io.EOF {
 		return errors.New("extra data after JSON value")
 	}
-	dec = json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	return dec.Decode(dst)
+	issues, err := kubejson.UnmarshalStrict(raw, dst)
+	return errors.Join(err, errors.Join(issues...))
 }
 
 func checkJSONValue(dec *json.Decoder, depth int) error {
@@ -58,24 +66,14 @@ func checkJSONValue(dec *json.Decoder, depth int) error {
 	if !ok {
 		return nil
 	}
-	var seen map[string]bool
-	if delim == '{' {
-		seen = make(map[string]bool)
-	}
 	for count := 0; dec.More(); count++ {
 		if count >= maxJSONEntries {
 			return errors.New("JSON collection has too many entries")
 		}
-		if seen != nil {
-			key, err := dec.Token()
-			if err != nil {
+		if delim == '{' {
+			if _, err := dec.Token(); err != nil {
 				return err
 			}
-			name := key.(string)
-			if seen[name] {
-				return fmt.Errorf("duplicate JSON key %q", name)
-			}
-			seen[name] = true
 		}
 		if err := checkJSONValue(dec, depth+1); err != nil {
 			return err

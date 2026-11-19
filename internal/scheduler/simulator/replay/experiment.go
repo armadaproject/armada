@@ -135,7 +135,7 @@ func Compare(ctx context.Context, manifest, output string, timeout time.Duration
 		return err
 	}
 	if spec.Change == "none" && (!reflect.DeepEqual(left.Outcomes, right.Outcomes) ||
-		left.AllocatedCPUSeconds != right.AllocatedCPUSeconds || left.AvailableCPUSeconds != right.AvailableCPUSeconds) {
+		*left.AllocatedCPUSeconds != *right.AllocatedCPUSeconds || *left.AvailableCPUSeconds != *right.AvailableCPUSeconds) {
 		return errors.New("identical candidates produced different logical outcomes or CPU accounting")
 	}
 	report := compareResults(spec.Change, spec.Code, left, right)
@@ -331,18 +331,18 @@ func digest(raw []byte) string {
 }
 
 func hashExecutable(ctx context.Context, path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	info, err := f.Stat()
+	info, err := os.Stat(path)
 	if err != nil {
 		return "", err
 	}
 	if !info.Mode().IsRegular() {
 		return "", fmt.Errorf("expected a regular executable file at %s", path)
 	}
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
 	h := sha256.New()
 	if _, err := io.Copy(h, contextReader{ctx, f}); err != nil {
 		return "", err

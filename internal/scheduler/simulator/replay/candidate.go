@@ -30,8 +30,8 @@ type runResult struct {
 	ConfigSHA256         string    `json:"scheduler_config_sha256"`
 	FarmSHA256           string    `json:"farm_sha256"`
 	BinarySHA256         string    `json:"binary_sha256"`
-	AllocatedCPUSeconds  float64   `json:"allocated_cpu_seconds"`
-	AvailableCPUSeconds  float64   `json:"available_cpu_seconds"`
+	AllocatedCPUSeconds  *float64  `json:"allocated_cpu_seconds"`
+	AvailableCPUSeconds  *float64  `json:"available_cpu_seconds"`
 	Outcomes             []outcome `json:"outcomes"`
 }
 
@@ -61,9 +61,10 @@ func (r *runResult) validate(c candidateRun, inputHash string) error {
 		r.FarmSHA256 != digest(input.Farm) || r.ConfigSHA256 != digest(input.Config) {
 		return errors.New("incompatible run identity, status, replay profile or input provenance")
 	}
-	if math.IsNaN(r.AllocatedCPUSeconds) || math.IsInf(r.AllocatedCPUSeconds, 0) ||
-		math.IsNaN(r.AvailableCPUSeconds) || math.IsInf(r.AvailableCPUSeconds, 0) ||
-		r.AllocatedCPUSeconds < 0 || r.AvailableCPUSeconds < r.AllocatedCPUSeconds || r.Outcomes == nil {
+	if r.AllocatedCPUSeconds == nil || r.AvailableCPUSeconds == nil ||
+		math.IsNaN(*r.AllocatedCPUSeconds) || math.IsInf(*r.AllocatedCPUSeconds, 0) ||
+		math.IsNaN(*r.AvailableCPUSeconds) || math.IsInf(*r.AvailableCPUSeconds, 0) ||
+		*r.AllocatedCPUSeconds < 0 || *r.AvailableCPUSeconds < *r.AllocatedCPUSeconds || r.Outcomes == nil {
 		return errors.New("invalid CPU accounting or missing outcomes")
 	}
 	offered := make(map[string]Job, len(input.Jobs))
@@ -180,7 +181,7 @@ func RunComparisonCandidate(ctx context.Context, inputPath, resultPath string) e
 		Version: version, ID: input.ID, Status: "complete", Profile: profile, Model: model, Window: input.Window,
 		InputSHA256: digest(raw), BinarySHA256: hash, WorkloadSHA256: input.WorkloadSHA256,
 		WorkEstimationMethod: input.WorkEstimationMethod, ConfigSHA256: digest(input.Config), FarmSHA256: digest(input.Farm),
-		AllocatedCPUSeconds: allocated, AvailableCPUSeconds: available, Outcomes: observations.jobs,
+		AllocatedCPUSeconds: &allocated, AvailableCPUSeconds: &available, Outcomes: observations.jobs,
 	})
 }
 

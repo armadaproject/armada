@@ -63,7 +63,6 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 			require.Equal(t, values(0, 0), report.Jobs[0].Delay)
 			require.Equal(t, values(60_000_000, 0), report.Jobs[1].Delay)
 			require.Equal(t, values(2, 2), report.Groups[0].Completed)
-
 		})
 	}
 }
@@ -89,6 +88,9 @@ func runTestCandidate(t *testing.T, base, id string, spec candidate, input candi
 	broken = result
 	broken.Window.EndUS++
 	require.ErrorContains(t, broken.validate(c, digest(raw)), "incompatible run")
+	broken = result
+	broken.AllocatedCPUSeconds = nil
+	require.ErrorContains(t, broken.validate(c, digest(raw)), "invalid CPU accounting")
 	return &result
 }
 
@@ -115,6 +117,7 @@ func TestCandidateProcessFailuresKeepDiagnostics(t *testing.T) {
 	}{
 		{"exit", "echo solver-failed >&2; exit 17", "exit status 17", time.Second},
 		{"deadline", "echo solver-failed >&2; exec sleep 5", "context deadline exceeded", 200 * time.Millisecond},
+		{"fifo", "echo solver-failed >&2; mkfifo \"$3\"", "expected a regular file", time.Second},
 		{"malformed", "echo solver-failed >&2; echo '{not JSON}' > \"$3\"", "candidate a result", time.Second},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -129,4 +132,10 @@ func TestCandidateProcessFailuresKeepDiagnostics(t *testing.T) {
 			require.Contains(t, string(log), "solver-failed")
 		})
 	}
+}
+
+func TestStrictJSONRejectsAmbiguousWindow(t *testing.T) {
+	var window Window
+	require.ErrorContains(t, strictJSON([]byte(`{"end_us":180000000,"END_US":90000000}`), &window), "unknown field")
+	require.ErrorContains(t, strictJSON([]byte(`{"end_us":180000000,"end_us":90000000}`), &window), "duplicate field")
 }
