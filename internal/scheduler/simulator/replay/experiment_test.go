@@ -161,11 +161,11 @@ func TestVerifyObservationsRequiresCompleteChecksummedFiles(t *testing.T) {
 	require.NoError(t, queue.close())
 	require.NoError(t, writeObservationsManifest(t.Context(), dir))
 	require.NoError(t, verifyObservations(t.Context(), dir))
-	require.NoError(t, os.WriteFile(attemptPath, []byte("damaged"), 0o644))
+	require.NoError(t, os.WriteFile(attemptPath, []byte("PAR1X\x01\x00\x00\x00PAR1"), 0o644))
 	require.ErrorContains(t, verifyObservations(t.Context(), dir), "checksum mismatch for attempts.parquet")
 	require.NoError(t, os.Remove(filepath.Join(dir, observationsManifestFile)))
 	require.NoError(t, writeObservationsManifest(t.Context(), dir))
-	require.ErrorContains(t, verifyObservations(t.Context(), dir), "attempts.parquet: invalid Parquet")
+	require.ErrorContains(t, verifyObservations(t.Context(), dir), "attempts.parquet: invalid Parquet footer")
 }
 
 func TestValidateChangeRejectsUndeclaredInputs(t *testing.T) {

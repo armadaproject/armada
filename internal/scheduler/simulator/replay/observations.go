@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/xitongsys/parquet-go-source/local"
+	parquetreader "github.com/xitongsys/parquet-go/reader"
 	parquetwriter "github.com/xitongsys/parquet-go/writer"
 )
 
@@ -180,6 +182,10 @@ func checkParquetHeaderAndFooter(path string) error {
 	if string(header[:]) != magic || string(trailer[4:]) != magic ||
 		footerSize <= 0 || footerSize > maxFooterSize {
 		return errors.New("invalid Parquet signature or footer length")
+	}
+	reader := parquetreader.ParquetReader{PFile: &local.LocalFile{File: file}}
+	if err := reader.ReadFooter(); err != nil {
+		return fmt.Errorf("invalid Parquet footer: %w", err)
 	}
 	return nil
 }
