@@ -1052,35 +1052,27 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 	return eventSequences, nil
 }
 
-// evaluateRetryPolicy returns the engine's verdict, the name of the policy that
-// produced it, and a `decided` flag. `decided=false` means the engine did not
-// run (no policy assigned, policy missing from cache, or no run-error yet) and
-// the caller must fall through to legacy behaviour. `decided=true` is
-// authoritative: the engine's verdict wins, and policyName identifies the
-// policy it applied.
+// evaluateRetryPolicy returns the verdict for the end of a run, the name of the
+// policy that produced it, and a `decided` flag. Only the policy of the job
+// decides. A gang job, a fail-fast job, a run with no stored error, and a job
+// that no loaded policy covers are not decided.
 func (s *Scheduler) evaluateRetryPolicy(
 	ctx *armadacontext.Context,
 	job *jobdb.Job,
 	runError *armadaevents.Error,
-	queueRetryPolicies map[string]string,
+	policies retryPolicies,
 ) (result retry.Result, policyName string, decided bool) {
-	// A queue's attached policy wins. Otherwise fall back to the fleet-wide
-	// default policy, if one is configured.
-	policyName = queueRetryPolicies[job.Queue()]
-	if policyName == "" {
-		policyName = s.retryPolicyConfig.DefaultPolicyName
-	}
-	if policyName == "" {
-		return retry.Result{}, "", false
-	}
+	policyName, policy := policies.forJob(job)
 
 	// Gangs are excluded from policy-based retry: gang-aware retry needs to
 	// aggregate failures across all members and restart them together. Count and
 	// log the skip once a policy is known to apply, so operators can see how
 	// often policies would have retried gangs.
 	if job.IsInGang() {
-		retryPolicyGangSkippedCounter.WithLabelValues(policyName).Inc()
-		ctx.Debugf("retry policy %q skipped for gang job %s on queue %s: gang-aware retry is not yet supported", policyName, job.Id(), job.Queue())
+		if policyName != "" {
+			retryPolicyGangSkippedCounter.WithLabelValues(policyName).Inc()
+			ctx.Debugf("retry policy %q skipped for gang job %s on queue %s: gang-aware retry is not yet supported", policyName, job.Id(), job.Queue())
+		}
 		return retry.Result{}, "", false
 	}
 
@@ -1091,21 +1083,16 @@ func (s *Scheduler) evaluateRetryPolicy(
 		return retry.Result{}, "", false
 	}
 
-	policy, ok := s.retryPolicyCache.Get(policyName)
-	if !ok {
-		ctx.Warnf("retry policy %q referenced by queue %q not found in cache; falling back to legacy behaviour", policyName, job.Queue())
-		return retry.Result{}, "", false
-	}
 	if runError == nil {
-		// Rare race with the ingester. Let the legacy path surface its
-		// "out of sync" error if applicable.
+		// Rare race with the ingester. The caller surfaces its "out of sync"
+		// error.
 		return retry.Result{}, "", false
 	}
 
-	// Lease returns bypass the retry engine even when they carry a failure
-	// category: attempted returns use the legacy attempt limit, not policy
-	// budgets. A returned lease does not guarantee that no containers ran.
-	if _, ok := runError.Reason.(*armadaevents.Error_PodLeaseReturned); ok {
+	if policy == nil {
+		if policyName != "" {
+			ctx.Warnf("retry policy %q referenced by queue %q not found in cache; the job is not retried", policyName, job.Queue())
+		}
 		return retry.Result{}, "", false
 	}
 
@@ -1116,10 +1103,14 @@ func (s *Scheduler) evaluateRetryPolicy(
 }
 
 // runErrorDetail renders the human-readable detail of a run error (the pod
-// message and per-container exit codes) so a policy-driven terminal failure
+// message and per-container exit codes, or the message of a returned lease) so
+// a policy-driven terminal failure
 // keeps the original cause instead of only the policy verdict. It returns an
 // empty string for reasons that carry no such detail.
 func runErrorDetail(runError *armadaevents.Error) string {
+	if leaseReturned := runError.GetPodLeaseReturned(); leaseReturned != nil {
+		return leaseReturned.GetMessage()
+	}
 	podError := runError.GetPodError()
 	if podError == nil {
 		return ""
@@ -1141,12 +1132,15 @@ func runErrorDetail(runError *armadaevents.Error) string {
 // generateUpdateMessages generates EventSequences representing the state changes on updated jobs.
 // If there are no state changes then an empty slice will be returned.
 func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[string]*armadaevents.Error) ([]*armadaevents.EventSequence, error) {
-	queueRetryPolicies := s.buildQueueRetryPolicyMap(ctx)
+	policies, err := s.loadRetryPolicies(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// Generate any eventSequences that came out of synchronising the db state.
 	var events []*armadaevents.EventSequence
 	for _, job := range updatedJobs {
-		jobEvents, err := s.generateUpdateMessagesFromJob(ctx, job, jobRunErrors, queueRetryPolicies, txn)
+		jobEvents, err := s.generateUpdateMessagesFromJob(ctx, job, jobRunErrors, policies, txn)
 		if err != nil {
 			return nil, err
 		}
@@ -1157,20 +1151,44 @@ func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobd
 	return events, nil
 }
 
-// buildQueueRetryPolicyMap returns a map of queue-name -> retry-policy-name.
-// It returns nil when the feature flag is off or the queue cache is
-// unavailable. Callers treat a missing entry as "no policy", and a nil map
-// behaves the same.
-func (s *Scheduler) buildQueueRetryPolicyMap(ctx *armadacontext.Context) map[string]string {
+// retryPolicies holds the retry policy of each queue for one cycle. The
+// scheduler reads it once, so every decision of the cycle uses the same
+// policy objects.
+type retryPolicies struct {
+	byQueue     map[string]string
+	byName      map[string]*retry.Policy
+	defaultName string
+}
+
+// forJob returns the name of the policy that decides the retries of the job,
+// and the policy. A queue's attached policy wins. Otherwise the fleet-wide
+// default policy applies, if one is configured. The policy is nil when no
+// policy applies, or when the named policy is not loaded.
+func (p retryPolicies) forJob(job *jobdb.Job) (string, *retry.Policy) {
+	name := p.byQueue[job.Queue()]
+	if name == "" {
+		name = p.defaultName
+	}
+	return name, p.byName[name]
+}
+
+// loadRetryPolicies reads the retry policy of each queue. It returns an empty
+// value when the feature flag is off. It returns an error while the queue
+// cache or the policy cache is not loaded, because a decision without them
+// would fail jobs that a policy retries.
+func (s *Scheduler) loadRetryPolicies(ctx *armadacontext.Context) (retryPolicies, error) {
 	if !s.retryPolicyConfig.Enabled {
-		return nil
+		return retryPolicies{}, nil
 	}
 	queues, err := s.queueCache.GetAll(ctx)
 	if err != nil {
-		ctx.Warnf("retry policy lookup: queue cache unavailable, falling back to legacy behaviour: %v", err)
-		return nil
+		return retryPolicies{}, err
 	}
-	m := make(map[string]string, len(queues))
+	byName, err := s.retryPolicyCache.All()
+	if err != nil {
+		return retryPolicies{}, err
+	}
+	byQueue := make(map[string]string, len(queues))
 	for _, q := range queues {
 		if len(q.RetryPolicies) == 0 {
 			continue
@@ -1180,14 +1198,14 @@ func (s *Scheduler) buildQueueRetryPolicyMap(ctx *armadacontext.Context) map[str
 		if len(q.RetryPolicies) > 1 {
 			ctx.Debugf("queue %q lists %d retry policies; evaluating only the first (%q)", q.Name, len(q.RetryPolicies), q.RetryPolicies[0])
 		}
-		m[q.Name] = q.RetryPolicies[0]
+		byQueue[q.Name] = q.RetryPolicies[0]
 	}
-	return m
+	return retryPolicies{byQueue: byQueue, byName: byName, defaultName: s.retryPolicyConfig.DefaultPolicyName}, nil
 }
 
 // generateUpdateMessages generates an EventSequence representing the state changes for a single job.
 // If there are no state changes it returns nil.
-func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrors map[string]*armadaevents.Error, queueRetryPolicies map[string]string, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrors map[string]*armadaevents.Error, policies retryPolicies, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state? If so then don't send any more messages
@@ -1321,11 +1339,16 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			var engineResult retry.Result
 			var enginePolicyName string
 			var engineDecided bool
+			// Only a retry policy grants a retry, so a run end that no policy
+			// decides fails the job. A gang keeps the retry of returned leases
+			// from before retry policies, because the engine does not retry
+			// gangs yet.
+			policyDecides := s.retryPolicyConfig.Enabled && !job.IsInGang()
 			if s.retryPolicyConfig.Enabled {
-				engineResult, enginePolicyName, engineDecided = s.evaluateRetryPolicy(ctx, job, runError, queueRetryPolicies)
-				if engineDecided {
-					requeueJob = engineResult.ShouldRetry
-				}
+				engineResult, enginePolicyName, engineDecided = s.evaluateRetryPolicy(ctx, job, runError, policies)
+			}
+			if policyDecides {
+				requeueJob = engineDecided && engineResult.ShouldRetry
 			}
 
 			// A memory bump grows the job before it re-enters the queue: the
@@ -1379,9 +1402,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 
 			if requeueJob {
 				// Emit a non-terminal JobErrors so the api stream surfaces an
-				// intermediate failure with retryable=true. Only engine-driven
-				// retries emit this. Legacy lease-return retries do not.
-				if engineDecided && runError != nil {
+				// intermediate failure with retryable=true. A returned lease emits
+				// none, because its JobLeaseReturnedEvent already tells the client.
+				if engineDecided && runError != nil && runError.GetPodLeaseReturned() == nil {
 					retryError := &armadaevents.Error{
 						Terminal:           false,
 						Reason:             runError.Reason,
@@ -1444,6 +1467,15 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 								Message: message,
 							},
 						},
+					}
+				} else if lastRun.Returned() && policyDecides {
+					// The stored error of a returned lease is not terminal, because
+					// the executor does not know if the job runs again.
+					runError = &armadaevents.Error{
+						Terminal:           true,
+						Reason:             runError.Reason,
+						FailureCategory:    runError.FailureCategory,
+						FailureSubcategory: runError.FailureSubcategory,
 					}
 				} else if lastRun.Returned() {
 					errorMessage := fmt.Sprintf("Maximum number of attempts (%d) reached - this job will no longer be retried", s.maxAttemptedRuns)
@@ -1547,9 +1579,12 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 
 	events := make([]*armadaevents.EventSequence, 0)
 
-	// Resolved once per expiry sweep. It is nil when the feature flag is off,
+	// Read once per expiry sweep. It is empty when the feature flag is off,
 	// in which case every expired job takes the terminal path below.
-	queueRetryPolicies := s.buildQueueRetryPolicyMap(ctx)
+	policies, err := s.loadRetryPolicies(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	jobs := txn.GetAllLeasedJobs()
 
@@ -1576,7 +1611,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 				// skips gang jobs internally, so gangs always take the
 				// terminal path below.
 				jobWithFailedRun := job.WithUpdatedRun(run.WithFailed(true))
-				result, policyName, decided := s.evaluateRetryPolicy(ctx, jobWithFailedRun, leaseExpiredError, queueRetryPolicies)
+				result, policyName, decided := s.evaluateRetryPolicy(ctx, jobWithFailedRun, leaseExpiredError, policies)
 				if decided {
 					// The expiry path applies no mutations, so the verdict is
 					// the outcome.

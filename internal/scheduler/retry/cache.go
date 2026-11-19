@@ -9,14 +9,14 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-// PolicyCache is the read-side interface the scheduler uses to look up
-// compiled retry policies by name.
+// PolicyCache is the read-side interface the scheduler uses to read the
+// compiled retry policies.
 type PolicyCache interface {
-	// Get returns the compiled policy for the given name. Returns (nil, false)
-	// when the name is empty, the cache is empty, or the policy is unknown.
-	// The returned policy is shared by all callers until the next refresh and
-	// must not be modified.
-	Get(name string) (*Policy, bool)
+	// All returns the compiled policies by name. It returns an error until the
+	// first successful fetch, so a caller can tell a cache that is not loaded
+	// from a policy that does not exist. The map is shared by all callers until
+	// the next refresh and must not be modified.
+	All() (map[string]*Policy, error)
 }
 
 // ApiPolicyCache periodically fetches retry policies from the Armada API and
@@ -56,16 +56,12 @@ func (c *ApiPolicyCache) Run(ctx *armadacontext.Context) error {
 	}
 }
 
-func (c *ApiPolicyCache) Get(name string) (*Policy, bool) {
-	if name == "" {
-		return nil, false
-	}
+func (c *ApiPolicyCache) All() (map[string]*Policy, error) {
 	m := c.policies.Load()
 	if m == nil {
-		return nil, false
+		return nil, fmt.Errorf("no retry policies loaded")
 	}
-	policy, ok := (*m)[name]
-	return policy, ok
+	return *m, nil
 }
 
 func (c *ApiPolicyCache) fetch(ctx *armadacontext.Context) error {
@@ -91,9 +87,8 @@ func (c *ApiPolicyCache) fetch(ctx *armadacontext.Context) error {
 	return nil
 }
 
-// NoopPolicyCache always reports the policy as missing. Used when the retry
-// policy feature is disabled so the scheduler falls through to the legacy
-// failure path.
+// NoopPolicyCache holds no policies. Used when the retry policy feature is
+// disabled, so the scheduler never reads it.
 type NoopPolicyCache struct{}
 
-func (NoopPolicyCache) Get(string) (*Policy, bool) { return nil, false }
+func (NoopPolicyCache) All() (map[string]*Policy, error) { return nil, nil }

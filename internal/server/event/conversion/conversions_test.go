@@ -550,6 +550,27 @@ func TestConvertJobError(t *testing.T) {
 		},
 	}
 
+	leaseReturned := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobErrors{
+			JobErrors: &armadaevents.JobErrors{
+				JobId: jobId,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal:           true,
+						FailureCategory:    "internal",
+						FailureSubcategory: "pod-submission-failed",
+						Reason: &armadaevents.Error_PodLeaseReturned{
+							PodLeaseReturned: &armadaevents.PodLeaseReturned{
+								Message: "pod rejected",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
 	expected := []*api.EventMessage{
 		{
 			Events: &api.EventMessage_Failed{
@@ -592,9 +613,23 @@ func TestConvertJobError(t *testing.T) {
 				},
 			},
 		},
+		{
+			Events: &api.EventMessage_Failed{
+				Failed: &api.JobFailedEvent{
+					JobId:              jobId,
+					Reason:             "pod rejected",
+					JobSetId:           jobSetName,
+					Queue:              queue,
+					Created:            protoutil.ToTimestamp(baseTime),
+					Cause:              api.Cause_Error,
+					FailureCategory:    "internal",
+					FailureSubcategory: "pod-submission-failed",
+				},
+			},
+		},
 	}
 
-	apiEvents, err := FromEventSequence(toEventSeq(errored, maxRunsExceeded))
+	apiEvents, err := FromEventSequence(toEventSeq(errored, maxRunsExceeded, leaseReturned))
 	assert.NoError(t, err)
 	assert.Equal(t, expected, apiEvents)
 }

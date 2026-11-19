@@ -429,9 +429,7 @@ func TestJob_FailureCount(t *testing.T) {
 		return run
 	}
 	failed := func() *JobRun { return newRun(func(r *JobRun) { r.failed = true }) }
-	// Preempted and lease-returned runs are marked failed but are not charged as
-	// genuine failures. everPreempted is set alongside preempted, mirroring
-	// WithPreempted and CreateRun.
+	// everPreempted is set alongside preempted, mirroring WithPreempted and CreateRun.
 	preempted := func() *JobRun {
 		return newRun(func(r *JobRun) { r.failed = true; r.preempted = true; r.everPreempted = true })
 	}
@@ -443,12 +441,12 @@ func TestJob_FailureCount(t *testing.T) {
 	job := baseJob.WithUpdatedRun(failed())
 	assert.Equal(t, uint32(1), job.FailureCount())
 
-	// Preempted, lease-returned, and succeeded runs are not genuine failures.
+	// A returned lease counts. A preempted run and a succeeded run do not.
 	job = job.WithUpdatedRun(preempted()).WithUpdatedRun(leaseReturned()).WithUpdatedRun(succeeded())
-	assert.Equal(t, uint32(1), job.FailureCount())
+	assert.Equal(t, uint32(2), job.FailureCount())
 
 	job = job.WithUpdatedRun(failed())
-	assert.Equal(t, uint32(2), job.FailureCount())
+	assert.Equal(t, uint32(3), job.FailureCount())
 }
 
 func TestJob_TestRunsById(t *testing.T) {

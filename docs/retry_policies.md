@@ -18,7 +18,7 @@
 
 Retry policies let operators define, per queue, which job failures Armada should retry and which it should fail permanently. A retry policy is a named resource, managed through `armadactl` like a queue, and attached to one or more queues by name. When a job run fails, the scheduler looks up the policy attached to the job's queue, evaluates the policy rules against the failure, and either requeues the job for another attempt or fails it terminally.
 
-The retry engine is off by default. It only runs when `scheduling.retryPolicy.enabled` is set to `true` in the scheduler configuration. With the flag off, or for queues with no policy attached, Armada behaves exactly as before: jobs are only re-leased on lease returns, up to the legacy attempt limit.
+The retry engine is off by default. It only runs when `scheduling.retryPolicy.enabled` is set to `true` in the scheduler configuration. With the flag off, Armada behaves exactly as before: jobs are only re-leased on lease returns, up to the legacy attempt limit. With the flag on, only the policy of the job can retry it, and the policy decides every end of a run, including a returned lease. A job that no policy covers fails with the error of its run.
 
 ## How a retry happens
 
@@ -49,7 +49,7 @@ scheduling:
 
 * `enabled`: turns the engine on. Defaults to `false`.
 * `globalMaxRetries`: a scheduler-wide cap on retries per job. [Retry budgets](#retry-budgets) has the exact semantics, including the `0` kill switch.
-* `defaultPolicyName`: optional. The scheduler applies this policy to jobs whose queue has no policy of its own, which turns retries on fleet-wide with one named policy. When empty, only queues with an attached policy get engine decisions. Every other queue keeps the existing behaviour.
+* `defaultPolicyName`: optional. The scheduler applies this policy to jobs whose queue has no policy of its own, which turns retries on fleet-wide with one named policy. When empty, a job whose queue has no policy is not retried.
 
 Before enabling the flag, read the [rollout guide](#rollout-guide-for-operators). In particular, all executors must be upgraded before the flag is enabled anywhere.
 
@@ -131,15 +131,15 @@ Mutations apply on the failed-run retry path only. A lease-expiry retry (a lost 
 Two limits bound how often a job is retried: the per-policy `retryLimit` and the scheduler-wide `globalMaxRetries`.
 
 * `retryLimit` counts retries, not attempts. `retryLimit: 3` allows 3 retries after the initial failure, so 4 total attempts before the job fails terminally. `retryLimit: 0` allows no retries, so a job under that policy fails terminally on its first failure.
-* Returned leases consume no retry-policy budget, but do not guarantee that no user code ran: a container may have run while another never started, init containers may have completed, or configured `failedPodChecks.containerStatuses` may return a failed pod after execution. Expired leases (lost executors) count against both `retryLimit` and `globalMaxRetries`.
+* Returned leases and expired leases (lost executors) count against both `retryLimit` and `globalMaxRetries`, like any other failure. A returned lease carries the category that the executor gave it, so a rule can match it. The returns of the executor's pending and failed pod checks are returned leases too, so a policy needs rules for their categories.
 * Preemptions never consume the failure budget. A preempted run does not count against `retryLimit` or `globalMaxRetries`, so a job that was preempted earlier can still use its full failure budget when it later fails on its own. This version does not retry preempted runs themselves: a preemption is not treated as a job failure, and preemption-driven retries are planned for a later version.
-* `globalMaxRetries` is a scheduler-wide cap on top of every policy. It counts the same genuine-failure retries `retryLimit` counts, with one ceiling for the whole scheduler, so no policy can grant more retries than the cap allows. The legacy attempt limit bounds lease returns separately.
+* `globalMaxRetries` is a scheduler-wide cap on top of every policy. It counts the same retries that `retryLimit` counts, with one ceiling for the whole scheduler, so no policy can grant more retries than the cap allows.
 * `globalMaxRetries: 0` disables all engine retries. This is the kill switch: with the cap at zero the engine never grants a retry, whatever the policies say. It differs from disabling the feature flag: the engine still decides and attributes failures, with categorized terminal events, but grants nothing. Use it to stop retries during an incident without changing event behaviour. The scheduler warns at startup when this state is configured.
 * There is no unlimited setting for the global cap. Every deployment with the engine enabled has a finite scheduler-wide bound on retries per job.
 
 ## Gang jobs
 
-Gang jobs are excluded from the retry engine in this version. Retrying a gang atomically requires aggregating failures across all members and restarting them together, which is not yet implemented. A job that is part of a gang with cardinality 2 or more is never retried by the engine, even if a policy rule matches. When that happens, the scheduler increments the `armada_scheduler_retry_policy_gang_skipped_total` metric and logs at debug level, so you can see how often policies would have applied to gangs.
+Gang jobs are excluded from the retry engine in this version. Retrying a gang atomically requires aggregating failures across all members and restarting them together, which is not yet implemented. A job that is part of a gang with cardinality 2 or more is never retried by the engine, even if a policy rule matches. Such a job keeps the behaviour from before retry policies: a returned lease is retried up to the legacy attempt limit, and every other failure ends the job. When that happens, the scheduler increments the `armada_scheduler_retry_policy_gang_skipped_total` metric and logs at debug level, so you can see how often policies would have applied to gangs.
 
 The engine treats gangs with cardinality 1 as plain jobs, and they do retry.
 
@@ -151,7 +151,7 @@ The `action: Delete` pod-deletion behaviour described in this section ships with
 
 Every attempt of a job reuses the same pod name, `armada-<jobId>-0`. A retry can therefore collide with the failed pod of the previous attempt if that pod is still terminating on the same cluster. To avoid this, the executor deletes a failed pod as soon as its failure is classified into a category configured with `action: Delete`, which frees the name before the retry is leased.
 
-This has an operational consequence: **every failure category that a retry rule matches on must be configured with `action: Delete` on the executor.** If a retried category is left as the default `action: Retain`, the retained pod causes the retry's lease to fail with an `AlreadyExists` error. That surfaces as a recoverable submit error, so the run's lease is returned to the scheduler. A returned lease is not a categorized pod failure, so the retry engine does not decide it and it falls through to the legacy attempt-limit path. Once the legacy attempt limit is hit the job fails terminally with a `MaxRunsExceeded` reason that does not mention the collision, so the real cause is easy to miss. Collision handling also deletes the retained pod, so the debugging evidence that `Retain` was meant to preserve is gone anyway.
+This has an operational consequence: **every failure category that a retry rule matches on must be configured with `action: Delete` on the executor.** If a retried category is left as the default `action: Retain`, the retained pod causes the retry's lease to fail with an `AlreadyExists` error. That surfaces as a recoverable submit error, so the run's lease is returned to the scheduler with the category `internal` / `pod-submission-failed`. The policy then decides that return like any other failure, and the terminal failure names the submission error, not the retained pod that caused it, so the real cause is easy to miss. Collision handling also deletes the retained pod, so the debugging evidence that `Retain` was meant to preserve is gone anyway.
 
 ## Per-job opt-out
 
@@ -193,7 +193,7 @@ Delete a policy:
 armadactl delete retry-policy ml-training-retries
 ```
 
-Deletion always succeeds. The server detaches the policy from every queue that references it and logs those queues. Those queues lose the policy within about one `queueRefreshPeriod`. The scheduler's queue cache and policy cache refresh on their own schedules, so a queue can pass through the legacy behaviour for one refresh before `defaultPolicyName` applies, if one is configured. When a queue must keep its retries, attach a replacement policy to it, wait one `queueRefreshPeriod` so both caches hold the new attachment, and then delete the old one.
+Deletion always succeeds. The server detaches the policy from every queue that references it and logs those queues. Those queues lose the policy within about one `queueRefreshPeriod`. The scheduler's queue cache and policy cache refresh on their own schedules, so a job of such a queue can find no policy for one refresh before `defaultPolicyName` applies, if one is configured. A job with no policy is not retried. When a queue must keep its retries, attach a replacement policy to it, wait one `queueRefreshPeriod` so both caches hold the new attachment, and then delete the old one.
 
 Managing policies requires the `create_retry_policy`, `update_retry_policy`, and `delete_retry_policy` permissions. Grant them through the server's permission group mapping; without them the corresponding CRUD calls return `PermissionDenied`.
 
@@ -201,13 +201,13 @@ Managing policies requires the `create_retry_policy`, `update_retry_policy`, and
 
 **Configure `action: Delete` on retried categories before enabling the flag.** Every failure category a retry rule matches on must set `action: Delete` in the executor's categorizer config. A missing Delete action leads to a pod-name collision and a misleading terminal failure. [Pod naming and collision avoidance](#pod-naming-and-collision-avoidance) describes the full failure mode. Audit the categorizer config against your retry rules before you turn the flag on.
 
-**Disabling the flag mid-flight is safe.** Jobs that were already retried keep running. New failures fall back to legacy behaviour: the legacy attempt limit applies instead of policy budgets. No job state is lost.
+**Disabling the flag mid-flight is safe.** Jobs that were already retried keep running. New failures use the behaviour from before retry policies: only lease returns are retried, up to the legacy attempt limit. No job state is lost.
 
 **Event stream consumers:** a retryable failure appears on the event stream as a JobFailedEvent with `retryable: true`. A consumer that does not read the flag treats it as terminal and may mark a job failed that Armada then retries. Upgrade consumers that act on failure events before you enable the feature for their queues.
 
 **Metrics to alert on:**
 
 * Policy cache refresh failures and cache staleness. The scheduler periodically refreshes policies from the API. The cache has no expiry: on a refresh failure it fails open and keeps serving the last good policies indefinitely, so retries continue through a short API outage. Refresh failures surface as scheduler log warnings, not as a metric yet, so alert on those log lines. A policy edited during a prolonged outage does not take effect until the API recovers.
-* Invalid-policy skips. A policy that fails validation (for example an unknown `action`, or a rule with no `onCategory`) is skipped at cache refresh and the queues referencing it fall back to legacy behaviour.
+* Invalid-policy skips. A policy that fails validation (for example an unknown `action`, or a rule with no `onCategory`) is skipped at cache refresh, and the jobs of the queues that reference it are not retried.
 * Gang skips (`armada_scheduler_retry_policy_gang_skipped_total`). A steadily growing count means users are attaching retry policies to queues that run gangs and expecting retries that never happen.
 * Retry decision counters. The `armada_scheduler_retry_policy_decisions_total` counter is labelled by queue, pool, policy and decision. Track retry and fail rates per policy to spot policies that retry far more (or less) than intended, and per queue to attribute a retry spike to a tenant. Like the other queue-level state metrics, the counter resets on the `jobStateMetricsResetInterval`.
