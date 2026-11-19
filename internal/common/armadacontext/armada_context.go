@@ -18,57 +18,57 @@ type Context struct {
 
 // Debug logs a message at level Debug
 func (ctx *Context) Debug(msg string) {
-	ctx.logger.Debug(msg)
+	ctx.logger.WithCallerSkip(1).Debug(msg)
 }
 
 // Info logs a message at level Info
 func (ctx *Context) Info(msg string) {
-	ctx.logger.Info(msg)
+	ctx.logger.WithCallerSkip(1).Info(msg)
 }
 
 // Warn logs a message at level Warn
 func (ctx *Context) Warn(msg string) {
-	ctx.logger.Warn(msg)
+	ctx.logger.WithCallerSkip(1).Warn(msg)
 }
 
 // Error logs a message at level Error
 func (ctx *Context) Error(msg string) {
-	ctx.logger.Error(msg)
+	ctx.logger.WithCallerSkip(1).Error(msg)
 }
 
 // Panic logs a message at level Panic
 func (ctx *Context) Panic(msg string) {
-	ctx.logger.Panic(msg)
+	ctx.logger.WithCallerSkip(1).Panic(msg)
 }
 
 // Fatal logs a message at level Fatal then the process will exit with status set to 1.
 func (ctx *Context) Fatal(msg string) {
-	ctx.logger.Fatal(msg)
+	ctx.logger.WithCallerSkip(1).Fatal(msg)
 }
 
 // Debugf logs a message at level Debug.
 func (ctx *Context) Debugf(format string, args ...interface{}) {
-	ctx.logger.Debugf(format, args...)
+	ctx.logger.WithCallerSkip(1).Debugf(format, args...)
 }
 
 // Infof logs a message at level Info.
 func (ctx *Context) Infof(format string, args ...interface{}) {
-	ctx.logger.Infof(format, args...)
+	ctx.logger.WithCallerSkip(1).Infof(format, args...)
 }
 
 // Warnf logs a message at level Warn.
 func (ctx *Context) Warnf(format string, args ...interface{}) {
-	ctx.logger.Warnf(format, args...)
+	ctx.logger.WithCallerSkip(1).Warnf(format, args...)
 }
 
 // Errorf logs a message at level Error.
 func (ctx *Context) Errorf(format string, args ...interface{}) {
-	ctx.logger.Errorf(format, args...)
+	ctx.logger.WithCallerSkip(1).Errorf(format, args...)
 }
 
 // Fatalf logs a message at level Fatal.
 func (ctx *Context) Fatalf(format string, args ...interface{}) {
-	ctx.logger.Fatalf(format, args...)
+	ctx.logger.WithCallerSkip(1).Fatalf(format, args...)
 }
 
 // Background creates an empty context with a default logger.  It is analogous to context.Background()
@@ -108,7 +108,7 @@ func New(ctx context.Context, log *logging.Logger) *Context {
 }
 
 func (ctx *Context) Logger() *logging.Logger {
-	return ctx.logger.WithCallerSkip(logging.StdSkipFrames - 1)
+	return ctx.logger
 }
 
 // WithCancel returns a copy of parent with a new Done channel. It is analogous to context.WithCancel()
