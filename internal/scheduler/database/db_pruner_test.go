@@ -1,5 +1,3 @@
-//go:build !no_postgres
-
 package database
 
 import (

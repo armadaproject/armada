@@ -99,6 +99,19 @@ jobs:
       CGO_ENABLED: "1"
       GOMAXPROCS: "4"
 
+    services:
+      postgres:
+        image: postgres:14.2
+        env:
+          POSTGRES_PASSWORD: psw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -112,7 +125,7 @@ jobs:
         shell: bash
         run: |
           go run gotest.tools/gotestsum@v1.13.0 --format pkgname --jsonfile scheduler-race-results.jsonl -- \
-            -race -tags=no_postgres -count=1 -p=4 -parallel=4 -timeout=10m ./internal/scheduler/...
+            -race -count=1 -p=4 -parallel=4 -timeout=10m ./internal/scheduler/...
 
       - name: Upload Scheduler Race Results
         if: always()
