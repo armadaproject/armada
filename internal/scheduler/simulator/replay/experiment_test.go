@@ -16,6 +16,24 @@ import (
 	"github.com/xitongsys/parquet-go/reader"
 )
 
+func TestVerifyExecutableRejectsReplacement(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "simulator")
+	require.NoError(t, os.WriteFile(path, []byte("original"), 0o755))
+	binary, err := os.Open(path)
+	require.NoError(t, err)
+	defer binary.Close()
+	info, err := binary.Stat()
+	require.NoError(t, err)
+	require.NoError(t, verifyExecutable(path, info))
+
+	replacement := filepath.Join(dir, "replacement")
+	require.NoError(t, os.WriteFile(replacement, []byte("modified"), 0o755))
+	require.NoError(t, os.Chtimes(replacement, info.ModTime(), info.ModTime()))
+	require.NoError(t, os.Rename(replacement, path))
+	require.ErrorContains(t, verifyExecutable(path, info), "simulator executable changed during comparison")
+}
+
 func TestCompareCapacityAndCordon(t *testing.T) {
 	window := Window{EndSeconds: 180, CycleSeconds: 1}
 	for _, tc := range []struct {
@@ -35,9 +53,7 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 				input.Jobs[0].Queue = "priority"
 				input.Jobs[0].PriorityClass = "high"
 			}
-			exe, err := os.Executable()
-			require.NoError(t, err)
-			spec := candidate{Binary: exe, Farm: "farm-one.yaml", Config: "scheduler.yaml", Queues: []queueSpec{{Name: "shared", Weight: 1}}}
+			spec := candidate{Farm: "farm-one.yaml", Config: "scheduler.yaml", Queues: []queueSpec{{Name: "shared", Weight: 1}}}
 			if tc.cordon {
 				spec.Queues = append(spec.Queues, queueSpec{Name: "priority", Weight: 1})
 			}
@@ -62,7 +78,9 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 				require.Equal(t, values(1, 2.0/3), report.Utilisation)
 				require.Equal(t, waitValues(60, 0), report.Groups[1].FirstAllocationWaitSeconds.P50)
 				zero := int64(0)
-				require.Equal(t, difference(&zero, nil), report.Groups[0].FirstAllocationWaitSeconds.P95)
+				require.Equal(t, waitComparison{
+					A: &waitBounds{Lower: 0, Upper: &zero}, B: &waitBounds{Lower: 90},
+				}, report.Groups[0].FirstAllocationWaitSeconds.P95)
 				require.Equal(t, values(1, 0), report.Groups[0].Allocated)
 				require.Equal(t, values(1, 0), report.Groups[0].Completed)
 				require.Equal(t, values(0, 1), report.Groups[0].QueuedAtCutoff)
@@ -85,9 +103,9 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 
 func runTestCandidate(t *testing.T, base, id string, spec candidate, input candidateInput) (*runResult, []attemptRow, []queueIntervalRow) {
 	t.Helper()
-	c, err := prepareCandidate(t.Context(), base, id, spec, input)
+	c, err := prepareCandidate(base, id, spec, input)
 	require.NoError(t, err)
-	raw, err := json.Marshal(c.input)
+	raw, err := json.Marshal(c)
 	require.NoError(t, err)
 	dir := t.TempDir()
 	inputPath, outputPath := filepath.Join(dir, "input.json"), filepath.Join(dir, "run.json")
@@ -216,20 +234,15 @@ func TestObservationsRejectLegacyParquetColumns(t *testing.T) {
 }
 
 func TestValidateChangeRejectsUndeclaredInputs(t *testing.T) {
-	a := candidateRun{binarySHA256: "binary-a", input: candidateInput{
+	a := candidateInput{
 		Config: []byte("same-config"), Farm: []byte("farm-a"), Queues: []queueSpec{{Name: "q", Weight: 1}},
-	}}
+	}
 	b := a
-	b.input.Farm = []byte("farm-b")
+	b.Farm = []byte("farm-b")
 	require.NoError(t, validateChange("capacity", a, b))
 	require.ErrorContains(t, validateChange("none", a, b), "do not match")
-	binaryB := b
-	binaryB.binarySHA256 = "binary-b"
-	for _, mode := range []string{"none", "capacity", "queue_cordon"} {
-		require.ErrorContains(t, validateChange(mode, a, binaryB), "requires the same executable")
-	}
 	require.ErrorContains(t, validateChange("binary", a, a), "unknown experiment change")
-	b.input.Config = []byte("other-config")
+	b.Config = []byte("other-config")
 	require.ErrorContains(t, validateChange("capacity", a, b), "scheduler_config differs")
 }
 
@@ -239,7 +252,7 @@ func TestCandidateProcessFailuresKeepDiagnostics(t *testing.T) {
 		timeout               time.Duration
 	}{
 		{"exit", "echo solver-failed >&2; exit 17", "exit status 17", time.Second},
-		{"deadline", "echo solver-failed >&2; exec sleep 5", "context deadline exceeded", 200 * time.Millisecond},
+		{"deadline", "echo solver-failed >&2; exec sleep 5", "context deadline exceeded", 2 * time.Second},
 		{"fifo", "echo solver-failed >&2; mkfifo \"$3\"", "expected a regular file", time.Second},
 		{"malformed", "echo solver-failed >&2; echo '{not JSON}' > \"$3\"", "candidate a result", time.Second},
 	} {
@@ -247,8 +260,7 @@ func TestCandidateProcessFailuresKeepDiagnostics(t *testing.T) {
 			dir := t.TempDir()
 			exe := filepath.Join(dir, "candidate")
 			require.NoError(t, os.WriteFile(exe, []byte("#!/bin/sh\n"+tc.script+"\n"), 0o755))
-			c := candidateRun{binary: exe, input: candidateInput{ID: "a"}}
-			_, err := c.execute(context.Background(), dir, tc.timeout)
+			_, err := executeCandidate(context.Background(), exe, dir, tc.timeout, candidateInput{ID: "a"})
 			require.ErrorContains(t, err, tc.message)
 			log, err := os.ReadFile(filepath.Join(dir, "a", "process.log"))
 			require.NoError(t, err)
@@ -263,7 +275,7 @@ func TestStrictJSONRejectsAmbiguousWindow(t *testing.T) {
 	require.ErrorContains(t, strictJSON([]byte(`{"end_s":180,"end_s":90}`), &window), "duplicate field")
 }
 
-func TestWaitPercentilesUseAllocatedArrivalsDuringMeasurement(t *testing.T) {
+func TestWaitPercentilesUseAllArrivalsDuringMeasurement(t *testing.T) {
 	zero := int64(0)
 	arrivals := []outcome{
 		{Queue: "q", SubmittedSeconds: -10, ObservedSeconds: 300, FirstAllocationSeconds: &zero, State: Completed},
@@ -281,7 +293,7 @@ func TestWaitPercentilesUseAllocatedArrivalsDuringMeasurement(t *testing.T) {
 	require.Equal(t, values(100, 100), group.Allocated)
 	require.Equal(t, values(1, 1), group.Unallocated)
 	require.Equal(t, values(1, 1), group.CarryIn)
-	require.Equal(t, waitPercentiles{P50: waitValues(50, 50), P95: waitValues(95, 95), P99: waitValues(99, 99)}, group.FirstAllocationWaitSeconds)
+	require.Equal(t, waitPercentiles{P50: waitValues(51, 51), P95: waitValues(96, 96), P99: waitValues(100, 100)}, group.FirstAllocationWaitSeconds)
 }
 
 func TestReportKeepsExactSeconds(t *testing.T) {
@@ -296,15 +308,59 @@ func TestReportKeepsExactSeconds(t *testing.T) {
 	report := compareResults("capacity", run(&a), run(&b))
 	raw, err := json.Marshal(report)
 	require.NoError(t, err)
-	require.Contains(t, string(raw), `"p50":{"a":9223372034,"b":9223372035,"delta":1}`)
+	require.Contains(t, string(raw), `"p50":{"a":{"lower":9223372034,"upper":9223372034},"b":{"lower":9223372035,"upper":9223372035},"delta":1}`)
 	var table bytes.Buffer
 	require.NoError(t, report.print(&table))
 	require.Contains(t, table.String(), "9223372034")
 	require.Contains(t, table.String(), "9223372035")
 }
 
-func waitValues(a, b int64) metric[int64] {
-	return difference(&a, &b)
+func waitValues(a, b int64) waitComparison {
+	delta := b - a
+	return waitComparison{A: &waitBounds{Lower: a, Upper: &a}, B: &waitBounds{Lower: b, Upper: &b}, Delta: &delta}
+}
+
+func TestWaitPercentileDoesNotHideStarvedArrivals(t *testing.T) {
+	cpu := float64(1)
+	a := &runResult{Window: Window{EndSeconds: 60}, AllocatedCPUSeconds: &cpu, AvailableCPUSeconds: &cpu}
+	b := *a
+	slow, fast := int64(10), int64(1)
+	for i := range 100 {
+		a.Outcomes = append(a.Outcomes, outcome{Queue: "q", FirstAllocationSeconds: &slow, ObservedSeconds: 20, State: Completed})
+		if i < 10 {
+			b.Outcomes = append(b.Outcomes, outcome{Queue: "q", FirstAllocationSeconds: &fast, ObservedSeconds: 20, State: Completed})
+		} else {
+			b.Outcomes = append(b.Outcomes, outcome{Queue: "q", ObservedSeconds: 60, State: Queued})
+		}
+	}
+	report := compareResults("queue_cordon", a, &b)
+	group := report.Groups[0]
+	require.Equal(t, values(100, 10), group.Allocated)
+	require.Equal(t, values(0, 90), group.Unallocated)
+	require.Equal(t, waitComparison{
+		A: &waitBounds{Lower: 10, Upper: &slow}, B: &waitBounds{Lower: 60},
+	}, group.FirstAllocationWaitSeconds.P95)
+	var table bytes.Buffer
+	require.NoError(t, report.print(&table))
+	require.Contains(t, table.String(), "≥ 60")
+}
+
+func TestWaitPercentileCanHaveAFiniteRange(t *testing.T) {
+	run := &runResult{Window: Window{EndSeconds: 60}}
+	first, second := int64(10), int64(20)
+	run.Outcomes = []outcome{
+		{Queue: "q", FirstAllocationSeconds: &second, ObservedSeconds: 30, State: Completed},
+		{Queue: "q", SubmittedSeconds: 55, ObservedSeconds: 60, State: Queued},
+		{Queue: "q", FirstAllocationSeconds: &first, ObservedSeconds: 30, State: Completed},
+	}
+	bounds := countGroups(run)[groupKey{queue: "q"}].waitPercentile(50)
+	require.Equal(t, &waitBounds{Lower: 10, Upper: &second}, bounds)
+	require.Equal(t, "10–20", bounds.display())
+}
+
+func TestExperimentRejectsExecutableField(t *testing.T) {
+	var spec experiment
+	require.ErrorContains(t, strictJSON([]byte(`{"a":{"binary":"./simulator"}}`), &spec), "unknown field")
 }
 
 func TestWorkerRejectsUnsupportedInputProtocol(t *testing.T) {

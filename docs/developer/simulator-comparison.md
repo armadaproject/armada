@@ -22,12 +22,13 @@ so utilisation falls from 2/3 to 1/3.
 
 ## Define an experiment
 
-Paths in the experiment are relative to that file or absolute. Use the same local
-simulator executable for both candidates. The experiment and workload
-files use version 1 and whole seconds for timestamps and durations.
-The command runs the supplied executable with your local permissions. Use
-a build you trust. Set `--timeout` to the wall-clock deadline per candidate
-(default 30 seconds). Both runs use the same measurement window and fixed
+Paths in the experiment are relative to that file or absolute. Experiment
+and workload files use version 1 and whole seconds for timestamps and
+durations. The command starts a fresh process from its own executable for
+each candidate. This isolates process state, keeps separate diagnostic logs,
+and lets the controller stop a candidate at its wall-clock `--timeout`
+(default 30 seconds).
+Both runs use the same measurement window and fixed
 offered jobs. The simulator starts empty at warm-up and schedules at the
 specified cycle. Times and durations in the JSON files use integer
 seconds. Admission and measurement exclude events at the end timestamp.
@@ -36,7 +37,7 @@ Choose one value for `change`.
 
 | Value | Candidate difference |
 | --- | --- |
-| `none` | Identical inputs and binary. The command checks that logical outcomes and CPU accounting match. |
+| `none` | Identical inputs. The command checks that logical outcomes and CPU accounting match. |
 | `capacity` | Farm definition. |
 | `queue_cordon` | One or more queue cordon flags. |
 
@@ -59,19 +60,25 @@ the production queue, priority class, resource and placement checks.
 `comparison.json` contains the table values, including B−A deltas,
 first-allocation wait percentiles and per-queue/priority counts. Report
 version 1 summarises waits at p50, p95 and p99 by queue and priority class,
-using exact nearest-rank percentiles. The sample is arrivals during the
-measurement window that received an allocation before cutoff. Allocated and
-unallocated arrival counts show the sample size and the excluded waits.
-An empty sample gives null percentiles and null deltas for that group. Completions and cutoff
-counts also include warm-up jobs still present at measurement start. CPU utilisation divides the integral
+using nearest ranks over **all arrivals during the measurement window**.
+An arrival still waiting at cutoff has a lower bound equal to its age then.
+The report gives a finite upper bound when enough observed waits establish
+one. A candidate with no arrivals has a null percentile. For other candidates
+the JSON shows `lower` and `upper` in seconds. An unknown upper bound is
+null and the table shows `≥ lower`. A B−A percentile delta is available when
+both values are exact. Allocation coverage and cutoff counts appear beside
+the wait metrics. Completions and cutoff counts include warm-up jobs still
+present at measurement start. CPU utilisation divides the integral
 of allocated CPU requests by the integral of farm CPU capacity during the
 measurement window. A farm with zero CPU capacity reports null utilisation.
 These are modelled quantities for a static healthy farm.
 
 The output directory contains the experiment, each candidate's input snapshot,
 its process log, and its successful run manifest. The manifest records the
-workload, executable, configuration and farm hashes, the worker protocol
-version, the window and logical outcomes. A failed or incompatible run leaves its
+workload, configuration and farm hashes, the worker protocol version, the
+window and logical outcomes. The comparison report records the shared
+executable's SHA-256 hash once. The comparison fails if it detects a change
+to the executable during either run. A failed or incompatible run leaves its
 available diagnostics under the output directory. Use a fresh directory to retry.
 
 Each candidate also writes two raw Parquet files. Join their

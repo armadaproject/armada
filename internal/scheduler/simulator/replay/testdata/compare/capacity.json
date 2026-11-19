@@ -10,13 +10,11 @@
   "acknowledge_unbounded_rounds": true,
   "change": "capacity",
   "a": {
-    "binary": "./simulator",
     "farm": "farm-one.yaml",
     "scheduler_config": "scheduler.yaml",
     "queues": [{"name": "shared", "weight": 1}]
   },
   "b": {
-    "binary": "./simulator",
     "farm": "farm-two.yaml",
     "scheduler_config": "scheduler.yaml",
     "queues": [{"name": "shared", "weight": 1}]

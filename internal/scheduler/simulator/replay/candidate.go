@@ -7,7 +7,6 @@ import (
 	"io"
 	"math"
 	"math/big"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -27,7 +26,6 @@ type runResult struct {
 	WorkloadSHA256      string    `json:"workload_sha256"`
 	ConfigSHA256        string    `json:"scheduler_config_sha256"`
 	FarmSHA256          string    `json:"farm_sha256"`
-	BinarySHA256        string    `json:"binary_sha256"`
 	AllocatedCPUSeconds *float64  `json:"allocated_cpu_seconds"`
 	AvailableCPUSeconds *float64  `json:"available_cpu_seconds"`
 	Outcomes            []outcome `json:"outcomes"`
@@ -50,13 +48,11 @@ type outcome struct {
 	ProvisionalSeconds     int64  `json:"provisional_s"`
 }
 
-func (r *runResult) validate(c candidateRun, inputHash string) error {
-	input := c.input
+func (r *runResult) validate(input candidateInput, inputHash string) error {
 	if r.Version != workerVersion {
 		return fmt.Errorf("worker result protocol version %d is incompatible with version %d", r.Version, workerVersion)
 	}
 	if r.ID != input.ID || r.Status != "complete" || r.Window != input.Window ||
-		r.BinarySHA256 != c.binarySHA256 ||
 		r.InputSHA256 != inputHash || r.WorkloadSHA256 != input.WorkloadSHA256 ||
 		r.FarmSHA256 != digest(input.Farm) || r.ConfigSHA256 != digest(input.Config) {
 		return errors.New("incompatible run identity, status or input provenance")
@@ -185,20 +181,12 @@ func RunComparisonCandidate(ctx context.Context, inputPath, resultPath string) (
 	if err := errors.Join(attempts.close(), queuesOutput.close()); err != nil {
 		return err
 	}
-	executable, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	hash, err := hashFile(ctx, executable)
-	if err != nil {
-		return err
-	}
 
 	allocated, _ := observations.cpuSeconds.Float64()
 	available, _ := cpuSeconds(capacity, input.Window.EndSeconds-input.Window.StartSeconds).Float64()
 	return writeJSON(resultPath, runResult{
 		Version: workerVersion, ID: input.ID, Status: "complete", Window: input.Window,
-		InputSHA256: digest(raw), BinarySHA256: hash, WorkloadSHA256: input.WorkloadSHA256,
+		InputSHA256: digest(raw), WorkloadSHA256: input.WorkloadSHA256,
 		ConfigSHA256: digest(input.Config), FarmSHA256: digest(input.Farm),
 		AllocatedCPUSeconds: &allocated, AvailableCPUSeconds: &available, Outcomes: observations.jobs,
 	})

@@ -10,20 +10,18 @@ import (
 	"text/tabwriter"
 )
 
-type metricValue interface{ int64 | float64 }
-
-type metric[T metricValue] struct {
-	A     *T `json:"a"`
-	B     *T `json:"b"`
-	Delta *T `json:"delta"`
+type metric struct {
+	A     *float64 `json:"a"`
+	B     *float64 `json:"b"`
+	Delta *float64 `json:"delta"`
 }
 
-func values(a, b float64) metric[float64] {
+func values(a, b float64) metric {
 	return difference(&a, &b)
 }
 
-func difference[T metricValue](a, b *T) metric[T] {
-	m := metric[T]{A: a, B: b}
+func difference(a, b *float64) metric {
+	m := metric{A: a, B: b}
 	if a != nil && b != nil {
 		delta := *b - *a
 		m.Delta = &delta
@@ -33,33 +31,45 @@ func difference[T metricValue](a, b *T) metric[T] {
 
 const comparisonReportVersion = 1
 
+type waitBounds struct {
+	Lower int64  `json:"lower"`
+	Upper *int64 `json:"upper"`
+}
+
+type waitComparison struct {
+	A     *waitBounds `json:"a"`
+	B     *waitBounds `json:"b"`
+	Delta *int64      `json:"delta"`
+}
+
 type waitPercentiles struct {
-	P50 metric[int64] `json:"p50"`
-	P95 metric[int64] `json:"p95"`
-	P99 metric[int64] `json:"p99"`
+	P50 waitComparison `json:"p50"`
+	P95 waitComparison `json:"p95"`
+	P99 waitComparison `json:"p99"`
 }
 
 type groupComparison struct {
 	Queue                      string          `json:"queue"`
 	Priority                   string          `json:"priority_class"`
-	Arrivals                   metric[float64] `json:"arrivals"`
-	CarryIn                    metric[float64] `json:"carry_in"`
-	Allocated                  metric[float64] `json:"allocated_arrivals"`
-	Unallocated                metric[float64] `json:"unallocated_arrivals"`
-	Completed                  metric[float64] `json:"completed"`
-	QueuedAtCutoff             metric[float64] `json:"queued_at_cutoff"`
-	RunningAtCutoff            metric[float64] `json:"running_at_cutoff"`
+	Arrivals                   metric          `json:"arrivals"`
+	CarryIn                    metric          `json:"carry_in"`
+	Allocated                  metric          `json:"allocated_arrivals"`
+	Unallocated                metric          `json:"unallocated_arrivals"`
+	Completed                  metric          `json:"completed"`
+	QueuedAtCutoff             metric          `json:"queued_at_cutoff"`
+	RunningAtCutoff            metric          `json:"running_at_cutoff"`
 	FirstAllocationWaitSeconds waitPercentiles `json:"first_allocation_wait_s"`
 }
 
 type comparisonReport struct {
-	Version int    `json:"version"`
-	Change  string `json:"change"`
+	Version      int    `json:"version"`
+	Change       string `json:"change"`
+	BinarySHA256 string `json:"binary_sha256"`
 
 	Window      Window            `json:"window"`
-	Allocated   metric[float64]   `json:"allocated_cpu_seconds"`
-	Available   metric[float64]   `json:"available_cpu_seconds"`
-	Utilisation metric[float64]   `json:"cpu_utilisation"`
+	Allocated   metric            `json:"allocated_cpu_seconds"`
+	Available   metric            `json:"available_cpu_seconds"`
+	Utilisation metric            `json:"cpu_utilisation"`
 	Groups      []groupComparison `json:"groups"`
 }
 
@@ -67,7 +77,8 @@ type groupKey struct{ queue, priority string }
 
 type counts struct {
 	arrivals, carryIn, completed, queued, running float64
-	waitsSeconds                                  []int64
+	waitLowerSeconds                              []int64
+	allocatedWaitSeconds                          []int64
 }
 
 func compareResults(change string, a, b *runResult) comparisonReport {
@@ -88,7 +99,7 @@ func compareResults(change string, a, b *runResult) comparisonReport {
 	}
 	for key := range keys {
 		x, y := left[key], right[key]
-		allocatedA, allocatedB := float64(len(x.waitsSeconds)), float64(len(y.waitsSeconds))
+		allocatedA, allocatedB := float64(len(x.allocatedWaitSeconds)), float64(len(y.allocatedWaitSeconds))
 		report.Groups = append(report.Groups, groupComparison{
 			Queue: key.queue, Priority: key.priority, Arrivals: values(x.arrivals, y.arrivals),
 			CarryIn: values(x.carryIn, y.carryIn), Allocated: values(allocatedA, allocatedB),
@@ -96,9 +107,9 @@ func compareResults(change string, a, b *runResult) comparisonReport {
 			Completed:   values(x.completed, y.completed), QueuedAtCutoff: values(x.queued, y.queued),
 			RunningAtCutoff: values(x.running, y.running),
 			FirstAllocationWaitSeconds: waitPercentiles{
-				P50: difference(percentile(x.waitsSeconds, 50), percentile(y.waitsSeconds, 50)),
-				P95: difference(percentile(x.waitsSeconds, 95), percentile(y.waitsSeconds, 95)),
-				P99: difference(percentile(x.waitsSeconds, 99), percentile(y.waitsSeconds, 99)),
+				P50: compareWaitPercentile(x, y, 50),
+				P95: compareWaitPercentile(x, y, 95),
+				P99: compareWaitPercentile(x, y, 99),
 			},
 		})
 	}
@@ -121,9 +132,12 @@ func countGroups(run *runResult) map[groupKey]counts {
 		count := result[key]
 		if row.SubmittedSeconds >= run.Window.StartSeconds {
 			count.arrivals++
+			wait := run.Window.EndSeconds - row.SubmittedSeconds
 			if row.FirstAllocationSeconds != nil {
-				count.waitsSeconds = append(count.waitsSeconds, *row.FirstAllocationSeconds-row.SubmittedSeconds)
+				wait = *row.FirstAllocationSeconds - row.SubmittedSeconds
+				count.allocatedWaitSeconds = append(count.allocatedWaitSeconds, wait)
 			}
+			count.waitLowerSeconds = append(count.waitLowerSeconds, wait)
 		} else {
 			count.carryIn++
 		}
@@ -138,18 +152,39 @@ func countGroups(run *runResult) map[groupKey]counts {
 		result[key] = count
 	}
 	for _, group := range result {
-		slices.Sort(group.waitsSeconds)
+		slices.Sort(group.waitLowerSeconds)
+		slices.Sort(group.allocatedWaitSeconds)
 	}
 	return result
 }
 
-// percentile uses the nearest rank in the sorted, non-interpolated sample.
-func percentile(sorted []int64, p int) *int64 {
-	if len(sorted) == 0 {
+// waitPercentile uses the nearest rank over all arrivals. Substituting the
+// cutoff age for each censored wait gives the lower bound. Treating each
+// censored wait as unbounded gives the upper bound, which may be unknown.
+func (c counts) waitPercentile(p int) *waitBounds {
+	if len(c.waitLowerSeconds) == 0 {
 		return nil
 	}
-	rank := (len(sorted)*p + 99) / 100
-	return &sorted[rank-1]
+	rank := (len(c.waitLowerSeconds)*p + 99) / 100
+	bounds := &waitBounds{Lower: c.waitLowerSeconds[rank-1]}
+	if rank <= len(c.allocatedWaitSeconds) {
+		bounds.Upper = &c.allocatedWaitSeconds[rank-1]
+	}
+	return bounds
+}
+
+func compareWaitPercentile(a, b counts, p int) waitComparison {
+	left, right := a.waitPercentile(p), b.waitPercentile(p)
+	result := waitComparison{A: left, B: right}
+	if left.exact() && right.exact() {
+		delta := right.Lower - left.Lower
+		result.Delta = &delta
+	}
+	return result
+}
+
+func (w *waitBounds) exact() bool {
+	return w != nil && w.Upper != nil && w.Lower == *w.Upper
 }
 
 func utilisation(r *runResult) *float64 {
@@ -193,18 +228,34 @@ func (r comparisonReport) print(out io.Writer) error {
 	return errors.Join(err, w.Flush())
 }
 
-func (m metric[T]) columns() [3]string {
+func (m metric) columns() [3]string {
 	return [3]string{display(m.A), display(m.B), display(m.Delta)}
 }
 
-func display[T metricValue](v *T) string {
+func display(v *float64) string {
 	if v == nil {
 		return "—"
 	}
-	switch value := any(*v).(type) {
-	case float64:
-		return strconv.FormatFloat(value, 'f', -1, 64)
+	return strconv.FormatFloat(*v, 'f', -1, 64)
+}
+
+func (w waitComparison) columns() [3]string {
+	delta := "—"
+	if w.Delta != nil {
+		delta = strconv.FormatInt(*w.Delta, 10)
+	}
+	return [3]string{w.A.display(), w.B.display(), delta}
+}
+
+func (w *waitBounds) display() string {
+	switch {
+	case w == nil:
+		return "—"
+	case w.exact():
+		return strconv.FormatInt(w.Lower, 10)
+	case w.Upper == nil:
+		return fmt.Sprintf("≥ %d", w.Lower)
 	default:
-		return fmt.Sprint(value)
+		return fmt.Sprintf("%d–%d", w.Lower, *w.Upper)
 	}
 }

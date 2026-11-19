@@ -42,7 +42,6 @@ type experiment struct {
 }
 
 type candidate struct {
-	Binary string      `json:"binary"`
 	Farm   string      `json:"farm"`
 	Config string      `json:"scheduler_config"`
 	Queues []queueSpec `json:"queues"`
@@ -71,12 +70,6 @@ type candidateInput struct {
 	Queues               []queueSpec `json:"queues"`
 }
 
-type candidateRun struct {
-	binary       string
-	binarySHA256 string
-	input        candidateInput
-}
-
 // Compare runs both candidates with the same executable and offered workload
 // and prints the metrics written to comparison.json. The output must be new.
 func Compare(ctx context.Context, manifest, output string, timeout time.Duration, table io.Writer) error {
@@ -99,16 +92,36 @@ func Compare(ctx context.Context, manifest, output string, timeout time.Duration
 	if err != nil {
 		return err
 	}
-	a, err := prepareCandidate(ctx, base, "a", spec.A, input)
+	a, err := prepareCandidate(base, "a", spec.A, input)
 	if err != nil {
 		return fmt.Errorf("candidate A: %w", err)
 	}
-	b, err := prepareCandidate(ctx, base, "b", spec.B, input)
+	b, err := prepareCandidate(base, "b", spec.B, input)
 	if err != nil {
 		return fmt.Errorf("candidate B: %w", err)
 	}
 	if err := validateChange(spec.Change, a, b); err != nil {
 		return err
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	binary, err := os.Open(executable)
+	if err != nil {
+		return err
+	}
+	defer binary.Close()
+	binaryInfo, err := binary.Stat()
+	if err != nil {
+		return err
+	}
+	if !binaryInfo.Mode().IsRegular() {
+		return fmt.Errorf("expected a regular simulator executable at %s", executable)
+	}
+	binaryHash, err := hashExecutable(ctx, binary)
+	if err != nil {
+		return fmt.Errorf("hash simulator executable: %w", err)
 	}
 	output, err = filepath.Abs(output)
 	if err != nil {
@@ -120,12 +133,18 @@ func Compare(ctx context.Context, manifest, output string, timeout time.Duration
 	if err := os.WriteFile(filepath.Join(output, "experiment.json"), raw, 0o644); err != nil {
 		return err
 	}
-	left, err := a.execute(ctx, output, timeout)
+	left, err := executeCandidate(ctx, executable, output, timeout, a)
 	if err != nil {
 		return err
 	}
-	right, err := b.execute(ctx, output, timeout)
+	if err := verifyExecutable(executable, binaryInfo); err != nil {
+		return err
+	}
+	right, err := executeCandidate(ctx, executable, output, timeout, b)
 	if err != nil {
+		return err
+	}
+	if err := verifyExecutable(executable, binaryInfo); err != nil {
 		return err
 	}
 	if spec.Change == "none" && (!reflect.DeepEqual(left.Outcomes, right.Outcomes) ||
@@ -133,6 +152,7 @@ func Compare(ctx context.Context, manifest, output string, timeout time.Duration
 		return errors.New("identical candidates produced different logical outcomes or CPU accounting")
 	}
 	report := compareResults(spec.Change, left, right)
+	report.BinarySHA256 = binaryHash
 	if err := writeJSON(filepath.Join(output, "comparison.json"), report); err != nil {
 		return err
 	}
@@ -201,41 +221,29 @@ func resolve(base, path string) string {
 	return filepath.Join(base, path)
 }
 
-func prepareCandidate(ctx context.Context, base, id string, spec candidate, input candidateInput) (candidateRun, error) {
-	if spec.Binary == "" || spec.Farm == "" || spec.Config == "" || len(spec.Queues) == 0 {
-		return candidateRun{}, errors.New("binary, farm, scheduler_config and queues are required")
+func prepareCandidate(base, id string, spec candidate, input candidateInput) (candidateInput, error) {
+	if spec.Farm == "" || spec.Config == "" || len(spec.Queues) == 0 {
+		return candidateInput{}, errors.New("farm, scheduler_config and queues are required")
 	}
-	binary, err := filepath.Abs(resolve(base, spec.Binary))
+	farm, err := readLocal(resolve(base, spec.Farm), maxInput)
 	if err != nil {
-		return candidateRun{}, err
+		return candidateInput{}, fmt.Errorf("farm: %w", err)
 	}
-	binary, err = filepath.EvalSymlinks(binary)
+	cfg, err := readLocal(resolve(base, spec.Config), maxInput)
 	if err != nil {
-		return candidateRun{}, err
-	}
-	hash, err := hashFile(ctx, binary)
-	if err != nil {
-		return candidateRun{}, err
+		return candidateInput{}, fmt.Errorf("scheduler config: %w", err)
 	}
 	input.ID, input.Queues = id, slices.Clone(spec.Queues)
 	slices.SortFunc(input.Queues, func(a, b queueSpec) int { return strings.Compare(a.Name, b.Name) })
-	if input.Farm, err = readLocal(resolve(base, spec.Farm), maxInput); err != nil {
-		return candidateRun{}, fmt.Errorf("farm: %w", err)
-	}
-	if input.Config, err = readLocal(resolve(base, spec.Config), maxInput); err != nil {
-		return candidateRun{}, fmt.Errorf("scheduler config: %w", err)
-	}
-	return candidateRun{binary: binary, binarySHA256: hash, input: input}, nil
+	input.Farm, input.Config = farm, cfg
+	return input, nil
 }
 
-func validateChange(change string, a, b candidateRun) error {
-	farmChanged := !bytes.Equal(a.input.Farm, b.input.Farm)
-	queuesChanged := !reflect.DeepEqual(a.input.Queues, b.input.Queues)
-	if !bytes.Equal(a.input.Config, b.input.Config) {
+func validateChange(change string, a, b candidateInput) error {
+	farmChanged := !bytes.Equal(a.Farm, b.Farm)
+	queuesChanged := !reflect.DeepEqual(a.Queues, b.Queues)
+	if !bytes.Equal(a.Config, b.Config) {
 		return errors.New("scheduler_config differs: initial comparisons require identical config files")
-	}
-	if a.binarySHA256 != b.binarySHA256 {
-		return errors.New("comparison requires the same executable on both sides")
 	}
 	switch change {
 	case "none":
@@ -247,7 +255,7 @@ func validateChange(change string, a, b candidateRun) error {
 			return nil
 		}
 	case "queue_cordon":
-		if !farmChanged && queuesChanged && sameQueuesWithoutCordons(a.input.Queues, b.input.Queues) {
+		if !farmChanged && queuesChanged && sameQueuesWithoutCordons(a.Queues, b.Queues) {
 			return nil
 		}
 	default:
@@ -270,12 +278,12 @@ func sameQueuesWithoutCordons(a, b []queueSpec) bool {
 	return true
 }
 
-func (c candidateRun) execute(parent context.Context, output string, timeout time.Duration) (*runResult, error) {
-	dir := filepath.Join(output, c.input.ID)
+func executeCandidate(parent context.Context, executable, output string, timeout time.Duration, input candidateInput) (*runResult, error) {
+	dir := filepath.Join(output, input.ID)
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return nil, err
 	}
-	raw, err := json.Marshal(c.input)
+	raw, err := json.Marshal(input)
 	if err != nil {
 		return nil, err
 	}
@@ -291,25 +299,25 @@ func (c candidateRun) execute(parent context.Context, output string, timeout tim
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 	resultPath := filepath.Join(dir, "run.json")
-	cmd := exec.CommandContext(ctx, c.binary, workerCommand, inputPath, resultPath)
+	cmd := exec.CommandContext(ctx, executable, workerCommand, inputPath, resultPath)
 	cmd.Stdout, cmd.Stderr = log, log
 	runErr := cmd.Run()
 	if err := errors.Join(runErr, ctx.Err(), log.Close()); err != nil {
-		return nil, fmt.Errorf("candidate %s failed, see %s: %w", c.input.ID, logPath, err)
+		return nil, fmt.Errorf("candidate %s failed, see %s: %w", input.ID, logPath, err)
 	}
 	resultRaw, err := readLocal(resultPath, maxProtocol)
 	if err != nil {
-		return nil, fmt.Errorf("candidate %s result, see %s: %w", c.input.ID, logPath, err)
+		return nil, fmt.Errorf("candidate %s result, see %s: %w", input.ID, logPath, err)
 	}
 	var result runResult
 	if err := strictJSON(resultRaw, &result); err != nil {
-		return nil, fmt.Errorf("candidate %s result: %w", c.input.ID, err)
+		return nil, fmt.Errorf("candidate %s result: %w", input.ID, err)
 	}
-	if err := result.validate(c, digest(raw)); err != nil {
-		return nil, fmt.Errorf("candidate %s result: %w", c.input.ID, err)
+	if err := result.validate(input, digest(raw)); err != nil {
+		return nil, fmt.Errorf("candidate %s result: %w", input.ID, err)
 	}
 	if err := verifyObservations(dir); err != nil {
-		return nil, fmt.Errorf("candidate %s observations: %w", c.input.ID, err)
+		return nil, fmt.Errorf("candidate %s observations: %w", input.ID, err)
 	}
 	return &result, nil
 }
@@ -318,24 +326,24 @@ func digest(raw []byte) string {
 	return fmt.Sprintf("%x", sha256.Sum256(raw))
 }
 
-func hashFile(ctx context.Context, path string) (string, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return "", err
-	}
-	if !info.Mode().IsRegular() {
-		return "", fmt.Errorf("expected a regular file at %s", path)
-	}
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
+func hashExecutable(ctx context.Context, executable *os.File) (string, error) {
 	h := sha256.New()
-	if _, err := io.Copy(h, contextReader{ctx, f}); err != nil {
+	if _, err := io.Copy(h, contextReader{ctx, executable}); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
+func verifyExecutable(path string, original os.FileInfo) error {
+	current, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("recheck simulator executable: %w", err)
+	}
+	if !os.SameFile(original, current) || original.Size() != current.Size() ||
+		!original.ModTime().Equal(current.ModTime()) {
+		return fmt.Errorf("simulator executable changed during comparison: %s", path)
+	}
+	return nil
 }
 
 type contextReader struct {
