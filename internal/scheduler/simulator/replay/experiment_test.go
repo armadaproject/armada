@@ -221,7 +221,7 @@ func TestWaitPercentilesUseAllocatedArrivalsDuringMeasurement(t *testing.T) {
 		{Queue: "q", SubmittedUS: -10, ObservedUS: 300, FirstAllocationUS: &zero, State: Completed},
 		{Queue: "q", SubmittedUS: 0, ObservedUS: 500, State: Queued},
 	}
-	for wait := int64(1); wait <= 100; wait++ {
+	for wait := int64(100); wait >= 1; wait-- {
 		arrivals = append(arrivals, outcome{
 			Queue: "q", SubmittedUS: 0, ObservedUS: 300, FirstAllocationUS: &wait, State: Completed,
 		})
@@ -238,8 +238,14 @@ func TestWaitPercentilesUseAllocatedArrivalsDuringMeasurement(t *testing.T) {
 
 func TestReportKeepsExactMicroseconds(t *testing.T) {
 	a, b := int64(1<<53)+1, int64(1<<53)+2
-	waits := waitPercentiles{P50: waitValues(a, b)}
-	report := comparisonReport{Groups: []groupComparison{{FirstAllocationWaitUS: waits}}}
+	cpu := float64(1)
+	run := func(wait *int64) *runResult {
+		return &runResult{
+			Window: Window{EndUS: b + 1}, AllocatedCPUSeconds: &cpu, AvailableCPUSeconds: &cpu,
+			Outcomes: []outcome{{FirstAllocationUS: wait, ObservedUS: b, State: Completed}},
+		}
+	}
+	report := compareResults("capacity", nil, run(&a), run(&b))
 	raw, err := json.Marshal(report)
 	require.NoError(t, err)
 	require.Contains(t, string(raw), `"p50":{"a":9007199254740993,"b":9007199254740994,"delta":1}`)
