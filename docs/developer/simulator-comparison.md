@@ -57,10 +57,13 @@ the production queue, priority class, resource and placement checks.
 ## Read the results
 
 `comparison.json` contains the table values, including B−A deltas,
-first-allocation delays and per-queue/priority counts. Delay and allocation
-coverage use arrivals during the measurement window. Completions and cutoff
-counts also include warm-up jobs still present at measurement start. Absent
-allocations and their deltas are null. CPU utilisation divides the integral
+first-allocation wait percentiles and per-queue/priority counts. Report
+version 2 summarises waits at p50, p95 and p99 by queue and priority class,
+using exact nearest-rank percentiles. The sample is arrivals during the
+measurement window that received an allocation before cutoff. Allocated and
+unallocated arrival counts show the sample size and the excluded waits.
+An empty sample gives null percentiles and null deltas for that group. Completions and cutoff
+counts also include warm-up jobs still present at measurement start. CPU utilisation divides the integral
 of allocated CPU requests by the integral of farm CPU capacity during the
 measurement window. A farm with zero CPU capacity reports null utilisation.
 These are modelled quantities for a static healthy farm.

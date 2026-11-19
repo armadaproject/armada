@@ -29,25 +29,25 @@ func difference(a, b *float64) metric {
 	return m
 }
 
-type jobComparison struct {
-	ID       string `json:"logical_job_id"`
-	Queue    string `json:"queue"`
-	Priority string `json:"priority_class"`
-	Delay    metric `json:"first_allocation_delay_us"`
-	StateA   State  `json:"state_a"`
-	StateB   State  `json:"state_b"`
+const comparisonReportVersion = 2
+
+type waitPercentiles struct {
+	P50 metric `json:"p50"`
+	P95 metric `json:"p95"`
+	P99 metric `json:"p99"`
 }
 
 type groupComparison struct {
-	Queue           string `json:"queue"`
-	Priority        string `json:"priority_class"`
-	Arrivals        metric `json:"arrivals"`
-	CarryIn         metric `json:"carry_in"`
-	Allocated       metric `json:"allocated_arrivals"`
-	Unallocated     metric `json:"unallocated_arrivals"`
-	Completed       metric `json:"completed"`
-	QueuedAtCutoff  metric `json:"queued_at_cutoff"`
-	RunningAtCutoff metric `json:"running_at_cutoff"`
+	Queue                 string          `json:"queue"`
+	Priority              string          `json:"priority_class"`
+	Arrivals              metric          `json:"arrivals"`
+	CarryIn               metric          `json:"carry_in"`
+	Allocated             metric          `json:"allocated_arrivals"`
+	Unallocated           metric          `json:"unallocated_arrivals"`
+	Completed             metric          `json:"completed"`
+	QueuedAtCutoff        metric          `json:"queued_at_cutoff"`
+	RunningAtCutoff       metric          `json:"running_at_cutoff"`
+	FirstAllocationWaitUS waitPercentiles `json:"first_allocation_wait_us"`
 }
 
 type comparisonReport struct {
@@ -61,22 +61,22 @@ type comparisonReport struct {
 	Available   metric            `json:"available_cpu_seconds"`
 	Utilisation metric            `json:"cpu_utilisation"`
 	Groups      []groupComparison `json:"groups"`
-	Jobs        []jobComparison   `json:"jobs"`
 }
 
 type groupKey struct{ queue, priority string }
 
 type counts struct {
-	arrivals, carryIn, allocated, completed, queued, running float64
+	arrivals, carryIn, completed, queued, running float64
+	waitsUS                                       []int64
 }
 
 func compareResults(change string, code *codeChange, a, b *runResult) comparisonReport {
 	report := comparisonReport{
-		Version: version, Change: change, Code: code, Profile: a.Profile, Model: a.Model, Window: a.Window,
+		Version: comparisonReportVersion, Change: change, Code: code, Profile: a.Profile, Model: a.Model, Window: a.Window,
 		Allocated:   difference(a.AllocatedCPUSeconds, b.AllocatedCPUSeconds),
 		Available:   difference(a.AvailableCPUSeconds, b.AvailableCPUSeconds),
 		Utilisation: difference(utilisation(a), utilisation(b)),
-		Groups:      []groupComparison{}, Jobs: []jobComparison{},
+		Groups:      []groupComparison{},
 	}
 	left, right := countGroups(a), countGroups(b)
 	keys := make(map[groupKey]bool)
@@ -88,12 +88,18 @@ func compareResults(change string, code *codeChange, a, b *runResult) comparison
 	}
 	for key := range keys {
 		x, y := left[key], right[key]
+		allocatedA, allocatedB := float64(len(x.waitsUS)), float64(len(y.waitsUS))
 		report.Groups = append(report.Groups, groupComparison{
 			Queue: key.queue, Priority: key.priority, Arrivals: values(x.arrivals, y.arrivals),
-			CarryIn: values(x.carryIn, y.carryIn), Allocated: values(x.allocated, y.allocated),
-			Unallocated: values(x.arrivals-x.allocated, y.arrivals-y.allocated),
+			CarryIn: values(x.carryIn, y.carryIn), Allocated: values(allocatedA, allocatedB),
+			Unallocated: values(x.arrivals-allocatedA, y.arrivals-allocatedB),
 			Completed:   values(x.completed, y.completed), QueuedAtCutoff: values(x.queued, y.queued),
 			RunningAtCutoff: values(x.running, y.running),
+			FirstAllocationWaitUS: waitPercentiles{
+				P50: difference(percentile(x.waitsUS, 50), percentile(y.waitsUS, 50)),
+				P95: difference(percentile(x.waitsUS, 95), percentile(y.waitsUS, 95)),
+				P99: difference(percentile(x.waitsUS, 99), percentile(y.waitsUS, 99)),
+			},
 		})
 	}
 	slices.SortFunc(report.Groups, func(x, y groupComparison) int {
@@ -102,15 +108,6 @@ func compareResults(change string, code *codeChange, a, b *runResult) comparison
 		}
 		return strings.Compare(x.Priority, y.Priority)
 	})
-	for i, x := range a.Outcomes {
-		y := b.Outcomes[i]
-		if x.SubmittedUS >= a.Window.StartUS {
-			report.Jobs = append(report.Jobs, jobComparison{
-				ID: x.ID, Queue: x.Queue, Priority: x.Priority, StateA: x.State, StateB: y.State,
-				Delay: difference(delay(x), delay(y)),
-			})
-		}
-	}
 	return report
 }
 
@@ -125,7 +122,7 @@ func countGroups(run *runResult) map[groupKey]counts {
 		if row.SubmittedUS >= run.Window.StartUS {
 			count.arrivals++
 			if row.FirstAllocationUS != nil {
-				count.allocated++
+				count.waitsUS = append(count.waitsUS, *row.FirstAllocationUS-row.SubmittedUS)
 			}
 		} else {
 			count.carryIn++
@@ -140,16 +137,21 @@ func countGroups(run *runResult) map[groupKey]counts {
 		}
 		result[key] = count
 	}
+	for _, group := range result {
+		slices.Sort(group.waitsUS)
+	}
 	return result
 }
 
-func delay(row outcome) *float64 {
-	if row.FirstAllocationUS == nil {
+// percentile uses the nearest rank in the sorted, non-interpolated sample.
+func percentile(sorted []int64, p int) *float64 {
+	if len(sorted) == 0 {
 		return nil
 	}
+	rank := (len(sorted)*p + 99) / 100
 	// The replay window is bounded below 2^53 microseconds.
-	delayUS := float64(*row.FirstAllocationUS - row.SubmittedUS)
-	return &delayUS
+	value := float64(sorted[rank-1])
+	return &value
 }
 
 func utilisation(r *runResult) *float64 {
@@ -188,12 +190,9 @@ func (r comparisonReport) print(out io.Writer) error {
 		row("Completed", g.Completed)
 		row("Queued at cutoff", g.QueuedAtCutoff)
 		row("Running at cutoff", g.RunningAtCutoff)
-	}
-	if len(r.Jobs) > 0 {
-		line("\nFirst-allocation delay (µs)\tA\tB\tB−A\n")
-		for _, job := range r.Jobs {
-			row(strconv.Quote(job.ID), job.Delay)
-		}
+		row("First-allocation wait p50 (µs)", g.FirstAllocationWaitUS.P50)
+		row("First-allocation wait p95 (µs)", g.FirstAllocationWaitUS.P95)
+		row("First-allocation wait p99 (µs)", g.FirstAllocationWaitUS.P99)
 	}
 	return errors.Join(err, w.Flush())
 }

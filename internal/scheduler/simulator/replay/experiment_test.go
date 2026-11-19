@@ -47,7 +47,7 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 			}
 			b, bAttempts, bQueue := runTestCandidate(t, base, "b", spec, input)
 			report := compareResults(tc.name, nil, a, b)
-			require.Len(t, report.Jobs, 2)
+			require.Equal(t, 2, report.Version)
 			checkAttemptCPU(t, aAttempts, *report.Allocated.A)
 			checkAttemptCPU(t, bAttempts, *report.Allocated.B)
 			require.Equal(t, []queueIntervalRow{{JobID: "first"}, {JobID: "second", EndUS: 60_000_000}}, aQueue)
@@ -59,9 +59,10 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 				require.Equal(t, "second", bAttempts[0].JobID)
 				require.Equal(t, values(360, 360), report.Available)
 				require.Equal(t, values(1, 2.0/3), report.Utilisation)
-				require.Equal(t, values(60_000_000, 0), report.Jobs[1].Delay)
-				require.Nil(t, report.Jobs[0].Delay.B)
-				require.Nil(t, report.Jobs[0].Delay.Delta)
+				require.Equal(t, values(60_000_000, 0), report.Groups[1].FirstAllocationWaitUS.P50)
+				zero := float64(0)
+				require.Equal(t, difference(&zero, nil), report.Groups[0].FirstAllocationWaitUS.P95)
+				require.Equal(t, values(1, 0), report.Groups[0].Allocated)
 				require.Equal(t, values(1, 0), report.Groups[0].Completed)
 				require.Equal(t, values(0, 1), report.Groups[0].QueuedAtCutoff)
 				require.Equal(t, values(0, 1), report.Groups[1].Completed)
@@ -75,8 +76,7 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 			require.Equal(t, "second", aAttempts[1].JobID)
 			require.Equal(t, values(720, 1440), report.Available)
 			require.Equal(t, values(2.0/3, 1.0/3), report.Utilisation)
-			require.Equal(t, values(0, 0), report.Jobs[0].Delay)
-			require.Equal(t, values(60_000_000, 0), report.Jobs[1].Delay)
+			require.Equal(t, waitPercentiles{P50: values(0, 0), P95: values(60_000_000, 0), P99: values(60_000_000, 0)}, report.Groups[0].FirstAllocationWaitUS)
 			require.Equal(t, values(2, 2), report.Groups[0].Completed)
 		})
 	}
@@ -212,4 +212,25 @@ func TestStrictJSONRejectsAmbiguousWindow(t *testing.T) {
 	var window Window
 	require.ErrorContains(t, strictJSON([]byte(`{"end_us":180000000,"END_US":90000000}`), &window), "unknown field")
 	require.ErrorContains(t, strictJSON([]byte(`{"end_us":180000000,"end_us":90000000}`), &window), "duplicate field")
+}
+
+func TestWaitPercentilesUseAllocatedArrivalsDuringMeasurement(t *testing.T) {
+	zero := int64(0)
+	arrivals := []outcome{
+		{Queue: "q", SubmittedUS: -10, ObservedUS: 300, FirstAllocationUS: &zero, State: Completed},
+		{Queue: "q", SubmittedUS: 0, ObservedUS: 500, State: Queued},
+	}
+	for wait := int64(1); wait <= 100; wait++ {
+		arrivals = append(arrivals, outcome{
+			Queue: "q", SubmittedUS: 0, ObservedUS: 300, FirstAllocationUS: &wait, State: Completed,
+		})
+	}
+	cpu := float64(1)
+	run := &runResult{Window: Window{EndUS: 500}, Outcomes: arrivals, AllocatedCPUSeconds: &cpu, AvailableCPUSeconds: &cpu}
+	group := compareResults("none", nil, run, run).Groups[0]
+	require.Equal(t, values(101, 101), group.Arrivals)
+	require.Equal(t, values(100, 100), group.Allocated)
+	require.Equal(t, values(1, 1), group.Unallocated)
+	require.Equal(t, values(1, 1), group.CarryIn)
+	require.Equal(t, waitPercentiles{P50: values(50, 50), P95: values(95, 95), P99: values(99, 99)}, group.FirstAllocationWaitUS)
 }
