@@ -5,6 +5,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 
+	"github.com/armadaproject/armada/internal/common/errormatch"
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
 	"github.com/armadaproject/armada/internal/common/logging"
 	log "github.com/armadaproject/armada/internal/common/logging"
@@ -118,8 +119,9 @@ func (allocationService *ClusterAllocationService) processFailedJobSubmissions(f
 }
 
 func (allocationService *ClusterAllocationService) sendReturnLeaseEvent(details *job.FailedSubmissionDetails, message string) error {
-	// Submission failures happen before the pod ran, so there is no pod error to classify.
-	returnLeaseEvent, err := reporter.CreateReturnLeaseEvent(details.Pod, message, "", allocationService.clusterId.GetClusterId(), true, "", "")
+	// Kubernetes rejected the pod, so the categorizer has no pod state to classify. Armada sets the category itself.
+	returnLeaseEvent, err := reporter.CreateReturnLeaseEvent(details.Pod, message, "", allocationService.clusterId.GetClusterId(), true,
+		errormatch.CategoryInternal, errormatch.SubcategoryPodSubmissionFailed)
 	if err != nil {
 		return fmt.Errorf("failed to create return lease event %s", err)
 	}
@@ -127,7 +129,9 @@ func (allocationService *ClusterAllocationService) sendReturnLeaseEvent(details 
 }
 
 func (allocationService *ClusterAllocationService) sendFailedEvent(details *job.FailedSubmissionDetails, message string) error {
-	failEvent, err := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterId.GetClusterId(), armadaevents.KubernetesReason_AppError)
+	failEvent, err := reporter.CreateJobFailedEvent(details.Pod, message, armadaevents.KubernetesReason_AppError, "",
+		[]*armadaevents.ContainerError{}, allocationService.clusterId.GetClusterId(),
+		errormatch.CategoryInternal, errormatch.SubcategoryPodSubmissionFailed)
 	if err != nil {
 		return fmt.Errorf("failed to create return lease event %s", err)
 	}
