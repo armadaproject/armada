@@ -172,6 +172,24 @@ func TestVerifyObservationsRequiresCompleteChecksummedFiles(t *testing.T) {
 	require.ErrorContains(t, verifyObservations(t.Context(), dir), "attempts.parquet: invalid Parquet footer")
 }
 
+func TestObservationsRejectLegacyParquetColumns(t *testing.T) {
+	type legacyQueueRow struct {
+		JobID    string `parquet:"name=logical_job_id, type=BYTE_ARRAY, convertedtype=UTF8"`
+		Queued   int64  `parquet:"name=queued_at_us, type=INT64"`
+		End      int64  `parquet:"name=end_at_us, type=INT64"`
+		Censored bool   `parquet:"name=censored, type=BOOLEAN"`
+	}
+	dir := t.TempDir()
+	attempts, err := createParquet(filepath.Join(dir, attemptsFile), new(attemptRow))
+	require.NoError(t, err)
+	require.NoError(t, attempts.close())
+	queue, err := createParquet(filepath.Join(dir, queueIntervalsFile), new(legacyQueueRow))
+	require.NoError(t, err)
+	require.NoError(t, queue.close())
+	require.NoError(t, writeObservationsManifest(t.Context(), dir))
+	require.ErrorContains(t, verifyObservations(t.Context(), dir), `unexpected Parquet schema element "queued_at_us", expected "queued_at_s"`)
+}
+
 func TestValidateChangeRejectsUndeclaredInputs(t *testing.T) {
 	a := candidateRun{binarySHA256: "binary-a", input: candidateInput{
 		Config: []byte("same-config"), Farm: []byte("farm-a"), Queues: []queueSpec{{Name: "q", Weight: 1}},

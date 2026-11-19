@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 
 	"github.com/xitongsys/parquet-go-source/local"
 	parquetreader "github.com/xitongsys/parquet-go/reader"
+	"github.com/xitongsys/parquet-go/schema"
 	parquetwriter "github.com/xitongsys/parquet-go/writer"
 )
 
@@ -129,23 +131,29 @@ func verifyObservations(ctx context.Context, dir string) error {
 	if manifest.Version != observationsVersion || len(manifest.SHA256) != 2 {
 		return errors.New("invalid Parquet observations manifest")
 	}
-	for _, name := range []string{attemptsFile, queueIntervalsFile} {
-		path := filepath.Join(dir, name)
+	for _, artifact := range []struct {
+		name string
+		row  any
+	}{
+		{attemptsFile, new(attemptRow)},
+		{queueIntervalsFile, new(queueIntervalRow)},
+	} {
+		path := filepath.Join(dir, artifact.name)
 		hash, err := hashFile(ctx, path)
 		if err != nil {
 			return err
 		}
-		if hash != manifest.SHA256[name] {
-			return fmt.Errorf("Parquet observations checksum mismatch for %s", name)
+		if hash != manifest.SHA256[artifact.name] {
+			return fmt.Errorf("Parquet observations checksum mismatch for %s", artifact.name)
 		}
-		if err := checkParquetHeaderAndFooter(path); err != nil {
-			return fmt.Errorf("%s: %w", name, err)
+		if err := checkParquetSchema(path, artifact.row); err != nil {
+			return fmt.Errorf("%s: %w", artifact.name, err)
 		}
 	}
 	return nil
 }
 
-func checkParquetHeaderAndFooter(path string) error {
+func checkParquetSchema(path string, row any) error {
 	const magic = "PAR1"
 	file, err := os.Open(path)
 	if err != nil {
@@ -176,6 +184,23 @@ func checkParquetHeaderAndFooter(path string) error {
 	reader := parquetreader.ParquetReader{PFile: &local.LocalFile{File: file}}
 	if err := reader.ReadFooter(); err != nil {
 		return fmt.Errorf("invalid Parquet footer: %w", err)
+	}
+	expected, err := schema.NewSchemaHandlerFromStruct(row)
+	if err != nil {
+		return err
+	}
+	actual := reader.Footer.Schema
+	if len(actual) != len(expected.SchemaElements) {
+		return errors.New("unexpected Parquet schema size")
+	}
+	for i, want := range expected.SchemaElements {
+		want.Name = expected.Infos[i].ExName
+		if actual[i].Name != want.Name {
+			return fmt.Errorf("unexpected Parquet schema element %q, expected %q", actual[i].Name, want.Name)
+		}
+		if !reflect.DeepEqual(actual[i], want) {
+			return fmt.Errorf("unexpected Parquet type or attributes for %q", want.Name)
+		}
 	}
 	return nil
 }
