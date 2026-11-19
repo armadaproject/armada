@@ -2,6 +2,7 @@ package replay
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -137,13 +138,48 @@ func verifyObservations(ctx context.Context, dir string) error {
 		return errors.New("invalid Parquet observations manifest")
 	}
 	for _, name := range []string{attemptsFile, queueIntervalsFile} {
-		hash, err := hashFile(ctx, filepath.Join(dir, name))
+		path := filepath.Join(dir, name)
+		hash, err := hashFile(ctx, path)
 		if err != nil {
 			return err
 		}
 		if hash != manifest.SHA256[name] {
 			return fmt.Errorf("Parquet observations checksum mismatch for %s", name)
 		}
+		if err := checkParquetHeaderAndFooter(path); err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+	}
+	return nil
+}
+
+func checkParquetHeaderAndFooter(path string) error {
+	const magic = "PAR1"
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	var header [4]byte
+	var trailer [8]byte
+	maxFooterSize := info.Size() - int64(len(header)+len(trailer))
+	if maxFooterSize <= 0 {
+		return errors.New("invalid Parquet file size")
+	}
+	if _, err := file.ReadAt(header[:], 0); err != nil {
+		return err
+	}
+	if _, err := file.ReadAt(trailer[:], info.Size()-int64(len(trailer))); err != nil {
+		return err
+	}
+	footerSize := int64(binary.LittleEndian.Uint32(trailer[:4]))
+	if string(header[:]) != magic || string(trailer[4:]) != magic ||
+		footerSize <= 0 || footerSize > maxFooterSize {
+		return errors.New("invalid Parquet signature or footer length")
 	}
 	return nil
 }

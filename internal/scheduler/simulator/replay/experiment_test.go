@@ -151,13 +151,21 @@ func TestVerifyObservationsRequiresCompleteChecksummedFiles(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, verifyObservations(t.Context(), dir)) // Older worker.
 	attemptPath := filepath.Join(dir, attemptsFile)
-	require.NoError(t, os.WriteFile(attemptPath, []byte("attempts"), 0o644))
+	attempts, err := createParquet(attemptPath, new(attemptRow))
+	require.NoError(t, err)
+	require.NoError(t, attempts.close())
 	require.ErrorContains(t, verifyObservations(t.Context(), dir), "missing Parquet observations manifest")
-	require.NoError(t, os.WriteFile(filepath.Join(dir, queueIntervalsFile), []byte("queue"), 0o644))
+	queuePath := filepath.Join(dir, queueIntervalsFile)
+	queue, err := createParquet(queuePath, new(queueIntervalRow))
+	require.NoError(t, err)
+	require.NoError(t, queue.close())
 	require.NoError(t, writeObservationsManifest(t.Context(), dir))
 	require.NoError(t, verifyObservations(t.Context(), dir))
 	require.NoError(t, os.WriteFile(attemptPath, []byte("damaged"), 0o644))
 	require.ErrorContains(t, verifyObservations(t.Context(), dir), "checksum mismatch for attempts.parquet")
+	require.NoError(t, os.Remove(filepath.Join(dir, observationsManifestFile)))
+	require.NoError(t, writeObservationsManifest(t.Context(), dir))
+	require.ErrorContains(t, verifyObservations(t.Context(), dir), "attempts.parquet: invalid Parquet")
 }
 
 func TestValidateChangeRejectsUndeclaredInputs(t *testing.T) {
