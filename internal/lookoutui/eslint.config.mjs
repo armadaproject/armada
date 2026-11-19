@@ -92,6 +92,9 @@ export default tseslint.config(
               // Maintainers whose names may appear in comments
               "mauriceyap",
 
+              // Kubernetes terminology
+              "kubelet",
+
               // URL parameter keys
               "ltta", // last transition time aggregate
             ],

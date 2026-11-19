@@ -4,9 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -220,4 +224,91 @@ func assertLogLineExpected(t *testing.T, expected *testLogEntry, logOutput *byte
 	assert.Equal(t, expected.Level, entry.Level)
 	assert.Equal(t, expected.CustomField1, entry.CustomField1)
 	assert.Equal(t, expected.CustomField2, entry.CustomField2)
+}
+
+func TestCaller(t *testing.T) {
+	err := errors.New("boom") // pkg/errors, so WithStacktrace also adds the stacktrace field
+
+	tests := map[string]func(ctx *Context) int{
+		"ctx.Errorf": func(ctx *Context) int {
+			line := currentLine()
+			ctx.Errorf("failed") // line+1
+			return line + 1
+		},
+		"ctx.Info": func(ctx *Context) int {
+			line := currentLine()
+			ctx.Info("hello") // line+1
+			return line + 1
+		},
+		"ctx.Logger().Errorf": func(ctx *Context) int {
+			line := currentLine()
+			ctx.Logger().Errorf("failed") // line+1
+			return line + 1
+		},
+		"ctx.Logger().WithStacktrace.Errorf": func(ctx *Context) int {
+			line := currentLine()
+			ctx.Logger().WithStacktrace(err).Errorf("failed") // line+1
+			return line + 1
+		},
+	}
+	contexts := map[string]func(ctx *Context) *Context{
+		"New": func(ctx *Context) *Context { return ctx },
+		"WithCancel": func(ctx *Context) *Context {
+			c, cancel := WithCancel(ctx)
+			t.Cleanup(cancel)
+			return c
+		},
+		"WithTimeout": func(ctx *Context) *Context {
+			c, cancel := WithTimeout(ctx, time.Minute)
+			t.Cleanup(cancel)
+			return c
+		},
+		"WithLogField":  func(ctx *Context) *Context { return WithLogField(ctx, "customField1", "foo") },
+		"WithLogFields": func(ctx *Context) *Context { return WithLogFields(ctx, map[string]any{"customField1": "foo"}) },
+		"WithContext":   func(ctx *Context) *Context { return WithContext(ctx, context.Background()) },
+		"WithValue":     func(ctx *Context) *Context { return WithValue(ctx, "key", "value") },
+		"ErrGroup": func(ctx *Context) *Context {
+			_, c := ErrGroup(ctx)
+			return c
+		},
+		// Derived twice, to check that the skip does not accumulate.
+		"WithLogField.WithCancel.WithLogField": func(ctx *Context) *Context {
+			c, cancel := WithCancel(WithLogField(ctx, "customField1", "foo"))
+			t.Cleanup(cancel)
+			return WithLogField(c, "customField2", "bar")
+		},
+	}
+	for ctxName, derive := range contexts {
+		for name, logAndReturnLine := range tests {
+			t.Run(ctxName+"/"+name, func(t *testing.T) {
+				logger, buf := testLogger()
+				ctx := derive(New(context.Background(), logger))
+				line := logAndReturnLine(ctx)
+				assertSingleCaller(t, buf, "armada_context_test.go", line)
+			})
+		}
+	}
+}
+
+// currentLine returns the line number of its call site.
+func currentLine() int {
+	_, _, line, _ := runtime.Caller(1)
+	return line
+}
+
+// assertSingleCaller asserts that the log output is a single line with exactly one caller key,
+// and that it names the given file and line.
+func assertSingleCaller(t *testing.T, logOutput *bytes.Buffer, file string, line int) {
+	t.Helper()
+	out := logOutput.String()
+	require.Equal(t, 1, strings.Count(out, `"caller":`), "expected exactly one caller key in %s", out)
+	var entry struct {
+		Caller string `json:"caller"`
+	}
+	require.NoError(t, json.Unmarshal(logOutput.Bytes(), &entry))
+	assert.True(
+		t,
+		strings.HasSuffix(entry.Caller, fmt.Sprintf("%s:%d", file, line)),
+		"caller %q should be %s:%d", entry.Caller, file, line,
+	)
 }
