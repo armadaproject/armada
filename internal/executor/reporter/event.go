@@ -219,13 +219,6 @@ func CreateSimpleJobPreemptedEvent(pod *v1.Pod) (*armadaevents.EventSequence, er
 	return sequence, nil
 }
 
-// CreateSimpleJobFailedEvent creates a failed event with no container details
-// or failure category, for failures where pod container statuses are unavailable
-// (preemption, submit failures).
-func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string, cause armadaevents.KubernetesReason) (*armadaevents.EventSequence, error) {
-	return CreateJobFailedEvent(pod, reason, cause, "", []*armadaevents.ContainerError{}, clusterId, "", "")
-}
-
 func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.KubernetesReason, debugMessage string,
 	containerStatuses []*armadaevents.ContainerError, clusterId string, failureCategory string, failureSubcategory string,
 ) (*armadaevents.EventSequence, error) {
