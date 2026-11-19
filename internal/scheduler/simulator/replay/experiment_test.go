@@ -1,6 +1,7 @@
 package replay
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -59,8 +60,8 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 				require.Equal(t, "second", bAttempts[0].JobID)
 				require.Equal(t, values(360, 360), report.Available)
 				require.Equal(t, values(1, 2.0/3), report.Utilisation)
-				require.Equal(t, values(60_000_000, 0), report.Groups[1].FirstAllocationWaitUS.P50)
-				zero := float64(0)
+				require.Equal(t, waitValues(60_000_000, 0), report.Groups[1].FirstAllocationWaitUS.P50)
+				zero := int64(0)
 				require.Equal(t, difference(&zero, nil), report.Groups[0].FirstAllocationWaitUS.P95)
 				require.Equal(t, values(1, 0), report.Groups[0].Allocated)
 				require.Equal(t, values(1, 0), report.Groups[0].Completed)
@@ -76,7 +77,7 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 			require.Equal(t, "second", aAttempts[1].JobID)
 			require.Equal(t, values(720, 1440), report.Available)
 			require.Equal(t, values(2.0/3, 1.0/3), report.Utilisation)
-			require.Equal(t, waitPercentiles{P50: values(0, 0), P95: values(60_000_000, 0), P99: values(60_000_000, 0)}, report.Groups[0].FirstAllocationWaitUS)
+			require.Equal(t, waitPercentiles{P50: waitValues(0, 0), P95: waitValues(60_000_000, 0), P99: waitValues(60_000_000, 0)}, report.Groups[0].FirstAllocationWaitUS)
 			require.Equal(t, values(2, 2), report.Groups[0].Completed)
 		})
 	}
@@ -232,5 +233,22 @@ func TestWaitPercentilesUseAllocatedArrivalsDuringMeasurement(t *testing.T) {
 	require.Equal(t, values(100, 100), group.Allocated)
 	require.Equal(t, values(1, 1), group.Unallocated)
 	require.Equal(t, values(1, 1), group.CarryIn)
-	require.Equal(t, waitPercentiles{P50: values(50, 50), P95: values(95, 95), P99: values(99, 99)}, group.FirstAllocationWaitUS)
+	require.Equal(t, waitPercentiles{P50: waitValues(50, 50), P95: waitValues(95, 95), P99: waitValues(99, 99)}, group.FirstAllocationWaitUS)
+}
+
+func TestReportKeepsExactMicroseconds(t *testing.T) {
+	a, b := int64(1<<53)+1, int64(1<<53)+2
+	waits := waitPercentiles{P50: waitValues(a, b)}
+	report := comparisonReport{Groups: []groupComparison{{FirstAllocationWaitUS: waits}}}
+	raw, err := json.Marshal(report)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"p50":{"a":9007199254740993,"b":9007199254740994,"delta":1}`)
+	var table bytes.Buffer
+	require.NoError(t, report.print(&table))
+	require.Contains(t, table.String(), "9007199254740993")
+	require.Contains(t, table.String(), "9007199254740994")
+}
+
+func waitValues(a, b int64) metric[int64] {
+	return difference(&a, &b)
 }

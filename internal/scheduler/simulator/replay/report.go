@@ -10,18 +10,20 @@ import (
 	"text/tabwriter"
 )
 
-type metric struct {
-	A     *float64 `json:"a"`
-	B     *float64 `json:"b"`
-	Delta *float64 `json:"delta"`
+type metricValue interface{ int64 | float64 }
+
+type metric[T metricValue] struct {
+	A     *T `json:"a"`
+	B     *T `json:"b"`
+	Delta *T `json:"delta"`
 }
 
-func values(a, b float64) metric {
+func values(a, b float64) metric[float64] {
 	return difference(&a, &b)
 }
 
-func difference(a, b *float64) metric {
-	m := metric{A: a, B: b}
+func difference[T metricValue](a, b *T) metric[T] {
+	m := metric[T]{A: a, B: b}
 	if a != nil && b != nil {
 		delta := *b - *a
 		m.Delta = &delta
@@ -32,21 +34,21 @@ func difference(a, b *float64) metric {
 const comparisonReportVersion = 2
 
 type waitPercentiles struct {
-	P50 metric `json:"p50"`
-	P95 metric `json:"p95"`
-	P99 metric `json:"p99"`
+	P50 metric[int64] `json:"p50"`
+	P95 metric[int64] `json:"p95"`
+	P99 metric[int64] `json:"p99"`
 }
 
 type groupComparison struct {
 	Queue                 string          `json:"queue"`
 	Priority              string          `json:"priority_class"`
-	Arrivals              metric          `json:"arrivals"`
-	CarryIn               metric          `json:"carry_in"`
-	Allocated             metric          `json:"allocated_arrivals"`
-	Unallocated           metric          `json:"unallocated_arrivals"`
-	Completed             metric          `json:"completed"`
-	QueuedAtCutoff        metric          `json:"queued_at_cutoff"`
-	RunningAtCutoff       metric          `json:"running_at_cutoff"`
+	Arrivals              metric[float64] `json:"arrivals"`
+	CarryIn               metric[float64] `json:"carry_in"`
+	Allocated             metric[float64] `json:"allocated_arrivals"`
+	Unallocated           metric[float64] `json:"unallocated_arrivals"`
+	Completed             metric[float64] `json:"completed"`
+	QueuedAtCutoff        metric[float64] `json:"queued_at_cutoff"`
+	RunningAtCutoff       metric[float64] `json:"running_at_cutoff"`
 	FirstAllocationWaitUS waitPercentiles `json:"first_allocation_wait_us"`
 }
 
@@ -57,9 +59,9 @@ type comparisonReport struct {
 	Profile     string            `json:"profile"`
 	Model       string            `json:"model"`
 	Window      Window            `json:"window"`
-	Allocated   metric            `json:"allocated_cpu_seconds"`
-	Available   metric            `json:"available_cpu_seconds"`
-	Utilisation metric            `json:"cpu_utilisation"`
+	Allocated   metric[float64]   `json:"allocated_cpu_seconds"`
+	Available   metric[float64]   `json:"available_cpu_seconds"`
+	Utilisation metric[float64]   `json:"cpu_utilisation"`
 	Groups      []groupComparison `json:"groups"`
 }
 
@@ -144,14 +146,12 @@ func countGroups(run *runResult) map[groupKey]counts {
 }
 
 // percentile uses the nearest rank in the sorted, non-interpolated sample.
-func percentile(sorted []int64, p int) *float64 {
+func percentile(sorted []int64, p int) *int64 {
 	if len(sorted) == 0 {
 		return nil
 	}
 	rank := (len(sorted)*p + 99) / 100
-	// The replay window is bounded below 2^53 microseconds.
-	value := float64(sorted[rank-1])
-	return &value
+	return &sorted[rank-1]
 }
 
 func utilisation(r *runResult) *float64 {
@@ -170,8 +170,9 @@ func (r comparisonReport) print(out io.Writer) error {
 			_, err = fmt.Fprintf(w, format, args...)
 		}
 	}
-	row := func(label string, m metric) {
-		line("%s\t%s\t%s\t%s\n", label, display(m.A), display(m.B), display(m.Delta))
+	row := func(label string, m interface{ columns() [3]string }) {
+		values := m.columns()
+		line("%s\t%s\t%s\t%s\n", label, values[0], values[1], values[2])
 	}
 	line("Change %s\n", r.Change)
 	if r.Code != nil {
@@ -197,9 +198,18 @@ func (r comparisonReport) print(out io.Writer) error {
 	return errors.Join(err, w.Flush())
 }
 
-func display(v *float64) string {
+func (m metric[T]) columns() [3]string {
+	return [3]string{display(m.A), display(m.B), display(m.Delta)}
+}
+
+func display[T metricValue](v *T) string {
 	if v == nil {
 		return "—"
 	}
-	return strconv.FormatFloat(*v, 'f', -1, 64)
+	switch value := any(*v).(type) {
+	case float64:
+		return strconv.FormatFloat(value, 'f', -1, 64)
+	default:
+		return fmt.Sprint(value)
+	}
 }
