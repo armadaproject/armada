@@ -98,7 +98,6 @@ jobs:
     env:
       CGO_ENABLED: "1"
       GOMAXPROCS: "4"
-      ARMADA_TEST_SKIP_POSTGRES: "1"
 
     steps:
       - name: Checkout
@@ -113,7 +112,7 @@ jobs:
         shell: bash
         run: |
           go run gotest.tools/gotestsum@v1.13.0 --format pkgname --jsonfile scheduler-race-results.jsonl -- \
-            -race -count=1 -p=4 -parallel=4 -timeout=10m ./internal/scheduler/...
+            -race -tags=no_postgres -count=1 -p=4 -parallel=4 -timeout=10m ./internal/scheduler/...
 
       - name: Upload Scheduler Race Results
         if: always()
