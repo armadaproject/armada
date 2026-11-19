@@ -20,7 +20,7 @@ import (
 
 // Retry to account for recently created queues returning not found errors on SubmitJobs
 const (
-	submitRetryInterval = 500 * time.Millisecond
+	submitRetryInterval = 2 * time.Second
 	submitRetryTimeout  = 15 * time.Second
 )
 

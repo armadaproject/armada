@@ -30,12 +30,45 @@ contexts:
 
   # Context with OIDC Client Credentials authentication
   # For service accounts (requires confidential client with secret)
-  auth-client-creds:
+  auth-client-executor:
     armadaUrl: localhost:50051
     openIdClientCredentialsAuth:
       providerUrl: "http://localhost:8180/realms/armada"
       clientId: "armada-executor"
       clientSecret: "executor-secret"
+      scopes: ["openid", "profile", "email"]
+
+  auth-client-user:
+    armadaUrl: localhost:50051
+    openIdClientCredentialsAuth:
+      providerUrl: "http://localhost:8180/realms/armada"
+      clientId: "armada-user"
+      clientSecret: "user-secret"
+      scopes: ["openid", "profile", "email"]
+
+  auth-client-admin:
+    armadaUrl: localhost:50051
+    openIdClientCredentialsAuth:
+      providerUrl: "http://localhost:8180/realms/armada"
+      clientId: "armada-admin"
+      clientSecret: "admin-secret"
+      scopes: ["openid", "profile", "email"]
+
+  # Contexts for rbac integration tests which have providerUrl pointing to the Keycloak service running in the docker network
+  rbac-admin:
+    armadaUrl: localhost:50051
+    openIdClientCredentialsAuth:
+      providerUrl: "http://keycloak:8180/realms/armada"
+      clientId: "armada-admin"
+      clientSecret: "admin-secret"
+      scopes: ["openid", "profile", "email"]
+
+  rbac-queue-only:
+    armadaUrl: localhost:50051
+    openIdClientCredentialsAuth:
+      providerUrl: "http://keycloak:8180/realms/armada"
+      clientId: "armada-queue-only"
+      clientSecret: "queue-only-secret"
       scopes: ["openid", "profile", "email"]
 
   # Context with OIDC Password Flow authentication

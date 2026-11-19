@@ -88,7 +88,7 @@ func (srv *EventWatcher) Run(ctx context.Context) error {
 		if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return err
 		}
-		if status.Code(err) == codes.Canceled {
+		if status.Code(err) == codes.Canceled || status.Code(err) == codes.PermissionDenied {
 			return err
 		}
 

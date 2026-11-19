@@ -9,7 +9,7 @@ loadtest.yaml
 test_reports
 code_reports
 /armadactl
-junit.xml
+junit*.xml
 delve
 
 # VS Code
