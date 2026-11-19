@@ -120,11 +120,8 @@ jobs:
           done <<< "$packages"
 
           # The root package's cycle-consistency scenario also requires PostgreSQL.
-          go test -json -race -count=1 -p=4 -parallel=4 -timeout=10m -skip '^TestCycleConsistency$' "${scheduler_packages[@]}" > scheduler-race-results.jsonl || {
-            status=$?
-            tail -n 50 scheduler-race-results.jsonl
-            exit "$status"
-          }
+          go run gotest.tools/gotestsum@v1.13.0 --format pkgname --jsonfile scheduler-race-results.jsonl -- \
+            -race -count=1 -p=4 -parallel=4 -timeout=10m -skip '^TestCycleConsistency$' "${scheduler_packages[@]}"
 
       - name: Upload Scheduler Race Results
         if: always()
