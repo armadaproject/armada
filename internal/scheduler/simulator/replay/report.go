@@ -31,7 +31,7 @@ func difference[T metricValue](a, b *T) metric[T] {
 	return m
 }
 
-const comparisonReportVersion = 2
+const comparisonReportVersion = 3
 
 type waitPercentiles struct {
 	P50 metric[int64] `json:"p50"`
@@ -56,8 +56,6 @@ type comparisonReport struct {
 	Version     int               `json:"version"`
 	Change      string            `json:"change"`
 	Code        *codeChange       `json:"code,omitempty"`
-	Profile     string            `json:"profile"`
-	Model       string            `json:"model"`
 	Window      Window            `json:"window"`
 	Allocated   metric[float64]   `json:"allocated_cpu_seconds"`
 	Available   metric[float64]   `json:"available_cpu_seconds"`
@@ -74,7 +72,7 @@ type counts struct {
 
 func compareResults(change string, code *codeChange, a, b *runResult) comparisonReport {
 	report := comparisonReport{
-		Version: comparisonReportVersion, Change: change, Code: code, Profile: a.Profile, Model: a.Model, Window: a.Window,
+		Version: comparisonReportVersion, Change: change, Code: code, Window: a.Window,
 		Allocated:   difference(a.AllocatedCPUSeconds, b.AllocatedCPUSeconds),
 		Available:   difference(a.AvailableCPUSeconds, b.AvailableCPUSeconds),
 		Utilisation: difference(utilisation(a), utilisation(b)),

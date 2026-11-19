@@ -48,7 +48,7 @@ func TestCompareCapacityAndCordon(t *testing.T) {
 			}
 			b, bAttempts, bQueue := runTestCandidate(t, base, "b", spec, input)
 			report := compareResults(tc.name, nil, a, b)
-			require.Equal(t, 2, report.Version)
+			require.Equal(t, 3, report.Version)
 			checkAttemptCPU(t, aAttempts, *report.Allocated.A)
 			checkAttemptCPU(t, bAttempts, *report.Allocated.B)
 			require.Equal(t, []queueIntervalRow{{JobID: "first"}, {JobID: "second", EndUS: 60_000_000}}, aQueue)
@@ -99,6 +99,9 @@ func runTestCandidate(t *testing.T, base, id string, spec candidate, input candi
 	require.NoError(t, strictJSON(resultRaw, &result))
 	require.NoError(t, result.validate(c, digest(raw)))
 	broken := result
+	broken.Version = 1
+	require.ErrorContains(t, broken.validate(c, digest(raw)), "worker result protocol version 1 is incompatible with version 2")
+	broken = result
 	broken.Outcomes = broken.Outcomes[:1]
 	require.ErrorContains(t, broken.validate(c, digest(raw)), "missing 1 logical outcomes")
 	broken = result
@@ -150,7 +153,7 @@ func TestEmptyAttemptsStillWriteReadableParquet(t *testing.T) {
 
 func TestVerifyObservationsRequiresCompleteChecksummedFiles(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, verifyObservations(t.Context(), dir)) // Older worker.
+	require.ErrorContains(t, verifyObservations(t.Context(), dir), "missing Parquet observations manifest")
 	attemptPath := filepath.Join(dir, attemptsFile)
 	attempts, err := createParquet(attemptPath, new(attemptRow))
 	require.NoError(t, err)
@@ -257,4 +260,13 @@ func TestReportKeepsExactMicroseconds(t *testing.T) {
 
 func waitValues(a, b int64) metric[int64] {
 	return difference(&a, &b)
+}
+
+func TestWorkerRejectsOlderInputProtocol(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "input.json")
+	result := filepath.Join(dir, "run.json")
+	require.NoError(t, os.WriteFile(input, []byte(`{"version":1,"candidate_id":"a"}`), 0o644))
+	require.ErrorContains(t, RunComparisonCandidate(t.Context(), input, result), "worker input protocol version 1 is incompatible with version 2")
+	require.NoFileExists(t, result)
 }

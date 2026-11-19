@@ -23,7 +23,9 @@ so utilisation falls from 2/3 to 1/3.
 ## Define an experiment
 
 Paths in the experiment are relative to that file or absolute. Use local
-simulator executables that implement this version of the comparison protocol.
+simulator executables that implement worker protocol version 2. Rebuild both
+binaries when upgrading from version 1. The experiment and workload files
+use version 1.
 The command executes the supplied binaries with your local permissions; use
 builds you trust. Set `--timeout` to the wall-clock deadline per candidate
 (default 30 seconds). Both runs use the same measurement window and fixed
@@ -40,9 +42,10 @@ Choose one value for `change`.
 | `queue_cordon` | One or more queue cordon flags. |
 | `binary` | Different executable hashes. Include a `code` object with `path` set to `jobdb.SchedulingOrderCompare/queue-priority` and a `behavior` description. Verify with a fixture that exercises the declared change. |
 
-Both sides must supply byte-identical scheduler configurations. Set
-`acknowledge_unbounded_rounds` to true to use the replay profile, which disables
-round-duration budgets. The adapter rejects unsupported settings such as
+Both sides must supply byte-identical scheduler configurations. The runner
+calls the scheduler synchronously on a fixed farm of healthy nodes. It
+disables round-duration budgets. Set `acknowledge_unbounded_rounds` to true
+to acknowledge that behavior. The adapter rejects unsupported settings such as
 asynchronous scheduling, short-job penalties, away pools, and floating resources.
 The binary declaration identifies the intended change. Use fixture outcomes and
 source review to establish what the binary actually changes.
@@ -58,7 +61,7 @@ the production queue, priority class, resource and placement checks.
 
 `comparison.json` contains the table values, including B−A deltas,
 first-allocation wait percentiles and per-queue/priority counts. Report
-version 2 summarises waits at p50, p95 and p99 by queue and priority class,
+version 3 summarises waits at p50, p95 and p99 by queue and priority class,
 using exact nearest-rank percentiles. The sample is arrivals during the
 measurement window that received an allocation before cutoff. Allocated and
 unallocated arrival counts show the sample size and the excluded waits.
@@ -70,8 +73,8 @@ These are modelled quantities for a static healthy farm.
 
 The output directory contains the experiment, each candidate's input snapshot,
 its process log, and its successful run manifest. The manifest records the
-workload, executable, configuration and farm hashes, replay and result versions,
-the window and logical outcomes. A failed or incompatible run leaves its
+workload, executable, configuration and farm hashes, the worker protocol
+version, the window and logical outcomes. A failed or incompatible run leaves its
 available diagnostics under the output directory. Use a fresh directory to retry.
 
 Each candidate also writes two raw Parquet files. Join their
@@ -86,6 +89,4 @@ in `input.json`.
 Timestamp columns ending in `_at_us` are UTC epoch microseconds on the replay
 clock. The records include warm-up. Clip the intervals to the measurement
 window to reconstruct its CPU-seconds. `observations.json` records the
-Parquet schema version and file checksums. Older simulator builds that
-support the version 1 comparison protocol can still be compared. Use builds
-with Parquet support on both sides to get both sets of raw observations.
+Parquet schema version and file checksums.

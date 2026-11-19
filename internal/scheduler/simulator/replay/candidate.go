@@ -22,8 +22,6 @@ type runResult struct {
 	Version              int       `json:"version"`
 	ID                   string    `json:"candidate_id"`
 	Status               string    `json:"status"`
-	Profile              string    `json:"profile"`
-	Model                string    `json:"model"`
 	Window               Window    `json:"window"`
 	InputSHA256          string    `json:"input_sha256"`
 	WorkloadSHA256       string    `json:"workload_sha256"`
@@ -55,12 +53,15 @@ type outcome struct {
 
 func (r *runResult) validate(c candidateRun, inputHash string) error {
 	input := c.input
-	if r.Version != version || r.ID != input.ID || r.Status != "complete" || r.Profile != profile ||
-		r.Model != model || r.Window != input.Window || r.BinarySHA256 != c.binarySHA256 ||
+	if r.Version != workerVersion {
+		return fmt.Errorf("worker result protocol version %d is incompatible with version %d", r.Version, workerVersion)
+	}
+	if r.ID != input.ID || r.Status != "complete" || r.Window != input.Window ||
+		r.BinarySHA256 != c.binarySHA256 ||
 		r.InputSHA256 != inputHash || r.WorkloadSHA256 != input.WorkloadSHA256 ||
 		r.WorkEstimationMethod != input.WorkEstimationMethod ||
 		r.FarmSHA256 != digest(input.Farm) || r.ConfigSHA256 != digest(input.Config) {
-		return errors.New("incompatible run identity, status, replay profile or input provenance")
+		return errors.New("incompatible run identity, status or input provenance")
 	}
 	if r.AllocatedCPUSeconds == nil || r.AvailableCPUSeconds == nil ||
 		math.IsNaN(*r.AllocatedCPUSeconds) || math.IsInf(*r.AllocatedCPUSeconds, 0) ||
@@ -125,8 +126,11 @@ func RunComparisonCandidate(ctx context.Context, inputPath, resultPath string) (
 	if err := strictJSON(raw, &input); err != nil {
 		return err
 	}
-	if input.Version != version || (input.ID != "a" && input.ID != "b") {
-		return errors.New("invalid comparison candidate protocol or identity")
+	if input.Version != workerVersion {
+		return fmt.Errorf("worker input protocol version %d is incompatible with version %d", input.Version, workerVersion)
+	}
+	if input.ID != "a" && input.ID != "b" {
+		return fmt.Errorf("invalid comparison candidate identity %q", input.ID)
 	}
 	if err := validateWindow(input.Window); err != nil {
 		return err
@@ -198,7 +202,7 @@ func RunComparisonCandidate(ctx context.Context, inputPath, resultPath string) (
 	allocated, _ := observations.cpuSeconds.Float64()
 	available, _ := cpuSeconds(capacity, input.Window.EndUS-input.Window.StartUS).Float64()
 	return writeJSON(resultPath, runResult{
-		Version: version, ID: input.ID, Status: "complete", Profile: profile, Model: model, Window: input.Window,
+		Version: workerVersion, ID: input.ID, Status: "complete", Window: input.Window,
 		InputSHA256: digest(raw), BinarySHA256: hash, WorkloadSHA256: input.WorkloadSHA256,
 		WorkEstimationMethod: input.WorkEstimationMethod, ConfigSHA256: digest(input.Config), FarmSHA256: digest(input.Farm),
 		AllocatedCPUSeconds: &allocated, AvailableCPUSeconds: &available, Outcomes: observations.jobs,

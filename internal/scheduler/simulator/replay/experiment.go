@@ -21,14 +21,14 @@ import (
 )
 
 const (
-	version       = 1
-	profile       = "synchronous-static-farm-unbounded-rounds-v1"
-	model         = "fixed-useful-work-v1"
-	maxInput      = 4 << 20
-	maxProtocol   = 32 << 20
-	maxJobs       = 10_000
-	workerCommand = "compare-candidate"
-	orderingPath  = "jobdb.SchedulingOrderCompare/queue-priority"
+	experimentVersion = 1
+	workloadVersion   = 1
+	workerVersion     = 2
+	maxInput          = 4 << 20
+	maxProtocol       = 32 << 20
+	maxJobs           = 10_000
+	workerCommand     = "compare-candidate"
+	orderingPath      = "jobdb.SchedulingOrderCompare/queue-priority"
 )
 
 type experiment struct {
@@ -94,7 +94,7 @@ func Compare(ctx context.Context, manifest, output string, timeout time.Duration
 	if err := strictJSON(raw, &spec); err != nil {
 		return fmt.Errorf("experiment: %w", err)
 	}
-	if spec.Version != version || !spec.AcknowledgeUnboundedRounds || timeout <= 0 {
+	if spec.Version != experimentVersion || !spec.AcknowledgeUnboundedRounds || timeout <= 0 {
 		return errors.New("comparison requires version 1, acknowledge_unbounded_rounds=true and a positive timeout")
 	}
 	if err := validateWindow(spec.Window); err != nil {
@@ -164,7 +164,7 @@ func loadWorkload(path string, window Window) (candidateInput, error) {
 	if err := strictJSON(raw, &spec); err != nil {
 		return candidateInput{}, fmt.Errorf("workload: %w", err)
 	}
-	if spec.Version != version || strings.TrimSpace(spec.WorkEstimationMethod) == "" || spec.Jobs == nil || len(spec.Jobs) > maxJobs {
+	if spec.Version != workloadVersion || strings.TrimSpace(spec.WorkEstimationMethod) == "" || spec.Jobs == nil || len(spec.Jobs) > maxJobs {
 		return candidateInput{}, fmt.Errorf("workload requires version 1, a work estimation method and an explicit list of at most %d jobs", maxJobs)
 	}
 	jobs := make([]Job, 0, len(spec.Jobs))
@@ -196,7 +196,7 @@ func loadWorkload(path string, window Window) (candidateInput, error) {
 		return strings.Compare(a.ID, b.ID)
 	})
 	return candidateInput{
-		Version: version, Window: window, Jobs: jobs,
+		Version: workerVersion, Window: window, Jobs: jobs,
 		WorkloadSHA256: digest(raw), WorkEstimationMethod: spec.WorkEstimationMethod,
 	}, nil
 }

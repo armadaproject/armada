@@ -216,7 +216,7 @@ func (s *productionScheduler) makeJob(offered Job) (*jobdb.Job, error) {
 	if offered.RequiredNodeAffinity != nil {
 		for _, term := range offered.RequiredNodeAffinity.NodeSelectorTerms {
 			if len(term.MatchFields) != 0 {
-				return nil, errors.New("required node affinity matchFields is outside the replay profile")
+				return nil, errors.New("replay does not support required node affinity matchFields")
 			}
 		}
 		if _, err := nodeaffinity.NewNodeSelector(offered.RequiredNodeAffinity); err != nil {
@@ -374,7 +374,7 @@ func replayContext(ctx context.Context) *armadacontext.Context {
 func validateTolerations(tolerations []v1.Toleration) error {
 	for _, toleration := range tolerations {
 		if toleration.TolerationSeconds != nil {
-			return errors.New("timed tolerations are outside the static replay profile")
+			return errors.New("replay does not support timed tolerations")
 		}
 		switch toleration.Operator {
 		case "", v1.TolerationOpEqual:

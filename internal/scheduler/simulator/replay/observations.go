@@ -117,17 +117,7 @@ func writeObservationsManifest(ctx context.Context, dir string) error {
 func verifyObservations(ctx context.Context, dir string) error {
 	raw, err := readLocal(filepath.Join(dir, observationsManifestFile), maxInput)
 	if errors.Is(err, os.ErrNotExist) {
-		// Older workers write only run.json. An artifact without a manifest is incomplete.
-		for _, name := range []string{attemptsFile, queueIntervalsFile} {
-			_, statErr := os.Lstat(filepath.Join(dir, name))
-			if statErr == nil {
-				return errors.New("missing Parquet observations manifest")
-			}
-			if !errors.Is(statErr, os.ErrNotExist) {
-				return statErr
-			}
-		}
-		return nil
+		return errors.New("missing Parquet observations manifest")
 	}
 	if err != nil {
 		return err
