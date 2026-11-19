@@ -2534,6 +2534,11 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"onSubcategory\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"retryLimit\": {\n" +
+		"          \"description\": \"retry_limit is the maximum number of retries for the runs that this rule\\ndecides. The policy retry_limit and the global limit still apply. A value\\nof 0 means that the rule has no limit of its own. Only meaningful when\\naction is Retry.\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

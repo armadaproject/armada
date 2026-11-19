@@ -234,7 +234,7 @@ func TestRetryPolicy_FFOn_DefaultPolicyNameFallback(t *testing.T) {
 	// An empty queue map means the queue has no attached policy, so resolution
 	// must fall back to the default.
 	result, policyName, decided := sched.evaluateRetryPolicy(
-		armadacontext.Background(), job, categorizedError("app-error"), map[string]string{})
+		armadacontext.Background(), job, categorizedError("app-error"), nil, map[string]string{})
 	assert.True(t, decided, "default policy must produce a decision for an unattached queue")
 	assert.Equal(t, "default-policy", policyName, "the decision must be attributed to the default policy")
 	assert.True(t, result.ShouldRetry, "default policy's Retry default action must apply")
@@ -295,7 +295,7 @@ func TestRetryPolicy_FFOn_NilRunErrorIsUndecided(t *testing.T) {
 	// A nil runError is the ingester-race branch: the engine has nothing to match
 	// on and must defer rather than fabricate a retry from a resolvable policy.
 	_, _, decided := sched.evaluateRetryPolicy(
-		armadacontext.Background(), job, nil, map[string]string{"testQueue": "test-policy"})
+		armadacontext.Background(), job, nil, nil, map[string]string{"testQueue": "test-policy"})
 	assert.False(t, decided, "a nil runError must leave the decision to the legacy path even with a resolvable policy")
 }
 
@@ -1037,10 +1037,9 @@ func TestRetryPolicy_FFOn_QueueCacheErrorDecidesNothing(t *testing.T) {
 		run  func(sched *Scheduler, txn *jobdb.Txn) error
 	}{
 		{
-			name: "the failure path returns the error",
-			run: func(sched *Scheduler, txn *jobdb.Txn) error {
-				job := makeFailedJobForRetry(t, sched)
-				_, err := sched.generateUpdateMessages(armadacontext.Background(), txn, []*jobdb.Job{job}, map[string]*armadaevents.Error{job.LatestRun().Id(): categorizedError("app-error")})
+			name: "the policy map of the cycle returns the error",
+			run: func(sched *Scheduler, _ *jobdb.Txn) error {
+				_, err := sched.buildQueueRetryPolicyMap(armadacontext.Background())
 				return err
 			},
 		},
@@ -1064,6 +1063,117 @@ func TestRetryPolicy_FFOn_QueueCacheErrorDecidesNothing(t *testing.T) {
 			defer txn.Abort()
 
 			assert.EqualError(t, tc.run(sched, txn), "queue cache error")
+		})
+	}
+}
+
+func TestRetryPolicy_FFOn_RuleLimitCountsEarlierRuns(t *testing.T) {
+	tests := []struct {
+		name            string
+		earlierCategory string
+		expectRequeue   bool
+	}{
+		{name: "earlier runs that the rule decides use up its limit", earlierCategory: "oom", expectRequeue: false},
+		{name: "earlier runs that another rule decides do not count", earlierCategory: "gpu", expectRequeue: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			policy := mkPolicy(t, 10, api.RetryAction_RETRY_ACTION_FAIL,
+				&api.RetryRule{Action: api.RetryAction_RETRY_ACTION_RETRY, OnCategory: "oom", RetryLimit: 2},
+				&api.RetryRule{Action: api.RetryAction_RETRY_ACTION_RETRY, OnCategory: "gpu"},
+			)
+			sched := makeRetryTestScheduler(t, true, fakePolicyCache{"test-policy": policy})
+			job := makeRetryJob(t, sched, jobRunOpts{schedulingInfo: schedulingInfo, failedRuns: 3})
+
+			jobErrors := map[string]*armadaevents.Error{}
+			for _, run := range job.AllRuns() {
+				jobErrors[run.Id()] = categorizedError(tc.earlierCategory)
+			}
+			jobErrors[job.LatestRun().Id()] = categorizedError("oom")
+
+			txn := sched.jobDb.WriteTxn()
+			defer txn.Abort()
+			require.NoError(t, txn.Upsert([]*jobdb.Job{job}))
+			events, err := sched.generateUpdateMessagesFromJob(
+				armadacontext.Background(), job, jobErrors, map[string]string{"testQueue": "test-policy"}, txn)
+			require.NoError(t, err)
+			require.NotNil(t, events)
+
+			assert.Equal(t, tc.expectRequeue, hasRequeued(events.Events))
+			if !tc.expectRequeue {
+				terminal := terminalError(events.Events)
+				require.NotNil(t, terminal)
+				require.NotNil(t, terminal.GetMaxRunsExceeded())
+				assert.Contains(t, terminal.GetMaxRunsExceeded().Message, "rule retry limit exceeded (2/2)")
+			}
+		})
+	}
+}
+
+func TestRetryPolicy_FFOn_LeaseExpiryRuleLimitCountsEarlierRuns(t *testing.T) {
+	policy := mkPolicy(t, 10, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{
+		Action:        api.RetryAction_RETRY_ACTION_RETRY,
+		OnCategory:    errormatch.CategoryInternal,
+		OnSubcategory: errormatch.SubcategoryLeaseExpired,
+		RetryLimit:    1,
+	})
+	sched := makeRetryTestScheduler(t, true, fakePolicyCache{"test-policy": policy})
+	job := makeRetryJob(t, sched, jobRunOpts{schedulingInfo: schedulingInfo, failedRuns: 1, running: true, leased: true})
+
+	earlierErrors := map[string]*armadaevents.Error{}
+	for _, run := range job.AllRuns() {
+		if run != job.LatestRun() {
+			earlierErrors[run.Id()] = &armadaevents.Error{
+				FailureCategory:    errormatch.CategoryInternal,
+				FailureSubcategory: errormatch.SubcategoryLeaseExpired,
+				Reason:             &armadaevents.Error_LeaseExpired{LeaseExpired: &armadaevents.LeaseExpired{}},
+			}
+		}
+	}
+	sched.jobRepository = &testJobRepository{errors: earlierErrors}
+
+	eventSequences, txn := runLeaseExpiryPath(t, sched, job)
+	defer txn.Abort()
+	require.Len(t, eventSequences, 1)
+
+	terminal := terminalError(eventSequences[0].Events)
+	require.NotNil(t, terminal)
+	require.NotNil(t, terminal.GetMaxRunsExceeded())
+	assert.Contains(t, terminal.GetMaxRunsExceeded().Message, "rule retry limit exceeded (1/1)")
+}
+
+func TestEarlierCountedRunIds(t *testing.T) {
+	sched := makeRetryTestScheduler(t, true, fakePolicyCache{})
+	job := makeRetryJob(t, sched, jobRunOpts{schedulingInfo: schedulingInfo, failedRuns: 2, preemptedRuns: 1})
+
+	ids := earlierCountedRunIds(job)
+	require.Len(t, ids, 1, "only the earlier failed run counts, not the preempted run or the latest run")
+	assert.NotEqual(t, job.LatestRun().Id(), ids[0])
+	assert.False(t, job.RunById(ids[0]).Preempted())
+}
+
+func TestScheduler_NeedsEarlierCauses(t *testing.T) {
+	withRuleLimit := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL,
+		&api.RetryRule{Action: api.RetryAction_RETRY_ACTION_RETRY, OnCategory: "oom", RetryLimit: 1})
+	withoutRuleLimit := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL,
+		&api.RetryRule{Action: api.RetryAction_RETRY_ACTION_RETRY, OnCategory: "oom"})
+	tests := []struct {
+		name               string
+		ffEnabled          bool
+		policy             *retry.Policy
+		queueRetryPolicies map[string]string
+		want               bool
+	}{
+		{name: "a policy with a rule limit needs the earlier causes", ffEnabled: true, policy: withRuleLimit, queueRetryPolicies: map[string]string{"testQueue": "test-policy"}, want: true},
+		{name: "a policy without a rule limit does not", ffEnabled: true, policy: withoutRuleLimit, queueRetryPolicies: map[string]string{"testQueue": "test-policy"}, want: false},
+		{name: "a job that no policy covers does not", ffEnabled: true, policy: withRuleLimit, queueRetryPolicies: map[string]string{}, want: false},
+		{name: "the engine off does not", ffEnabled: false, policy: withRuleLimit, queueRetryPolicies: map[string]string{"testQueue": "test-policy"}, want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sched := makeRetryTestScheduler(t, tc.ffEnabled, fakePolicyCache{"test-policy": tc.policy})
+			job := makeFailedJobForRetry(t, sched)
+			assert.Equal(t, tc.want, sched.needsEarlierCauses(job, tc.queueRetryPolicies))
 		})
 	}
 }
