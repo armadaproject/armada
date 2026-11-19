@@ -12,9 +12,11 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures/postgres"
 )
 
 func TestExecutorRepository_LoadAndSave(t *testing.T) {
+	postgres.Require(t)
 	t1 := time.Now().UTC().Round(1 * time.Microsecond) // postgres only stores times with micro precision
 	t1Proto := protoutil.ToTimestamp(t1)
 	tests := map[string]struct {
@@ -87,6 +89,7 @@ func TestExecutorRepository_LoadAndSave(t *testing.T) {
 }
 
 func TestExecutorRepository_GetLastUpdateTimes(t *testing.T) {
+	postgres.Require(t)
 	t1 := time.Now().UTC().Round(1 * time.Microsecond) // postgres only stores times with micro precision
 	t1Proto := protoutil.ToTimestamp(t1)
 	t2 := t1.Add(-1 * time.Second)

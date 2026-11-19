@@ -44,6 +44,7 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/scheduling/runner"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures/postgres"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -3072,6 +3073,7 @@ func jobDbJobFromDbJob(resourceListFactory *internaltypes.ResourceListFactory, j
 //
 // TODO(albin): Test lease expiry.
 func TestCycleConsistency(t *testing.T) {
+	postgres.Require(t)
 	resourceListFactory := testfixtures.MakeTestResourceListFactory()
 	type schedulerDbUpdate struct {
 		jobUpdates   []*database.Job              // Job updates from the database.

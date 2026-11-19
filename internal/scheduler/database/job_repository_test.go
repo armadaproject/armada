@@ -21,12 +21,14 @@ import (
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures/postgres"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const defaultBatchSize = 1
 
 func TestFetchInitialJobs(t *testing.T) {
+	postgres.Require(t)
 	leasedJob := Job{
 		JobID:          util.NewULID(),
 		JobSet:         "test-jobset",
@@ -223,6 +225,7 @@ func TestFetchInitialJobs(t *testing.T) {
 }
 
 func TestFetchJobUpdates(t *testing.T) {
+	postgres.Require(t)
 	dbJobs, expectedJobs := createTestJobs(10)
 	dbRuns, expectedRuns := createTestRuns(10)
 
@@ -313,6 +316,7 @@ func TestFetchJobUpdates(t *testing.T) {
 }
 
 func TestFetchJobRunErrors(t *testing.T) {
+	postgres.Require(t)
 	const numErrors = 10
 
 	dbErrors := make([]JobRunError, numErrors)
@@ -409,6 +413,7 @@ func TestFetchJobRunErrors(t *testing.T) {
 }
 
 func TestCountReceivedPartitions(t *testing.T) {
+	postgres.Require(t)
 	tests := map[string]struct {
 		numPartitions int
 	}{
@@ -513,6 +518,7 @@ func createTestJobMetadata(jobs []Job) map[string]JobMetadatum {
 }
 
 func TestFindInactiveRuns(t *testing.T) {
+	postgres.Require(t)
 	runIds := make([]string, 3)
 	for i := 0; i < len(runIds); i++ {
 		runIds[i] = uuid.New().String()
@@ -577,6 +583,7 @@ func TestFindInactiveRuns(t *testing.T) {
 }
 
 func TestFetchJobRunLeases(t *testing.T) {
+	postgres.Require(t)
 	const executorName = "testExecutor"
 	dbJobs, _ := createTestJobs(5)
 	jobMetadata := createTestJobMetadata(dbJobs)
@@ -769,6 +776,7 @@ func createTestRuns(numRuns int) ([]Run, []Run) {
 }
 
 func TestSelectJobsByExecutorAndQueues(t *testing.T) {
+	postgres.Require(t)
 	activeJob := Job{
 		JobID:          util.NewULID(),
 		JobSet:         "test-jobset",
@@ -890,6 +898,7 @@ func TestSelectJobsByExecutorAndQueues(t *testing.T) {
 }
 
 func TestSelectLeasedJobsByQueue(t *testing.T) {
+	postgres.Require(t)
 	job := Job{
 		JobID:          util.NewULID(),
 		JobSet:         "test-jobset",
@@ -985,6 +994,7 @@ func TestSelectLeasedJobsByQueue(t *testing.T) {
 }
 
 func TestSelectPendingJobsByQueue(t *testing.T) {
+	postgres.Require(t)
 	job := Job{
 		JobID:          util.NewULID(),
 		JobSet:         "test-jobset",
@@ -1070,6 +1080,7 @@ func TestSelectPendingJobsByQueue(t *testing.T) {
 }
 
 func TestSelectRunningJobsByQueue(t *testing.T) {
+	postgres.Require(t)
 	job := Job{
 		JobID:          util.NewULID(),
 		JobSet:         "test-jobset",

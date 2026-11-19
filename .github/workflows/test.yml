@@ -98,6 +98,7 @@ jobs:
     env:
       CGO_ENABLED: "1"
       GOMAXPROCS: "4"
+      ARMADA_TEST_SKIP_POSTGRES: "1"
 
     steps:
       - name: Checkout
@@ -111,17 +112,8 @@ jobs:
       - name: Race Tests
         shell: bash
         run: |
-          packages=$(go list ./internal/scheduler/...)
-          scheduler_packages=()
-          while IFS= read -r package; do
-            if [[ "$package" != github.com/armadaproject/armada/internal/scheduler/database ]]; then
-              scheduler_packages+=("$package")
-            fi
-          done <<< "$packages"
-
-          # The root package's cycle-consistency scenario also requires PostgreSQL.
           go run gotest.tools/gotestsum@v1.13.0 --format pkgname --jsonfile scheduler-race-results.jsonl -- \
-            -race -count=1 -p=4 -parallel=4 -timeout=10m -skip '^TestCycleConsistency$' "${scheduler_packages[@]}"
+            -race -count=1 -p=4 -parallel=4 -timeout=10m ./internal/scheduler/...
 
       - name: Upload Scheduler Race Results
         if: always()
