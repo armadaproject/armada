@@ -35,9 +35,14 @@ func GetKubeletAcknowledgedTime(pod *v1.Pod) *time.Time {
 }
 
 // GetSandboxReadyTime is when the pod's sandbox existed with its networking configured.
-// Returns nil when the PodReadyToStartContainersCondition feature gate is off
-func GetSandboxReadyTime(pod *v1.Pod) *time.Time {
-	return getPodConditionTime(pod, v1.PodReadyToStartContainers)
+//
+// The PodReadyToStartContainers condition often arrives late, so using the first container event is a better indicator,
+// PodReadyToStartContainers therefore acts as a fallback.
+func GetSandboxReadyTime(pod *v1.Pod, podEvents []*v1.Event) *time.Time {
+	return earliest(
+		firstContainerEventTime(podEvents),
+		getPodConditionTime(pod, v1.PodReadyToStartContainers),
+	)
 }
 
 // GetLatestAppContainerStartTime is the point the pod can be said to have started: the last of its
