@@ -411,7 +411,7 @@ func (l *FairSchedulingAlgo) reconcilePoolJobs(config configuration.PoolConfig, 
 	for gang, failedReconciliations := range gangsPreempted {
 		jobs, err := txn.GetGangJobsByGangId(gang.queue, gang.gangId)
 		if err != nil {
-			return nil, fmt.Errorf("failed to process failed reconciliatiion gang jobs because - %s", err)
+			return nil, fmt.Errorf("failed to process failed reconciliation gang jobs because - %w", err)
 		}
 
 		for _, job := range jobs {

@@ -133,7 +133,7 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "error creating armada api client")
 	}
 	defer func() {
-		err := conn.Close()
+		err := errors.WithStack(conn.Close())
 		if err != nil {
 			ctx.Logger().
 				WithStacktrace(err).
