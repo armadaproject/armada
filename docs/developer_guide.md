@@ -52,7 +52,7 @@ For more information about Armada's design, see the following pages:
 
 ## Other developer docs
 
-- [Armada API](./developer/armada-api.md)
+- [Armada API](./developer/armada-api.md), including [finding the Submit API implementation](./developer/armada-api.md#finding-the-submit-api-implementation)
 - [Regenerating code and API clients](./developer/generation.md)
 - [Scheduler policy clock](./developer/scheduler-policy-clock.md)
 - [Running Armada in an EC2 instance](https://armadaproject.io/developer/aws-ec2)
