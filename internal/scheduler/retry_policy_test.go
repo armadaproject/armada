@@ -240,15 +240,48 @@ func TestRetryPolicy_FFOn_DefaultPolicyNameFallback(t *testing.T) {
 	assert.True(t, result.ShouldRetry, "default policy's Retry default action must apply")
 }
 
-func TestRetryPolicy_FFOn_UnattachedQueueWithoutDefaultIsUndecided(t *testing.T) {
-	sched := makeRetryTestScheduler(t, true, fakePolicyCache{})
-	job := makeFailedJobForRetry(t, sched)
+func TestRetryPolicy_FFOn_UndecidedRunEndFailsWithItsOwnError(t *testing.T) {
+	leaseReturned := &armadaevents.Error{
+		FailureCategory:    errormatch.CategoryInternal,
+		FailureSubcategory: errormatch.SubcategoryPodSubmissionFailed,
+		Reason: &armadaevents.Error_PodLeaseReturned{
+			PodLeaseReturned: &armadaevents.PodLeaseReturned{Message: "pod rejected"},
+		},
+	}
+	podError := categorizedError("app-error")
+	podError.Terminal = true
+	tests := []struct {
+		name               string
+		queueRetryPolicies map[string]string
+		returned           bool
+		runError           *armadaevents.Error
+	}{
+		{name: "a failed run of a job that no policy covers", queueRetryPolicies: map[string]string{}, runError: podError},
+		{name: "a failed run of a job whose policy is not loaded", queueRetryPolicies: map[string]string{"testQueue": "test-policy"}, runError: podError},
+		{name: "a returned lease of a job that no policy covers", queueRetryPolicies: map[string]string{}, returned: true, runError: leaseReturned},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sched := makeRetryTestScheduler(t, true, fakePolicyCache{})
+			job := makeRetryJob(t, sched, jobRunOpts{schedulingInfo: schedulingInfo, failedRuns: 1, returned: tc.returned})
+			txn := sched.jobDb.WriteTxn()
+			defer txn.Abort()
+			require.NoError(t, txn.Upsert([]*jobdb.Job{job}))
 
-	// No attached queue policy and no configured default means the name resolves
-	// to empty, so the engine must leave the decision to the legacy path.
-	_, _, decided := sched.evaluateRetryPolicy(
-		armadacontext.Background(), job, categorizedError("app-error"), map[string]string{})
-	assert.False(t, decided, "an unattached queue with no default policy must not be decided by the engine")
+			events, err := sched.generateUpdateMessagesFromJob(
+				armadacontext.Background(), job, map[string]*armadaevents.Error{job.LatestRun().Id(): tc.runError}, tc.queueRetryPolicies, txn)
+			require.NoError(t, err)
+			require.NotNil(t, events)
+
+			assert.False(t, hasRequeued(events.Events))
+			assert.Equal(t, &armadaevents.Error{
+				Terminal:           true,
+				Reason:             tc.runError.Reason,
+				FailureCategory:    tc.runError.FailureCategory,
+				FailureSubcategory: tc.runError.FailureSubcategory,
+			}, terminalError(events.Events))
+		})
+	}
 }
 
 func TestRetryPolicy_FFOn_NilRunErrorIsUndecided(t *testing.T) {
@@ -266,25 +299,43 @@ func TestRetryPolicy_FFOn_NilRunErrorIsUndecided(t *testing.T) {
 	assert.False(t, decided, "a nil runError must leave the decision to the legacy path even with a resolvable policy")
 }
 
-func TestRetryPolicy_FFOn_LeaseReturnDefersToLegacy(t *testing.T) {
-	policy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{
-		Action:     api.RetryAction_RETRY_ACTION_RETRY,
-		OnCategory: "app-error",
-	})
-
-	sched := makeRetryTestScheduler(t, true, fakePolicyCache{"test-policy": policy})
-	job := makeFailedJobForRetry(t, sched)
-
+func TestRetryPolicy_FFOn_LeaseReturnIsDecidedByPolicy(t *testing.T) {
 	leaseReturned := &armadaevents.Error{
+		FailureCategory:    "image-pull",
+		FailureSubcategory: "back-off",
 		Reason: &armadaevents.Error_PodLeaseReturned{
-			PodLeaseReturned: &armadaevents.PodLeaseReturned{Message: "node drained"},
+			PodLeaseReturned: &armadaevents.PodLeaseReturned{Message: "image pull back-off", RunAttempted: true},
 		},
 	}
-	result, _, decided := sched.evaluateRetryPolicy(
-		armadacontext.Background(), job, leaseReturned, map[string]string{"testQueue": "test-policy"})
-	assert.False(t, decided, "lease returns must not be decided by the engine, even under a Fail-default policy")
-	assert.False(t, result.ShouldRetry, "undecided verdict must not signal retry")
-	assert.Empty(t, result.Reason, "undecided verdict must not carry a reason")
+	tests := []struct {
+		name          string
+		ruleAction    api.RetryAction
+		expectRequeue bool
+	}{
+		{name: "a rule that retries the category requeues the job", ruleAction: api.RetryAction_RETRY_ACTION_RETRY, expectRequeue: true},
+		{name: "a rule that fails the category fails the job", ruleAction: api.RetryAction_RETRY_ACTION_FAIL, expectRequeue: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			policy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_FAIL, &api.RetryRule{Action: tc.ruleAction, OnCategory: "image-pull"})
+			sched := makeRetryTestScheduler(t, true, fakePolicyCache{"test-policy": policy})
+			job := makeRetryJob(t, sched, jobRunOpts{schedulingInfo: schedulingInfo, failedRuns: 1, returned: true, runAttempted: true})
+
+			events, txn := runFailurePath(t, sched, job, leaseReturned)
+			defer txn.Abort()
+
+			assert.Equal(t, tc.expectRequeue, hasRequeued(events.Events))
+			if tc.expectRequeue {
+				assert.False(t, hasJobErrors(events.Events), "a retried lease return emits no JobErrors, because its JobLeaseReturnedEvent already tells the client")
+				return
+			}
+			terminal := terminalError(events.Events)
+			require.NotNil(t, terminal)
+			assert.Equal(t, "image-pull", terminal.FailureCategory)
+			require.NotNil(t, terminal.GetMaxRunsExceeded())
+			assert.Contains(t, terminal.GetMaxRunsExceeded().Message, "image pull back-off")
+		})
+	}
 }
 
 func TestRetryPolicy_FFOn_RetryDecision(t *testing.T) {
@@ -380,17 +431,6 @@ func TestRetryPolicy_FFOn_TerminalFailPreservesOriginalError(t *testing.T) {
 	assert.Contains(t, mre.Message, "Retry policy:", "must surface the policy verdict")
 	assert.Contains(t, mre.Message, "OOMKilled", "must preserve the original pod error message")
 	assert.Contains(t, mre.Message, "137", "must preserve the original container exit code")
-}
-
-func TestRetryPolicy_FFOn_MissingPolicyFallsThrough(t *testing.T) {
-	sched := makeRetryTestScheduler(t, true, fakePolicyCache{}) // empty cache
-
-	job := makeFailedJobForRetry(t, sched)
-	events, txn := runFailurePath(t, sched, job, categorizedError("app-error"))
-	defer txn.Abort()
-
-	assert.True(t, hasJobErrors(events.Events), "missing policy must not crash; falls back to legacy terminal-failure path")
-	assert.False(t, hasRequeued(events.Events), "missing policy must not requeue; the legacy path terminally fails the job")
 }
 
 func hasRequeued(events []*armadaevents.EventSequence_Event) bool {
@@ -989,4 +1029,41 @@ func TestRetryPolicy_FFOff_LeaseExpiryIgnoresPopulatedPolicy(t *testing.T) {
 	require.NotNil(t, updated)
 	assert.True(t, updated.Failed(), "flag off must terminally fail the lease-expired job even when the default policy would retry it")
 	assert.False(t, updated.Queued(), "flag off must not requeue via the engine on lease expiry")
+}
+
+func TestRetryPolicy_FFOn_QueueCacheErrorDecidesNothing(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(sched *Scheduler, txn *jobdb.Txn) error
+	}{
+		{
+			name: "the failure path returns the error",
+			run: func(sched *Scheduler, txn *jobdb.Txn) error {
+				job := makeFailedJobForRetry(t, sched)
+				_, err := sched.generateUpdateMessages(armadacontext.Background(), txn, []*jobdb.Job{job}, map[string]*armadaevents.Error{job.LatestRun().Id(): categorizedError("app-error")})
+				return err
+			},
+		},
+		{
+			name: "the lease expiry path returns the error",
+			run: func(sched *Scheduler, txn *jobdb.Txn) error {
+				require.NoError(t, txn.Upsert([]*jobdb.Job{makeRunningJobOnExecutor(t, sched)}))
+				sched.executorRepository = &testExecutorRepository{
+					updateTimes: map[string]time.Time{"testExecutor": sched.clock.Now().Add(-2 * time.Hour)},
+				}
+				_, err := sched.expireJobsIfNecessary(armadacontext.Background(), txn)
+				return err
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sched := makeRetryTestScheduler(t, true, fakePolicyCache{})
+			sched.queueCache = &testQueueCache{shouldError: true}
+			txn := sched.jobDb.WriteTxn()
+			defer txn.Abort()
+
+			assert.EqualError(t, tc.run(sched, txn), "queue cache error")
+		})
+	}
 }

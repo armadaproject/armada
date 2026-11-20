@@ -308,6 +308,9 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 			// retry policy feature. Without this case it would fall to default
 			// and emit a JobFailedEvent with an empty Reason.
 			failed = newJobFailed(e.JobId, queueName, jobSetName, time, "Lease expired")
+		case *armadaevents.Error_PodLeaseReturned:
+			// A returned lease is terminal when no retry policy retries it.
+			failed = newJobFailed(e.JobId, queueName, jobSetName, time, reason.PodLeaseReturned.GetMessage())
 		case *armadaevents.Error_MaxRunsExceeded:
 			failed = newJobFailed(e.JobId, queueName, jobSetName, time, reason.MaxRunsExceeded.Message)
 		case *armadaevents.Error_GangJobUnschedulable:
