@@ -40,7 +40,7 @@ func (r *Recorder) Record(pod *v1.Pod, info *armadaevents.PodStartUpInfo) {
 	node := pod.Spec.NodeName
 
 	issues := collectionIssues(pod, info)
-	success := len(reportableIssues(issues)) == 0
+	success := len(issues) == 0
 	podStartUpInfoCollectedTotal.WithLabelValues(pool, strconv.FormatBool(success)).Inc()
 	recordCollectionIssues(pod.Name, pool, issues)
 
