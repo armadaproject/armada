@@ -269,14 +269,22 @@ func addGangIdLabel(msg *armadaevents.SubmitJob, config configuration.Submission
 
 // Templates the JobId in labels and annotations. This allows users to define labels and annotations containing the string
 // {JobId} and have it populated with the actual id of the job.
-func templateMeta(msg *armadaevents.SubmitJob, _ configuration.SubmissionConfig) {
-	template := func(labels map[string]string, jobId string) {
+func templateMeta(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig) {
+	template := func(labels map[string]string, jobId string, literalTraceContext bool) {
 		for key, value := range labels {
+			if literalTraceContext {
+				switch key {
+				case "otel.armadaproject.io/traceparent", "otel.armadaproject.io/tracestate", "otel.armadaproject.io/baggage":
+					// Trace fields are carriers, not templates. Expansion would change
+					// the resolved context and invalidate its checked byte limits.
+					continue
+				}
+			}
 			value := strings.ReplaceAll(value, "{{JobId}}", ` \z`) // \z cannot be entered manually, hence its use
 			value = strings.ReplaceAll(value, "{JobId}", jobId)
 			labels[key] = strings.ReplaceAll(value, ` \z`, "JobId")
 		}
 	}
-	template(msg.GetObjectMeta().GetAnnotations(), msg.JobId)
-	template(msg.GetObjectMeta().GetLabels(), msg.JobId)
+	template(msg.GetObjectMeta().GetAnnotations(), msg.JobId, config.TraceContext.Enabled)
+	template(msg.GetObjectMeta().GetLabels(), msg.JobId, false)
 }

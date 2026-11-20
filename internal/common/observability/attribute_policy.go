@@ -82,9 +82,12 @@ func NewDefaultSpanAttributePolicy() *SpanAttributePolicy {
 		deniedContains:            []string{"password", "secret", "token", "api_key", "apikey"},
 		cardinalityExemptPrefixes: []string{"rpc.", "http.", "net.", "server.", "service."},
 		cardinalityExemptExact: map[string]struct{}{
-			"trace_id":        {},
-			"span_id":         {},
-			"http.user_agent": {},
+			"trace_id":          {},
+			"span_id":           {},
+			"http.user_agent":   {},
+			"armada.job.id":     {},
+			"armada.job_set.id": {},
+			"armada.queue":      {},
 		},
 		cardinality: newAttributeCardinalityTracker(DefaultAttributeCardinalityLimit),
 	}

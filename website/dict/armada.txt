@@ -79,3 +79,7 @@ temurin
 Dskip
 GOBIN
 reprioritization
+
+traceparent
+traceparents
+tracestate
