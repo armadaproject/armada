@@ -249,7 +249,6 @@ export KUBECONFIG=.kube/external/config
 mage dev:up no-auth           # default
 mage dev:up auth              # OIDC via keycloak
 mage dev:up fake-executor     # no Kubernetes cluster needed
-mage dev:up hot-cold          # parallel Hot/Cold Lookout stack
 mage dev:down                 # stop the dependency containers
 ```
 
