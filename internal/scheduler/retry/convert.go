@@ -74,6 +74,7 @@ func convertRule(r *api.RetryRule) (Rule, error) {
 		Action:        action,
 		OnCategory:    r.OnCategory,
 		OnSubcategory: r.OnSubcategory,
+		RetryLimit:    r.RetryLimit,
 		Mutation: Mutation{
 			Affinity: AffinityMutation{
 				AvoidSameNode: r.GetMutate().GetAffinity().GetAvoidSameNode(),

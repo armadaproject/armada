@@ -24,6 +24,16 @@ type Policy struct {
 	Rules         []Rule
 }
 
+// HasRuleLimit reports whether a rule of the policy has its own retry limit.
+func (p *Policy) HasRuleLimit() bool {
+	for _, rule := range p.Rules {
+		if rule.RetryLimit > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // Rule defines a single matching rule within a policy.
 // OnSubcategory narrows a category match. Empty matches any subcategory.
 type Rule struct {
@@ -32,6 +42,9 @@ type Rule struct {
 	OnSubcategory string
 	// Mutation describes changes applied to the job when this rule retries it.
 	Mutation Mutation
+	// RetryLimit is the maximum number of retries for the runs that this rule
+	// decides. 0 means that the rule has no limit of its own.
+	RetryLimit uint32
 }
 
 // Mutation groups the changes applied to a job on a policy-driven retry.
@@ -78,6 +91,7 @@ const (
 	DecisionRetry           Decision = "retry"
 	DecisionFailRule        Decision = "fail_rule"
 	DecisionFailPolicyLimit Decision = "fail_policy_limit"
+	DecisionFailRuleLimit   Decision = "fail_rule_limit"
 	DecisionFailGlobalLimit Decision = "fail_global_limit"
 	DecisionFailDefault     Decision = "fail_default"
 	// DecisionNoError is returned when there is no run error to evaluate. It

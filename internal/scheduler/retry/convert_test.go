@@ -26,6 +26,7 @@ func TestConvertPolicy(t *testing.T) {
 						Action:        api.RetryAction_RETRY_ACTION_RETRY,
 						OnCategory:    "transient",
 						OnSubcategory: "node-failure",
+						RetryLimit:    2,
 					},
 				},
 			},
@@ -34,7 +35,7 @@ func TestConvertPolicy(t *testing.T) {
 				RetryLimit:    5,
 				DefaultAction: ActionFail,
 				Rules: []Rule{
-					{Action: ActionRetry, OnCategory: "transient", OnSubcategory: "node-failure"},
+					{Action: ActionRetry, OnCategory: "transient", OnSubcategory: "node-failure", RetryLimit: 2},
 				},
 			},
 		},

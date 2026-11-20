@@ -362,11 +362,18 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	//              (Each pod can produce at most 12KiB of errors; see
 	//              https://kubernetes.io/docs/tasks/debug/debug-application/determine-reason-pod-failure/#customizing-the-termination-message)
 	//              If so, the scheduler may not be able to progress until a human manually deleted those errors.
+	queueRetryPolicies, err := s.buildQueueRetryPolicyMap(ctx)
+	if err != nil {
+		return false, err
+	}
 	failedRunIds := make([]string, 0, len(updatedJobs))
 	for _, job := range updatedJobs {
 		run := job.LatestRun()
 		if run != nil && run.Failed() {
 			failedRunIds = append(failedRunIds, run.Id())
+			if s.needsEarlierCauses(job, queueRetryPolicies) {
+				failedRunIds = append(failedRunIds, earlierCountedRunIds(job)...)
+			}
 		}
 	}
 	ctx.Info("Fetching job run errors")
@@ -383,7 +390,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Generate any eventSequences that came out of synchronising the db state.
 	ctx.Info("Generating update messages based on reconciliation changes")
-	events, err := s.generateUpdateMessages(ctx, txn, updatedJobs, jobRepoRunErrorsByRunId)
+	events, err := s.generateUpdateMessages(ctx, txn, updatedJobs, jobRepoRunErrorsByRunId, queueRetryPolicies)
 	if err != nil {
 		return false, err
 	}
@@ -1060,14 +1067,10 @@ func (s *Scheduler) evaluateRetryPolicy(
 	ctx *armadacontext.Context,
 	job *jobdb.Job,
 	runError *armadaevents.Error,
+	jobRunErrors map[string]*armadaevents.Error,
 	queueRetryPolicies map[string]string,
 ) (result retry.Result, policyName string, decided bool) {
-	// A queue's attached policy wins. Otherwise fall back to the fleet-wide
-	// default policy, if one is configured.
-	policyName = queueRetryPolicies[job.Queue()]
-	if policyName == "" {
-		policyName = s.retryPolicyConfig.DefaultPolicyName
-	}
+	policyName = s.retryPolicyName(job, queueRetryPolicies)
 
 	// Gangs are excluded from policy-based retry: gang-aware retry needs to
 	// aggregate failures across all members and restart them together. Count and
@@ -1103,10 +1106,59 @@ func (s *Scheduler) evaluateRetryPolicy(
 		return retry.Result{}, "", false
 	}
 
-	result = s.retryEngine.Evaluate(policy, runError, retry.Counts{Failures: job.FailureCount()})
+	result = s.retryEngine.Evaluate(policy, runError, retry.Counts{
+		Failures:      job.FailureCount(),
+		EarlierCauses: earlierFailureCauses(job, jobRunErrors),
+	})
 	ctx.Debugf("retry decision for job %s queue=%s policy=%s: ShouldRetry=%v Reason=%q",
 		job.Id(), job.Queue(), policyName, result.ShouldRetry, result.Reason)
 	return result, policyName, true
+}
+
+// retryPolicyName returns the name of the policy that decides the retries of
+// the job. A queue's attached policy wins. Otherwise the fleet-wide default
+// policy applies, if one is configured.
+func (s *Scheduler) retryPolicyName(job *jobdb.Job, queueRetryPolicies map[string]string) string {
+	if name := queueRetryPolicies[job.Queue()]; name != "" {
+		return name
+	}
+	return s.retryPolicyConfig.DefaultPolicyName
+}
+
+// needsEarlierCauses reports whether the policy of the job has a rule limit.
+// Only a rule limit reads the causes of the earlier runs, so the scheduler
+// fetches their errors only for such a job.
+func (s *Scheduler) needsEarlierCauses(job *jobdb.Job, queueRetryPolicies map[string]string) bool {
+	if !s.retryPolicyConfig.Enabled {
+		return false
+	}
+	policy, ok := s.retryPolicyCache.Get(s.retryPolicyName(job, queueRetryPolicies))
+	return ok && policy.HasRuleLimit()
+}
+
+// earlierCountedRunIds returns the ids of the earlier runs of the job that
+// FailureCount counts.
+func earlierCountedRunIds(job *jobdb.Job) []string {
+	var ids []string
+	latest := job.LatestRun()
+	for _, run := range job.AllRuns() {
+		if run != latest && run.Failed() && !run.EverPreempted() {
+			ids = append(ids, run.Id())
+		}
+	}
+	return ids
+}
+
+// earlierFailureCauses returns the cause of each earlier run of the job that
+// FailureCount counts. A run whose error the caller did not fetch is left out.
+func earlierFailureCauses(job *jobdb.Job, jobRunErrors map[string]*armadaevents.Error) []retry.Cause {
+	var causes []retry.Cause
+	for _, runId := range earlierCountedRunIds(job) {
+		if runError, ok := jobRunErrors[runId]; ok {
+			causes = append(causes, retry.Cause{Category: runError.GetFailureCategory(), Subcategory: runError.GetFailureSubcategory()})
+		}
+	}
+	return causes
 }
 
 // runErrorDetail renders the human-readable detail of a run error (the pod
@@ -1138,12 +1190,7 @@ func runErrorDetail(runError *armadaevents.Error) string {
 
 // generateUpdateMessages generates EventSequences representing the state changes on updated jobs.
 // If there are no state changes then an empty slice will be returned.
-func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[string]*armadaevents.Error) ([]*armadaevents.EventSequence, error) {
-	queueRetryPolicies, err := s.buildQueueRetryPolicyMap(ctx)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[string]*armadaevents.Error, queueRetryPolicies map[string]string) ([]*armadaevents.EventSequence, error) {
 	// Generate any eventSequences that came out of synchronising the db state.
 	var events []*armadaevents.EventSequence
 	for _, job := range updatedJobs {
@@ -1325,7 +1372,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 			if s.retryPolicyConfig.Enabled {
 				// Only a retry policy grants a retry, so a run end that no policy
 				// decides fails the job.
-				engineResult, enginePolicyName, engineDecided = s.evaluateRetryPolicy(ctx, job, runError, queueRetryPolicies)
+				engineResult, enginePolicyName, engineDecided = s.evaluateRetryPolicy(ctx, job, runError, jobRunErrors, queueRetryPolicies)
 				requeueJob = engineDecided && engineResult.ShouldRetry
 			}
 
@@ -1566,6 +1613,21 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 
 	jobs := txn.GetAllLeasedJobs()
 
+	var earlierRunIds []string
+	for _, job := range jobs {
+		run := job.LatestRun()
+		if !job.InTerminalState() && run != nil && !job.Queued() && staleExecutors[run.Executor()] && s.needsEarlierCauses(job, queueRetryPolicies) {
+			earlierRunIds = append(earlierRunIds, earlierCountedRunIds(job)...)
+		}
+	}
+	var earlierRunErrors map[string]*armadaevents.Error
+	if len(earlierRunIds) > 0 {
+		earlierRunErrors, err = s.jobRepository.FetchJobRunErrors(ctx, earlierRunIds)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	for _, job := range jobs {
 
 		if job.InTerminalState() {
@@ -1589,7 +1651,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 				// skips gang jobs internally, so gangs always take the
 				// terminal path below.
 				jobWithFailedRun := job.WithUpdatedRun(run.WithFailed(true))
-				result, policyName, decided := s.evaluateRetryPolicy(ctx, jobWithFailedRun, leaseExpiredError, queueRetryPolicies)
+				result, policyName, decided := s.evaluateRetryPolicy(ctx, jobWithFailedRun, leaseExpiredError, earlierRunErrors, queueRetryPolicies)
 				if decided {
 					// The expiry path applies no mutations, so the verdict is
 					// the outcome.
