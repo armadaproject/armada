@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "work_estimation_method": "synthetic fixed duration",
+  "jobs": [
+    {
+      "logical_job_id": "second",
+      "submitted_at_s": 0,
+      "useful_s": 60,
+      "queue": "shared",
+      "queue_priority": 1,
+      "priority_class": "low",
+      "requests": {"cpu": "4"}
+    },
+    {
+      "logical_job_id": "first",
+      "submitted_at_s": 0,
+      "useful_s": 60,
+      "queue": "shared",
+      "queue_priority": 0,
+      "priority_class": "low",
+      "requests": {"cpu": "4"}
+    }
+  ]
+}

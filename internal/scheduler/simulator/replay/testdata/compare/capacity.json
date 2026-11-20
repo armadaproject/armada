@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "workload": "workload.json",
+  "window": {
+    "warmup_start_s": 0,
+    "measurement_start_s": 0,
+    "end_s": 180,
+    "cycle_s": 1
+  },
+  "acknowledge_unbounded_rounds": true,
+  "change": "capacity",
+  "a": {
+    "farm": "farm-one.yaml",
+    "scheduler_config": "scheduler.yaml",
+    "queues": [{"name": "shared", "weight": 1}]
+  },
+  "b": {
+    "farm": "farm-two.yaml",
+    "scheduler_config": "scheduler.yaml",
+    "queues": [{"name": "shared", "weight": 1}]
+  }
+}
