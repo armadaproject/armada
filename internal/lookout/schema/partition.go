@@ -428,22 +428,12 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx, on
 		return JobTableShapeUnknown, errors.Wrap(err, "create job_new partitioned table")
 	}
 
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO job_new (
-			job_id, queue, owner, jobset, cpu, memory, ephemeral_storage, gpu,
-			priority, submitted, cancelled, state, last_transition_time,
-			last_transition_time_seconds, job_spec, duplicate, priority_class,
-			latest_run_id, cancel_reason, namespace, annotations,
-			external_job_uri, cancel_user, preempt_user, reprioritize_user
-		)
-		SELECT
-			job_id, queue, owner, jobset, cpu, memory, ephemeral_storage, gpu,
-			priority, submitted, cancelled, state, last_transition_time,
-			last_transition_time_seconds, job_spec, duplicate, priority_class,
-			latest_run_id, cancel_reason, namespace, annotations,
-			external_job_uri, cancel_user, preempt_user, reprioritize_user
-		FROM job
-	`); err != nil {
+	columns, err := columnsToCopy(ctx, tx)
+	if err != nil {
+		return JobTableShapeUnknown, err
+	}
+	columnList := strings.Join(columns, ", ")
+	if _, err := tx.Exec(ctx, "INSERT INTO job_new ("+columnList+") SELECT "+columnList+" FROM job"); err != nil {
 		return JobTableShapeUnknown, errors.Wrap(err, "copy rows from job to job_new")
 	}
 
@@ -480,4 +470,45 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx, on
 	}
 
 	return JobTableShapePartitioned, nil
+}
+
+// columnsToCopy returns the quoted names of the columns of job, in order. It
+// returns an error if job_new lacks any of them, because copying would
+// otherwise silently drop that column's data. Columns of job_new that job
+// lacks, which exist when the conversion runs before the migration that adds
+// them, are left to take their defaults.
+func columnsToCopy(ctx *armadacontext.Context, tx pgx.Tx) ([]string, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT a.attname, EXISTS (
+			SELECT 1 FROM pg_attribute n
+			WHERE n.attrelid = 'job_new'::regclass AND n.attname = a.attname AND n.attnum > 0 AND NOT n.attisdropped
+		)
+		FROM pg_attribute a
+		WHERE a.attrelid = 'job'::regclass AND a.attnum > 0 AND NOT a.attisdropped
+		ORDER BY a.attnum
+	`)
+	if err != nil {
+		return nil, errors.Wrap(err, "list job columns")
+	}
+	var columns, missing []string
+	for rows.Next() {
+		var name string
+		var inTarget bool
+		if err := rows.Scan(&name, &inTarget); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if !inTarget {
+			missing = append(missing, name)
+		}
+		columns = append(columns, pgx.Identifier{name}.Sanitize())
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("job has columns missing from target_schema.sql: %v", missing)
+	}
+	return columns, nil
 }

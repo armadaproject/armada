@@ -4,8 +4,12 @@
 // The package provides:
 //   - A simple, custom migration engine (UpdateDatabase, ReadMigrations)
 //     used by the scheduler and lookout migrators. Migrations are numbered
-//     SQL files; the applied version is tracked in a database_version
-//     sequence.
+//     SQL files, or directories of SQL files executed as separate
+//     statements; the applied version is tracked in a database_version
+//     sequence. A migration may have named variants, such as
+//     "040_x.partitioned.sql" alongside "040_x.sql", and
+//     UpdateDatabaseWithVariants chooses which variant to apply to each
+//     migration with a caller-supplied VariantSelector.
 //   - PrepareSchema and MigrationConfig, which let migrators optionally
 //     create the target schema and set search_path before running
 //     migrations. A separate "schema-creator" connection can be configured

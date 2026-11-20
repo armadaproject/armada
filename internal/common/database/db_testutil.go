@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"maps"
+	"slices"
 	"sync"
 
 	"github.com/jackc/pgx/v5"
@@ -117,7 +119,10 @@ func ensureTemplate(ctx *armadacontext.Context, admin *pgx.Conn, migrations []Mi
 func migrationKey(migrations []Migration) string {
 	h := sha256.New()
 	for _, m := range migrations {
-		fmt.Fprintf(h, "%d:%s:%s;", m.id, m.name, m.sql)
+		fmt.Fprintf(h, "%d:%s;", m.id, m.name)
+		for _, variant := range slices.Sorted(maps.Keys(m.variants)) {
+			fmt.Fprintf(h, "%s:%q;", variant, m.variants[variant])
+		}
 	}
 	return hex.EncodeToString(h.Sum(nil))[:16]
 }
