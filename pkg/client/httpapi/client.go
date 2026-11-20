@@ -1,0 +1,217 @@
+// Package httpapi is a client for an HTTP API that is authenticated with the credentials of an Armada connection,
+// the way the gRPC connection is. The API can be any: Lookout, or the REST gateway of the Armada server.
+package httpapi
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/pkg/errors"
+
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/pkg/client"
+)
+
+// Client sends requests to one HTTP API. The credentials are logged in with when it is made, once, and every request
+// asks them for their current token, so a command that runs for a long time keeps working after the first token
+// expires.
+type Client struct {
+	baseUrl       string
+	httpClient    *http.Client
+	authenticated bool
+}
+
+type options struct {
+	transport      http.RoundTripper
+	now            func() time.Time
+	credentialsTTL time.Duration
+}
+
+// Option changes how a Client is made.
+type Option func(*options)
+
+// WithTransport sets what sends the requests in the end, instead of http.DefaultTransport.
+func WithTransport(transport http.RoundTripper) Option {
+	return func(o *options) { o.transport = transport }
+}
+
+// withCredentialsTTL and withClock are for tests: how long the headers of a request are kept, and what time it is.
+func withCredentialsTTL(ttl time.Duration) Option { return func(o *options) { o.credentialsTTL = ttl } }
+func withClock(now func() time.Time) Option       { return func(o *options) { o.now = now } }
+
+// New makes a client for the API at url, which is authenticated with the credentials of the connection. A url
+// without a scheme gets http if it is local and https otherwise. Credentials are never sent over plain http to a
+// remote host unless the connection has ForceNoTls set, whether in a request or in a redirect, and never to a host
+// other than the one of the API.
+func New(connectionDetails *client.ApiConnectionDetails, url string, opts ...Option) (*Client, error) {
+	return newClient(connectionDetails, url, connectionDetails.RequestAuth, opts...)
+}
+
+// newClient is New with the way to log in given: it is called once, and returns the function that gives the headers
+// for a request to a url.
+func newClient(
+	connectionDetails *client.ApiConnectionDetails,
+	url string,
+	login func() (func(ctx context.Context, url string) (map[string]string, error), error),
+	opts ...Option,
+) (*Client, error) {
+	if url == "" {
+		return nil, errors.New("no url given for the http api")
+	}
+	o := &options{transport: http.DefaultTransport, now: time.Now, credentialsTTL: credentialsTTL}
+	for _, opt := range opts {
+		opt(o)
+	}
+	base := baseUrl(url)
+
+	authenticate, err := login()
+	if err != nil {
+		return nil, err
+	}
+	// Asking once now checks the url and the credentials before any request is made, and has them ready.
+	ctx, cancel := common.ContextWithDefaultTimeout()
+	defer cancel()
+	headers, err := authenticate(ctx, base)
+	if err != nil {
+		return nil, err
+	}
+
+	transport := o.transport
+	if len(headers) > 0 {
+		transport = newAuthTransport(transport, hostOf(base), authenticate, headers, o)
+	}
+	return &Client{
+		baseUrl:       base,
+		httpClient:    &http.Client{Transport: transport, CheckRedirect: checkRedirect(connectionDetails, len(headers) > 0)},
+		authenticated: len(headers) > 0,
+	}, nil
+}
+
+// hostOf is the hostname of a url.
+func hostOf(rawUrl string) string {
+	u, err := url.Parse(rawUrl)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
+}
+
+// baseUrl adds a scheme to a url that has none: http for a local address, https otherwise.
+func baseUrl(url string) string {
+	url = strings.TrimRight(url, "/")
+	if strings.Contains(url, "://") {
+		return url
+	}
+	if client.IsLocalAddress(url) {
+		return "http://" + url
+	}
+	return "https://" + url
+}
+
+// checkRedirect stops a request that carries credentials from following a redirect to somewhere they must not go.
+// The credentials are given to every request to the host of the API, so a redirect that stays on the host would
+// keep them, and a Lookout that redirects from https to http would otherwise get them in clear text.
+func checkRedirect(connectionDetails *client.ApiConnectionDetails, authenticated bool) func(*http.Request, []*http.Request) error {
+	return func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		if authenticated && !connectionDetails.AllowsCredentialsOver(req.URL.String()) {
+			return fmt.Errorf("refusing to follow a redirect to %s: the credentials would be sent over plain http", req.URL.Redacted())
+		}
+		return nil
+	}
+}
+
+// StatusError is the error of a request that was answered with a status other than 2xx. Callers that can make
+// sense of a particular status can find it with errors.As.
+type StatusError struct {
+	Method string
+	Path   string
+	// Code is the status code and Status the status line, for example 400 and "400 Bad Request".
+	Code   int
+	Status string
+	// Body is the start of the response.
+	Body string
+	// Hint says what to do about it, when that is known.
+	Hint string
+}
+
+func (e *StatusError) Error() string {
+	msg := fmt.Sprintf("%s %s returned %s: %s", e.Method, e.Path, e.Status, e.Body)
+	if e.Hint != "" {
+		msg += " (" + e.Hint + ")"
+	}
+	return msg
+}
+
+// Unauthorized reports whether the request was answered with 401: it was not authenticated.
+func (e *StatusError) Unauthorized() bool { return e.Code == http.StatusUnauthorized }
+
+// unauthorizedHint says why a request was not authenticated and what to do. The credentials were asked for afresh once
+// before this, so they have been rejected, not just old.
+func (c *Client) unauthorizedHint() string {
+	if !c.authenticated {
+		return "the connection has no credentials: configure some for the context"
+	}
+	return "the credentials of the connection were not accepted, even when asked for again: check that they are for this API"
+}
+
+// Get sends a GET request to path and decodes the JSON response into out.
+func (c *Client) Get(path string, out any) error {
+	return c.Do(http.MethodGet, path, nil, out)
+}
+
+// Post sends body as JSON to path and decodes the JSON response into out.
+func (c *Client) Post(path string, body, out any) error {
+	return c.Do(http.MethodPost, path, body, out)
+}
+
+// Do sends a request to path, with body as its JSON when there is one, and decodes the JSON response into out,
+// unless out is nil. Any status but 2xx is an error that has the status and the start of the response.
+func (c *Client) Do(method, path string, body, out any) error {
+	ctx, cancel := common.ContextWithDefaultTimeout()
+	defer cancel()
+
+	var payload io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		payload = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.baseUrl+path, payload)
+	if err != nil {
+		return err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		status := &StatusError{Method: method, Path: path, Code: resp.StatusCode, Status: resp.Status, Body: strings.TrimSpace(string(b))}
+		if status.Unauthorized() {
+			status.Hint = c.unauthorizedHint()
+		}
+		return status
+	}
+	if out == nil {
+		return nil
+	}
+	return json.NewDecoder(resp.Body).Decode(out)
+}
