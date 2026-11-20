@@ -101,7 +101,7 @@ func (p *PulsarPublisher) PublishMarkers(ctx *armadacontext.Context, groupId uui
 		}
 		bytes, err := proto.Marshal(es)
 		if err != nil {
-			return 0, err
+			return 0, errors.WithStack(err)
 		}
 		msg := &pulsar.ProducerMessage{
 			Properties: map[string]string{
@@ -113,7 +113,7 @@ func (p *PulsarPublisher) PublishMarkers(ctx *armadacontext.Context, groupId uui
 		// We send relatively few position markers so the performance penalty shouldn't be meaningful
 		_, err = p.producer.Send(ctx, msg)
 		if err != nil {
-			return 0, err
+			return 0, errors.WithStack(err)
 		}
 	}
 	return uint32(p.numPartitions), nil
