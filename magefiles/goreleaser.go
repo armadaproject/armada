@@ -25,13 +25,17 @@ func goreleaserRun(args ...string) error {
 	return sh.Run(goreleaserBinary(), args...)
 }
 
-func goreleaserMinimalRelease(dockerIds ...string) error {
+func goreleaserMinimalRelease(skipArchive bool, dockerIds ...string) error {
 	if err := goreleaserWriteMinimalReleaseConfig(dockerIds...); err != nil {
 		return err
 	}
 
+	args := []string{"release", "--snapshot", "--clean", "-f", GORELEASER_MINIMAL_CONFIG_PATH}
+	if skipArchive {
+		args = append(args, "--skip=archive")
+	}
 	timeTaken := time.Now()
-	err := goreleaserRun("release", "--snapshot", "--clean", "-f", GORELEASER_MINIMAL_CONFIG_PATH)
+	err := goreleaserRun(args...)
 	fmt.Println("Time to build dockers:", time.Since(timeTaken))
 
 	return err
