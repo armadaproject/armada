@@ -7,6 +7,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"k8s.io/utils/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -507,7 +509,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 						nodeType:    node.ReportingNodeType,
 						reservation: reservation,
 						// Convert to string with first letter capitalised
-						phase: strings.Title(strings.ToLower(phase)),
+						phase: cases.Title(language.English).String(strings.ToLower(phase)),
 					}
 					phaseCountByQueue[key]++
 
@@ -516,7 +518,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 						nodeJobsMetricCounts[nodeJobPhaseMetricKey{
 							node:    node.Name,
 							cluster: executor.Id,
-							phase:   strings.Title(strings.ToLower(phase)),
+							phase:   cases.Title(language.English).String(strings.ToLower(phase)),
 						}]++
 					}
 
