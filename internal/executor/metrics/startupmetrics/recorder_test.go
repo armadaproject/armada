@@ -216,6 +216,69 @@ func TestRecord_ImagePullInfoCountedPerImage(t *testing.T) {
 	assert.Equal(t, float64(1), testutil.ToFloat64(podStartUpInfoCollectedTotal.WithLabelValues(pool, "false")))
 }
 
+func TestRecord_TotalImagePullDuration(t *testing.T) {
+	realPull := func(duration int) *armadaevents.ImagePullInfo {
+		return &armadaevents.ImagePullInfo{
+			Duration: seconds(duration),
+		}
+	}
+
+	cachedPull := func() *armadaevents.ImagePullInfo {
+		return &armadaevents.ImagePullInfo{Cached: true, SizeBytes: sizeBytes(1024)}
+	}
+
+	infoWithPulls := func(initPull, appPull *armadaevents.ImagePullInfo) *armadaevents.PodStartUpInfo {
+		return &armadaevents.PodStartUpInfo{
+			InitContainers: []*armadaevents.ContainerStartUpInfo{{Name: "init", ImagePull: initPull}},
+			Containers:     []*armadaevents.ContainerStartUpInfo{{Name: "main", ImagePull: appPull}},
+		}
+	}
+
+	tests := map[string]struct {
+		info     *armadaevents.PodStartUpInfo
+		expected *float64
+	}{
+		"every container's pull is summed": {
+			info:     infoWithPulls(realPull(58), realPull(20)),
+			expected: new(float64(78)),
+		},
+		"a cached container contributes nothing": {
+			info:     infoWithPulls(realPull(58), cachedPull()),
+			expected: new(float64(58)),
+		},
+		"zero for a pod that pulled nothing at all": {
+			info:     infoWithPulls(cachedPull(), cachedPull()),
+			expected: new(float64(0)),
+		},
+		"skipped when a container's pull is undescribed": {
+			info: infoWithPulls(realPull(58), nil),
+		},
+		"skipped when invalid pull details provided": {
+			info: infoWithPulls(realPull(58), &armadaevents.ImagePullInfo{}),
+		},
+		"skipped when the pod has no containers at all": {
+			info: &armadaevents.PodStartUpInfo{},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			queue := "total-pull-" + name
+			pool := "total-pull-pool"
+
+			NewRecorder(configuration.StartUpMetricsConfig{}).Record(testPod(queue, pool, "node-1"), tc.info)
+
+			count, sum := observations(t, podTotalImagePullDurationSeconds, queue, pool)
+			if tc.expected == nil {
+				assert.Zero(t, count)
+				return
+			}
+			assert.Equal(t, uint64(1), count)
+			assert.Equal(t, *tc.expected, sum)
+		})
+	}
+}
+
 func TestRecord_NoOps(t *testing.T) {
 	var nilRecorder *Recorder
 	enabledRecorder := NewRecorder(configuration.StartUpMetricsConfig{})
