@@ -6,6 +6,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"k8s.io/utils/clock"
@@ -28,6 +29,11 @@ const (
 	CustomConfigLocation string = "config"
 	MigrateDatabase             = "migrateDatabase"
 	PruneDatabase               = "pruneDatabase"
+	PartitionJobTable           = "partitionJobTable"
+	Preflight                   = "preflight"
+	PrintSql                    = "printSql"
+	Execute                     = "execute"
+	Yes                         = "yes"
 )
 
 func init() {
@@ -38,6 +44,11 @@ func init() {
 	)
 	pflag.Bool(MigrateDatabase, false, "Migrate database instead of running server")
 	pflag.Bool(PruneDatabase, false, "Prune database of old jobs instead of running server")
+	pflag.Bool(PartitionJobTable, false, "Partition the job table instead of running server; reports on it with --preflight unless --printSql or --execute is given")
+	pflag.Bool(Preflight, false, "With --partitionJobTable, report on the job table and the database without changing them (the default)")
+	pflag.Bool(PrintSql, false, "With --partitionJobTable, print the SQL that --execute runs to stdout, and logs to stderr")
+	pflag.Bool(Execute, false, "With --partitionJobTable, partition the job table")
+	pflag.Bool(Yes, false, "With --partitionJobTable --execute, confirm without prompting")
 	pflag.Parse()
 }
 
@@ -88,7 +99,7 @@ func migrate(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 		panic(err)
 	}
 	if shape == lookoutschema.JobTableShapeUnpartitioned {
-		log.Warn("The job table uses the legacy unpartitioned schema. It already contains data, so it has not been partitioned automatically.")
+		log.Warn(lookoutschema.LegacySchemaWarning)
 	} else {
 		log.Infof("Job table shape: %s", shape)
 	}
@@ -154,6 +165,9 @@ func prune(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 func main() {
 	log.MustConfigureApplicationLogging()
 	common.BindCommandlineArguments()
+	if viper.GetBool(PrintSql) {
+		log.ReplaceStdLogger(log.FromZerolog(zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, NoColor: true}).With().Timestamp().Logger()))
+	}
 
 	var config configuration.LookoutConfig
 
@@ -194,6 +208,14 @@ func main() {
 	if viper.GetBool(PruneDatabase) {
 		log.Info("Pruning database")
 		prune(ctx, config)
+		return
+	}
+
+	if viper.GetBool(PartitionJobTable) || viper.GetBool(Preflight) || viper.GetBool(PrintSql) || viper.GetBool(Execute) || viper.GetBool(Yes) {
+		if err := partitionJobTable(ctx, config); err != nil {
+			log.Error(err.Error())
+			os.Exit(1)
+		}
 		return
 	}
 

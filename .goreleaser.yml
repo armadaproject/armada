@@ -76,7 +76,7 @@ builds:
   - env: [CGO_ENABLED=0]
     id: lookout
     binary: lookout
-    main: ./cmd/lookout/main.go
+    main: ./cmd/lookout
     mod_timestamp: '{{ .CommitTimestamp }}'
     ldflags:
       - -X github.com/armadaproject/armada/internal/lookout/version.Version={{.Version}}
