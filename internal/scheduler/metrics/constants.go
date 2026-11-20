@@ -28,12 +28,17 @@ const (
 	jobShapeLabel            = "job_shape"
 	unschedulableReasonLabel = "unschedulable_reason"
 	outcomeLabel             = "outcome"
+	stageLabel               = "stage"
 	terminationReasonLabel   = "termination_reason"
 	retryPolicyLabel         = "policy"
 	retryDecisionLabel       = "decision"
 
 	SchedulingOutcomeSuccess = "success"
 	SchedulingOutcomeFailure = "failure"
+
+	// Pool scheduling stage label values
+	setupStage      = "setup"
+	processingStage = "processing"
 
 	// Job state strings
 	queued    = "queued"

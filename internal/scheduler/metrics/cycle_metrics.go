@@ -31,6 +31,7 @@ var (
 	poolAndShapeAndReasonLabels            = []string{poolLabel, jobShapeLabel, unschedulableReasonLabel}
 	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
 	poolAndOutcomeLabels                   = []string{poolLabel, outcomeLabel, terminationReasonLabel}
+	poolAndStageLabels                     = []string{poolLabel, stageLabel}
 	loopTypeAndOutcomeLabels               = []string{typeLabel, outcomeLabel}
 	nodeLabels                             = []string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, schedulableLabel, overAllocatedLabel, physicalPoolLabel, capacityClassLabel, scalableUnitLabel, nodeCategoryLabel}
 	defaultType                            = "unknown"
@@ -393,6 +394,7 @@ type cycleMetrics struct {
 	failedJobs              *prometheus.CounterVec
 	poolSchedulingOutcome   *prometheus.CounterVec
 	poolSchedulingCycleTime *prometheus.HistogramVec
+	poolSchedulingStageTime *prometheus.HistogramVec
 	schedulingDuration      prometheus.Histogram
 	scheduleCycleOutcome    *prometheus.CounterVec
 	scheduleCycleTime       prometheus.Histogram
@@ -486,6 +488,15 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event], scala
 		poolLabels,
 	)
 
+	poolSchedulingStageTime := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    ArmadaSchedulerMetricsPrefix + "pool_scheduling_stage_time",
+			Help:    "Time taken by setup/dataloading and processing/scheduling within a pool cycle.",
+			Buckets: prometheus.ExponentialBuckets(10.0, 1.1, 110),
+		},
+		poolAndStageLabels,
+	)
+
 	submitCheckDuration := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    ArmadaSchedulerMetricsPrefix + "submit_check_times",
@@ -503,6 +514,7 @@ func newCycleMetrics(publisher pulsarutils.Publisher[*metricevents.Event], scala
 		failedJobs:              failedJobs,
 		poolSchedulingOutcome:   poolSchedulingOutcome,
 		poolSchedulingCycleTime: poolSchedulingCycleTime,
+		poolSchedulingStageTime: poolSchedulingStageTime,
 		schedulingDuration:      schedulingDuration,
 		scheduleCycleTime:       scheduleCycleTime,
 		scheduleCycleOutcome:    scheduleCycleOutcome,
@@ -577,6 +589,10 @@ func (m *cycleMetrics) ReportPoolSchedulingCycleTime(pool string, cycleTime time
 	m.poolSchedulingCycleTime.WithLabelValues(pool).Observe(float64(cycleTime.Milliseconds()))
 }
 
+func (m *cycleMetrics) ReportPoolSchedulingStageTime(pool string, stage string, duration time.Duration) {
+	m.poolSchedulingStageTime.WithLabelValues(pool, stage).Observe(float64(duration.Milliseconds()))
+}
+
 func (m *cycleMetrics) ReportSubmitCheckDuration(durations map[string]time.Duration) {
 	for queue, duration := range durations {
 		m.submitCheckDuration.WithLabelValues(queue).Observe(float64(duration) / float64(time.Millisecond))
@@ -606,6 +622,12 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			pool := poolResult.Name
 			schedContext := schedulingResult.SchedulingContext
 			if schedContext != nil {
+				if !poolResult.StartTime.IsZero() && schedContext.Started.After(poolResult.StartTime) {
+					m.ReportPoolSchedulingStageTime(pool, setupStage, schedContext.Started.Sub(poolResult.StartTime))
+				}
+				if !schedContext.Finished.IsZero() && schedContext.Finished.After(schedContext.Started) {
+					m.ReportPoolSchedulingStageTime(pool, processingStage, schedContext.Finished.Sub(schedContext.Started))
+				}
 				for queue, queueContext := range schedContext.QueueSchedulingContexts {
 					jobsConsidered := float64(len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts))
 					actualShare := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.GetAllocation())
@@ -766,6 +788,7 @@ func (m *cycleMetrics) describe(ch chan<- *prometheus.Desc) {
 		m.failedJobs.Describe(ch)
 		m.poolSchedulingOutcome.Describe(ch)
 		m.poolSchedulingCycleTime.Describe(ch)
+		m.poolSchedulingStageTime.Describe(ch)
 		m.schedulingDuration.Describe(ch)
 		m.scheduleCycleTime.Describe(ch)
 		m.scheduleCycleOutcome.Describe(ch)
@@ -818,6 +841,7 @@ func (m *cycleMetrics) collect(ch chan<- prometheus.Metric) {
 		m.failedJobs.Collect(ch)
 		m.poolSchedulingOutcome.Collect(ch)
 		m.poolSchedulingCycleTime.Collect(ch)
+		m.poolSchedulingStageTime.Collect(ch)
 		m.schedulingDuration.Collect(ch)
 		m.scheduleCycleTime.Collect(ch)
 		m.scheduleCycleOutcome.Collect(ch)
