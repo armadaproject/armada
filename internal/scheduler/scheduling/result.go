@@ -119,6 +119,10 @@ type PoolSchedulingResult struct {
 	StartTime time.Time
 	// The time the scheduling on this pool ended
 	EndTime time.Time
+	// Time spent setting up the pool before scheduling started
+	SetupTime time.Duration
+	// Time spent running the scheduling algorithm
+	ProcessingTime time.Duration
 	// Scheduling outcome
 	Outcome PoolSchedulingOutcome
 }

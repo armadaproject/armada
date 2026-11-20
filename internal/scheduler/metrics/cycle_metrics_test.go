@@ -133,6 +133,33 @@ func TestReportOutcomes(t *testing.T) {
 	assert.Equal(t, 1.0, errorOutcome)
 }
 
+func TestReportPoolSchedulingStageTime(t *testing.T) {
+	ctx := armadacontext.Background()
+	result := scheduling.SchedulerResult{
+		PoolResults: []*scheduling.PoolSchedulingResult{
+			{
+				Name:           "pool1",
+				SetupTime:      2 * time.Second,
+				ProcessingTime: 3 * time.Second,
+			},
+			{
+				// Failed/timed-out attempts have no SchedulingResult but still report their stage times.
+				Name:           "pool2",
+				SetupTime:      time.Second,
+				ProcessingTime: 4 * time.Second,
+			},
+		},
+	}
+
+	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
+	m.ReportSchedulerResult(ctx, result)
+
+	assertHistogramObservation(t, m.poolSchedulingStageTime, 1, 2000.0, "pool1", setupStage)
+	assertHistogramObservation(t, m.poolSchedulingStageTime, 1, 3000.0, "pool1", processingStage)
+	assertHistogramObservation(t, m.poolSchedulingStageTime, 1, 1000.0, "pool2", setupStage)
+	assertHistogramObservation(t, m.poolSchedulingStageTime, 1, 4000.0, "pool2", processingStage)
+}
+
 func TestReportSubmitCheckDuration(t *testing.T) {
 	m := newCycleMetrics(pulsarutils.NoOpPublisher[*metricevents.Event]{}, "")
 
