@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -29,6 +30,17 @@ type schedulingResult struct {
 	isSchedulable bool
 	pools         []string
 	reason        string
+}
+
+type eligibilityDetails struct {
+	reasons []string
+	err     error
+}
+
+func (d *eligibilityDetails) reject(pool, format string, args ...any) {
+	if d != nil {
+		d.reasons = append(d.reasons, "pool "+pool+" "+fmt.Sprintf(format, args...))
+	}
 }
 
 type deadline time.Time
@@ -265,6 +277,33 @@ func (srv *SubmitChecker) Check(ctx *armadacontext.Context, jobs []*jobdb.Job) (
 	return results, queueDurations, nil
 }
 
+// CheckJobEligibility applies the production placement and queue-limit checks for
+// an already validated individual job. Empty pools with a nil error indicate
+// that the job does not fit this configuration. The check uses the latest
+// loaded executor snapshot.
+func (srv *SubmitChecker) CheckJobEligibility(ctx *armadacontext.Context, job *jobdb.Job) (pools []string, reason string, err error) {
+	if err := ctx.Err(); err != nil {
+		return nil, "", err
+	}
+	state := srv.state.Load()
+	if state == nil {
+		return nil, "", fmt.Errorf("executor state not loaded")
+	}
+	if job.IsInGang() {
+		return nil, "", fmt.Errorf("individual eligibility check requires a job outside a gang")
+	}
+	gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{context.JobSchedulingContextFromJob(job)})
+	var details eligibilityDetails
+	result := srv.getSchedulingResult(gctx, state, &details)
+	if err := errors.Join(details.err, ctx.Err()); err != nil {
+		return nil, "", err
+	}
+	if result.isSchedulable {
+		return result.pools, "", nil
+	}
+	return nil, strings.Join(details.reasons, "; "), nil
+}
+
 func (srv *SubmitChecker) getIndividualSchedulingResult(job *jobdb.Job, state *schedulerState) schedulingResult {
 	// Mark this job context as "not in a gang" for the individual scheduling check.
 	job = job.WithGangInfo(jobdb.BasicJobGangInfo())
@@ -276,7 +315,7 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(job *jobdb.Job, state *s
 	}
 
 	gctx := context.NewGangSchedulingContext([]*context.JobSchedulingContext{jctx})
-	result := srv.getSchedulingResult(gctx, state)
+	result := srv.getSchedulingResult(gctx, state, nil)
 
 	state.jobSchedulingResultsCache.Add(schedulingKey, result)
 
@@ -291,13 +330,13 @@ func (srv *SubmitChecker) getGangSchedulingResult(gangJobs []*jobdb.Job, state *
 	}
 	jctxs := context.JobSchedulingContextsFromJobs(gangJobs)
 	gctx := context.NewGangSchedulingContext(jctxs)
-	return srv.getSchedulingResult(gctx, state)
+	return srv.getSchedulingResult(gctx, state, nil)
 }
 
 // Check if a set of jobs can be scheduled onto some cluster.
 // TODO: there are a number of things this won't catch:
 //   - Gang jobs that will use more than the allowed capacity limit
-func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSchedulingContext, state *schedulerState) schedulingResult {
+func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSchedulingContext, state *schedulerState, details *eligibilityDetails) schedulingResult {
 	successfulPools := map[string]bool{}
 	var sb strings.Builder
 
@@ -312,6 +351,7 @@ func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSched
 		if originalGangCtx.RequestsFloatingResources {
 			rr := originalGangCtx.TotalResourceRequests
 			if ok, reason := srv.floatingResourceTypes.WithinLimits(pool.Name, rr); !ok {
+				details.reject(pool.Name, "exceeds floating resource limits")
 				sb.WriteString(fmt.Sprintf("job/gang requests floating resources %s but %s\n", rr.OfType(internaltypes.Floating).String(), reason))
 				sb.WriteString("\n---\n")
 				continue
@@ -322,6 +362,7 @@ func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSched
 		if c != nil {
 			queueLimit := c.GetQueueResourceLimit(originalGangCtx.Queue, originalGangCtx.PriorityClassName())
 			if !queueLimit.IsEmpty() && originalGangCtx.TotalResourceRequests.Exceeds(queueLimit) {
+				details.reject(pool.Name, "exceeds queue/priority resource limit %s", queueLimit)
 				sb.WriteString(fmt.Sprintf("job/gang requests resources %s which exceeds the total limit of %s for its queue/priority class\n", originalGangCtx.TotalResourceRequests, queueLimit))
 				sb.WriteString("\n---\n")
 				continue
@@ -336,6 +377,9 @@ func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSched
 		txn.Abort()
 
 		if err != nil {
+			if details != nil {
+				details.err = errors.Join(details.err, fmt.Errorf("pool %s: %w", pool.Name, err))
+			}
 			sb.WriteString(err.Error())
 			sb.WriteString("\n")
 			continue
@@ -346,10 +390,13 @@ func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSched
 				for _, pool := range srv.getPoolsBySubmissionGroup(pool.GetSubmissionGroup()) {
 					successfulPools[pool] = true
 				}
+			} else {
+				details.reject(pool.Name, "disallows away placement")
 			}
 			continue
 		}
 
+		details.reject(pool.Name, "cannot place the job on its nodes")
 		numSuccessfullyScheduled := 0
 		for _, jctx := range gctx.JobSchedulingContexts {
 			if jctx.PodSchedulingContext.IsSuccessful() {
