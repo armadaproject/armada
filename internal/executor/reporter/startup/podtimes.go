@@ -37,7 +37,7 @@ func GetKubeletAcknowledgedTime(pod *v1.Pod) *time.Time {
 // GetSandboxReadyTime is when the pod's sandbox existed with its networking configured.
 //
 // Ideally we'd just rely on PodReadyToStartContainers condition, but it often arrives late,
-// so we also consider the first container event as it is often earlier
+// so we also consider the first container event as it often arrives earlier
 func GetSandboxReadyTime(pod *v1.Pod, podEvents []*v1.Event) *time.Time {
 	return earliest(
 		firstContainerEventTime(podEvents),
