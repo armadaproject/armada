@@ -175,9 +175,9 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(
 		Demand:                            demand,
 		ConstrainedDemandByPriorityClass:  constrainedDemand,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
-		ScheduledResourcesByPriorityClass: make(map[string]internaltypes.ResourceList),
-		EvictedResourcesByPriorityClass:   make(map[string]internaltypes.ResourceList),
-		PreemptedByOptimiserResourceByPriorityClass: make(map[string]internaltypes.ResourceList),
+		ScheduledResourcesByPriorityClass: make(map[string]internaltypes.ResourceList, len(initialAllocatedByPriorityClass)),
+		EvictedResourcesByPriorityClass:   make(map[string]internaltypes.ResourceList, len(initialAllocatedByPriorityClass)),
+		PreemptedByOptimiserResourceByPriorityClass: make(map[string]internaltypes.ResourceList, len(initialAllocatedByPriorityClass)),
 		SuccessfulJobSchedulingContexts:             make(map[string]*JobSchedulingContext),
 		UnsuccessfulJobSchedulingContexts:           make(map[string]*JobSchedulingContext),
 		RescheduledJobSchedulingContexts:            make(map[string]*JobSchedulingContext),
@@ -679,7 +679,11 @@ func (sctx *SchedulingContext) ClearJobSpecs() {
 }
 
 func (sctx *SchedulingContext) SuccessfulJobSchedulingContexts() []*JobSchedulingContext {
-	jctxs := make([]*JobSchedulingContext, 0)
+	totalCount := 0
+	for _, qctx := range sctx.QueueSchedulingContexts {
+		totalCount += len(qctx.SuccessfulJobSchedulingContexts)
+	}
+	jctxs := make([]*JobSchedulingContext, 0, totalCount)
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		for _, jctx := range qctx.SuccessfulJobSchedulingContexts {
 			jctxs = append(jctxs, jctx)
