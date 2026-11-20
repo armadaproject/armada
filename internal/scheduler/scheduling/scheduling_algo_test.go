@@ -359,6 +359,45 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 	}
 }
 
+func TestSchedule_FailedAttemptReportsStageTimes(t *testing.T) {
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	defer cancel()
+
+	ctrl := gomock.NewController(t)
+	executors := []*schedulerobjects.Executor{makeTestExecutor("executor-1", testfixtures.TestPool)}
+	executors[0].LastUpdateTime = protoutil.ToTimestamp(time.Now())
+	executorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
+	executorRepo.EXPECT().GetExecutors(gomock.Any()).Return(executors, nil)
+	executorRepo.EXPECT().GetExecutorSettings(gomock.Any()).Return([]*schedulerobjects.ExecutorSettings{}, nil)
+	queueCache := schedulermocks.NewMockQueueCache(ctrl)
+	// Cancel during setup so scheduling fails after the scheduling context was created.
+	queueCache.EXPECT().GetAll(gomock.Any()).DoAndReturn(func(*armadacontext.Context) ([]*api.Queue, error) {
+		cancel()
+		return []*api.Queue{testfixtures.MakeTestQueue()}, nil
+	})
+
+	sch, err := NewFairSchedulingAlgo(
+		testfixtures.TestSchedulingConfig(), 0, executorRepo, queueCache, reports.NewSchedulingContextRepository(),
+		testfixtures.TestResourceListFactory, testfixtures.TestEmptyFloatingResources,
+		priorityoverride.NewNoOpProvider(), nil, &testRunReconciler{},
+	)
+	require.NoError(t, err)
+
+	db := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+	txn := db.WriteTxn()
+	defer txn.Abort()
+	job := testfixtures.Test1Cpu4GiJob(testfixtures.TestQueue, testfixtures.PriorityClass1).WithQueued(true).WithPools([]string{testfixtures.TestPool})
+	require.NoError(t, txn.Upsert([]*jobdb.Job{job}))
+
+	result, err := sch.Schedule(ctx, txn)
+	require.NoError(t, err)
+	require.Len(t, result.PoolResults, 1)
+	assert.Equal(t, PoolSchedulingTerminationReasonTimeout, result.PoolResults[0].Outcome.TerminationReason())
+	assert.Nil(t, result.PoolResults[0].SchedulingResult)
+	assert.Greater(t, result.PoolResults[0].SetupTime, time.Duration(0))
+	assert.Greater(t, result.PoolResults[0].ProcessingTime, time.Duration(0))
+}
+
 func TestSchedule_FloatingCapacityQueueLimit(t *testing.T) {
 	var logBuffer bytes.Buffer
 	ctx := armadacontext.New(armadacontext.Background(), logging.FromZerolog(zerolog.New(&logBuffer)))

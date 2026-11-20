@@ -590,6 +590,9 @@ func (m *cycleMetrics) ReportPoolSchedulingCycleTime(pool string, cycleTime time
 }
 
 func (m *cycleMetrics) ReportPoolSchedulingStageTime(pool string, stage string, duration time.Duration) {
+	if duration <= 0 {
+		return
+	}
 	m.poolSchedulingStageTime.WithLabelValues(pool, stage).Observe(float64(duration.Milliseconds()))
 }
 
@@ -607,6 +610,8 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 	for _, poolResult := range result.PoolResults {
 		m.ReportPoolSchedulingOutcome(poolResult.Name, poolResult.Outcome)
 		m.ReportPoolSchedulingCycleTime(poolResult.Name, poolResult.GetDuration())
+		m.ReportPoolSchedulingStageTime(poolResult.Name, setupStage, poolResult.SetupTime)
+		m.ReportPoolSchedulingStageTime(poolResult.Name, processingStage, poolResult.ProcessingTime)
 		if poolResult.ReconciliationResult != nil {
 			for _, info := range poolResult.ReconciliationResult.FailedJobs {
 				m.failedJobs.WithLabelValues(poolResult.Name, info.Job.Queue(), info.Job.PriorityClassName(), reconcilerFailureType).Inc()
@@ -622,12 +627,6 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 			pool := poolResult.Name
 			schedContext := schedulingResult.SchedulingContext
 			if schedContext != nil {
-				if !poolResult.StartTime.IsZero() && schedContext.Started.After(poolResult.StartTime) {
-					m.ReportPoolSchedulingStageTime(pool, setupStage, schedContext.Started.Sub(poolResult.StartTime))
-				}
-				if !schedContext.Finished.IsZero() && schedContext.Finished.After(schedContext.Started) {
-					m.ReportPoolSchedulingStageTime(pool, processingStage, schedContext.Finished.Sub(schedContext.Started))
-				}
 				for queue, queueContext := range schedContext.QueueSchedulingContexts {
 					jobsConsidered := float64(len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts))
 					actualShare := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.GetAllocation())

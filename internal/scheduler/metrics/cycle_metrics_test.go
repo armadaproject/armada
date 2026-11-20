@@ -134,19 +134,19 @@ func TestReportOutcomes(t *testing.T) {
 }
 
 func TestReportPoolSchedulingStageTime(t *testing.T) {
-	start := time.Now()
 	ctx := armadacontext.Background()
 	result := scheduling.SchedulerResult{
 		PoolResults: []*scheduling.PoolSchedulingResult{
 			{
-				Name:      "pool1",
-				StartTime: start,
-				SchedulingResult: &scheduling.SchedulingResult{
-					SchedulingContext: &context.SchedulingContext{
-						Started:  start.Add(2 * time.Second),
-						Finished: start.Add(5 * time.Second),
-					},
-				},
+				Name:           "pool1",
+				SetupTime:      2 * time.Second,
+				ProcessingTime: 3 * time.Second,
+			},
+			{
+				// Failed/timed-out attempts have no SchedulingResult but still report their stage times.
+				Name:           "pool2",
+				SetupTime:      time.Second,
+				ProcessingTime: 4 * time.Second,
 			},
 		},
 	}
@@ -156,6 +156,8 @@ func TestReportPoolSchedulingStageTime(t *testing.T) {
 
 	assertHistogramObservation(t, m.poolSchedulingStageTime, 1, 2000.0, "pool1", setupStage)
 	assertHistogramObservation(t, m.poolSchedulingStageTime, 1, 3000.0, "pool1", processingStage)
+	assertHistogramObservation(t, m.poolSchedulingStageTime, 1, 1000.0, "pool2", setupStage)
+	assertHistogramObservation(t, m.poolSchedulingStageTime, 1, 4000.0, "pool2", processingStage)
 }
 
 func TestReportSubmitCheckDuration(t *testing.T) {
