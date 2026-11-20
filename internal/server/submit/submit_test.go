@@ -439,6 +439,88 @@ func TestCancelJobSet_ReasonTooLong(t *testing.T) {
 	assert.Equal(t, codes.InvalidArgument, armadaerrors.CodeFromError(err))
 }
 
+func TestCancelJobSet_FilterStates(t *testing.T) {
+	tests := map[string]struct {
+		states         []api.JobState
+		expectedStates []armadaevents.JobState
+		expectError    bool
+	}{
+		"no filter": {
+			states:         nil,
+			expectedStates: []armadaevents.JobState{},
+		},
+		"queued": {
+			states:         []api.JobState{api.JobState_QUEUED},
+			expectedStates: []armadaevents.JobState{armadaevents.JobState_QUEUED},
+		},
+		"pending and running": {
+			states:         []api.JobState{api.JobState_PENDING, api.JobState_RUNNING},
+			expectedStates: []armadaevents.JobState{armadaevents.JobState_PENDING, armadaevents.JobState_RUNNING},
+		},
+		"leased is not a supported filter state": {
+			states:      []api.JobState{api.JobState_LEASED},
+			expectError: true,
+		},
+		"succeeded is not a supported filter state": {
+			states:      []api.JobState{api.JobState_SUCCEEDED},
+			expectError: true,
+		},
+		"pending, running and failed": {
+			states:      []api.JobState{api.JobState_PENDING, api.JobState_RUNNING, api.JobState_FAILED},
+			expectError: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			defer cancel()
+			ctx = armadacontext.WithValue(ctx, "principal", testfixtures.DefaultPrincipal)
+
+			server, mockedObjects := createTestServer(t)
+			req := &api.JobSetCancelRequest{
+				Queue:    testfixtures.DefaultQueue.Name,
+				JobSetId: testfixtures.DefaultJobset,
+				Filter:   &api.JobSetFilter{States: tc.states},
+			}
+
+			// An unsupported state must be rejected before anything is published: the mocks have
+			// no expectations in that case, so any call to them fails the test.
+			if tc.expectError {
+				resp, err := server.CancelJobSet(ctx, req)
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+				return
+			}
+
+			mockedObjects.queueRepo.
+				EXPECT().
+				GetQueue(ctx, req.Queue).
+				Return(testfixtures.DefaultQueue, nil).
+				Times(1)
+
+			mockedObjects.authorizer.
+				EXPECT().
+				AuthorizeQueueAction(ctx, testfixtures.DefaultQueue, permission.Permission(permissions.CancelAnyJobs), queue.PermissionVerbCancel).
+				Return(nil).
+				Times(1)
+
+			var capturedEventSequence *armadaevents.EventSequence
+			mockedObjects.publisher.EXPECT().
+				PublishMessages(ctx, gomock.Any()).
+				Times(1).
+				Do(func(_ interface{}, es *armadaevents.EventSequence) {
+					capturedEventSequence = es
+				})
+
+			_, err := server.CancelJobSet(ctx, req)
+			assert.NoError(t, err)
+			if assert.Len(t, capturedEventSequence.GetEvents(), 1) {
+				assert.Equal(t, tc.expectedStates, capturedEventSequence.Events[0].GetCancelJobSet().GetStates())
+			}
+		})
+	}
+}
+
 func TestReprioritizeJobs(t *testing.T) {
 	jobId1 := util.ULID().String()
 	jobId2 := util.ULID().String()

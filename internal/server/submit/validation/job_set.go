@@ -13,6 +13,14 @@ func ValidateJobSetFilter(filter *api.JobSetFilter) error {
 	}
 	providedStatesSet := map[string]bool{}
 	for _, state := range filter.States {
+		// Only these states have an equivalent in armadaevents.JobState. Any other state would be
+		// converted to its zero value (QUEUED), and jobs the caller did not select would be cancelled.
+		switch state {
+		case api.JobState_QUEUED, api.JobState_PENDING, api.JobState_RUNNING:
+		default:
+			return fmt.Errorf("unsupported state %s - a job set can only be filtered by states %s, %s and %s",
+				state, api.JobState_QUEUED, api.JobState_PENDING, api.JobState_RUNNING)
+		}
 		providedStatesSet[state.String()] = true
 	}
 	for _, state := range filter.States {
