@@ -19,6 +19,10 @@ func NewBasicAuthService(users map[string]configuration.UserInfo) *BasicAuthServ
 	return &BasicAuthService{users: users}
 }
 
+func (authService *BasicAuthService) Challenges() []string {
+	return []string{`Basic realm="armada"`}
+}
+
 func (authService *BasicAuthService) Authenticate(_ context.Context, authHeader string) (Principal, error) {
 	authHeaderSplits := strings.SplitN(authHeader, " ", 2)
 	if len(authHeaderSplits) < 2 || !strings.EqualFold(authHeaderSplits[0], "basic") {

@@ -12,9 +12,9 @@ import (
 
 func TestNewMultiAuthService(t *testing.T) {
 	principal := NewStaticPrincipal("test", "test", []string{"group"})
-	failingService := &fakeAuthService{nil, errors.New("failed")}
-	serviceWithoutCredentials := &fakeAuthService{nil, &armadaerrors.ErrMissingCredentials{}}
-	successfulService := &fakeAuthService{principal, nil}
+	failingService := &fakeAuthService{err: errors.New("failed")}
+	serviceWithoutCredentials := &fakeAuthService{err: &armadaerrors.ErrMissingCredentials{}}
+	successfulService := &fakeAuthService{principal: principal}
 
 	sut := NewMultiAuthService([]AuthService{failingService, successfulService})
 	_, e := sut.Authenticate(context.Background(), "")

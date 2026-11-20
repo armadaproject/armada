@@ -38,6 +38,10 @@ func NewOpenIdAuthService(verifier *oidc.IDTokenVerifier, groupsClaim string) *O
 	return &OpenIdAuthService{verifier, groupsClaim}
 }
 
+func (authService *OpenIdAuthService) Challenges() []string {
+	return []string{"Bearer"}
+}
+
 func (authService *OpenIdAuthService) Authenticate(ctx context.Context, authHeader string) (Principal, error) {
 	authHeaderSplits := strings.SplitN(authHeader, " ", 2)
 	if len(authHeaderSplits) < 2 || !strings.EqualFold(authHeaderSplits[0], "bearer") {
