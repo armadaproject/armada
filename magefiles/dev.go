@@ -162,8 +162,7 @@ func (Dev) Down() error {
 // ordered ahead of the components, so no separate init step is needed.
 func (Dev) Full() error {
 	// Compose uses the bundle images directly and doesn't need the snapshot archive.
-	const skipArchive = true
-	mg.Deps(mg.F(goreleaserMinimalRelease, skipArchive, "bundle", "lookout-bundle"), Kind)
+	mg.Deps(mg.F(goreleaserMinimalRelease, true, "bundle", "lookout-bundle"), Kind)
 	return sh.RunV("docker", "compose", "-f", fullComposeFile, "up", "-d", "--wait")
 }
 
