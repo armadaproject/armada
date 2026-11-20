@@ -510,6 +510,35 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	}
 }
 
+func TestSubmitChecker_NoConfiguredPools(t *testing.T) {
+	ctx := armadacontext.Background()
+	ctrl := gomock.NewController(t)
+	executors := schedulermocks.NewMockExecutorRepository(ctrl)
+	executors.EXPECT().GetExecutors(ctx).Return([]*schedulerobjects.Executor{Executor(SmallNode("cpu"))}, nil)
+	queues := schedulermocks.NewMockQueueCache(ctrl)
+	queues.EXPECT().GetAll(ctx).Return([]*api.Queue{{Name: "queue"}}, nil)
+
+	config := testfixtures.TestSchedulingConfig()
+	// Keep an executor available so the rejection is specifically about pool configuration.
+	config.Pools = nil
+	resources, err := floatingresources.NewFloatingResourceTypes(nil, testfixtures.TestResourceListFactory)
+	require.NoError(t, err)
+	checker := NewSubmitChecker(config, configuration.SubmitCheckConfig{}, executors, queues, resources,
+		testfixtures.TestResourceListFactory)
+	require.NoError(t, checker.Initialise(ctx))
+
+	job := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1)
+	gang := testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("queue", testfixtures.PriorityClass1, 2))
+	jobs := append([]*jobdb.Job{job}, gang...)
+	results, _, err := checker.Check(ctx, jobs)
+	require.NoError(t, err)
+	want := schedulingResult{reason: "no scheduler pools are configured; configure scheduling.pools"}
+	require.Len(t, results, len(jobs))
+	for _, job := range jobs {
+		assert.Equal(t, want, results[job.Id()], "job %s", job.Id())
+	}
+}
+
 func TestSubmitChecker_Initialise(t *testing.T) {
 	tests := map[string]struct {
 		queueCacheErr   error
