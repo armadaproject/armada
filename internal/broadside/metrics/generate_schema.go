@@ -169,7 +169,7 @@ func main() {
 		panic(err)
 	}
 
-	if err := os.WriteFile("schema.json", data, 0644); err != nil {
+	if err := os.WriteFile("schema.json", data, 0o644); err != nil {
 		panic(err)
 	}
 }

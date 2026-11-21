@@ -32,6 +32,8 @@ type Job struct {
 	Annotations               []byte           `db:"annotations"`
 	ExternalJobUri            *string          `db:"external_job_uri"`
 	CancelUser                *string          `db:"cancel_user"`
+	PreemptUser               *string          `db:"preempt_user"`
+	ReprioritizeUser          *string          `db:"reprioritize_user"`
 }
 
 type JobDeduplication struct {
@@ -63,6 +65,12 @@ type JobRun struct {
 	FailureCategory            *string          `db:"failure_category"`
 	FailureSubcategory         *string          `db:"failure_subcategory"`
 	SchedulerTerminationReason []byte           `db:"scheduler_termination_reason"`
+	PodName                    *string          `db:"pod_name"`
+}
+
+type JobRunInfo struct {
+	RunID       string `db:"run_id"`
+	StartUpInfo []byte `db:"start_up_info"`
 }
 
 type JobSpec struct {

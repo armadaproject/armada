@@ -145,6 +145,7 @@ describe("ReprioritizeDialog", () => {
   })
 
   it("does not allow the user to enter an invalid priority", async () => {
+    mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole } = renderComponent()
     await enterPriority("abc")
     expect(getByRole("button", { name: /Reprioritize/ })).toBeDisabled()
@@ -173,6 +174,7 @@ describe("ReprioritizeDialog", () => {
   })
 
   it("shows error reasons if reprioritization fails", async () => {
+    mockServer.setPostJobsResponse([jobs[0]])
     const { getByRole, findByText } = renderComponent()
 
     mockServer.setReprioritizeJobsResponse([], [{ jobId: jobs[0].jobId, errorReason: "This is a test" }])
@@ -239,7 +241,7 @@ describe("ReprioritizeDialog", () => {
 
     // Check the user can re-attempt the request after a refetch
     await userEvent.click(getByRole("button", { name: /Refetch jobs/i }))
-    waitFor(async () => {
+    await waitFor(async () => {
       expect(await findByRole("button", { name: /Reprioritize 2 jobs/i })).toBeEnabled()
     })
   })

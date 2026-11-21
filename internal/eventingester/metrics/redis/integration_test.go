@@ -216,7 +216,7 @@ func TestIntegration_CollectorMetrics(t *testing.T) {
 		for range descCh {
 			descCount++
 		}
-		assert.Equal(t, 13, descCount)
+		assert.Equal(t, 14, descCount)
 	})
 }
 

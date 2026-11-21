@@ -1,11 +1,16 @@
 package scheduling
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
+	"regexp"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -17,6 +22,7 @@ import (
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pointer"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
@@ -31,6 +37,7 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/scheduling/context"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
+	apischeduleobjects "github.com/armadaproject/armada/pkg/api/schedulerobjects"
 )
 
 func TestConstructSchedulingContext_SetsFairsharePreemptionLimiter(t *testing.T) {
@@ -68,6 +75,7 @@ func TestConstructSchedulingContext_SetsFairsharePreemptionLimiter(t *testing.T)
 			l := &FairSchedulingAlgo{
 				schedulingConfig:        config,
 				preemptionLimiterByPool: initialisePerPoolRateLimiters(config.Pools),
+				clock:                   clock.NewFakeClock(testfixtures.BaseTime),
 			}
 
 			sctx, err := l.constructSchedulingContext("pool", totalResources, nil, nil, nil, nil, map[string]*api.Queue{})
@@ -351,6 +359,76 @@ func TestSchedule_PoolFailureIsolation(t *testing.T) {
 	}
 }
 
+func TestSchedule_FloatingCapacityQueueLimit(t *testing.T) {
+	var logBuffer bytes.Buffer
+	ctx := armadacontext.New(armadacontext.Background(), logging.FromZerolog(zerolog.New(&logBuffer)))
+	config := testfixtures.WithPerPriorityLimitsConfig(
+		map[string]map[string]float64{
+			testfixtures.PriorityClass3: {"test-floating-resource": 0.5},
+		},
+		testfixtures.TestSchedulingConfig(),
+	)
+
+	ctrl := gomock.NewController(t)
+	executorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
+	executorRepo.EXPECT().GetExecutors(gomock.Any()).Return([]*schedulerobjects.Executor{test1Node32CoreExecutor("executor1")}, nil)
+	executorRepo.EXPECT().GetExecutorSettings(gomock.Any()).Return([]*schedulerobjects.ExecutorSettings{}, nil)
+	queueCache := schedulermocks.NewMockQueueCache(ctrl)
+	queueCache.EXPECT().GetAll(gomock.Any()).Return([]*api.Queue{testfixtures.MakeTestQueue()}, nil)
+	// The shared floating fixture uses pool "pool"; match this scheduler fixture's pool.
+	floatingConfig := slices.Clone(testfixtures.TestFloatingResourceConfig)
+	floatingConfig[0].Pools = slices.Clone(floatingConfig[0].Pools)
+	floatingConfig[0].Pools[0].Name = testfixtures.TestPool
+	reportRepo := reports.NewSchedulingContextRepository()
+	sch, err := NewFairSchedulingAlgo(
+		config, 0, executorRepo, queueCache, reportRepo,
+		testfixtures.TestResourceListFactory, testfixtures.MakeTestFloatingResourceTypes(floatingConfig),
+		priorityoverride.NewNoOpProvider(), nil, &testRunReconciler{},
+	)
+	require.NoError(t, err)
+	sch.clock = clock.NewFakeClock(testfixtures.BaseTime)
+
+	jobs := addFloatingResourceRequest("2", testfixtures.N1Cpu4GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 3))
+	for i, job := range jobs {
+		jobs[i] = job.WithQueued(true).WithSubmittedTime(testfixtures.BaseTime.Add(time.Duration(i) * time.Second).UnixNano())
+	}
+	jobDb := testfixtures.NewJobDb(testfixtures.TestResourceListFactory)
+	txn := jobDb.WriteTxn()
+	defer txn.Abort()
+	require.NoError(t, txn.Upsert(jobs))
+
+	result, err := sch.Schedule(ctx, txn)
+	require.NoError(t, err)
+
+	// The queue cap is 5 floating units: requests totalling 4 fit, but 6 do not.
+	assert.ElementsMatch(t, []string{jobs[0].Id(), jobs[1].Id()}, armadaslices.Map(ScheduledJobsFromSchedulerResult(result), func(job *jobdb.Job) string { return job.Id() }))
+	for i, job := range jobs {
+		assert.Equal(t, i == 2, txn.GetById(job.Id()).Queued(), "job %d", i)
+	}
+	expectedCapacity := testfixtures.TestResourceListFactory.FromNodeProto(map[string]*k8sResource.Quantity{
+		"cpu":                    pointer.MustParseResource("32"),
+		"memory":                 pointer.MustParseResource("256Gi"),
+		"test-floating-resource": pointer.MustParseResource("10"),
+	})
+	contexts := result.GetAllSchedulingContexts()
+	require.Len(t, contexts, 1)
+	assert.True(t, expectedCapacity.Equal(contexts[0].TotalResources), "got %s", contexts[0].TotalResources)
+	report, err := reports.NewServer(reportRepo).GetSchedulingReport(ctx, &apischeduleobjects.SchedulingReportRequest{})
+	require.NoError(t, err)
+	assert.Regexp(t, `Total capacity:\s+`+regexp.QuoteMeta(expectedCapacity.String()), report.Report)
+
+	messages := []string{}
+	decoder := json.NewDecoder(&logBuffer)
+	for decoder.More() {
+		var entry struct {
+			Message string `json:"message"`
+		}
+		require.NoError(t, decoder.Decode(&entry))
+		messages = append(messages, entry.Message)
+	}
+	assert.Contains(t, messages, "Scheduling on pool testPool with capacity (memory=274877906944,cpu=32,test-floating-resource=10) protectedFractionOfFairShare 0.000000 protectUncappedAdjustedFairShare false")
+}
+
 func TestSchedule(t *testing.T) {
 	multiPoolSchedulingConfig := testfixtures.TestSchedulingConfig()
 	defaultExecutorSettings := []*schedulerobjects.ExecutorSettings{}
@@ -389,6 +467,10 @@ func TestSchedule(t *testing.T) {
 		// Indices of existing jobs expected to be failed due to reconciliation.
 		// Uses the same structure as scheduledJobsByExecutorIndexAndNodeIndex.
 		expectedFailedDueToReconciliationByExecutorIndexAndNodeIndex map[int]map[int][]int
+
+		// If true, verify that jobs preempted because of another gang member's
+		// reconciliation failure include that member's failure reason.
+		expectGangReconciliationReason bool
 
 		// Indices of queued jobs expected to be scheduled.
 		expectedScheduledIndices []int
@@ -654,6 +736,7 @@ func TestSchedule(t *testing.T) {
 					0: {0, 1},
 				},
 			},
+			expectGangReconciliationReason: true,
 		},
 		"reconcile - fills gap of preempted": {
 			schedulingConfig: testfixtures.WithReconcilerEnabled(testfixtures.TestSchedulingConfig()),
@@ -1174,6 +1257,15 @@ func TestSchedule(t *testing.T) {
 
 			assert.Equal(t, expectedJobIdsPreemptedDueToReconciliation, actualJobIdsPreemptedDueToReconciliation)
 
+			if tc.expectGangReconciliationReason {
+				expectedReason := fmt.Sprintf("other jobs in the gang failed reconciliation (%s: reconciling this run with the node failed)", jobIdsToFailReconciliation[0])
+				for _, result := range schedulerResult.GetCombinedReconciliationResult().PreemptedJobs {
+					if result.Job.Id() != jobIdsToFailReconciliation[0] {
+						assert.Equal(t, expectedReason, result.Reason)
+					}
+				}
+			}
+
 			// Check that jobs were scheduled as expected.
 			scheduledJobs := ScheduledJobsFromSchedulerResult(schedulerResult)
 			actualScheduledIndices := make([]int, 0)
@@ -1348,7 +1440,7 @@ func TestPopulateNodeDb(t *testing.T) {
 					return job.Id()
 				})
 				slices.Sort(expectedJobIds)
-				actualJobIds := maps.Keys(node.AllocatedByJobId)
+				actualJobIds := node.GetRunningJobIds()
 				slices.Sort(actualJobIds)
 				assert.Equal(t, expectedJobIds, actualJobIds)
 			} else {
@@ -1523,4 +1615,195 @@ func (t *testRunReconciler) ReconcileJobRuns(txn *jobdb.Txn, _ []*schedulerobjec
 		}
 	}
 	return result
+}
+
+// TestQueuedDemandEqual proves the equality check fires when the aggregate
+// diverges from the scan, and stays silent when they agree.
+func TestQueuedDemandEqual(t *testing.T) {
+	oneCpu := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).AllResourceRequirements()
+	twoCpu := oneCpu.Add(oneCpu)
+	pc := testfixtures.PriorityClass0
+
+	newDemand := func(queue string, rl internaltypes.ResourceList) map[string]map[string]internaltypes.ResourceList {
+		return map[string]map[string]internaltypes.ResourceList{queue: {pc: rl}}
+	}
+
+	t.Run("equal demands match", func(t *testing.T) {
+		require.True(t, queuedDemandEqual(newDemand("q1", oneCpu), newDemand("q1", oneCpu)))
+	})
+
+	t.Run("both empty match", func(t *testing.T) {
+		require.True(t, queuedDemandEqual(
+			map[string]map[string]internaltypes.ResourceList{},
+			map[string]map[string]internaltypes.ResourceList{},
+		))
+	})
+
+	t.Run("different quantity mismatches", func(t *testing.T) {
+		require.False(t, queuedDemandEqual(newDemand("q1", twoCpu), newDemand("q1", oneCpu)))
+	})
+
+	t.Run("missing queue mismatches", func(t *testing.T) {
+		require.False(t, queuedDemandEqual(newDemand("q1", oneCpu), newDemand("q2", oneCpu)))
+	})
+
+	t.Run("zero bucket matches absent bucket", func(t *testing.T) {
+		zero := oneCpu.Subtract(oneCpu)
+		require.True(t, queuedDemandEqual(newDemand("q1", zero), map[string]map[string]internaltypes.ResourceList{}))
+		require.True(t, queuedDemandEqual(map[string]map[string]internaltypes.ResourceList{}, newDemand("q1", zero)))
+		require.True(t, queuedDemandEqual(newDemand("q1", zero), newDemand("q2", zero)))
+	})
+
+	t.Run("zero bucket does not mask non-zero demand", func(t *testing.T) {
+		zero := oneCpu.Subtract(oneCpu)
+		require.False(t, queuedDemandEqual(newDemand("q1", zero), newDemand("q2", oneCpu)))
+		require.False(t, queuedDemandEqual(newDemand("q2", oneCpu), newDemand("q1", zero)))
+	})
+}
+
+// TestQueuedDemandDiff proves the mismatch diagnostics report the queue,
+// priority class and both values for the differing buckets.
+func TestQueuedDemandDiff(t *testing.T) {
+	oneCpu := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).AllResourceRequirements()
+	twoCpu := oneCpu.Add(oneCpu)
+	pc := testfixtures.PriorityClass0
+
+	t.Run("no differences yields empty string", func(t *testing.T) {
+		demand := map[string]map[string]internaltypes.ResourceList{"q1": {pc: oneCpu}}
+		require.Empty(t, queuedDemandDiff(demand, demand))
+	})
+
+	t.Run("reports differing quantity", func(t *testing.T) {
+		diff := queuedDemandDiff(
+			map[string]map[string]internaltypes.ResourceList{"q1": {pc: twoCpu}},
+			map[string]map[string]internaltypes.ResourceList{"q2": {pc: oneCpu}},
+		)
+		require.Contains(t, diff, "q1/"+pc)
+		require.Contains(t, diff, "q2/"+pc)
+	})
+}
+
+// TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords proves the full
+// aggregate comparison path on divergence: the mismatch is recorded in the
+// armada_scheduler_job_aggregate_* metrics, a
+// "JobDb queued demand aggregate mismatch for pool ..." error is logged, and
+// the authoritative scan result is returned.
+//
+// Divergence is forced by passing a jobs slice containing a queued job that was
+// never upserted into the JobDb, so the scan sees it but the aggregate does not
+// — the same shape a real aggregate accounting bug would produce.
+func TestCalculateJobSchedulingInfo_MismatchUsesScanAndRecords(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-mismatch-pool"
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	queued := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithQueued(true).WithPools([]string{pool})
+	phantom := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).
+		WithQueued(true).WithPools([]string{pool})
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{compareAggregateDemand: true}
+
+	beforeComparisons := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
+	beforeMismatches := testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool))
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued, phantom}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	// Scan wins: demand covers both jobs (2 cpu) although the aggregate only knows one.
+	cpu := info.demandByQueueAndPriorityClass()["q1"][testfixtures.PriorityClass0].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(2), cpu.Value())
+
+	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
+	require.Equal(t, beforeMismatches+1, testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool)))
+}
+
+// TestCalculateJobSchedulingInfo_AggregateDemandDisabledPublishesNothing proves the
+// default (flag off) path neither computes nor publishes anything.
+func TestCalculateJobSchedulingInfo_AggregateDemandDisabledPublishesNothing(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-demand-disabled-pool"
+	queued := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).WithQueued(true).WithPools([]string{pool})
+	phantom := testfixtures.Test1Cpu4GiJob("q1", testfixtures.PriorityClass0).WithQueued(true).WithPools([]string{pool})
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
+	txn := jobDb.ReadTxn()
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+	algo := &FairSchedulingAlgo{}
+
+	before := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
+	_, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued, phantom}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, before, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
+}
+
+// TestCalculateJobSchedulingInfo_AggregateDemandAgreementPublishesComparisonOnly proves
+// that when the aggregate agrees with the scan the aggregate comparison records a comparison
+// but no mismatch, and the scan-derived queued demand is used.
+func TestCalculateJobSchedulingInfo_AggregateDemandAgreementPublishesComparisonOnly(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-demand-agreement-pool"
+	pc := testfixtures.PriorityClass0
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	queued := testfixtures.Test1Cpu4GiJob("q1", pc).WithQueued(true).WithPools([]string{pool})
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{compareAggregateDemand: true}
+
+	beforeComparisons := testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool))
+	beforeMismatches := testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool))
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{}, queues,
+		[]*jobdb.Job{queued}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	require.Equal(t, beforeComparisons+1, testutil.ToFloat64(jobAggregateComparisons.WithLabelValues(pool)))
+	require.Equal(t, beforeMismatches, testutil.ToFloat64(jobAggregateMismatches.WithLabelValues(pool)))
+
+	cpu := info.demandByQueueAndPriorityClass()["q1"][pc].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(1), cpu.Value())
+}
+
+func TestCalculateJobSchedulingInfo_UsesAggregateForQueuedDemand(t *testing.T) {
+	ctx := armadacontext.Background()
+	pool := "aggregate-use-pool"
+	queuedPc := testfixtures.PriorityClass0
+	runningPc := testfixtures.PriorityClass1
+	queues := map[string]*api.Queue{"q1": {Name: "q1"}}
+
+	queued := testfixtures.Test1Cpu4GiJob("q1", queuedPc).WithQueued(true).WithPools([]string{pool})
+	// Same pc as the running job, so the queued pc is only present via the aggregate.
+	unscanned := testfixtures.Test1Cpu4GiJob("q1", runningPc).WithQueued(true).WithPools([]string{pool})
+	leased := testfixtures.Test1Cpu4GiJob("q1", runningPc).
+		WithNewRun("executor-1", "node-1", "node-1", pool, 0)
+
+	jobDb := testfixtures.NewJobDbWithJobs([]*jobdb.Job{queued, leased})
+	txn := jobDb.ReadTxn()
+	algo := &FairSchedulingAlgo{useAggregateDemand: true}
+
+	info, err := algo.newCalculateJobSchedulingInfo(
+		ctx, txn, map[string]bool{"executor-1": true}, queues,
+		[]*jobdb.Job{unscanned, leased}, pool, nil, []string{pool}, nil,
+	)
+	require.NoError(t, err)
+
+	// Queued demand comes from the aggregate, running demand from the scan.
+	demand := info.demandByQueueAndPriorityClass()["q1"]
+	queuedCpu := demand[queuedPc].GetByNameZeroIfMissing("cpu")
+	runningCpu := demand[runningPc].GetByNameZeroIfMissing("cpu")
+	require.Equal(t, int64(1), queuedCpu.Value())
+	require.Equal(t, int64(1), runningCpu.Value())
+	// The queued priority class is recorded even though no queued job was scanned.
+	require.True(t, info.inUsePriorityClasses[queuedPc])
+	require.True(t, info.inUsePriorityClasses[runningPc])
 }

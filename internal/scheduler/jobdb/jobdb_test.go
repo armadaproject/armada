@@ -26,7 +26,7 @@ import (
 )
 
 func NewTestJobDb() *JobDb {
-	return NewJobDb(
+	jobDb := NewJobDb(
 		map[string]types.PriorityClass{
 			"foo": {},
 			"bar": {},
@@ -35,6 +35,8 @@ func NewTestJobDb() *JobDb {
 		stringinterner.New(1024),
 		testResourceListFactory,
 	)
+	jobDb.SetAggregateEnabled(true)
+	return jobDb
 }
 
 func TestJobDb_TestUpsert(t *testing.T) {
@@ -60,7 +62,7 @@ func TestJobDb_TestUpsert(t *testing.T) {
 	assert.Equal(t, job1Updated, retrieved)
 
 	// Can't insert with read only transaction
-	err = (jobDb.ReadTxn()).Upsert([]*Job{job1})
+	err = jobDb.ReadTxn().Upsert([]*Job{job1})
 	require.Error(t, err)
 }
 
@@ -471,7 +473,7 @@ func TestJobDb_TestBatchDelete(t *testing.T) {
 	assert.Nil(t, txn.GetById(job2.Id()))
 
 	// Can't delete with read only transaction
-	err = (jobDb.ReadTxn()).BatchDelete([]string{job1.Id()})
+	err = jobDb.ReadTxn().BatchDelete([]string{job1.Id()})
 	require.Error(t, err)
 }
 

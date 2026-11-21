@@ -25,7 +25,7 @@ The retry engine is off by default. It only runs when `scheduling.retryPolicy.en
 One failure travels this path:
 
 1. A run's pod fails on a cluster.
-2. The executor's error categorizer inspects the failure and assigns a category and subcategory, for example `oom` or `internal` / `node-failure`.
+2. The executor's error categorizer inspects the failure and assigns a category and subcategory, for example `oom` or `node` / `eviction`. Armada sets the categories `internal` and `preemption` itself, so the categorizer cannot use these names.
 3. When the category is configured with `action: Delete`, the executor deletes the failed pod and confirms it is gone. This frees the pod name for the next attempt (see [Pod naming and collision avoidance](#pod-naming-and-collision-avoidance)).
 4. The executor reports the failed run, with its category, to the scheduler.
 5. The scheduler looks up the retry policy attached to the job's queue and evaluates the rules against the category. The first matching rule decides.
@@ -96,6 +96,8 @@ Order rules from most specific to most general. A common pattern is to put `Fail
 
 Category and subcategory matching is exact and case-sensitive, so the values here must match what the executor's categorizer emits byte for byte.
 
+Rules can also match the category `internal`, which Armada sets itself, for example `internal` / `lease-expired`. Executor error categories cannot use the names `internal` and `preemption`. A rule for `preemption` has no effect, because Armada does not retry a preempted run.
+
 Matching on failure signals directly (exit codes, Kubernetes conditions, termination-message patterns) is planned for a later version. For now, express those by defining a category for them in the executor's categorizer config and matching the category here.
 
 ### Mutating the job on retry
@@ -105,8 +107,8 @@ A `Retry` rule can carry a `mutate` block. The block describes changes the sched
 ```yaml
 rules:
   - action: Retry
-    onCategory: internal
-    onSubcategory: node-failure
+    onCategory: node
+    onSubcategory: eviction
     mutate:
       affinity:
         avoidSameNode: true
@@ -119,7 +121,7 @@ rules:
 ```
 
 * `affinity.avoidSameNode`: when `true`, the retry avoids every node a previous run attempted. This matches the lease-return retry behaviour: the job fails if the anti-affinity makes it unschedulable. The check costs a per-job scheduling probe. The probe checks static fit only: can any node in the fleet ever fit the job, ignoring current occupancy and fair share. It is the same check Armada runs at submission, so only a job that could never schedule fails here. Leave it off (the default) for categories where the node is not the cause, for example a plain application error. Turn it on for node-specific failures.
-* `avoidSameNode` needs two node-label config entries. The scheduler expresses the avoidance through its `nodeIdLabel`, so that label must be in the executor's `trackedNodeLabels`. An untracked label is invisible to the scheduler, the avoidance matches every node without effect, and the scheduler warns once per executor about it. The scheduler also requires the label in `scheduling.indexedNodeLabels` when the retry engine is enabled, and fails config validation at startup without it. The index keeps node matching fast when many retried jobs carry the anti-affinity.
+* `avoidSameNode` needs one node-label config entry. The scheduler expresses the avoidance through its `nodeIdLabel`, so that label must be in the executor's `trackedNodeLabels`. An untracked label is invisible to the scheduler, the avoidance matches every node without effect, and the scheduler warns once per executor about it.
 * `resources.memory`: grows the job's memory on retry. Set exactly one of `factor` (multiply, must exceed 1.0) or `static` (add a fixed quantity, for example `"512Mi"`). Requests and limits grow together, and the retried pod runs with the grown memory. The bump compounds across retries. If the grown job fits no node, it fails terminally. A job accumulates one bump kind: when a later retry matches a rule with the other kind, the scheduler skips that bump.
 
 Mutations apply on the failed-run retry path only. A lease-expiry retry (a lost executor) requeues the job unchanged: the lost node is not a node to avoid, and growing the job does not cure a lost executor.
@@ -129,7 +131,7 @@ Mutations apply on the failed-run retry path only. A lease-expiry retry (a lost 
 Two limits bound how often a job is retried: the per-policy `retryLimit` and the scheduler-wide `globalMaxRetries`.
 
 * `retryLimit` counts retries, not attempts. `retryLimit: 3` allows 3 retries after the initial failure, so 4 total attempts before the job fails terminally. `retryLimit: 0` allows no retries, so a job under that policy fails terminally on its first failure.
-* Lease returns and lease expiries differ. A returned lease (node drain, recoverable submit error) never ran and consumes no budget. An expired lease (a lost executor) is treated as a genuine failure: it consumes both `retryLimit` and `globalMaxRetries`.
+* Returned leases consume no retry-policy budget, but do not guarantee that no user code ran: a container may have run while another never started, init containers may have completed, or configured `failedPodChecks.containerStatuses` may return a failed pod after execution. Expired leases (lost executors) count against both `retryLimit` and `globalMaxRetries`.
 * Preemptions never consume the failure budget. A preempted run does not count against `retryLimit` or `globalMaxRetries`, so a job that was preempted earlier can still use its full failure budget when it later fails on its own. This version does not retry preempted runs themselves: a preemption is not treated as a job failure, and preemption-driven retries are planned for a later version.
 * `globalMaxRetries` is a scheduler-wide cap on top of every policy. It counts the same genuine-failure retries `retryLimit` counts, with one ceiling for the whole scheduler, so no policy can grant more retries than the cap allows. The legacy attempt limit bounds lease returns separately.
 * `globalMaxRetries: 0` disables all engine retries. This is the kill switch: with the cap at zero the engine never grants a retry, whatever the policies say. It differs from disabling the feature flag: the engine still decides and attributes failures, with categorized terminal events, but grants nothing. Use it to stop retries during an incident without changing event behaviour. The scheduler warns at startup when this state is configured.
@@ -191,7 +193,7 @@ Delete a policy:
 armadactl delete retry-policy ml-training-retries
 ```
 
-Deletion is rejected while any queue still references the policy. Detach it from all queues first, then delete it.
+Deletion always succeeds. The server detaches the policy from every queue that references it and logs those queues. Those queues lose the policy within about one `queueRefreshPeriod`. The scheduler's queue cache and policy cache refresh on their own schedules, so a queue can pass through the legacy behaviour for one refresh before `defaultPolicyName` applies, if one is configured. When a queue must keep its retries, attach a replacement policy to it, wait one `queueRefreshPeriod` so both caches hold the new attachment, and then delete the old one.
 
 Managing policies requires the `create_retry_policy`, `update_retry_policy`, and `delete_retry_policy` permissions. Grant them through the server's permission group mapping; without them the corresponding CRUD calls return `PermissionDenied`.
 

@@ -64,6 +64,29 @@ jobs:
           path: test-reports/
           if-no-files-found: error
 
+  executor-service-race-tests:
+    name: Executor Service Race Tests
+    needs:
+      - go-mod-up-to-date
+      - sqlc-up-to-date
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+
+    env:
+      CGO_ENABLED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: executor-service-race-tests
+
+      - name: Race Tests
+        run: go test -race -count=20 -timeout=15m ./internal/executor/service/
+
   go-integration-tests:
     name: Golang Integration Tests
     needs:
@@ -85,14 +108,14 @@ jobs:
       # less than this job's ~19.5GB peak usage. Remove unused preinstalled
       # toolchains to make room.
       - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
         with:
           tool-cache: false
           large-packages: false
           swap-storage: false
 
       - name: Setup Docker
-        uses: docker/setup-docker-action@77e84dbf09b47d1e29270283c22f16145aa85ca1 # v5.4.0
+        uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5.5.0
         with:
           daemon-config: '{"features":{"containerd-snapshotter":false}}'
 

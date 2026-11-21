@@ -1,6 +1,6 @@
-FROM eclipse-temurin:11-jdk
+FROM eclipse-temurin:17-jdk-noble
 
-ARG MAVEN_VERSION=3.9.9
+ARG MAVEN_VERSION=3.9.16
 
 LABEL org.opencontainers.image.authors="G-Research Open-Source Software"
 LABEL org.opencontainers.image.licenses="Apache-2.0"

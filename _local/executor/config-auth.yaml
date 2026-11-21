@@ -22,7 +22,6 @@ application:
   pool: "default"
   enableJobErrorCategorization: true
   errorCategories:
-    defaultCategory: uncategorized
     categories:
       - name: oom
         rules:

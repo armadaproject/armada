@@ -67,6 +67,14 @@ rules:
   - get
   - list
   - watch
+{{- if .Values.useConstrainedImpersonation }}
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["users", "groups"]
+  verbs: ["impersonate:user-info"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["impersonate-on:user-info:create"]
+{{- else }}
 - apiGroups:
   - ""
   resources:
@@ -74,6 +82,7 @@ rules:
   - groups
   verbs:
   - impersonate
+{{- end }}
 - apiGroups:
     - ""
   resources:

@@ -614,6 +614,25 @@ func TestSubmitJobFromApiRequest(t *testing.T) {
 	}
 }
 
+func TestSubmitJobFromApiRequest_PodNameSettings(t *testing.T) {
+	config := testfixtures.DefaultSubmissionConfig()
+	config.ObjectNamePrefix = "team"
+	config.RunScopedPodNames = true
+	jobReq := jobSubmitRequestItemWithIngresses([]*api.IngressConfig{{Ports: []uint32{8080}}})
+
+	msg := SubmitJobFromApiRequest(jobReq, config, testfixtures.DefaultJobset, testfixtures.DefaultQueue.Name, testfixtures.DefaultOwner,
+		func() string { return testfixtures.TestUlid(1) })
+
+	require.Len(t, msg.Objects, 2)
+	ingress := msg.Objects[1].GetIngress()
+	assert.Equal(t, "team", msg.ObjectNamePrefix)
+	assert.True(t, msg.RunScopedPodNames)
+	assert.Equal(t, "team-00000000000000000000000001-0-service-0", msg.Objects[0].ObjectMeta.Name)
+	assert.Equal(t, "team-00000000000000000000000001-0-ingress-0", msg.Objects[1].ObjectMeta.Name)
+	assert.Equal(t, "testContainer-8080-team-00000000000000000000000001-0.testNamespace.", ingress.Rules[0].Host)
+	assert.Equal(t, "team-00000000000000000000000001-0-service-0", ingress.Rules[0].HTTP.Paths[0].Backend.Service.Name)
+}
+
 func TestCreateIngressFromService(t *testing.T) {
 	defaultServiceSpec := &v1.ServiceSpec{
 		Ports: []v1.ServicePort{
@@ -765,6 +784,7 @@ func TestCreateIngressFromService(t *testing.T) {
 				tc.ingressConfig,
 				"testService",
 				testfixtures.DefaultNamespace,
+				"armada",
 				"00000000000000000000000001")
 
 			assert.Equal(t, tc.expectedIngress, generatedIngress)

@@ -11,8 +11,10 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/constants"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/server/configuration"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -371,6 +373,50 @@ func TestDefaultActiveDeadlineSeconds(t *testing.T) {
 						},
 					},
 				},
+			},
+		},
+		"DefaultActiveDeadlineSecondsByResource matches a pod-level request": {
+			config: configuration.SubmissionConfig{
+				DefaultActiveDeadline: time.Second,
+				DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{
+					"memory": time.Minute,
+				},
+			},
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{}},
+				Resources: &v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{"memory": resource.MustParse("1Gi")},
+					Limits:   map[v1.ResourceName]resource.Quantity{"memory": resource.MustParse("1Gi")},
+				},
+			},
+			expected: &v1.PodSpec{
+				Containers: []v1.Container{{}},
+				Resources: &v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{"memory": resource.MustParse("1Gi")},
+					Limits:   map[v1.ResourceName]resource.Quantity{"memory": resource.MustParse("1Gi")},
+				},
+				ActiveDeadlineSeconds: pointer.Int64Ptr(60),
+			},
+		},
+		"DefaultActiveDeadlineSecondsByResource matches an init container request": {
+			config: configuration.SubmissionConfig{
+				DefaultActiveDeadline: time.Second,
+				DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{
+					"memory": time.Minute,
+				},
+			},
+			podSpec: &v1.PodSpec{
+				Containers: []v1.Container{{}},
+				InitContainers: []v1.Container{{Resources: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{"memory": resource.MustParse("1Gi")},
+				}}},
+			},
+			expected: &v1.PodSpec{
+				Containers: []v1.Container{{}},
+				InitContainers: []v1.Container{{Resources: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{"memory": resource.MustParse("1Gi")},
+				}}},
+				ActiveDeadlineSeconds: pointer.Int64Ptr(60),
 			},
 		},
 	}
@@ -755,4 +801,122 @@ func submitMsgFromAnnotations(annotations map[string]string) *armadaevents.Submi
 			Annotations: annotations,
 		},
 	}
+}
+
+func TestDropPodLevelResourcesIfDisabled(t *testing.T) {
+	podLevel := &v1.ResourceRequirements{
+		Requests: v1.ResourceList{"cpu": resource.MustParse("2")},
+		Limits:   v1.ResourceList{"cpu": resource.MustParse("2")},
+	}
+
+	tests := map[string]struct {
+		initialResources  *v1.ResourceRequirements
+		enabled           bool
+		expectedResources *v1.ResourceRequirements
+	}{
+		"disabled clears the pod-level block": {
+			initialResources: podLevel,
+			enabled:          false,
+		},
+		"enabled preserves the pod-level block": {
+			initialResources:  podLevel,
+			enabled:           true,
+			expectedResources: podLevel,
+		},
+		"unset pod-level block is left unset": {
+			enabled: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			spec := &v1.PodSpec{Resources: tc.initialResources.DeepCopy()}
+			dropPodLevelResourcesIfDisabled(spec, configuration.SubmissionConfig{PodLevelResources: tc.enabled})
+			assert.Equal(t, tc.expectedResources, spec.Resources)
+		})
+	}
+}
+
+func TestDefaultResourcePodLevel(t *testing.T) {
+	defaults := configuration.SubmissionConfig{
+		DefaultJobLimits: armadaresource.ComputeResources{
+			"cpu":               resource.MustParse("1"),
+			"memory":            resource.MustParse("1Gi"),
+			"ephemeral-storage": resource.MustParse("8Gi"),
+		},
+	}
+	rr := func(rl v1.ResourceList) *v1.ResourceRequirements {
+		return &v1.ResourceRequirements{Requests: rl, Limits: rl}
+	}
+	cpuMem := v1.ResourceList{"cpu": resource.MustParse("6"), "memory": resource.MustParse("24Gi")}
+
+	tests := map[string]struct {
+		podLevel *v1.ResourceRequirements
+		spec     *v1.PodSpec
+		absent   []v1.ResourceName
+		present  v1.ResourceList
+	}{
+		"pooled resources are not defaulted into containers": {
+			podLevel: rr(cpuMem),
+			spec:     &v1.PodSpec{Containers: []v1.Container{{Name: "model"}, {Name: "solver"}}},
+			absent:   []v1.ResourceName{"cpu", "memory"},
+			present:  v1.ResourceList{"ephemeral-storage": resource.MustParse("8Gi")},
+		},
+		"a resource the pod-level block omits still defaults": {
+			podLevel: rr(v1.ResourceList{"memory": resource.MustParse("24Gi")}),
+			spec:     &v1.PodSpec{Containers: []v1.Container{{Name: "only"}}},
+			absent:   []v1.ResourceName{"memory"},
+			present:  v1.ResourceList{"cpu": resource.MustParse("1")},
+		},
+		"a bare init container no longer gets whole-core cpu": {
+			podLevel: rr(cpuMem),
+			spec: &v1.PodSpec{
+				InitContainers: []v1.Container{{Name: "init"}},
+				Containers:     []v1.Container{{Name: "main"}},
+			},
+			absent: []v1.ResourceName{"cpu", "memory"},
+		},
+		"no pod-level block defaults exactly as before": {
+			spec:    &v1.PodSpec{Containers: []v1.Container{{Name: "c"}}},
+			present: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tc.spec.Resources = tc.podLevel
+			defaultResource(tc.spec, defaults)
+
+			for _, c := range append(tc.spec.Containers, tc.spec.InitContainers...) {
+				for _, rn := range tc.absent {
+					assert.NotContains(t, c.Resources.Requests, rn, c.Name)
+					assert.NotContains(t, c.Resources.Limits, rn, c.Name)
+				}
+				for rn, want := range tc.present {
+					assert.Equal(t, want, c.Resources.Requests[rn], "%s requests %s", c.Name, rn)
+					assert.Equal(t, want, c.Resources.Limits[rn], "%s limits %s", c.Name, rn)
+				}
+			}
+			assert.Equal(t, tc.podLevel, tc.spec.Resources)
+		})
+	}
+}
+
+func TestDefaultResourcePodLevelEffectiveRequest(t *testing.T) {
+	spec := &v1.PodSpec{
+		Resources: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("6"), "memory": resource.MustParse("24Gi")},
+			Limits:   v1.ResourceList{"cpu": resource.MustParse("6"), "memory": resource.MustParse("24Gi")},
+		},
+		Containers: []v1.Container{{Name: "model"}, {Name: "solver"}},
+	}
+	defaultResource(spec, configuration.SubmissionConfig{
+		DefaultJobLimits: armadaresource.ComputeResources{
+			"cpu":    resource.MustParse("1"),
+			"memory": resource.MustParse("1Gi"),
+		},
+	})
+
+	effective := api.SchedulingResourceRequirementsFromPodSpec(spec).Requests
+	assert.Equal(t, resource.MustParse("6"), effective["cpu"])
+	assert.Equal(t, resource.MustParse("24Gi"), effective["memory"])
 }

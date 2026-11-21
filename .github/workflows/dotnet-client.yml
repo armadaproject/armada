@@ -1,0 +1,75 @@
+name: DotNet Client
+
+on:
+  push:
+    tags:
+      - v*
+    branches:
+      - master
+    paths:
+      - 'client/DotNet/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/dotnet-client.yml'
+      - 'magefiles/dotnet.go'
+      - 'magefiles/proto.go'
+      - 'magefiles/main.go'
+
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths:
+      - 'client/DotNet/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/dotnet-client.yml'
+      - 'magefiles/dotnet.go'
+      - 'magefiles/proto.go'
+      - 'magefiles/main.go'
+
+jobs:
+  dotnet-client-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup the latest .NET 10 SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: dotnet-client
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
+        with:
+          version: '23.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore NuGet packages cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('client/DotNet/**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      # The client compiles the Armada protos, which import k8s.io and google/api protos
+      # that are downloaded into ./proto by this target.
+      - name: Bootstrap proto dependencies
+        run: go run github.com/magefile/mage@v1.17.2 -v BootstrapProto
+
+      - name: Build
+        run: dotnet build client/DotNet/Armada.Client.sln
+
+      - name: Test
+        run: dotnet test client/DotNet/Armada.Client.sln --no-build --logger "trx;LogFileName=dotnet-client-tests.trx" --results-directory ./test-results/dotnet-client
+
+      - name: Upload Test Reports Artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dotnet-client-test-reports
+          path: ./test-results/dotnet-client/
+          if-no-files-found: error

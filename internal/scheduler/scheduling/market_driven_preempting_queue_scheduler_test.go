@@ -724,6 +724,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 					limiter,
 					nil,
 					totalResources,
+					tc.SchedulingConfig.PriorityClasses,
 				)
 				sctx.Started = schedulingStarted.Add(time.Duration(i) * schedulingInterval)
 
@@ -736,7 +737,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 						weight,
 						allocatedByQueueAndPriorityClass[queue],
 						queueDemand,
-						queueDemand,
+						demandAtDefaultPriorityClass(queueDemand),
 						internaltypes.ResourceList{},
 						limiterByQueue[queue],
 					)
@@ -892,7 +893,7 @@ func TestMarketDrivenPreemptingQueueScheduler(t *testing.T) {
 				require.NoError(t, err)
 				for node := it.NextNode(); node != nil; node = it.NextNode() {
 					for _, p := range priorities {
-						for _, r := range node.AllocatableByPriority[p].GetAll() {
+						for _, r := range node.AllocatableAtPriority(p).GetAll() {
 							assert.False(t, r.IsNegative(), "resource oversubscribed by %s on node %s", r.String(), node.GetId())
 						}
 					}

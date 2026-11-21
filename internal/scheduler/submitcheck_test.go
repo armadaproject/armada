@@ -16,6 +16,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/pointer"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/floatingresources"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -33,6 +34,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	smallJob2 := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1)
 	smallGpuJob := testfixtures.Test1GpuJob("queue", testfixtures.PriorityClass4PreemptibleAway)
 	smallAwayJob := testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass4PreemptibleAway)
+	gpuTolerantCpuJob := testfixtures.Test1Cpu4GiJobWithGpuToleration("queue", testfixtures.PriorityClass4PreemptibleAway)
 	largeJob1 := testfixtures.Test32Cpu256GiJobWithLargeJobToleration("queue", testfixtures.PriorityClass1)
 
 	// This Gang job will fit
@@ -51,12 +53,16 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		{Name: "cpu2"},
 		{Name: "cpu-disallowed-resources", ExperimentalUnscheduledResources: []string{"cpu"}},
 		{Name: "gpu"},
-		{Name: "cpu-away", AwayPools: []configuration.AwayPoolConfig{{Name: "gpu"}}},
+		{
+			Name:                             "cpu-away",
+			AwayPools:                        []configuration.AwayPoolConfig{{Name: "gpu"}},
+			ExperimentalUnscheduledResources: []string{"nvidia.com/gpu"},
+		},
 		{Name: "cpu-grouped-1", ExperimentalSubmissionGroup: "group-1"},
 		{Name: "cpu-grouped-2", ExperimentalSubmissionGroup: "group-1"},
 	}
 
-	tests := map[string]struct {
+	type submitCheckCase struct {
 		executorTimeout   time.Duration
 		executors         []*schedulerobjects.Executor
 		jobs              []*jobdb.Job
@@ -64,7 +70,8 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 		queue             *api.Queue
 		submitCheckConfig *configuration.SubmitCheckConfig
 		clockStep         time.Duration
-	}{
+	}
+	tests := map[string]submitCheckCase{
 		"One job schedulable": {
 			executorTimeout: defaultTimeout,
 			executors:       []*schedulerobjects.Executor{Executor(SmallNode("cpu"))},
@@ -130,8 +137,22 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 				// The job can theoretically schedule:
 				// - On the "gpu" pool as a home job
 				// - On the "cpu-away" pool, which has "gpu" as an away pool
-				// Jobs shouldn't get assigned to pools with away pools they are already home jobs on
+				// It is kept off "cpu-away" by that pool banning nvidia.com/gpu, not by
+				// anything in the pool sweep itself.
 				smallGpuJob.Id(): {isSchedulable: true, pools: []string{"gpu"}},
+			},
+		},
+		"One job schedulable, home job on an away pool, borrowing pool also viable": {
+			executorTimeout: defaultTimeout,
+			executors: []*schedulerobjects.Executor{
+				Executor(GpuNode("gpu")),
+			},
+			jobs: []*jobdb.Job{gpuTolerantCpuJob},
+			expectedResult: map[string]schedulingResult{
+				// This job requests no GPU but tolerates the gpu taint, so it is a home
+				// job on the "gpu" pool and is not excluded from "cpu-away" by that
+				// pool's nvidia.com/gpu ban. It is therefore eligible for both.
+				gpuTolerantCpuJob.Id(): {isSchedulable: true, pools: []string{"cpu-away", "gpu"}},
 			},
 		},
 		"One job schedulable, away pools": {
@@ -390,6 +411,40 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 			},
 		},
 	}
+	for _, key := range map[string]string{
+		"legacy master": "node-role.kubernetes.io/master",
+		"control plane": "node-role.kubernetes.io/control-plane",
+	} {
+		masterTaint := &v1.Taint{Key: key, Effect: v1.TaintEffectNoSchedule}
+		workerTaint := &v1.Taint{Key: "example.com/user", Effect: v1.TaintEffectNoSchedule}
+		master := SmallNode("cpu")
+		master.Unschedulable = true
+		master.Taints = []*v1.Taint{masterTaint}
+		master.NodeTaints = []*schedulerobjects.NodeTaint{{Taint: masterTaint}}
+		worker := SmallNode("cpu")
+		worker.Taints = []*v1.Taint{workerTaint}
+		worker.NodeTaints = []*schedulerobjects.NodeTaint{{Taint: workerTaint, Category: "user", UserFacing: true}}
+		tests["untolerated user and "+key+" taints reject job"] = submitCheckCase{
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(master, worker)},
+			jobs:            []*jobdb.Job{smallJob1},
+			expectedResult:  map[string]schedulingResult{smallJob1.Id(): {isSchedulable: false}},
+		}
+
+		requirements := testfixtures.Test1Cpu4GiPodReqs()
+		requirements.Tolerations = []v1.Toleration{{Key: key, Operator: v1.TolerationOpExists, Effect: v1.TaintEffectNoSchedule}}
+		toleratingJob := testfixtures.TestJob("queue", util.ULID(), testfixtures.PriorityClass1, requirements)
+		masterOnly := SmallNode("cpu")
+		masterOnly.Unschedulable = true
+		masterOnly.Taints = []*v1.Taint{masterTaint}
+		masterOnly.NodeTaints = []*schedulerobjects.NodeTaint{{Taint: masterTaint}}
+		tests["job tolerating "+key+" can use control-plane node"] = submitCheckCase{
+			executorTimeout: defaultTimeout,
+			executors:       []*schedulerobjects.Executor{Executor(masterOnly)},
+			jobs:            []*jobdb.Job{toleratingJob},
+			expectedResult:  map[string]schedulingResult{toleratingJob.Id(): {isSchedulable: true, pools: []string{"cpu"}}},
+		}
+	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
@@ -469,8 +524,8 @@ func TestSubmitChecker_Initialise(t *testing.T) {
 			queueCacheErr: fmt.Errorf("failed to get queues"),
 		},
 		"error on executor repo err": {
-			expectError:   true,
-			queueCacheErr: fmt.Errorf("failed to get executors"),
+			expectError:     true,
+			executorRepoErr: fmt.Errorf("failed to get executors"),
 		},
 	}
 	for name, tc := range tests {
@@ -506,6 +561,13 @@ func TestSubmitChecker_Initialise(t *testing.T) {
 			err := submitCheck.Initialise(ctx)
 			if tc.expectError {
 				assert.Error(t, err)
+				// The cause must stay in the chain so that its stack trace reaches the logger.
+				if tc.queueCacheErr != nil {
+					assert.ErrorIs(t, err, tc.queueCacheErr)
+				}
+				if tc.executorRepoErr != nil {
+					assert.ErrorIs(t, err, tc.executorRepoErr)
+				}
 			} else {
 				assert.NoError(t, err)
 			}

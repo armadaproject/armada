@@ -106,10 +106,15 @@
         "logOptions": {
           "$ref": "#/definitions/v1PodLogOptions"
         },
+        "podName": {
+          "description": "pod_name is the pod to read, as Armada reports it for the run. A request without it reads the pod\narmada-\u003cjob_id\u003e-0.",
+          "type": "string"
+        },
         "podNamespace": {
           "type": "string"
         },
         "podNumber": {
+          "description": "pod_number is always 0, because the executor creates one pod for each run. Use pod_name.",
           "type": "integer",
           "format": "int32"
         },

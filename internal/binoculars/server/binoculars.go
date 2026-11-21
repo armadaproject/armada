@@ -2,14 +2,13 @@ package server
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/gogo/protobuf/types"
 
 	"github.com/armadaproject/armada/internal/binoculars/service"
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
+	"github.com/armadaproject/armada/internal/common/podname"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
@@ -28,10 +27,15 @@ func NewBinocularsServer(logService service.LogService, cordonService service.Co
 func (b *BinocularsServer) Logs(ctx context.Context, request *binoculars.LogRequest) (*binoculars.LogResponse, error) {
 	principal := auth.GetPrincipal(ctx)
 
+	podName := request.PodName
+	if podName == "" {
+		// The executor makes one pod for each run, so the job-scoped pod number is always 0.
+		podName = podname.Default(request.JobId)
+	}
 	logLines, err := b.logService.GetLogs(armadacontext.FromGrpcCtx(ctx), &service.LogParams{
 		Principal:  principal,
 		Namespace:  request.PodNamespace,
-		PodName:    common.PodNamePrefix + request.JobId + "-" + strconv.Itoa(int(request.PodNumber)),
+		PodName:    podName,
 		SinceTime:  request.SinceTime,
 		LogOptions: request.LogOptions,
 	})

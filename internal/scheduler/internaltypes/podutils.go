@@ -184,7 +184,7 @@ func (skg *PodRequirementsSerialiser) AppendTolerations(out []byte, tolerations 
 		out = append(out, []byte(":")...)
 		out = append(out, []byte(toleration.Operator)...)
 		out = append(out, []byte(":")...)
-		out = append(out, []byte((toleration.Effect))...)
+		out = append(out, []byte(toleration.Effect)...)
 		out = append(out, []byte("$")...)
 	}
 	if len(tolerations) > 0 {

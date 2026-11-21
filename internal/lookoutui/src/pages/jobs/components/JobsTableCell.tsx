@@ -12,10 +12,11 @@ import {
   StandardColumnId,
   toColId,
   isStandardColId,
-  PREREQUISITE_FILTER_COLUMNS,
+  prerequisiteFilterColumns,
   STANDARD_COLUMN_DISPLAY_NAMES,
 } from "../../../common/jobsTableColumns"
-import { matchForColumn } from "../../../common/jobsTableUtils"
+import { formatColumnList } from "../../../common/jobsTableFormatters"
+import { canFilterOnColumn, matchForColumn } from "../../../common/jobsTableUtils"
 import { ActionableValueOnHover } from "../../../components/ActionableValueOnHover"
 import { CopyIconButton } from "../../../components/CopyIconButton"
 import { JobsTableFilter } from "../../../components/JobsTableFilter"
@@ -128,13 +129,8 @@ export function HeaderCell({
     )
   }
 
-  const prerequisiteFilterColumns = isStandardColId(id) ? PREREQUISITE_FILTER_COLUMNS[id as StandardColumnId] : []
-  const prerequisiteFilterColumnsSatisfied = prerequisiteFilterColumns.every((pid) =>
-    header
-      .getContext()
-      .table.getState()
-      .columnFilters.some((f) => f.id === pid),
-  )
+  const prerequisiteColumns = prerequisiteFilterColumns(id)
+  const prerequisiteFilterColumnsSatisfied = canFilterOnColumn(id, header.getContext().table.getState().columnFilters)
 
   return (
     <HeaderTableCell
@@ -250,10 +246,7 @@ export function HeaderCell({
             ) : (
               <Typography component="div" variant="body2" color="textSecondary">
                 To filter by {metadata.displayName}, add a filter for{" "}
-                {prerequisiteFilterColumns
-                  .map((pid) => STANDARD_COLUMN_DISPLAY_NAMES[pid])
-                  .join(", ")
-                  .replace(/, ([^,]*)$/, " and $1")}
+                {formatColumnList(prerequisiteColumns.map((pid) => STANDARD_COLUMN_DISPLAY_NAMES[pid]))}
               </Typography>
             ))}
 
@@ -395,7 +388,10 @@ export const BodyCell = ({
         filterAction={
           rowIsGroup ||
           !value ||
-          (columnMetadata.filterType !== FilterType.Enum && columnMetadata.filterType !== FilterType.Text)
+          (columnMetadata.filterType !== FilterType.Enum && columnMetadata.filterType !== FilterType.Text) ||
+          // Filtering on this column requires a filter on another column which is not yet applied,
+          // so the filter would be discarded as soon as it was set
+          !canFilterOnColumn(cell.column.id, cell.getContext().table.getState().columnFilters)
             ? undefined
             : {
                 onFilter: () => {

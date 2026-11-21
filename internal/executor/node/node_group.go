@@ -1,19 +1,20 @@
 package node
 
 import (
-	"slices"
 	"sort"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/context"
 	util2 "github.com/armadaproject/armada/internal/executor/util"
 )
 
-const defaultNodeType = "none"
+const (
+	defaultNodeType = "none"
+)
 
 type NodeInfoService interface {
 	IsAvailableProcessingNode(*v1.Node) bool
@@ -29,7 +30,7 @@ type KubernetesNodeInfoService struct {
 	nodeTypeLabel          string
 	nodePoolLabel          string
 	reservedNodePoolSuffix string
-	toleratedTaints        map[string]bool
+	wellKnownTaints        *configuration.WellKnownTaints
 }
 
 func NewKubernetesNodeInfoService(
@@ -37,17 +38,14 @@ func NewKubernetesNodeInfoService(
 	nodeTypeLabel string,
 	nodePoolLabel string,
 	reservedNodePoolSuffix string,
-	toleratedTaints []string,
+	wellKnownTaints *configuration.WellKnownTaints,
 ) *KubernetesNodeInfoService {
-	if !slices.Contains(toleratedTaints, constants.ReservationTaintKey) {
-		toleratedTaints = append(toleratedTaints, constants.ReservationTaintKey)
-	}
 	return &KubernetesNodeInfoService{
 		clusterContext:         clusterContext,
 		nodePoolLabel:          nodePoolLabel,
 		nodeTypeLabel:          nodeTypeLabel,
 		reservedNodePoolSuffix: reservedNodePoolSuffix,
-		toleratedTaints:        util.StringListToSet(toleratedTaints),
+		wellKnownTaints:        wellKnownTaints,
 	}
 }
 
@@ -101,7 +99,7 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetType(node *v1.Nod
 	if labelValue, ok := node.Labels[kubernetesNodeInfoService.nodeTypeLabel]; ok {
 		nodeType = labelValue
 	} else {
-		relevantTaints := kubernetesNodeInfoService.filterToleratedTaints(node.Spec.Taints)
+		relevantTaints := kubernetesNodeInfoService.filterWellKnownTaints(node.Spec.Taints)
 		if len(relevantTaints) > 0 {
 			nodeType = nodeGroupId(relevantTaints)
 		}
@@ -110,15 +108,15 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetType(node *v1.Nod
 	return nodeType
 }
 
-func (kubernetesNodeInfoService *KubernetesNodeInfoService) filterToleratedTaints(taints []v1.Taint) []v1.Taint {
+func (kubernetesNodeInfoService *KubernetesNodeInfoService) filterWellKnownTaints(taints []v1.Taint) []v1.Taint {
 	result := []v1.Taint{}
 
 	for _, taint := range taints {
-		_, ok := kubernetesNodeInfoService.toleratedTaints[taint.Key]
-		if ok {
+		if _, isWellKnown := kubernetesNodeInfoService.wellKnownTaints.MatchWellKnownTaint(taint.Key); isWellKnown {
 			result = append(result, taint)
 		}
 	}
+
 	return result
 }
 
@@ -150,8 +148,8 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) IsAvailableProcessin
 	}
 
 	for _, taint := range node.Spec.Taints {
-		if taint.Effect == v1.TaintEffectNoSchedule &&
-			!kubernetesNodeInfoService.toleratedTaints[taint.Key] {
+		_, isWellKnown := kubernetesNodeInfoService.wellKnownTaints.MatchWellKnownTaint(taint.Key)
+		if taint.Effect == v1.TaintEffectNoSchedule && !isWellKnown {
 			return false
 		}
 	}

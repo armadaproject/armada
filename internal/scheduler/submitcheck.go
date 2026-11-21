@@ -124,11 +124,11 @@ func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
 func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 	queues, err := srv.queueCache.GetAll(ctx)
 	if err != nil {
-		return fmt.Errorf("failed fetching queues from queue cache - %s", err)
+		return fmt.Errorf("failed fetching queues from queue cache - %w", err)
 	}
 	executors, err := srv.executorRepository.GetExecutors(ctx)
 	if err != nil {
-		return fmt.Errorf("failed fetching executors from db - %s", err)
+		return fmt.Errorf("failed fetching executors from db - %w", err)
 	}
 
 	ctx.Infof("Retrieved %d executors", len(executors))
@@ -153,7 +153,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 			[]*schedulerobjects.Executor{ex},
 			func(s string) { ctx.Error(s) })
 		// Treat cordoned nodes as available.
-		nodes = nodeFactory.RemoveCordonTaint(nodes)
+		nodes = nodeFactory.RemoveCordonTaints(nodes)
 		allNodes = append(allNodes, nodes...)
 	}
 
@@ -173,16 +173,12 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 			IndexedNodeLabels:  srv.schedulingConfig.IndexedNodeLabels,
 			IndexedTaints:      srv.schedulingConfig.IndexedTaints,
 			WellKnownNodeTypes: srv.schedulingConfig.WellKnownNodeTypes,
+			EnableUrgencyBeforeFairsharePreemptionOrdering: srv.schedulingConfig.EnableUrgencyBeforeFairSharePreemptionOrdering,
 		}
 
 		nodeDb, err := scheduling.ConstructNodeDb(nodeDbConfig, srv.resourceListFactory, srv.schedulingConfig.PriorityClasses, pool, nil, nil, poolNodes)
 		if err != nil {
-			return fmt.Errorf("failed constructing nodedb for pool %s - %s", pool.Name, err)
-		}
-
-		err = nodeDb.ClearAllocated()
-		if err != nil {
-			return fmt.Errorf("failed clearing nodedb for pool %s - %s", pool.Name, err)
+			return fmt.Errorf("failed constructing nodedb for pool %s - %w", pool.Name, err)
 		}
 
 		nodeDbByPool[pool.Name] = nodeDb
@@ -305,17 +301,10 @@ func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSched
 	successfulPools := map[string]bool{}
 	var sb strings.Builder
 
-poolStart:
 	for _, pool := range srv.schedulingConfig.Pools {
 
 		if successfulPools[pool.Name] {
 			continue
-		}
-
-		for _, awayPool := range pool.AwayPools {
-			if successfulPools[awayPool.Name] {
-				continue poolStart
-			}
 		}
 
 		sb.WriteString(fmt.Sprintf("pool %s:\n", pool.Name))

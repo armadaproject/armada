@@ -1,0 +1,20 @@
+{
+  "title": "Docs",
+  "pages": [
+    "core-concepts",
+    "architecture",
+    "submitting-jobs",
+    "monitoring-and-fleet",
+    "priority-and-preemption",
+    "interactive-jobs-and-services",
+    "gang-jobs",
+    "failure-categories",
+    "retry_policies",
+    "clients",
+    "integrations",
+    "cli",
+    "api",
+    "glossary",
+    "developer-guide"
+  ]
+}

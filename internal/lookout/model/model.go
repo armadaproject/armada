@@ -46,6 +46,8 @@ type Job struct {
 	Submitted          time.Time
 	CancelReason       *string
 	CancelUser         *string
+	PreemptUser        *string
+	ReprioritizeUser   *string
 	Node               *string
 	Cluster            string
 	Pool               *string
@@ -95,6 +97,7 @@ type Run struct {
 	Finished           *PostgreSQLTime
 	JobRunState        int
 	Node               *string
+	PodName            *string
 	Leased             *PostgreSQLTime
 	Pending            *PostgreSQLTime
 	Pool               *string

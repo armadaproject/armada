@@ -47,6 +47,7 @@ export interface JobTableColumnMetadata {
 
 export enum StandardColumnId {
   JobID = "jobId",
+  RunID = "runId",
   Queue = "queue",
   JobSet = "jobSet",
   State = "state",
@@ -98,37 +99,30 @@ export const isStandardColId = (columnId: string): columnId is StandardColumnId 
 export const getColumnMetadata = (column: JobTableColumn) => (column.meta ?? {}) as JobTableColumnMetadata
 
 // Some standard columns may only be filtered on if there are active filters on other columns.
-// PREREQUISITE_FILTER_COLUMNS defines these relationships.
-export const PREREQUISITE_FILTER_COLUMNS: Record<StandardColumnId, StandardColumnId[]> = {
+// PREREQUISITE_FILTER_COLUMNS defines these relationships. Columns absent from this record have no
+// prerequisites.
+export const PREREQUISITE_FILTER_COLUMNS: Partial<Record<StandardColumnId, StandardColumnId[]>> = {
   [StandardColumnId.JobSet]: [StandardColumnId.Queue],
-  [StandardColumnId.JobID]: [],
-  [StandardColumnId.Queue]: [],
-  [StandardColumnId.State]: [],
-  [StandardColumnId.Priority]: [],
-  [StandardColumnId.Owner]: [],
   [StandardColumnId.Namespace]: [StandardColumnId.Queue],
-  [StandardColumnId.CPU]: [],
-  [StandardColumnId.Memory]: [],
-  [StandardColumnId.EphemeralStorage]: [],
-  [StandardColumnId.GPU]: [],
-  [StandardColumnId.PriorityClass]: [],
-  [StandardColumnId.TimeSubmittedUtc]: [],
-  [StandardColumnId.TimeSubmittedAgo]: [],
-  [StandardColumnId.LastTransitionTimeUtc]: [],
-  [StandardColumnId.TimeInState]: [],
-  [StandardColumnId.SelectorCol]: [],
-  [StandardColumnId.Count]: [],
-  [StandardColumnId.Node]: [],
-  [StandardColumnId.Cluster]: [],
-  [StandardColumnId.Pool]: [],
-  [StandardColumnId.ExitCode]: [],
-  [StandardColumnId.RuntimeSeconds]: [],
-  [StandardColumnId.FailureCategory]: [],
-  [StandardColumnId.FailureSubcategory]: [],
 }
+
+// Some standard columns may only be grouped by if other columns are also grouped by. This is kept
+// separate from PREREQUISITE_FILTER_COLUMNS so that the filtering and grouping relationships may
+// diverge.
+export const PREREQUISITE_GROUPING_COLUMNS: Partial<Record<StandardColumnId, StandardColumnId[]>> = {
+  [StandardColumnId.JobSet]: [StandardColumnId.Queue],
+  [StandardColumnId.Namespace]: [StandardColumnId.Queue],
+}
+
+export const prerequisiteFilterColumns = (columnId: string): StandardColumnId[] =>
+  (isStandardColId(columnId) ? PREREQUISITE_FILTER_COLUMNS[columnId] : undefined) ?? []
+
+export const prerequisiteGroupingColumns = (columnId: string): StandardColumnId[] =>
+  (isStandardColId(columnId) ? PREREQUISITE_GROUPING_COLUMNS[columnId] : undefined) ?? []
 
 export const STANDARD_COLUMN_DISPLAY_NAMES: Record<StandardColumnId, string> = {
   [StandardColumnId.JobID]: "Job ID",
+  [StandardColumnId.RunID]: "Run ID",
   [StandardColumnId.Queue]: "Queue",
   [StandardColumnId.JobSet]: "Job Set",
   [StandardColumnId.State]: "State",
@@ -191,6 +185,13 @@ export interface JobColumnsOptions {
   formatIsoTimestamp: (isoTimestampString: string | undefined, format: TimestampFormat) => string
   displayedTimeZoneName: string
   formatNumber: (n: number) => string
+}
+
+// Shows the latest run ID, noting how many other runs the job has had
+export const getRunIdDisplay = (row: JobTableRow): string => {
+  const runs = row.runs ?? []
+  const latestRunId = runs.at(-1)?.runId ?? ""
+  return runs.length > 1 ? `${latestRunId} (+${runs.length - 1} more)` : latestRunId
 }
 
 export const getLastRunFailureCategory = (row: JobTableRow): string => row.runs?.at(-1)?.failureCategory ?? ""
@@ -315,6 +316,19 @@ export const GET_JOB_COLUMNS = ({
       defaultMatchType: Match.Exact, // Job ID does not support startsWith
       allowCopy: true,
       allowCopyColumn: true,
+    },
+  }),
+  accessorColumn({
+    id: StandardColumnId.RunID,
+    accessor: (jobTableRow) => getRunIdDisplay(jobTableRow),
+    displayName: STANDARD_COLUMN_DISPLAY_NAMES[StandardColumnId.RunID],
+    additionalOptions: {
+      enableColumnFilter: true,
+      size: 300,
+    },
+    additionalMetadata: {
+      filterType: FilterType.Text,
+      defaultMatchType: Match.Exact, // matches any of the job's runs
     },
   }),
   accessorColumn({
@@ -606,6 +620,7 @@ export const DEFAULT_COLUMNS_TO_DISPLAY: Set<ColumnId> = new Set([
   StandardColumnId.Queue,
   StandardColumnId.JobSet,
   StandardColumnId.JobID,
+  StandardColumnId.RunID,
   StandardColumnId.State,
   StandardColumnId.TimeInState,
   StandardColumnId.TimeSubmittedUtc,
@@ -655,6 +670,7 @@ export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {
   [StandardColumnId.Queue]: Match.AnyOf,
   [StandardColumnId.JobSet]: Match.StartsWith,
   [StandardColumnId.JobID]: Match.Exact,
+  [StandardColumnId.RunID]: Match.Exact,
   [StandardColumnId.State]: Match.AnyOf,
   [StandardColumnId.Owner]: Match.StartsWith,
   [StandardColumnId.Namespace]: Match.StartsWith,
@@ -671,6 +687,7 @@ export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {
 
 export const VALID_COLUMN_MATCHES: Record<string, Match[]> = {
   [StandardColumnId.JobID]: [Match.Exact],
+  [StandardColumnId.RunID]: [Match.Exact],
   [StandardColumnId.Queue]: [Match.AnyOf],
   [StandardColumnId.JobSet]: [Match.Exact, Match.StartsWith, Match.Contains],
   [StandardColumnId.Owner]: [Match.Exact, Match.StartsWith, Match.Contains],

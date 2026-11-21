@@ -2,16 +2,23 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"math/rand/v2"
+	"net"
+	"os"
 	"sort"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	log "github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/eventingester/repository"
 	"github.com/armadaproject/armada/internal/leaderelection"
@@ -35,10 +42,15 @@ const (
 	RedisQueueEventsMetricName      = ArmadaRedisMetricsPrefix + "queue_events_total"
 
 	// Self-monitoring metrics
-	RedisMetricsCollectionDurationMetricName      = ArmadaRedisMetricsPrefix + "metrics_collection_duration_seconds"
-	RedisMetricsErrorsTotalMetricName             = ArmadaRedisMetricsPrefix + "metrics_errors_total"
-	RedisMetricsLastCollectionTimestampMetricName = ArmadaRedisMetricsPrefix + "metrics_last_collection_timestamp"
-	RedisMetricsStreamScannedMetricName           = ArmadaRedisMetricsPrefix + "metrics_streams_scanned_total"
+	RedisMetricsCollectionDurationMetricName                = ArmadaRedisMetricsPrefix + "metrics_collection_duration_seconds"
+	RedisMetricsErrorsTotalMetricName                       = ArmadaRedisMetricsPrefix + "metrics_errors_total"
+	RedisMetricsLastCollectionTimestampMetricName           = ArmadaRedisMetricsPrefix + "metrics_last_collection_timestamp"
+	RedisMetricsLastSuccessfulCollectionTimestampMetricName = ArmadaRedisMetricsPrefix + "metrics_last_successful_collection_timestamp"
+	RedisMetricsStreamScannedMetricName                     = ArmadaRedisMetricsPrefix + "metrics_streams_scanned_total"
+
+	// Label values for the collection duration metric's "status" label
+	collectionStatusSuccess = "success"
+	collectionStatusError   = "error"
 )
 
 // ScannerInterface defines the interface for scanning Redis streams.
@@ -71,10 +83,11 @@ type Collector struct {
 	queueEventsGauge  *prometheus.GaugeVec
 
 	// Self-monitoring
-	collectionDuration      prometheus.Histogram
-	errorsTotal             prometheus.Counter
-	lastCollectionTimestamp prometheus.Gauge
-	streamsScannedGauge     prometheus.Gauge
+	collectionDuration                *prometheus.HistogramVec
+	errorsTotal                       prometheus.Counter
+	lastCollectionTimestamp           prometheus.Gauge
+	lastSuccessfulCollectionTimestamp prometheus.Gauge
+	streamsScannedGauge               prometheus.Gauge
 
 	state     atomic.Value // stores []prometheus.Metric
 	collectMu sync.Mutex   // skip-if-busy pattern
@@ -159,17 +172,21 @@ func NewCollector(scanner ScannerInterface, config configuration.RedisMemoryMetr
 			},
 			[]string{"queue"},
 		),
-		collectionDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+		collectionDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name: RedisMetricsCollectionDurationMetricName,
 			Help: "Duration of Redis metrics collection cycles",
-		}),
+		}, []string{"status"}),
 		errorsTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: RedisMetricsErrorsTotalMetricName,
 			Help: "Total number of Redis metrics collection errors",
 		}),
 		lastCollectionTimestamp: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: RedisMetricsLastCollectionTimestampMetricName,
-			Help: "Timestamp of last successful collection",
+			Help: "Unix timestamp of the last metrics collection attempt",
+		}),
+		lastSuccessfulCollectionTimestamp: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: RedisMetricsLastSuccessfulCollectionTimestampMetricName,
+			Help: "Unix timestamp of the last successful metrics collection",
 		}),
 		streamsScannedGauge: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: RedisMetricsStreamScannedMetricName,
@@ -239,6 +256,7 @@ func (c *Collector) Describe(out chan<- *prometheus.Desc) {
 	c.collectionDuration.Describe(out)
 	c.errorsTotal.Describe(out)
 	c.lastCollectionTimestamp.Describe(out)
+	c.lastSuccessfulCollectionTimestamp.Describe(out)
 	c.streamsScannedGauge.Describe(out)
 }
 
@@ -288,23 +306,18 @@ func (c *Collector) collectOnce(ctx context.Context) error {
 	}
 	defer c.collectMu.Unlock()
 
-	// Reset all metrics for fresh collection cycle
-	c.resetMetricsForNewCycle()
-
 	start := time.Now()
 
-	// Scan all streams
-	streams, err := c.scanner.ScanAll(ctx)
+	streams, err := c.scanWithRetry(ctx)
 	if err != nil {
 		c.errorsTotal.Inc()
-		// Update self-monitoring even on error
-		c.collectionDuration.Observe(time.Since(start).Seconds())
+		c.collectionDuration.WithLabelValues(collectionStatusError).Observe(time.Since(start).Seconds())
 		c.lastCollectionTimestamp.SetToCurrentTime()
-		c.streamsScannedGauge.Set(0)
-		// Collect snapshot with error metrics
-		c.collectSnapshot()
+		c.collectSnapshot() // Update snapshot with self-monitoring metrics even on error
 		return fmt.Errorf("scanner error: %w", err)
 	}
+
+	c.resetMetricsForNewCycle()
 
 	// Sort for top-N computations
 	byMemory := make([]repository.StreamInfo, len(streams))
@@ -362,14 +375,94 @@ func (c *Collector) collectOnce(ctx context.Context) error {
 	}
 
 	// Update self-monitoring
-	c.collectionDuration.Observe(time.Since(start).Seconds())
+	c.collectionDuration.WithLabelValues(collectionStatusSuccess).Observe(time.Since(start).Seconds())
 	c.lastCollectionTimestamp.SetToCurrentTime()
+	c.lastSuccessfulCollectionTimestamp.SetToCurrentTime()
 	c.streamsScannedGauge.Set(float64(len(streams)))
 
 	// Collect all metrics into snapshot (AFTER updating self-monitoring)
 	c.collectSnapshot()
 
 	return nil
+}
+
+// scanWithRetry runs ScanAll with a per-attempt timeout, retrying retryable
+// errors (e.g. timeouts, connection errors) with exponential backoff until
+// MaxRetries is exhausted. Non-retryable errors and parent context
+// cancellation are returned immediately.
+// A cycle may overrun CollectionInterval when attempts consume the full
+// per-attempt timeout; the Run loop's ticker absorbs this, delaying rather
+// than overlapping the next collection cycle.
+func (c *Collector) scanWithRetry(ctx context.Context) ([]repository.StreamInfo, error) {
+	collectionTimeout := c.config.CollectionTimeout
+	initialBackoff := c.config.RetryInitialBackoff
+	maxRetries := c.config.MaxRetries
+
+	attempts := maxRetries + 1
+	if attempts < 1 {
+		attempts = 1
+	}
+
+	backoff := initialBackoff
+	var lastErr error
+	for attempt := range attempts {
+		if attempt > 0 {
+			log.WithError(lastErr).Warnf("retryable error scanning Redis streams, attempt %d/%d failed, retrying in %s", attempt, maxRetries, backoff)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(backoff):
+			}
+			backoff = 2 * backoff
+		}
+
+		attemptCtx := ctx
+		var cancel context.CancelFunc
+		if collectionTimeout > 0 {
+			attemptCtx, cancel = context.WithTimeout(ctx, collectionTimeout)
+		}
+		streams, err := c.scanner.ScanAll(attemptCtx)
+		if cancel != nil {
+			cancel()
+		}
+		if err == nil {
+			return streams, nil
+		}
+		lastErr = err
+
+		// Shutdown or fatal error: propagate immediately without retrying.
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if !isRetryableScanError(err) {
+			return nil, err
+		}
+	}
+
+	return nil, fmt.Errorf("scan failed after %d attempts: %w", attempts, lastErr)
+}
+
+// isRetryableScanError returns true for transient errors worth retrying,
+// such as timeouts and connection failures (including EOF and connection
+// resets on an established connection).
+func isRetryableScanError(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, os.ErrDeadlineExceeded) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, redis.ErrPoolTimeout) ||
+		errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.ECONNREFUSED) ||
+		errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, syscall.ETIMEDOUT) ||
+		isTimeoutNetError(err)
+}
+
+// isTimeoutNetError reports whether err wraps a net.Error reporting a
+// timeout, such as DNS lookup or dial timeouts.
+func isTimeoutNetError(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 // collectSnapshot collects all metrics into an atomic snapshot.
@@ -388,6 +481,7 @@ func (c *Collector) collectSnapshot() {
 		c.collectionDuration.Collect(ch)
 		c.errorsTotal.Collect(ch)
 		c.lastCollectionTimestamp.Collect(ch)
+		c.lastSuccessfulCollectionTimestamp.Collect(ch)
 		c.streamsScannedGauge.Collect(ch)
 		close(ch)
 	}()

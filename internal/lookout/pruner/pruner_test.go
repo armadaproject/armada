@@ -238,6 +238,12 @@ func TestPruneDb(t *testing.T) {
 					}
 				}
 
+				// The contents of the job_run tabke have already been validated above,
+				// So now we're just checking job_run_info matches the job_run table
+				assert.Equal(t,
+					selectStringSet(t, db, "SELECT run_id FROM job_run"),
+					selectStringSet(t, db, "SELECT run_id FROM job_run_info"))
+
 				if isHC {
 					if tc.activeJobIdsLeft != nil {
 						assertJobIds(t, db, "SELECT job_id FROM job_active", tc.activeJobIdsLeft)

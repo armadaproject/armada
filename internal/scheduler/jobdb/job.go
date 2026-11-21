@@ -45,8 +45,7 @@ type Job struct {
 	// True if the job has been validated by the scheduler.
 	// Any job that fails validation will be rejected.
 	validated bool
-	// True if the job is currently queued.
-	// If this is set then the job will not be considered for scheduling.
+	// True if the job is currently queued, waiting for the scheduler to give it a run.
 	queued bool
 	// The current version of the queued state.
 	queuedVersion int32
@@ -808,7 +807,7 @@ func (job *Job) ValidateResourceRequests() error {
 func (job *Job) WithNewRun(executor, nodeId, nodeName, pool string, scheduledAtPriority int32) *Job {
 	now := job.jobDb.clock.Now()
 	return job.WithUpdatedRun(job.jobDb.CreateRun(
-		job.jobDb.uuidProvider.New(),
+		job.jobDb.jobRunIDProvider.New(),
 		job.Id(),
 		now.UnixNano(),
 		executor,
@@ -882,8 +881,9 @@ func (job *Job) AllRuns() []*JobRun {
 
 // FailureCount returns the number of runs of this job that genuinely failed.
 // The retry engine charges this count against a policy's retry budgets.
-// Preempted and lease-returned runs are marked failed but never ran to a
-// genuine failure, so they do not count: neither is something the job did.
+// Preempted and lease-returned runs are marked failed but are not charged as
+// genuine failures, so they do not count, even when some of the job's
+// containers ran before the lease was returned.
 // The count derives from run history, which keeps it correct across
 // scheduler restarts.
 func (job *Job) FailureCount() uint32 {

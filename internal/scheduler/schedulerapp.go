@@ -133,7 +133,7 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "error creating armada api client")
 	}
 	defer func() {
-		err := conn.Close()
+		err := errors.WithStack(conn.Close())
 		if err != nil {
 			ctx.Logger().
 				WithStacktrace(err).
@@ -409,6 +409,10 @@ func Run(config schedulerconfig.Configuration) error {
 		resourceListFactory,
 	)
 	jobDb.SetRespectNodePodLimits(config.Scheduling.RespectNodePodLimits)
+	// The aggregate is static-gated: both flags are command-line flags requiring
+	// a restart, so when neither Compare nor Use is set the JobDb skips all
+	// aggregate maintenance (no per-job add/remove cost on Upsert/BatchDelete).
+	jobDb.SetAggregateEnabled(config.Scheduling.ExperimentalAggregateDemand.Compare || config.Scheduling.ExperimentalAggregateDemand.Use)
 
 	err = populateInitialBidPrices(ctx, bidPriceProvider, jobDb)
 	if err != nil {

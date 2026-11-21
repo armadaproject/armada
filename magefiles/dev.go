@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,7 +20,8 @@ import (
 type Dev mg.Namespace
 
 const (
-	goremanPackage   = "github.com/mattn/goreman@v0.3.15"
+	goremanPackage   = "github.com/mattn/goreman"
+	goremanVersion   = "v0.3.15"
 	stackComposeFile = "_local/compose/stack.yaml"
 	fullComposeFile  = "_local/compose/full.yaml"
 	initScript       = "_local/scripts/init.sh"
@@ -30,11 +30,12 @@ const (
 // Up brings up dependencies and runs Armada components via goreman with the chosen profile.
 //
 // profiles is a comma-separated list of tokens:
-//   - "no-auth"       - the default profile
-//   - "auth"          - enables OIDC (Keycloak); sets goreman profile to "auth" and uses the auth compose profile
-//   - "fake-executor" - no Kubernetes needed; sets goreman profile to "fake-executor"
-//   - "hot-cold"      - runs the hot-cold scheduler setup
-//   - anything else   - forwarded as a docker-compose --profile flag for extra services
+//   - "no-auth"             - the default profile
+//   - "auth"                - enables OIDC (Keycloak); sets goreman profile to "auth" and uses the auth compose profile
+//   - "fake-executor"       - no Kubernetes needed; sets goreman profile to "fake-executor"
+//   - "auth-fake-executor"  - auth server/scheduler/lookout/binoculars plus the fake executor (no Kubernetes)
+//   - "hot-cold"            - runs the hot-cold scheduler setup
+//   - anything else         - forwarded as a docker-compose --profile flag for extra services
 //
 // The optional -dap flag selects the "-dap" procfile variant, which starts each component
 // under dlv in headless DAP mode so an editor debugger can attach.
@@ -62,9 +63,9 @@ func (Dev) Up(profiles string, dap *bool) error {
 			continue
 		}
 		switch token {
-		case "auth", "fake-executor", "hot-cold":
+		case "auth", "fake-executor", "hot-cold", "auth-fake-executor":
 			if profile != "no-auth" {
-				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold may be used\n", token, profile)
+				fmt.Printf("warning: ignoring %q - profile already set to %q; only one of auth/fake-executor/hot-cold/auth-fake-executor may be used\n", token, profile)
 			} else {
 				profile = token
 			}
@@ -84,7 +85,7 @@ func (Dev) Up(profiles string, dap *bool) error {
 		return fmt.Errorf("unknown profile %q: %s not found", profile+debugSuffix, procfile)
 	}
 
-	if profile == "auth" {
+	if profile == "auth" || profile == "auth-fake-executor" {
 		composeProfiles = append([]string{"auth"}, composeProfiles...)
 	}
 
@@ -99,7 +100,7 @@ func (Dev) Up(profiles string, dap *bool) error {
 	if err := sh.RunV(initArgs[0], initArgs[1:]...); err != nil {
 		return err
 	}
-	if profile == "auth" {
+	if profile == "auth" || profile == "auth-fake-executor" {
 		if err := waitForKeycloak(2 * time.Minute); err != nil {
 			return err
 		}
@@ -160,7 +161,8 @@ func (Dev) Down() error {
 // .kube/internal/config), then brings the stack up. Migrations run as compose services
 // ordered ahead of the components, so no separate init step is needed.
 func (Dev) Full() error {
-	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"), Kind)
+	// Compose uses the bundle images directly and doesn't need the snapshot archive.
+	mg.Deps(mg.F(goreleaserMinimalRelease, true, "bundle", "lookout-bundle"), Kind)
 	return sh.RunV("docker", "compose", "-f", fullComposeFile, "up", "-d", "--wait")
 }
 
@@ -196,10 +198,5 @@ func installGoreman() error {
 	if _, err := os.Stat(goremanBin()); err == nil {
 		return nil
 	}
-	fmt.Println("Installing", goremanPackage, "to", goremanBin())
-	cmd := exec.Command("go", "install", goremanPackage)
-	cmd.Env = append(os.Environ(), "GOBIN="+LocalBin)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return installDependency(LocalBin, goremanPackage, goremanVersion)
 }

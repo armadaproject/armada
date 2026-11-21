@@ -27,6 +27,8 @@ const (
 	namespace  = "test-ns"
 	priority   = 3
 	podNumber  = 6
+
+	externalJobUri = "airflow://dag/task/run/0"
 )
 
 var (
@@ -40,8 +42,9 @@ func TestConvertSubmitted(t *testing.T) {
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_SubmitJob{
 			SubmitJob: &armadaevents.SubmitJob{
-				JobId:    jobId,
-				Priority: priority,
+				JobId:          jobId,
+				Priority:       priority,
+				ExternalJobUri: externalJobUri,
 				ObjectMeta: &armadaevents.ObjectMeta{
 					Namespace: namespace,
 					Name:      "test-job",
@@ -92,6 +95,7 @@ func TestConvertSubmitted(t *testing.T) {
 							Requests: make(v1.ResourceList),
 							Limits:   make(v1.ResourceList),
 						},
+						ExternalJobUri: externalJobUri,
 					},
 				},
 			},
@@ -321,6 +325,23 @@ func TestConvertLeaseExpired(t *testing.T) {
 	apiEvents, err := FromEventSequence(toEventSeq(leaseExpired))
 	assert.NoError(t, err)
 	assert.Equal(t, expected, apiEvents)
+}
+
+func TestConvertNilJobRunError(t *testing.T) {
+	jobRunErrors := &armadaevents.EventSequence_Event{
+		Created: baseTimeProto,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId:  jobId,
+				RunId:  runId,
+				Errors: []*armadaevents.Error{nil},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(jobRunErrors))
+	assert.NoError(t, err)
+	assert.Empty(t, apiEvents)
 }
 
 func TestConvertJobReconciliationError(t *testing.T) {
@@ -681,7 +702,7 @@ func TestConvertJobRunning(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
-func TestIgnoredEventDoesntDuplicate(t *testing.T) {
+func TestConvertedAndIgnoredEventsDontDuplicate(t *testing.T) {
 	leaseExpired := &armadaevents.EventSequence_Event{
 		Created: baseTimeProto,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{

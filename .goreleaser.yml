@@ -19,7 +19,7 @@ env:
   # To use a builder other than "default", set this variable.
   # Necessary for, e.g., GitHub actions cache integration.
   - DOCKER_BUILDX_BUILDER={{ if index .Env "DOCKER_BUILDX_BUILDER"  }}{{ .Env.DOCKER_BUILDX_BUILDER }}{{ else }}default{{ end }}
-  - GOVERSION={{ if index .Env "GOVERSION"  }}{{ .Env.GOVERSION }}{{ else }}go1.26{{ end }}
+  - GOVERSION={{ if index .Env "GOVERSION"  }}{{ .Env.GOVERSION }}{{ else }}go1.27{{ end }}
 
 builds:
   - env: [CGO_ENABLED=0]
@@ -288,6 +288,7 @@ dockers:
       - pkg/api/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
       - pkg/api/schedulerobjects/api.swagger.json
+      - internal/lookout/swagger.yaml
     dockerfile: ./build/bundles/full/Dockerfile
 
   - id: server
@@ -401,6 +402,7 @@ dockers:
       - pkg/api/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
       - pkg/api/schedulerobjects/api.swagger.json
+      - internal/lookout/swagger.yaml
       - config/lookout/config.yaml
       - config/lookoutingester/config.yaml
       - config/logging.yaml

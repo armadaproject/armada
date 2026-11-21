@@ -60,19 +60,22 @@ var KnownConditions = map[string]bool{
 	ConditionDeadlineExceeded: true,
 }
 
-// CategoryInternal is the failure category for Armada-generated failures.
-// It is hard-coded at the Error-construction site,
-// not assigned by the operator categorizer.
-const CategoryInternal = "internal"
+// Failure categories that Armada hard-codes at the Error-construction
+// site. The operator categorizer does not assign them.
+const (
+	CategoryInternal   = "internal"   // Armada-generated failures
+	CategoryPreemption = "preemption" // runs that Armada preempts
+)
 
 const (
-	SubcategoryJobCreationFailed = "job-creation-failed" // executor failed to build the runnable job from the lease
-	SubcategoryPodMissing        = "pod-missing"         // reconciliation: pod vanished from Kubernetes for an active run
-	SubcategoryLeaseExpired      = "lease-expired"       // run cancelled because its executor went stale or was lost
-	SubcategoryMaxRunsExceeded   = "max-runs-exceeded"   // job exhausted its run attempts
-	SubcategoryJobRejected       = "job-rejected"        // submitcheck or validation rejected the job
-	SubcategoryStuckTerminating  = "stuck-terminating"   // node issue: the pod will not terminate
-	SubcategoryExternallyDeleted = "externally-deleted"  // pod deleted by something other than Armada
-	SubcategoryIssueHandlerError = "issue-handler-error" // pod unexpectedly changed state mid issue-handling
-	SubcategoryActiveDeadline    = "active-deadline"     // pod exceeded its user-set activeDeadlineSeconds
+	SubcategoryJobCreationFailed   = "job-creation-failed"   // executor failed to build the runnable job from the lease
+	SubcategoryPodSubmissionFailed = "pod-submission-failed" // Kubernetes rejected the pod that the executor submitted
+	SubcategoryPodMissing          = "pod-missing"           // reconciliation: pod vanished from Kubernetes for an active run
+	SubcategoryLeaseExpired        = "lease-expired"         // run cancelled because its executor went stale or was lost
+	SubcategoryMaxRunsExceeded     = "max-runs-exceeded"     // job exhausted its run attempts
+	SubcategoryJobRejected         = "job-rejected"          // submitcheck or validation rejected the job
+	SubcategoryStuckTerminating    = "stuck-terminating"     // node issue: the pod will not terminate
+	SubcategoryExternallyDeleted   = "externally-deleted"    // pod deleted by something other than Armada
+	SubcategoryIssueHandlerError   = "issue-handler-error"   // pod unexpectedly changed state mid issue-handling
+	SubcategoryActiveDeadline      = "active-deadline"       // pod exceeded its user-set activeDeadlineSeconds
 )

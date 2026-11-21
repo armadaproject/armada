@@ -16,23 +16,27 @@ export type LogLine = {
   line: string
 }
 
+// podOfRequest names the pod of a log request. A binoculars that does not read podName reads the pod
+// armada-<jobId>-<podNumber>, so the request also carries the job ID and the pod number.
+const podOfRequest = (jobId: string, podName: string) => ({ jobId, podNumber: 0, podName })
+
 const fetchLogsFromStartPage = async (
   getBinocularsApi: ReturnType<typeof useApiClients>["getBinocularsApi"],
   cluster: string,
   namespace: string,
   jobId: string,
+  podName: string,
   container: string,
   sinceTime: string,
 ): Promise<LogLine[]> => {
   const config = getConfig()
   try {
     const logLinesRaw = config.fakeDataEnabled
-      ? createFakeLogs(cluster, namespace, jobId, container, sinceTime)
+      ? createFakeLogs(cluster, namespace, podName, container, sinceTime)
       : (
           await getBinocularsApi(cluster).logs({
             body: {
-              jobId,
-              podNumber: 0,
+              ...podOfRequest(jobId, podName),
               podNamespace: namespace,
               sinceTime,
               logOptions: {
@@ -66,6 +70,7 @@ export const useGetLogs = (
   cluster: string,
   namespace: string,
   jobId: string,
+  podName: string,
   container: string,
   loadFromStart: boolean,
   enabled = true,
@@ -77,20 +82,19 @@ export const useGetLogs = (
     LogLine[],
     string,
     InfiniteData<LogLine[]>,
-    ["getLogs", string, string, string, string, boolean],
+    ["getLogs", string, string, string, string, string, boolean],
     string
   >({
-    queryKey: ["getLogs", cluster, namespace, jobId, container, loadFromStart],
+    queryKey: ["getLogs", cluster, namespace, jobId, podName, container, loadFromStart],
     queryFn: async ({ pageParam, signal }) => {
       try {
         const logLinesRaw = config.fakeDataEnabled
-          ? createFakeLogs(cluster, namespace, jobId, container, pageParam)
+          ? createFakeLogs(cluster, namespace, podName, container, pageParam)
           : (
               await getBinocularsApi(cluster).logs(
                 {
                   body: {
-                    jobId,
-                    podNumber: 0,
+                    ...podOfRequest(jobId, podName),
                     podNamespace: namespace,
                     sinceTime: pageParam,
                     logOptions: {
@@ -133,14 +137,21 @@ export const useFetchAllLogsFromStart = () => {
   const { getBinocularsApi } = useApiClients()
 
   return useCallback(
-    async (cluster: string, namespace: string, jobId: string, container: string): Promise<LogLine[]> => {
+    async (
+      cluster: string,
+      namespace: string,
+      jobId: string,
+      podName: string,
+      container: string,
+    ): Promise<LogLine[]> => {
       const allLogLines: LogLine[] = []
       let sinceTime = ""
       for (;;) {
         const page = await queryClient.fetchQuery({
           // eslint-disable-next-line @tanstack/query/exhaustive-deps -- getBinocularsApi is a stable, memoised reference and does not vary the fetched data
-          queryKey: ["getLogsFromStartPage", cluster, namespace, jobId, container, sinceTime],
-          queryFn: () => fetchLogsFromStartPage(getBinocularsApi, cluster, namespace, jobId, container, sinceTime),
+          queryKey: ["getLogsFromStartPage", cluster, namespace, jobId, podName, container, sinceTime],
+          queryFn: () =>
+            fetchLogsFromStartPage(getBinocularsApi, cluster, namespace, jobId, podName, container, sinceTime),
         })
         if (page.length === 0) {
           break

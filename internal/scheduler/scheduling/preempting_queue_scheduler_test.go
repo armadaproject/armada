@@ -57,6 +57,7 @@ func TestEvict_JobsEvictedInFairshareOrder(t *testing.T) {
 	require.NoError(t, err)
 	sctx := schedulingcontext.NewSchedulingContext(
 		testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), nil, totalResources,
+		config.PriorityClasses,
 	)
 
 	var allJobs []*jobdb.Job
@@ -72,7 +73,7 @@ func TestEvict_JobsEvictedInFairshareOrder(t *testing.T) {
 		}
 		require.NoError(t, sctx.AddQueueSchedulingContext(
 			queue, 1.0, 1.0, map[string]internaltypes.ResourceList{config.DefaultPriorityClassName: demand},
-			demand, demand, internaltypes.ResourceList{},
+			demand, demandAtDefaultPriorityClass(demand), internaltypes.ResourceList{},
 			rate.NewLimiter(rate.Inf, 1000),
 		))
 		queues = append(queues, &api.Queue{Name: queue, PriorityFactor: 1.0})
@@ -152,13 +153,14 @@ func TestEvictOversubscribed(t *testing.T) {
 	evictor := NewOversubscribedEvictor(
 		testQueueContextChecker{},
 		jobDbTxn,
-		nodeDb)
+		nodeDb,
+	)
 	result, err := evictor.Evict(armadacontext.Background(), nodeDbTxn)
 	require.NoError(t, err)
 
 	for nodeId, node := range result.AffectedNodesById {
 		for _, p := range priorities {
-			for _, r := range node.AllocatableByPriority[p].GetAll() {
+			for _, r := range node.AllocatableAtPriority(p).GetAll() {
 				assert.False(t, r.IsNegative(), "resource oversubscribed by %s on node %s", r.String(), nodeId)
 			}
 		}
@@ -220,6 +222,9 @@ func TestEvictOversubscribed_CrossPoolJobsEvicted(t *testing.T) {
 }
 
 func TestPreemptingQueueScheduler(t *testing.T) {
+	gangOptimiserConfig := createOptimiserConfig(10, map[string]float64{}, nil)
+	gangOptimiserConfig.AllowGangPreemption = true
+
 	type SchedulingRound struct {
 		// Map from queue name to pod requirements for that queue.
 		JobsByQueue map[string][]*jobdb.Job
@@ -302,6 +307,46 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 				"C": 1,
 			},
+		},
+		"optimiser preempts a gang scheduled earlier in the round": {
+			SchedulingConfig: testfixtures.WithProtectedFractionOfFairShareConfig(1,
+				testfixtures.WithOptimiserConfig(testfixtures.TestPool, gangOptimiserConfig, testfixtures.TestSchedulingConfig())),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities), // Counts towards fairshare, but neither queue can use it.
+				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass2, 2)),
+						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass2, 1),
+					},
+					OptimiserEnabled: true,
+					// A is placed first, then removed to fit B. A has not run, so no preemption is returned.
+					ExpectedScheduledIndices: map[string][]int{"B": {0}},
+				},
+			},
+			// A's higher weight makes its small gang get considered before B's large job.
+			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 32},
+		},
+		"optimiser does not preempt gangs when gang preemption is disabled": {
+			SchedulingConfig: testfixtures.WithProtectedFractionOfFairShareConfig(1,
+				testfixtures.WithOptimiserConfig(testfixtures.TestPool, createOptimiserConfig(10, map[string]float64{}, nil), testfixtures.TestSchedulingConfig())),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities),
+				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass2, 2)),
+						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass2, 1),
+					},
+					OptimiserEnabled:         true,
+					ExpectedScheduledIndices: map[string][]int{"A": {0, 1}},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 32},
 		},
 		"optimiser": {
 			SchedulingConfig: testfixtures.WithProtectedFractionOfFairShareConfig(1,
@@ -1222,9 +1267,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(append(
-							testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
-							testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 10)...),
+						"A": append(
+							append(
+								testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
+								testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 10)...,
+							),
 							testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass2, 10)...,
 						),
 					},
@@ -2321,8 +2368,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						node, err := nodeDb.GetNode(tc.Nodes[idx].GetId())
 						require.NoError(t, err)
 						ctx.Infof("Cordoned node %s", node.GetId())
-						taints := append(slices.Clone(node.GetTaints()), internaltypes.UnschedulableTaint())
-						node = testNodeWithTaints(node, taints)
+						node = node.WithSchedulable(false)
 						err = nodeDb.Upsert(node)
 						require.NoError(t, err)
 					}
@@ -2343,6 +2389,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					limiter,
 					nil,
 					totalResources,
+					tc.SchedulingConfig.PriorityClasses,
 				)
 				sctx.Started = schedulingStarted.Add(time.Duration(i) * schedulingInterval)
 
@@ -2355,7 +2402,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						weight,
 						allocatedByQueueAndPriorityClass[queue],
 						queueDemand,
-						queueDemand,
+						demandAtDefaultPriorityClass(queueDemand),
 						internaltypes.ResourceList{},
 						limiterByQueue[queue],
 					)
@@ -2368,7 +2415,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					armadaslices.Map(
 						maps.Keys(tc.PriorityFactorByQueue),
 						func(qn string) *api.Queue { return &api.Queue{Name: qn} },
-					))
+					),
+				)
 				sctx.UpdateFairShares()
 
 				tc.SchedulingConfig.EnablePreferLargeJobOrdering = true
@@ -2488,7 +2536,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				require.NoError(t, err)
 				for node := it.NextNode(); node != nil; node = it.NextNode() {
 					for _, p := range priorities {
-						for _, r := range node.AllocatableByPriority[p].GetAll() {
+						for _, r := range node.AllocatableAtPriority(p).GetAll() {
 							assert.False(t, r.IsNegative(), "resource oversubscribed by %s on node %s", r.String(), node.GetId())
 						}
 					}
@@ -2696,11 +2744,12 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				limiter,
 				nil,
 				nodeDb.TotalKubernetesResources(),
+				tc.SchedulingConfig.PriorityClasses,
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
 				weight := 1 / priorityFactor
 				err := sctx.AddQueueSchedulingContext(queue, weight, weight, make(map[string]internaltypes.ResourceList),
-					internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
+					internaltypes.ResourceList{}, map[string]internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
 				require.NoError(b, err)
 			}
 			constraints := schedulerconstraints.NewSchedulingConstraints(
@@ -2767,11 +2816,12 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					limiter,
 					nil,
 					nodeDb.TotalKubernetesResources(),
+					tc.SchedulingConfig.PriorityClasses,
 				)
 				for queue, priorityFactor := range priorityFactorByQueue {
 					weight := 1 / priorityFactor
 					err := sctx.AddQueueSchedulingContext(queue, weight, weight, allocatedByQueueAndPriorityClass[queue],
-						internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
+						internaltypes.ResourceList{}, map[string]internaltypes.ResourceList{}, internaltypes.ResourceList{}, limiterByQueue[queue])
 					require.NoError(b, err)
 				}
 
@@ -2846,6 +2896,7 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 			rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 			nil,
 			totalResources,
+			config.PriorityClasses,
 		)
 
 		demandA := testfixtures.TestResourceListFactory.MakeAllZero()
@@ -2862,11 +2913,11 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 			testfixtures.PriorityClass0: demandA,
 		}
 		require.NoError(t, sctx.AddQueueSchedulingContext(
-			"A", 1.0, 1.0, initialAllocatedA, demandA, demandA, internaltypes.ResourceList{},
+			"A", 1.0, 1.0, initialAllocatedA, demandA, demandAtDefaultPriorityClass(demandA), internaltypes.ResourceList{},
 			rate.NewLimiter(rate.Limit(config.MaximumPerQueueSchedulingRate), config.MaximumPerQueueSchedulingBurst),
 		))
 		require.NoError(t, sctx.AddQueueSchedulingContext(
-			"B", 1.0, 1.0, nil, demandB, demandB, internaltypes.ResourceList{},
+			"B", 1.0, 1.0, nil, demandB, demandAtDefaultPriorityClass(demandB), internaltypes.ResourceList{},
 			rate.NewLimiter(rate.Limit(config.MaximumPerQueueSchedulingRate), config.MaximumPerQueueSchedulingBurst),
 		))
 
@@ -2918,13 +2969,14 @@ func TestPreemptingQueueSchedulerTimeouts(t *testing.T) {
 			rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 			nil,
 			totalResources,
+			config.PriorityClasses,
 		)
 		demand := testfixtures.TestResourceListFactory.MakeAllZero()
 		for _, job := range jobs {
 			demand = demand.Add(job.AllResourceRequirements())
 		}
 		require.NoError(t, sctx.AddQueueSchedulingContext(
-			"A", 1.0, 1.0, nil, demand, demand, internaltypes.ResourceList{},
+			"A", 1.0, 1.0, nil, demand, demandAtDefaultPriorityClass(demand), internaltypes.ResourceList{},
 			rate.NewLimiter(rate.Limit(config.MaximumPerQueueSchedulingRate), config.MaximumPerQueueSchedulingBurst),
 		))
 
@@ -2987,6 +3039,7 @@ func setupGangEvictionTest(t *testing.T, numNodes int) *gangEvictionTestFixture 
 		rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
 		nil,
 		totalResources,
+		config.PriorityClasses,
 	)
 
 	return &gangEvictionTestFixture{
@@ -3007,7 +3060,7 @@ func (f *gangEvictionTestFixture) addQueueAndBuildScheduler(t *testing.T, jobs [
 	}
 	totalResources := f.nodeDb.TotalKubernetesResources()
 	require.NoError(t, f.sctx.AddQueueSchedulingContext(
-		"A", 1.0, 1.0, nil, demand, demand, internaltypes.ResourceList{},
+		"A", 1.0, 1.0, nil, demand, demandAtDefaultPriorityClass(demand), internaltypes.ResourceList{},
 		rate.NewLimiter(rate.Limit(f.config.MaximumPerQueueSchedulingRate), f.config.MaximumPerQueueSchedulingBurst),
 	))
 
@@ -3363,12 +3416,12 @@ func TestPreemptingQueueScheduler_RespectNodePodLimits(t *testing.T) {
 				allocatedByPriorityClass[j.PriorityClassName()] = allocatedByPriorityClass[j.PriorityClassName()].Add(j.AllResourceRequirements())
 			}
 
-			sctx := schedulingcontext.NewSchedulingContext(testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), nil, totalResources)
+			sctx := schedulingcontext.NewSchedulingContext(testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), nil, totalResources, config.PriorityClasses)
 			require.NoError(t, sctx.AddQueueSchedulingContext(
 				"A", 1, 1,
 				allocatedByPriorityClass,
 				demand,
-				demand,
+				demandAtDefaultPriorityClass(demand),
 				internaltypes.ResourceList{},
 				rate.NewLimiter(rate.Inf, 1000),
 			))
@@ -3399,28 +3452,6 @@ func TestPreemptingQueueScheduler_RespectNodePodLimits(t *testing.T) {
 			}
 		})
 	}
-}
-
-func testNodeWithTaints(node *internaltypes.Node, taints []v1.Taint) *internaltypes.Node {
-	return internaltypes.CreateNode(
-		node.GetId(),
-		node.GetNodeType(),
-		node.GetIndex(),
-		node.GetExecutor(),
-		node.GetName(),
-		node.GetPool(),
-		node.GetReportingNodeType(),
-		taints,
-		node.GetLabels(),
-		false,
-		node.GetTotalResources(),
-		node.GetAllocatableResources(),
-		node.AllocatableByPriority,
-		node.AllocatedByQueue,
-		node.AllocatedByJobId,
-		node.EvictedJobRunIds,
-		node.Keys,
-	)
 }
 
 // TestPreemptingQueueScheduler_NonPreemptibleOverPack is a regression guard:
@@ -3475,12 +3506,12 @@ func TestPreemptingQueueScheduler_NonPreemptibleOverPack(t *testing.T) {
 		allocatedByPriorityClass[j.PriorityClassName()] = allocatedByPriorityClass[j.PriorityClassName()].Add(j.AllResourceRequirements())
 	}
 
-	sctx := schedulingcontext.NewSchedulingContext(testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), nil, totalResources)
+	sctx := schedulingcontext.NewSchedulingContext(testfixtures.TestPool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), nil, totalResources, config.PriorityClasses)
 	require.NoError(t, sctx.AddQueueSchedulingContext(
 		"A", 1, 1,
 		allocatedByPriorityClass,
 		challenger.AllResourceRequirements(),
-		challenger.AllResourceRequirements(),
+		demandAtDefaultPriorityClass(challenger.AllResourceRequirements()),
 		internaltypes.ResourceList{},
 		rate.NewLimiter(rate.Inf, 1000),
 	))
@@ -3583,13 +3614,13 @@ func TestPreemptingQueueScheduler_CrossPoolPreemptedFirst(t *testing.T) {
 				homeJobDemand = homeJobDemand.Add(j.AllResourceRequirements())
 			}
 
-			sctx := schedulingcontext.NewSchedulingContext(homePool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), nil, totalResources)
+			sctx := schedulingcontext.NewSchedulingContext(homePool, fairnessCostProvider, rate.NewLimiter(rate.Inf, 1000), nil, totalResources, config.PriorityClasses)
 			// Home queue for the challengers.
 			require.NoError(t, sctx.AddQueueSchedulingContext(
 				"A", 1, 1,
 				nil,
 				homeJobDemand,
-				homeJobDemand,
+				demandAtDefaultPriorityClass(homeJobDemand),
 				internaltypes.ResourceList{},
 				rate.NewLimiter(rate.Inf, 1000),
 			))
@@ -3598,7 +3629,7 @@ func TestPreemptingQueueScheduler_CrossPoolPreemptedFirst(t *testing.T) {
 				schedulingcontext.CalculateAwayQueueName("A"), 1, 1,
 				crossPoolJobDemand,
 				internaltypes.ResourceList{},
-				internaltypes.ResourceList{},
+				map[string]internaltypes.ResourceList{},
 				internaltypes.ResourceList{},
 				rate.NewLimiter(rate.Inf, 1000),
 			))

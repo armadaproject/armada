@@ -136,7 +136,7 @@ func queueGetCmdWithApp(a *armadactl.App) *cobra.Command {
 			return a.GetQueue(name)
 		},
 	}
-	return cmd
+	return withOutputFlag(cmd, a)
 }
 
 func queuesGetCmd() *cobra.Command {
@@ -189,7 +189,7 @@ func queuesGetCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd.Flags().Bool("inverse", false, "Inverts result to get all queues that don't match the specified criteria. Defaults to false.")
 	cmd.Flags().Bool("only-cordoned", false, "Only returns queues that are cordoned. Defaults to false.")
 
-	return cmd
+	return withOutputFlag(cmd, a)
 }
 
 func queueUpdateCmd() *cobra.Command {

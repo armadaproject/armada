@@ -112,7 +112,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 		}
 
 		// Once this pool's fairshare preemption budget is exhausted,
-		// reschedule all remaining evicted (preemptable) jobs before considering any more new jobs.
+		// reschedule all remaining evicted (preemptible) jobs before considering any more new jobs.
 		if !preemptionRateLimitHit && sctx.AtFairsharePreemptionRateLimit() {
 			preemptionRateLimitHit = true
 			if err := sch.candidateGangIterator.OnlyYieldEvicted(); err != nil {
@@ -129,7 +129,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResu
 		}
 		if gctx == nil {
 			// If we drained evicted jobs due to the preemption rate limit, bring back new jobs now that
-			// all preemptable jobs have been rescheduled. Skip this if a terminal reason (e.g. a global
+			// all preemptible jobs have been rescheduled. Skip this if a terminal reason (e.g. a global
 			// scheduling rate limit) ended scheduling, since new jobs should stay paused in that case.
 			if preemptionRateLimitHit && !evictedJobsRescheduled && sctx.TerminationReason == "" {
 				evictedJobsRescheduled = true

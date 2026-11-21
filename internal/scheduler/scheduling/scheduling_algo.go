@@ -69,6 +69,21 @@ type FairSchedulingAlgo struct {
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
 	shortJobPenalty       *ShortJobPenalty
 	tracer                trace.Tracer
+	// Whether to compare the aggregate demand against the scan.
+	// The scan remains authoritative; the aggregate is only read for monitoring.
+	compareAggregateDemand bool
+	// Whether queued demand is sourced from the aggregate.
+	useAggregateDemand bool
+}
+
+// FairSchedulingAlgoOption configures a scheduling algorithm at construction.
+type FairSchedulingAlgoOption func(*FairSchedulingAlgo)
+
+// WithPolicyClock supplies policy time for tests and future replay callers.
+// The clock must be non-nil. Production callers use the default real clock;
+// operational timeouts and computation durations remain on host time.
+func WithPolicyClock(clk clock.Clock) FairSchedulingAlgoOption {
+	return func(algo *FairSchedulingAlgo) { algo.clock = clk }
 }
 
 func NewFairSchedulingAlgo(
@@ -82,6 +97,7 @@ func NewFairSchedulingAlgo(
 	queueOverrideProvider priorityoverride.Provider,
 	shortJobPenalty *ShortJobPenalty,
 	stateValidator JobRunNodeReconciler,
+	options ...FairSchedulingAlgoOption,
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
 		return nil, errors.Errorf(
@@ -89,7 +105,7 @@ func NewFairSchedulingAlgo(
 			config.DefaultPriorityClassName, config.PriorityClasses,
 		)
 	}
-	return &FairSchedulingAlgo{
+	algo := &FairSchedulingAlgo{
 		schedulingConfig:             config,
 		executorRepository:           executorRepository,
 		queueCache:                   queueCache,
@@ -106,7 +122,16 @@ func NewFairSchedulingAlgo(
 		shortJobPenalty:              shortJobPenalty,
 		stateValidator:               stateValidator,
 		tracer:                       otel.Tracer("armada.scheduler.fair_scheduling_algo"),
-	}, nil
+		compareAggregateDemand:       config.ExperimentalAggregateDemand.Compare,
+		useAggregateDemand:           config.ExperimentalAggregateDemand.Use,
+	}
+	for _, option := range options {
+		option(algo)
+	}
+	if algo.clock == nil {
+		return nil, errors.New("nil policy clock")
+	}
+	return algo, nil
 }
 
 // Schedule assigns jobs to nodes in the same way as the old lease call.
@@ -189,7 +214,7 @@ func (l *FairSchedulingAlgo) Schedule(
 			if l.schedulingConfig.DisableIndependentPoolFailures {
 				return nil, observe.Error(span, outcome.Error())
 			} else {
-				ctx.Logger().WithStacktrace(err).Errorf("scheduling on pool %s failed but continuing as the error was non-fatal - error %s", pool.Name, outcome.Error())
+				ctx.Logger().WithStacktrace(outcome.Error()).Errorf("scheduling on pool %s failed but continuing as the error was non-fatal - error %s", pool.Name, outcome.Error())
 			}
 		}
 
@@ -246,6 +271,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 
 	if fsctx.nodeDb.NumNodes() <= 0 {
 		ctx.Infof("Skipping pool %s as it has no active nodes", pool.Name)
+		fsctx.schedulingContext.Finished = l.clock.Now()
 		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonCompleted, nil),
 			&SchedulingResult{
 				SchedulingContext: fsctx.schedulingContext,
@@ -363,7 +389,7 @@ func (l *FairSchedulingAlgo) reconcilePoolJobs(config configuration.PoolConfig, 
 	}
 
 	jobsUpdated := make(map[string]*jobdb.Job, len(invalidJobs))
-	gangsPreempted := map[gangKey][]string{}
+	gangsPreempted := map[gangKey][]*FailedReconciliationResult{}
 	for _, invalidJobInfo := range invalidJobs {
 		job := invalidJobInfo.Job
 		if job.InTerminalState() || job.Queued() || job.LatestRun() == nil {
@@ -376,19 +402,16 @@ func (l *FairSchedulingAlgo) reconcilePoolJobs(config configuration.PoolConfig, 
 			result.PreemptedJobs = append(result.PreemptedJobs, &FailedReconciliationResult{Job: job, Reason: invalidJobInfo.Reason})
 
 			key := gangKey{job.Queue(), job.GetGangInfo().Id()}
-			if _, exists := gangsPreempted[key]; !exists {
-				gangsPreempted[key] = []string{}
-			}
-			gangsPreempted[key] = append(gangsPreempted[key], job.Id())
+			gangsPreempted[key] = append(gangsPreempted[key], invalidJobInfo)
 		} else {
 			result.FailedJobs = append(result.FailedJobs, &FailedReconciliationResult{Job: job, Reason: invalidJobInfo.Reason})
 		}
 	}
 
-	for gang, jobIds := range gangsPreempted {
+	for gang, failedReconciliations := range gangsPreempted {
 		jobs, err := txn.GetGangJobsByGangId(gang.queue, gang.gangId)
 		if err != nil {
-			return nil, fmt.Errorf("failed to process failed reconciliatiion gang jobs because - %s", err)
+			return nil, fmt.Errorf("failed to process failed reconciliation gang jobs because - %w", err)
 		}
 
 		for _, job := range jobs {
@@ -398,7 +421,10 @@ func (l *FairSchedulingAlgo) reconcilePoolJobs(config configuration.PoolConfig, 
 			}
 
 			job = markAsFailedReconciliation(l.clock, job)
-			reason := fmt.Sprintf("other jobs in the gang failed reconciliation (%s)", strings.Join(jobIds, ","))
+			reasons := armadaslices.Map(failedReconciliations, func(result *FailedReconciliationResult) string {
+				return fmt.Sprintf("%s: %s", result.Job.Id(), result.Reason)
+			})
+			reason := fmt.Sprintf("other jobs in the gang failed reconciliation (%s)", strings.Join(reasons, ","))
 			result.PreemptedJobs = append(result.PreemptedJobs, &FailedReconciliationResult{Job: job, Reason: reason})
 			jobsUpdated[job.Id()] = job
 		}
@@ -439,19 +465,18 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	allPools = append(allPools, awayAllocationPools...)
 	allPools = armadaslices.Unique(allPools)
 
-	// We must include jobs in the following states:
-	// - Jobs active on the nodes of this pool
-	//   - These are used to populate the jobdb, calculate demand/fairshare
-	//   - This may include nodes from other pools, especially if the nodes pool has changed
-	// - Jobs queued against home/away pools relevant to the pool being computed
-	//   - This is to calculate demand on both home and away pools
 	leasedJobs := txn.GetAllLeasedJobs()
-	queuedJobs := getQueuedJobs(txn, allPools)
+	var queuedJobs []*jobdb.Job
+	if l.queuedScanRequired() {
+		queuedJobs = getQueuedJobs(txn, allPools)
+	}
+
 	allJobs := make([]*jobdb.Job, 0, len(leasedJobs)+len(queuedJobs))
 	allJobs = append(allJobs, leasedJobs...)
 	allJobs = append(allJobs, queuedJobs...)
 
-	jobSchedulingInfo, err := l.calculateJobSchedulingInfo(ctx,
+	jobSchedulingInfo, err := l.newCalculateJobSchedulingInfo(ctx,
+		txn,
 		armadamaps.FromSlice(executors,
 			func(ex *schedulerobjects.Executor) string { return ex.Id },
 			func(_ *schedulerobjects.Executor) bool { return true }),
@@ -464,11 +489,12 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	if err != nil {
 		return nil, err
 	}
+	inUsePriorityClasses := l.buildInUsePriorityClasses(jobSchedulingInfo.inUsePriorityClasses)
 
 	nodeFactory := internaltypes.NewNodeFactory(
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,
-		l.schedulingConfig.PriorityClasses,
+		inUsePriorityClasses,
 		l.resourceListFactory,
 	)
 
@@ -509,7 +535,6 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	}
 
 	nodePools := append(currentPool.AwayPoolNames(), currentPool.Name)
-	inUsePriorityClasses := l.buildInUsePriorityClasses(jobSchedulingInfo.inUsePriorityClasses)
 	poolNodes := armadaslices.Filter(nodes, func(node *internaltypes.Node) bool {
 		return slices.Contains(nodePools, node.GetPool())
 	})
@@ -525,7 +550,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	schedulingContext, err := l.constructSchedulingContext(
 		currentPool.Name,
 		totalResources,
-		jobSchedulingInfo.demandByQueueAndPriorityClass,
+		jobSchedulingInfo.demandByQueueAndPriorityClass(),
 		jobSchedulingInfo.allocatedByQueueAndPriorityClass,
 		jobSchedulingInfo.awayAllocatedByQueueAndPriorityClass,
 		jobSchedulingInfo.shortJobPenaltyByQueue,
@@ -581,11 +606,65 @@ func getQueuedJobs(txn *jobdb.Txn, pools []string) []*jobdb.Job {
 type jobSchedulingInfo struct {
 	jobsByExecutorId                     map[string][]*jobdb.Job
 	jobsByPool                           map[string][]*jobdb.Job
-	demandByQueueAndPriorityClass        map[string]map[string]internaltypes.ResourceList
 	allocatedByQueueAndPriorityClass     map[string]map[string]internaltypes.ResourceList
 	awayAllocatedByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 	shortJobPenaltyByQueue               map[string]internaltypes.ResourceList
 	inUsePriorityClasses                 map[string]bool
+	queuedDemandByQueueAndPriorityClass  map[string]map[string]internaltypes.ResourceList
+	runningDemandByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
+}
+
+// computeAggregateDemand reports whether the aggregate demand must be computed,
+// i.e. it is either compared against the scan or used as the source.
+func (l *FairSchedulingAlgo) computeAggregateDemand() bool {
+	return l.compareAggregateDemand || l.useAggregateDemand
+}
+
+// queuedScanRequired reports whether queued jobs must be fetched and scanned.
+func (l *FairSchedulingAlgo) queuedScanRequired() bool {
+	return !l.useAggregateDemand || l.compareAggregateDemand
+}
+
+// newCalculateJobSchedulingInfo returns the per-round scheduling info.
+func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
+	ctx *armadacontext.Context,
+	txn *jobdb.Txn,
+	activeExecutorsSet map[string]bool,
+	queues map[string]*api.Queue,
+	jobs []*jobdb.Job,
+	currentPool string,
+	awayAllocationPools []string,
+	allPools []string,
+	shortJobPenalty *ShortJobPenaltySnapshot,
+) (*jobSchedulingInfo, error) {
+	start := time.Now()
+
+	// One lookup shared by Use and Compare.
+	var aggregateDemand map[string]map[string]internaltypes.ResourceList
+	if l.computeAggregateDemand() {
+		lookupStart := time.Now()
+		aggregateDemand = queuedDemandFromAggregate(txn, queues, currentPool)
+		observeJobAggregateLookupDuration(currentPool, time.Since(lookupStart).Seconds())
+	}
+
+	info, err := l.calculateJobSchedulingInfo(ctx, activeExecutorsSet, queues, jobs, currentPool, awayAllocationPools, allPools, shortJobPenalty)
+	if err != nil {
+		return nil, err
+	}
+	if l.compareAggregateDemand {
+		observeJobAggregateSchedulingInfoDuration(currentPool, time.Since(start).Seconds())
+		l.compareScannedWithAggregate(ctx, aggregateDemand, currentPool, info.queuedDemandByQueueAndPriorityClass)
+	}
+	if l.useAggregateDemand {
+		// Queued demand and its in-use priority classes come from the aggregate.
+		info.queuedDemandByQueueAndPriorityClass = aggregateDemand
+		for _, byPriorityClass := range aggregateDemand {
+			for pc := range byPriorityClass {
+				info.inUsePriorityClasses[pc] = true
+			}
+		}
+	}
+	return info, nil
 }
 
 func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Context, activeExecutorsSet map[string]bool,
@@ -594,7 +673,8 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 ) (*jobSchedulingInfo, error) {
 	jobsByExecutorId := make(map[string][]*jobdb.Job)
 	jobsByPool := make(map[string][]*jobdb.Job)
-	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
+	queuedDemandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
+	runningDemandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	allocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	awayAllocatedByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList)
 	inUsePriorityClasses := make(map[string]bool)
@@ -622,13 +702,22 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 		}
 
 		if slices.Contains(pools, currentPool) {
-			queueResources, ok := demandByQueueAndPriorityClass[job.Queue()]
-			if !ok {
-				queueResources = map[string]internaltypes.ResourceList{}
-				demandByQueueAndPriorityClass[job.Queue()] = queueResources
-			}
-			// Queued jobs should not be considered for paused queues, so demand := running
-			if !queue.Cordoned || !job.Queued() {
+			if job.Queued() {
+				queueResources, ok := queuedDemandByQueueAndPriorityClass[job.Queue()]
+				if !ok {
+					queueResources = map[string]internaltypes.ResourceList{}
+					queuedDemandByQueueAndPriorityClass[job.Queue()] = queueResources
+				}
+				if !queue.Cordoned {
+					pcName := job.PriorityClassName()
+					queueResources[pcName] = queueResources[pcName].Add(job.AllResourceRequirements())
+				}
+			} else {
+				queueResources, ok := runningDemandByQueueAndPriorityClass[job.Queue()]
+				if !ok {
+					queueResources = map[string]internaltypes.ResourceList{}
+					runningDemandByQueueAndPriorityClass[job.Queue()] = queueResources
+				}
 				pcName := job.PriorityClassName()
 				queueResources[pcName] = queueResources[pcName].Add(job.AllResourceRequirements())
 			}
@@ -689,12 +778,40 @@ func (l *FairSchedulingAlgo) calculateJobSchedulingInfo(ctx *armadacontext.Conte
 	return &jobSchedulingInfo{
 		jobsByExecutorId:                     jobsByExecutorId,
 		jobsByPool:                           jobsByPool,
-		demandByQueueAndPriorityClass:        demandByQueueAndPriorityClass,
 		allocatedByQueueAndPriorityClass:     allocatedByQueueAndPriorityClass,
 		awayAllocatedByQueueAndPriorityClass: awayAllocatedByQueueAndPriorityClass,
 		shortJobPenaltyByQueue:               shortJobPenaltyByQueue,
 		inUsePriorityClasses:                 inUsePriorityClasses,
+
+		queuedDemandByQueueAndPriorityClass:  queuedDemandByQueueAndPriorityClass,
+		runningDemandByQueueAndPriorityClass: runningDemandByQueueAndPriorityClass,
 	}, nil
+}
+
+func (si *jobSchedulingInfo) demandByQueueAndPriorityClass() map[string]map[string]internaltypes.ResourceList {
+	demandByQueueAndPriorityClass := make(map[string]map[string]internaltypes.ResourceList, len(si.queuedDemandByQueueAndPriorityClass)+len(si.runningDemandByQueueAndPriorityClass))
+	for queueName, byPriorityClass := range si.runningDemandByQueueAndPriorityClass {
+		queueResources, ok := demandByQueueAndPriorityClass[queueName]
+		if !ok {
+			queueResources = map[string]internaltypes.ResourceList{}
+			demandByQueueAndPriorityClass[queueName] = queueResources
+		}
+		for pcName, rl := range byPriorityClass {
+			queueResources[pcName] = queueResources[pcName].Add(rl)
+		}
+	}
+	for queueName, byPriorityClass := range si.queuedDemandByQueueAndPriorityClass {
+		queueResources, ok := demandByQueueAndPriorityClass[queueName]
+		if !ok {
+			queueResources = map[string]internaltypes.ResourceList{}
+			demandByQueueAndPriorityClass[queueName] = queueResources
+		}
+		for pcName, rl := range byPriorityClass {
+			queueResources[pcName] = queueResources[pcName].Add(rl)
+		}
+	}
+
+	return demandByQueueAndPriorityClass
 }
 
 func (l *FairSchedulingAlgo) buildInUsePriorityClasses(inUse map[string]bool) map[string]types.PriorityClass {
@@ -723,16 +840,18 @@ func (l *FairSchedulingAlgo) constructNodeDb(
 		IndexedTaints:      l.schedulingConfig.IndexedTaints,
 		IndexedNodeLabels:  l.schedulingConfig.IndexedNodeLabels,
 		WellKnownNodeTypes: l.schedulingConfig.WellKnownNodeTypes,
+		EnableUrgencyBeforeFairsharePreemptionOrdering: l.schedulingConfig.EnableUrgencyBeforeFairSharePreemptionOrdering,
 	}
 
 	return ConstructNodeDb(nodeDbConfig, l.resourceListFactory, priorityClasses, poolConfig, currentPoolJobs, otherPoolsJobs, nodes)
 }
 
 type NodeDbIndexConfiguration struct {
-	IndexedResources   []configuration.ResourceType
-	IndexedTaints      []string
-	IndexedNodeLabels  []string
-	WellKnownNodeTypes []configuration.WellKnownNodeType
+	IndexedResources                               []configuration.ResourceType
+	IndexedTaints                                  []string
+	IndexedNodeLabels                              []string
+	WellKnownNodeTypes                             []configuration.WellKnownNodeType
+	EnableUrgencyBeforeFairsharePreemptionOrdering bool
 }
 
 func ConstructNodeDb(
@@ -771,6 +890,8 @@ func ConstructNodeDb(
 		DisableUrgencyScheduling:   poolConfig.DisableUrgencyScheduling,
 		DisallowedJobResources:     poolConfig.ExperimentalUnscheduledResources,
 		DefaultTolerations:         poolConfig.GetDefaultJobTolerations(),
+
+		UrgencyBeforeFairsharePreemption: config.EnableUrgencyBeforeFairsharePreemptionOrdering,
 	})
 
 	if err := populateNodeDb(poolConfig, nodeDb, currentPoolJobs, otherPoolsJobs, nodes); err != nil {
@@ -793,8 +914,21 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 	if err != nil {
 		return nil, err
 	}
-	sctx := schedulercontext.NewSchedulingContext(pool, fairnessCostProvider, l.limiter, l.preemptionLimiterByPool[pool], totalCapacity)
-	constraints := schedulerconstraints.NewSchedulingConstraints(pool, totalCapacity, l.schedulingConfig, maps.Values(queues))
+	sctx := schedulercontext.NewSchedulingContextAt(
+		pool,
+		fairnessCostProvider,
+		l.limiter,
+		l.preemptionLimiterByPool[pool],
+		totalCapacity,
+		l.schedulingConfig.PriorityClasses,
+		l.clock.Now(),
+	)
+	constraints := schedulerconstraints.NewSchedulingConstraints(
+		pool,
+		totalCapacity,
+		l.schedulingConfig,
+		maps.Values(queues),
+	)
 
 	for _, queue := range queues {
 		demand, hasDemand := demandByQueueAndPriorityClass[queue.Name]
@@ -831,7 +965,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			l.limiterByQueue[queue.Name] = queueLimiter
 		}
 
-		if err := sctx.AddQueueSchedulingContext(queue.Name, weight, rawWeight, allocatedByPriorityClass, internaltypes.RlMapSumValues(demand), internaltypes.RlMapSumValues(constrainedDemand), shortJobPenaltyByQueue[queue.Name], queueLimiter); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue.Name, weight, rawWeight, allocatedByPriorityClass, internaltypes.RlMapSumValues(demand), constrainedDemand, shortJobPenaltyByQueue[queue.Name], queueLimiter); err != nil {
 			return nil, err
 		}
 	}
@@ -856,7 +990,7 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 			weight = 1 / overridePriority
 		}
 
-		if err := sctx.AddQueueSchedulingContext(schedulercontext.CalculateAwayQueueName(queue.Name), weight, rawWeight, allocation, internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil); err != nil {
+		if err := sctx.AddQueueSchedulingContext(schedulercontext.CalculateAwayQueueName(queue.Name), weight, rawWeight, allocation, internaltypes.ResourceList{}, map[string]internaltypes.ResourceList{}, internaltypes.ResourceList{}, nil); err != nil {
 			return nil, err
 		}
 	}
@@ -886,8 +1020,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	fsctx *FairSchedulingAlgoContext,
 	pool configuration.PoolConfig,
 ) (*SchedulingResult, *schedulercontext.SchedulingContext, error) {
-	totalResources := fsctx.nodeDb.TotalKubernetesResources()
-	totalResources = totalResources.Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name))
+	totalResources := fsctx.schedulingContext.TotalResources
 	constraints := schedulerconstraints.NewSchedulingConstraints(pool.Name, totalResources, l.schedulingConfig, maps.Values(fsctx.queues))
 	shouldRunOptimiser := l.shouldRunOptimiser(pool)
 
@@ -944,7 +1077,7 @@ func (l *FairSchedulingAlgo) SchedulePool(
 	ctx.Infof(
 		"Scheduling on pool %s with capacity %s protectedFractionOfFairShare %f protectUncappedAdjustedFairShare %t",
 		pool.Name,
-		fsctx.nodeDb.TotalKubernetesResources().Add(l.floatingResourceTypes.GetTotalAvailableForPool(pool.Name)).String(),
+		totalResources.String(),
 		l.schedulingConfig.GetProtectedFractionOfFairShare(pool.Name),
 		l.schedulingConfig.GetProtectUncappedAdjustedFairShare(pool.Name),
 	)
