@@ -58,7 +58,10 @@ func (a *App) watch(c api.EventClient, queue string, jobSetId string, raw bool, 
 
 		seen = 0
 		becameInactive := false
-		client.WatchJobSet(c, queue, jobSetId, true, true, forceNewEvents, forceLegacyEvents, armadacontext.Background(), func(state *domain.WatchContext, event api.Event) bool {
+		// WatchJobSet does not close the stream when the callback asks it to stop, so the stream is cancelled here
+		// once this pass is over, instead of staying open while the history is read again.
+		watchCtx, cancel := armadacontext.WithCancel(armadacontext.Background())
+		client.WatchJobSet(c, queue, jobSetId, true, true, forceNewEvents, forceLegacyEvents, watchCtx, func(state *domain.WatchContext, event api.Event) bool {
 			seen++
 			if seen <= printed {
 				return false
@@ -68,6 +71,7 @@ func (a *App) watch(c api.EventClient, queue string, jobSetId string, raw bool, 
 			becameInactive = state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs()
 			return becameInactive
 		})
+		cancel()
 		if !becameInactive {
 			return nil
 		}
