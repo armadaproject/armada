@@ -48,6 +48,15 @@ func TestDeriveStartUpDurations(t *testing.T) {
 			}),
 			expected: startUpDurations{total: durationOf(137), withoutUntrackedInitContainers: durationOf(137), withoutInitContainers: durationOf(137)},
 		},
+		"an untracked init container without a run time leaves out both variants": {
+			info:     infoWithInitContainers(&armadaevents.ContainerStartUpInfo{Name: "user-init", StartedAt: baselineWithOffset(70)}),
+			expected: startUpDurations{total: durationOf(137)},
+		},
+		"a tracked init container without a run time leaves out only the variant without init containers": {
+			info:     infoWithInitContainers(&armadaevents.ContainerStartUpInfo{Name: "preflight", StartedAt: baselineWithOffset(10)}),
+			tracked:  map[string]bool{"preflight": true},
+			expected: startUpDurations{total: durationOf(137), withoutUntrackedInitContainers: durationOf(137)},
+		},
 		"no total, so no variants": {
 			info: func() *armadaevents.PodStartUpInfo {
 				info := infoWithInitContainers(ran("user-init", 70, 111))

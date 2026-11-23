@@ -24,6 +24,8 @@ func deriveStartUpDurations(info *armadaevents.PodStartUpInfo, trackedInitContai
 		return startUpDurations{}
 	}
 
+	trackedRunTimesKnown := true
+	untrackedRunTimesKnown := true
 	trackedInitContainerDuration := time.Duration(0)
 	unTrackedInitContainerDuration := time.Duration(0)
 	for _, container := range info.InitContainers {
@@ -31,12 +33,17 @@ func deriveStartUpDurations(info *armadaevents.PodStartUpInfo, trackedInitContai
 		if container == nil || container.Sidecar {
 			continue
 		}
+		isTracked := trackedInitContainers[container.Name]
 		run := interval(container.StartedAt, container.FinishedAt)
 		if run == nil {
+			if isTracked {
+				trackedRunTimesKnown = false
+			} else {
+				untrackedRunTimesKnown = false
+			}
 			continue
 		}
 
-		isTracked := trackedInitContainers[container.Name]
 		if isTracked {
 			trackedInitContainerDuration += *run
 		} else {
@@ -44,10 +51,12 @@ func deriveStartUpDurations(info *armadaevents.PodStartUpInfo, trackedInitContai
 		}
 	}
 
-	durations := startUpDurations{
-		total:                          total,
-		withoutUntrackedInitContainers: remaining(*total, unTrackedInitContainerDuration),
-		withoutInitContainers:          remaining(*total, unTrackedInitContainerDuration+trackedInitContainerDuration),
+	durations := startUpDurations{total: total}
+	if untrackedRunTimesKnown {
+		durations.withoutUntrackedInitContainers = remaining(*total, unTrackedInitContainerDuration)
+	}
+	if untrackedRunTimesKnown && trackedRunTimesKnown {
+		durations.withoutInitContainers = remaining(*total, unTrackedInitContainerDuration+trackedInitContainerDuration)
 	}
 	return durations
 }
