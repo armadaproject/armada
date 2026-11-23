@@ -32,8 +32,6 @@ type SchedulingContext struct {
 	Started time.Time
 	// Time at which the scheduling cycle finished.
 	Finished time.Time
-	// Host elapsed time spent in PreemptingQueueScheduler.Schedule.
-	ComputationDuration time.Duration
 	// Pool for which we're currently scheduling jobs.
 	Pool string
 	// PriorityClasses stores all available priority classes, by name. schedulingtypes.PriorityClass includes priority

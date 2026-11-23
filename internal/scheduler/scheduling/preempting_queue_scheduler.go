@@ -84,10 +84,8 @@ func NewPreemptingQueueScheduler(
 // - preempts jobs belonging to queues with total allocation above their fair share and
 // - schedules new jobs belonging to queues with total allocation less than their fair share.
 func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResult, error) {
-	computationStarted := time.Now()
 	defer func() {
 		sch.schedulingContext.Finished = sch.clock.Now()
-		sch.schedulingContext.ComputationDuration = time.Since(computationStarted)
 	}()
 
 	preemptedJobsById := make(map[string]*schedulercontext.JobSchedulingContext)

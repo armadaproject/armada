@@ -63,3 +63,11 @@ release: {{ .Release.Name }}
 {{ toYaml .Values.additionalLabels }}
 {{- end }}
 {{- end -}}
+
+{{/*
+TLS hostnames shared by the gRPC and REST Ingresses. Both must list the same hosts as they share a secretName,
+and cert-manager creates one Certificate per secretName.
+*/}}
+{{- define "armada.ingress.tlsHostnames" -}}
+{{- concat (.Values.grpcHostnames | default .Values.hostnames) (.Values.restHostnames | default .Values.hostnames) | uniq | toYaml -}}
+{{- end -}}

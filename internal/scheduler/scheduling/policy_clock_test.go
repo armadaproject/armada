@@ -92,7 +92,6 @@ func testGlobalRate(t *testing.T, advance time.Duration, expected int) {
 	require.Equal(t, clk.Now(), sctx.Finished)
 	require.Equal(t, sctx.Started, sctx.QueueSchedulingContexts[testfixtures.TestQueue].Created)
 	require.Equal(t, time.Duration(0), sctx.Finished.Sub(sctx.Started))
-	require.Greater(t, sctx.ComputationDuration, time.Duration(0))
 	if expected > 0 {
 		require.Greater(t, sctx.TotalNewJobSchedulingTime, time.Duration(0))
 	}
@@ -325,7 +324,6 @@ func TestFairSchedulingAlgoDefaultClockUsesHostTime(t *testing.T) {
 	require.False(t, sctx.Finished.After(after))
 	require.False(t, sctx.Finished.Before(sctx.Started))
 	require.Equal(t, sctx.Started, sctx.QueueSchedulingContexts[testfixtures.TestQueue].Created)
-	require.Greater(t, sctx.ComputationDuration, time.Duration(0))
 	require.Greater(t, sctx.TotalNewJobSchedulingTime, time.Duration(0))
 }
 
@@ -362,7 +360,6 @@ func TestFairSchedulingAlgoPolicyClockNoNodesFinishesContext(t *testing.T) {
 	sctx := pool.SchedulingResult.SchedulingContext
 	require.Equal(t, clk.Now(), sctx.Started)
 	require.Equal(t, clk.Now(), sctx.Finished)
-	require.Equal(t, time.Duration(0), sctx.ComputationDuration)
 	require.GreaterOrEqual(t, sctx.Finished.Sub(sctx.Started), time.Duration(0))
 	durationLine := ""
 	for _, line := range strings.Split(sctx.ReportString(0), "\n") {
@@ -392,7 +389,7 @@ func TestPreemptingQueueSchedulerPolicyClockDoesNotConsumeSoftBudget(t *testing.
 	fixture.addQueueAndBuildScheduler(t, jobs)
 	fixture.sctx.Started = testfixtures.BaseTime
 	// Each policy clock read advances a minute, so any policy time leaking into
-	// the host budget or ComputationDuration exceeds the limits below.
+	// the soft budget exhausts it before all jobs schedule.
 	fixture.scheduler.clock = testfixtures.NewSteppingClock(testfixtures.BaseTime, time.Minute)
 
 	result, err := fixture.scheduler.Schedule(armadacontext.Background())
@@ -400,5 +397,4 @@ func TestPreemptingQueueSchedulerPolicyClockDoesNotConsumeSoftBudget(t *testing.
 	require.Len(t, result.ScheduledJobs, 3, "policy time does not consume the host budget")
 	// Finished is the only policy clock read in Schedule, so it gets the start time.
 	require.Equal(t, testfixtures.BaseTime, fixture.sctx.Finished)
-	require.Less(t, fixture.sctx.ComputationDuration, time.Minute)
 }
