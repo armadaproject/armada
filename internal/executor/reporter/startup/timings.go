@@ -33,7 +33,7 @@ func (t *Timings) Measure(pod *v1.Pod, node *v1.Node, podEvents []*v1.Event) *ar
 		CreatedAt:             toTimestamp(created),
 		ScheduledAt:           toTimestamp(GetPodScheduledTime(pod, podEvents)),
 		KubeletAcknowledgedAt: toTimestamp(GetKubeletAcknowledgedTime(pod)),
-		SandboxReadyAt:        toTimestamp(GetSandboxReadyTime(pod)),
+		SandboxReadyAt:        toTimestamp(GetSandboxReadyTime(pod, podEvents)),
 		StartedAt:             toTimestamp(startedAt),
 		InitContainers:        containerDetails.initContainers,
 		Containers:            containerDetails.containers,
