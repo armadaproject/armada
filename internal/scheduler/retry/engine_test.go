@@ -266,6 +266,47 @@ func TestEngine_Evaluate(t *testing.T) {
 			counts:   Counts{Failures: 1},
 			expected: Result{ShouldRetry: false, Reason: "no rule matched, using default action", Decision: DecisionFailDefault},
 		},
+		"a rule limit fails the run once the rule has used its retries": {
+			globalMax: 10,
+			policy:    &Policy{Name: "test", RetryLimit: 10, DefaultAction: ActionFail, Rules: []Rule{{Action: ActionRetry, OnCategory: "oom", RetryLimit: 2}}},
+			runError:  &armadaevents.Error{FailureCategory: "oom"},
+			counts:    Counts{Failures: 3, EarlierCauses: []Cause{{Category: "oom"}, {Category: "oom"}}},
+			expected:  Result{ShouldRetry: false, Reason: "rule retry limit exceeded (2/2)", Decision: DecisionFailRuleLimit},
+		},
+		"a rule limit counts only the earlier runs that the rule decides": {
+			globalMax: 10,
+			policy: &Policy{Name: "test", RetryLimit: 10, DefaultAction: ActionFail, Rules: []Rule{
+				{Action: ActionRetry, OnCategory: "oom", RetryLimit: 2},
+				{Action: ActionRetry, OnCategory: "gpu"},
+			}},
+			runError: &armadaevents.Error{FailureCategory: "oom"},
+			counts:   Counts{Failures: 3, EarlierCauses: []Cause{{Category: "oom"}, {Category: "gpu"}}},
+			expected: Result{ShouldRetry: true, Reason: "matched rule: Retry", Decision: DecisionRetry},
+		},
+		"a rule limit counts an earlier run by the first rule that matches it": {
+			globalMax: 10,
+			policy: &Policy{Name: "test", RetryLimit: 10, DefaultAction: ActionFail, Rules: []Rule{
+				{Action: ActionRetry, OnCategory: "oom", OnSubcategory: "node", RetryLimit: 1},
+				{Action: ActionRetry, OnCategory: "oom", RetryLimit: 1},
+			}},
+			runError: &armadaevents.Error{FailureCategory: "oom"},
+			counts:   Counts{Failures: 2, EarlierCauses: []Cause{{Category: "oom", Subcategory: "node"}}},
+			expected: Result{ShouldRetry: true, Reason: "matched rule: Retry", Decision: DecisionRetry},
+		},
+		"the policy limit applies when the rule limit allows a retry": {
+			globalMax: 10,
+			policy:    &Policy{Name: "test", RetryLimit: 1, DefaultAction: ActionFail, Rules: []Rule{{Action: ActionRetry, OnCategory: "oom", RetryLimit: 5}}},
+			runError:  &armadaevents.Error{FailureCategory: "oom"},
+			counts:    Counts{Failures: 2, EarlierCauses: []Cause{{Category: "oom"}}},
+			expected:  Result{ShouldRetry: false, Reason: "policy retry limit exceeded (1/1)", Decision: DecisionFailPolicyLimit},
+		},
+		"a rule with no limit of its own uses only the policy limit": {
+			globalMax: 10,
+			policy:    &Policy{Name: "test", RetryLimit: 10, DefaultAction: ActionFail, Rules: []Rule{{Action: ActionRetry, OnCategory: "oom"}}},
+			runError:  &armadaevents.Error{FailureCategory: "oom"},
+			counts:    Counts{Failures: 4, EarlierCauses: []Cause{{Category: "oom"}, {Category: "oom"}, {Category: "oom"}}},
+			expected:  Result{ShouldRetry: true, Reason: "matched rule: Retry", Decision: DecisionRetry},
+		},
 	}
 
 	for name, tc := range tests {

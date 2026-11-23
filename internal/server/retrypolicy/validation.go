@@ -56,6 +56,9 @@ func validateRule(r *api.RetryRule) error {
 	if r.OnCategory == "" {
 		return fmt.Errorf("on_category must be set")
 	}
+	if r.RetryLimit > 0 && r.Action != api.RetryAction_RETRY_ACTION_RETRY {
+		return fmt.Errorf("retry_limit is only valid for a rule with action Retry")
+	}
 	if err := validateResourceBump(r.GetMutate().GetResources().GetMemory()); err != nil {
 		return fmt.Errorf("mutate.resources.memory: %w", err)
 	}

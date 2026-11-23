@@ -269,6 +269,11 @@ message RetryRule {
     // mutate describes changes applied to the job when this rule retries it.
     // Only meaningful when action is Retry.
     RetryMutation mutate = 7;
+    // retry_limit is the maximum number of retries for the runs that this rule
+    // decides. The policy retry_limit and the global limit still apply. A value
+    // of 0 means that the rule has no limit of its own. Only meaningful when
+    // action is Retry.
+    uint32 retry_limit = 8;
 }
 
 // RetryMutation groups the changes applied to a job on a policy-driven retry.

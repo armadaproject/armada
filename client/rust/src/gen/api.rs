@@ -431,6 +431,12 @@ pub struct RetryRule {
     /// Only meaningful when action is Retry.
     #[prost(message, optional, tag = "7")]
     pub mutate: ::core::option::Option<RetryMutation>,
+    /// retry_limit is the maximum number of retries for the runs that this rule
+    /// decides. The policy retry_limit and the global limit still apply. A value
+    /// of 0 means that the rule has no limit of its own. Only meaningful when
+    /// action is Retry.
+    #[prost(uint32, tag = "8")]
+    pub retry_limit: u32,
 }
 /// RetryMutation groups the changes applied to a job on a policy-driven retry.
 /// Fields are additive: new mutation kinds get new fields over time.
