@@ -10,3 +10,7 @@
     -g typescript-fetch \
     -i /project/pkg/api/schedulerobjects/api.swagger.json \
     -o /project/internal/lookoutui/src/openapi/schedulerobjects
+/usr/local/bin/docker-entrypoint.sh generate \
+    -g typescript-fetch \
+    -i /project/internal/lookout/swagger.yaml \
+    -o /project/internal/lookoutui/src/openapi/lookout

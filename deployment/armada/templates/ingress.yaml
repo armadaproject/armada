@@ -26,7 +26,7 @@ metadata:
 spec:
   rules:
   {{- $root := . -}}
-  {{- range required "A value is required for .Values.hostnames" .Values.hostnames }}
+  {{- range required "A value is required for .Values.hostnames" (.Values.grpcHostnames | default .Values.hostnames) }}
   - host: {{ . }}
     http:
       paths:
@@ -40,6 +40,6 @@ spec:
   {{- end }}
   tls:
     - hosts:
-      {{- toYaml .Values.hostnames  | nindent 8 }}
+      {{- include "armada.ingress.tlsHostnames" . | nindent 8 }}
       secretName: armada-service-tls
 {{- end }}

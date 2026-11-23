@@ -72,7 +72,7 @@ func waitForQueueDrained(t *testing.T, reporter *JobEventReporter) {
 }
 
 func createFailedEvent(t *testing.T, pod *v1.Pod) *armadaevents.EventSequence {
-	event, err := CreateSimpleJobFailedEvent(pod, "failed", "cluster1", armadaevents.KubernetesReason_AppError)
+	event, err := CreateJobFailedEvent(pod, "failed", armadaevents.KubernetesReason_AppError, "", []*armadaevents.ContainerError{}, "cluster1", "", "")
 	require.NoError(t, err)
 	return event
 }

@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/types"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -144,7 +146,11 @@ func TestCalculateIdealisedValue(t *testing.T) {
 				fairnessCostProvider,
 				noOpRateLimiter,
 				nil,
-				totalResources)
+				totalResources,
+				map[string]types.PriorityClass{
+					testfixtures.PriorityClass0: schedulingConfig.PriorityClasses[testfixtures.PriorityClass0],
+				},
+			)
 
 			for _, q := range tc.queues {
 				err = sctx.AddQueueSchedulingContext(
@@ -153,7 +159,7 @@ func TestCalculateIdealisedValue(t *testing.T) {
 					1.0,
 					map[string]internaltypes.ResourceList{},
 					zeroResources,
-					zeroResources,
+					map[string]internaltypes.ResourceList{testfixtures.PriorityClass0: zeroResources},
 					zeroResources,
 					noOpRateLimiter)
 				require.NoError(t, err)

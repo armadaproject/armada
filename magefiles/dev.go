@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,7 +20,8 @@ import (
 type Dev mg.Namespace
 
 const (
-	goremanPackage   = "github.com/mattn/goreman@v0.3.15"
+	goremanPackage   = "github.com/mattn/goreman"
+	goremanVersion   = "v0.3.15"
 	stackComposeFile = "_local/compose/stack.yaml"
 	fullComposeFile  = "_local/compose/full.yaml"
 	initScript       = "_local/scripts/init.sh"
@@ -161,7 +161,8 @@ func (Dev) Down() error {
 // .kube/internal/config), then brings the stack up. Migrations run as compose services
 // ordered ahead of the components, so no separate init step is needed.
 func (Dev) Full() error {
-	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"), Kind)
+	// Compose uses the bundle images directly and doesn't need the snapshot archive.
+	mg.Deps(mg.F(goreleaserMinimalRelease, true, "bundle", "lookout-bundle"), Kind)
 	return sh.RunV("docker", "compose", "-f", fullComposeFile, "up", "-d", "--wait")
 }
 
@@ -197,10 +198,5 @@ func installGoreman() error {
 	if _, err := os.Stat(goremanBin()); err == nil {
 		return nil
 	}
-	fmt.Println("Installing", goremanPackage, "to", goremanBin())
-	cmd := exec.Command("go", "install", goremanPackage)
-	cmd.Env = append(os.Environ(), "GOBIN="+LocalBin)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return installDependency(LocalBin, goremanPackage, goremanVersion)
 }

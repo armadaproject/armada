@@ -241,14 +241,7 @@ func init() {
           "200": {
             "description": "Returns debug message for specific job run (if present)",
             "schema": {
-              "type": "object",
-              "properties": {
-                "errorString": {
-                  "description": "Debug message for individual job run",
-                  "type": "string",
-                  "x-nullable": false
-                }
-              }
+              "$ref": "#/definitions/jobRunDebugMessage"
             }
           },
           "400": {
@@ -566,6 +559,184 @@ func init() {
     }
   },
   "definitions": {
+    "debugCondition": {
+      "type": "object",
+      "required": [
+        "type",
+        "status"
+      ],
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "x-nullable": false
+        },
+        "type": {
+          "type": "string",
+          "x-nullable": false
+        }
+      }
+    },
+    "debugContainer": {
+      "type": "object",
+      "required": [
+        "name",
+        "state"
+      ],
+      "properties": {
+        "exitCode": {
+          "type": "integer",
+          "format": "int32",
+          "x-nullable": true
+        },
+        "name": {
+          "type": "string",
+          "x-nullable": false
+        },
+        "reason": {
+          "type": "string"
+        },
+        "restartPolicy": {
+          "type": "string"
+        },
+        "runSeconds": {
+          "type": "integer",
+          "format": "int64",
+          "x-nullable": true
+        },
+        "state": {
+          "type": "string",
+          "x-nullable": false
+        }
+      }
+    },
+    "debugEvent": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    },
+    "debugNode": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/debugCondition"
+          },
+          "x-omitempty": true
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/debugEvent"
+          },
+          "x-omitempty": true
+        },
+        "exists": {
+          "description": "False when the pod outlived the node it was assigned to",
+          "type": "boolean",
+          "x-nullable": true
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string",
+          "x-nullable": false
+        },
+        "ready": {
+          "type": "string"
+        },
+        "readyReason": {
+          "type": "string"
+        },
+        "unschedulable": {
+          "type": "boolean",
+          "x-nullable": true
+        }
+      }
+    },
+    "debugPod": {
+      "type": "object",
+      "properties": {
+        "containers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/debugContainer"
+          },
+          "x-omitempty": true
+        },
+        "deletionTimestamp": {
+          "type": "string"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/debugEvent"
+          },
+          "x-omitempty": true
+        },
+        "finalizers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "x-omitempty": true
+        },
+        "forceTerminated": {
+          "type": "boolean",
+          "x-nullable": true
+        },
+        "initContainers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/debugContainer"
+          },
+          "x-omitempty": true
+        },
+        "phase": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "restartPolicy": {
+          "type": "string"
+        }
+      }
+    },
     "error": {
       "type": "object",
       "required": [
@@ -811,6 +982,19 @@ func init() {
         }
       }
     },
+    "jobRunDebugMessage": {
+      "type": "object",
+      "properties": {
+        "debugInfo": {
+          "$ref": "#/definitions/podDebugInfo"
+        },
+        "errorString": {
+          "description": "Debug message for individual job run, exactly as it was stored",
+          "type": "string",
+          "x-nullable": false
+        }
+      }
+    },
     "order": {
       "type": "object",
       "required": [
@@ -829,6 +1013,33 @@ func init() {
         "field": {
           "type": "string",
           "minLength": 1,
+          "x-nullable": false
+        }
+      }
+    },
+    "podDebugInfo": {
+      "description": "Diagnostics captured by the executor about a pod and its node when a run was torn down",
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "trigger",
+        "pod"
+      ],
+      "properties": {
+        "node": {
+          "$ref": "#/definitions/debugNode"
+        },
+        "pod": {
+          "$ref": "#/definitions/debugPod"
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "format": "int32",
+          "x-nullable": false
+        },
+        "trigger": {
+          "description": "Why the debug data was captured, e.g. podFailed or cancelledNotStarted",
+          "type": "string",
           "x-nullable": false
         }
       }
@@ -1192,14 +1403,7 @@ func init() {
           "200": {
             "description": "Returns debug message for specific job run (if present)",
             "schema": {
-              "type": "object",
-              "properties": {
-                "errorString": {
-                  "description": "Debug message for individual job run",
-                  "type": "string",
-                  "x-nullable": false
-                }
-              }
+              "$ref": "#/definitions/jobRunDebugMessage"
             }
           },
           "400": {
@@ -1550,6 +1754,184 @@ func init() {
         }
       }
     },
+    "debugCondition": {
+      "type": "object",
+      "required": [
+        "type",
+        "status"
+      ],
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "x-nullable": false
+        },
+        "type": {
+          "type": "string",
+          "x-nullable": false
+        }
+      }
+    },
+    "debugContainer": {
+      "type": "object",
+      "required": [
+        "name",
+        "state"
+      ],
+      "properties": {
+        "exitCode": {
+          "type": "integer",
+          "format": "int32",
+          "x-nullable": true
+        },
+        "name": {
+          "type": "string",
+          "x-nullable": false
+        },
+        "reason": {
+          "type": "string"
+        },
+        "restartPolicy": {
+          "type": "string"
+        },
+        "runSeconds": {
+          "type": "integer",
+          "format": "int64",
+          "x-nullable": true
+        },
+        "state": {
+          "type": "string",
+          "x-nullable": false
+        }
+      }
+    },
+    "debugEvent": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    },
+    "debugNode": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/debugCondition"
+          },
+          "x-omitempty": true
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/debugEvent"
+          },
+          "x-omitempty": true
+        },
+        "exists": {
+          "description": "False when the pod outlived the node it was assigned to",
+          "type": "boolean",
+          "x-nullable": true
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string",
+          "x-nullable": false
+        },
+        "ready": {
+          "type": "string"
+        },
+        "readyReason": {
+          "type": "string"
+        },
+        "unschedulable": {
+          "type": "boolean",
+          "x-nullable": true
+        }
+      }
+    },
+    "debugPod": {
+      "type": "object",
+      "properties": {
+        "containers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/debugContainer"
+          },
+          "x-omitempty": true
+        },
+        "deletionTimestamp": {
+          "type": "string"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/debugEvent"
+          },
+          "x-omitempty": true
+        },
+        "finalizers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "x-omitempty": true
+        },
+        "forceTerminated": {
+          "type": "boolean",
+          "x-nullable": true
+        },
+        "initContainers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/debugContainer"
+          },
+          "x-omitempty": true
+        },
+        "phase": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "restartPolicy": {
+          "type": "string"
+        }
+      }
+    },
     "error": {
       "type": "object",
       "required": [
@@ -1795,6 +2177,19 @@ func init() {
         }
       }
     },
+    "jobRunDebugMessage": {
+      "type": "object",
+      "properties": {
+        "debugInfo": {
+          "$ref": "#/definitions/podDebugInfo"
+        },
+        "errorString": {
+          "description": "Debug message for individual job run, exactly as it was stored",
+          "type": "string",
+          "x-nullable": false
+        }
+      }
+    },
     "order": {
       "type": "object",
       "required": [
@@ -1813,6 +2208,33 @@ func init() {
         "field": {
           "type": "string",
           "minLength": 1,
+          "x-nullable": false
+        }
+      }
+    },
+    "podDebugInfo": {
+      "description": "Diagnostics captured by the executor about a pod and its node when a run was torn down",
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "trigger",
+        "pod"
+      ],
+      "properties": {
+        "node": {
+          "$ref": "#/definitions/debugNode"
+        },
+        "pod": {
+          "$ref": "#/definitions/debugPod"
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "format": "int32",
+          "x-nullable": false
+        },
+        "trigger": {
+          "description": "Why the debug data was captured, e.g. podFailed or cancelledNotStarted",
+          "type": "string",
           "x-nullable": false
         }
       }

@@ -251,6 +251,7 @@ func setUpSctx(t *testing.T, queues []*api.Queue, existingJobs []*jobdb.Job, tot
 		nil,
 		nil,
 		totalResource,
+		testfixtures.TestPriorityClasses,
 	)
 
 	for _, q := range queues {
@@ -278,7 +279,7 @@ func setUpSctx(t *testing.T, queues []*api.Queue, existingJobs []*jobdb.Job, tot
 			q.Name, weight, weight,
 			existingAllocation,
 			unlimitedDemand,
-			unlimitedDemand,
+			map[string]internaltypes.ResourceList{testfixtures.TestDefaultPriorityClass: unlimitedDemand},
 			internaltypes.ResourceList{},
 			nil,
 		)
@@ -288,7 +289,7 @@ func setUpSctx(t *testing.T, queues []*api.Queue, existingJobs []*jobdb.Job, tot
 				context.CalculateAwayQueueName(q.Name), weight, weight,
 				existingAwayAllocation,
 				internaltypes.ResourceList{},
-				internaltypes.ResourceList{},
+				map[string]internaltypes.ResourceList{},
 				internaltypes.ResourceList{},
 				nil,
 			)

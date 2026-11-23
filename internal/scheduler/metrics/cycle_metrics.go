@@ -32,7 +32,7 @@ var (
 	poolQueueAndResourceLabels             = []string{poolLabel, queueLabel, resourceLabel}
 	poolAndOutcomeLabels                   = []string{poolLabel, outcomeLabel, terminationReasonLabel}
 	loopTypeAndOutcomeLabels               = []string{typeLabel, outcomeLabel}
-	nodeLabels                             = []string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, schedulableLabel, overAllocatedLabel, physicalPoolLabel, capacityClassLabel, scalableUnitLabel}
+	nodeLabels                             = []string{poolLabel, nodeLabel, clusterLabel, nodeTypeLabel, resourceLabel, reservationLabel, schedulableLabel, overAllocatedLabel, physicalPoolLabel, capacityClassLabel, scalableUnitLabel, nodeCategoryLabel}
 	defaultType                            = "unknown"
 	homePlacementType                      = "home"
 	awayPlacementType                      = "away"
@@ -610,7 +610,7 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 					jobsConsidered := float64(len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts))
 					actualShare := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.GetAllocation())
 					demand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.Demand)
-					constrainedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.ConstrainedDemand)
+					constrainedDemand := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(internaltypes.RlMapSumValues(queueContext.ConstrainedDemandByPriorityClass))
 					shortJobPenalty := schedContext.FairnessCostProvider.UnweightedCostFromAllocation(queueContext.ShortJobPenalty)
 
 					currentCycle.consideredJobs.WithLabelValues(pool, queue).Set(jobsConsidered)
@@ -691,16 +691,17 @@ func (m *cycleMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result 
 						if m.scalableUnitLabelKey != "" {
 							scalableUnit, _ = node.GetLabelValue(m.scalableUnitLabelKey)
 						}
+						nodeCategory := CategoriseNodeByTaints(node.GetNodeTaints())
 						for _, resource := range node.GetAllocatableResources().GetAll() {
 							currentCycle.nodeAllocatableResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
-								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit).Set(resource.Value.AsApproximateFloat64())
+								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit, nodeCategory).Set(resource.Value.AsApproximateFloat64())
 						}
 
 						allocated := node.GetAllocatableResources().Subtract(node.AllocatableAtPriority(internaltypes.EvictedPriority))
 						for _, resource := range allocated.GetAll() {
 							allocatableValue := math.Max(resource.Value.AsApproximateFloat64(), 0)
 							currentCycle.nodeAllocatedResource.WithLabelValues(pool, node.GetName(), node.GetExecutor(), node.GetReportingNodeType(), resource.Name, node.GetReservation(),
-								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit).Set(allocatableValue)
+								isSchedulable, isOverallocated, node.GetPool(), nodeCapacityClass, scalableUnit, nodeCategory).Set(allocatableValue)
 						}
 					}
 				}
@@ -880,9 +881,9 @@ func (m *cycleMetrics) publishCycleMetrics(ctx *armadacontext.Context, result sc
 			queueMetrics[qName] = &metricevents.QueueMetrics{
 				ActualShare:                      sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.GetAllocation()),
 				Demand:                           sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.Demand),
-				ConstrainedDemand:                sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ConstrainedDemand),
+				ConstrainedDemand:                sc.FairnessCostProvider.UnweightedCostFromAllocation(internaltypes.RlMapSumValues(qCtx.ConstrainedDemandByPriorityClass)),
 				DemandByResourceType:             armadamaps.MapValues(qCtx.Demand.ToMap(), toQtyPtr),
-				ConstrainedDemandByResourceType:  armadamaps.MapValues(qCtx.ConstrainedDemand.ToMap(), toQtyPtr),
+				ConstrainedDemandByResourceType:  armadamaps.MapValues(internaltypes.RlMapSumValues(qCtx.ConstrainedDemandByPriorityClass).ToMap(), toQtyPtr),
 				ShortJobPenalty:                  sc.FairnessCostProvider.UnweightedCostFromAllocation(qCtx.ShortJobPenalty),
 				BillableAllocationByResourceType: armadamaps.MapValues(qCtx.GetBillableResource().ToMap(), toQtyPtr),
 			}

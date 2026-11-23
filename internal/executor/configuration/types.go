@@ -186,6 +186,9 @@ type KubernetesConfiguration struct {
 
 type TaintCategorisationConfiguration struct {
 	// CategoriseUnknownTaints controls whether unknown node taints receive the "unknown" category.
+	// When enabled, submission checks may accept jobs that only match nodes with unknown taints,
+	// allowing them to remain queued until a suitable node becomes schedulable. The executor still
+	// reports nodes with unrecognized NoSchedule taints as unschedulable.
 	CategoriseUnknownTaints bool
 	WellKnownTaints         WellKnownTaintsConfiguration
 }
@@ -194,7 +197,6 @@ type WellKnownTaintsConfiguration struct {
 	// Taint keys used by end users that the executor recognizes. Supports regex and will eventually replace ToleratedTaints.
 	// Keys match literally unless they contain regex syntax other than dots
 	// (*+?[](){}|^$ or backslash). Regex patterns must match the entire taint key.
-	// Nodes with unrecognized NoSchedule taints are not considered available for scheduling.
 	// Matching taints are reported to the scheduler as user-facing metadata.
 	Keys  []string
 	Admin []WellKnownTaintAdminConfiguration
@@ -205,7 +207,6 @@ type WellKnownTaintAdminConfiguration struct {
 	Category string
 	// Taint keys used by admins and operators that the executor recognizes. Supports regex.
 	// Literal and regex matching follow the same rules as WellKnownTaintsConfiguration.Keys.
-	// Nodes with unrecognized NoSchedule taints are not considered available for scheduling.
 	// Matching taints are reported to the scheduler with the configured admin category.
 	Keys []string
 }

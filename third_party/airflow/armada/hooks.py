@@ -178,15 +178,18 @@ class ArmadaHook(LoggingMixin):
                 cluster = run_details.cluster
                 pod_name = self._resolve_pod_name(job_id, run_details)
         last_log_time = job_context.last_log_time
+        last_log_offset = job_context.last_log_offset
         # The log cursor belongs to one pod, so a new pod starts without it.
         if job_context.pod_name and pod_name != job_context.pod_name:
             last_log_time = None
+            last_log_offset = 0
         return dataclasses.replace(
             job_context,
             job_state=state.name,
             cluster=cluster,
             pod_name=pod_name,
             last_log_time=last_log_time,
+            last_log_offset=last_log_offset,
         )
 
     @log_exceptions
@@ -201,6 +204,7 @@ class ArmadaHook(LoggingMixin):
                 submit_time=(result.get("armada_job_submit_time", DateTime.utcnow())),
                 last_log_time=result.get("armada_job_last_log_time", None),
                 pod_name=result.get("armada_job_pod_name", None),
+                last_log_offset=result.get("armada_job_last_log_offset", 0),
             )
 
         return None
@@ -222,6 +226,7 @@ class ArmadaHook(LoggingMixin):
                 "armada_job_state": ctx.job_state,
                 "armada_job_last_log_time": ctx.last_log_time,
                 "armada_job_pod_name": ctx.pod_name,
+                "armada_job_last_log_offset": ctx.last_log_offset,
             },
         )
 

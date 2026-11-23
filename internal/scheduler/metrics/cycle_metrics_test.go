@@ -46,12 +46,12 @@ func TestReportStateTransitions(t *testing.T) {
 						FairnessCostProvider: fairnessCostProvider,
 						QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 							"queue1": {
-								Allocated:                     cpu(10),
-								Demand:                        cpu(20),
-								ConstrainedDemand:             cpu(15),
-								DemandCappedAdjustedFairShare: 0.15,
-								UncappedAdjustedFairShare:     0.2,
-								ShortJobPenalty:               cpu(28),
+								Allocated:                        cpu(10),
+								Demand:                           cpu(20),
+								ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(cpu(15)),
+								DemandCappedAdjustedFairShare:    0.15,
+								UncappedAdjustedFairShare:        0.2,
+								ShortJobPenalty:                  cpu(28),
 								SuccessfulJobSchedulingContexts: map[string]*context.JobSchedulingContext{
 									"job1": {
 										Job: testfixtures.Test1Cpu4GiJob("queue1", testfixtures.PriorityClass0),
@@ -202,7 +202,7 @@ func TestResetLeaderMetrics_ResetsLatestCycleMetrics(t *testing.T) {
 	poolLabelValues := []string{"pool1"}
 	poolQueueLabelValues := []string{"pool1", "queue1"}
 	poolQueueResourceLabelValues := []string{"pool1", "queue1", "cpu"}
-	nodeResourceLabelValues := []string{"pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, ""}
+	nodeResourceLabelValues := []string{"pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, "", "none"}
 
 	testResetGauge := func(getVec func(metrics *cycleMetrics) *prometheus.GaugeVec, labelValues []string) {
 		vec := getVec(m)
@@ -275,8 +275,8 @@ func TestDisableLeaderMetrics(t *testing.T) {
 		m.latestCycleMetrics.Load().loopNumber.WithLabelValues("pool1").Inc()
 		m.latestCycleMetrics.Load().evictedJobs.WithLabelValues("pool1", "queue1").Inc()
 		m.latestCycleMetrics.Load().evictedResources.WithLabelValues("pool1", "queue1", "cpu").Inc()
-		m.latestCycleMetrics.Load().nodeAllocatableResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, "").Inc()
-		m.latestCycleMetrics.Load().nodeAllocatedResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, "").Inc()
+		m.latestCycleMetrics.Load().nodeAllocatableResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, "", "none").Inc()
+		m.latestCycleMetrics.Load().nodeAllocatedResource.WithLabelValues("pool1", "node1", "cluster1", "type1", "cpu", "", "true", "false", "pool1", CapacityClassDedicated, "", "none").Inc()
 		m.latestCycleMetrics.Load().nodePoolSize.WithLabelValues("pool1").Inc()
 
 		ch := make(chan prometheus.Metric, 1000)
@@ -327,11 +327,11 @@ func TestPublishCycleMetrics(t *testing.T) {
 						TotalResources:       cpu(100),
 						QueueSchedulingContexts: map[string]*context.QueueSchedulingContext{
 							"queue1": {
-								Queue:             "queue1",
-								Allocated:         cpu(10),
-								Demand:            cpu(20),
-								ConstrainedDemand: cpu(15),
-								BillableResource:  cpu(9),
+								Queue:                            "queue1",
+								Allocated:                        cpu(10),
+								Demand:                           cpu(20),
+								ConstrainedDemandByPriorityClass: demandAtDefaultPriorityClass(cpu(15)),
+								BillableResource:                 cpu(9),
 							},
 						},
 						SpotPrice: &spotPrice,
@@ -463,4 +463,10 @@ func cpu(n int) internaltypes.ResourceList {
 	return testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
 		map[string]resource.Quantity{"cpu": resource.MustParse(fmt.Sprintf("%d", n))},
 	)
+}
+
+func demandAtDefaultPriorityClass(demand internaltypes.ResourceList) map[string]internaltypes.ResourceList {
+	return map[string]internaltypes.ResourceList{
+		testfixtures.TestDefaultPriorityClass: demand,
+	}
 }
