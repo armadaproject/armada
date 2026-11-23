@@ -33,6 +33,28 @@ func TestValidateJobSetFilter_EnforcesPendingAndRunningOccurTogether(t *testing.
 	assert.NoError(t, result)
 }
 
+func TestValidateJobSetFilter_RejectsStatesThatCannotBeFilteredOn(t *testing.T) {
+	unsupportedStates := []api.JobState{
+		api.JobState_SUCCEEDED,
+		api.JobState_FAILED,
+		api.JobState_UNKNOWN,
+		api.JobState_SUBMITTED,
+		api.JobState_LEASED,
+		api.JobState_PREEMPTED,
+		api.JobState_CANCELLED,
+		api.JobState_REJECTED,
+	}
+	for _, state := range unsupportedStates {
+		t.Run(state.String(), func(t *testing.T) {
+			result := ValidateJobSetFilter(&api.JobSetFilter{States: []api.JobState{state}})
+			assert.Error(t, result)
+
+			result = ValidateJobSetFilter(&api.JobSetFilter{States: []api.JobState{api.JobState_QUEUED, state}})
+			assert.Error(t, result)
+		})
+	}
+}
+
 func TestValidateReason(t *testing.T) {
 	tests := map[string]struct {
 		reason      string
