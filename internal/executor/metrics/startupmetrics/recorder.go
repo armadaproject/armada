@@ -83,9 +83,10 @@ func totalImagePullDuration(info *armadaevents.PodStartUpInfo) *time.Duration {
 		if container.ImagePull.Cached {
 			continue // already on the node, so never pulled
 		}
-		if container.ImagePull.Duration != nil {
-			total += protoutil.ToStdDuration(container.ImagePull.Duration)
+		if container.ImagePull.Duration == nil {
+			return nil
 		}
+		total += protoutil.ToStdDuration(container.ImagePull.Duration)
 	}
 	return &total
 }
