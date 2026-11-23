@@ -74,6 +74,16 @@ def check_empty(cache):
         raise ValueError('expected empty diagnostic Go cache')
 
 
+def isolate_runner_cache():
+    cache = cache_path()
+    record('runner_cache_before_isolation')
+    if cache.exists() or cache.is_symlink():
+        # Keep the original path available for actions/cache's matching and extraction.
+        backup = Path(tempfile.mkdtemp(prefix='task-015-original-cache-', dir=cache.parent))
+        cache.rename(backup / cache.name)
+    check_empty(cache)
+
+
 def prepare(case):
     cache = cache_path()
     record('after_restore', case=case)
@@ -168,13 +178,13 @@ def main():
 
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
-    commands.add_parser('check-empty')
+    commands.add_parser('isolate')
     preparation = commands.add_parser('prepare')
     preparation.add_argument('case', choices=['fresh', 'aged', 'empty'])
     commands.add_parser('run')
     args = parser.parse_args()
-    if args.command == 'check-empty':
-        check_empty(cache_path())
+    if args.command == 'isolate':
+        isolate_runner_cache()
     elif args.command == 'prepare':
         prepare(args.case)
     else:
