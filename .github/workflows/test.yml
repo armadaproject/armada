@@ -223,6 +223,21 @@ jobs:
       - name: Setup Integration Tests
         run: go run github.com/magefile/mage@v1.17.2 -v dev:full
 
+      - name: Inspect Go build cache after integration startup
+        continue-on-error: true
+        run: python3 .github/scripts/go-build-cache-age.py
+
+      - name: Save integration Go build cache
+        if: >-
+          success() && github.repository == 'armadaproject/armada' &&
+          github.ref == 'refs/heads/master' &&
+          (github.event_name == 'push' || github.event_name == 'schedule') &&
+          steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ env.GOCACHE }}
+          key: ${{ steps.build-cache-key.outputs.current }}
+
       - name: Run Integration Tests
         run: go run github.com/magefile/mage@v1.17.2 -v testsuite
 
@@ -254,21 +269,6 @@ jobs:
         run: |
           df -h /
           docker system df || true
-
-      - name: Inspect final Go build cache
-        continue-on-error: true
-        run: python3 .github/scripts/go-build-cache-age.py
-
-      - name: Save integration Go build cache
-        if: >-
-          success() && github.repository == 'armadaproject/armada' &&
-          github.ref == 'refs/heads/master' &&
-          (github.event_name == 'push' || github.event_name == 'schedule') &&
-          steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: ${{ env.GOCACHE }}
-          key: ${{ steps.build-cache-key.outputs.current }}
 
   go-mod-up-to-date:
     name: Golang Mod Up To Date
