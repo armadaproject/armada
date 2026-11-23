@@ -30,7 +30,7 @@ func TestDeriveSteps(t *testing.T) {
 				SandboxReadyAt: baselineWithOffset(9),
 			},
 		},
-		"sandbox ready at not determined, as on Kubernetes below 1.33": {
+		"sandbox ready at not determined": {
 			info: &armadaevents.PodStartUpInfo{
 				CreatedAt:   baselineWithOffset(0),
 				ScheduledAt: baselineWithOffset(2),

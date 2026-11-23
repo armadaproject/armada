@@ -124,11 +124,11 @@ func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
 func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 	queues, err := srv.queueCache.GetAll(ctx)
 	if err != nil {
-		return fmt.Errorf("failed fetching queues from queue cache - %s", err)
+		return fmt.Errorf("failed fetching queues from queue cache - %w", err)
 	}
 	executors, err := srv.executorRepository.GetExecutors(ctx)
 	if err != nil {
-		return fmt.Errorf("failed fetching executors from db - %s", err)
+		return fmt.Errorf("failed fetching executors from db - %w", err)
 	}
 
 	ctx.Infof("Retrieved %d executors", len(executors))
@@ -178,7 +178,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 
 		nodeDb, err := scheduling.ConstructNodeDb(nodeDbConfig, srv.resourceListFactory, srv.schedulingConfig.PriorityClasses, pool, nil, nil, poolNodes)
 		if err != nil {
-			return fmt.Errorf("failed constructing nodedb for pool %s - %s", pool.Name, err)
+			return fmt.Errorf("failed constructing nodedb for pool %s - %w", pool.Name, err)
 		}
 
 		nodeDbByPool[pool.Name] = nodeDb

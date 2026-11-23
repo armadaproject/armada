@@ -80,16 +80,75 @@ func TestGetKubeletAcknowledgedTime_NilWhenStartTimeUnset(t *testing.T) {
 }
 
 func TestGetSandboxReadyTime(t *testing.T) {
-	assert.Equal(t, baselineWithOffset(9).Time, *GetSandboxReadyTime(podWithConditions()))
-}
-
-func TestGetSandboxReadyTime_NilWhenFeatureGateOff(t *testing.T) {
-	pod := podWithConditions()
-	pod.Status.Conditions = []v1.PodCondition{
+	// A pod whose status carries no PodReadyToStartContainers condition, leaving the events as the
+	// only source.
+	withoutCondition := []v1.PodCondition{
 		{Type: v1.PodScheduled, Status: v1.ConditionTrue, LastTransitionTime: baselineWithOffset(2)},
 	}
+	podLevelEvents := []*v1.Event{
+		schedulerScheduledEvent(baselineWithOffset(1)),
+		podEvent("", "AddedInterface", "Add eth0 [10.0.0.1/24]", baselineWithOffset(4)),
+	}
 
-	assert.Nil(t, GetSandboxReadyTime(pod))
+	tests := map[string]struct {
+		conditions []v1.PodCondition
+		events     []*v1.Event
+		expected   *time.Time
+	}{
+		"the condition, when no container event survives": {
+			conditions: podWithConditions().Status.Conditions,
+			expected:   new(baselineWithOffset(9).Time),
+		},
+		"a container event earlier than the condition wins": {
+			conditions: podWithConditions().Status.Conditions,
+			events:     []*v1.Event{podEvent("spec.containers{main}", pulledReason, "", baselineWithOffset(5))},
+			expected:   new(baselineWithOffset(5).Time),
+		},
+		"an init container's event earlier than the condition wins": {
+			conditions: podWithConditions().Status.Conditions,
+			events:     []*v1.Event{podEvent("spec.initContainers{preflight}", pulledReason, "", baselineWithOffset(5))},
+			expected:   new(baselineWithOffset(5).Time),
+		},
+		"the condition wins when it is earlier than every container event": {
+			conditions: podWithConditions().Status.Conditions,
+			events: []*v1.Event{
+				podEvent("spec.initContainers{preflight}", startedReason, "", baselineWithOffset(11)),
+				podEvent("spec.containers{main}", pulledReason, "", baselineWithOffset(20)),
+			},
+			expected: new(baselineWithOffset(9).Time),
+		},
+		"pod level events are ignored": {
+			conditions: podWithConditions().Status.Conditions,
+			events:     podLevelEvents,
+			expected:   new(baselineWithOffset(9).Time),
+		},
+		"nil when neither source is available": {
+			conditions: withoutCondition,
+		},
+		// A container event carrying only EventTime is still read, so an events.k8s.io recorder does
+		// not go unnoticed.
+		"an event with only EventTime set is used": {
+			conditions: withoutCondition,
+			events:     []*v1.Event{containerEventWithEventTimeOnly("spec.containers{main}", pulledReason, baselineWithOffset(5))},
+			expected:   new(baselineWithOffset(5).Time),
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			pod := podWithConditions()
+			pod.Status.Conditions = tc.conditions
+
+			actual := GetSandboxReadyTime(pod, tc.events)
+
+			if tc.expected == nil {
+				assert.Nil(t, actual)
+				return
+			}
+			require.NotNil(t, actual)
+			assert.Equal(t, *tc.expected, *actual)
+		})
+	}
 }
 
 func TestGetLatestAppContainerStartTime(t *testing.T) {
@@ -222,7 +281,7 @@ func TestPodConditionAnchors_NilWhenConditionIsNotTrue(t *testing.T) {
 			}
 
 			assert.Nil(t, GetPodScheduledTime(pod, nil))
-			assert.Nil(t, GetSandboxReadyTime(pod))
+			assert.Nil(t, GetSandboxReadyTime(pod, nil))
 		})
 	}
 }

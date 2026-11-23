@@ -161,7 +161,8 @@ func (Dev) Down() error {
 // .kube/internal/config), then brings the stack up. Migrations run as compose services
 // ordered ahead of the components, so no separate init step is needed.
 func (Dev) Full() error {
-	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle", "lookout-bundle"), Kind)
+	// Compose uses the bundle images directly and doesn't need the snapshot archive.
+	mg.Deps(mg.F(goreleaserMinimalRelease, true, "bundle", "lookout-bundle"), Kind)
 	return sh.RunV("docker", "compose", "-f", fullComposeFile, "up", "-d", "--wait")
 }
 

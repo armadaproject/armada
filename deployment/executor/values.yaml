@@ -20,6 +20,13 @@ customServiceAccount: null
 serviceAccount: null
 priorityClassName: ""
 
+# Grant the executor constrained impersonation instead of the legacy `impersonate` verb.
+# Only relevant when applicationConfig.kubernetes.impersonateUsers is true.
+# Can significantly improve submit latency in clusters with many clusterrole bindings and
+#  users have a large number of impersonated groups.
+# Requires Kubernetes 1.34+ (with ConstrainedImpersonation feature gate enabled)
+useConstrainedImpersonation: false
+
 healthcheck:
   enabled: false
 

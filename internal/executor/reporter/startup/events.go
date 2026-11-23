@@ -1,6 +1,7 @@
 package startup
 
 import (
+	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -22,12 +23,22 @@ const (
 // built by GenerateContainerRef, which uses distinct paths for init and app containers. Matching on
 // it rather than on the container name keeps an init container and an app container that share a
 // name apart.
+const (
+	initContainerFieldPathPrefix = "spec.initContainers{"
+	appContainerFieldPathPrefix  = "spec.containers{"
+)
+
 func initContainerKey(name string) string {
-	return "spec.initContainers{" + name + "}"
+	return initContainerFieldPathPrefix + name + "}"
 }
 
 func appContainerFieldKey(name string) string {
-	return "spec.containers{" + name + "}"
+	return appContainerFieldPathPrefix + name + "}"
+}
+
+func isContainerFieldPath(fieldPath string) bool {
+	return strings.HasPrefix(fieldPath, initContainerFieldPathPrefix) ||
+		strings.HasPrefix(fieldPath, appContainerFieldPathPrefix)
 }
 
 type containerEvents map[string]*v1.Event
@@ -102,6 +113,24 @@ func lastEventOccurrence(event *v1.Event) time.Time {
 		last = event.Series.LastObservedTime.Time
 	}
 	return last
+}
+
+// firstContainerEventTime is the earliest event the kubelet recorded against one of the pod's containers.
+func firstContainerEventTime(podEvents []*v1.Event) *time.Time {
+	var first *time.Time
+	for _, event := range podEvents {
+		if event == nil || !isContainerFieldPath(event.InvolvedObject.FieldPath) {
+			continue
+		}
+		at := eventTime(event)
+		if at.IsZero() {
+			continue
+		}
+		if first == nil || at.Before(*first) {
+			first = new(at)
+		}
+	}
+	return first
 }
 
 // firstEventTimeWithReason is the earliest time any of the pod's events carries a reason, or nil
