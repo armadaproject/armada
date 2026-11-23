@@ -144,6 +144,10 @@ jobs:
     needs: validate
     runs-on: ubuntu-22.04
     environment: nuget-release
+    permissions:
+      # Required to request the OIDC token used for NuGet.org trusted publishing.
+      id-token: write
+      contents: read
     steps:
       - name: Setup the latest .NET 10 SDK
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
@@ -155,10 +159,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      - name: NuGet login (trusted publishing)
+        id: nuget-login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ vars.NUGET_USER }}
+
       - name: Push nuget clients
         env:
           TAG: ${{ github.event.workflow_run.head_branch }}
         run: |
           VERSION=${TAG#v}
-          dotnet nuget push ./bin/client/DotNet/ArmadaProject.Io.Client.$VERSION.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
+          dotnet nuget push ./bin/client/DotNet/ArmadaProject.Io.Client.$VERSION.nupkg -k ${{ steps.nuget-login.outputs.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
 
