@@ -83,19 +83,29 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotCallClient_WhenNoPo
 
 func TestKubernetesClusterContext_SubmitService(t *testing.T) {
 	clusterContext, client := setupTest()
+	t.Cleanup(clusterContext.Stop)
 
 	service := createService()
 	client.Fake.ClearActions()
 
 	_, err := clusterContext.SubmitService(service)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
-	assert.Equal(t, len(client.Fake.Actions()), 1)
-	assert.True(t, client.Fake.Actions()[0].Matches("create", "services"))
+	// Informers can start their watches after the initial cache sync.
+	actions := client.Fake.Actions()
+	var submitActions []clientTesting.Action
+	for _, action := range actions {
+		if action.GetVerb() != "watch" {
+			submitActions = append(submitActions, action)
+		}
+	}
+	require.Len(t, submitActions, 1, "expected one Service creation, recorded actions: %+v", actions)
+	action := submitActions[0]
+	require.True(t, action.Matches("create", "services"), "expected create services, got %+v", action)
 
-	createAction, ok := client.Fake.Actions()[0].(clientTesting.CreateAction)
-	assert.True(t, ok)
-	assert.Equal(t, createAction.GetObject(), service)
+	createAction, ok := action.(clientTesting.CreateAction)
+	require.True(t, ok, "expected a CreateAction, got %T", action)
+	assert.Equal(t, service, createAction.GetObject())
 }
 
 func TestKubernetesClusterContext_DeleteService(t *testing.T) {
