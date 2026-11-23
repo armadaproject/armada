@@ -74,6 +74,14 @@ func podEvent(fieldPath, reason, message string, firstTimestamp metav1.Time) *v1
 	}
 }
 
+// containerEventWithEventTimeOnly is a container event recorded through the events.k8s.io recorder,
+// which populates only EventTime and leaves FirstTimestamp empty in the core/v1 view.
+func containerEventWithEventTimeOnly(fieldPath, reason string, at metav1.Time) *v1.Event {
+	event := podEvent(fieldPath, reason, "", metav1.Time{})
+	event.EventTime = metav1.NewMicroTime(at.Time)
+	return event
+}
+
 // schedulerScheduledEvent mirrors what kube-scheduler actually records on bind. It deliberately
 // leaves FirstTimestamp unset and sets EventTime instead: the scheduler uses the events.k8s.io
 // recorder, which populates only EventTime, so in the core/v1 view FirstTimestamp is empty.

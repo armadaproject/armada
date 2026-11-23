@@ -83,7 +83,12 @@ services:
     networks: [kind]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/admin/v2/brokers/health"]
+      # Standalone can pass broker health before creating the namespace Armada uses.
+      test:
+        - CMD-SHELL
+        - >-
+          curl -fsS -o /dev/null http://localhost:8080/admin/v2/brokers/health &&
+          curl -fsS -o /dev/null http://localhost:8080/admin/v2/namespaces/public/default
       interval: 10s
       timeout: 10s
       retries: 10

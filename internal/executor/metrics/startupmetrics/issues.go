@@ -108,25 +108,11 @@ func imagePullIssues(container *armadaevents.ContainerStartUpInfo) []collectionI
 	return issues.found
 }
 
-// reportableIssues drops the issues not worth acting on, which is what decides both whether a
-// breakdown counts as complete and whether it is worth warning about.
-//
-// sandbox_ready_at is dropped: it comes from the PodReadyToStartContainers condition, which only
-// Kubernetes 1.33 and above sets, so on an older cluster it is missing for every pod, which would
-// make every breakdown incomplete and warn once per pod for the life of the cluster. It is still
-// counted per field, which is where an operator sees that the cluster does not report it.
-func reportableIssues(issues []collectionIssue) []collectionIssue {
-	return armadaslices.Filter(issues, func(issue collectionIssue) bool {
-		return issue.field != fieldSandboxReadyAt
-	})
-}
-
 func incompleteBreakdownMessage(podName string, issues []collectionIssue) string {
-	reportable := reportableIssues(issues)
-	if len(reportable) == 0 {
+	if len(issues) == 0 {
 		return ""
 	}
 
-	described := armadaslices.Map(reportable, func(issue collectionIssue) string { return issue.String() })
+	described := armadaslices.Map(issues, func(issue collectionIssue) string { return issue.String() })
 	return fmt.Sprintf("Start up breakdown of pod %s is incomplete: %s", podName, strings.Join(described, ", "))
 }

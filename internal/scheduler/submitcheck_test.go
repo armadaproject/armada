@@ -524,8 +524,8 @@ func TestSubmitChecker_Initialise(t *testing.T) {
 			queueCacheErr: fmt.Errorf("failed to get queues"),
 		},
 		"error on executor repo err": {
-			expectError:   true,
-			queueCacheErr: fmt.Errorf("failed to get executors"),
+			expectError:     true,
+			executorRepoErr: fmt.Errorf("failed to get executors"),
 		},
 	}
 	for name, tc := range tests {
@@ -561,6 +561,13 @@ func TestSubmitChecker_Initialise(t *testing.T) {
 			err := submitCheck.Initialise(ctx)
 			if tc.expectError {
 				assert.Error(t, err)
+				// The cause must stay in the chain so that its stack trace reaches the logger.
+				if tc.queueCacheErr != nil {
+					assert.ErrorIs(t, err, tc.queueCacheErr)
+				}
+				if tc.executorRepoErr != nil {
+					assert.ErrorIs(t, err, tc.executorRepoErr)
+				}
 			} else {
 				assert.NoError(t, err)
 			}
