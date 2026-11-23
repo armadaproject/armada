@@ -223,7 +223,8 @@ type SchedulingConfig struct {
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
 	// Experimental - controls the rollout of the JobDb queued-jobs aggregate.
-	ExperimentalQueuedAggregate AggregateDemandConfig
+	// Named AggregateDemand rather than QueuedAggregate for config compatibility.
+	ExperimentalAggregateDemand AggregateDemandConfig
 	// Experimental - controls the rollout of the JobDb running-jobs aggregate.
 	ExperimentalRunningAggregate AggregateDemandConfig
 	// If true, the scheduler tracks per-node pod capacity and refuses to schedule

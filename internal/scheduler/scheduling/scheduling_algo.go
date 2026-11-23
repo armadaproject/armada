@@ -124,8 +124,8 @@ func NewFairSchedulingAlgo(
 		shortJobPenalty:              shortJobPenalty,
 		stateValidator:               stateValidator,
 		tracer:                       otel.Tracer("armada.scheduler.fair_scheduling_algo"),
-		compareQueuedAggregateDemand: config.ExperimentalQueuedAggregate.Compare,
-		useQueuedAggregateDemand:     config.ExperimentalQueuedAggregate.Use,
+		compareQueuedAggregateDemand: config.ExperimentalAggregateDemand.Compare,
+		useQueuedAggregateDemand:     config.ExperimentalAggregateDemand.Use,
 	}
 	for _, option := range options {
 		option(algo)

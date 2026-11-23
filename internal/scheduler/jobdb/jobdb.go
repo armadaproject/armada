@@ -75,7 +75,7 @@ type JobDb struct {
 	unvalidatedJobs    *immutable.Set[*Job]
 	// Incrementally maintained aggregate of queued and running demand.
 	// Maintenance is gated per type by the aggregate's queuedEnabled/
-	// runningEnabled flags, set from the static ExperimentalQueuedAggregate /
+	// runningEnabled flags, set from the static ExperimentalAggregateDemand /
 	// ExperimentalRunningAggregate Compare/Use flags at startup.
 	aggregate *JobAggregate
 	// Configured priority classes.
@@ -173,7 +173,7 @@ func (jobDb *JobDb) SetRespectNodePodLimits(enabled bool) {
 // before any Upsert/BatchDelete if enabled: jobs inserted while disabled
 // contribute nothing to the aggregate. Production entry points (scheduler,
 // simulator) call these once at startup from the static
-// ExperimentalQueuedAggregate/ExperimentalRunningAggregate flags; no
+// ExperimentalAggregateDemand/ExperimentalRunningAggregate flags; no
 // restart-free path re-enables them.
 func (jobDb *JobDb) SetQueuedAggregateEnabled(enabled bool) {
 	jobDb.aggregate.queuedEnabled = enabled
