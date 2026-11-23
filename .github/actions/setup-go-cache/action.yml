@@ -12,7 +12,14 @@ inputs:
     description: "True/false flag to cache tools"
     required: false
     default: "false"
+  cache-build:
+    description: "Enable automatic build cache restore and save"
+    required: false
+    default: "true"
 outputs:
+  build-cache-path:
+    description: "The Go build cache directory"
+    value: ${{ steps.cache-info.outputs.path }}
   go-version:
     description: "The installed Go version"
     value: ${{ steps.setup-go.outputs.go-version }}
@@ -30,7 +37,8 @@ runs:
       shell: bash
       run: echo path=$(go env GOCACHE) >> $GITHUB_OUTPUT
 
-    - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+    - if: ${{ inputs.cache-build == 'true' }}
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
       with:
         path: ${{ steps.cache-info.outputs.path }}
         key: ${{ inputs.cache-prefix }}-go-${{ steps.setup-go.outputs.go-version }}-mod-${{ hashFiles('go.sum') }}

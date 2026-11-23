@@ -136,11 +136,20 @@ jobs:
           if-no-files-found: error
 
   go-integration-tests:
-    name: Golang Integration Tests
+    name: ${{ matrix.cache == 'standard' && 'Golang Integration Tests' || format('Golang Integration Tests ({0})', matrix.cache) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        cache: >-
+          ${{ fromJSON(github.event_name == 'pull_request' &&
+          github.base_ref == 'master' && github.head_ref == 'cicd-task-015-cache-diagnostic' &&
+          github.event.pull_request.head.repo.full_name == 'armadaproject/armada' &&
+          '["fresh","aged","empty"]' || '["standard"]') }}
     needs:
       - go-mod-up-to-date
       - sqlc-up-to-date
     runs-on: ubuntu-22.04
+    timeout-minutes: ${{ matrix.cache == 'standard' && 360 || 30 }}
 
     env:
       ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
@@ -174,13 +183,52 @@ jobs:
         run: docker buildx install
 
       - name: Setup Go
+        id: setup-go
         uses: ./.github/actions/setup-go-cache
         with:
           cache-prefix: go-integration-tests
           cache-tools: true
+          cache-build: ${{ matrix.cache == 'standard' && 'true' || 'false' }}
+          go-version: ${{ matrix.cache == 'standard' && '1.27' || '1.27.4' }}
+
+      - name: Verify diagnostic cache starts empty
+        if: matrix.cache != 'standard'
+        env:
+          GOCACHE: ${{ steps.setup-go.outputs.build-cache-path }}
+        run: python3 .github/scripts/integration-cache-diagnostic.py check-empty
+
+      - name: Restore diagnostic cache
+        id: diagnostic-cache
+        if: matrix.cache == 'fresh' || matrix.cache == 'aged'
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ steps.setup-go.outputs.build-cache-path }}
+          key: go-integration-tests-go-1.27.4-mod-14b086aa7335ca4daadccb3cd04880cc70131167610f9d6d22d477ebf462982a
+          fail-on-cache-miss: true
+
+      - name: Prepare diagnostic cache
+        if: matrix.cache != 'standard'
+        env:
+          GOCACHE: ${{ steps.setup-go.outputs.build-cache-path }}
+          DIAGNOSTIC_CASE: ${{ matrix.cache }}
+          DIAGNOSTIC_CACHE_HIT: ${{ steps.diagnostic-cache.outputs.cache-hit }}
+        run: |
+          if [[ "$DIAGNOSTIC_CASE" != empty && "$DIAGNOSTIC_CACHE_HIT" != true ]]; then
+            echo "Expected an exact diagnostic cache hit" >&2
+            exit 1
+          fi
+          goreleaser --version
+          python3 .github/scripts/integration-cache-diagnostic.py prepare "$DIAGNOSTIC_CASE"
 
       - name: Setup Integration Tests
+        if: matrix.cache == 'standard'
         run: go run github.com/magefile/mage@v1.17.2 -v dev:full
+
+      - name: Setup Integration Tests with cache diagnostics
+        if: matrix.cache != 'standard'
+        env:
+          GOCACHE: ${{ steps.setup-go.outputs.build-cache-path }}
+        run: python3 .github/scripts/integration-cache-diagnostic.py run
 
       - name: Run Integration Tests
         run: go run github.com/magefile/mage@v1.17.2 -v testsuite
@@ -188,7 +236,7 @@ jobs:
       - name: Upload JUnit Report Artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: go-integration-test-reports
+          name: ${{ matrix.cache == 'standard' && 'go-integration-test-reports' || format('go-integration-{0}-test-reports', matrix.cache) }}
           path: junit*.xml
           if-no-files-found: error
 
@@ -203,7 +251,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: docker-compose-logs
+          name: ${{ matrix.cache == 'standard' && 'docker-compose-logs' || format('docker-compose-logs-{0}', matrix.cache) }}
           path: |
             ./logs/
           if-no-files-found: error
