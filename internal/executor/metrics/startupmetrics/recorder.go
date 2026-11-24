@@ -1,7 +1,9 @@
 package startupmetrics
 
 import (
+	"slices"
 	"strconv"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 
@@ -67,12 +69,39 @@ func (r *Recorder) Record(pod *v1.Pod, info *armadaevents.PodStartUpInfo) {
 		nodeStartUpStepDurationSeconds.WithLabelValues(node, pool, step.name).Observe(step.duration.Seconds())
 	}
 
+	if pulling := totalImagePullDuration(info); pulling != nil {
+		podTotalImagePullDurationSeconds.WithLabelValues(queue, pool).Observe(pulling.Seconds())
+	}
+
 	for _, container := range info.InitContainers {
 		r.recordContainer(queue, pool, node, container, true)
 	}
 	for _, container := range info.Containers {
 		r.recordContainer(queue, pool, node, container, false)
 	}
+}
+
+// totalImagePullDuration is how long the kubelet spent pulling the pod's images summed across all containers.
+func totalImagePullDuration(info *armadaevents.PodStartUpInfo) *time.Duration {
+	containers := slices.Concat(info.InitContainers, info.Containers)
+	if len(containers) == 0 {
+		return nil
+	}
+
+	var total time.Duration
+	for _, container := range containers {
+		if container == nil || container.ImagePull == nil {
+			return nil
+		}
+		if container.ImagePull.Cached {
+			continue // already on the node, so never pulled
+		}
+		if container.ImagePull.Duration == nil {
+			return nil
+		}
+		total += protoutil.ToStdDuration(container.ImagePull.Duration)
+	}
+	return &total
 }
 
 // recordCollectionIssues detects if any fields were not collected

@@ -68,6 +68,15 @@ var (
 		[]string{queueLabel, poolLabel},
 	)
 
+	podTotalImagePullDurationSeconds = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    metrics.ArmadaExecutorMetricsPrefix + "pod_total_image_pull_duration_seconds",
+			Help:    "Time the kubelet spent pulling images for across all containers of a pod. Observed once per pod.",
+			Buckets: []float64{0.5, 1, 5, 10, 20, 30, 60, 120, 180, 300, 600, 900, 1800},
+		},
+		[]string{queueLabel, poolLabel},
+	)
+
 	// Increments once per container request
 	podImagePullInfoTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
