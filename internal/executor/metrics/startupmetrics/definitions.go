@@ -142,6 +142,15 @@ var (
 	)
 )
 
+func nodeMetrics() []*prometheus.HistogramVec {
+	return []*prometheus.HistogramVec{
+		nodeStartUpDurationSeconds,
+		nodeStartUpStepDurationSeconds,
+		nodeInitContainerRunDurationSeconds,
+		nodeImagePullWaitingDurationSeconds,
+	}
+}
+
 // Meta metrics
 var (
 	podStartUpInfoCollectedTotal = promauto.NewCounterVec(
