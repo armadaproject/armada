@@ -1,0 +1,127 @@
+---
+title: 'MPI jobs'
+description: 'Run an MPI program across several pods with one job description, without ssh.'
+---
+
+An **MPI job** runs one MPI program across several pods. You describe it as a single job: the command that starts the program, and how many workers it needs. Armada turns that into a launcher and a set of workers, starts them all together, lets them find each other, and stops the workers when the launcher is done.
+
+## Before you start
+
+You need a working `armadactl` and the `my-team` queue from Submitting jobs. Your platform team must have enabled MPI jobs (see Operator setup). Your image needs an MPI implementation and your program. It doesn't need an ssh server, ssh keys or a root user.
+
+## Step 1. Write an MPI job file
+
+Create `mpi.yaml`:
+
+```bash
+cat > mpi.yaml <<'EOF'
+queue: my-team
+jobSetId: mpi-demo-1
+jobs:
+  - namespace: default
+    mpi:
+      workers: 2
+      slotsPerWorker: 1
+    podSpec:
+      containers:
+        - name: mpi
+          image: mpioperator/mpi-pi:openmpi
+          command: ['mpirun']
+          args: ['--allow-run-as-root', '-np', '2', '/home/mpiuser/pi']
+          resources:
+            requests: { cpu: '1', memory: 512Mi }
+            limits: { cpu: '1', memory: 512Mi }
+EOF
+```
+
+The `mpi` block is what makes this an MPI job:
+
+- `workers`: how many worker pods to start. The launcher is one more pod on top.
+- `slotsPerWorker`: how many MPI processes each worker may run. It defaults to 1. Match it to the CPUs each worker requests.
+- `workerPodSpec`: an optional separate `podSpec` for the workers. Without it, the workers use the same `podSpec` as the launcher.
+
+The `podSpec` describes the launcher. Its first container must set `command`, and that command starts your program, usually with `mpirun` or `mpiexec`. You don't pass a host list: Armada tells MPI which workers to use. The launcher only runs `mpirun`; the MPI processes run on the workers.
+
+This example image runs as root, so it needs `--allow-run-as-root`. Your own image doesn't have to run as root.
+
+## Step 2. Submit and watch
+
+```bash
+armadactl submit mpi.yaml
+```
+
+```
+Submitted job with id 01k... to job set mpi-demo-1
+Submitted job with id 01k... to job set mpi-demo-1
+Submitted job with id 01k... to job set mpi-demo-1
+```
+
+You get one job per pod: the launcher first, then each worker. Read the result from the launcher's log:
+
+```bash
+armadactl watch my-team mpi-demo-1
+kubectl logs -n default -l armadaproject.io/mpiRole=launcher
+```
+
+## What Armada does for you
+
+- **All pods start together.** The launcher and workers are a gang, so the job waits until there's room for all of them, on one cluster.
+- **The pods can reach each other by name.** The launcher is `launcher` and the workers are `worker-0`, `worker-1` and so on, under a gang service. See Gang jobs.
+- **`mpirun` starts processes on the workers without ssh.** Armada adds a small program, `armada-mpi`, to every pod. Each worker connects to the launcher and waits. When `mpirun` wants to start a process on a worker, it hands the request to `armada-mpi` instead of ssh. The launcher only accepts a worker whose network address matches the name Kubernetes published for it.
+- **`mpirun` only starts once every worker is connected.** If some workers never connect, the launcher fails after ten minutes. Set `ARMADA_MPI_READY_TIMEOUT` on the launcher container to change this, for example `30m`.
+- **The limit on open files is lowered to 65536 for the MPI processes.** Some container runtimes set it to a billion or more, which makes Open MPI 4 take minutes to start each process. Set `ARMADA_MPI_MAX_OPEN_FILES` on the first container of the launcher and workers to choose another limit, or to `0` to leave the limit alone.
+- **The workers stop when the launcher finishes.** You can run `mpirun` several times in one launcher command; the workers stay up between runs.
+- **If any pod fails, the rest are stopped.**
+
+## How an MPI job ends
+
+| The launcher's command  | Launcher job | Worker jobs                                                     |
+| ----------------------- | ------------ | --------------------------------------------------------------- |
+| Exits with 0            | Succeeded    | Cancelled, with the reason `gang leader <job-id> succeeded`     |
+| Exits with another code | Failed       | Cancelled, with the reason `gang member <job-id> failed`        |
+| Is cancelled by you     | Cancelled    | Cancelled, with the reason `gang member <job-id> was cancelled` |
+
+Workers always end as Cancelled, because they never finish on their own. **The launcher job tells you how the MPI job went.**
+
+## Which MPI implementations work
+
+Armada sets environment variables on the launcher container that point each implementation at `armada-mpi` and at the list of workers. A variable you set yourself is left alone.
+
+| Implementation       | Variables Armada sets                                                                        |
+| -------------------- | -------------------------------------------------------------------------------------------- |
+| Open MPI 4 and older | `OMPI_MCA_plm_rsh_agent`, `OMPI_MCA_plm_rsh_no_tree_spawn`, `OMPI_MCA_orte_default_hostfile` |
+| Open MPI 5 and newer | `PRTE_MCA_plm_ssh_agent`, `PRTE_MCA_plm_ssh_no_tree_spawn`, `PRTE_MCA_prte_default_hostfile` |
+| MPICH                | `HYDRA_LAUNCHER`, `HYDRA_LAUNCHER_EXEC`, `HYDRA_HOST_FILE`                                   |
+
+For another implementation, point its remote-shell setting at `/opt/armada-mpi/armada-mpi-agent`. The worker list is in `/opt/armada-mpi/hostfile` (one `<host> slots=<n>` per line) and `/opt/armada-mpi/hostfile.hydra` (one `<host>:<n>` per line).
+
+## What you can't set
+
+Armada sets these itself on an MPI job, and rejects a job that sets them:
+
+- The gang annotations: `gangId`, `gangCardinality`, `gangService`, `gangLeader` and `gangFailurePolicy`.
+- `hostname` and `subdomain` in a `podSpec`.
+- A volume named `armada-mpi`.
+
+In the workers, Armada replaces the `command` and `args` of the first container. Everything else in the `podSpec` is yours: image, resources, volumes, node selectors and extra containers.
+
+## Operator setup
+
+MPI jobs are off by default. They build on gang services, so both must be on. On an Operator install, these go in the `spec.applicationConfig` of the `ArmadaServer`. On a Helm install, use `applicationConfig` in the server chart.
+
+| Setting                             | Default | What it controls                                                                                                                |
+| ----------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `submission.allowGangServices`      | `false` | Whether gangs may request a gang service. See Gang jobs for what the executors need first.                                      |
+| `submission.mpiJobs.enabled`        | `false` | Whether MPI jobs may be submitted.                                                                                              |
+| `submission.mpiJobs.bootstrapImage` | Not set | The `armada-mpi` image, for example `gresearch/armada-mpi:<version>`. Every pod of an MPI job pulls it, so mirror it if needed. |
+
+## Troubleshooting
+
+| What you see                                                                    | Cause                                                             | Fix                                                                                                           |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `MPI jobs are not enabled` when submitting                                      | Your installation doesn't allow MPI jobs                          | Ask your platform team to enable them.                                                                        |
+| `the first container of the launcher of an MPI job must set its command`        | The launcher relies on the image's default command                | Set `command` on the first container of the `podSpec`.                                                        |
+| The launcher fails with `only N of M workers called home within 10m0s`          | Some workers couldn't start, or couldn't connect to the launcher  | Check the worker pods and their logs. A network policy must allow workers to reach the launcher on port 9477. |
+| A worker logs `launcher refused worker ...: ... is not the address of worker-N` | The worker's connection reached the launcher from another address | The cluster network must not rewrite the source address of traffic between pods.                              |
+| `mpirun` reports that it can't start its daemon on a worker                     | The MPI implementation isn't using `armada-mpi`                   | Check the table of implementations above, and that the same MPI version is in the launcher and workers.       |
+| All jobs are Cancelled with the requestor `armada-scheduler`                    | One pod failed, or the launcher finished                          | Expected. The reason names the job that ended first.                                                          |

@@ -1,0 +1,31 @@
+# An MPI job: one launcher, which runs the command below, and two workers, which run the MPI processes.
+# Armada must have MPI jobs enabled (submission.mpiJobs in the server configuration).
+queue: queue-a
+jobSetId: mpi-job-set-1
+jobs:
+  - namespace: default
+    priority: 0
+    mpi:
+      workers: 2
+      slotsPerWorker: 1
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: mpi
+          image: mpioperator/mpi-pi:openmpi
+          command:
+            - mpirun
+          args:
+            # The image runs as root, which mpirun refuses to do unless told otherwise.
+            - --allow-run-as-root
+            - -np
+            - "2"
+            - /home/mpiuser/pi
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: 1
+            requests:
+              memory: 512Mi
+              cpu: 1
