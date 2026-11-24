@@ -14,6 +14,9 @@ import time
 
 DAY = 24 * 60 * 60
 CUTOFF = 5 * DAY + 3600
+MAGE_COMMAND = ['run', 'github.com/magefile/mage@v1.17.2', '-v', 'tests']
+GO_ENV = ['GOOS', 'GOARCH', 'GOAMD64', 'CGO_ENABLED', 'GOFLAGS', 'GOTOOLCHAIN',
+          'GOMODCACHE', 'GOPROXY', 'GOSUMDB', 'GOPRIVATE', 'GONOPROXY', 'GONOSUMDB']
 
 
 def cache_path():
@@ -69,6 +72,7 @@ def isolate():
 
 
 def prepare(case):
+    start = time.monotonic()
     cache = cache_path()
     restored = entries(cache)
     if os.environ['TASK016_CACHE_HIT'] != 'true' or not restored:
@@ -80,7 +84,8 @@ def prepare(case):
     for path in restored:
         os.utime(path, (mtime, mtime))
     (cache / 'trim.txt').write_text(str(now - 2 * DAY))
-    record('before_startup', case=case, content_sha256=digest)
+    record('before_startup', case=case, content_sha256=digest,
+           preparation_seconds=time.monotonic() - start)
 
 
 def go_probe(args):
@@ -90,8 +95,7 @@ def go_probe(args):
         os.execv(os.environ['TASK016_GO'], [os.environ['TASK016_GO'], *args])
     # Mage parses output from Go commands. Emit observations through a separate file.
     with Path(os.environ['TASK016_TRACE']).open('a') as trace:
-        record('before_go', stream=trace, caller=caller, command=command,
-               test_count_one='-count=1' in args if command == 'test' else None)
+        record('before_go', stream=trace, caller=caller, command=command, args=args)
         start = time.monotonic()
         result = subprocess.run([os.environ['TASK016_GO'], *args])
         seconds = time.monotonic() - start
@@ -100,13 +104,12 @@ def go_probe(args):
     return result.returncode
 
 
-def run():
+def run(trace):
     go = shutil.which('go')
     if go is None:
         raise ValueError('Go is missing from PATH')
     with tempfile.TemporaryDirectory(prefix='task-016-', dir=os.environ['RUNNER_TEMP']) as temp:
         directory = Path(temp)
-        trace = directory / 'go.jsonl'
         for name in ('go', 'mage-go'):
             (directory / name).symlink_to(Path(__file__).resolve())
         env = {
@@ -117,14 +120,23 @@ def run():
             'TASK016_TRACE': str(trace),
             'ARMADA_UNIT_CACHE_DIAGNOSTIC': '1',
         }
-        record('mage_start', image_os=os.getenv('ImageOS'), image_version=os.getenv('ImageVersion'),
-               revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip())
-        start = time.monotonic()
-        result = subprocess.run([go, 'run', 'github.com/magefile/mage@v1.17.2', '-v', 'tests'], env=env)
-        elapsed = time.monotonic() - start
-        if trace.is_file():
-            print(trace.read_text(), end='', flush=True)
-        record('mage_end', command_seconds=elapsed, exit_code=result.returncode)
+        go_version = subprocess.check_output([go, 'version'], text=True).strip()
+        # Compare module settings without writing proxy URLs or credentials to the trace.
+        go_env = subprocess.check_output([go, 'env', '-json', *GO_ENV])
+        with trace.open('a') as stream:
+            record('mage_start', stream=stream, inputs={
+                'image_os': os.getenv('ImageOS'),
+                'image_version': os.getenv('ImageVersion'),
+                'revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+                'go_version': go_version,
+                'go_env_sha256': hashlib.sha256(go_env).hexdigest(),
+                'gocache': str(cache_path()),
+                'mage_command': MAGE_COMMAND,
+            })
+            start = time.monotonic()
+            result = subprocess.run([go, *MAGE_COMMAND], env=env)
+            elapsed = time.monotonic() - start
+            record('mage_end', stream=stream, command_seconds=elapsed, exit_code=result.returncode)
     return result.returncode
 
 
@@ -137,14 +149,15 @@ def main():
     commands.add_parser('isolate')
     prep = commands.add_parser('prepare')
     prep.add_argument('case', choices=['fresh', 'aged'])
-    commands.add_parser('run')
+    run_command = commands.add_parser('run')
+    run_command.add_argument('trace', type=Path)
     args = parser.parse_args()
     if args.command == 'isolate':
         isolate()
     elif args.command == 'prepare':
         prepare(args.case)
     else:
-        return run()
+        return run(args.trace.resolve())
     return 0
 
 

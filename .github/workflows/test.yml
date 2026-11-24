@@ -85,7 +85,8 @@ jobs:
           GOCACHE: ${{ steps.setup-go.outputs.build-cache-path }}
           TASK016_CACHE_HIT: ${{ steps.diagnostic-cache.outputs.cache-hit }}
           CACHE_CASE: ${{ matrix.cache }}
-        run: python3 .github/scripts/unit-cache-diagnostic.py prepare "$CACHE_CASE"
+        shell: bash
+        run: python3 .github/scripts/unit-cache-diagnostic.py prepare "$CACHE_CASE" | tee "$RUNNER_TEMP/unit-cache-trace.log"
 
       - name: Unit Tests
         id: unit_test
@@ -96,7 +97,15 @@ jobs:
         if: matrix.cache != 'ordinary'
         env:
           GOCACHE: ${{ steps.setup-go.outputs.build-cache-path }}
-        run: python3 .github/scripts/unit-cache-diagnostic.py run
+          GOTOOLCHAIN: local
+        run: python3 .github/scripts/unit-cache-diagnostic.py run "$RUNNER_TEMP/unit-cache-trace.log"
+
+      - name: Upload Cache Diagnostic Trace
+        if: always() && matrix.cache != 'ordinary'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: go-unit-${{ matrix.cache }}-cache-trace
+          path: ${{ runner.temp }}/unit-cache-trace.log
 
       - name: Upload Test Reports Artifacts
         if: always()

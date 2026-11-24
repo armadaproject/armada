@@ -115,14 +115,14 @@ func Tests() error {
 		// (each spins up a fresh database and runs the full migration chain)
 		// don't overwhelm the shared test postgres container and blow their
 		// context timeouts.
-		"--", "-p", testPackageParallelism, "-coverprofile=test-reports/coverage.out",
-		"-covermode=atomic", "./cmd/...",
-		"./pkg/...",
+		"--",
 	}
 	// The cache-age comparison measures builds while executing every test.
 	if os.Getenv("ARMADA_UNIT_CACHE_DIAGNOSTIC") == "1" {
 		cmd = append(cmd, "-count=1")
 	}
+	cmd = append(cmd, "-p", testPackageParallelism, "-coverprofile=test-reports/coverage.out",
+		"-covermode=atomic", "./cmd/...", "./pkg/...")
 	cmd = append(cmd, strings.Fields(packages)...)
 
 	testCmd := exec.Command(Gotestsum, cmd...)
