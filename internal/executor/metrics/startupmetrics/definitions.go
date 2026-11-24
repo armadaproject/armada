@@ -29,6 +29,26 @@ var (
 		[]string{queueLabel, poolLabel},
 	)
 
+	podStartUpWithoutUntrackedInitContainersDurationSeconds = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: metrics.ArmadaExecutorMetricsPrefix + "pod_start_up_without_untracked_init_containers_duration_seconds",
+			Help: "Time from the pod being created to its app containers being started, without the " +
+				"time spent running init containers that are not tracked",
+			Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600, 900, 1800},
+		},
+		[]string{queueLabel, poolLabel},
+	)
+
+	podStartUpWithoutInitContainersDurationSeconds = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: metrics.ArmadaExecutorMetricsPrefix + "pod_start_up_without_init_containers_duration_seconds",
+			Help: "Time from the pod being created to its app containers being started, without the " +
+				"time spent running any init container",
+			Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600, 900, 1800},
+		},
+		[]string{queueLabel, poolLabel},
+	)
+
 	podStartUpStepDurationSeconds = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    metrics.ArmadaExecutorMetricsPrefix + "pod_start_up_step_duration_seconds",
@@ -117,6 +137,26 @@ var (
 			Name: metrics.ArmadaExecutorMetricsPrefix + "node_start_up_duration_seconds",
 			Help: "Time from a pod being created to its app containers being started, by the node " +
 				"it ran on.",
+			Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600, 900, 1800},
+		},
+		[]string{nodeLabel, poolLabel},
+	)
+
+	nodeStartUpWithoutUntrackedInitContainersDurationSeconds = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: metrics.ArmadaExecutorMetricsPrefix + "node_start_up_without_untracked_init_containers_duration_seconds",
+			Help: "Time from a pod being created to its app containers being started, without the " +
+				"time spent running init containers that are not tracked, by the node it ran on.",
+			Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600, 900, 1800},
+		},
+		[]string{nodeLabel, poolLabel},
+	)
+
+	nodeStartUpWithoutInitContainersDurationSeconds = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: metrics.ArmadaExecutorMetricsPrefix + "node_start_up_without_init_containers_duration_seconds",
+			Help: "Time from a pod being created to its app containers being started, without the " +
+				"time spent running any init container, by the node it ran on.",
 			Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600, 900, 1800},
 		},
 		[]string{nodeLabel, poolLabel},

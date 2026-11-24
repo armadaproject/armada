@@ -79,6 +79,91 @@ func TestRecord_NodeMetrics(t *testing.T) {
 	assert.Equal(t, float64(3), sum)
 }
 
+// Every case is a pod with 50s of Kubernetes overhead: 10s before its init containers run and 40s
+// after they finish, before the app container starts. The init containers run one after another, as
+// they do on a real pod, so each one makes the pod start later.
+func TestRecord_StartUpDurationVariants(t *testing.T) {
+	type initContainer struct {
+		name        string
+		runDuration int
+	}
+	tracked := initContainer{name: "preflight", runDuration: 20}
+	untracked := initContainer{name: "user-init", runDuration: 30}
+
+	tests := map[string]struct {
+		initContainers                         []initContainer
+		expectedTotal                          float64
+		expectedWithoutUntrackedInitContainers float64
+		expectedWithoutInitContainers          float64
+	}{
+		"no init containers": {
+			expectedTotal:                          50,
+			expectedWithoutUntrackedInitContainers: 50,
+			expectedWithoutInitContainers:          50,
+		},
+		"tracked init container only": {
+			initContainers:                         []initContainer{tracked},
+			expectedTotal:                          70,
+			expectedWithoutUntrackedInitContainers: 70,
+			expectedWithoutInitContainers:          50,
+		},
+		"untracked init container only": {
+			initContainers:                         []initContainer{untracked},
+			expectedTotal:                          80,
+			expectedWithoutUntrackedInitContainers: 50,
+			expectedWithoutInitContainers:          50,
+		},
+		"tracked and untracked init containers": {
+			initContainers:                         []initContainer{tracked, untracked},
+			expectedTotal:                          100,
+			expectedWithoutUntrackedInitContainers: 70,
+			expectedWithoutInitContainers:          50,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			recorder := NewRecorder(configuration.StartUpMetricsConfig{TrackedInitContainers: []string{tracked.name}})
+			// The metrics are global, so each case records under its own labels.
+			queue, pool, node := name+"-queue", name+"-pool", name+"-node"
+
+			offset := 10
+			var initContainers []*armadaevents.ContainerStartUpInfo
+			for _, container := range tc.initContainers {
+				initContainers = append(initContainers, &armadaevents.ContainerStartUpInfo{
+					Name:       container.name,
+					StartedAt:  baselineWithOffset(offset),
+					FinishedAt: baselineWithOffset(offset + container.runDuration),
+				})
+				offset += container.runDuration
+			}
+			appStartedAt := baselineWithOffset(offset + 40)
+
+			recorder.Record(testPod(queue, pool, node), &armadaevents.PodStartUpInfo{
+				CreatedAt:      baselineWithOffset(0),
+				StartedAt:      appStartedAt,
+				InitContainers: initContainers,
+				Containers:     []*armadaevents.ContainerStartUpInfo{{Name: "main", StartedAt: appStartedAt}},
+			})
+
+			_, sum := observations(t, podStartUpDurationSeconds, queue, pool)
+			assert.Equal(t, tc.expectedTotal, sum)
+			_, sum = observations(t, nodeStartUpDurationSeconds, node, pool)
+			assert.Equal(t, tc.expectedTotal, sum)
+
+			_, sum = observations(t, podStartUpWithoutUntrackedInitContainersDurationSeconds, queue, pool)
+			assert.Equal(t, tc.expectedWithoutUntrackedInitContainers, sum)
+			_, sum = observations(t, nodeStartUpWithoutUntrackedInitContainersDurationSeconds, node, pool)
+			assert.Equal(t, tc.expectedWithoutUntrackedInitContainers, sum)
+
+			_, sum = observations(t, podStartUpWithoutInitContainersDurationSeconds, queue, pool)
+			assert.Equal(t, tc.expectedWithoutInitContainers, sum)
+			_, sum = observations(t, nodeStartUpWithoutInitContainersDurationSeconds, node, pool)
+			assert.Equal(t, tc.expectedWithoutInitContainers, sum)
+		})
+	}
+}
+
 // An init container is labelled by name only when the administrator configured that name, as a
 // container's name otherwise comes from whatever the job asked for.
 func TestRecord_InitContainerLabelledByNameOnlyWhenTracked(t *testing.T) {
