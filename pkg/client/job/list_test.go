@@ -2,11 +2,13 @@ package job
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/lookout/gen/models"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 func TestList_SendsTheRequest(t *testing.T) {
@@ -128,4 +130,17 @@ func TestValidateFilters_DoesNotChangeTheFilters(t *testing.T) {
 	require.NoError(t, ValidateFilters(filters))
 
 	assert.Nil(t, filters[0].Value, "the placeholder is only added to the copy that is sent")
+}
+
+func TestList_SaysHowToGetAroundATimeout(t *testing.T) {
+	url := slowLookout(t)
+	connection := func() (*client.ApiConnectionDetails, error) {
+		return &client.ApiConnectionDetails{LookoutUrl: url, LookoutTimeout: 50 * time.Millisecond}, nil
+	}
+
+	_, err := List(connection)(ListArgs{Order: models.Order{Field: "jobId", Direction: "ASC"}, Take: 10})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no complete response within 50ms")
+	assert.Contains(t, err.Error(), "narrow the filters, lower --take, or raise --lookoutTimeout")
 }

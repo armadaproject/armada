@@ -1,6 +1,7 @@
 package job
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/armadaproject/armada/internal/lookout/gen/models"
@@ -39,6 +40,11 @@ func List(getConnectionDetails client.ConnectionDetails) ListAPI {
 
 		jobs, err := getJobs(api, args)
 		if err != nil {
+			var timeout *httpapi.TimeoutError
+			if errors.As(err, &timeout) {
+				return nil, fmt.Errorf(
+					"list jobs request failed: %s: narrow the filters, lower --take, or raise --lookoutTimeout", err)
+			}
 			return nil, fmt.Errorf("list jobs request failed: %s", err)
 		}
 		return jobs, nil
