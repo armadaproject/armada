@@ -73,6 +73,7 @@ export const SidebarTabJobResult = ({ job }: SidebarTabJobResultProps) => {
               <JobRunDetails
                 key={run.runId}
                 run={run}
+                submitted={job.submitted}
                 runIndex={runsNewestFirst.length - 1 - i}
                 defaultExpanded={i === 0}
                 setRunError={i === 0 ? setLastJobRunError : undefined}

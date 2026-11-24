@@ -43,6 +43,7 @@ const MarkNodeUnschedulableButtonContainer = styled("div")(({ theme }) => ({
 
 const makeKeyValuePairsData = (
   formatIsoTimestamp: (isoTimestampString: string | undefined, format: TimestampFormat) => string,
+  submitted: string | undefined,
   {
     runId,
     jobRunState,
@@ -79,6 +80,9 @@ const makeKeyValuePairsData = (
   }
   if (jobRunState) {
     d.push({ key: "State", value: formatJobRunState(jobRunState) })
+  }
+  if (submitted) {
+    d.push({ key: "Submitted", value: formatIsoTimestamp(submitted, "full") })
   }
   if (leased) {
     d.push({ key: "Leased", value: formatIsoTimestamp(leased, "full") })
@@ -133,6 +137,7 @@ const makeIngressAddressEntries = (ingressAddresses?: JobRun["ingressAddresses"]
 
 export interface JobRunDetailsProps {
   run: JobRun
+  submitted?: string
   runIndex: number
   defaultExpanded: boolean
   setRunError: undefined | ((runError: string) => void)
@@ -154,6 +159,7 @@ export const JobRunDetails = ({
     failureCategory,
     failureSubcategory,
   },
+  submitted,
   runIndex,
   defaultExpanded,
   setRunError,
@@ -204,7 +210,7 @@ export const JobRunDetails = ({
   const ingressAddressEntries = useMemo(() => makeIngressAddressEntries(ingressAddresses), [ingressAddresses])
 
   const tableData = useMemo(() => {
-    const baseRows = makeKeyValuePairsData(formatIsoTimestamp, {
+    const baseRows = makeKeyValuePairsData(formatIsoTimestamp, submitted, {
       runId,
       jobRunState,
       leased,
@@ -228,6 +234,7 @@ export const JobRunDetails = ({
     return [...baseRows, ...ingressRows]
   }, [
     formatIsoTimestamp,
+    submitted,
     runId,
     jobRunState,
     leased,
