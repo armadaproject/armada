@@ -134,8 +134,8 @@ Code that handles gRPC requests should return the types in [`internal/common/arm
 | Situation | Return | Client sees |
 |---|---|---|
 | Bad input in the request | `&armadaerrors.ErrInvalidArgument{Name, Value, Message}` | `InvalidArgument` |
-| Requested object doesn't exist | `&armadaerrors.ErrNotFound{Type, Value}` | `NotFound` |
-| Object already exists | `&armadaerrors.ErrAlreadyExists{Type, Value}` | `AlreadyExists` |
+| Requested object doesn't exist | `&armadaerrors.ErrNotFound{Type: "queue", Value: queueName}` | `NotFound` |
+| Object already exists | `&armadaerrors.ErrAlreadyExists{Type: "queue", Value: queueName}` | `AlreadyExists` |
 | Job can't fit on any node | `*armadaerrors.ErrPodUnschedulable` | `InvalidArgument` |
 | Anything else | A normal wrapped error | `Unknown` |
 
