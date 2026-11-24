@@ -57,6 +57,7 @@ For more information about Armada's design, see the following pages:
 - [Running Armada in an EC2 instance](https://armadaproject.io/developer/aws-ec2)
 - [Armada UI](https://armadaproject.io/developer/ui)
 - [Usage metrics](./developer/usage_metrics.md)
+- [Creating, wrapping and logging errors](./developer/errors-and-logging.md)
 - [Using OIDC with Armada](./developer/setting-up-oidc.md)
 - [Building the website](./developer/website.md)
 
