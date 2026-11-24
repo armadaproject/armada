@@ -55,21 +55,36 @@ func setupTestWithMinRepeatedDeletePeriod(minRepeatedDeletePeriod time.Duration)
 	return clusterContext, clientProvider
 }
 
+// Informers can start their watches after the initial cache sync.
+func nonWatchActions(actions []clientTesting.Action) []clientTesting.Action {
+	var operations []clientTesting.Action
+	for _, action := range actions {
+		if action.GetVerb() != "watch" {
+			operations = append(operations, action)
+		}
+	}
+	return operations
+}
+
 func TestKubernetesClusterContext_SubmitPod(t *testing.T) {
 	clusterContext, client := setupTest()
+	t.Cleanup(clusterContext.Stop)
 
 	pod := createBatchPod()
 	client.Fake.ClearActions()
 
 	_, err := clusterContext.SubmitPod(pod, "user1", []string{})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
-	assert.Equal(t, len(client.Fake.Actions()), 1)
-	assert.True(t, client.Fake.Actions()[0].Matches("create", "pods"))
+	recorded := client.Fake.Actions()
+	actions := nonWatchActions(recorded)
+	require.Len(t, actions, 1, "expected one Pod creation, recorded actions: %+v", recorded)
+	action := actions[0]
+	require.True(t, action.Matches("create", "pods"), "expected create pods, got %+v", action)
 
-	createAction, ok := client.Fake.Actions()[0].(clientTesting.CreateAction)
-	assert.True(t, ok)
-	assert.Equal(t, createAction.GetObject(), pod)
+	createAction, ok := action.(clientTesting.CreateAction)
+	require.True(t, ok, "expected a CreateAction, got %T", action)
+	assert.Equal(t, pod, createAction.GetObject())
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotCallClient_WhenNoPodsMarkedForDeletion(t *testing.T) {
@@ -78,24 +93,28 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotCallClient_WhenNoPo
 	client.Fake.ClearActions()
 	clusterContext.ProcessPodsToDelete()
 
-	assert.Equal(t, len(client.Fake.Actions()), 0)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 0)
 }
 
 func TestKubernetesClusterContext_SubmitService(t *testing.T) {
 	clusterContext, client := setupTest()
+	t.Cleanup(clusterContext.Stop)
 
 	service := createService()
 	client.Fake.ClearActions()
 
 	_, err := clusterContext.SubmitService(service)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
-	assert.Equal(t, len(client.Fake.Actions()), 1)
-	assert.True(t, client.Fake.Actions()[0].Matches("create", "services"))
+	recorded := client.Fake.Actions()
+	actions := nonWatchActions(recorded)
+	require.Len(t, actions, 1, "expected one Service creation, recorded actions: %+v", recorded)
+	action := actions[0]
+	require.True(t, action.Matches("create", "services"), "expected create services, got %+v", action)
 
-	createAction, ok := client.Fake.Actions()[0].(clientTesting.CreateAction)
-	assert.True(t, ok)
-	assert.Equal(t, createAction.GetObject(), service)
+	createAction, ok := action.(clientTesting.CreateAction)
+	require.True(t, ok, "expected a CreateAction, got %T", action)
+	assert.Equal(t, service, createAction.GetObject())
 }
 
 func TestKubernetesClusterContext_DeleteService(t *testing.T) {
@@ -226,19 +245,23 @@ func TestKubernetesClusterContext_GetServices_NonExistent(t *testing.T) {
 
 func TestKubernetesClusterContext_SubmitIngress(t *testing.T) {
 	clusterContext, client := setupTest()
+	t.Cleanup(clusterContext.Stop)
 
 	ingress := createIngress()
 	client.Fake.ClearActions()
 
 	_, err := clusterContext.SubmitIngress(ingress)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
-	assert.Equal(t, len(client.Fake.Actions()), 1)
-	assert.True(t, client.Fake.Actions()[0].Matches("create", "ingresses"))
+	recorded := client.Fake.Actions()
+	actions := nonWatchActions(recorded)
+	require.Len(t, actions, 1, "expected one Ingress creation, recorded actions: %+v", recorded)
+	action := actions[0]
+	require.True(t, action.Matches("create", "ingresses"), "expected create ingresses, got %+v", action)
 
-	createAction, ok := client.Fake.Actions()[0].(clientTesting.CreateAction)
-	assert.True(t, ok)
-	assert.Equal(t, createAction.GetObject(), ingress)
+	createAction, ok := action.(clientTesting.CreateAction)
+	require.True(t, ok, "expected a CreateAction, got %T", action)
+	assert.Equal(t, ingress, createAction.GetObject())
 }
 
 func TestKubernetesClusterContext_DeleteIngress(t *testing.T) {
@@ -345,12 +368,13 @@ func TestKubernetesClusterContext_DeletePodWithCondition(t *testing.T) {
 	}, true)
 
 	assert.NoError(t, err)
-	assert.Equal(t, len(client.Fake.Actions()), 3)
-	assert.True(t, client.Fake.Actions()[0].Matches("patch", "pods"))
+	actions := nonWatchActions(client.Fake.Actions())
+	require.Len(t, actions, 3)
+	assert.True(t, actions[0].Matches("patch", "pods"))
 
 	// Marks pod for deletion before deleting
-	patchAction, ok := client.Fake.Actions()[0].(clientTesting.PatchAction)
-	assert.True(t, ok)
+	patchAction, ok := actions[0].(clientTesting.PatchAction)
+	require.True(t, ok)
 	assert.Equal(t, patchAction.GetName(), pod.Name)
 	patch := &domain.Patch{}
 	err = json.Unmarshal(patchAction.GetPatch(), patch)
@@ -359,7 +383,7 @@ func TestKubernetesClusterContext_DeletePodWithCondition(t *testing.T) {
 	assert.True(t, exists)
 
 	// Calls delete
-	assert.True(t, client.Fake.Actions()[2].Matches("delete", "pods"))
+	assert.True(t, actions[2].Matches("delete", "pods"))
 }
 
 func TestKubernetesClusterContext_DeletePodWithCondition_DoesNotReapplyMarkForDeletion(t *testing.T) {
@@ -374,8 +398,9 @@ func TestKubernetesClusterContext_DeletePodWithCondition_DoesNotReapplyMarkForDe
 	}, true)
 
 	assert.NoError(t, err)
-	assert.Equal(t, len(client.Fake.Actions()), 1)
-	assert.True(t, client.Fake.Actions()[0].Matches("delete", "pods"))
+	actions := nonWatchActions(client.Fake.Actions())
+	require.Len(t, actions, 1)
+	assert.True(t, actions[0].Matches("delete", "pods"))
 }
 
 func TestKubernetesClusterContext_DeletePodWithCondition_WhenPodDoesNotExist(t *testing.T) {
@@ -404,7 +429,7 @@ func TestKubernetesClusterContext_DeletePodWithCondition_ForceDeletesPod(t *test
 		return true
 	}, true)
 	assert.NoError(t, err)
-	assert.Equal(t, len(client.Fake.Actions()), 0)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 0)
 
 	// create another pod with a deletion event 5 minutes in the past. This should be force killed
 	pod = createBatchPod()
@@ -418,7 +443,7 @@ func TestKubernetesClusterContext_DeletePodWithCondition_ForceDeletesPod(t *test
 		return true
 	}, true)
 	assert.NoError(t, err)
-	assert.Equal(t, len(client.Fake.Actions()), 1)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 1)
 }
 
 func TestKubernetesClusterContext_DeletePodWithCondition_DoesNotDelete_WhenPodDoesNotMatchCondition(t *testing.T) {
@@ -441,11 +466,12 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_CallDeleteOnClient_WhenPod
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
 
-	assert.Equal(t, len(client.Fake.Actions()), 2)
-	assert.True(t, client.Fake.Actions()[1].Matches("delete", "pods"))
+	actions := nonWatchActions(client.Fake.Actions())
+	require.Len(t, actions, 2)
+	assert.True(t, actions[1].Matches("delete", "pods"))
 
-	deleteAction, ok := client.Fake.Actions()[1].(clientTesting.DeleteAction)
-	assert.True(t, ok)
+	deleteAction, ok := actions[1].(clientTesting.DeleteAction)
+	require.True(t, ok)
 	assert.Equal(t, deleteAction.GetName(), pod.Name)
 }
 
@@ -458,11 +484,12 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_CallPatchOnClient_WhenPods
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
 
-	assert.Equal(t, len(client.Fake.Actions()), 2)
-	assert.True(t, client.Fake.Actions()[0].Matches("patch", "pods"))
+	actions := nonWatchActions(client.Fake.Actions())
+	require.Len(t, actions, 2)
+	assert.True(t, actions[0].Matches("patch", "pods"))
 
-	patchAction, ok := client.Fake.Actions()[0].(clientTesting.PatchAction)
-	assert.True(t, ok)
+	patchAction, ok := actions[0].(clientTesting.PatchAction)
+	require.True(t, ok)
 	assert.Equal(t, patchAction.GetName(), pod.Name)
 
 	patch := &domain.Patch{}
@@ -484,7 +511,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_ForceKill(t *testing.T) {
 
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 0)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 0)
 
 	// create another pod with a deletion event 5 minutes in the past. This should be force killed
 	pod = createSubmittedBatchPod(t, clusterContext)
@@ -496,7 +523,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_ForceKill(t *testing.T) {
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 2)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 2)
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_ForceKill_IncrementsCounter(t *testing.T) {
@@ -554,7 +581,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotForceKillUntilRepea
 	// A successful graceful delete leaves a cache record behind.
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	require.Equal(t, 1, len(client.Fake.Actions()))
+	require.Len(t, nonWatchActions(client.Fake.Actions()), 1)
 
 	// Now past podKillTimeout, so the stuck-terminating detection re-adds the pod on every interval.
 	pod.DeletionTimestamp = &metav1.Time{Time: clusterContext.clock.Now().Add(-6 * time.Minute)}
@@ -562,7 +589,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotForceKillUntilRepea
 		client.Fake.ClearActions()
 		clusterContext.DeletePods([]*v1.Pod{pod})
 		clusterContext.ProcessPodsToDelete()
-		assert.Equal(t, 0, len(client.Fake.Actions()), "no delete should be issued while the repeat-delete record is present")
+		assert.Len(t, nonWatchActions(client.Fake.Actions()), 0, "no delete should be issued while the repeat-delete record is present")
 	}
 
 	time.Sleep(600 * time.Millisecond)
@@ -570,8 +597,9 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotForceKillUntilRepea
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	require.Equal(t, 1, len(client.Fake.Actions()), "the re-add is accepted once the record expires")
-	deleteAction, ok := client.Fake.Actions()[0].(clientTesting.DeleteAction)
+	actions := nonWatchActions(client.Fake.Actions())
+	require.Len(t, actions, 1, "the re-add is accepted once the record expires")
+	deleteAction, ok := actions[0].(clientTesting.DeleteAction)
 	require.True(t, ok)
 	assert.Equal(t, pod.Name, deleteAction.GetName())
 	assert.Equal(t, int64(0), *deleteAction.GetDeleteOptions().GracePeriodSeconds, "the escalated delete must be a force delete")
@@ -587,8 +615,9 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedPatchCalls
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
 
-	assert.Equal(t, len(client.Fake.Actions()), 1)
-	assert.True(t, client.Fake.Actions()[0].Matches("delete", "pods"))
+	actions := nonWatchActions(client.Fake.Actions())
+	require.Len(t, actions, 1)
+	assert.True(t, actions[0].Matches("delete", "pods"))
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCallsToClient_OnDeleteClientSuccess(t *testing.T) {
@@ -599,12 +628,12 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCall
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 2)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 2)
 
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 0)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 0)
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCallsToClient_OnPatchClientErrorNotFound(t *testing.T) {
@@ -623,12 +652,12 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCall
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 1)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 1)
 
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 0)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 0)
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCallsToClient_OnClientErrorNotFound(t *testing.T) {
@@ -647,12 +676,12 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCall
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 2)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 2)
 
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 0)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 0)
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallToClient_OnClientError(t *testing.T) {
@@ -666,12 +695,12 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallTo
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 2)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 2)
 
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 2)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 2)
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallToClient_AfterMinimumDeletePeriodHasPassed(t *testing.T) {
@@ -683,7 +712,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallTo
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 2)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 2)
 
 	// Wait time required between repeated delete calls
 	time.Sleep(timeBetweenRepeatedDeleteCalls + 200*time.Millisecond)
@@ -692,7 +721,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallTo
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 2)
+	assert.Len(t, nonWatchActions(client.Fake.Actions()), 2)
 }
 
 func TestKubernetesClusterContext_AddAnnotation(t *testing.T) {
