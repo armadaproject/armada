@@ -63,6 +63,14 @@ func gotestsum() error {
 
 // Tests is a mage target that runs the tests and generates coverage reports.
 func Tests() error {
+	probeDir := os.Getenv("TASK016_PROBE_DIR")
+	if probeDir != "" {
+		// go run prepends GOROOT/bin. Restore the probe for the target's Go
+		// commands, including the one started by gotestsum.
+		if err := os.Setenv("PATH", probeDir+string(os.PathListSeparator)+os.Getenv("PATH")); err != nil {
+			return err
+		}
+	}
 	mg.Deps(gotestsum)
 	var err error
 
@@ -118,7 +126,7 @@ func Tests() error {
 		"--",
 	}
 	// The cache-age comparison measures builds while executing every test.
-	if os.Getenv("ARMADA_UNIT_CACHE_DIAGNOSTIC") == "1" {
+	if probeDir != "" {
 		cmd = append(cmd, "-count=1")
 	}
 	cmd = append(cmd, "-p", testPackageParallelism, "-coverprofile=test-reports/coverage.out",

@@ -118,7 +118,7 @@ def run(trace):
             'MAGEFILE_GOCMD': str(directory / 'mage-go'),
             'TASK016_GO': go,
             'TASK016_TRACE': str(trace),
-            'ARMADA_UNIT_CACHE_DIAGNOSTIC': '1',
+            'TASK016_PROBE_DIR': str(directory),
         }
         go_version = subprocess.check_output([go, 'version'], text=True).strip()
         # Compare module settings without writing proxy URLs or credentials to the trace.
