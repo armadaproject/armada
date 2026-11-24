@@ -119,6 +119,10 @@ func Tests() error {
 		"-covermode=atomic", "./cmd/...",
 		"./pkg/...",
 	}
+	// The cache-age comparison measures builds while executing every test.
+	if os.Getenv("ARMADA_UNIT_CACHE_DIAGNOSTIC") == "1" {
+		cmd = append(cmd, "-count=1")
+	}
 	cmd = append(cmd, strings.Fields(packages)...)
 
 	testCmd := exec.Command(Gotestsum, cmd...)
