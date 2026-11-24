@@ -313,7 +313,7 @@ func Generate() error {
 
 // CI Image to build
 func BuildCI() error {
-	ciImage := []string{"bundle", "lookout-bundle", "server", "executor", "armadactl", "testsuite", "lookout", "lookoutingester", "eventingester", "scheduler", "scheduleringester", "binoculars"}
+	ciImage := []string{"bundle", "lookout-bundle", "server", "executor", "armadactl", "testsuite", "armada-mpi", "lookout", "lookoutingester", "eventingester", "scheduler", "scheduleringester", "binoculars"}
 	err := goreleaserMinimalRelease(false, ciImage...)
 	if err != nil {
 		return err

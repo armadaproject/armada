@@ -2059,6 +2059,10 @@ func SwaggerJsonTemplate() string {
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        },\n" +
+		"        \"mpi\": {\n" +
+		"          \"description\": \"If set, the item describes an MPI job rather than a single job.\\nArmada expands it into a gang made of one launcher and of mpi.workers workers, and returns one job id for\\neach of them, the launcher first. The launcher runs the pod spec of the item, whose command is expected to\\nstart the MPI job, e.g., with mpirun. The workers stand by to run the MPI processes.\",\n" +
+		"          \"$ref\": \"#/definitions/apiMpiJobConfig\"\n" +
+		"        },\n" +
 		"        \"namespace\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -2228,6 +2232,26 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"$ref\": \"#/definitions/resourceQuantity\"\n" +
 		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiMpiJobConfig\": {\n" +
+		"      \"description\": \"Describes the workers of an MPI job. See JobSubmitRequestItem.mpi.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"slotsPerWorker\": {\n" +
+		"          \"description\": \"Number of MPI processes each worker may run. Defaults to 1.\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\"\n" +
+		"        },\n" +
+		"        \"workerPodSpec\": {\n" +
+		"          \"description\": \"Pod spec of the workers. If not set, the workers use the pod spec of the launcher.\\nEither way, Armada replaces the command and args of the first container of each worker with its own program,\\nwhich waits for the launcher to tell it which MPI processes to run.\",\n" +
+		"          \"$ref\": \"#/definitions/v1PodSpec\"\n" +
+		"        },\n" +
+		"        \"workers\": {\n" +
+		"          \"description\": \"Number of workers. Must be at least 1.\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

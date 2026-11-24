@@ -63,6 +63,15 @@ builds:
     goarch:
       - amd64
   - env: [CGO_ENABLED=0]
+    id: armada-mpi
+    binary: armada-mpi
+    main: ./cmd/armada-mpi/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
     id: binoculars
     binary: binoculars
     main: ./cmd/binoculars/main.go
@@ -359,6 +368,18 @@ dockers:
     ids:
       - testsuite
     dockerfile: ./build/testsuite/Dockerfile
+
+  - id: armada-mpi
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-mpi:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-mpi:{{ .Version }}"
+    build_flag_templates: *BUILD_FLAG_TEMPLATES
+    ids:
+      - armada-mpi
+    dockerfile: ./build/armada-mpi/Dockerfile
 
   - id: lookoutingester
     use: buildx

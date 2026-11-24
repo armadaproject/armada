@@ -29,6 +29,23 @@ message JobSubmitRequestItem {
     // URI identifying this job in an external system (e.g. Airflow).
     // If not set, the server falls back to the "armadaproject.io/externalJobUri" annotation.
     string external_job_uri = 13;
+    // If set, the item describes an MPI job rather than a single job.
+    // Armada expands it into a gang made of one launcher and of mpi.workers workers, and returns one job id for
+    // each of them, the launcher first. The launcher runs the pod spec of the item, whose command is expected to
+    // start the MPI job, e.g., with mpirun. The workers stand by to run the MPI processes.
+    MpiJobConfig mpi = 14;
+}
+
+// Describes the workers of an MPI job. See JobSubmitRequestItem.mpi.
+message MpiJobConfig {
+    // Number of workers. Must be at least 1.
+    uint32 workers = 1;
+    // Number of MPI processes each worker may run. Defaults to 1.
+    uint32 slots_per_worker = 2;
+    // Pod spec of the workers. If not set, the workers use the pod spec of the launcher.
+    // Either way, Armada replaces the command and args of the first container of each worker with its own program,
+    // which waits for the launcher to tell it which MPI processes to run.
+    k8s.io.api.core.v1.PodSpec worker_pod_spec = 3;
 }
 
 message IngressConfig {

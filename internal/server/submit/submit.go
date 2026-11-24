@@ -21,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/server/permissions"
 	armadaqueue "github.com/armadaproject/armada/internal/server/queue"
 	"github.com/armadaproject/armada/internal/server/submit/conversion"
+	"github.com/armadaproject/armada/internal/server/submit/mpi"
 	"github.com/armadaproject/armada/internal/server/submit/validation"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -76,6 +77,11 @@ func (s *Server) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) 
 	userId, groups, err := s.authorize(ctx, req.Queue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
 	if err != nil {
 		return nil, status.Error(codes.PermissionDenied, err.Error())
+	}
+
+	// Expand any MPI jobs into the gangs of jobs that run them, so that those jobs are validated like any other
+	if err = mpi.ExpandMpiJobs(req, s.submissionConfig, s.idGenerator); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	// Validate the request is well-formed

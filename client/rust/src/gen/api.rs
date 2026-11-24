@@ -88,6 +88,27 @@ pub struct JobSubmitRequestItem {
     /// If not set, the server falls back to the "armadaproject.io/externalJobUri" annotation.
     #[prost(string, tag = "13")]
     pub external_job_uri: ::prost::alloc::string::String,
+    /// If set, the item describes an MPI job rather than a single job.
+    /// Armada expands it into a gang made of one launcher and of mpi.workers workers, and returns one job id for
+    /// each of them, the launcher first. The launcher runs the pod spec of the item, whose command is expected to
+    /// start the MPI job, e.g., with mpirun. The workers stand by to run the MPI processes.
+    #[prost(message, optional, tag = "14")]
+    pub mpi: ::core::option::Option<MpiJobConfig>,
+}
+/// Describes the workers of an MPI job. See JobSubmitRequestItem.mpi.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MpiJobConfig {
+    /// Number of workers. Must be at least 1.
+    #[prost(uint32, tag = "1")]
+    pub workers: u32,
+    /// Number of MPI processes each worker may run. Defaults to 1.
+    #[prost(uint32, tag = "2")]
+    pub slots_per_worker: u32,
+    /// Pod spec of the workers. If not set, the workers use the pod spec of the launcher.
+    /// Either way, Armada replaces the command and args of the first container of each worker with its own program,
+    /// which waits for the launcher to tell it which MPI processes to run.
+    #[prost(message, optional, tag = "3")]
+    pub worker_pod_spec: ::core::option::Option<crate::k8s::io::api::core::v1::PodSpec>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct IngressConfig {

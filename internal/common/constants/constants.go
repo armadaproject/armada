@@ -31,6 +31,10 @@ const (
 	// GangServiceNameLabel is set by the server, on jobs of a gang that requests a gang service, to the name of that
 	// service. The service selects the pods of the gang by this label.
 	GangServiceNameLabel = "armadaproject.io/gangServiceName"
+	// MpiRoleLabel is set by the server on the jobs of an MPI job, to MpiRoleLauncher or MpiRoleWorker.
+	MpiRoleLabel    = "armadaproject.io/mpiRole"
+	MpiRoleLauncher = "launcher"
+	MpiRoleWorker   = "worker"
 
 	// internalEnvVarPrefix is the prefix for all Armada-injected environment variables
 	internalEnvVarPrefix = "ARMADA_"
