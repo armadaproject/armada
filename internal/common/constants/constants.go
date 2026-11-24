@@ -2,7 +2,8 @@ package constants
 
 const (
 	// GangIdAnnotation maps to a unique id of the gang the job is part of; jobs with equal value make up a gang.
-	// All jobs in a gang are guaranteed to be scheduled onto the same cluster at the same time.
+	// All jobs in a gang are scheduled at the same time. They are only guaranteed to be scheduled onto the same cluster
+	// if the gang sets a node uniformity label whose value identifies the cluster; see GangNodeUniformityLabelAnnotation.
 	GangIdAnnotation = "armadaproject.io/gangId"
 	// GangCardinalityAnnotation All jobs in a gang must specify the total number of jobs in the gang via this annotation.
 	// The cardinality should be expressed as a positive integer, e.g., "3".
@@ -11,6 +12,17 @@ const (
 	// Specifically, if provided, all gang jobs are scheduled onto nodes for which the value of the provided label is equal.
 	// Used to ensure, e.g., that all gang jobs are scheduled onto the same cluster or rack.
 	GangNodeUniformityLabelAnnotation = "armadaproject.io/gangNodeUniformityLabel"
+	// GangFailurePolicyAnnotation controls what happens to the remaining jobs of a gang once one of them fails or is cancelled.
+	// If unset, the remaining jobs are left untouched. All jobs in a gang must specify the same value.
+	GangFailurePolicyAnnotation = "armadaproject.io/gangFailurePolicy"
+	// GangFailurePolicyCancelGang is the GangFailurePolicyAnnotation value under which the scheduler cancels the
+	// remaining jobs of a gang as soon as one of its jobs fails or is cancelled.
+	GangFailurePolicyCancelGang = "CancelGang"
+	// GangLeaderAnnotation, if set to true, marks the job as the leader of its gang.
+	// When the leader succeeds, the scheduler cancels the remaining jobs of the gang.
+	// Used for workloads where the other jobs only exist to serve the leader, e.g., the workers of an MPI job.
+	// At most one job in a gang may be the leader.
+	GangLeaderAnnotation = "armadaproject.io/gangLeader"
 
 	// internalEnvVarPrefix is the prefix for all Armada-injected environment variables
 	internalEnvVarPrefix = "ARMADA_"
@@ -48,6 +60,8 @@ var schedulingAnnotations = map[string]bool{
 	GangIdAnnotation:                  true,
 	GangCardinalityAnnotation:         true,
 	GangNodeUniformityLabelAnnotation: true,
+	GangFailurePolicyAnnotation:       true,
+	GangLeaderAnnotation:              true,
 	FailFastAnnotation:                true,
 	JobPriceBand:                      true,
 }

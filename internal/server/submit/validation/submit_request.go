@@ -470,12 +470,17 @@ func (j jobAdapter) Annotations() map[string]string {
 //   - MinimumCardinality
 //   - Priority Class
 //   - Node Uniformity
+//   - Failure Policy
+//
+// It also checks that the gang lifecycle annotations are only set on gang jobs and that a gang has at most one leader.
 func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConfig) error {
 	type GangValidationInfo struct {
 		jobdb.GangInfo
 		PriorityClassName string
+		FailurePolicy     string
 	}
 	gangDetailsByGangId := make(map[string]GangValidationInfo)
+	gangLeaderByGangId := make(map[string]bool)
 	for _, job := range request.JobRequestItems {
 		adaptedJob := jobAdapter{job}
 		rawGangInfo, err := jobdb.GangInfoFromMinimalJob(adaptedJob)
@@ -483,8 +488,37 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 			return fmt.Errorf("invalid gang information: %s", err.Error())
 		}
 		gangInfo := *rawGangInfo
+
+		failurePolicy, hasFailurePolicy := job.Annotations[constants.GangFailurePolicyAnnotation]
+		if hasFailurePolicy && failurePolicy != constants.GangFailurePolicyCancelGang {
+			return errors.Errorf(
+				"invalid gang failure policy (annotation - %s) %q: must be %s if set",
+				constants.GangFailurePolicyAnnotation, failurePolicy, constants.GangFailurePolicyCancelGang,
+			)
+		}
+		leaderFlag, hasLeaderFlag := job.Annotations[constants.GangLeaderAnnotation]
+		if hasLeaderFlag && leaderFlag != "true" {
+			return errors.Errorf(
+				"invalid gang leader flag (annotation - %s) %q: must be true if set",
+				constants.GangLeaderAnnotation, leaderFlag,
+			)
+		}
+
 		if !gangInfo.IsGang() {
+			if hasFailurePolicy {
+				return errors.Errorf("gang failure policy (annotation - %s) may only be set on gang jobs", constants.GangFailurePolicyAnnotation)
+			}
+			if hasLeaderFlag {
+				return errors.Errorf("gang leader flag (annotation - %s) may only be set on gang jobs", constants.GangLeaderAnnotation)
+			}
 			continue
+		}
+
+		if hasLeaderFlag {
+			if gangLeaderByGangId[gangInfo.Id()] {
+				return errors.Errorf("gang %s has more than one leader (annotation - %s)", gangInfo.Id(), constants.GangLeaderAnnotation)
+			}
+			gangLeaderByGangId[gangInfo.Id()] = true
 		}
 
 		failFastFlag, present := job.Annotations[constants.FailFastAnnotation]
@@ -495,7 +529,7 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 			)
 		}
 
-		actual := GangValidationInfo{gangInfo, adaptedJob.PriorityClassName()}
+		actual := GangValidationInfo{gangInfo, adaptedJob.PriorityClassName(), failurePolicy}
 		if expected, ok := gangDetailsByGangId[actual.Id()]; ok {
 			if expected.Cardinality() != actual.Cardinality() {
 				return errors.Errorf(
@@ -513,6 +547,12 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 				return errors.Errorf(
 					"inconsistent nodeUniformityLabel in gang %s: expected %s but got %s",
 					actual.Id(), expected.NodeUniformity(), actual.NodeUniformity(),
+				)
+			}
+			if actual.FailurePolicy != expected.FailurePolicy {
+				return errors.Errorf(
+					"inconsistent gang failure policy in gang %s: expected %q but got %q",
+					actual.Id(), expected.FailurePolicy, actual.FailurePolicy,
 				)
 			}
 		} else {

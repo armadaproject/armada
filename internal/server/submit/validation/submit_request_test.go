@@ -152,6 +152,120 @@ func TestValidateGangs(t *testing.T) {
 			},
 			expectSuccess: false,
 		},
+		"gang failure policy and a single leader": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:            "foo",
+						constants.GangCardinalityAnnotation:   strconv.Itoa(2),
+						constants.GangFailurePolicyAnnotation: constants.GangFailurePolicyCancelGang,
+						constants.GangLeaderAnnotation:        "true",
+					},
+				},
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:            "foo",
+						constants.GangCardinalityAnnotation:   strconv.Itoa(2),
+						constants.GangFailurePolicyAnnotation: constants.GangFailurePolicyCancelGang,
+					},
+				},
+			},
+			expectSuccess: true,
+		},
+		"unknown gang failure policy": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:            "foo",
+						constants.GangCardinalityAnnotation:   strconv.Itoa(2),
+						constants.GangFailurePolicyAnnotation: "RestartGang",
+					},
+				},
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:            "foo",
+						constants.GangCardinalityAnnotation:   strconv.Itoa(2),
+						constants.GangFailurePolicyAnnotation: "RestartGang",
+					},
+				},
+			},
+			expectSuccess: false,
+		},
+		"inconsistent gang failure policy": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:            "foo",
+						constants.GangCardinalityAnnotation:   strconv.Itoa(2),
+						constants.GangFailurePolicyAnnotation: constants.GangFailurePolicyCancelGang,
+					},
+				},
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
+					},
+				},
+			},
+			expectSuccess: false,
+		},
+		"gang failure policy on a job that is not in a gang": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						constants.GangFailurePolicyAnnotation: constants.GangFailurePolicyCancelGang,
+					},
+				},
+			},
+			expectSuccess: false,
+		},
+		"gang leader flag that is not true": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.GangLeaderAnnotation:      "false",
+					},
+				},
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
+					},
+				},
+			},
+			expectSuccess: false,
+		},
+		"more than one gang leader": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.GangLeaderAnnotation:      "true",
+					},
+				},
+				{
+					Annotations: map[string]string{
+						constants.GangIdAnnotation:          "foo",
+						constants.GangCardinalityAnnotation: strconv.Itoa(2),
+						constants.GangLeaderAnnotation:      "true",
+					},
+				},
+			},
+			expectSuccess: false,
+		},
+		"gang leader flag on a job that is not in a gang": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				{
+					Annotations: map[string]string{
+						constants.GangLeaderAnnotation: "true",
+					},
+				},
+			},
+			expectSuccess: false,
+		},
 		"set fail fast flag - true": {
 			jobRequests: []*api.JobSubmitRequestItem{
 				{

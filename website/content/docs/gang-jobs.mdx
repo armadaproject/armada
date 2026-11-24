@@ -139,11 +139,33 @@ There's no member number and no list of the other members' addresses. Members ha
 
 - **Gangs aren't retried.** Armada marks every gang job fail-fast, and you can't turn that off. If a member's pod fails to start, that job fails with `Job has fail fast flag set - this job will no longer be retried`. If its node or worker cluster is lost, the job also fails without a retry, but the message is different and it can take some minutes for Armada to notice (see Troubleshooting). Plan to resubmit the whole gang with a new `gangId`.
 - **If one member is preempted, the whole gang is stopped.** All members end as failed with a `Preempted` reason. You're never left with part of a gang running.
-- **If one member's program crashes, the others keep running.** All-or-nothing applies to starting and preemption, not to your code. If your framework can't continue without every member, cancel the whole gang when one fails:
+- **If one member's program crashes, the others keep running.** All-or-nothing applies to starting and preemption, not to your code. If your framework can't continue without every member, either set a failure policy (see below) or cancel the whole gang yourself when one fails:
 
   ```bash
   armadactl cancel job-set my-team gang-demo-1
   ```
+
+## Stop the whole gang together
+
+Two optional annotations tie the members' endings together. Armada cancels the affected members for you, and each shows the reason and `armada-scheduler` as the requestor.
+
+- **Stop everything when one member fails.** Add this to every member:
+
+  ```yaml
+  armadaproject.io/gangFailurePolicy: 'CancelGang'
+  ```
+
+  When any member fails or is cancelled, Armada cancels the rest with the reason `gang member <job-id> failed` or `gang member <job-id> was cancelled`. `CancelGang` is the only value.
+
+- **Stop everything when the leader finishes.** Add this to one member only:
+
+  ```yaml
+  armadaproject.io/gangLeader: 'true'
+  ```
+
+  When that member succeeds, Armada cancels the rest with the reason `gang leader <job-id> succeeded`. Use it when the other members only serve the leader and never exit on their own, such as the workers of an MPI job.
+
+The cancelled members end as Cancelled, not Succeeded or Failed. To tell how the work went, look at the member that ended first: the leader, or the member named in the reason.
 
 ## Operator setup
 
@@ -171,6 +193,9 @@ These settings decide what gangs can do on your installation. On an Operator ins
 | `inconsistent gang cardinality in gang <id>: expected N but got M` when submitting                                                   | Members disagree on `gangCardinality`                                                                                                                         | Use the same value on every member.                                                                  |
 | `inconsistent PriorityClassName in gang <id>` or `inconsistent nodeUniformityLabel in gang <id>` when submitting                     | Members disagree on priority class or uniformity label                                                                                                        | Use the same value on every member.                                                                  |
 | `gang jobs may not set fail fast flag ... to anything but true` when submitting                                                      | A member sets `armadaproject.io/failFast` to something other than `"true"`                                                                                    | Remove the annotation. Gang jobs are always fail-fast.                                               |
+| `inconsistent gang failure policy in gang <id>` when submitting                                                                      | Some members set `armadaproject.io/gangFailurePolicy` and others don't                                                                                        | Set it on every member, or on none.                                                                  |
+| `gang <id> has more than one leader` when submitting                                                                                 | More than one member sets `armadaproject.io/gangLeader`                                                                                                       | Set it on one member only.                                                                           |
+| Members ended as Cancelled with the requestor `armada-scheduler`                                                                     | A gang failure policy or leader annotation stopped the gang                                                                                                   | Expected. The reason names the member that ended first.                                              |
 | The whole gang stopped when one member was preempted                                                                                 | Gangs are all-or-nothing                                                                                                                                      | Resubmit the whole gang with a new `gangId`.                                                         |
 | I set `gangCardinality: '1'` and nothing gang-like happened                                                                          | A gang of one is an ordinary job                                                                                                                              | Expected.                                                                                            |
 | `zsh: no such file or directory: job-id` (or `bash: job-id: No such file or directory`)                                              | A placeholder was pasted with its angle brackets                                                                                                              | Replace `<job-id>`, including `<` and `>`, with the real value.                                      |
