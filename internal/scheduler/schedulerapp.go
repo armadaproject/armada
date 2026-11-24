@@ -350,7 +350,7 @@ func Run(config schedulerconfig.Configuration) error {
 	// Scheduler Reports
 	// ////////////////////////////////////////////////////////////////////////
 	schedulingContextRepository := reports.NewSchedulingContextRepository()
-	reportServer := reports.NewServer(schedulingContextRepository)
+	reportServer := reports.NewServer(schedulingContextRepository, executorRepository)
 
 	clientMetrics := grpc_prometheus.NewClientMetrics(
 		grpc_prometheus.WithClientHandlingTimeHistogram(),

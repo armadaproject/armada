@@ -125,6 +125,39 @@ func TestProxyingSchedulingReportsServer_GetQueueReport(t *testing.T) {
 	}
 }
 
+func TestProxyingSchedulingReportsServer_GetExecutors(t *testing.T) {
+	tests := map[string]struct {
+		err error
+	}{
+		"no error": {err: nil},
+		"on error": {err: fmt.Errorf("error")},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			defer cancel()
+
+			sut, reportsClient := setupProxyingSchedulerReportsServerTest()
+
+			request := &schedulerobjects.ExecutorsRequest{Name: "executor-1"}
+			expectedResult := &schedulerobjects.ExecutorsResponse{
+				Executors: []*schedulerobjects.ExecutorSummary{{Name: "executor-1"}},
+			}
+			if tc.err != nil {
+				expectedResult = nil
+			}
+			reportsClient.GetExecutorsResponse = expectedResult
+			reportsClient.Err = tc.err
+
+			result, err := sut.GetExecutors(ctx, request)
+
+			assert.Equal(t, tc.err, err)
+			assert.Equal(t, expectedResult, result)
+			assert.Len(t, reportsClient.GetExecutorsCalls, 1)
+		})
+	}
+}
+
 func setupProxyingSchedulerReportsServerTest() (*ProxyingSchedulingReportsServer, *FakeSchedulerReportingClient) {
 	schedulerReportsClient := NewFakeSchedulerReportingClient()
 	sut := NewProxyingSchedulingReportsServer(schedulerReportsClient)

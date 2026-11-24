@@ -16,6 +16,8 @@ type ResourceKind string
 const (
 	ResourceKindQueue       ResourceKind = "Queue"
 	ResourceKindRetryPolicy ResourceKind = "RetryPolicy"
+	// ResourceKindExecutor is only used for output. Executors can't be created from a file.
+	ResourceKindExecutor ResourceKind = "Executor"
 )
 
 func NewResourceKind(in string) (ResourceKind, error) {

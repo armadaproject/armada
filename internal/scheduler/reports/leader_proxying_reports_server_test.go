@@ -208,6 +208,45 @@ func TestLeaderProxyingSchedulingReportsServer_GetQueueReport(t *testing.T) {
 	}
 }
 
+func TestLeaderProxyingSchedulingReportsServer_GetExecutors(t *testing.T) {
+	tests := map[string]struct {
+		err                    error
+		isCurrentProcessLeader bool
+	}{
+		"current process leader":                {isCurrentProcessLeader: true},
+		"current process leader return error":   {isCurrentProcessLeader: true, err: fmt.Errorf("error")},
+		"remote process is leader":              {isCurrentProcessLeader: false},
+		"remote process is leader return error": {isCurrentProcessLeader: false, err: fmt.Errorf("error")},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			defer cancel()
+
+			sut, clientProvider, reportsServer, reportsClient := setupLeaderProxyingSchedulerReportsServerTest(t)
+			clientProvider.IsCurrentProcessLeader = tc.isCurrentProcessLeader
+
+			request := &schedulerobjects.ExecutorsRequest{Name: "executor-1"}
+			expectedResult := &schedulerobjects.ExecutorsResponse{
+				Executors: []*schedulerobjects.ExecutorSummary{{Name: "executor-1"}},
+			}
+			if tc.err != nil {
+				expectedResult = nil
+			}
+			reportsServer.GetExecutorsResponse = expectedResult
+			reportsServer.Err = tc.err
+
+			result, err := sut.GetExecutors(ctx, request)
+
+			// Executors come from the database, so the local server answers whether or not it is the leader.
+			assert.Equal(t, tc.err, err)
+			assert.Equal(t, expectedResult, result)
+			assert.Len(t, reportsServer.GetExecutorsCalls, 1)
+			assert.Len(t, reportsClient.GetExecutorsCalls, 0)
+		})
+	}
+}
+
 func setupLeaderProxyingSchedulerReportsServerTest(t *testing.T) (*LeaderProxyingSchedulingReportsServer, *FakeClientProvider, *FakeSchedulerReportingServer, *FakeSchedulerReportingClient) {
 	jobReportsServer := NewFakeSchedulerReportingServer()
 	jobReportsClient := NewFakeSchedulerReportingClient()
@@ -237,6 +276,11 @@ type GetJobReportCall struct {
 	Request *schedulerobjects.JobReportRequest
 }
 
+type GetExecutorsCall struct {
+	Context context.Context
+	Request *schedulerobjects.ExecutorsRequest
+}
+
 type FakeSchedulerReportingServer struct {
 	GetSchedulingReportCalls    []GetSchedulingReportCall
 	GetSchedulingReportResponse *schedulerobjects.SchedulingReport
@@ -246,6 +290,9 @@ type FakeSchedulerReportingServer struct {
 
 	GetJobReportCalls    []GetJobReportCall
 	GetJobReportResponse *schedulerobjects.JobReport
+
+	GetExecutorsCalls    []GetExecutorsCall
+	GetExecutorsResponse *schedulerobjects.ExecutorsResponse
 	Err                  error
 }
 
@@ -254,6 +301,7 @@ func NewFakeSchedulerReportingServer() *FakeSchedulerReportingServer {
 		GetSchedulingReportCalls: []GetSchedulingReportCall{},
 		GetQueueReportCalls:      []GetQueueReportCall{},
 		GetJobReportCalls:        []GetJobReportCall{},
+		GetExecutorsCalls:        []GetExecutorsCall{},
 	}
 }
 
@@ -272,6 +320,11 @@ func (f *FakeSchedulerReportingServer) GetJobReport(ctx context.Context, request
 	return f.GetJobReportResponse, f.Err
 }
 
+func (f *FakeSchedulerReportingServer) GetExecutors(ctx context.Context, request *schedulerobjects.ExecutorsRequest) (*schedulerobjects.ExecutorsResponse, error) {
+	f.GetExecutorsCalls = append(f.GetExecutorsCalls, GetExecutorsCall{Context: ctx, Request: request})
+	return f.GetExecutorsResponse, f.Err
+}
+
 type FakeSchedulerReportingClient struct {
 	GetSchedulingReportCalls    []GetSchedulingReportCall
 	GetSchedulingReportResponse *schedulerobjects.SchedulingReport
@@ -281,6 +334,9 @@ type FakeSchedulerReportingClient struct {
 
 	GetJobReportCalls    []GetJobReportCall
 	GetJobReportResponse *schedulerobjects.JobReport
+
+	GetExecutorsCalls    []GetExecutorsCall
+	GetExecutorsResponse *schedulerobjects.ExecutorsResponse
 	Err                  error
 }
 
@@ -289,6 +345,7 @@ func NewFakeSchedulerReportingClient() *FakeSchedulerReportingClient {
 		GetSchedulingReportCalls: []GetSchedulingReportCall{},
 		GetQueueReportCalls:      []GetQueueReportCall{},
 		GetJobReportCalls:        []GetJobReportCall{},
+		GetExecutorsCalls:        []GetExecutorsCall{},
 	}
 }
 
@@ -305,6 +362,11 @@ func (f *FakeSchedulerReportingClient) GetQueueReport(ctx context.Context, reque
 func (f *FakeSchedulerReportingClient) GetJobReport(ctx context.Context, request *schedulerobjects.JobReportRequest, opts ...grpc.CallOption) (*schedulerobjects.JobReport, error) {
 	f.GetJobReportCalls = append(f.GetJobReportCalls, GetJobReportCall{Context: ctx, Request: request})
 	return f.GetJobReportResponse, f.Err
+}
+
+func (f *FakeSchedulerReportingClient) GetExecutors(ctx context.Context, request *schedulerobjects.ExecutorsRequest, opts ...grpc.CallOption) (*schedulerobjects.ExecutorsResponse, error) {
+	f.GetExecutorsCalls = append(f.GetExecutorsCalls, GetExecutorsCall{Context: ctx, Request: request})
+	return f.GetExecutorsResponse, f.Err
 }
 
 type FakeClientProvider struct {

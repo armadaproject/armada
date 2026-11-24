@@ -4,6 +4,7 @@ package schedulerobjects;
 option go_package = "github.com/armadaproject/armada/pkg/api/schedulerobjects";
 
 import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
 
 
 // Deprecated. This will be removed in a future release. Please use GetQueueReport instead.
@@ -49,6 +50,28 @@ message JobReport {
     string report = 1;
 }
 
+message ExecutorsRequest {
+    // If set, only the executor with this name is returned.
+    string name = 1;
+}
+
+message ExecutorSummary {
+    string name = 1;
+    string pool = 2;
+    // Last time the executor sent a heartbeat to the scheduler.
+    google.protobuf.Timestamp last_update_time = 3;
+    // Number of nodes the executor reported in its last heartbeat.
+    int32 node_count = 4;
+    bool cordoned = 5;
+    string cordon_reason = 6;
+    // User who last changed the executor settings.
+    string cordoned_by = 7;
+}
+
+message ExecutorsResponse {
+    repeated ExecutorSummary executors = 1;
+}
+
 service SchedulerReporting {
     // Return the most recent scheduling report for each executor.
     rpc GetSchedulingReport (SchedulingReportRequest) returns (SchedulingReport) {
@@ -66,6 +89,12 @@ service SchedulerReporting {
     rpc GetJobReport (JobReportRequest) returns (JobReport) {
         option (google.api.http) = {
             get: "/v1/job/{job_id}/scheduler-report"
+        };
+    }
+    // Return the executors known to the scheduler along with their cordon state.
+    rpc GetExecutors (ExecutorsRequest) returns (ExecutorsResponse) {
+        option (google.api.http) = {
+            get: "/v1/executors"
         };
     }
 }

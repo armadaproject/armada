@@ -11,6 +11,37 @@
     "version": "version not set"
   },
   "paths": {
+    "/v1/executors": {
+      "get": {
+        "tags": [
+          "SchedulerReporting"
+        ],
+        "summary": "Return the executors known to the scheduler along with their cordon state.",
+        "operationId": "GetExecutors",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "If set, only the executor with this name is returned.",
+            "name": "name",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/schedulerobjectsExecutorsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/job/{jobId}/scheduler-report": {
       "get": {
         "tags": [
@@ -152,6 +183,48 @@
         },
         "message": {
           "type": "string"
+        }
+      }
+    },
+    "schedulerobjectsExecutorSummary": {
+      "type": "object",
+      "properties": {
+        "cordonReason": {
+          "type": "string"
+        },
+        "cordoned": {
+          "type": "boolean"
+        },
+        "cordonedBy": {
+          "description": "User who last changed the executor settings.",
+          "type": "string"
+        },
+        "lastUpdateTime": {
+          "description": "Last time the executor sent a heartbeat to the scheduler.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nodeCount": {
+          "description": "Number of nodes the executor reported in its last heartbeat.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "pool": {
+          "type": "string"
+        }
+      }
+    },
+    "schedulerobjectsExecutorsResponse": {
+      "type": "object",
+      "properties": {
+        "executors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/schedulerobjectsExecutorSummary"
+          }
         }
       }
     },
