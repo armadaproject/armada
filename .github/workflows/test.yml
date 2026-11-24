@@ -174,13 +174,55 @@ jobs:
         run: docker buildx install
 
       - name: Setup Go
+        id: setup-go
         uses: ./.github/actions/setup-go-cache
         with:
+          # Required by the action but unused here: the build cache is handled below.
           cache-prefix: go-integration-tests
           cache-tools: true
+          cache-build: "false"
+
+      - name: Compute Go build cache keys
+        id: build-cache-key
+        shell: bash
+        env:
+          GO_VERSION: ${{ steps.setup-go.outputs.go-version }}
+          GO_SUM_HASH: ${{ hashFiles('go.sum') }}
+        run: |
+          : "${GO_VERSION:?}" "${GO_SUM_HASH:?}"
+          day=$((24 * 60 * 60))
+          period=$((3 * day))
+          now=$(date -u +%s)
+          bucket=$((now / period))
+          prefix="go-integration-tests-refresh-v1-${RUNNER_OS}-${RUNNER_ARCH}-go-${GO_VERSION}-mod-${GO_SUM_HASH}"
+          echo "current=${prefix}-utc3d-${bucket}-cache" >> "$GITHUB_OUTPUT"
+          # Keep a previous bucket eligible for at most five days from its start.
+          if (( now % period < 2 * day )); then
+            echo "previous=${prefix}-utc3d-$((bucket - 1))-cache" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore integration Go build cache
+        id: build-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ steps.setup-go.outputs.build-cache-path }}
+          key: ${{ steps.build-cache-key.outputs.current }}
+          # Seed a new bucket on master without importing an older archive's timestamps.
+          restore-keys: ${{ github.event_name == 'pull_request' && steps.build-cache-key.outputs.previous || '' }}
 
       - name: Setup Integration Tests
         run: go run github.com/magefile/mage@v1.17.2 -v dev:full
+
+      - name: Save integration Go build cache
+        if: >-
+          success() && github.repository == 'armadaproject/armada' &&
+          github.ref == 'refs/heads/master' &&
+          (github.event_name == 'push' || github.event_name == 'schedule') &&
+          steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ steps.setup-go.outputs.build-cache-path }}
+          key: ${{ steps.build-cache-key.outputs.current }}
 
       - name: Run Integration Tests
         run: go run github.com/magefile/mage@v1.17.2 -v testsuite
