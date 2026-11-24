@@ -84,7 +84,7 @@ describe("Sidebar", () => {
   })
 
   afterEach(() => {
-    mockServer.reset()
+    mockServer.resetHandlers()
     // The query client is shared across tests, so drop what one test fetched before the next test asks again
     queryClient.clear()
   })
