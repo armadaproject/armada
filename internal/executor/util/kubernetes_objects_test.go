@@ -391,3 +391,55 @@ func TestCreatePodFromExecutorApiJob_PodName(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "team-run-1", pod.Name)
 }
+
+func TestExtractGangService(t *testing.T) {
+	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "namespace",
+		Labels: map[string]string{
+			domain.JobId:                             "job-1",
+			domain.JobRunId:                          "run-1",
+			domain.Queue:                             "queue",
+			serverconfiguration.GangServiceNameLabel: "armada-gang-abc",
+		},
+		Annotations: map[string]string{
+			serverconfiguration.GangIdAnnotation: "gang-1",
+			domain.JobSetId:                      "jobset",
+			domain.Owner:                         "user",
+		},
+	}}
+
+	service := ExtractGangService(pod)
+
+	require.NotNil(t, service)
+	assert.Equal(t, "armada-gang-abc", service.Name)
+	assert.Equal(t, "namespace", service.Namespace)
+	assert.Equal(t, v1.ClusterIPNone, service.Spec.ClusterIP)
+	assert.True(t, service.Spec.PublishNotReadyAddresses)
+	assert.Empty(t, service.Spec.Ports)
+	// The service selects all pods of the gang, so it must not select on, or be labelled with, a job or run id.
+	expectedLabels := map[string]string{serverconfiguration.GangServiceNameLabel: "armada-gang-abc", domain.Queue: "queue"}
+	assert.Equal(t, expectedLabels, service.Spec.Selector)
+	assert.Equal(t, expectedLabels, service.Labels)
+	assert.Equal(t, "gang-1", service.Annotations[serverconfiguration.GangIdAnnotation])
+}
+
+func TestExtractGangService_NilWithoutGangServiceName(t *testing.T) {
+	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{domain.JobId: "job-1"}}}
+	assert.Nil(t, ExtractGangService(pod))
+}
+
+func TestInjectArmadaEnvVars_GangServiceName(t *testing.T) {
+	lease := createBasicJobRunLease()
+	lease.Job.ObjectMeta.Labels = map[string]string{serverconfiguration.GangServiceNameLabel: "armada-gang-abc"}
+	lease.Job.MainObject = &armadaevents.KubernetesMainObject{
+		Object: &armadaevents.KubernetesMainObject_PodSpec{
+			PodSpec: &armadaevents.PodSpecWithAvoidList{PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "main"}}}},
+		},
+	}
+
+	pod, err := CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, pod.Spec.Containers)
+	assert.Contains(t, pod.Spec.Containers[0].Env, v1.EnvVar{Name: serverconfiguration.GangServiceNameEnvVar, Value: "armada-gang-abc"})
+}

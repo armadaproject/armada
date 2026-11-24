@@ -121,6 +121,103 @@ func TestValidateAffinity(t *testing.T) {
 	}
 }
 
+func TestValidateGangServices(t *testing.T) {
+	member := func(namespace, hostname string, extra map[string]string) *api.JobSubmitRequestItem {
+		annotations := map[string]string{
+			constants.GangIdAnnotation:          "foo",
+			constants.GangCardinalityAnnotation: "2",
+			constants.GangServiceAnnotation:     "true",
+		}
+		for k, v := range extra {
+			if v == "" {
+				delete(annotations, k)
+			} else {
+				annotations[k] = v
+			}
+		}
+		return &api.JobSubmitRequestItem{
+			Namespace:   namespace,
+			Annotations: annotations,
+			PodSpec:     &v1.PodSpec{Hostname: hostname},
+		}
+	}
+	withSubdomain := member("ns", "a", nil)
+	withSubdomain.PodSpec.Subdomain = "custom"
+	tests := map[string]struct {
+		jobRequests   []*api.JobSubmitRequestItem
+		disabled      bool
+		expectSuccess bool
+	}{
+		"no gang services": {
+			jobRequests:   []*api.JobSubmitRequestItem{{}, {}},
+			disabled:      true,
+			expectSuccess: true,
+		},
+		"gang service with distinct hostnames": {
+			jobRequests:   []*api.JobSubmitRequestItem{member("ns", "a", nil), member("ns", "b", nil)},
+			expectSuccess: true,
+		},
+		"gang service without hostnames": {
+			jobRequests:   []*api.JobSubmitRequestItem{member("ns", "", nil), member("ns", "", nil)},
+			expectSuccess: true,
+		},
+		"gang services not enabled": {
+			jobRequests:   []*api.JobSubmitRequestItem{member("ns", "a", nil), member("ns", "b", nil)},
+			disabled:      true,
+			expectSuccess: false,
+		},
+		"gang service flag that is not true": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				member("ns", "a", map[string]string{constants.GangServiceAnnotation: "yes"}),
+				member("ns", "b", map[string]string{constants.GangServiceAnnotation: "yes"}),
+			},
+			expectSuccess: false,
+		},
+		"gang service on a job that is not in a gang": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				member("ns", "a", map[string]string{constants.GangIdAnnotation: "", constants.GangCardinalityAnnotation: ""}),
+			},
+			expectSuccess: false,
+		},
+		"gang service not requested by all jobs of the gang": {
+			jobRequests: []*api.JobSubmitRequestItem{
+				member("ns", "a", nil),
+				member("ns", "b", map[string]string{constants.GangServiceAnnotation: ""}),
+			},
+			expectSuccess: false,
+		},
+		"gang service across namespaces": {
+			jobRequests:   []*api.JobSubmitRequestItem{member("ns", "a", nil), member("other-ns", "b", nil)},
+			expectSuccess: false,
+		},
+		"gang service with a subdomain set": {
+			jobRequests:   []*api.JobSubmitRequestItem{withSubdomain, member("ns", "b", nil)},
+			expectSuccess: false,
+		},
+		"gang service with duplicate hostnames": {
+			jobRequests:   []*api.JobSubmitRequestItem{member("ns", "a", nil), member("ns", "a", nil)},
+			expectSuccess: false,
+		},
+		"gang service with an invalid hostname": {
+			jobRequests:   []*api.JobSubmitRequestItem{member("ns", "Not_A_Label", nil), member("ns", "b", nil)},
+			expectSuccess: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateGangServices(
+				&api.JobSubmitRequest{JobRequestItems: tc.jobRequests},
+				configuration.SubmissionConfig{AllowGangServices: !tc.disabled},
+			)
+			if tc.expectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
 func TestValidateGangs(t *testing.T) {
 	tests := map[string]struct {
 		jobRequests   []*api.JobSubmitRequestItem

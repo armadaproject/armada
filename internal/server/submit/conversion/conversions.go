@@ -1,6 +1,7 @@
 package conversion
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"math"
 
@@ -13,6 +14,7 @@ import (
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -59,8 +61,42 @@ func SubmitJobFromApiRequest(
 		RunScopedPodNames: config.RunScopedPodNames,
 	}
 
+	applyGangService(msg, config, queue)
 	postProcess(msg, config)
 	return msg
+}
+
+// GangServiceName returns the name of the headless service shared by the jobs of a gang.
+// A gang is identified by its queue and gang id, so the name is derived from both.
+func GangServiceName(objectNamePrefix, queue, gangId string) string {
+	hash := sha256.Sum256([]byte(queue + "\x00" + gangId))
+	return fmt.Sprintf("%s-gang-%x", objectNamePrefix, hash[:8])
+}
+
+// applyGangService prepares a job of a gang that requests a gang service, see constants.GangServiceAnnotation.
+// It labels the job with the name of the service, makes that name the subdomain of the pod, and, unless the gang
+// sets its own node uniformity label, constrains the gang to a single executor, as a service cannot span clusters.
+// The executor creates the service itself when it creates the pod.
+func applyGangService(msg *armadaevents.SubmitJob, config configuration.SubmissionConfig, queue string) {
+	annotations := msg.GetObjectMeta().GetAnnotations()
+	if !config.AllowGangServices || annotations[constants.GangServiceAnnotation] != "true" || !isGang(msg) {
+		return
+	}
+	serviceName := GangServiceName(config.ObjectNamePrefix, queue, annotations[constants.GangIdAnnotation])
+
+	labels := msg.GetObjectMeta().GetLabels()
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	labels[constants.GangServiceNameLabel] = serviceName
+	msg.GetObjectMeta().Labels = labels
+
+	if podSpec := msg.GetMainObject().GetPodSpec().GetPodSpec(); podSpec != nil {
+		podSpec.Subdomain = serviceName
+	}
+	if annotations[constants.GangNodeUniformityLabelAnnotation] == "" {
+		annotations[constants.GangNodeUniformityLabelAnnotation] = schedulerconfiguration.ExecutorIdLabel
+	}
 }
 
 // Creates KubernetesObjects representing ingresses and services from the *api.JobSubmitRequestItem.

@@ -23,6 +23,14 @@ const (
 	// Used for workloads where the other jobs only exist to serve the leader, e.g., the workers of an MPI job.
 	// At most one job in a gang may be the leader.
 	GangLeaderAnnotation = "armadaproject.io/gangLeader"
+	// GangServiceAnnotation, if set to true on all jobs of a gang, requests a headless service shared by the gang.
+	// It gives each job of the gang that sets a hostname in its pod spec a DNS name of the form
+	// <hostname>.<service name>.<namespace>.svc, so that the jobs can reach each other by names known at submit time.
+	// The gang is scheduled onto a single cluster. Must be enabled in the server configuration.
+	GangServiceAnnotation = "armadaproject.io/gangService"
+	// GangServiceNameLabel is set by the server, on jobs of a gang that requests a gang service, to the name of that
+	// service. The service selects the pods of the gang by this label.
+	GangServiceNameLabel = "armadaproject.io/gangServiceName"
 
 	// internalEnvVarPrefix is the prefix for all Armada-injected environment variables
 	internalEnvVarPrefix = "ARMADA_"
@@ -38,6 +46,7 @@ const (
 	GangCardinalityEnvVar              = internalEnvVarPrefix + "GANG_CARDINALITY"
 	GangNodeUniformityLabelNameEnvVar  = internalEnvVarPrefix + "GANG_NODE_UNIFORMITY_LABEL_NAME"
 	GangNodeUniformityLabelValueEnvVar = internalEnvVarPrefix + "GANG_NODE_UNIFORMITY_LABEL_VALUE"
+	GangServiceNameEnvVar              = internalEnvVarPrefix + "GANG_SERVICE_NAME"
 
 	// GangNumJobsScheduledAnnotation is set by the scheduler and indicates how many gang jobs were scheduled.
 	// FailFastAnnotation, if set to true, ensures Armada does not re-schedule jobs that fail to start.

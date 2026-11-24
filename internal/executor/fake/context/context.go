@@ -196,6 +196,11 @@ func (c *FakeClusterContext) SubmitService(service *v1.Service) (*v1.Service, er
 	return nil, errors.Errorf("Services not implemented in FakeClusterContext")
 }
 
+// EnsureServiceWithOwner does nothing: the fake cluster has no network, so there is nothing for a service to do.
+func (c *FakeClusterContext) EnsureServiceWithOwner(service *v1.Service, owner metav1.OwnerReference) error {
+	return nil
+}
+
 func (c *FakeClusterContext) GetServices(pod *v1.Pod) ([]*v1.Service, error) {
 	return nil, errors.Errorf("Services not implemented in FakeClusterContext")
 }

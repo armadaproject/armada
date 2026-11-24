@@ -920,3 +920,76 @@ func TestDefaultResourcePodLevelEffectiveRequest(t *testing.T) {
 	assert.Equal(t, resource.MustParse("6"), effective["cpu"])
 	assert.Equal(t, resource.MustParse("24Gi"), effective["memory"])
 }
+
+func TestApplyGangService(t *testing.T) {
+	gangAnnotations := func(extra map[string]string) map[string]string {
+		annotations := map[string]string{
+			constants.GangIdAnnotation:          "foo",
+			constants.GangCardinalityAnnotation: "2",
+			constants.GangServiceAnnotation:     "true",
+		}
+		for k, v := range extra {
+			annotations[k] = v
+		}
+		return annotations
+	}
+	serviceName := GangServiceName("armada", "queue", "foo")
+	tests := map[string]struct {
+		annotations        map[string]string
+		enabled            bool
+		expectedLabels     map[string]string
+		expectedSubdomain  string
+		expectedUniformity string
+	}{
+		"Service name, subdomain and executor uniformity set for a gang requesting a service": {
+			annotations:        gangAnnotations(nil),
+			enabled:            true,
+			expectedLabels:     map[string]string{constants.GangServiceNameLabel: serviceName},
+			expectedSubdomain:  serviceName,
+			expectedUniformity: "armadaproject.io/executorId",
+		},
+		"Node uniformity label of the gang is kept": {
+			annotations:        gangAnnotations(map[string]string{constants.GangNodeUniformityLabelAnnotation: "rack"}),
+			enabled:            true,
+			expectedLabels:     map[string]string{constants.GangServiceNameLabel: serviceName},
+			expectedSubdomain:  serviceName,
+			expectedUniformity: "rack",
+		},
+		"Unchanged if disabled": {
+			annotations: gangAnnotations(nil),
+			enabled:     false,
+		},
+		"Unchanged if the gang does not request a service": {
+			annotations: map[string]string{
+				constants.GangIdAnnotation:          "foo",
+				constants.GangCardinalityAnnotation: "2",
+			},
+			enabled: true,
+		},
+		"Unchanged if not a gang": {
+			annotations: map[string]string{constants.GangServiceAnnotation: "true"},
+			enabled:     true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			submitMsg := submitMsgFromAnnotations(tc.annotations)
+			podSpec := &v1.PodSpec{}
+			submitMsg.MainObject = &armadaevents.KubernetesMainObject{
+				Object: &armadaevents.KubernetesMainObject_PodSpec{PodSpec: &armadaevents.PodSpecWithAvoidList{PodSpec: podSpec}},
+			}
+			applyGangService(submitMsg, configuration.SubmissionConfig{AllowGangServices: tc.enabled, ObjectNamePrefix: "armada"}, "queue")
+			assert.Equal(t, tc.expectedLabels, submitMsg.ObjectMeta.Labels)
+			assert.Equal(t, tc.expectedSubdomain, podSpec.Subdomain)
+			assert.Equal(t, tc.expectedUniformity, submitMsg.ObjectMeta.Annotations[constants.GangNodeUniformityLabelAnnotation])
+		})
+	}
+}
+
+func TestGangServiceName(t *testing.T) {
+	name := GangServiceName("armada", "queue", "foo")
+	assert.Equal(t, name, GangServiceName("armada", "queue", "foo"))
+	assert.NotEqual(t, name, GangServiceName("armada", "other-queue", "foo"))
+	assert.NotEqual(t, name, GangServiceName("armada", "queue", "bar"))
+	assert.Regexp(t, "^armada-gang-[0-9a-f]{16}$", name)
+}

@@ -1,0 +1,93 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    annotations:
+      armadaproject.io/gangId: "gang-service"
+      armadaproject.io/gangCardinality: "2"
+      armadaproject.io/gangService: "true"
+    podSpec:
+      hostname: a
+      restartPolicy: Never
+      containers:
+        - name: resolve-peer
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "gang service: ${ARMADA_GANG_SERVICE_NAME}"
+              if [ -z "${ARMADA_GANG_SERVICE_NAME}" ]
+              then
+                echo "expected ARMADA_GANG_SERVICE_NAME to be set"
+                exit 1
+              fi
+              PEER="b.${ARMADA_GANG_SERVICE_NAME}"
+              for i in $(seq 1 30)
+              do
+                if getent hosts "${PEER}"
+                then
+                  # Stay up for a while, so that the peer can resolve this pod too.
+                  sleep 15
+                  exit 0
+                fi
+                sleep 2
+              done
+              echo "could not resolve ${PEER}"
+              exit 1
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+  - priority: 0
+    namespace: personal-anonymous
+    annotations:
+      armadaproject.io/gangId: "gang-service"
+      armadaproject.io/gangCardinality: "2"
+      armadaproject.io/gangService: "true"
+    podSpec:
+      hostname: b
+      restartPolicy: Never
+      containers:
+        - name: resolve-peer
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.20.0
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "gang service: ${ARMADA_GANG_SERVICE_NAME}"
+              if [ -z "${ARMADA_GANG_SERVICE_NAME}" ]
+              then
+                echo "expected ARMADA_GANG_SERVICE_NAME to be set"
+                exit 1
+              fi
+              PEER="a.${ARMADA_GANG_SERVICE_NAME}"
+              for i in $(seq 1 30)
+              do
+                if getent hosts "${PEER}"
+                then
+                  # Stay up for a while, so that the peer can resolve this pod too.
+                  sleep 15
+                  exit 0
+                fi
+                sleep 2
+              done
+              echo "could not resolve ${PEER}"
+              exit 1
+          resources:
+            limits:
+              memory: 25Mi
+              cpu: 100m
+            requests:
+              memory: 25Mi
+              cpu: 100m
+---
+timeout: "180s"
+expectedEvents:
+  - submitted:
+  - succeeded:

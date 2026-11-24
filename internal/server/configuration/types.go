@@ -99,6 +99,9 @@ type SubmissionConfig struct {
 	AddGangIdLabel bool
 	// Controls whether custom service names are allowed
 	AllowCustomServiceNames bool
+	// Controls whether gangs may request a headless service shared by all jobs of the gang, see
+	// constants.GangServiceAnnotation. All executors must be able to create and patch services before this is enabled.
+	AllowGangServices bool
 	// ObjectNamePrefix is the prefix of the names of the pod, the services, the ingresses and the ingress hosts
 	// of a job. The server writes it to the job, and the executor reads it from there for the pod name. The
 	// default is armada. The server does not start when the prefix is empty or is not a DNS-1035 label of at

@@ -57,3 +57,5 @@ redis:
 schedulerApiConnection:
   armadaUrl: "localhost:50052"
   forceNoTls: true
+submission:
+  allowGangServices: true
