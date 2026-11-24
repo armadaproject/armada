@@ -177,6 +177,7 @@ jobs:
         id: setup-go
         uses: ./.github/actions/setup-go-cache
         with:
+          # Required by the action but unused here: the build cache is handled below.
           cache-prefix: go-integration-tests
           cache-tools: true
           cache-build: "false"
