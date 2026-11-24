@@ -101,6 +101,7 @@ func TestKubernetesClusterContext_SubmitService(t *testing.T) {
 	t.Cleanup(clusterContext.Stop)
 
 	service := createService()
+	expectedService := service.DeepCopy()
 	client.Fake.ClearActions()
 
 	_, err := clusterContext.SubmitService(service)
@@ -114,7 +115,7 @@ func TestKubernetesClusterContext_SubmitService(t *testing.T) {
 
 	createAction, ok := action.(clientTesting.CreateAction)
 	require.True(t, ok, "expected a CreateAction, got %T", action)
-	assert.Equal(t, service, createAction.GetObject())
+	assert.Equal(t, expectedService, createAction.GetObject())
 }
 
 func TestKubernetesClusterContext_DeleteService(t *testing.T) {
