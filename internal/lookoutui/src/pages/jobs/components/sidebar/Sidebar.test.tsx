@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query"
 import { render, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { http, HttpResponse } from "msw"
 import { SnackbarProvider } from "notistack"
 
 import { queryClient } from "../../../../app/App"
@@ -181,6 +182,29 @@ describe("Sidebar", () => {
 
     expect(await findByText("job run debug message")).toBeInTheDocument()
     expect(queryByRole("table", { name: "Pod events" })).toBeNull()
+  })
+
+  it("should display the run error", async () => {
+    const run = job.runs[0]
+    job.state = JobState.Queued
+    run.jobRunState = JobRunState.RunFailed
+
+    const runError = "Container exceeded its memory limit"
+    mockServer.setPostJobRunErrorResponseForRunId(run.runId, runError)
+    mockServer.use(
+      http.post("/api/v1/jobRunSchedulerTerminationReason", () =>
+        HttpResponse.json({ error: "No scheduler termination reason found for run" }, { status: 400 }),
+      ),
+    )
+    const { getByRole, findByRole, findByText } = renderComponent()
+
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
+    await userEvent.click(await findByRole("button", { name: "Error" }))
+
+    const runErrorCode = await findByText((_, element) => element?.textContent === runError, {
+      selector: '[role="region"] code',
+    })
+    expect(runErrorCode).toBeVisible()
   })
 
   it("should handle no runs", async () => {
