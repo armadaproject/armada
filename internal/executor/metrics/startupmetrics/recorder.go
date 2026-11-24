@@ -44,9 +44,22 @@ func (r *Recorder) Record(pod *v1.Pod, info *armadaevents.PodStartUpInfo) {
 	podStartUpInfoCollectedTotal.WithLabelValues(pool, strconv.FormatBool(success)).Inc()
 	recordCollectionIssues(pod.Name, pool, issues)
 
-	if total := interval(info.CreatedAt, info.StartedAt); total != nil {
-		podStartUpDurationSeconds.WithLabelValues(queue, pool).Observe(total.Seconds())
-		nodeStartUpDurationSeconds.WithLabelValues(node, pool).Observe(total.Seconds())
+	durations := deriveStartUpDurations(info, r.trackedInitContainers)
+	if durations.total != nil {
+		podStartUpDurationSeconds.WithLabelValues(queue, pool).Observe(durations.total.Seconds())
+		nodeStartUpDurationSeconds.WithLabelValues(node, pool).Observe(durations.total.Seconds())
+	}
+	if durations.withoutUntrackedInitContainers != nil {
+		podStartUpWithoutUntrackedInitContainersDurationSeconds.
+			WithLabelValues(queue, pool).Observe(durations.withoutUntrackedInitContainers.Seconds())
+		nodeStartUpWithoutUntrackedInitContainersDurationSeconds.
+			WithLabelValues(node, pool).Observe(durations.withoutUntrackedInitContainers.Seconds())
+	}
+	if durations.withoutInitContainers != nil {
+		podStartUpWithoutInitContainersDurationSeconds.
+			WithLabelValues(queue, pool).Observe(durations.withoutInitContainers.Seconds())
+		nodeStartUpWithoutInitContainersDurationSeconds.
+			WithLabelValues(node, pool).Observe(durations.withoutInitContainers.Seconds())
 	}
 
 	for _, step := range deriveSteps(info) {
