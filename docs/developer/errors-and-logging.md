@@ -136,7 +136,6 @@ Code that handles gRPC requests should return the types in [`internal/common/arm
 
 | Situation | Return | Client sees |
 |---|---|---|
-<<<<<<< HEAD
 | Bad input in the request | `&armadaerrors.ErrInvalidArgument{Name: "priorityFactor", Value: factor, Message: "must be positive"}` | `InvalidArgument` |
 | Requested object doesn't exist | `&armadaerrors.ErrNotFound{Type: "queue", Value: queueName}` | `NotFound` |
 | Object already exists | `&armadaerrors.ErrAlreadyExists{Type: "queue", Value: queueName}` | `AlreadyExists` |
