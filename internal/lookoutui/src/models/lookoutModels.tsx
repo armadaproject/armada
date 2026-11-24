@@ -164,6 +164,7 @@ export type JobRun = {
   cluster: string
   node?: string
   podName?: string
+  submitted?: string
   leased?: string
   pending?: string
   started?: string

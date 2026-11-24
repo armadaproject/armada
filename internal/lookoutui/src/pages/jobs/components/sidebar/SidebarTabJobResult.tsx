@@ -17,7 +17,10 @@ export interface SidebarTabJobResultProps {
 export const SidebarTabJobResult = ({ job }: SidebarTabJobResultProps) => {
   const [lastJobRunError, setLastJobRunError] = useState<string | undefined>(undefined)
 
-  const runsNewestFirst = useMemo(() => [...job.runs].reverse(), [job])
+  const runsNewestFirst = useMemo(
+    () => [...job.runs].reverse().map((run) => ({ ...run, submitted: job.submitted })),
+    [job],
+  )
 
   const {
     data: jobError,
@@ -73,7 +76,6 @@ export const SidebarTabJobResult = ({ job }: SidebarTabJobResultProps) => {
               <JobRunDetails
                 key={run.runId}
                 run={run}
-                submitted={job.submitted}
                 runIndex={runsNewestFirst.length - 1 - i}
                 defaultExpanded={i === 0}
                 setRunError={i === 0 ? setLastJobRunError : undefined}
