@@ -3,6 +3,7 @@ package job
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -51,12 +52,20 @@ func Get(getConnectionDetails client.ConnectionDetails) GetAPI {
 	}
 }
 
+// defaultLookoutTimeout is how long a request to Lookout may take unless the connection says otherwise. A query for
+// jobs can take Lookout a while.
+const defaultLookoutTimeout = time.Minute
+
 // newClient makes a client for the Lookout API of the connection.
 func newClient(connectionDetails *client.ApiConnectionDetails) (*httpapi.Client, error) {
 	if connectionDetails.LookoutUrl == "" {
 		return nil, errors.New("no Lookout url configured: set lookoutUrl in the context or pass --lookoutUrl")
 	}
-	return httpapi.New(connectionDetails, connectionDetails.LookoutUrl)
+	timeout := connectionDetails.LookoutTimeout
+	if timeout <= 0 {
+		timeout = defaultLookoutTimeout
+	}
+	return httpapi.New(connectionDetails, connectionDetails.LookoutUrl, httpapi.WithTimeout(timeout))
 }
 
 // getJob returns the job with the given id, or nil if Lookout does not know it.

@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -89,6 +90,41 @@ func TestExtractConnectionDetails_LookoutUrl(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, details.LookoutUrl)
 			assert.Equal(t, "armada.remote.example.com:443", details.ArmadaUrl)
+		})
+	}
+}
+
+// The lookoutTimeout flag has no default, so a context's saved timeout is only replaced by a flag that is passed.
+func TestExtractConnectionDetails_LookoutTimeout(t *testing.T) {
+	tests := map[string]struct {
+		saved string // the timeout saved in the context, if not empty
+		flag  string // passed as --lookoutTimeout when not empty
+		want  time.Duration
+	}{
+		"zero when nothing is set":                              {want: 0},
+		"the saved timeout is kept when the flag is not passed": {saved: "90s", want: 90 * time.Second},
+		"the flag replaces the saved timeout":                   {saved: "90s", flag: "2m", want: 2 * time.Minute},
+		"the flag is used when the context has none":            {flag: "30s", want: 30 * time.Second},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+			cmd := &cobra.Command{}
+			AddArmadaApiConnectionCommandlineArgs(cmd)
+			viper.Set("currentContext", "remote")
+			viper.Set("contexts.remote.armadaUrl", "armada.remote.example.com:443")
+			if tc.saved != "" {
+				viper.Set("contexts.remote.lookoutTimeout", tc.saved)
+			}
+			if tc.flag != "" {
+				require.NoError(t, cmd.PersistentFlags().Set("lookoutTimeout", tc.flag))
+			}
+
+			details, err := ExtractCommandlineArmadaApiConnectionDetails()
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, details.LookoutTimeout)
 		})
 	}
 }

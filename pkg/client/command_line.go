@@ -48,6 +48,12 @@ func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
 		panic(err)
 	}
 
+	rootCmd.PersistentFlags().Duration("lookoutTimeout", 0, "how long to wait for Lookout to answer a request, e.g. 90s (default 1m)")
+	err = viper.BindPFlag("lookoutTimeout", rootCmd.PersistentFlags().Lookup("lookoutTimeout"))
+	if err != nil {
+		panic(err)
+	}
+
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.armadactl.yaml)")
 }
 
@@ -212,6 +218,10 @@ func ExtractCommandlineArmadaApiConnectionDetails() (*ApiConnectionDetails, erro
 		// still applies to a context that has none. viper.IsSet is false for a flag that has not been passed.
 		if viper.IsSet("lookoutUrl") || apiConnectionDetails.LookoutUrl == "" {
 			apiConnectionDetails.LookoutUrl = viper.GetString("lookoutUrl")
+		}
+		// The flag defaults to zero, which means the default timeout, so it only replaces the context's when passed.
+		if viper.IsSet("lookoutTimeout") {
+			apiConnectionDetails.LookoutTimeout = viper.GetDuration("lookoutTimeout")
 		}
 
 	} else {

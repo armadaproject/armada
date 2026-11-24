@@ -29,6 +29,9 @@ type ApiConnectionDetails struct {
 	ArmadaRestUrl string
 	// LookoutUrl is the url of the Lookout API, for the commands that query Lookout rather than Armada.
 	LookoutUrl string
+	// LookoutTimeout is how long a request to the Lookout API may take, from sending it to reading the whole
+	// response. Zero means the default of one minute.
+	LookoutTimeout time.Duration
 	// Names of executor clusters as they appear in the local kubeconfig file.
 	// Used by the test suite to download logs from pods running tests.
 	ExecutorClusters []string
