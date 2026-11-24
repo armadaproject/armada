@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -345,4 +346,70 @@ func TestCredentialsTTL_IsShorterThanTheTimeBeforeExpiryATokenIsRenewed(t *testi
 
 	assert.LessOrEqual(t, 2*credentialsTTL, oauth2ExpiryDelta)
 	assert.Positive(t, credentialsTTL, "some credentials are expensive to ask")
+}
+
+func TestDo_ReportsATimeoutWhenTheServerIsSlowToAnswer(t *testing.T) {
+	release := make(chan struct{})
+	srv := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	})
+	t.Cleanup(func() { close(release) })
+	c, err := New(&client.ApiConnectionDetails{}, srv.URL, WithTimeout(50*time.Millisecond))
+	require.NoError(t, err)
+
+	err = c.Get("/api/slow", &struct{}{})
+
+	var timeout *TimeoutError
+	require.ErrorAs(t, err, &timeout)
+	assert.Equal(t, http.MethodGet, timeout.Method)
+	assert.Equal(t, "/api/slow", timeout.Path)
+	assert.Equal(t, 50*time.Millisecond, timeout.Timeout)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Contains(t, err.Error(), "no complete response within 50ms")
+}
+
+// A response that stops partway would otherwise be reported as a failure to decode it.
+func TestDo_ReportsATimeoutWhenTheResponseStopsPartway(t *testing.T) {
+	srv := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"answer": `))
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	})
+	c, err := New(&client.ApiConnectionDetails{}, srv.URL, WithTimeout(50*time.Millisecond))
+	require.NoError(t, err)
+
+	err = c.Get("/api/stalled", &struct{ Answer int }{})
+
+	var timeout *TimeoutError
+	assert.ErrorAs(t, err, &timeout)
+}
+
+func TestDo_ReportsOtherFailuresAsTheyAre(t *testing.T) {
+	srv := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`not json`))
+	})
+	c, err := New(&client.ApiConnectionDetails{}, srv.URL)
+	require.NoError(t, err)
+
+	err = c.Get("/api/thing", &struct{}{})
+
+	require.Error(t, err)
+	var timeout *TimeoutError
+	assert.False(t, errors.As(err, &timeout))
+}
+
+func TestDo_AnswersWithinTheTimeoutWhenTheServerIsFastEnough(t *testing.T) {
+	srv := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(20 * time.Millisecond)
+		_, _ = w.Write([]byte(`{"answer": 42}`))
+	})
+	c, err := New(&client.ApiConnectionDetails{}, srv.URL, WithTimeout(5*time.Second))
+	require.NoError(t, err)
+
+	var out struct{ Answer int }
+	require.NoError(t, c.Get("/api/thing", &out))
+	assert.Equal(t, 42, out.Answer)
 }

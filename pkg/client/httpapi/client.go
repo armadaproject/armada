@@ -26,12 +26,17 @@ type Client struct {
 	baseUrl       string
 	httpClient    *http.Client
 	authenticated bool
+	timeout       time.Duration
 }
+
+// defaultTimeout is how long a request may take unless WithTimeout says otherwise.
+const defaultTimeout = 10 * time.Second
 
 type options struct {
 	transport      http.RoundTripper
 	now            func() time.Time
 	credentialsTTL time.Duration
+	timeout        time.Duration
 }
 
 // Option changes how a Client is made.
@@ -40,6 +45,11 @@ type Option func(*options)
 // WithTransport sets what sends the requests in the end, instead of http.DefaultTransport.
 func WithTransport(transport http.RoundTripper) Option {
 	return func(o *options) { o.transport = transport }
+}
+
+// WithTimeout sets how long a request may take, from sending it to reading the whole response. The default is 10s.
+func WithTimeout(timeout time.Duration) Option {
+	return func(o *options) { o.timeout = timeout }
 }
 
 // withCredentialsTTL and withClock are for tests: how long the headers of a request are kept, and what time it is.
@@ -65,7 +75,7 @@ func newClient(
 	if url == "" {
 		return nil, errors.New("no url given for the http api")
 	}
-	o := &options{transport: http.DefaultTransport, now: time.Now, credentialsTTL: credentialsTTL}
+	o := &options{transport: http.DefaultTransport, now: time.Now, credentialsTTL: credentialsTTL, timeout: defaultTimeout}
 	for _, opt := range opts {
 		opt(o)
 	}
@@ -91,6 +101,7 @@ func newClient(
 		baseUrl:       base,
 		httpClient:    &http.Client{Transport: transport, CheckRedirect: checkRedirect(connectionDetails, len(headers) > 0)},
 		authenticated: len(headers) > 0,
+		timeout:       o.timeout,
 	}, nil
 }
 
@@ -164,6 +175,9 @@ func (c *Client) unauthorizedHint() string {
 	return "the credentials of the connection were not accepted, even when asked for again: check that they are for this API"
 }
 
+// Timeout is how long a request may take.
+func (c *Client) Timeout() time.Duration { return c.timeout }
+
 // Get sends a GET request to path and decodes the JSON response into out.
 func (c *Client) Get(path string, out any) error {
 	return c.Do(http.MethodGet, path, nil, out)
@@ -177,7 +191,7 @@ func (c *Client) Post(path string, body, out any) error {
 // Do sends a request to path, with body as its JSON when there is one, and decodes the JSON response into out,
 // unless out is nil. Any status but 2xx is an error that has the status and the start of the response.
 func (c *Client) Do(method, path string, body, out any) error {
-	ctx, cancel := common.ContextWithDefaultTimeout()
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	var payload io.Reader
@@ -198,7 +212,7 @@ func (c *Client) Do(method, path string, body, out any) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return c.wrapTimeout(ctx, method, path, err)
 	}
 	defer resp.Body.Close()
 
@@ -213,5 +227,32 @@ func (c *Client) Do(method, path string, body, out any) error {
 	if out == nil {
 		return nil
 	}
-	return json.NewDecoder(resp.Body).Decode(out)
+	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+		return c.wrapTimeout(ctx, method, path, err)
+	}
+	return nil
+}
+
+// TimeoutError is a request that did not get a complete response within the timeout of the client.
+type TimeoutError struct {
+	Method  string
+	Path    string
+	Timeout time.Duration
+}
+
+func (e *TimeoutError) Error() string {
+	return fmt.Sprintf("%s %s: no complete response within %s", e.Method, e.Path, e.Timeout)
+}
+
+// Is makes a TimeoutError a context.DeadlineExceeded, which is what it is.
+func (e *TimeoutError) Is(target error) bool { return target == context.DeadlineExceeded }
+
+// wrapTimeout gives a TimeoutError for a request that failed because its time ran out, which may have been while
+// the response was still being read, where the error would otherwise be a confusing one about decoding. It gives err
+// for any other failure.
+func (c *Client) wrapTimeout(ctx context.Context, method, path string, err error) error {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return &TimeoutError{Method: method, Path: path, Timeout: c.timeout}
+	}
+	return err
 }
