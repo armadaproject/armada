@@ -125,7 +125,10 @@ return fmt.Errorf("failed fetching executors from db - %s", err)
 - `errors.Is` / `errors.As`, so retry logic, `pgx.ErrNoRows` checks and similar no longer match
 - the `armadaerrors` type, so an API user gets `Unknown` instead of the right gRPC code
 
-Note that the stack lookup only goes 10 layers deep. In practice this is plenty, but don't wrap the same error more than once per function.
+Note that the stack lookup has two limits:
+
+- It only goes 10 layers deep. In practice this is plenty, but don't wrap the same error more than once per function.
+- It only follows errors that wrap a single error. A stack inside `errors.Join`, or inside `fmt.Errorf` with more than one `%w`, isn't found. If you combine errors this way, a missing `stacktrace` doesn't mean no stack was recorded.
 
 ## Errors returned to API users
 
@@ -133,9 +136,9 @@ Code that handles gRPC requests should return the types in [`internal/common/arm
 
 | Situation | Return | Client sees |
 |---|---|---|
-| Bad input in the request | `&armadaerrors.ErrInvalidArgument{Name, Value, Message}` | `InvalidArgument` |
-| Requested object doesn't exist | `&armadaerrors.ErrNotFound{Type, Value}` | `NotFound` |
-| Object already exists | `&armadaerrors.ErrAlreadyExists{Type, Value}` | `AlreadyExists` |
+| Bad input in the request | `&armadaerrors.ErrInvalidArgument{Name: "priorityFactor", Value: factor, Message: "must be positive"}` | `InvalidArgument` |
+| Requested object doesn't exist | `&armadaerrors.ErrNotFound{Type: "queue", Value: queueName}` | `NotFound` |
+| Object already exists | `&armadaerrors.ErrAlreadyExists{Type: "queue", Value: queueName}` | `AlreadyExists` |
 | Job can't fit on any node | `*armadaerrors.ErrPodUnschedulable` | `InvalidArgument` |
 | Anything else | A normal wrapped error | `Unknown` |
 
@@ -146,7 +149,10 @@ When you write these:
 - **Messages are truncated** to the configured maximum size, so put the important part first.
 - **They don't carry a stack.** That's usually fine, since user errors are expected and don't need a trace. If you do want one for a server-side log, wrap the error with `errors.WithStack`.
 
-If you're returning an error that isn't the user's fault (for example, the database being down), don't dress it up as `InvalidArgument`. Let it come through as `Unknown` and make sure it's logged with a stack on the server.
+If you're returning an error that isn't the user's fault (for example, the database being down), don't dress it up as `InvalidArgument`. Let it come through as `Unknown`, and keep two things in mind:
+
+- **Log it in the handler with `WithStacktrace`.** The gRPC request log runs after the error has been converted to a status, so it never sees the original stack. Nothing else will log it with a stack for you.
+- **Its full message is still sent to the client.** Every wrap message in the chain is included, so don't put anything in them that a user shouldn't see.
 
 ## Logging errors
 
@@ -156,8 +162,10 @@ Both put the error in the `error` field. `WithStacktrace` also adds the `stacktr
 
 Use **`WithStacktrace`** when the error is unexpected and someone will need to find out where it came from:
 
-- cycle failures, failed background loops, panics you recovered from
+- cycle failures and failed background loops
 - anything at `Error` level that points to a bug or an infrastructure problem
+
+For a recovered panic, capture and log `debug.Stack()` in the recovery handler. `WithStacktrace` only reads a stack already stored on an error, and a recovered panic value usually doesn't have one.
 
 ```go
 ctx.Logger().WithStacktrace(err).Error("scheduling cycle failed")
