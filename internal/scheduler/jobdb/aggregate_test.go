@@ -1207,11 +1207,16 @@ func TestJobAggregate_BatchUpsertMatchesIndividualUpserts(t *testing.T) {
 	}
 }
 
-func resourceListMapSnapshot(m map[string]map[string]internaltypes.ResourceList) map[string]string {
-	out := make(map[string]string, len(m))
+type queuePriorityClass struct {
+	queue         string
+	priorityClass string
+}
+
+func resourceListMapSnapshot(m map[string]map[string]internaltypes.ResourceList) map[queuePriorityClass]string {
+	out := make(map[queuePriorityClass]string, len(m))
 	for queue, byPC := range m {
 		for pc, rl := range byPC {
-			out[queue+"/"+pc] = rl.String()
+			out[queuePriorityClass{queue: queue, priorityClass: pc}] = rl.String()
 		}
 	}
 	return out
