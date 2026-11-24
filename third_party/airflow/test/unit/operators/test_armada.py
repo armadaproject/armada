@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch, ANY
 
 import pytest
 from airflow.exceptions import TaskDeferred
-from armada.model import GrpcChannelArgs, RunningJobContext
+from armada.model import GrpcChannelArgs, LogPosition, RunningJobContext
 from armada.operators.armada import ArmadaOperator
 from armada.operators.errors import (
     ArmadaOperatorJobFailedError,
@@ -17,11 +17,12 @@ from armada_client.typings import JobState
 from pendulum import UTC, DateTime
 
 DEFAULT_CURRENT_TIME = DateTime(2024, 8, 7, tzinfo=UTC)
-DEFAULT_JOB_ID = "test_job"
+DEFAULT_JOB_ID = "01hcq4x7d2k9m3n5p8r0s1t2v4"
 DEFAULT_TASK_ID = "test_task_1"
 DEFAULT_JOB_SET = "prefix-test_run_1"
 DEFAULT_QUEUE = "test_queue_1"
 DEFAULT_CLUSTER = "cluster-1"
+DEFAULT_POD = f"armada-{DEFAULT_JOB_ID}-0"
 
 
 def default_hook() -> MagicMock:
@@ -31,7 +32,10 @@ def default_hook() -> MagicMock:
     mock.job_by_external_job_uri.return_value = None
     mock.job_termination_reason.return_value = "FAILED"
     mock.refresh_context.return_value = dataclasses.replace(
-        job_context, job_state=JobState.SUCCEEDED.name, cluster=DEFAULT_CLUSTER
+        job_context,
+        job_state=JobState.SUCCEEDED.name,
+        cluster=DEFAULT_CLUSTER,
+        pod_name=DEFAULT_POD,
     )
     mock.cancel_job.return_value = dataclasses.replace(
         job_context, job_state=JobState.CANCELLED.name
@@ -269,15 +273,39 @@ def test_polls_for_logs(context):
     )
     op.execute(context)
 
-    # We polled logs as expected.
     op.pod_manager.fetch_container_logs.assert_called_once_with(
         k8s_context="cluster-1",
         namespace="namespace-1",
-        pod="armada-test_job-0",
+        pod=DEFAULT_POD,
         container="alpine",
-        since_time=None,
+        since=None,
         link_extractor=ANY,
     )
+
+
+def test_persists_the_log_position_for_the_next_poll(context):
+    op = operator(
+        JobSubmitRequestItem(namespace="namespace-1"), container_logs="alpine"
+    )
+    op.pod_manager.fetch_container_logs.return_value = LogPosition(
+        DEFAULT_CURRENT_TIME, 7
+    )
+    op.execute(context)
+
+    persisted = op.hook.context_to_xcom.call_args.args[1]
+    assert persisted.log_position == LogPosition(DEFAULT_CURRENT_TIME, 7)
+
+
+def test_does_not_poll_for_logs_of_a_run_without_a_pod_name(context):
+    op = operator(
+        JobSubmitRequestItem(namespace="namespace-1"), container_logs="alpine"
+    )
+    op.hook.refresh_context.return_value = dataclasses.replace(
+        op.hook.refresh_context.return_value, pod_name=None
+    )
+    op.execute(context)
+
+    op.pod_manager.fetch_container_logs.assert_not_called()
 
 
 def test_publishes_xcom_state(context):

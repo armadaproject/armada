@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -74,13 +75,14 @@ func AuthenticateDevice(config DeviceDetails, cacheToken bool) (*TokenCredential
 		return nil, err
 	}
 
+	// Login instructions go to stderr so they do not end up in machine-readable output (--output json/yaml).
 	if deviceFlowResponse.VerificationURIComplete != "" {
-		fmt.Printf("Complete your login in the browser:\n\n    %s\n", deviceFlowResponse.VerificationURIComplete)
+		fmt.Fprintf(os.Stderr, "Complete your login in the browser:\n\n    %s\n", deviceFlowResponse.VerificationURIComplete)
 		if cmd, err := openBrowser(deviceFlowResponse.VerificationURIComplete); err == nil && cmd != nil {
 			defer func() { _ = cmd.Process.Kill() }()
 		}
 	} else {
-		fmt.Printf("Go to:\n\n    %s\n\nand enter code: %s\n", deviceFlowResponse.VerificationURI, deviceFlowResponse.UserCode)
+		fmt.Fprintf(os.Stderr, "Go to:\n\n    %s\n\nand enter code: %s\n", deviceFlowResponse.VerificationURI, deviceFlowResponse.UserCode)
 		if cmd, err := openBrowser(deviceFlowResponse.VerificationURI); err == nil && cmd != nil {
 			defer func() { _ = cmd.Process.Kill() }()
 		}
@@ -102,7 +104,7 @@ func AuthenticateDevice(config DeviceDetails, cacheToken bool) (*TokenCredential
 		case <-ticker.C:
 			token, err := requestToken(ctx, httpClient, oauth.Endpoint.TokenURL, config.ClientId, deviceFlowResponse.DeviceCode)
 			if err == nil {
-				fmt.Printf("\nAuthentication successful!\n\n")
+				fmt.Fprintf(os.Stderr, "\nAuthentication successful!\n\n")
 				saveTokenToCache(token, cache)
 				return &TokenCredentials{oauth.TokenSource(ctx, token)}, nil
 			}

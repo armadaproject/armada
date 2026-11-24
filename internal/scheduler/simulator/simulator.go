@@ -16,7 +16,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	serverconfig "github.com/armadaproject/armada/internal/common/constants"
@@ -54,8 +54,8 @@ type accounting struct {
 	// Allocation by pool for each queue and priority class.
 	// Stored across invocations of the scheduler.
 	allocationByPoolAndQueueAndPriorityClass map[string]map[string]map[string]internaltypes.ResourceList
-	// Demand for each queue
-	demandByQueue map[string]internaltypes.ResourceList
+	// Demand for each queue and priority class.
+	demandByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 	// Total resources across all executorGroups for each pool.
 	totalResourcesByPool map[string]internaltypes.ResourceList
 }
@@ -181,7 +181,7 @@ func NewSimulator(
 			nodeDbByPool:                             make(map[string]*nodedb.NodeDb),
 			poolByNodeId:                             make(map[string]string),
 			allocationByPoolAndQueueAndPriorityClass: make(map[string]map[string]map[string]internaltypes.ResourceList),
-			demandByQueue:                            make(map[string]internaltypes.ResourceList),
+			demandByQueueAndPriorityClass:            make(map[string]map[string]internaltypes.ResourceList),
 			totalResourcesByPool:                     make(map[string]internaltypes.ResourceList),
 		},
 	}
@@ -562,17 +562,17 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 		if err != nil {
 			return err
 		}
-		sctx := schedulercontext.NewSchedulingContext(
+		sctx := schedulercontext.NewSchedulingContextAt(
 			pool,
 			fairnessCostProvider,
 			s.limiter,
 			nil, // no fairshare preemption rate limit in the simulator
 			totalResources,
+			s.schedulingConfig.PriorityClasses,
+			s.time,
 		)
-
-		sctx.Started = s.time
 		for _, queue := range s.WorkloadSpec.Queues {
-			demand, hasDemand := s.accounting.demandByQueue[queue.Name]
+			demand, hasDemand := s.accounting.demandByQueueAndPriorityClass[queue.Name]
 			if !hasDemand {
 				// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
 				continue
@@ -582,7 +582,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				queue.Weight,
 				queue.Weight,
 				s.accounting.allocationByPoolAndQueueAndPriorityClass[pool][queue.Name],
-				demand,
+				internaltypes.RlMapSumValues(demand),
 				demand,
 				internaltypes.ResourceList{},
 				s.limiter,
@@ -607,7 +607,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			txn,
 			nodeDb,
 			shouldRunOptimiser,
-			clock.RealClock{},
+			clocktesting.NewFakeClock(s.time),
 		)
 
 		schedulerCtx := ctx
@@ -1023,11 +1023,17 @@ func maxTime(a, b time.Time) time.Time {
 }
 
 func (s *Simulator) addJobToDemand(job *jobdb.Job) {
-	s.accounting.demandByQueue[job.Queue()] = s.accounting.demandByQueue[job.Queue()].Add(job.AllResourceRequirements())
+	demand := s.accounting.demandByQueueAndPriorityClass[job.Queue()]
+	if demand == nil {
+		demand = make(map[string]internaltypes.ResourceList)
+		s.accounting.demandByQueueAndPriorityClass[job.Queue()] = demand
+	}
+	demand[job.PriorityClassName()] = demand[job.PriorityClassName()].Add(job.AllResourceRequirements())
 }
 
 func (s *Simulator) removeJobFromDemand(job *jobdb.Job) {
-	s.accounting.demandByQueue[job.Queue()] = s.accounting.demandByQueue[job.Queue()].Subtract(job.AllResourceRequirements())
+	demand := s.accounting.demandByQueueAndPriorityClass[job.Queue()]
+	demand[job.PriorityClassName()] = demand[job.PriorityClassName()].Subtract(job.AllResourceRequirements())
 }
 
 func expandRepeatingTemplates(w *WorkloadSpec) *WorkloadSpec {

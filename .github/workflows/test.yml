@@ -64,6 +64,77 @@ jobs:
           path: test-reports/
           if-no-files-found: error
 
+  executor-service-race-tests:
+    name: Executor Service Race Tests
+    needs:
+      - go-mod-up-to-date
+      - sqlc-up-to-date
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+
+    env:
+      CGO_ENABLED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: executor-service-race-tests
+
+      - name: Race Tests
+        run: go test -race -count=20 -timeout=15m ./internal/executor/service/
+
+  scheduler-race-tests:
+    name: Scheduler Race Tests
+    needs:
+      - go-mod-up-to-date
+      - sqlc-up-to-date
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+
+    env:
+      CGO_ENABLED: "1"
+      GOMAXPROCS: "4"
+
+    services:
+      postgres:
+        image: postgres:14.2
+        env:
+          POSTGRES_PASSWORD: psw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go-cache
+        with:
+          cache-prefix: scheduler-race-tests
+
+      - name: Race Tests
+        shell: bash
+        run: |
+          go run gotest.tools/gotestsum@v1.13.0 --format pkgname --jsonfile scheduler-race-results.jsonl -- \
+            -race -count=1 -p=4 -parallel=4 -timeout=10m ./internal/scheduler/...
+
+      - name: Upload Scheduler Race Results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scheduler-race-results-${{ github.run_attempt }}
+          path: scheduler-race-results.jsonl
+          if-no-files-found: error
+
   go-integration-tests:
     name: Golang Integration Tests
     needs:

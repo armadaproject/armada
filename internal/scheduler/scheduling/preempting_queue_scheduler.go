@@ -85,7 +85,7 @@ func NewPreemptingQueueScheduler(
 // - schedules new jobs belonging to queues with total allocation less than their fair share.
 func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResult, error) {
 	defer func() {
-		sch.schedulingContext.Finished = time.Now()
+		sch.schedulingContext.Finished = sch.clock.Now()
 	}()
 
 	preemptedJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
@@ -676,8 +676,8 @@ func (sch *PreemptingQueueScheduler) runOptimiser(ctx *armadacontext.Context) (*
 		minimumJobSizeToSchedule = &minJobSize
 	}
 
-	nodeScheduler := optimiser.NewPreemptingNodeScheduler(sch.jobRepo, maximumJobSizeToPreempt)
-	optimisingScheduler := optimiser.NewFairnessOptimisingScheduler(nodeScheduler, sch.jobRepo, sch.nodeDb, sch.optimiserConfig.MinimumFairnessImprovementPercentage)
+	nodeScheduler := optimiser.NewPreemptingNodeScheduler(sch.jobRepo, sch.nodeDb, maximumJobSizeToPreempt, sch.optimiserConfig.AllowGangPreemption)
+	optimisingScheduler := optimiser.NewFairnessOptimisingScheduler(nodeScheduler, sch.jobRepo, sch.nodeDb, sch.optimiserConfig.MinimumFairnessImprovementPercentage, sch.optimiserConfig.AllowGangPreemption)
 	optimisingQueueScheduler := NewOptimisingQueueScheduler(
 		sch.jobRepo,
 		optimisingScheduler,
@@ -756,7 +756,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 		sch.maxQueueLookBack,
 		sch.marketDriven,
 		spotPriceCutoff,
-		sch.clock,
+		clock.RealClock{},
 	)
 	if err != nil {
 		return nil, err

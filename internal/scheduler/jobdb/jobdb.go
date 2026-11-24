@@ -955,7 +955,7 @@ func (txn *Txn) GetByRunId(runId string) *Job {
 	return txn.GetById(jobId)
 }
 
-// HasQueuedJobs returns true if the queue has any jobs in the running state or false otherwise
+// HasQueuedJobs returns true if the queue has any queued jobs.
 func (txn *Txn) HasQueuedJobs(queue string) bool {
 	queuedJobs, ok := txn.jobsByQueue[queue]
 	if !ok {

@@ -12,7 +12,6 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/constants"
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/server/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -687,7 +686,7 @@ func TestValidatePodSpecSize(t *testing.T) {
 		},
 	}
 
-	defaultPodSpecSize := uint(len(protoutil.MustMarshall(defaultPodSpec)))
+	defaultPodSpecSize := uint(defaultPodSpec.Size())
 
 	tests := map[string]struct {
 		req            *api.JobSubmitRequestItem
@@ -1342,12 +1341,12 @@ func TestValidateResources_PodLevelKubernetesParity(t *testing.T) {
 			expectSuccess:   false,
 			expectErrSubstr: "unsupported request ephemeral-storage",
 		},
-		"hugepages-only block rejected by the current Kubernetes dependency": {
+		"hugepages-only block accepted by the current Kubernetes dependency": {
 			req: req(&v1.ResourceRequirements{
 				Requests: rl("hugepages-2Mi", "80Mi"),
 				Limits:   rl("hugepages-2Mi", "80Mi"),
 			}, emptyContainer, nil),
-			expectErrSubstr: "unsupported request hugepages-2Mi; only cpu, memory may be requested at the pod level",
+			expectSuccess: true,
 		},
 		"unsupported resource in limits only rejected": {
 			req: req(&v1.ResourceRequirements{

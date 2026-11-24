@@ -135,6 +135,7 @@ func createSchedulingContext(t *testing.T) *context.SchedulingContext {
 		),
 		nil,
 		testfixtures.Cpu("1"),
+		testfixtures.TestPriorityClasses,
 	)
 }
 

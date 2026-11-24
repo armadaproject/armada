@@ -76,6 +76,7 @@ func DefaultSubmissionConfig() configuration.SubmissionConfig {
 		MinTerminationGracePeriod: 30 * time.Second,
 		MaxTerminationGracePeriod: 300 * time.Second,
 		DefaultActiveDeadline:     1 * time.Hour,
+		ObjectNamePrefix:          "armada",
 	}
 }
 
@@ -90,6 +91,7 @@ func SubmissionConfigWithCustomServiceNamesEnabled() configuration.SubmissionCon
 		MinTerminationGracePeriod: 30 * time.Second,
 		MaxTerminationGracePeriod: 300 * time.Second,
 		DefaultActiveDeadline:     1 * time.Hour,
+		ObjectNamePrefix:          "armada",
 		AllowCustomServiceNames:   true,
 	}
 }
@@ -205,11 +207,12 @@ func JobSubmitRequestItem(i int) *api.JobSubmitRequestItem {
 func SubmitJob(i int) *armadaevents.SubmitJob {
 	jobId := TestUlid(i)
 	return &armadaevents.SubmitJob{
-		JobId:           jobId,
-		Priority:        DefaultPriorityInt,
-		ObjectMeta:      &armadaevents.ObjectMeta{Namespace: DefaultNamespace},
-		Objects:         []*armadaevents.KubernetesObject{},
-		DeduplicationId: fmt.Sprintf("%d", i),
+		JobId:            jobId,
+		Priority:         DefaultPriorityInt,
+		ObjectMeta:       &armadaevents.ObjectMeta{Namespace: DefaultNamespace},
+		ObjectNamePrefix: "armada",
+		Objects:          []*armadaevents.KubernetesObject{},
+		DeduplicationId:  fmt.Sprintf("%d", i),
 		MainObject: &armadaevents.KubernetesMainObject{
 			Object: &armadaevents.KubernetesMainObject_PodSpec{
 				PodSpec: &armadaevents.PodSpecWithAvoidList{

@@ -628,7 +628,7 @@ func createSctx(t *testing.T, scheduledJobs []*jobdb.Job, preemptedJobs []*jobdb
 	totalResources := testfixtures.TestResourceListFactory.MakeAllZero()
 	fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, reconcileTestPool, testfixtures.TestSchedulingConfig())
 	require.NoError(t, err)
-	sctx := schedulercontext.NewSchedulingContext(reconcileTestPool, fairnessCostProvider, nil, nil, totalResources)
+	sctx := schedulercontext.NewSchedulingContext(reconcileTestPool, fairnessCostProvider, nil, nil, totalResources, testfixtures.TestPriorityClasses)
 
 	demand := internaltypes.ResourceList{}
 	for _, job := range append(scheduledJobs, preemptedJobs...) {
@@ -640,7 +640,7 @@ func createSctx(t *testing.T, scheduledJobs []*jobdb.Job, preemptedJobs []*jobdb
 		initialAllocation[job.PriorityClassName()] = initialAllocation[job.PriorityClassName()].Add(job.AllResourceRequirements())
 	}
 
-	err = sctx.AddQueueSchedulingContext(testfixtures.TestQueue, 1.0, 1.0, initialAllocation, demand, demand, internaltypes.ResourceList{}, nil)
+	err = sctx.AddQueueSchedulingContext(testfixtures.TestQueue, 1.0, 1.0, initialAllocation, demand, map[string]internaltypes.ResourceList{testfixtures.TestDefaultPriorityClass: demand}, internaltypes.ResourceList{}, nil)
 	require.NoError(t, err)
 	for _, job := range scheduledJobs {
 		_, err := sctx.AddJobSchedulingContext(schedulercontext.JobSchedulingContextFromJob(job))

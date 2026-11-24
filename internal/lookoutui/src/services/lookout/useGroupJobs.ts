@@ -1,9 +1,9 @@
 import { useCallback, useMemo } from "react"
 
-import { makeRandomJobs, mergeFilters } from "../../common/fakeJobsUtils"
+import { filterFakeJobs, getFakeJobs } from "../../common/fakeJobsUtils"
 import { getErrorMessage } from "../../common/utils"
 import { getConfig } from "../../config"
-import { AggregateType, Job, JobFilter, JobGroup, JobOrder, JobState } from "../../models/lookoutModels"
+import { AggregateType, Job, JobFilter, JobGroup, JobOrder } from "../../models/lookoutModels"
 import { useMirroredLookoutApiFetch } from "../../oidcAuth"
 
 export type GroupedField = {
@@ -16,15 +16,6 @@ export type GroupJobsResponse = {
   groups: JobGroup[]
 }
 
-let fakeJobsCache: Job[] | undefined
-
-function getFakeJobs(): Job[] {
-  if (fakeJobsCache === undefined) {
-    fakeJobsCache = makeRandomJobs(10_000, 42)
-  }
-  return fakeJobsCache
-}
-
 function groupFakeJobs(
   jobs: Job[],
   filters: JobFilter[],
@@ -33,11 +24,7 @@ function groupFakeJobs(
   skip: number,
   take: number,
 ): JobGroup[] {
-  let filtered = jobs.filter(mergeFilters(filters))
-  if (activeJobSets) {
-    const activeStates = new Set([JobState.Queued, JobState.Leased, JobState.Pending, JobState.Running])
-    filtered = filtered.filter((j) => activeStates.has(j.state))
-  }
+  const filtered = filterFakeJobs(jobs, filters, activeJobSets)
 
   const grouped = new Map<string, Job[]>()
   for (const job of filtered) {

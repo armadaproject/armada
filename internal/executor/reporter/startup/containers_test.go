@@ -25,7 +25,7 @@ func podWithContainers(
 }
 
 func TestGetContainerStartUpDetails_EmptyWhenNoContainers(t *testing.T) {
-	details := getContainerStartUpDetails(&v1.Pod{}, nil)
+	details := getContainerStartUpDetails(&v1.Pod{}, nil, nil)
 
 	assert.Nil(t, details.initContainers)
 	assert.Nil(t, details.containers)
@@ -40,7 +40,7 @@ func TestGetContainerStartUpDetails_KeepsStatusOrder(t *testing.T) {
 		{Name: "third", State: terminated(baselineWithOffset(31), baselineWithOffset(40))},
 	}, nil)
 
-	details := getContainerStartUpDetails(pod, nil)
+	details := getContainerStartUpDetails(pod, nil, nil)
 
 	require.Len(t, details.initContainers, 3)
 	assert.Equal(t, []string{"first", "second", "third"}, []string{
@@ -54,7 +54,7 @@ func TestGetContainerStartUpDetails_KeepsStatusOrder(t *testing.T) {
 // +70s to +111s, described with and without the events that accompany it.
 func podWithOneInitContainer() *v1.Pod {
 	return podWithContainers(nil, []v1.ContainerStatus{
-		{Name: "init", State: terminated(baselineWithOffset(70), baselineWithOffset(111))},
+		{Name: "init", Image: cachedImageTag, ImageID: cachedImageDigest, State: terminated(baselineWithOffset(70), baselineWithOffset(111))},
 	}, nil)
 }
 
@@ -65,7 +65,7 @@ func TestGetContainerStartUpDetails_InstantsFromStatusAndEvents(t *testing.T) {
 			`Successfully pulled image "repo/img:1.0" in 1s (3s including waiting). Image size: 111 bytes.`, baselineWithOffset(60)),
 	}
 
-	details := getContainerStartUpDetails(podWithOneInitContainer(), events)
+	details := getContainerStartUpDetails(podWithOneInitContainer(), nodeWithCachedImage(1234), events)
 
 	require.Len(t, details.initContainers, 1)
 	init := details.initContainers[0]
@@ -76,18 +76,18 @@ func TestGetContainerStartUpDetails_InstantsFromStatusAndEvents(t *testing.T) {
 	assert.Equal(t, time.Second, mustDuration(t, init.ImagePull.Duration))
 	assert.Equal(t, 2*time.Second, mustDuration(t, init.ImagePull.WaitingTime))
 	require.NotNil(t, init.ImagePull.SizeBytes)
-	assert.Equal(t, uint64(111), init.ImagePull.SizeBytes.Value)
+	assert.Equal(t, uint64(111), init.ImagePull.SizeBytes.Value, "the Pulled event's size wins over the node's")
 }
 
 // created_at and the image pull are only ever reported by events, so without them those two are
 // unset while everything the container's own status carries is still reported.
 func TestGetContainerStartUpDetails_UnsetWhenNoEvents(t *testing.T) {
-	details := getContainerStartUpDetails(podWithOneInitContainer(), nil)
+	details := getContainerStartUpDetails(podWithOneInitContainer(), nodeWithCachedImage(1234), nil)
 
 	require.Len(t, details.initContainers, 1)
 	init := details.initContainers[0]
 	assert.Nil(t, init.CreatedAt, "only an event reports this")
-	assert.Nil(t, init.ImagePull, "only an event reports this")
+	assert.Nil(t, init.ImagePull, "only an event reports this, even when the node knows the image's size")
 	assert.Equal(t, baselineWithOffset(70).Time, mustTimestamp(t, init.StartedAt), "status still supplies this")
 	assert.Equal(t, baselineWithOffset(111).Time, mustTimestamp(t, init.FinishedAt))
 }
@@ -99,7 +99,7 @@ func TestGetContainerStartUpDetails_NoFinishedAtForRunningContainer(t *testing.T
 		{Name: "main", State: running(baselineWithOffset(137))},
 	})
 
-	details := getContainerStartUpDetails(pod, nil)
+	details := getContainerStartUpDetails(pod, nil, nil)
 
 	require.Len(t, details.containers, 1)
 	assert.Equal(t, baselineWithOffset(137).Time, mustTimestamp(t, details.containers[0].StartedAt))
@@ -118,7 +118,7 @@ func TestGetContainerStartUpDetails_SeparatesInitAndAppByFieldPath(t *testing.T)
 		podEvent("spec.containers{shared}", "Created", "", baselineWithOffset(25)),
 	}
 
-	details := getContainerStartUpDetails(pod, events)
+	details := getContainerStartUpDetails(pod, nil, events)
 
 	require.Len(t, details.initContainers, 1)
 	require.Len(t, details.containers, 1)
@@ -144,7 +144,7 @@ func TestGetContainerStartUpDetails_FlagsSidecarsFromSpec(t *testing.T) {
 	// An app container cannot be a sidecar even when it declares the same restart policy.
 	pod.Spec.Containers = []v1.Container{{Name: "main", RestartPolicy: new(v1.ContainerRestartPolicyAlways)}}
 
-	details := getContainerStartUpDetails(pod, nil)
+	details := getContainerStartUpDetails(pod, nil, nil)
 
 	require.Len(t, details.initContainers, 3)
 	require.Len(t, details.containers, 1)
@@ -209,7 +209,7 @@ func TestGetContainerStartUpDetails_StartedAtSource(t *testing.T) {
 				podEvent("spec.initContainers{init}", "Started", "Started container init", baselineWithOffset(99)),
 			}
 
-			details := getContainerStartUpDetails(pod, events)
+			details := getContainerStartUpDetails(pod, nil, events)
 
 			require.Len(t, details.initContainers, 1)
 			assert.Equal(t, tc.expected.Time, mustTimestamp(t, details.initContainers[0].StartedAt))

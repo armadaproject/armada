@@ -379,3 +379,15 @@ func TestExtractServices_SelectsThePodOfTheRun(t *testing.T) {
 	require.Len(t, services, 1)
 	assert.Equal(t, map[string]string{domain.JobId: "job-1", domain.JobRunId: "run-1", domain.Queue: "queue", domain.PodNumber: "0"}, services[0].Spec.Selector)
 }
+
+func TestCreatePodFromExecutorApiJob_PodName(t *testing.T) {
+	lease := createBasicJobRunLease()
+	lease.JobRunId = "run-1"
+	lease.Job.ObjectNamePrefix = "team"
+	lease.Job.RunScopedPodNames = true
+
+	pod, err := CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+
+	require.NoError(t, err)
+	assert.Equal(t, "team-run-1", pod.Name)
+}

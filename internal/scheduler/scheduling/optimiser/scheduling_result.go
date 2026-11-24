@@ -8,11 +8,16 @@ import (
 type schedulingResult struct {
 	scheduled      bool
 	schedulingCost float64
-	results        []*nodeSchedulingResult
+	schedulingGain float64
+	nodeResults    []*nodeSchedulingResult
 	// Used to tie-break when sorting
 	resultId string
 }
 
+// We could make this net gain order, but in practice gain is equivalent across all candidates
+//   - net_gain = gain - cost
+//   - gain varies across schedulingResults but cost does not, so optimising for minimum cost is equivalent to
+//     optimising for maximum net gain
 type schedulingCostOrder []*schedulingResult
 
 func (sco schedulingCostOrder) Len() int {
@@ -34,12 +39,15 @@ func (sco schedulingCostOrder) Swap(i, j int) {
 	sco[i], sco[j] = sco[j], sco[i]
 }
 
+// node is a snapshot from evaluation. Read the transaction before updating it,
+// since other placements may have preempted siblings on that node.
 type nodeSchedulingResult struct {
-	scheduled          bool
-	jctx               *context.JobSchedulingContext
-	node               *internaltypes.Node
-	schedulingCost     float64
-	jobIdsToPreempt    []string
+	scheduled      bool
+	jctx           *context.JobSchedulingContext
+	node           *internaltypes.Node
+	schedulingCost float64
+	// After preemption-reduction on schedulingResult, there's no guarantee that any gangsToPreempt have a sibling on node.
+	gangsToPreempt     []*preemptibleGang
 	maximumQueueImpact float64
 	queueCostChanges   map[string]float64
 	// Used to tie-break when sorting

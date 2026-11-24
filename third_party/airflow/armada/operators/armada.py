@@ -572,22 +572,28 @@ class ArmadaOperator(BaseOperator, LoggingMixin):
             job_context = self.hook.cancel_job(job_context)
             return job_context
 
-        if self._should_have_a_pod_in_k8s(job_context) and self.container_logs:
+        if (
+            self._should_have_a_pod_in_k8s(job_context)
+            and self.container_logs
+            and job_context.pod_name
+        ):
             try:
                 link_extractor = UrlFromLogsExtractor.create(
                     self.extra_links, context["ti"]
                 )
-                last_log_time = self.pod_manager.fetch_container_logs(
+                log_position = self.pod_manager.fetch_container_logs(
                     k8s_context=job_context.cluster,
                     namespace=self.job_request.namespace,
-                    pod=f"armada-{job_context.job_id}-0",
+                    pod=job_context.pod_name,
                     container=self.container_logs,
-                    since_time=job_context.last_log_time,
+                    since=job_context.log_position,
                     link_extractor=link_extractor,
                 )
-                if last_log_time:
+                if log_position:
                     job_context = dataclasses.replace(
-                        job_context, last_log_time=last_log_time
+                        job_context,
+                        last_log_time=log_position.time,
+                        last_log_offset=log_position.offset,
                     )
             except Exception as e:
                 self.log.warning(f"Error fetching logs {e}")

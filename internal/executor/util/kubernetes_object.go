@@ -9,8 +9,8 @@ import (
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/armadaproject/armada/internal/common"
 	serverconfiguration "github.com/armadaproject/armada/internal/common/constants"
+	"github.com/armadaproject/armada/internal/common/podname"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
@@ -140,7 +140,7 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        common.PodNamePrefix + job.Job.JobId + "-" + strconv.Itoa(0),
+			Name:        podname.ForRun(job.Job.ObjectNamePrefix, job.Job.RunScopedPodNames, jobId, runId),
 			Labels:      labels,
 			Annotations: annotation,
 			Namespace:   job.Job.ObjectMeta.Namespace,

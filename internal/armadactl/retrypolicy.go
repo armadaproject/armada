@@ -94,11 +94,9 @@ func (a *App) GetRetryPolicy(name string) error {
 	if err != nil {
 		return errors.Errorf("error getting retry policy %s: %s", name, err)
 	}
-	b, err := yaml.Marshal(policy)
-	if err != nil {
-		return errors.Errorf("error marshalling retry policy %s: %s", name, err)
+	if err := a.emitDocument(client.ResourceKindRetryPolicy, policy); err != nil {
+		return errors.Errorf("error writing retry policy %s: %s", name, err)
 	}
-	fmt.Fprint(a.Out, retryPolicyHeaderYaml()+string(b))
 	return nil
 }
 
@@ -111,21 +109,8 @@ func (a *App) GetAllRetryPolicies() error {
 		policies = []*api.RetryPolicy{}
 	}
 	// A mapping, so that it follows the mapping header the document opens with.
-	b, err := yaml.Marshal(retryPolicyListBody{RetryPolicies: policies})
-	if err != nil {
-		return errors.Errorf("error marshalling retry policies: %s", err)
+	if err := a.emitDocument(client.ResourceKindRetryPolicy, retryPolicyListBody{RetryPolicies: policies}); err != nil {
+		return errors.Errorf("error writing retry policies: %s", err)
 	}
-	fmt.Fprint(a.Out, retryPolicyHeaderYaml()+string(b))
 	return nil
-}
-
-func retryPolicyHeaderYaml() string {
-	b, err := yaml.Marshal(client.Resource{
-		Version: client.APIVersionV1,
-		Kind:    client.ResourceKindRetryPolicy,
-	})
-	if err != nil {
-		panic(err)
-	}
-	return string(b)
 }

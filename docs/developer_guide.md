@@ -24,6 +24,8 @@
 
 This document is intended for developers who want to contribute to the project. It contains information about the project structure, how to build the project and how to run the tests.
 
+This is the detailed local-development reference. The [published developer guide](https://armadaproject.io/docs/developer-guide) provides a concise setup entrypoint, maintained separately in [`website/content/docs/developer-guide.mdx`](../website/content/docs/developer-guide.mdx). Keep its setup examples consistent with this reference. For website authoring and checks, follow [`website/README.md`](../website/README.md).
+
 ## Quickstart
 
 Want to quickly get Armada running and test it? Install the [prerequisites](#pre-requisites) and then run:
@@ -51,6 +53,7 @@ For more information about Armada's design, see the following pages:
 ## Other developer docs
 
 - [Armada API](./developer/armada-api.md)
+- [Regenerating code and API clients](./developer/generation.md)
 - [Running Armada in an EC2 instance](https://armadaproject.io/developer/aws-ec2)
 - [Armada UI](https://armadaproject.io/developer/ui)
 - [Usage metrics](./developer/usage_metrics.md)
@@ -92,7 +95,7 @@ If `mage dev:up no-auth` reports `Unknown target`, your mage binary is too old f
 
 For the layout of the `_local` directory itself, see [_local/README.md](https://github.com/armadaproject/armada/blob/master/_local/README.md).
 
-**Note:** If you edit a proto file, you also need to run `mage proto` to regenerate the Go code.
+**Note:** API generation includes Go, gateway and Swagger outputs. Follow [Regenerating code and API clients](./developer/generation.md) for editable sources, commands and outputs, including SQL and downstream clients.
 
 We use `mage dev:full` to test the CI pipeline. You should therefore use it to test changes to the core components of Armada.
 
@@ -143,11 +146,11 @@ All Procfiles are located in `_local/procfiles/`:
 | `auth-fake-executor.Procfile` | OIDC authentication with the fake executor, no Kubernetes |
 | `hot-cold.Procfile`      | Runs the parallel hot/cold Lookout stack          |
 
-Each profile also has a `-dap` variant, described under [Debugging](#debugging). Restart individual processes with `goreman restart <component>` (e.g., `goreman restart server`).
+Each profile also has a `-dap` variant, described under [Debugging](#debugging). In a second terminal, restart an individual process through the running Goreman instance with `./bin/goreman run restart <component>` (for example, `./bin/goreman run restart server`).
 
 ### Service ports
 
-Run `goreman run status` to check the status of the processes (running processes are prefixed with `*`). Goreman exposes services on the following ports:
+For the standard profile, run `./bin/goreman run status` in a second terminal to check the status of the processes (running processes are prefixed with `*`). Goreman exposes services on the following ports:
 
 | Service                    | Port  | Description                       |
 | -------------------------- | ----- | --------------------------------- |

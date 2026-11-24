@@ -201,7 +201,8 @@ func ExtractCommandlineArmadaApiConnectionDetails() (*ApiConnectionDetails, erro
 		}
 
 	} else {
-		fmt.Print("No context defined. This method of providing connection details will soon be deprecated, " +
+		// stderr, so that the warning does not end up in machine-readable output (--output json/yaml).
+		fmt.Fprint(os.Stderr, "No context defined. This method of providing connection details will soon be deprecated, "+
 			"the new configuration format is explained here: https://armadaproject.io/user-guide/cli#configuration\n")
 		err = viper.Unmarshal(apiConnectionDetails)
 	}
