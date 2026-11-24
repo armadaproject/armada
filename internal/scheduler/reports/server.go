@@ -20,7 +20,11 @@ import (
 // executorRepository is the part of the scheduler's executor repository the reports server reads from.
 type executorRepository interface {
 	GetExecutors(ctx *armadacontext.Context) ([]*internalschedulerobjects.Executor, error)
+	// GetExecutor returns the executor with the given id, or nil if it is not in the database.
+	GetExecutor(ctx *armadacontext.Context, id string) (*internalschedulerobjects.Executor, error)
 	GetExecutorSettings(ctx *armadacontext.Context) ([]*internalschedulerobjects.ExecutorSettings, error)
+	// GetExecutorSettingsByID returns the settings of the given executor, or nil if it has none.
+	GetExecutorSettingsByID(ctx *armadacontext.Context, id string) (*internalschedulerobjects.ExecutorSettings, error)
 }
 
 type Server struct {
@@ -71,11 +75,18 @@ func (s *Server) GetJobReport(ctx context.Context, request *schedulerobjects.Job
 
 // GetExecutors returns the executors stored in the scheduler database, merged with their executor settings.
 // Executors are sorted by name. If request.Name is set, only that executor is returned, or NotFound if it is unknown.
+// The name is used as is, since executor ids are stored unchanged.
 func (s *Server) GetExecutors(grpcCtx context.Context, request *schedulerobjects.ExecutorsRequest) (*schedulerobjects.ExecutorsResponse, error) {
 	if s.executorRepository == nil {
 		return nil, status.Error(codes.Unimplemented, "executor information is not available")
 	}
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+
+	name := request.GetName()
+	if name != "" {
+		return s.getExecutor(ctx, name)
+	}
+
 	executors, err := s.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "error getting executors: %s", err)
@@ -89,30 +100,48 @@ func (s *Server) GetExecutors(grpcCtx context.Context, request *schedulerobjects
 		settingsByExecutor[es.ExecutorId] = es
 	}
 
-	name := strings.TrimSpace(request.GetName())
 	summaries := make([]*schedulerobjects.ExecutorSummary, 0, len(executors))
 	for _, executor := range executors {
-		if name != "" && executor.Id != name {
-			continue
-		}
-		summary := &schedulerobjects.ExecutorSummary{
-			Name:           executor.Id,
-			Pool:           executor.Pool,
-			LastUpdateTime: executor.LastUpdateTime,
-			NodeCount:      int32(len(executor.Nodes)),
-		}
-		if es, ok := settingsByExecutor[executor.Id]; ok {
-			summary.Cordoned = es.Cordoned
-			summary.CordonReason = es.CordonReason
-			summary.CordonedBy = es.SetByUser
-		}
-		summaries = append(summaries, summary)
-	}
-	if name != "" && len(summaries) == 0 {
-		return nil, status.Errorf(codes.NotFound, "executor %s not found", name)
+		summaries = append(summaries, toExecutorSummary(executor, settingsByExecutor[executor.Id]))
 	}
 	sort.Slice(summaries, func(i, j int) bool { return summaries[i].Name < summaries[j].Name })
 	return &schedulerobjects.ExecutorsResponse{Executors: summaries}, nil
+}
+
+// getExecutor loads a single executor and its settings by executor id.
+func (s *Server) getExecutor(ctx *armadacontext.Context, name string) (*schedulerobjects.ExecutorsResponse, error) {
+	executor, err := s.executorRepository.GetExecutor(ctx, name)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "error getting executor: %s", err)
+	}
+	if executor == nil {
+		return nil, status.Errorf(codes.NotFound, "executor %s not found", name)
+	}
+	settings, err := s.executorRepository.GetExecutorSettingsByID(ctx, name)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "error getting executor settings: %s", err)
+	}
+	return &schedulerobjects.ExecutorsResponse{
+		Executors: []*schedulerobjects.ExecutorSummary{toExecutorSummary(executor, settings)},
+	}, nil
+}
+
+// toExecutorSummary merges an executor with its settings, which may be nil.
+// The cordon reason and user are only reported while the executor is cordoned, because the settings
+// record whoever last changed them, which after an uncordon is not the person who cordoned it.
+func toExecutorSummary(executor *internalschedulerobjects.Executor, settings *internalschedulerobjects.ExecutorSettings) *schedulerobjects.ExecutorSummary {
+	summary := &schedulerobjects.ExecutorSummary{
+		Name:           executor.Id,
+		Pool:           executor.Pool,
+		LastUpdateTime: executor.LastUpdateTime,
+		NodeCount:      int32(len(executor.Nodes)),
+	}
+	if settings != nil && settings.Cordoned {
+		summary.Cordoned = true
+		summary.CordonReason = settings.CordonReason
+		summary.CordonedBy = settings.SetByUser
+	}
+	return summary
 }
 
 func (s *Server) getQueueReportString(queue string, verbosity int32) string {

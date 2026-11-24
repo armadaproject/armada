@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
@@ -61,6 +62,23 @@ func (r *PostgresExecutorRepository) GetExecutors(ctx *armadacontext.Context) ([
 	return executors, nil
 }
 
+// GetExecutor returns the executor with the given id, or nil if there is no such executor.
+func (r *PostgresExecutorRepository) GetExecutor(ctx *armadacontext.Context, id string) (*schedulerobjects.Executor, error) {
+	queries := New(r.db)
+	request, err := queries.SelectExecutorByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, errors.WithStack(err)
+	}
+	executor := &schedulerobjects.Executor{}
+	if err := decompressAndMarshall(request.LastRequest, r.decompressor, executor); err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return executor, nil
+}
+
 // GetLastUpdateTimes returns a map of executor name -> last heartbeat time
 func (r *PostgresExecutorRepository) GetLastUpdateTimes(ctx *armadacontext.Context) (map[string]time.Time, error) {
 	queries := New(r.db)
@@ -116,6 +134,25 @@ func (r *PostgresExecutorRepository) GetExecutorSettings(ctx *armadacontext.Cont
 		executorSettings[i] = settings
 	}
 	return executorSettings, nil
+}
+
+// GetExecutorSettingsByID returns the settings of the executor with the given id, or nil if it has none.
+func (r *PostgresExecutorRepository) GetExecutorSettingsByID(ctx *armadacontext.Context, id string) (*schedulerobjects.ExecutorSettings, error) {
+	queries := New(r.db)
+	result, err := queries.SelectExecutorSettingsByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, errors.WithStack(err)
+	}
+	return &schedulerobjects.ExecutorSettings{
+		ExecutorId:   result.ExecutorID,
+		Cordoned:     result.Cordoned,
+		CordonReason: result.CordonReason,
+		SetByUser:    result.SetByUser,
+		SetAtTime:    protoutil.ToTimestamp(result.SetAtTime),
+	}, nil
 }
 
 func decompressAndMarshall(b []byte, decompressor compress.Decompressor, msg proto.Message) error {

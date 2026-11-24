@@ -64,7 +64,7 @@ message ExecutorSummary {
     int32 node_count = 4;
     bool cordoned = 5;
     string cordon_reason = 6;
-    // User who last changed the executor settings.
+    // User who cordoned the executor. Only set while it is cordoned.
     string cordoned_by = 7;
 }
 

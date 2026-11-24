@@ -207,7 +207,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"boolean\"\n" +
 		"        },\n" +
 		"        \"cordonedBy\": {\n" +
-		"          \"description\": \"User who last changed the executor settings.\",\n" +
+		"          \"description\": \"User who cordoned the executor. Only set while it is cordoned.\",\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"lastUpdateTime\": {\n" +

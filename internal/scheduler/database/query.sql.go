@@ -401,6 +401,34 @@ func (q *Queries) SelectAllRunIds(ctx context.Context) ([]string, error) {
 	return items, nil
 }
 
+const selectExecutorByID = `-- name: SelectExecutorByID :one
+SELECT executor_id, last_request, last_updated FROM executors WHERE executor_id = $1::text
+`
+
+func (q *Queries) SelectExecutorByID(ctx context.Context, executorID string) (Executor, error) {
+	row := q.db.QueryRow(ctx, selectExecutorByID, executorID)
+	var i Executor
+	err := row.Scan(&i.ExecutorID, &i.LastRequest, &i.LastUpdated)
+	return i, err
+}
+
+const selectExecutorSettingsByID = `-- name: SelectExecutorSettingsByID :one
+SELECT executor_id, cordoned, cordon_reason, set_by_user, set_at_time FROM executor_settings WHERE executor_id = $1::text
+`
+
+func (q *Queries) SelectExecutorSettingsByID(ctx context.Context, executorID string) (ExecutorSetting, error) {
+	row := q.db.QueryRow(ctx, selectExecutorSettingsByID, executorID)
+	var i ExecutorSetting
+	err := row.Scan(
+		&i.ExecutorID,
+		&i.Cordoned,
+		&i.CordonReason,
+		&i.SetByUser,
+		&i.SetAtTime,
+	)
+	return i, err
+}
+
 const selectExecutorUpdateTimes = `-- name: SelectExecutorUpdateTimes :many
 SELECT executor_id, last_updated FROM executors
 `

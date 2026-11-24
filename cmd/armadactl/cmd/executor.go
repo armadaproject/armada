@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -49,11 +48,11 @@ func executorGetCmdWithApp(a *armadactl.App) *cobra.Command {
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			name := strings.TrimSpace(args[0])
-			if name == "" {
+			// The name is used as given, since executor ids are stored unchanged.
+			if args[0] == "" {
 				return fmt.Errorf("executor name must be non-empty")
 			}
-			return a.GetExecutor(name)
+			return a.GetExecutor(args[0])
 		},
 	}
 	return withOutputFlag(cmd, a)

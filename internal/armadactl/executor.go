@@ -2,8 +2,10 @@ package armadactl
 
 import (
 	"fmt"
+	"strings"
 	"text/tabwriter"
 	"time"
+	"unicode"
 
 	"github.com/pkg/errors"
 
@@ -103,9 +105,34 @@ func (a *App) printExecutorTable(executors []*schedulerobjects.ExecutorSummary) 
 			lastUpdate = protoutil.ToStdTime(e.LastUpdateTime).Format(time.RFC3339)
 		}
 		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%t\t%s\t%s\n",
-			e.Name, e.Pool, e.NodeCount, lastUpdate, e.Cordoned, dashIfEmpty(e.CordonReason), dashIfEmpty(e.CordonedBy))
+			escapeCell(e.Name), escapeCell(e.Pool), e.NodeCount, lastUpdate, e.Cordoned,
+			dashIfEmpty(escapeCell(e.CordonReason)), dashIfEmpty(escapeCell(e.CordonedBy)))
 	}
 	return w.Flush()
+}
+
+// escapeCell makes a value safe to print in a table cell. Control characters such as newlines and tabs would
+// otherwise split a row or shift the columns, so they are written as escape sequences.
+func escapeCell(s string) string {
+	if !strings.ContainsFunc(s, unicode.IsControl) {
+		return s
+	}
+	var sb strings.Builder
+	for _, r := range s {
+		switch {
+		case r == '\n':
+			sb.WriteString(`\n`)
+		case r == '\r':
+			sb.WriteString(`\r`)
+		case r == '\t':
+			sb.WriteString(`\t`)
+		case unicode.IsControl(r):
+			fmt.Fprintf(&sb, `\x%02x`, r)
+		default:
+			sb.WriteRune(r)
+		}
+	}
+	return sb.String()
 }
 
 func dashIfEmpty(s string) string {

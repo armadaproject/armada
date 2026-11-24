@@ -113,3 +113,37 @@ func TestGetExecutor_Error(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "error getting executor missing")
 }
+
+func TestGetAllExecutors_TableEscapesControlCharacters(t *testing.T) {
+	a, out := newTestApp()
+	a.Params.ExecutorAPI.Get = func(string) ([]*schedulerobjects.ExecutorSummary, error) {
+		return []*schedulerobjects.ExecutorSummary{
+			{Name: "executor-a", Cordoned: true, CordonReason: "line one\nline two\tcolumn", CordonedBy: "alice"},
+		}, nil
+	}
+
+	require.NoError(t, a.GetAllExecutors())
+
+	lines := strings.Split(strings.TrimRight(out.String(), "\n"), "\n")
+	require.Len(t, lines, 2)
+	assert.Contains(t, lines[1], `line one\nline two\tcolumn`)
+}
+
+func TestGetAllExecutors_YamlKeepsControlCharacters(t *testing.T) {
+	a, out := newTestApp()
+	a.Params.Output = OutputYaml
+	a.Params.ExecutorAPI.Get = func(string) ([]*schedulerobjects.ExecutorSummary, error) {
+		return []*schedulerobjects.ExecutorSummary{
+			{Name: "executor-a", Cordoned: true, CordonReason: "line one\nline two"},
+		}, nil
+	}
+
+	require.NoError(t, a.GetAllExecutors())
+
+	var doc struct {
+		Executors []executorInfo `json:"executors"`
+	}
+	require.NoError(t, yaml.Unmarshal(out.Bytes(), &doc))
+	require.Len(t, doc.Executors, 1)
+	assert.Equal(t, "line one\nline two", doc.Executors[0].CordonReason)
+}

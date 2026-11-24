@@ -494,7 +494,7 @@ type ExecutorSummary struct {
 	NodeCount    int32  `protobuf:"varint,4,opt,name=node_count,json=nodeCount,proto3" json:"nodeCount,omitempty"`
 	Cordoned     bool   `protobuf:"varint,5,opt,name=cordoned,proto3" json:"cordoned,omitempty"`
 	CordonReason string `protobuf:"bytes,6,opt,name=cordon_reason,json=cordonReason,proto3" json:"cordonReason,omitempty"`
-	// User who last changed the executor settings.
+	// User who cordoned the executor. Only set while it is cordoned.
 	CordonedBy string `protobuf:"bytes,7,opt,name=cordoned_by,json=cordonedBy,proto3" json:"cordonedBy,omitempty"`
 }
 

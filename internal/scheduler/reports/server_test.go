@@ -21,6 +21,8 @@ type fakeExecutorRepository struct {
 	settings    []*internalschedulerobjects.ExecutorSettings
 	executorErr error
 	settingsErr error
+
+	getExecutorCalls int
 }
 
 func (f *fakeExecutorRepository) GetExecutors(_ *armadacontext.Context) ([]*internalschedulerobjects.Executor, error) {
@@ -29,6 +31,31 @@ func (f *fakeExecutorRepository) GetExecutors(_ *armadacontext.Context) ([]*inte
 
 func (f *fakeExecutorRepository) GetExecutorSettings(_ *armadacontext.Context) ([]*internalschedulerobjects.ExecutorSettings, error) {
 	return f.settings, f.settingsErr
+}
+
+func (f *fakeExecutorRepository) GetExecutor(_ *armadacontext.Context, id string) (*internalschedulerobjects.Executor, error) {
+	f.getExecutorCalls++
+	if f.executorErr != nil {
+		return nil, f.executorErr
+	}
+	for _, e := range f.executors {
+		if e.Id == id {
+			return e, nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *fakeExecutorRepository) GetExecutorSettingsByID(_ *armadacontext.Context, id string) (*internalschedulerobjects.ExecutorSettings, error) {
+	if f.settingsErr != nil {
+		return nil, f.settingsErr
+	}
+	for _, es := range f.settings {
+		if es.ExecutorId == id {
+			return es, nil
+		}
+	}
+	return nil, nil
 }
 
 func TestServer_GetExecutors(t *testing.T) {
@@ -50,6 +77,8 @@ func TestServer_GetExecutors(t *testing.T) {
 		settings: []*internalschedulerobjects.ExecutorSettings{
 			{ExecutorId: "executor-b", Cordoned: true, CordonReason: "maintenance", SetByUser: "alice"},
 			// Settings can outlive the executor, these must not show up on their own.
+			// An uncordoned executor keeps the user who last changed it, which must not be reported.
+			{ExecutorId: "executor-a", Cordoned: false, CordonReason: "old reason", SetByUser: "bob"},
 			{ExecutorId: "executor-gone", Cordoned: true, CordonReason: "retired", SetByUser: "bob"},
 		},
 	}
@@ -80,8 +109,18 @@ func TestServer_GetExecutors(t *testing.T) {
 		},
 		"single executor": {
 			repo:     repo,
-			name:     " executor-b ",
+			name:     "executor-b",
 			expected: []*schedulerobjects.ExecutorSummary{executorB},
+		},
+		"single uncordoned executor": {
+			repo:     repo,
+			name:     "executor-a",
+			expected: []*schedulerobjects.ExecutorSummary{executorA},
+		},
+		"name is not trimmed": {
+			repo:         repo,
+			name:         " executor-b ",
+			expectedCode: codes.NotFound,
 		},
 		"unknown executor": {
 			repo:         repo,

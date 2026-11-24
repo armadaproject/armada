@@ -196,7 +196,7 @@
           "type": "boolean"
         },
         "cordonedBy": {
-          "description": "User who last changed the executor settings.",
+          "description": "User who cordoned the executor. Only set while it is cordoned.",
           "type": "string"
         },
         "lastUpdateTime": {
