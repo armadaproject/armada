@@ -43,7 +43,7 @@ var empty struct{}
 
 func (nodeDb *NodeDb) addNodeToStats(node *internaltypes.Node) {
 	nodeDb.numNodes += 1
-	for key := range nodeDb.indexedNodeLabels {
+	for key := range nodeDb.indexedNodeLabelValues {
 		if value, ok := node.GetLabelValue(key); ok {
 			nodeDb.indexedNodeLabelValues[key][value] = empty
 		}
@@ -235,6 +235,11 @@ func NewNodeDb(
 	indexedNodeLabelValues := make(map[string]map[string]struct{}, len(indexedNodeLabels))
 	for _, key := range indexedNodeLabels {
 		indexedNodeLabelValues[key] = make(map[string]struct{})
+	}
+	// The values of the executor id label are always tracked, so that gangs can use it as their node uniformity
+	// label without operators having to index it. Unlike the labels above, it is not part of the node type.
+	if _, ok := indexedNodeLabelValues[configuration.ExecutorIdLabel]; !ok {
+		indexedNodeLabelValues[configuration.ExecutorIdLabel] = make(map[string]struct{})
 	}
 
 	indexedResourceResolution, err := makeIndexedResourceResolution(indexedResources, resourceListFactory)

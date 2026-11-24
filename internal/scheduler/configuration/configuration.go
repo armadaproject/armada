@@ -23,6 +23,10 @@ const (
 	// NodeIdLabel maps to a unique id associated with each node.
 	// This label is automatically added to nodes within the NodeDb.
 	NodeIdLabel = "armadaproject.io/nodeId"
+	// ExecutorIdLabel maps to the id of the executor, i.e., the cluster, a node belongs to.
+	// This label is automatically added to nodes within the NodeDb.
+	// Gangs may use it as their node uniformity label to be scheduled onto a single cluster.
+	ExecutorIdLabel = "armadaproject.io/executorId"
 )
 
 type Configuration struct {

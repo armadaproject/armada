@@ -117,6 +117,14 @@ UnschedulableReason: uniformity label topology.kubernetes.io/zone is not indexed
 
 A laptop install has no labels enabled. Ask your platform team which labels are available on yours.
 
+One label is always available, with no setup: `armadaproject.io/executorId`. Armada sets it on every node to the name of the worker cluster the node belongs to, so this keeps the whole gang on one cluster:
+
+```yaml
+armadaproject.io/gangNodeUniformityLabel: 'armadaproject.io/executorId'
+```
+
+Use it when members must reach each other directly. Without a uniformity label, a gang can be spread over several clusters.
+
 Your platform team can also set a default label that applies to every gang that doesn't set one. If a gang stays Queued with `is not indexed` and you didn't add the annotation, ask them.
 
 ## Step 4. Let members find each other
