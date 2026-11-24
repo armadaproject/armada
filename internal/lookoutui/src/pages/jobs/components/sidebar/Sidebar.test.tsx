@@ -140,9 +140,12 @@ describe("Sidebar", () => {
 
     const reason = "Job preempted to reclaim queue capacity"
     mockServer.use(
-      http.post(schedulerTerminationReasonEndpoint, () =>
-        HttpResponse.json({ schedulerTerminationReason: JSON.stringify({ reason }) }),
-      ),
+      http.post<object, { runId: string }>(schedulerTerminationReasonEndpoint, async ({ request }) => {
+        const { runId } = await request.json()
+        if (runId === run.runId) {
+          return HttpResponse.json({ schedulerTerminationReason: JSON.stringify({ reason }) })
+        }
+      }),
     )
     const { getByRole, findByRole, findByText } = renderComponent()
 
@@ -154,7 +157,13 @@ describe("Sidebar", () => {
     within(getByRole("row", { name: /Exit code/ })).getByText(137)
 
     await userEvent.click(await findByRole("button", { name: "Scheduler Termination Reason" }))
-    expect(await findByText(JSON.stringify(reason))).toBeVisible()
+    const reasonCode = await findByText(
+      (_, element) => element?.textContent?.includes(JSON.stringify(reason)) ?? false,
+      {
+        selector: "code",
+      },
+    )
+    expect(reasonCode).toBeVisible()
   })
 
   it("should show the pod events table when the run has structured debug info", async () => {
