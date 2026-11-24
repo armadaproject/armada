@@ -20,6 +20,9 @@ outputs:
   go-version:
     description: "The installed Go version"
     value: ${{ steps.setup-go.outputs.go-version }}
+  build-cache-path:
+    description: "The Go build cache directory (GOCACHE)"
+    value: ${{ steps.cache-info.outputs.path }}
 runs:
   using: "composite"
   steps:

@@ -181,13 +181,6 @@ jobs:
           cache-tools: true
           cache-build: "false"
 
-      - name: Set integration Go build cache path
-        shell: bash
-        run: |
-          cache="$RUNNER_TEMP/armada-integration-go-build"
-          mkdir -- "$cache"
-          echo "GOCACHE=$cache" >> "$GITHUB_ENV"
-
       - name: Compute Go build cache keys
         id: build-cache-key
         shell: bash
@@ -211,21 +204,13 @@ jobs:
         id: build-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
-          path: ${{ env.GOCACHE }}
+          path: ${{ steps.setup-go.outputs.build-cache-path }}
           key: ${{ steps.build-cache-key.outputs.current }}
           # Seed a new bucket on master without importing an older archive's timestamps.
           restore-keys: ${{ github.event_name == 'pull_request' && steps.build-cache-key.outputs.previous || '' }}
 
-      - name: Inspect restored Go build cache
-        continue-on-error: true
-        run: python3 .github/scripts/go-build-cache-age.py
-
       - name: Setup Integration Tests
         run: go run github.com/magefile/mage@v1.17.2 -v dev:full
-
-      - name: Inspect Go build cache after integration startup
-        continue-on-error: true
-        run: python3 .github/scripts/go-build-cache-age.py
 
       - name: Save integration Go build cache
         if: >-
@@ -235,7 +220,7 @@ jobs:
           steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
-          path: ${{ env.GOCACHE }}
+          path: ${{ steps.setup-go.outputs.build-cache-path }}
           key: ${{ steps.build-cache-key.outputs.current }}
 
       - name: Run Integration Tests
