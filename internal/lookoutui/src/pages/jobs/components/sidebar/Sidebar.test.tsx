@@ -42,6 +42,8 @@ describe("Sidebar", () => {
         },
       ],
     )
+    // Differs from the run's pending time (now) so a Submitted row showing the wrong time is caught
+    job.submitted = "2020-03-04T05:06:07Z"
     mockServer.setPostJobRunErrorResponseForRunId("1234-5678", "job run error")
     mockServer.setPostJobRunDebugMessageResponseForRunId("1234-5678", { errorString: "job run debug message" })
     mockServer.setPostJobSpecResponse({
@@ -124,6 +126,8 @@ describe("Sidebar", () => {
     // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
     within(getByRole("row", { name: /Cluster/ })).getByText(run.cluster)
+    // The time is shown with the user's timestamp settings, so only the year is stable here
+    within(getByRole("row", { name: /Submitted/ })).getByText(/2020/)
   })
 
   it("should handle runs with errors", async () => {
