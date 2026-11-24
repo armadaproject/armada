@@ -41,12 +41,19 @@ const MarkNodeUnschedulableButtonContainer = styled("div")(({ theme }) => ({
   padding: theme.spacing(SPACING.sm),
 }))
 
+// When a run started waiting in the queue. Lookout stores no per-run requeue time, so for a run that follows another
+// this is the end of the previous run, the closest value available.
+export interface QueuedSince {
+  label: "Submitted" | "Requeued"
+  timestamp: string
+}
+
 const makeKeyValuePairsData = (
   formatIsoTimestamp: (isoTimestampString: string | undefined, format: TimestampFormat) => string,
+  queuedSince: QueuedSince | undefined,
   {
     runId,
     jobRunState,
-    submitted,
     leased,
     pending,
     started,
@@ -61,7 +68,6 @@ const makeKeyValuePairsData = (
     JobRun,
     | "runId"
     | "jobRunState"
-    | "submitted"
     | "leased"
     | "pending"
     | "started"
@@ -82,8 +88,8 @@ const makeKeyValuePairsData = (
   if (jobRunState) {
     d.push({ key: "State", value: formatJobRunState(jobRunState) })
   }
-  if (submitted) {
-    d.push({ key: "Submitted", value: formatIsoTimestamp(submitted, "full") })
+  if (queuedSince) {
+    d.push({ key: queuedSince.label, value: formatIsoTimestamp(queuedSince.timestamp, "full") })
   }
   if (leased) {
     d.push({ key: "Leased", value: formatIsoTimestamp(leased, "full") })
@@ -138,6 +144,7 @@ const makeIngressAddressEntries = (ingressAddresses?: JobRun["ingressAddresses"]
 
 export interface JobRunDetailsProps {
   run: JobRun
+  queuedSince?: QueuedSince
   runIndex: number
   defaultExpanded: boolean
   setRunError: undefined | ((runError: string) => void)
@@ -151,7 +158,6 @@ export const JobRunDetails = ({
     started,
     pending,
     leased,
-    submitted,
     finished,
     jobRunState,
     runId,
@@ -160,6 +166,7 @@ export const JobRunDetails = ({
     failureCategory,
     failureSubcategory,
   },
+  queuedSince,
   runIndex,
   defaultExpanded,
   setRunError,
@@ -210,10 +217,9 @@ export const JobRunDetails = ({
   const ingressAddressEntries = useMemo(() => makeIngressAddressEntries(ingressAddresses), [ingressAddresses])
 
   const tableData = useMemo(() => {
-    const baseRows = makeKeyValuePairsData(formatIsoTimestamp, {
+    const baseRows = makeKeyValuePairsData(formatIsoTimestamp, queuedSince, {
       runId,
       jobRunState,
-      submitted,
       leased,
       pending,
       started,
@@ -235,7 +241,7 @@ export const JobRunDetails = ({
     return [...baseRows, ...ingressRows]
   }, [
     formatIsoTimestamp,
-    submitted,
+    queuedSince,
     runId,
     jobRunState,
     leased,
