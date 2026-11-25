@@ -35,6 +35,6 @@ To keep error logging consistent, this is what we do in the project. `errors` me
 - **`error`** is the full message chain, outermost context first. Each wrap should add a short description of what that layer was doing, so the chain reads as one sentence.
 - **`stacktrace`** points to where the error started. If it's missing, either no stack was ever attached or something in the chain broke it, usually `fmt.Errorf` instead of `errors.Wrap`, or `%s` instead of `%w`.
 - **`caller`** is the line that wrote the log. It's added automatically.
-- **`message`** says what failed from the point of view of the code that logged it. Keep the error itself in the `error` field (`WithError(err).Errorf("scheduling on pool %s failed", pool)`), not in the message, so it can be searched and filtered.
+- **`message`** says what failed from the point of view of the code that logged it. Keep the error itself in the `error` field (`WithStacktrace(err).Errorf("scheduling on pool %s failed", pool)`), not in the message, so it can be searched and filtered.
 
 For user-facing errors, the message is sent to the client. Write it for someone submitting jobs: say what was wrong and how to fix it, and leave out internal hostnames, SQL and stack details. Every wrap message in the chain is included, and long messages are truncated, so put the important part first.
