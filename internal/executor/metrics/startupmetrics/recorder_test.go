@@ -79,6 +79,51 @@ func TestRecord_NodeMetrics(t *testing.T) {
 	assert.Equal(t, float64(3), sum)
 }
 
+func TestRecord_PoolMetrics(t *testing.T) {
+	recorder := NewRecorder(configuration.StartUpMetricsConfig{})
+	pool := "pool-metrics-pool"
+
+	recorder.Record(testPod("pool-metrics-queue", pool, "node-1"), fullyMeasuredInfo())
+
+	count, sum := observations(t, poolStartUpDurationSeconds, pool)
+	assert.Equal(t, uint64(1), count)
+	assert.Equal(t, float64(137), sum)
+
+	// The fixture's one init container is untracked and ran for 41s, so both variants leave it out.
+	_, sum = observations(t, poolStartUpWithoutUntrackedInitContainersDurationSeconds, pool)
+	assert.Equal(t, float64(96), sum)
+	_, sum = observations(t, poolStartUpWithoutInitContainersDurationSeconds, pool)
+	assert.Equal(t, float64(96), sum)
+
+	count, sum = observations(t, poolStartUpStepDurationSeconds, pool, sandboxCreationStep)
+	assert.Equal(t, uint64(1), count)
+	assert.Equal(t, float64(7), sum)
+
+	count, sum = observations(t, poolInitContainerRunDurationSeconds, pool, untrackedContainer)
+	assert.Equal(t, uint64(1), count)
+	assert.Equal(t, float64(41), sum)
+
+	assert.Equal(t, float64(1), testutil.ToFloat64(poolImagePullInfoTotal.WithLabelValues(pool, "false", "true")))
+	assert.Equal(t, float64(1), testutil.ToFloat64(poolImagePullInfoTotal.WithLabelValues(pool, "true", "true")))
+
+	count, sum = observations(t, poolImagePullDurationSeconds, pool)
+	assert.Equal(t, uint64(1), count)
+	assert.Equal(t, float64(58), sum)
+
+	// The app container's image was cached, so only the init container's pull counts.
+	count, sum = observations(t, poolTotalImagePullDurationSeconds, pool)
+	assert.Equal(t, uint64(1), count)
+	assert.Equal(t, float64(58), sum)
+
+	count, sum = observations(t, poolImagePullSizeBytes, pool, "false")
+	assert.Equal(t, uint64(1), count)
+	assert.Equal(t, float64(2415919104), sum)
+
+	count, sum = observations(t, poolImagePullWaitingDurationSeconds, pool)
+	assert.Equal(t, uint64(1), count)
+	assert.Equal(t, float64(3), sum)
+}
+
 // Every case is a pod with 50s of Kubernetes overhead: 10s before its init containers run and 40s
 // after they finish, before the app container starts. The init containers run one after another, as
 // they do on a real pod, so each one makes the pod start later.
