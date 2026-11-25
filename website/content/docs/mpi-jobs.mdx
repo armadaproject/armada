@@ -70,18 +70,27 @@ kubectl logs -n default -l armadaproject.io/mpiRole=launcher
 - **`mpirun` starts processes on the workers without ssh.** Armada adds a small program, `armada-mpi`, to every pod. Each worker connects to the launcher and waits. When `mpirun` wants to start a process on a worker, it hands the request to `armada-mpi` instead of ssh. The launcher only accepts a worker whose network address matches the name Kubernetes published for it.
 - **`mpirun` only starts once every worker is connected.** If some workers never connect, the launcher fails after ten minutes. Set `ARMADA_MPI_READY_TIMEOUT` on the launcher container to change this, for example `30m`.
 - **The limit on open files is lowered to 65536 for the MPI processes.** Some container runtimes set it to a billion or more, which makes Open MPI 4 take minutes to start each process. Set `ARMADA_MPI_MAX_OPEN_FILES` on the first container of the launcher and workers to choose another limit, or to `0` to leave the limit alone.
-- **The workers stop when the launcher finishes.** You can run `mpirun` several times in one launcher command; the workers stay up between runs.
+- **The workers end when the launcher's command does.** You can run `mpirun` several times in one launcher command; the workers stay up between runs.
 - **If any pod fails, the rest are stopped.**
 
 ## How an MPI job ends
 
 | The launcher's command  | Launcher job | Worker jobs                                                     |
 | ----------------------- | ------------ | --------------------------------------------------------------- |
-| Exits with 0            | Succeeded    | Cancelled, with the reason `gang leader <job-id> succeeded`     |
+| Exits with 0            | Succeeded    | Succeeded                                                       |
 | Exits with another code | Failed       | Cancelled, with the reason `gang member <job-id> failed`        |
 | Is cancelled by you     | Cancelled    | Cancelled, with the reason `gang member <job-id> was cancelled` |
 
-Workers always end as Cancelled, because they never finish on their own. **The launcher job tells you how the MPI job went.**
+**When the command succeeds, the whole job succeeds.** The launcher tells each worker it is done, waits for the workers to end, and then waits five more seconds before it ends itself, so that Armada records the workers' ends first.
+
+Two things can still leave a worker Cancelled, with the reason `gang leader <job-id> succeeded`, while the launcher job is Succeeded:
+
+- The worker hasn't ended a minute after it was told to. The launcher then ends without it.
+- Armada happens to learn of the launcher's end before the worker's. The worker did end cleanly; only its recorded state differs.
+
+Both waits are set on the launcher container: `ARMADA_MPI_DISMISS_TIMEOUT` (default `1m`; `0` skips telling the workers, so they are cancelled every time) and `ARMADA_MPI_SETTLE_DELAY` (default `5s`).
+
+When the command fails, the workers are cancelled rather than failed. **The launcher job tells you how the MPI job went.**
 
 ## Which MPI implementations work
 
@@ -117,11 +126,11 @@ MPI jobs are off by default. They build on gang services, so both must be on. On
 
 ## Troubleshooting
 
-| What you see                                                                    | Cause                                                             | Fix                                                                                                           |
-| ------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `MPI jobs are not enabled` when submitting                                      | Your installation doesn't allow MPI jobs                          | Ask your platform team to enable them.                                                                        |
-| `the first container of the launcher of an MPI job must set its command`        | The launcher relies on the image's default command                | Set `command` on the first container of the `podSpec`.                                                        |
-| The launcher fails with `only N of M workers called home within 10m0s`          | Some workers couldn't start, or couldn't connect to the launcher  | Check the worker pods and their logs. A network policy must allow workers to reach the launcher on port 9477. |
-| A worker logs `launcher refused worker ...: ... is not the address of worker-N` | The worker's connection reached the launcher from another address | The cluster network must not rewrite the source address of traffic between pods.                              |
-| `mpirun` reports that it can't start its daemon on a worker                     | The MPI implementation isn't using `armada-mpi`                   | Check the table of implementations above, and that the same MPI version is in the launcher and workers.       |
-| All jobs are Cancelled with the requestor `armada-scheduler`                    | One pod failed, or the launcher finished                          | Expected. The reason names the job that ended first.                                                          |
+| What you see                                                                    | Cause                                                                 | Fix                                                                                                           |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `MPI jobs are not enabled` when submitting                                      | Your installation doesn't allow MPI jobs                              | Ask your platform team to enable them.                                                                        |
+| `the first container of the launcher of an MPI job must set its command`        | The launcher relies on the image's default command                    | Set `command` on the first container of the `podSpec`.                                                        |
+| The launcher fails with `only N of M workers called home within 10m0s`          | Some workers couldn't start, or couldn't connect to the launcher      | Check the worker pods and their logs. A network policy must allow workers to reach the launcher on port 9477. |
+| A worker logs `launcher refused worker ...: ... is not the address of worker-N` | The worker's connection reached the launcher from another address     | The cluster network must not rewrite the source address of traffic between pods.                              |
+| `mpirun` reports that it can't start its daemon on a worker                     | The MPI implementation isn't using `armada-mpi`                       | Check the table of implementations above, and that the same MPI version is in the launcher and workers.       |
+| Jobs are Cancelled with the requestor `armada-scheduler`                        | One pod failed, or a worker was still running when the launcher ended | Expected. The reason names the job that ended first.                                                          |

@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -76,7 +77,73 @@ func Launch(ctx context.Context, config Config, command []string, resolver Resol
 		return 1, err
 	}
 	fmt.Fprintf(logs, "armada-mpi: all workers are standing by, running: %v\n", command)
-	return run(ctx, command)
+	exitCode, err := run(ctx, command)
+	if err == nil && exitCode == 0 {
+		l.dismissWorkers(ctx)
+	}
+	return exitCode, err
+}
+
+// dismissWorkers ends the workers once the job has succeeded, so that the whole job ends successfully rather than
+// with workers that Armada had to stop. It tells every worker that it is done and waits for the worker to hang up,
+// which the worker does as it ends.
+//
+// It then waits for Config.SettleDelay before returning, upon which the launcher ends. Armada stops whatever is
+// left of the gang when the launcher succeeds, so it must learn that the workers have ended before it learns that
+// the launcher has. Nothing here can observe what Armada knows; the delay keeps the two ends apart by more than it
+// takes a kubelet to report that a container has ended. If the order is reversed all the same, a worker that has
+// in fact ended is recorded as cancelled rather than as succeeded, which is how every worker ended before workers
+// were dismissed.
+//
+// A worker that has not hung up after Config.DismissTimeout is left to be stopped by Armada. A job that failed is
+// not handled here at all: its workers are stopped by Armada too.
+func (l *launcher) dismissWorkers(ctx context.Context) {
+	if l.config.DismissTimeout <= 0 {
+		return
+	}
+	fmt.Fprintf(l.logs, "armada-mpi: the command succeeded, dismissing the workers\n")
+	dismissCtx, cancel := context.WithTimeout(ctx, l.config.DismissTimeout)
+	defer cancel()
+	var wg sync.WaitGroup
+	var remaining atomic.Int32
+	for i := 0; i < l.config.Workers; i++ {
+		hostname := WorkerHostname(i)
+		remaining.Add(1)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if l.dismissWorker(dismissCtx, hostname) {
+				remaining.Add(-1)
+			}
+		}()
+	}
+	wg.Wait()
+	if left := remaining.Load(); left > 0 {
+		fmt.Fprintf(l.logs, "armada-mpi: %d workers had not ended after %s\n", left, l.config.DismissTimeout)
+		return
+	}
+	fmt.Fprintf(l.logs, "armada-mpi: all workers have ended\n")
+	select {
+	case <-ctx.Done():
+	case <-time.After(l.config.SettleDelay):
+	}
+}
+
+// dismissWorker dismisses one worker and reports whether the worker hung up before ctx was done.
+func (l *launcher) dismissWorker(ctx context.Context, hostname string) bool {
+	worker, err := l.take(ctx, hostname)
+	if err != nil {
+		return false
+	}
+	defer worker.close()
+	stop := context.AfterFunc(ctx, worker.close)
+	defer stop()
+	if err := worker.send(message{Dismissed: true}); err != nil {
+		return false
+	}
+	// The worker sends nothing more: the read returns when the worker hangs up, or when ctx is done.
+	_, _ = worker.receive()
+	return ctx.Err() == nil
 }
 
 // start begins accepting the connections of the workers and the requests of the agent.

@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"syscall"
 	"testing"
@@ -201,4 +202,92 @@ func TestCapOpenFiles(t *testing.T) {
 	require.NoError(t, syscall.Getrlimit(syscall.RLIMIT_NOFILE, &after))
 	assert.Equal(t, uint64(64), after.Cur)
 	assert.Equal(t, before.Max, after.Max, "the hard limit is not changed")
+}
+
+// startWorker runs a worker in the background. The returned channel yields the result of Work once it returns.
+func startWorker(ctx context.Context, config Config, index int) chan error {
+	done := make(chan error, 1)
+	go func() { done <- Work(ctx, config, WorkerHostname(index), io.Discard) }()
+	return done
+}
+
+func TestLaunch_DismissesWorkersOnSuccess(t *testing.T) {
+	config := testConfig(t, 2)
+	config.DismissTimeout = 10 * time.Second
+	config.SettleDelay = 300 * time.Millisecond
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	workers := []chan error{startWorker(ctx, config, 0), startWorker(ctx, config, 1)}
+	logs := &lockedBuffer{}
+
+	start := time.Now()
+	exitCode, err := Launch(ctx, config, []string{"true"}, localResolver, logs)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, exitCode)
+	assert.Contains(t, logs.String(), "all workers have ended")
+	// Launch only returns once every worker has ended, and a dismissed worker ends successfully.
+	for i, worker := range workers {
+		select {
+		case err := <-worker:
+			assert.NoError(t, err, "worker %d", i)
+		default:
+			assert.Fail(t, "the launcher returned before the worker ended", "worker %d", i)
+		}
+	}
+	assert.GreaterOrEqual(t, time.Since(start), config.SettleDelay, "the launcher waits before it ends itself")
+}
+
+func TestLaunch_LeavesWorkersWhenCommandFails(t *testing.T) {
+	config := testConfig(t, 1)
+	config.DismissTimeout = 10 * time.Second
+	config.SettleDelay = 10 * time.Second
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	worker := startWorker(ctx, config, 0)
+
+	start := time.Now()
+	exitCode, err := Launch(ctx, config, []string{"sh", "-c", "exit 5"}, localResolver, io.Discard)
+
+	require.NoError(t, err)
+	assert.Equal(t, 5, exitCode)
+	assert.Less(t, time.Since(start), 5*time.Second, "a launcher that failed ends at once")
+	// The worker is not dismissed: Armada stops the workers of a job that failed.
+	select {
+	case err := <-worker:
+		assert.Fail(t, "the worker ended", "result: %v", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+func TestLaunch_GivesUpOnWorkersThatDoNotTakeTheirDismissal(t *testing.T) {
+	config := testConfig(t, 2)
+	config.DismissTimeout = 300 * time.Millisecond
+	config.SettleDelay = 10 * time.Second
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	// The first worker stands by like any other. The second one calls home but then never reads what the
+	// launcher sends nor hangs up, as a worker that is stuck would.
+	startWorker(ctx, config, 0)
+	go func() {
+		for ctx.Err() == nil {
+			conn, err := net.Dial("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(config.Port)))
+			if err != nil {
+				time.Sleep(10 * time.Millisecond)
+				continue
+			}
+			defer conn.Close()
+			_ = newChannel(conn).send(message{Hostname: WorkerHostname(1)})
+			<-ctx.Done()
+		}
+	}()
+	logs := &lockedBuffer{}
+
+	start := time.Now()
+	exitCode, err := Launch(ctx, config, []string{"true"}, localResolver, logs)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, exitCode, "the job succeeded even though a worker did not end")
+	assert.Less(t, time.Since(start), 5*time.Second, "the launcher does not wait to settle for workers it gave up on")
+	assert.Contains(t, logs.String(), "1 workers had not ended")
 }

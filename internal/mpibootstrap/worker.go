@@ -17,9 +17,13 @@ import (
 
 const workerRedialInterval = time.Second
 
+// errDismissed is returned by workOnce when the launcher dismisses the worker.
+var errDismissed = errors.New("dismissed by the launcher")
+
 // Work is the main loop of a worker. It calls home to the launcher, runs the command the launcher sends, reports
-// the outcome and calls home again, until ctx is cancelled. A worker never exits on its own: an MPI job may run
-// mpirun several times, and Armada stops the workers once the launcher has finished.
+// the outcome and calls home again: an MPI job may run mpirun several times. It returns nil once the launcher
+// dismisses the worker, which it does when the job has succeeded, and the error of ctx if ctx is cancelled first,
+// which is how Armada stops the workers of a job that failed.
 func Work(ctx context.Context, config Config, hostname string, logs io.Writer) error {
 	launcherHost := config.address(LauncherHostname)
 	if config.launcherHost != "" {
@@ -28,7 +32,12 @@ func Work(ctx context.Context, config Config, hostname string, logs io.Writer) e
 	launcher := net.JoinHostPort(launcherHost, strconv.Itoa(config.Port))
 	fmt.Fprintf(logs, "armada-mpi: worker %s calling home to %s\n", hostname, launcher)
 	for ctx.Err() == nil {
-		if err := workOnce(ctx, launcher, hostname, logs); err != nil && ctx.Err() == nil {
+		err := workOnce(ctx, launcher, hostname, logs)
+		if errors.Is(err, errDismissed) {
+			fmt.Fprintf(logs, "armada-mpi: the job has succeeded, worker %s is done\n", hostname)
+			return nil
+		}
+		if err != nil && ctx.Err() == nil {
 			// The launcher may not be up yet, or may be between two runs of mpirun: keep calling.
 			select {
 			case <-ctx.Done():
@@ -61,6 +70,9 @@ func workOnce(ctx context.Context, launcher, hostname string, logs io.Writer) er
 	if request.Error != "" {
 		fmt.Fprintf(logs, "armada-mpi: launcher refused worker %s: %s\n", hostname, request.Error)
 		return errors.New(request.Error)
+	}
+	if request.Dismissed {
+		return errDismissed
 	}
 	fmt.Fprintf(logs, "armada-mpi: running: %s\n", request.Command)
 

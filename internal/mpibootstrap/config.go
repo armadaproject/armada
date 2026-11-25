@@ -17,6 +17,8 @@ const (
 	DirEnvVar            = "ARMADA_MPI_DIR"
 	ReadyTimeoutEnvVar   = "ARMADA_MPI_READY_TIMEOUT"
 	MaxOpenFilesEnvVar   = "ARMADA_MPI_MAX_OPEN_FILES"
+	DismissTimeoutEnvVar = "ARMADA_MPI_DISMISS_TIMEOUT"
+	SettleDelayEnvVar    = "ARMADA_MPI_SETTLE_DELAY"
 	// GangServiceNameEnvVar is set by the executor on all pods of a gang with a gang service.
 	GangServiceNameEnvVar = "ARMADA_GANG_SERVICE_NAME"
 
@@ -27,6 +29,9 @@ const (
 	DefaultPort         = 9477
 	DefaultDir          = "/opt/armada-mpi"
 	DefaultReadyTimeout = 10 * time.Minute
+	// DefaultDismissTimeout and DefaultSettleDelay are the defaults of Config.DismissTimeout and Config.SettleDelay.
+	DefaultDismissTimeout = time.Minute
+	DefaultSettleDelay    = 5 * time.Second
 	// DefaultMaxOpenFiles is the default of Config.MaxOpenFiles.
 	DefaultMaxOpenFiles = 65536
 
@@ -56,6 +61,12 @@ type Config struct {
 	ServiceName string
 	// ReadyTimeout is how long the launcher waits for all workers to call home before giving up.
 	ReadyTimeout time.Duration
+	// DismissTimeout is how long the launcher waits, once its command has succeeded, for the workers to take
+	// their dismissal and end. Zero makes the launcher end at once, leaving the workers to be stopped by Armada.
+	DismissTimeout time.Duration
+	// SettleDelay is how long the launcher then waits before it ends itself, so that Armada learns of the end of
+	// the workers before it learns of the end of the launcher. See dismissWorkers.
+	SettleDelay time.Duration
 	// MaxOpenFiles caps the soft limit on open files of the MPI processes. Zero leaves the limit alone.
 	// Container runtimes may set that limit to a billion or more, and some MPI versions, notably Open MPI up to
 	// version 4, walk through every possible file descriptor each time they start a process, which then takes
@@ -74,6 +85,8 @@ func ConfigFromEnv() (Config, error) {
 		Dir:            DefaultDir,
 		ServiceName:    os.Getenv(GangServiceNameEnvVar),
 		ReadyTimeout:   DefaultReadyTimeout,
+		DismissTimeout: DefaultDismissTimeout,
+		SettleDelay:    DefaultSettleDelay,
 		MaxOpenFiles:   DefaultMaxOpenFiles,
 	}
 	var err error
@@ -92,9 +105,19 @@ func ConfigFromEnv() (Config, error) {
 	if dir := os.Getenv(DirEnvVar); dir != "" {
 		config.Dir = dir
 	}
-	if timeout := os.Getenv(ReadyTimeoutEnvVar); timeout != "" {
-		if config.ReadyTimeout, err = time.ParseDuration(timeout); err != nil {
-			return config, fmt.Errorf("invalid %s: %w", ReadyTimeoutEnvVar, err)
+	durations := []struct {
+		name  string
+		value *time.Duration
+	}{
+		{ReadyTimeoutEnvVar, &config.ReadyTimeout},
+		{DismissTimeoutEnvVar, &config.DismissTimeout},
+		{SettleDelayEnvVar, &config.SettleDelay},
+	}
+	for _, duration := range durations {
+		if value := os.Getenv(duration.name); value != "" {
+			if *duration.value, err = time.ParseDuration(value); err != nil {
+				return config, fmt.Errorf("invalid %s: %w", duration.name, err)
+			}
 		}
 	}
 	return config, nil

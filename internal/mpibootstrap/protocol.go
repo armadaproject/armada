@@ -21,6 +21,9 @@ type message struct {
 	// Exited is sent once the command has ended, with ExitCode holding its exit code.
 	Exited   bool `json:"exited,omitempty"`
 	ExitCode int  `json:"exitCode,omitempty"`
+	// Dismissed is sent by the launcher to a worker standing by, in place of a Command, once the job has succeeded:
+	// the worker has nothing left to do and ends successfully.
+	Dismissed bool `json:"dismissed,omitempty"`
 	// Error reports that the request could not be served, e.g., a worker that is not part of the job.
 	Error string `json:"error,omitempty"`
 }
