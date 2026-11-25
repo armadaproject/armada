@@ -124,7 +124,7 @@ export class MockServer {
   }
 
   reset() {
-    return this.server.restoreHandlers()
+    return this.server.resetHandlers()
   }
 
   resetHandlers() {

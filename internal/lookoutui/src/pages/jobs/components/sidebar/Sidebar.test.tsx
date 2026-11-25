@@ -13,6 +13,7 @@ import { MockServer } from "../../../../services/lookout/mocks/mockServer"
 import { Sidebar } from "./Sidebar"
 
 const mockServer = new MockServer()
+const schedulerTerminationReasonEndpoint = "/api/v1/jobRunSchedulerTerminationReason"
 
 describe("Sidebar", () => {
   let job: Job, onClose: () => undefined
@@ -45,6 +46,11 @@ describe("Sidebar", () => {
     )
     mockServer.setPostJobRunErrorResponseForRunId("1234-5678", "job run error")
     mockServer.setPostJobRunDebugMessageResponseForRunId("1234-5678", { errorString: "job run debug message" })
+    mockServer.use(
+      http.post(schedulerTerminationReasonEndpoint, () =>
+        HttpResponse.json({ error: "No scheduler termination reason found for run" }, { status: 400 }),
+      ),
+    )
     mockServer.setPostJobSpecResponse({
       // eslint-disable-next-line @cspell/spellchecker
       clientId: "01gvgjbr0jrzvschp2f8jhk6n5",
@@ -128,9 +134,20 @@ describe("Sidebar", () => {
   })
 
   it("should handle runs with errors", async () => {
-    const { getByRole } = renderComponent()
     const run = job.runs[0]
     run.exitCode = 137
+    run.jobRunState = JobRunState.RunPreempted
+
+    const reason = "Job preempted to reclaim queue capacity"
+    mockServer.use(
+      http.post<object, { runId: string }>(schedulerTerminationReasonEndpoint, async ({ request }) => {
+        const { runId } = await request.json()
+        if (runId === run.runId) {
+          return HttpResponse.json({ schedulerTerminationReason: JSON.stringify({ reason }) })
+        }
+      }),
+    )
+    const { getByRole, findByRole, findByText } = renderComponent()
 
     // Switch to runs tab
     await userEvent.click(getByRole("tab", { name: /Result/ }))
@@ -138,6 +155,15 @@ describe("Sidebar", () => {
     // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
     within(getByRole("row", { name: /Exit code/ })).getByText(137)
+
+    await userEvent.click(await findByRole("button", { name: "Scheduler Termination Reason" }))
+    const reasonCode = await findByText(
+      (_, element) => element?.textContent?.includes(JSON.stringify(reason)) ?? false,
+      {
+        selector: "code",
+      },
+    )
+    expect(reasonCode).toBeVisible()
   })
 
   it("should show the pod events table when the run has structured debug info", async () => {
