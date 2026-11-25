@@ -71,6 +71,7 @@ func TestKubernetesClusterContext_SubmitPod(t *testing.T) {
 	t.Cleanup(clusterContext.Stop)
 
 	pod := createBatchPod()
+	expectedPod := pod.DeepCopy()
 	client.Fake.ClearActions()
 
 	_, err := clusterContext.SubmitPod(pod, "user1", []string{})
@@ -84,7 +85,8 @@ func TestKubernetesClusterContext_SubmitPod(t *testing.T) {
 
 	createAction, ok := action.(clientTesting.CreateAction)
 	require.True(t, ok, "expected a CreateAction, got %T", action)
-	assert.Equal(t, pod, createAction.GetObject())
+	assert.Equal(t, expectedPod, createAction.GetObject(), "SubmitPod must submit the expected payload")
+	assert.Equal(t, expectedPod, pod, "SubmitPod must not mutate its input")
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotCallClient_WhenNoPodsMarkedForDeletion(t *testing.T) {
@@ -101,6 +103,10 @@ func TestKubernetesClusterContext_SubmitService(t *testing.T) {
 	t.Cleanup(clusterContext.Stop)
 
 	service := createService()
+	service.Labels = map[string]string{"app": "submit-test"}
+	service.Spec.Selector = map[string]string{"app": "submit-test"}
+	service.Spec.Ports = []v1.ServicePort{{Name: "http", Port: 80, Protocol: v1.ProtocolTCP}}
+	expectedService := service.DeepCopy()
 	client.Fake.ClearActions()
 
 	_, err := clusterContext.SubmitService(service)
@@ -114,7 +120,8 @@ func TestKubernetesClusterContext_SubmitService(t *testing.T) {
 
 	createAction, ok := action.(clientTesting.CreateAction)
 	require.True(t, ok, "expected a CreateAction, got %T", action)
-	assert.Equal(t, service, createAction.GetObject())
+	assert.Equal(t, expectedService, createAction.GetObject(), "SubmitService must submit the expected payload")
+	assert.Equal(t, expectedService, service, "SubmitService must not mutate its input")
 }
 
 func TestKubernetesClusterContext_DeleteService(t *testing.T) {
@@ -248,6 +255,7 @@ func TestKubernetesClusterContext_SubmitIngress(t *testing.T) {
 	t.Cleanup(clusterContext.Stop)
 
 	ingress := createIngress()
+	expectedIngress := ingress.DeepCopy()
 	client.Fake.ClearActions()
 
 	_, err := clusterContext.SubmitIngress(ingress)
@@ -261,7 +269,8 @@ func TestKubernetesClusterContext_SubmitIngress(t *testing.T) {
 
 	createAction, ok := action.(clientTesting.CreateAction)
 	require.True(t, ok, "expected a CreateAction, got %T", action)
-	assert.Equal(t, ingress, createAction.GetObject())
+	assert.Equal(t, expectedIngress, createAction.GetObject(), "SubmitIngress must submit the expected payload")
+	assert.Equal(t, expectedIngress, ingress, "SubmitIngress must not mutate its input")
 }
 
 func TestKubernetesClusterContext_DeleteIngress(t *testing.T) {
