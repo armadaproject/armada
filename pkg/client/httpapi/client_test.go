@@ -478,3 +478,25 @@ func TestDo_ARequestWaitingForAHangingLookupStopsWaitingWhenItsTimeIsUp(t *testi
 		}
 	}
 }
+
+// The credentials are asked once when the client is made, to check them, and a command that hangs must not hang that.
+func TestNew_AHangingLookupOfTheCredentialsDoesNotHangMakingTheClient(t *testing.T) {
+	srv := newRecordingServer(t)
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	login := func() (func(context.Context, string) (map[string]string, error), error) {
+		return func(context.Context, string) (map[string]string, error) {
+			<-release // ignores the context, as a command that is run to get a token does
+			return map[string]string{"authorization": "Bearer token"}, nil
+		}, nil
+	}
+
+	started := time.Now()
+	_, err := newClient(&client.ApiConnectionDetails{}, srv.URL, login, WithTimeout(50*time.Millisecond))
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Contains(t, err.Error(), "the credentials did not answer within 50ms")
+	assert.Less(t, time.Since(started), 2*time.Second)
+	assert.Empty(t, srv.seen)
+}

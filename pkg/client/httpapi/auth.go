@@ -128,23 +128,35 @@ func (t *authTransport) current(req *http.Request, force bool) (headers map[stri
 		return t.headers, false, nil
 	}
 
-	type lookup struct {
+	headers, err = askCredentials(ctx, t.authenticate, req.URL.String())
+	if err != nil {
+		return nil, false, err
+	}
+	t.headers, t.fetched = headers, t.now()
+	return headers, true, nil
+}
+
+// askCredentials asks the credentials for the headers to authenticate a request to url, and gives up when ctx ends.
+// Some credentials do not stop when the context ends, such as a command that is run to get a token, so the question is
+// asked in the background: when it is not answered in time it is left to finish on its own, and its answer is not used.
+func askCredentials(
+	ctx context.Context,
+	authenticate func(ctx context.Context, url string) (map[string]string, error),
+	url string,
+) (map[string]string, error) {
+	type answer struct {
 		headers map[string]string
 		err     error
 	}
-	done := make(chan lookup, 1)
+	done := make(chan answer, 1)
 	go func() {
-		h, err := t.authenticate(ctx, req.URL.String())
-		done <- lookup{h, err}
+		h, err := authenticate(ctx, url)
+		done <- answer{h, err}
 	}()
 	select {
-	case l := <-done:
-		if l.err != nil {
-			return nil, false, l.err
-		}
-		t.headers, t.fetched = l.headers, t.now()
-		return l.headers, true, nil
+	case a := <-done:
+		return a.headers, a.err
 	case <-ctx.Done():
-		return nil, false, ctx.Err()
+		return nil, ctx.Err()
 	}
 }

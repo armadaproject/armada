@@ -15,7 +15,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/pkg/client"
 )
 
@@ -86,10 +85,15 @@ func newClient(
 		return nil, err
 	}
 	// Asking once now checks the url and the credentials before any request is made, and has them ready.
-	ctx, cancel := common.ContextWithDefaultTimeout()
+	// It has as long as a request has: the credentials may be a command that asks the user something. A command that
+	// does not answer in time is not waited for, as it is not when a request asks.
+	ctx, cancel := context.WithTimeout(context.Background(), o.timeout)
 	defer cancel()
-	headers, err := authenticate(ctx, base)
+	headers, err := askCredentials(ctx, authenticate, base)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("the credentials did not answer within %s: %w", o.timeout, err)
+		}
 		return nil, err
 	}
 
