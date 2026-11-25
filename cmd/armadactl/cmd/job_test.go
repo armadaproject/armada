@@ -57,7 +57,7 @@ func TestJobListArgs_Defaults(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Empty(t, args.Filters)
-	assert.Equal(t, models.Order{Field: "submitted", Direction: "DESC"}, args.Order)
+	assert.Equal(t, models.Order{Field: "jobId", Direction: "DESC"}, args.Order)
 	assert.False(t, args.ActiveJobSets)
 	assert.Equal(t, 0, args.Skip)
 	assert.Equal(t, 100, args.Take)

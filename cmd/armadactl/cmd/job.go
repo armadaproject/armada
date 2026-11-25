@@ -46,7 +46,11 @@ func jobsGetCmd() *cobra.Command {
 			"match is one of exact, anyOf, startsWith, contains, greaterThan, lessThan, greaterThanOrEqualTo, " +
 			"lessThanOrEqualTo and exists. The value of anyOf is a list. Which matches a field supports is up to Lookout, " +
 			"which says so when a filter is not valid. States are in upper case, for example RUNNING.\n\n" +
-			"--order is a JSON object with the field to order by and a direction, ASC or DESC.\n\n" +
+			"--order is a JSON object with the field to order by and a direction, ASC or DESC. Lookout orders by that one " +
+			"field alone, so jobs that have the same value of it, such as the time they were submitted, are in no fixed " +
+			"order, and with --skip and --take can be repeated or left out between pages. The default is the job id, " +
+			"which no two jobs share, and which starts with the time the job was created, so the newest are first. Order " +
+			"by another field only to see a single page.\n\n" +
 			"For --filters and --order, a value starting with @ is the path of a file to read the JSON from.",
 		Example: `  # Running or queued jobs in a queue
   armadactl get jobs --filters '[
@@ -55,7 +59,7 @@ func jobsGetCmd() *cobra.Command {
 
   # Jobs with an annotation, oldest first, ten at a time
   armadactl get jobs --filters '[{"field": "team", "match": "exact", "value": "data", "isAnnotation": true}]' \
-    --order '{"field": "submitted", "direction": "ASC"}' --take 10
+    --order '{"field": "jobId", "direction": "ASC"}' --take 10
 
   # Filters from a file, as yaml
   armadactl get jobs --filters @filters.json -o yaml`,
@@ -72,7 +76,7 @@ func jobsGetCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().String("filters", "[]", "Lookout filters, as a JSON list, or @file to read it from a file.")
-	cmd.Flags().String("order", `{"field": "submitted", "direction": "DESC"}`, "How to order the jobs, as a JSON object, or @file to read it from a file.")
+	cmd.Flags().String("order", `{"field": "jobId", "direction": "DESC"}`, "How to order the jobs, as a JSON object, or @file to read it from a file. Only the job id gives pages that do not repeat or miss jobs.")
 	cmd.Flags().Bool("active-job-sets", false, "Only jobs in job sets that are still active.")
 	cmd.Flags().Int("skip", 0, "How many jobs to skip, for paging.")
 	cmd.Flags().Int("take", 100, "The most jobs to return.")

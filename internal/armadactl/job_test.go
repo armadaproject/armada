@@ -213,3 +213,15 @@ func TestListJobs_ReportsAFailureOfTheClient(t *testing.T) {
 	assert.Contains(t, err.Error(), "lookout is down")
 	assert.Empty(t, out())
 }
+
+// Lookout orders by one field alone, so only an order by the job id, which is unique, pages without repeating or
+// missing jobs.
+func TestPagingNotice(t *testing.T) {
+	byJobId := pagingNotice(10, models.Order{Field: "jobId", Direction: "DESC"})
+	assert.Equal(t, "Showing 10 jobs, there may be more: use --skip and --take to see others\n", byJobId)
+
+	bySubmitted := pagingNotice(10, models.Order{Field: "submitted", Direction: "DESC"})
+	assert.Contains(t, bySubmitted, "Showing 10 jobs, there may be more")
+	assert.Contains(t, bySubmitted, "same submitted")
+	assert.Contains(t, bySubmitted, "order by jobId to page reliably")
+}

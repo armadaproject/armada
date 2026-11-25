@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/armadaproject/armada/internal/lookout/gen/models"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/client/job"
 )
@@ -41,9 +42,21 @@ func (a *App) ListJobs(args job.ListArgs) error {
 
 	// This notice is not part of the output, so it stays off stdout, which may be parsed.
 	if len(jobs) == args.Take {
-		fmt.Fprintf(os.Stderr, "Showing %d jobs, there may be more: use --skip and --take to see others\n", len(jobs))
+		fmt.Fprint(os.Stderr, pagingNotice(len(jobs), args.Order))
 	}
 	return nil
+}
+
+// pagingNotice says that there may be more jobs than the ones shown. Lookout orders by one field alone, so when that is
+// not the job id, which is unique, jobs that tie on it can be repeated or left out between pages, and the notice says so.
+func pagingNotice(shown int, order models.Order) string {
+	notice := fmt.Sprintf("Showing %d jobs, there may be more: use --skip and --take to see others\n", shown)
+	if order.Field != "jobId" {
+		notice += fmt.Sprintf(
+			"Jobs that have the same %s are in no fixed order, so pages can repeat or miss jobs: order by jobId to page reliably\n",
+			order.Field)
+	}
+	return notice
 }
 
 // jobListBody is the body of a job list document. A list body is a mapping so that it follows the mapping
