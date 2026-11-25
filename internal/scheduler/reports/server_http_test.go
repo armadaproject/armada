@@ -45,4 +45,12 @@ func TestServer_GetExecutors_Http(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, parsed.Equal(heartbeat))
 	assert.NotContains(t, body.Executors[1], "lastUpdateTime")
+
+	// Go clients read the response into the generated type.
+	var decoded schedulerobjects.ExecutorsResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &decoded))
+	require.Len(t, decoded.Executors, 2)
+	assert.Equal(t, "executor-a", decoded.Executors[0].Name)
+	assert.True(t, time.Unix(decoded.Executors[0].LastUpdateTime.Seconds, int64(decoded.Executors[0].LastUpdateTime.Nanos)).Equal(heartbeat))
+	assert.Nil(t, decoded.Executors[1].LastUpdateTime)
 }
