@@ -33,8 +33,11 @@ nodes:
     # To speed up tests, reduce request timeout from the default 2m.
     runtimeRequestTimeout: "30s"
   extraPortMappings:
-  - containerPort: 80 # port of the nginx ingress controller
+  - containerPort: 80 # hostPort of the Traefik ingress controller's web entrypoint
     hostPort: 5001 # expose ingresses on localhost:5001
+    protocol: TCP
+  - containerPort: 8080 # hostPort of the Traefik dashboard/API entrypoint
+    hostPort: 5002 # expose the dashboard on localhost:5002/dashboard/
     protocol: TCP
   - containerPort: 11000 # arbitrary port used to test "node port services"
     hostPort: 11000 # expose service on localhost:3000
