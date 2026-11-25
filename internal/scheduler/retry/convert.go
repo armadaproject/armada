@@ -8,9 +8,10 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-// ConvertPolicy translates an api.RetryPolicy proto into the internal Policy,
-// validating fields. Returns an error for any malformed field (unknown action,
-// missing category, etc.).
+// ConvertPolicy translates an api.RetryPolicy proto into the internal Policy.
+// It only parses. The CRUD service validates policies at write time, so
+// conversion assumes the stored policy is valid. It still returns an error
+// for data it cannot map, for example an unknown action enum value.
 func ConvertPolicy(p *api.RetryPolicy) (*Policy, error) {
 	if p == nil {
 		return nil, fmt.Errorf("retry policy is nil")
@@ -35,9 +36,6 @@ func ConvertPolicy(p *api.RetryPolicy) (*Policy, error) {
 		RetryLimit:    p.RetryLimit,
 		DefaultAction: defaultAction,
 		Rules:         rules,
-	}
-	if err := ValidatePolicy(*policy); err != nil {
-		return nil, fmt.Errorf("policy %q: %w", p.Name, err)
 	}
 	return policy, nil
 }
