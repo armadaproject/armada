@@ -34,6 +34,7 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 		panic(errors.WithMessage(err, "Error opening connection to postgres"))
 	}
 	if err := database.RegisterPoolMetrics(prometheus.DefaultRegisterer, db, nil); err != nil {
+		db.Close()
 		panic(err)
 	}
 

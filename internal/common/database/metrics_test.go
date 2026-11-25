@@ -49,3 +49,38 @@ func TestRegisterPoolMetrics_TwoPoolsNeedDistinctLabels(t *testing.T) {
 	require.NoError(t, RegisterPoolMetrics(registry, newLazyPool(t), map[string]string{"pool": "mirror"}))
 	assert.Error(t, RegisterPoolMetrics(registry, newLazyPool(t), map[string]string{"pool": "main"}))
 }
+
+func samplesByPool(t *testing.T, registry *prometheus.Registry, name string) map[string]float64 {
+	t.Helper()
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	out := map[string]float64{}
+	for _, family := range families {
+		if family.GetName() != name {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			pool := ""
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "pool" {
+					pool = label.GetValue()
+				}
+			}
+			out[pool] = metric.GetGauge().GetValue()
+		}
+	}
+	return out
+}
+
+func TestRegisterPoolMetrics_TwoPoolsAreBothScraped(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	require.NoError(t, RegisterPoolMetrics(registry, newLazyPool(t), map[string]string{"pool": "main"}))
+	require.NoError(t, RegisterPoolMetrics(registry, newLazyPool(t), map[string]string{"pool": "mirror"}))
+	assert.Equal(t, map[string]float64{"main": 7, "mirror": 7}, samplesByPool(t, registry, "pgxpool_max_conns"))
+}
+
+func TestRegisterPoolMetrics_NilLabelsGiveAnUnlabeledSample(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	require.NoError(t, RegisterPoolMetrics(registry, newLazyPool(t), nil))
+	assert.Equal(t, map[string]float64{"": 7}, samplesByPool(t, registry, "pgxpool_max_conns"))
+}

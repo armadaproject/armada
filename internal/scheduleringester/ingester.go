@@ -33,6 +33,7 @@ func Run(config Configuration) error {
 		panic(errors.WithMessage(err, "Error opening connection to postgres"))
 	}
 	if err := database.RegisterPoolMetrics(prometheus.DefaultRegisterer, db, nil); err != nil {
+		db.Close()
 		return err
 	}
 	schedulerDb := NewSchedulerDb(db, svcMetrics, 100*time.Millisecond, 60*time.Second, 5*time.Second)

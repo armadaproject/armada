@@ -39,6 +39,7 @@ func Serve(configuration configuration.LookoutConfig) error {
 	}
 
 	if err := database.RegisterPoolMetrics(prometheus.DefaultRegisterer, db, nil); err != nil {
+		db.Close()
 		return err
 	}
 
