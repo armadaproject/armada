@@ -4,6 +4,51 @@
 Seven candidate ideas and one cross-cutting enabler are laid out below, with a common problem
 statement and evaluation criteria.
 
+## Summary
+
+- **The problem is cardinality and retention, not event throughput.** At 10x there are ~5M
+  per-job-set Redis streams, the 14-day TTL is the only cleanup, and Redis is still the durable
+  store, so a failure means rehydrating the whole keyspace.
+- **The strongest structural move is to make watch an API method, not a storage detail.** Serving
+  watch through the Event API (gRPC today, optional WebSocket/Connect) makes the cursor opaque and
+  the storage layout internal, so the stream or queue design can change without a user-visible
+  break.
+- **The most concrete pair of candidates shares one shape: durable history plus a disposable live
+  window.** Postgres (Idea 2) or ClickHouse (Idea 3) holds history; Redis keeps only minutes of
+  delivery. ClickHouse is the natural fallback if Postgres per-job-set deletes and vacuum cannot keep
+  up.
+- **Retention must be per job set, configured per queue.** Queue-wide TTL alone is not enough
+  (Ideas 4 and 5 cannot express it).
+- **Idea 1 is the cheap first step.** A retention policy on the current streams is small, reversible
+  and produces the numbers the bigger decision needs.
+- **Nothing is decided or benchmarked.** The deciding measurements are stream count and Redis
+  memory, in-flight versus finished job sets, event volume, and concurrent watchers. Ideas 4–7 are
+  alternatives kept for comparison; each changes the transport or the client model more deeply.
+
+### Each option in one line
+
+- **Enabler — watch through the API.** Clients stream from the Event API (gRPC, optional
+  WebSocket/Connect); the store and key layout become internal, so any option below can ship
+  without a user-visible break.
+- **1. Status quo plus retention policy.** Keep Redis and add per-job-set expiry plus a length cap.
+  Cheapest and reversible, but needs a job-set-finished signal and leaves Redis as the durable
+  store.
+- **2. Postgres history, Redis live tail.** Durable history in Postgres, Redis for minutes of live
+  delivery. Reuses existing infrastructure; costs dual writes, a delete/vacuum job and a
+  history-to-live seam.
+- **3. ClickHouse history, Redis live tail.** Same shape with ClickHouse as history. Per-job-set TTL
+  and scale, at the cost of a new cluster, merge-time deletion and eventual dedupe.
+- **4. Pulsar-only.** Per-queue partitioned topics, retention as history, readers for watch. Removes
+  Redis and its ingester; history becomes filtered scans and every watcher reads the queue's
+  traffic.
+- **5. Per-queue streams.** One stream per queue, filtered per job set. Fixes stream count, but every
+  watcher path carries the whole queue and per-job-set retention is impossible.
+- **6. ClickHouse-only with in-memory relay.** History in ClickHouse, live buffered inside the API.
+  Cleanest end state, largest build: removes the watch protocol and direct stream contract at once.
+- **7. Pulsar per-job-set topics.** One topic per job set. Per-job-set retention and cursors come
+  from the transport; millions of short-lived topics mean metadata churn, fan-in and deletion
+  orchestration.
+
 ## Problem
 
 Producers (the submit API and the scheduler) publish `EventSequence` messages to the Pulsar `events`
