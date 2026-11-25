@@ -14,7 +14,7 @@ To keep error logging consistent, this is what we do in the project. `errors` me
 - Use `errors.Wrap` for all errors from the standard library or external libraries (pgx, Pulsar, gRPC, Kubernetes, ...). This will add a stack trace where the error enters the applications.
 - Use `errors.WithMessage` to add context to an error that's already been wrapped.
 - Wrap joined errors with `errors.WithStack(errors.Join(errs...))`. The logger doesn't look inside joined errors, so without this the log has no stack at all.
-- When adding error context with `fmt.Errorf()` always use `%w`.Never include an error with `%s` or `%v`. It turns the error into plain text, which loses the stack trace, breaks `errors.Is` / `errors.As`, and loses the gRPC status code.
+- When adding error context with `fmt.Errorf()` always use `%w`. Never include an error with `%s` or `%v`. It turns the error into plain text, which loses the stack trace, breaks `errors.Is` / `errors.As`, and loses the gRPC status code.
 - Use the [`armadaerrors`](../../internal/common/armadaerrors/errors.go) types (`ErrInvalidArgument`, `ErrNotFound`, `ErrAlreadyExists`) for all user-facing errors. The gRPC interceptor turns them into the matching status code. Anything else reaches the client as `Unknown`.
 - Use `WARN` level for expected or retried errors: `ctx.Logger().WithError(err).Warn(...)`.
 - Use `ERROR` level for unexpected errors: `ctx.Logger().WithStacktrace(err).Error(...)`.
