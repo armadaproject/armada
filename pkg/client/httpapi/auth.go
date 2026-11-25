@@ -7,7 +7,6 @@ import (
 	"maps"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -36,13 +35,16 @@ type authTransport struct {
 	ttl          time.Duration
 	now          func() time.Time
 
-	mu      sync.Mutex
+	// lock guards headers and fetched, and makes the lookups of the credentials happen one at a time, which an
+	// interactive command needs. It is a channel that holds a value while it is taken, so that a request can stop
+	// waiting for it when it runs out of time.
+	lock    chan struct{}
 	headers map[string]string
 	fetched time.Time
 }
 
 func newAuthTransport(next http.RoundTripper, host string, authenticate func(ctx context.Context, url string) (map[string]string, error), headers map[string]string, o *options) *authTransport {
-	return &authTransport{next: next, host: host, authenticate: authenticate, ttl: o.credentialsTTL, now: o.now, headers: headers, fetched: o.now()}
+	return &authTransport{next: next, host: host, authenticate: authenticate, ttl: o.credentialsTTL, now: o.now, lock: make(chan struct{}, 1), headers: headers, fetched: o.now()}
 }
 
 func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -109,16 +111,40 @@ func replayableBody(req *http.Request) (body func() io.ReadCloser, ok bool) {
 
 // current returns the headers to authenticate the request with, and whether they were just asked for. They are asked
 // for again when they are older than the ttl, or when force is set.
+//
+// Neither waiting for the lookup of another request nor the lookup itself outlasts the request. Some credentials do
+// not stop when the context ends, such as a command that is run to get a token, and a command that hangs must not
+// hang the request, or the ones waiting behind it. The lookup is left to finish on its own, and its result is not used.
 func (t *authTransport) current(req *http.Request, force bool) (headers map[string]string, fresh bool, err error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	ctx := req.Context()
+	select {
+	case t.lock <- struct{}{}:
+	case <-ctx.Done():
+		return nil, false, ctx.Err()
+	}
+	defer func() { <-t.lock }()
+
 	if !force && t.headers != nil && t.now().Sub(t.fetched) < t.ttl {
 		return t.headers, false, nil
 	}
-	headers, err = t.authenticate(req.Context(), req.URL.String())
-	if err != nil {
-		return nil, false, err
+
+	type lookup struct {
+		headers map[string]string
+		err     error
 	}
-	t.headers, t.fetched = headers, t.now()
-	return headers, true, nil
+	done := make(chan lookup, 1)
+	go func() {
+		h, err := t.authenticate(ctx, req.URL.String())
+		done <- lookup{h, err}
+	}()
+	select {
+	case l := <-done:
+		if l.err != nil {
+			return nil, false, l.err
+		}
+		t.headers, t.fetched = l.headers, t.now()
+		return l.headers, true, nil
+	case <-ctx.Done():
+		return nil, false, ctx.Err()
+	}
 }

@@ -413,3 +413,68 @@ func TestDo_AnswersWithinTheTimeoutWhenTheServerIsFastEnough(t *testing.T) {
 	require.NoError(t, c.Get("/api/thing", &out))
 	assert.Equal(t, 42, out.Answer)
 }
+
+// hangingAuth gives its first token at once and then hangs on every lookup until it is released, ignoring the context,
+// as a command that is run to get a token does when it hangs.
+func hangingAuth(release <-chan struct{}) func() (func(context.Context, string) (map[string]string, error), error) {
+	var mu sync.Mutex
+	lookups := 0
+	return func() (func(context.Context, string) (map[string]string, error), error) {
+		return func(context.Context, string) (map[string]string, error) {
+			mu.Lock()
+			lookups++
+			first := lookups == 1
+			mu.Unlock()
+			if !first {
+				<-release
+			}
+			return map[string]string{"authorization": "Bearer token"}, nil
+		}, nil
+	}
+}
+
+func TestDo_AHangingLookupOfTheCredentialsDoesNotHangTheRequest(t *testing.T) {
+	srv := newRecordingServer(t)
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	c, err := newClient(&client.ApiConnectionDetails{}, srv.URL, hangingAuth(release),
+		withClock(func() time.Time { return now }), WithTimeout(50*time.Millisecond))
+	require.NoError(t, err)
+	now = now.Add(credentialsTTL + time.Second) // the token the client was made with is old, so it is asked for again
+
+	started := time.Now()
+	err = c.Get("/a", nil)
+
+	var timeout *TimeoutError
+	assert.ErrorAs(t, err, &timeout)
+	assert.Less(t, time.Since(started), 2*time.Second)
+	assert.Empty(t, srv.seen, "a request without credentials is not sent")
+}
+
+// A request waits for the lookup another request is making, rather than making its own, but not for longer than it has.
+func TestDo_ARequestWaitingForAHangingLookupStopsWaitingWhenItsTimeIsUp(t *testing.T) {
+	srv := newRecordingServer(t)
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	c, err := newClient(&client.ApiConnectionDetails{}, srv.URL, hangingAuth(release),
+		withClock(func() time.Time { return now }), WithTimeout(100*time.Millisecond))
+	require.NoError(t, err)
+	now = now.Add(credentialsTTL + time.Second)
+
+	errs := make(chan error, 3)
+	for i := 0; i < cap(errs); i++ {
+		go func() { errs <- c.Get("/a", nil) }()
+	}
+
+	for i := 0; i < cap(errs); i++ {
+		select {
+		case err := <-errs:
+			var timeout *TimeoutError
+			assert.ErrorAs(t, err, &timeout)
+		case <-time.After(2 * time.Second):
+			t.Fatal("a request is still waiting for the credentials after its time was up")
+		}
+	}
+}
