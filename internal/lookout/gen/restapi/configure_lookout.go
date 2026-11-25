@@ -173,12 +173,41 @@ func allowCORS(handler http.Handler, corsAllowedOrigins []string) http.Handler {
 func recordRequestDuration(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		handler.ServeHTTP(w, r)
+		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		handler.ServeHTTP(recorder, r)
 		duration := time.Since(start)
 		if strings.HasPrefix(r.URL.Path, "/api/v1/") {
-			metrics.RecordRequestDuration(auth.GetPrincipal(r.Context()).GetName(), r.URL.Path, float64(duration.Milliseconds()))
+			user := auth.GetPrincipal(r.Context()).GetName()
+			metrics.RecordRequestDuration(user, r.URL.Path, float64(duration.Milliseconds()))
+			metrics.RecordRequest(user, r.URL.Path, r.Method, recorder.status)
 		}
 	})
+}
+
+// statusRecorder keeps the status code written by the handler so it can be reported as a metric.
+// Handlers that never call WriteHeader respond with 200.
+type statusRecorder struct {
+	http.ResponseWriter
+	status      int
+	wroteHeader bool
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+	if !r.wroteHeader {
+		r.status = code
+		r.wroteHeader = true
+	}
+	r.ResponseWriter.WriteHeader(code)
+}
+
+func (r *statusRecorder) Write(b []byte) (int, error) {
+	r.wroteHeader = true
+	return r.ResponseWriter.Write(b)
+}
+
+// Unwrap lets http.ResponseController reach the underlying writer.
+func (r *statusRecorder) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
 }
 
 func preflightHandler(w http.ResponseWriter) {
