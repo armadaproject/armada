@@ -122,6 +122,9 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "Error opening connection to postgres")
 	}
 	defer db.Close()
+	if err := dbcommon.RegisterPoolMetrics(prometheus.DefaultRegisterer, db, nil); err != nil {
+		return err
+	}
 	jobRepository := database.NewPostgresJobRepository(db, int32(config.DatabaseFetchSize))
 	executorRepository := database.NewPostgresExecutorRepository(db)
 

@@ -5,7 +5,6 @@ package lookout
 import (
 	"fmt"
 
-	"github.com/IBM/pgxpoolprometheus"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/jessevdk/go-flags"
@@ -39,8 +38,9 @@ func Serve(configuration configuration.LookoutConfig) error {
 		return err
 	}
 
-	collector := pgxpoolprometheus.NewCollector(db, map[string]string{})
-	prometheus.MustRegister(collector)
+	if err := database.RegisterPoolMetrics(prometheus.DefaultRegisterer, db, nil); err != nil {
+		return err
+	}
 
 	getJobsRepo := repository.NewSqlGetJobsRepository(db)
 	groupJobsRepo := repository.NewSqlGroupJobsRepository(db)
