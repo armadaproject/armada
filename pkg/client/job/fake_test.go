@@ -22,6 +22,9 @@ type fakeLookout struct {
 	// debugMessageNotFound makes a run without a debug message get a 400 that says not found, as Lookout does for some
 	// runs, instead of the empty object it answers for others.
 	debugMessageNotFound bool
+	// debugInfos are the structured diagnostics of a run, by run id, which Lookout sends as an object next to its debug
+	// message.
+	debugInfos map[string]map[string]any
 	// failing are the paths that answer 500.
 	failing map[string]bool
 	// status and body, when set, are the response to every request.
@@ -37,7 +40,7 @@ type fakeLookout struct {
 func newFakeLookout(t *testing.T, known ...string) (*fakeLookout, string) {
 	t.Helper()
 	f := &fakeLookout{
-		known: map[string]bool{}, states: map[string]string{}, runs: map[string][]map[string]any{}, failing: map[string]bool{},
+		known: map[string]bool{}, states: map[string]string{}, runs: map[string][]map[string]any{}, failing: map[string]bool{}, debugInfos: map[string]map[string]any{},
 		jobErrors: map[string]string{}, runErrors: map[string]string{}, debugMessages: map[string]string{}, terminationReasons: map[string]string{},
 	}
 	for _, id := range known {
@@ -102,6 +105,10 @@ func (f *fakeLookout) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/v1/jobRunError":
 		f.recorded(w, f.runErrors, request["runId"], "errorString", "no error found for run with id %v: not found", true)
 	case "/api/v1/jobRunDebugMessage":
+		if info, ok := f.debugInfos[fmt.Sprint(request["runId"])]; ok {
+			_ = json.NewEncoder(w).Encode(map[string]any{"errorString": f.debugMessages[fmt.Sprint(request["runId"])], "debugInfo": info})
+			return
+		}
 		f.recorded(w, f.debugMessages, request["runId"], "errorString", "no debug message found for run with id %v: not found", f.debugMessageNotFound)
 	case "/api/v1/jobRunSchedulerTerminationReason":
 		f.recorded(w, f.terminationReasons, request["runId"], "schedulerTerminationReason", "no scheduler termination reason found for run with id %v: not found", true)

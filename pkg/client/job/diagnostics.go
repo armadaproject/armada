@@ -1,6 +1,7 @@
 package job
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -71,7 +72,9 @@ func runDidNotSucceed(state string) bool {
 // optionalString posts request to path and returns the string at key of the response. Lookout answers HTTP 400
 // with a message ending in "not found" when it has nothing recorded, which is not a failure here: the result is "".
 func optionalString(api *httpapi.Client, path string, request map[string]any, key string) (string, error) {
-	var response map[string]string
+	// The values are not all strings: the debug message of a run comes with its debugInfo, an object, when the executor
+	// captured one. Only the value asked for is decoded, so what else Lookout adds to a response cannot break this.
+	var response map[string]json.RawMessage
 	err := api.Post(path, request, &response)
 	var status *httpapi.StatusError
 	if errors.As(err, &status) && status.Code == http.StatusBadRequest && strings.Contains(status.Body, "not found") {
@@ -80,5 +83,13 @@ func optionalString(api *httpapi.Client, path string, request map[string]any, ke
 	if err != nil {
 		return "", fmt.Errorf("get %s request failed: %s", strings.TrimPrefix(path, "/api/v1/"), err)
 	}
-	return response[key], nil
+	raw, ok := response[key]
+	if !ok {
+		return "", nil
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return "", fmt.Errorf("get %s request failed: %s in the response is not a string: %s", strings.TrimPrefix(path, "/api/v1/"), key, err)
+	}
+	return value, nil
 }

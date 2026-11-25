@@ -223,3 +223,25 @@ func TestNewJob_KeepsTheRunsOfTheJob(t *testing.T) {
 func TestNewJob_AJobWithoutRunsHasAnEmptyList(t *testing.T) {
 	assert.Equal(t, []any{}, document(t, NewJob(&models.Job{JobID: "a"}))["runs"])
 }
+
+// Lookout sends the structured diagnostics of a run, its debugInfo, next to its debug message, as an object.
+func TestGet_ADebugMessageThatComesWithDebugInfoIsRead(t *testing.T) {
+	f, url := newFakeLookout(t, "a")
+	f.states["a"] = "FAILED"
+	f.runs["a"] = []map[string]any{run("r1", "RUN_FAILED"), run("r2", "RUN_FAILED")}
+	f.debugMessages["r1"] = "the node was drained"
+	f.debugInfos["r1"] = map[string]any{
+		"schemaVersion": 1,
+		"trigger":       "podFailed",
+		"pod":           map[string]any{"name": "armada-a-0", "phase": "Failed"},
+		"node":          map[string]any{"name": "node-1"},
+	}
+	f.debugInfos["r2"] = map[string]any{"schemaVersion": 1, "trigger": "cancelledNotStarted", "pod": map[string]any{}}
+
+	job, err := Get(connectionTo(url))("a")
+
+	require.NoError(t, err, "armadactl get job must still print the job")
+	require.NotNil(t, job)
+	assert.Equal(t, "the node was drained", job.Runs[0].RunDetails.DebugMessage)
+	assert.Nil(t, job.Runs[1].RunDetails, "debug info without a debug message has nothing to say here")
+}
