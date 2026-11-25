@@ -100,61 +100,55 @@ func TestGetTotalAvailableForPoolAsMap(t *testing.T) {
 func TestWithinLimits_WhenWithinLimits_ReturnsTrue(t *testing.T) {
 	rlFactory := makeRlFactory()
 	sut := makeSut(t, rlFactory)
-	withinLimits, errorMessage := sut.WithinLimits("cpu",
-		rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("199")}),
-	)
+	allocated := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("199")})
+	withinLimits, errorMessage, exceededResource := sut.WithinLimits("cpu", allocated)
 	assert.True(t, withinLimits)
 	assert.Empty(t, errorMessage)
+	assert.Empty(t, exceededResource)
 }
 
 func TestWithinLimits_WhenAtLimit_ReturnsTrue(t *testing.T) {
 	rlFactory := makeRlFactory()
 	sut := makeSut(t, rlFactory)
-	withinLimits, errorMessage := sut.WithinLimits("cpu",
-		rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("200")}),
-	)
+	allocated := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("200")})
+	withinLimits, errorMessage, exceededResource := sut.WithinLimits("cpu", allocated)
 	assert.True(t, withinLimits)
 	assert.Empty(t, errorMessage)
+	assert.Empty(t, exceededResource)
 }
 
 func TestWithinLimits_WhenExceedsLimit_ReturnsFalse(t *testing.T) {
 	rlFactory := makeRlFactory()
 	sut := makeSut(t, rlFactory)
-	withinLimits, errorMessage := sut.WithinLimits("cpu",
-		rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("201")}),
-	)
+	allocated := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("201")})
+	withinLimits, errorMessage, exceededResource := sut.WithinLimits("cpu", allocated)
 	assert.False(t, withinLimits)
-	assert.NotEmpty(t, errorMessage)
+	assert.Equal(t, "not enough floating resource floating-resource-1 in pool cpu", errorMessage)
+	assert.Equal(t, "floating-resource-1", exceededResource)
 }
 
 func TestWithinLimits_IgnoresNonFloatingResources(t *testing.T) {
 	rlFactory := makeRlFactory()
 	sut := makeSut(t, rlFactory)
-	withinLimits, errorMessage := sut.WithinLimits("cpu",
-		rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"cpu": resource.MustParse("1000")}),
-	)
+	allocated := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"cpu": resource.MustParse("1000")})
+	withinLimits, errorMessage, exceededResource := sut.WithinLimits("cpu", allocated)
 	assert.True(t, withinLimits)
 	assert.Empty(t, errorMessage)
+	assert.Empty(t, exceededResource)
 }
 
-func TestWithinLimits_WhenResourceNotSpecifiedForAPool_ReturnsFalse(t *testing.T) {
-	rlFactory := makeRlFactory()
-	sut := makeSut(t, rlFactory)
-	withinLimits, errorMessage := sut.WithinLimits("gpu",
-		rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-2": resource.MustParse("1")}),
-	)
-	assert.False(t, withinLimits)
-	assert.NotEmpty(t, errorMessage)
+func TestIsConfiguredForPool_WhenConfigured_ReturnsTrue(t *testing.T) {
+	sut := makeSut(t, makeRlFactory())
+	configured, reason := sut.IsConfiguredForPool("cpu")
+	assert.True(t, configured)
+	assert.Empty(t, reason)
 }
 
-func TestWithinLimits_WhenPoolDoesNotExist_ReturnsFalse(t *testing.T) {
-	rlFactory := makeRlFactory()
-	sut := makeSut(t, rlFactory)
-	withinLimits, errorMessage := sut.WithinLimits("some-other-pool",
-		rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("1")}),
-	)
-	assert.False(t, withinLimits)
-	assert.NotEmpty(t, errorMessage)
+func TestIsConfiguredForPool_WhenPoolDoesNotExist_ReturnsFalse(t *testing.T) {
+	sut := makeSut(t, makeRlFactory())
+	configured, reason := sut.IsConfiguredForPool("some-other-pool")
+	assert.False(t, configured)
+	assert.Equal(t, "floating resources not configured for pool some-other-pool", reason)
 }
 
 func testConfig() []configuration.FloatingResourceConfig {
