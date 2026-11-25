@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"net/http"
 	"strconv"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -30,7 +31,22 @@ func RecordRequestDuration(user, endpoint string, duration float64) {
 		Observe(duration)
 }
 
+// knownMethods are the request methods that get a label of their own. Clients can send any token as a
+// method, so everything else is reported as "other" to keep the number of series bounded.
+var knownMethods = map[string]bool{
+	http.MethodGet:     true,
+	http.MethodHead:    true,
+	http.MethodPost:    true,
+	http.MethodPut:     true,
+	http.MethodPatch:   true,
+	http.MethodDelete:  true,
+	http.MethodOptions: true,
+}
+
 func RecordRequest(user, endpoint, method string, code int) {
+	if !knownMethods[method] {
+		method = "other"
+	}
 	requestsTotal.
 		With(map[string]string{"user": user, "endpoint": endpoint, "method": method, "code": strconv.Itoa(code)}).
 		Inc()
