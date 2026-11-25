@@ -37,30 +37,77 @@ jobs:
           if-no-files-found: error
 
   go-unit-tests:
-    name: Golang Unit Tests
+    name: ${{ matrix.cache == 'ordinary' && 'Golang Unit Tests' || format('Golang Unit Tests ({0})', matrix.cache) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        cache: >-
+          ${{ fromJSON(github.event_name == 'pull_request' &&
+          github.repository == 'armadaproject/armada' &&
+          github.base_ref == 'master' && github.head_ref == 'cicd-task-021-shared-go-cache-diagnostic' &&
+          github.event.pull_request.head.repo.full_name == 'armadaproject/armada' &&
+          '["integration","cold"]' || '["ordinary"]') }}
     needs:
       - go-mod-up-to-date
       - sqlc-up-to-date
     runs-on: ubuntu-22.04
+    timeout-minutes: ${{ matrix.cache == 'ordinary' && 360 || 35 }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Go
+        id: setup-go
         uses: ./.github/actions/setup-go-cache
         with:
           cache-prefix: go-unit-tests
+          cache-build: ${{ matrix.cache == 'ordinary' && 'true' || 'false' }}
+          go-version: ${{ matrix.cache == 'ordinary' && '1.27' || '1.27.4' }}
+
+      - name: Isolate unit Go build cache
+        if: matrix.cache != 'ordinary'
+        env:
+          GOCACHE: ${{ steps.setup-go.outputs.build-cache-path }}
+        run: python3 .github/scripts/shared-unit-cache.py isolate
+
+      - name: Restore exact master integration Go build cache
+        id: integration-seed
+        if: matrix.cache == 'integration'
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ steps.setup-go.outputs.build-cache-path }}
+          key: go-integration-tests-refresh-v1-${{ runner.os }}-${{ runner.arch }}-go-${{ steps.setup-go.outputs.go-version }}-mod-${{ hashFiles('go.sum') }}-utc3d-6927-cache
+          fail-on-cache-miss: true
+
+      - name: Verify starting cache and record entry ages
+        if: matrix.cache != 'ordinary'
+        env:
+          CACHE_CASE: ${{ matrix.cache }}
+          CACHE_HIT: ${{ steps.integration-seed.outputs.cache-hit }}
+          GOCACHE: ${{ steps.setup-go.outputs.build-cache-path }}
+          GOFLAGS: -count=1
+          GOTOOLCHAIN: local
+        run: python3 .github/scripts/shared-unit-cache.py "$CACHE_CASE"
 
       - name: Unit Tests
         id: unit_test
+        if: matrix.cache == 'ordinary'
+        run: go run github.com/magefile/mage@v1.17.2 -v tests
+
+      - name: Diagnostic Unit Tests
+        if: matrix.cache != 'ordinary'
+        env:
+          GOFLAGS: -count=1
+          GOTOOLCHAIN: local
+          GOCACHE: ${{ steps.setup-go.outputs.build-cache-path }}
         run: go run github.com/magefile/mage@v1.17.2 -v tests
 
       - name: Upload Test Reports Artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: go-unit-test-reports
+          name: ${{ matrix.cache == 'ordinary' && 'go-unit-test-reports' || format('go-unit-{0}-test-reports', matrix.cache) }}
           path: test-reports/
           if-no-files-found: error
 
