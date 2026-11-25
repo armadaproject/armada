@@ -1,7 +1,8 @@
 # Job Set Event Streaming at Scale: Options Under Consideration
 
 **Status:** exploration. Nothing is decided, and no benchmarking has been done yet.
-Seven candidate ideas are laid out below, with a common problem statement and evaluation criteria.
+Seven candidate ideas and one cross-cutting enabler are laid out below, with a common problem
+statement and evaluation criteria.
 
 ## Problem
 
@@ -76,9 +77,49 @@ Different queues have structurally different event patterns. Any solution must s
 | 2 | Postgres history, Redis live tail | Events written to a Postgres `events` table for history; Redis streams keep only a delivery window of minutes | Reuses existing infrastructure; durable history; Redis becomes disposable; streams stay for every job set, so watch is unchanged once existence and last-ID checks come from history | Dual writes; Postgres has no row TTL, so expiry is a delete job; event writes compete with state DB unless isolated |
 | 3 | ClickHouse history, Redis live tail | Same split as idea 2, with ClickHouse as the history store | Per-job-set TTL applied at merge time; unbothered at 10x; good for many-row history | New cluster to operate; a second store for events |
 | 4 | Pulsar-only | Partitioned per-queue topics; readers for watch; retention for history | Removes Redis entirely; fast recovery; reuses the existing transport | History queries become scans; per-job-set cursors break; watch fan-out reads whole partitions |
-| 5 | Per-queue streams with client filtering | One stream per queue; clients filter for their job set | Stream count equals queue count; simple mental model | Every watcher consumes the whole queue's traffic; noisy queues; per-job-set cursors and per-job-set retention both disappear |
+| 5 | Per-queue streams with client filtering | One stream per queue; the API or the client filters for a job set | Stream count equals queue count; simple mental model; can hide the layout behind the watch API | Every watcher path carries the whole queue's traffic; noisy queues; per-job-set cursors and per-job-set retention both disappear |
 | 6 | ClickHouse-only with in-memory live relay | History in ClickHouse; live events pushed by a relay inside the API, no Redis | Cleanest end state; Redis gone; live is genuinely ephemeral | Breaks the watch protocol and external stream consumers in one step; most code to build |
 | 7 | Pulsar per-job-set topics | Each job set gets its own Pulsar topic instead of a Redis stream | Per-job-set retention and cursors from the transport; no filtering or fan-out amplification; durable and fast to recover | Millions of short-lived topics means metadata churn and per-topic overhead; existing consumers must fan in across all topics |
+
+## Cross-cutting enabler: watch through the API
+
+Independent of which storage wins, the watch surface can be separated from the storage entirely. The
+public contract becomes the Event API's server-streaming call — `GetJobSetEvents` today, with
+optional WebSocket or Connect RPC front-ends over the same semantics for browser and non-gRPC
+clients. Clients watch a job set through the API; they never attach to `Events:<queue>:<jobSetId>`
+keys.
+
+Why this is worth doing on its own:
+
+- It is the one change that makes the history-store ideas (2, 3, 5, 6, 7) non-breaking: the cursor
+  becomes opaque, and existence and last-ID are resolved server-side, so storage can move without a
+  client release. Where the cons below say "the API contract changes", this enabler turns that into
+  an internal change.
+- The history-to-live handoff and dedupe live in one place, where the store choice is known, instead
+  of being reimplemented in every client.
+- Existing gRPC clients are already on this path; only components reading Redis keys directly have
+  to move, and that is a one-time change with a clear owner.
+- WebSocket or Connect is a transport choice for the same call, not a second event system: one
+  event schema, one cursor semantics, one auth model.
+
+The longer-term payoff is that the stream layout stops being part of the contract. If a later change
+moves from per-job-set streams to per-queue streams (Idea 5), from Redis to a history store (Ideas 2
+and 3), or from Redis streams to Pulsar topics (Idea 7), users keep calling the same API and
+receiving the same events. They do not need to know which key layout exists, whether their events
+are filtered server-side, or which store answered the read. The server owns that mapping; the API is
+the only thing clients depend on.
+
+What it costs:
+
+- The API owns watch fan-out, backpressure, slow consumers and reconnects, so it scales with
+  concurrent watchers rather than with storage.
+- A WebSocket/Connect front-end is extra surface to secure, version and test, even if it proxies the
+  same logic.
+- Cursors must be treated as opaque from the start of the new API version; anything that parses
+  stream IDs needs a compatibility window.
+
+This does not fix cardinality or retention by itself, and it does not replace any idea below. It is
+the migration seam that lets a storage change ship without an API break.
 
 ## Idea 1: Status quo plus retention policy
 
@@ -326,6 +367,8 @@ filter for their job set.
 **How it would work.** Replace `Events:<queue>:<jobSetId>` with `Events:<queue>` (Redis or Pulsar).
 Events are tagged with the job set ID in the payload. Watch reads the queue stream from a cursor and
 filters; history can be the queue stream with filtering or a history table from idea 2/3 alongside.
+With the watch-API enabler, the API does the filtering and the per-queue layout stays invisible to
+users; without it, clients read the queue stream and filter themselves.
 
 **Workload fit.** Many short-lived: stream count drops to the number of queues — the cardinality
 win. Few long-lived: watch works, but each watcher consumes all other job sets' traffic on that
@@ -343,7 +386,8 @@ queue.
 
 **Cons.**
 
-- Fan-out cost moves to the client or a relay: every watcher sees every event on the queue.
+- Fan-out cost moves to the client, a relay, or the API: every watcher path carries every event on
+  the queue, even though each client only needs one job set.
 - Per-job-set cursors disappear; the API contract changes for every client.
 - Filtering cost grows with queue event rate, not with the client's own job set.
 - No isolation — one noisy job set loads every watcher on that queue.
