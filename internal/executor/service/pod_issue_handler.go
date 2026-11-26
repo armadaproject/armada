@@ -844,7 +844,7 @@ func (p *PodIssueHandler) handleReconciliationIssue(issue *issue) {
 		return
 	}
 
-	if issue.RunIssue.ReconciliationIssue.OriginalRunState.Phase != currentRunState.Phase || currentRunState.CancelRequested || currentRunState.PreemptionRequested {
+	if issue.RunIssue.ReconciliationIssue.OriginalRunState.Phase != currentRunState.Phase || currentRunState.CancelRequested {
 		// State of the run has changed - resolve
 		// If there is still an issue, it'll be re-detected
 		p.markIssuesResolved(issue.RunIssue)
@@ -891,7 +891,7 @@ func (p *PodIssueHandler) handleReconciliationIssue(issue *issue) {
 
 func (p *PodIssueHandler) detectReconciliationIssues(pods []*v1.Pod) {
 	runs := p.jobRunState.GetAllWithFilter(func(state *job.RunState) bool {
-		return (state.Phase == job.Active || state.Phase == job.SuccessfulSubmission) && !state.CancelRequested && !state.PreemptionRequested
+		return (state.Phase == job.Active || state.Phase == job.SuccessfulSubmission) && !state.CancelRequested
 	})
 
 	runIdsToPod := make(map[string]*v1.Pod, len(pods))

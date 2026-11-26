@@ -70,7 +70,6 @@ func (r *JobRequester) RequestJobsRuns() {
 	jobs, failedJobCreations := r.createSubmitJobs(leaseResponse.LeasedRuns)
 	r.markJobRunsAsLeased(jobs)
 	r.markJobRunsAsCancelled(leaseResponse.RunIdsToCancel)
-	r.markJobRunsToPreempt(leaseResponse.RunIdsToPreempt)
 	r.handleFailedJobCreation(failedJobCreations)
 }
 
@@ -159,12 +158,6 @@ func (r *JobRequester) markJobRunsAsLeased(jobs []*job.SubmitJob) {
 func (r *JobRequester) markJobRunsAsCancelled(runIdsToCancel []string) {
 	for _, runId := range runIdsToCancel {
 		r.jobRunStateStore.RequestRunCancellation(runId)
-	}
-}
-
-func (r *JobRequester) markJobRunsToPreempt(runIdsToPreempt []string) {
-	for _, runId := range runIdsToPreempt {
-		r.jobRunStateStore.RequestRunPreemption(runId)
 	}
 }
 

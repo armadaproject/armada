@@ -245,7 +245,6 @@ func setupExecutorApiComponents(
 	}
 
 	leaseRequester := service.NewJobLeaseRequester(executorApiClient, clusterContext)
-	preemptRunProcessor := processors.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter, debugRenderer)
 	removeRunProcessor := processors.NewRemoveRunProcessor(clusterContext, jobRunState, eventReporter, debugRenderer)
 
 	jobRequester := service.NewJobRequester(
@@ -296,7 +295,6 @@ func setupExecutorApiComponents(
 	}
 
 	taskManager.Register(podIssueService.HandlePodIssues, config.Task.PodIssueHandlingInterval, "pod_issue_handling")
-	taskManager.Register(preemptRunProcessor.Run, config.Task.StateProcessorInterval, "preempt_runs")
 	taskManager.Register(removeRunProcessor.Run, config.Task.StateProcessorInterval, "remove_runs")
 	taskManager.Register(jobRequester.RequestJobsRuns, config.Task.JobLeaseRenewalInterval, "request_runs")
 	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "submit_runs")

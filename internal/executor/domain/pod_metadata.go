@@ -13,5 +13,4 @@ const (
 	AssociatedServicesCount  = "associated_services_count"
 	IngressReported          = "ingress_reported"
 	MarkedForDeletion        = "deletion_requested"
-	JobPreemptedAnnotation   = "reported_preempted"
 )

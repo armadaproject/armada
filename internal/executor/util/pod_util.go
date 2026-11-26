@@ -295,11 +295,6 @@ func IsMarkedForDeletion(pod *v1.Pod) bool {
 	return exists
 }
 
-func IsReportedPreempted(pod *v1.Pod) bool {
-	_, exists := pod.Annotations[domain.JobPreemptedAnnotation]
-	return exists
-}
-
 func IsPodFinishedAndReported(pod *v1.Pod) bool {
 	if !IsInTerminalState(pod) ||
 		!HasCurrentStateBeenReported(pod) {

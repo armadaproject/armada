@@ -24,9 +24,8 @@ type LeaseRequest struct {
 }
 
 type LeaseResponse struct {
-	LeasedRuns      []*executorapi.JobRunLease
-	RunIdsToCancel  []string
-	RunIdsToPreempt []string
+	LeasedRuns     []*executorapi.JobRunLease
+	RunIdsToCancel []string
 }
 
 type LeaseRequester interface {
@@ -67,7 +66,6 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 
 	leaseRuns := []*executorapi.JobRunLease{}
 	runIdsToCancel := []string{}
-	runIdsToPreempt := []string{}
 	shouldEndStream := false
 	for !shouldEndStream {
 		res, err := stream.Recv()
@@ -78,8 +76,6 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 		switch typed := res.GetEvent().(type) {
 		case *executorapi.LeaseStreamMessage_Lease:
 			leaseRuns = append(leaseRuns, typed.Lease)
-		case *executorapi.LeaseStreamMessage_PreemptRuns:
-			runIdsToPreempt = append(runIdsToPreempt, typed.PreemptRuns.JobRunIdsToPreempt...)
 		case *executorapi.LeaseStreamMessage_CancelRuns:
 			runIdsToCancel = append(runIdsToCancel, typed.CancelRuns.JobRunIdsToCancel...)
 		case *executorapi.LeaseStreamMessage_End:
@@ -95,9 +91,8 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 	}
 
 	return &LeaseResponse{
-		LeasedRuns:      leaseRuns,
-		RunIdsToCancel:  runIdsToCancel,
-		RunIdsToPreempt: runIdsToPreempt,
+		LeasedRuns:     leaseRuns,
+		RunIdsToCancel: runIdsToCancel,
 	}, nil
 }
 

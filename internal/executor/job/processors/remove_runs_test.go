@@ -1,14 +1,21 @@
 package processors
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+
+	util2 "github.com/armadaproject/armada/internal/common/util"
 
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
+	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
@@ -213,4 +220,23 @@ func testDebugConfig() configuration.DebugEventsConfig {
 
 func disabledDebugConfig() configuration.DebugEventsConfig {
 	return configuration.DebugEventsConfig{Enabled: false}
+}
+
+func createPod() *v1.Pod {
+	jobId := util2.NewULID()
+	return &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       types.UID(util2.NewULID()),
+			Name:      fmt.Sprintf("armada-%s-0", jobId),
+			Namespace: util2.NewULID(),
+			Labels: map[string]string{
+				domain.JobId:    jobId,
+				domain.JobRunId: uuid.New().String(),
+				domain.Queue:    util2.NewULID(),
+			},
+			Annotations: map[string]string{
+				domain.JobSetId: fmt.Sprintf("job-set-%s", util2.NewULID()),
+			},
+		},
+	}
 }

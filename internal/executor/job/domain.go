@@ -80,7 +80,6 @@ type RunState struct {
 	KubernetesId            string
 	Phase                   RunPhase
 	CancelRequested         bool
-	PreemptionRequested     bool
 	LastPhaseTransitionTime time.Time
 }
 
@@ -91,7 +90,6 @@ func (r *RunState) DeepCopy() *RunState {
 		KubernetesId:            r.KubernetesId,
 		Phase:                   r.Phase,
 		CancelRequested:         r.CancelRequested,
-		PreemptionRequested:     r.PreemptionRequested,
 		LastPhaseTransitionTime: r.LastPhaseTransitionTime,
 	}
 }
