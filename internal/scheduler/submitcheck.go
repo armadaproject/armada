@@ -310,14 +310,14 @@ func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSched
 		sb.WriteString(fmt.Sprintf("pool %s:\n", pool.Name))
 
 		if originalGangCtx.RequestsFloatingResources {
-			rr := originalGangCtx.TotalResourceRequests
-			if ok, reason := srv.floatingResourceTypes.IsConfiguredForPool(pool.Name); !ok {
-				sb.WriteString(fmt.Sprintf("job/gang requests floating resources %s but %s\n", rr.OfType(internaltypes.Floating).String(), reason))
+			resourceRequests := originalGangCtx.TotalResourceRequests
+			if ok, reason := srv.floatingResourceTypes.IsConfiguredForPool(pool.Name, resourceRequests); !ok {
+				sb.WriteString(fmt.Sprintf("job/gang requests floating resources %s but %s\n", resourceRequests.OfType(internaltypes.Floating).String(), reason))
 				sb.WriteString("\n---\n")
 				continue
 			}
-			if ok, reason, _ := srv.floatingResourceTypes.WithinLimits(pool.Name, rr); !ok {
-				sb.WriteString(fmt.Sprintf("job/gang requests floating resources %s but %s\n", rr.OfType(internaltypes.Floating).String(), reason))
+			if ok, reason, _ := srv.floatingResourceTypes.WithinLimits(pool.Name, resourceRequests); !ok {
+				sb.WriteString(fmt.Sprintf("job/gang requests floating resources %s but %s\n", resourceRequests.OfType(internaltypes.Floating).String(), reason))
 				sb.WriteString("\n---\n")
 				continue
 			}
