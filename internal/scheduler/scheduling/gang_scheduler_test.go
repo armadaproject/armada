@@ -1012,10 +1012,11 @@ func TestGangScheduler_FloatingResourceLimit_LabelsEvictedJobsAsPreempted(t *tes
 				rate.NewLimiter(rate.Limit(schedulingConfig.MaximumSchedulingRate), schedulingConfig.MaximumSchedulingBurst),
 				nil,
 				totalResources,
+				schedulingConfig.PriorityClasses,
 			)
 			require.NoError(t, sctx.AddQueueSchedulingContext(
 				"A", 1, 1, nil,
-				internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{},
+				internaltypes.ResourceList{}, map[string]internaltypes.ResourceList{}, internaltypes.ResourceList{},
 				rate.NewLimiter(rate.Limit(schedulingConfig.MaximumPerQueueSchedulingRate), schedulingConfig.MaximumPerQueueSchedulingBurst),
 			))
 			// The pool's floating resource limit (10) is already in use, so the gang can't fit.
