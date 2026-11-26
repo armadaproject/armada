@@ -75,6 +75,7 @@ func TestConstructSchedulingContext_SetsFairsharePreemptionLimiter(t *testing.T)
 			l := &FairSchedulingAlgo{
 				schedulingConfig:        config,
 				preemptionLimiterByPool: initialisePerPoolRateLimiters(config.Pools),
+				clock:                   clock.NewFakeClock(testfixtures.BaseTime),
 			}
 
 			sctx, err := l.constructSchedulingContext("pool", totalResources, nil, nil, nil, nil, map[string]*api.Queue{})

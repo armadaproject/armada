@@ -17,6 +17,10 @@ import (
 
 const MAGE_VERSION_CONSTRAINT = ">= 1.16.0"
 
+type ToolsList struct {
+	Tools []string
+}
+
 // mageCheck verifies that any mage binary on PATH is new enough to register targets with
 // optional arguments (a mage 1.16 feature). Older mage silently hides such targets, so
 // `mage dev:up` fails with "Unknown target" before any magefile code runs. This check
@@ -47,10 +51,6 @@ func mageCheck() error {
 // For the list of tools this will install, see tools.yaml in the root directory
 func BootstrapTools() error {
 	mg.Deps(goCheck)
-	type ToolsList struct {
-		Tools []string
-	}
-
 	requiredTools := &ToolsList{}
 	if err := readYaml("tools.yaml", requiredTools); err != nil {
 		return err
@@ -229,7 +229,7 @@ func BuildDockers(arg string) error {
 	for _, s := range strings.Split(arg, ",") {
 		dockerIds = append(dockerIds, strings.TrimSpace(s))
 	}
-	if err := goreleaserMinimalRelease(dockerIds...); err != nil {
+	if err := goreleaserMinimalRelease(false, dockerIds...); err != nil {
 		return err
 	}
 	fmt.Println("Time to build dockers:", time.Since(timeTaken))
@@ -314,7 +314,7 @@ func Generate() error {
 // CI Image to build
 func BuildCI() error {
 	ciImage := []string{"bundle", "lookout-bundle", "server", "executor", "armadactl", "testsuite", "lookout", "lookoutingester", "eventingester", "scheduler", "scheduleringester", "binoculars"}
-	err := goreleaserMinimalRelease(ciImage...)
+	err := goreleaserMinimalRelease(false, ciImage...)
 	if err != nil {
 		return err
 	}

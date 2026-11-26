@@ -1,7 +1,9 @@
 package startupmetrics
 
 import (
+	"slices"
 	"strconv"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 
@@ -40,18 +42,35 @@ func (r *Recorder) Record(pod *v1.Pod, info *armadaevents.PodStartUpInfo) {
 	node := pod.Spec.NodeName
 
 	issues := collectionIssues(pod, info)
-	success := len(reportableIssues(issues)) == 0
+	success := len(issues) == 0
 	podStartUpInfoCollectedTotal.WithLabelValues(pool, strconv.FormatBool(success)).Inc()
 	recordCollectionIssues(pod.Name, pool, issues)
 
-	if total := interval(info.CreatedAt, info.StartedAt); total != nil {
-		podStartUpDurationSeconds.WithLabelValues(queue, pool).Observe(total.Seconds())
-		nodeStartUpDurationSeconds.WithLabelValues(node, pool).Observe(total.Seconds())
+	durations := deriveStartUpDurations(info, r.trackedInitContainers)
+	if durations.total != nil {
+		podStartUpDurationSeconds.WithLabelValues(queue, pool).Observe(durations.total.Seconds())
+		nodeStartUpDurationSeconds.WithLabelValues(node, pool).Observe(durations.total.Seconds())
+	}
+	if durations.withoutUntrackedInitContainers != nil {
+		podStartUpWithoutUntrackedInitContainersDurationSeconds.
+			WithLabelValues(queue, pool).Observe(durations.withoutUntrackedInitContainers.Seconds())
+		nodeStartUpWithoutUntrackedInitContainersDurationSeconds.
+			WithLabelValues(node, pool).Observe(durations.withoutUntrackedInitContainers.Seconds())
+	}
+	if durations.withoutInitContainers != nil {
+		podStartUpWithoutInitContainersDurationSeconds.
+			WithLabelValues(queue, pool).Observe(durations.withoutInitContainers.Seconds())
+		nodeStartUpWithoutInitContainersDurationSeconds.
+			WithLabelValues(node, pool).Observe(durations.withoutInitContainers.Seconds())
 	}
 
 	for _, step := range deriveSteps(info) {
 		podStartUpStepDurationSeconds.WithLabelValues(queue, pool, step.name).Observe(step.duration.Seconds())
 		nodeStartUpStepDurationSeconds.WithLabelValues(node, pool, step.name).Observe(step.duration.Seconds())
+	}
+
+	if pulling := totalImagePullDuration(info); pulling != nil {
+		podTotalImagePullDurationSeconds.WithLabelValues(queue, pool).Observe(pulling.Seconds())
 	}
 
 	for _, container := range info.InitContainers {
@@ -60,6 +79,29 @@ func (r *Recorder) Record(pod *v1.Pod, info *armadaevents.PodStartUpInfo) {
 	for _, container := range info.Containers {
 		r.recordContainer(queue, pool, node, container, false)
 	}
+}
+
+// totalImagePullDuration is how long the kubelet spent pulling the pod's images summed across all containers.
+func totalImagePullDuration(info *armadaevents.PodStartUpInfo) *time.Duration {
+	containers := slices.Concat(info.InitContainers, info.Containers)
+	if len(containers) == 0 {
+		return nil
+	}
+
+	var total time.Duration
+	for _, container := range containers {
+		if container == nil || container.ImagePull == nil {
+			return nil
+		}
+		if container.ImagePull.Cached {
+			continue // already on the node, so never pulled
+		}
+		if container.ImagePull.Duration == nil {
+			return nil
+		}
+		total += protoutil.ToStdDuration(container.ImagePull.Duration)
+	}
+	return &total
 }
 
 // recordCollectionIssues detects if any fields were not collected

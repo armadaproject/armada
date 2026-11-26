@@ -57,6 +57,7 @@ helm uninstall armada-server
 | customServiceAccount | string | `""` | If specified, custom ServiceAccount name will be attached to Armada Server Deployment resource and the default ServiceAccount will not be created |
 | env | object | `{}` | Additional environment variables for Armada Server Deployment resource |
 | fullnameOverride | string | `""` |  |
+| grpcHostnames | list | `[]` | Hostnames for which to create gRPC Ingress rules, overriding `hostnames` if set |
 | hostnames | list | `[]` | Hostnames for which to create gRPC and REST Ingress rules |
 | image.repository | string | `"gresearch/armada-server"` |  |
 | image.tag | string | `"0.0.0-latest"` |  |
@@ -77,6 +78,7 @@ helm uninstall armada-server
 | resources.limits.memory | string | `"1Gi"` |  |
 | resources.requests.cpu | string | `"200m"` |  |
 | resources.requests.memory | string | `"512Mi"` |  |
+| restHostnames | list | `[]` | Hostnames for which to create REST Ingress rules, overriding `hostnames` if set |
 | routableService.enabled | bool | `false` |  |
 | serviceAccount | object | `{}` | Additional ServiceAccount properties (e.g. automountServiceAccountToken, imagePullSecrets, etc.) |
 | serviceType | string | `"ClusterIP"` |  |

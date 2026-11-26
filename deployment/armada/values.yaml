@@ -50,6 +50,10 @@ clusterIssuer: ""
 # -- Hostnames for which to create gRPC and REST Ingress rules
 hostnames: []
   # - armada.example.com
+# -- Hostnames for which to create gRPC Ingress rules, overriding `hostnames` if set
+grpcHostnames: []
+# -- Hostnames for which to create REST Ingress rules, overriding `hostnames` if set
+restHostnames: []
 ingress:
   # -- Toggle whether to create gRPC and HTTP Ingress for Armada Server
   enabled: true

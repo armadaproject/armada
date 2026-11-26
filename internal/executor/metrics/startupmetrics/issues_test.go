@@ -142,13 +142,9 @@ func TestIncompleteBreakdownMessage(t *testing.T) {
 		expected string
 	}{
 		"nothing missing": {},
-		// Which is every pod on a cluster below Kubernetes 1.33.
-		"only sandbox_ready_at, which the cluster may never report": {
-			issues: []collectionIssue{sandboxReady},
-		},
-		"sandbox_ready_at alongside something worth knowing about": {
-			issues:   []collectionIssue{sandboxReady, unfinishedInit},
-			expected: "Start up breakdown of pod test-pod is incomplete: init_containers (init has no finish time)",
+		"missing sandbox_ready_at": {
+			issues:   []collectionIssue{sandboxReady},
+			expected: "Start up breakdown of pod test-pod is incomplete: sandbox_ready_at",
 		},
 		"several issues, each with its detail": {
 			issues: []collectionIssue{unfinishedInit, noPullSize},

@@ -79,6 +79,91 @@ func TestRecord_NodeMetrics(t *testing.T) {
 	assert.Equal(t, float64(3), sum)
 }
 
+// Every case is a pod with 50s of Kubernetes overhead: 10s before its init containers run and 40s
+// after they finish, before the app container starts. The init containers run one after another, as
+// they do on a real pod, so each one makes the pod start later.
+func TestRecord_StartUpDurationVariants(t *testing.T) {
+	type initContainer struct {
+		name        string
+		runDuration int
+	}
+	tracked := initContainer{name: "preflight", runDuration: 20}
+	untracked := initContainer{name: "user-init", runDuration: 30}
+
+	tests := map[string]struct {
+		initContainers                         []initContainer
+		expectedTotal                          float64
+		expectedWithoutUntrackedInitContainers float64
+		expectedWithoutInitContainers          float64
+	}{
+		"no init containers": {
+			expectedTotal:                          50,
+			expectedWithoutUntrackedInitContainers: 50,
+			expectedWithoutInitContainers:          50,
+		},
+		"tracked init container only": {
+			initContainers:                         []initContainer{tracked},
+			expectedTotal:                          70,
+			expectedWithoutUntrackedInitContainers: 70,
+			expectedWithoutInitContainers:          50,
+		},
+		"untracked init container only": {
+			initContainers:                         []initContainer{untracked},
+			expectedTotal:                          80,
+			expectedWithoutUntrackedInitContainers: 50,
+			expectedWithoutInitContainers:          50,
+		},
+		"tracked and untracked init containers": {
+			initContainers:                         []initContainer{tracked, untracked},
+			expectedTotal:                          100,
+			expectedWithoutUntrackedInitContainers: 70,
+			expectedWithoutInitContainers:          50,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			recorder := NewRecorder(configuration.StartUpMetricsConfig{TrackedInitContainers: []string{tracked.name}})
+			// The metrics are global, so each case records under its own labels.
+			queue, pool, node := name+"-queue", name+"-pool", name+"-node"
+
+			offset := 10
+			var initContainers []*armadaevents.ContainerStartUpInfo
+			for _, container := range tc.initContainers {
+				initContainers = append(initContainers, &armadaevents.ContainerStartUpInfo{
+					Name:       container.name,
+					StartedAt:  baselineWithOffset(offset),
+					FinishedAt: baselineWithOffset(offset + container.runDuration),
+				})
+				offset += container.runDuration
+			}
+			appStartedAt := baselineWithOffset(offset + 40)
+
+			recorder.Record(testPod(queue, pool, node), &armadaevents.PodStartUpInfo{
+				CreatedAt:      baselineWithOffset(0),
+				StartedAt:      appStartedAt,
+				InitContainers: initContainers,
+				Containers:     []*armadaevents.ContainerStartUpInfo{{Name: "main", StartedAt: appStartedAt}},
+			})
+
+			_, sum := observations(t, podStartUpDurationSeconds, queue, pool)
+			assert.Equal(t, tc.expectedTotal, sum)
+			_, sum = observations(t, nodeStartUpDurationSeconds, node, pool)
+			assert.Equal(t, tc.expectedTotal, sum)
+
+			_, sum = observations(t, podStartUpWithoutUntrackedInitContainersDurationSeconds, queue, pool)
+			assert.Equal(t, tc.expectedWithoutUntrackedInitContainers, sum)
+			_, sum = observations(t, nodeStartUpWithoutUntrackedInitContainersDurationSeconds, node, pool)
+			assert.Equal(t, tc.expectedWithoutUntrackedInitContainers, sum)
+
+			_, sum = observations(t, podStartUpWithoutInitContainersDurationSeconds, queue, pool)
+			assert.Equal(t, tc.expectedWithoutInitContainers, sum)
+			_, sum = observations(t, nodeStartUpWithoutInitContainersDurationSeconds, node, pool)
+			assert.Equal(t, tc.expectedWithoutInitContainers, sum)
+		})
+	}
+}
+
 // An init container is labelled by name only when the administrator configured that name, as a
 // container's name otherwise comes from whatever the job asked for.
 func TestRecord_InitContainerLabelledByNameOnlyWhenTracked(t *testing.T) {
@@ -214,6 +299,69 @@ func TestRecord_ImagePullInfoCountedPerImage(t *testing.T) {
 	assert.Equal(t, float64(1), testutil.ToFloat64(podStartUpInfoCollectionErrorTotal.WithLabelValues(pool, fieldCachedImagePullSize)))
 	assert.Equal(t, float64(1), testutil.ToFloat64(podStartUpInfoCollectionErrorTotal.WithLabelValues(pool, fieldImagePull)))
 	assert.Equal(t, float64(1), testutil.ToFloat64(podStartUpInfoCollectedTotal.WithLabelValues(pool, "false")))
+}
+
+func TestRecord_TotalImagePullDuration(t *testing.T) {
+	realPull := func(duration int) *armadaevents.ImagePullInfo {
+		return &armadaevents.ImagePullInfo{
+			Duration: seconds(duration),
+		}
+	}
+
+	cachedPull := func() *armadaevents.ImagePullInfo {
+		return &armadaevents.ImagePullInfo{Cached: true, SizeBytes: sizeBytes(1024)}
+	}
+
+	infoWithPulls := func(initPull, appPull *armadaevents.ImagePullInfo) *armadaevents.PodStartUpInfo {
+		return &armadaevents.PodStartUpInfo{
+			InitContainers: []*armadaevents.ContainerStartUpInfo{{Name: "init", ImagePull: initPull}},
+			Containers:     []*armadaevents.ContainerStartUpInfo{{Name: "main", ImagePull: appPull}},
+		}
+	}
+
+	tests := map[string]struct {
+		info     *armadaevents.PodStartUpInfo
+		expected *float64
+	}{
+		"every container's pull is summed": {
+			info:     infoWithPulls(realPull(58), realPull(20)),
+			expected: new(float64(78)),
+		},
+		"a cached container contributes nothing": {
+			info:     infoWithPulls(realPull(58), cachedPull()),
+			expected: new(float64(58)),
+		},
+		"zero for a pod that pulled nothing at all": {
+			info:     infoWithPulls(cachedPull(), cachedPull()),
+			expected: new(float64(0)),
+		},
+		"skipped when a container's pull is undescribed": {
+			info: infoWithPulls(realPull(58), nil),
+		},
+		"skipped when invalid pull details provided": {
+			info: infoWithPulls(realPull(58), &armadaevents.ImagePullInfo{}),
+		},
+		"skipped when the pod has no containers at all": {
+			info: &armadaevents.PodStartUpInfo{},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			queue := "total-pull-" + name
+			pool := "total-pull-pool"
+
+			NewRecorder(configuration.StartUpMetricsConfig{}).Record(testPod(queue, pool, "node-1"), tc.info)
+
+			count, sum := observations(t, podTotalImagePullDurationSeconds, queue, pool)
+			if tc.expected == nil {
+				assert.Zero(t, count)
+				return
+			}
+			assert.Equal(t, uint64(1), count)
+			assert.Equal(t, *tc.expected, sum)
+		})
+	}
 }
 
 func TestRecord_NoOps(t *testing.T) {
