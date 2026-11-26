@@ -45,22 +45,24 @@ func TestFetchInitialJobs(t *testing.T) {
 	}
 
 	leasedJobRun := Run{
-		RunID:    util.NewULID(),
-		JobID:    leasedJob.JobID,
-		JobSet:   "test-jobset",
-		Executor: "test-executor",
-		Node:     "test-node-0",
-		Running:  true,
+		RunID:       util.NewULID(),
+		JobID:       leasedJob.JobID,
+		JobSet:      "test-jobset",
+		Executor:    "test-executor",
+		Node:        "test-node-0",
+		Running:     true,
+		StopRequest: []byte("stop-request"),
 	}
 
 	expectedLeasedJobRun := Run{
-		RunID:    leasedJobRun.RunID,
-		JobID:    leasedJob.JobID,
-		JobSet:   "test-jobset",
-		Executor: "test-executor",
-		Node:     "test-node-0",
-		Running:  true,
-		Serial:   1,
+		RunID:       leasedJobRun.RunID,
+		JobID:       leasedJob.JobID,
+		JobSet:      "test-jobset",
+		Executor:    "test-executor",
+		Node:        "test-node-0",
+		Running:     true,
+		Serial:      1,
+		StopRequest: []byte("stop-request"),
 	}
 
 	queuedJob := Job{
@@ -736,33 +738,35 @@ func createTestRuns(numRuns int) ([]Run, []Run) {
 
 	for i := 0; i < numRuns; i++ {
 		dbRuns[i] = Run{
-			RunID:     uuid.NewString(),
-			JobID:     util.NewULID(),
-			JobSet:    "test-jobset",
-			Executor:  "test-executor",
-			Node:      fmt.Sprintf("test-node-%d", i),
-			Cancelled: true,
-			Running:   true,
-			Succeeded: true,
-			Failed:    true,
-			Returned:  true,
+			RunID:       uuid.NewString(),
+			JobID:       util.NewULID(),
+			JobSet:      "test-jobset",
+			Executor:    "test-executor",
+			Node:        fmt.Sprintf("test-node-%d", i),
+			Cancelled:   true,
+			Running:     true,
+			Succeeded:   true,
+			Failed:      true,
+			Returned:    true,
+			StopRequest: []byte(fmt.Sprintf("stop-request-%d", i)),
 		}
 	}
 
 	for i, run := range dbRuns {
 		expectedRuns[i] = Run{
-			RunID:      run.RunID,
-			JobID:      run.JobID,
-			JobSet:     run.JobSet,
-			Executor:   run.Executor,
-			Node:       fmt.Sprintf("test-node-%d", i),
-			Cancelled:  run.Cancelled,
-			Running:    run.Running,
-			Succeeded:  run.Succeeded,
-			Failed:     run.Failed,
-			Returned:   run.Returned,
-			Terminated: true,
-			Serial:     int64(i + 1),
+			RunID:       run.RunID,
+			JobID:       run.JobID,
+			JobSet:      run.JobSet,
+			Executor:    run.Executor,
+			Node:        fmt.Sprintf("test-node-%d", i),
+			Cancelled:   run.Cancelled,
+			Running:     run.Running,
+			Succeeded:   run.Succeeded,
+			Failed:      run.Failed,
+			Returned:    run.Returned,
+			Terminated:  true,
+			Serial:      int64(i + 1),
+			StopRequest: run.StopRequest,
 		}
 	}
 	return dbRuns, expectedRuns

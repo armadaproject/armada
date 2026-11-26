@@ -124,7 +124,9 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			records[i] = *v.DbRun
 			i++
 		}
-		err := database.Upsert(ctx, tx, "runs", records, database.WithExcludeColumns("terminated"))
+		// The insert of a run never holds a stop request. Without this exclusion, a
+		// replayed insert erases the stored stop request.
+		err := database.Upsert(ctx, tx, "runs", records, database.WithExcludeColumns("terminated", "stop_request"))
 		if err != nil {
 			return err
 		}
