@@ -52,6 +52,8 @@ For more information about Armada's design, see the following pages:
 
 ## Other developer docs
 
+- [Compare local simulator candidates](developer/simulator-comparison.md)
+
 - [Armada API](./developer/armada-api.md)
 - [Regenerating code and API clients](./developer/generation.md)
 - [Running Armada in an EC2 instance](https://armadaproject.io/developer/aws-ec2)

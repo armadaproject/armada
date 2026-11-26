@@ -1,0 +1,27 @@
+maxSchedulingDuration: 1s
+maxNewJobSchedulingDuration: 500ms
+maxNewJobSchedulingDurationPerQueue: 100ms
+nodeIdLabel: armadaproject.io/nodeId
+maximumSchedulingRate: "+Inf"
+maximumSchedulingBurst: 1000
+maximumPerQueueSchedulingRate: "+Inf"
+maximumPerQueueSchedulingBurst: 1000
+defaultPriorityClassName: low
+priorityClasses:
+  low:
+    priority: 0
+    preemptible: true
+  high:
+    priority: 1
+    preemptible: true
+pools:
+  - name: test-pool
+executorTimeout: 15m
+supportedResourceTypes:
+  - { name: cpu, resolution: "1m" }
+  - { name: memory, resolution: "1" }
+  - { name: nvidia.com/gpu, resolution: "1" }
+indexedResources:
+  - { name: cpu, resolution: "1m" }
+  - { name: nvidia.com/gpu, resolution: "1" }
+dominantResourceFairnessResourcesToConsider: [cpu, memory, nvidia.com/gpu]
