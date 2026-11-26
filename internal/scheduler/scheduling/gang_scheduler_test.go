@@ -983,7 +983,7 @@ func TestGangScheduler_FloatingResourceLimit_LabelsEvictedJobsAsPreempted(t *tes
 		"evicted gang in a pool without floating resources configured is not labelled": {
 			evicted:               true,
 			floatingResourceTypes: testfixtures.TestEmptyFloatingResources,
-			expectedReason:        "floating resources not configured for pool pool",
+			expectedReason:        "floating resource test-floating-resource not configured for pool pool",
 			expectLabelled:        false,
 		},
 	}
