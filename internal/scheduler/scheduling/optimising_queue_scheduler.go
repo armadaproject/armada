@@ -247,7 +247,7 @@ func (q *OptimisingQueueScheduler) checkIfWillBreachSchedulingLimits(
 		return false, unschedulableReason, err
 	}
 
-	if ok, unschedulableReason = sctx.IsWithinFloatingResourceLimits(gctx, q.floatingResourceTypes); !ok {
+	if ok, unschedulableReason, _ = sctx.IsWithinFloatingResourceLimits(gctx, q.floatingResourceTypes); !ok {
 		return ok, unschedulableReason, nil
 	}
 

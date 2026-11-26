@@ -22,13 +22,14 @@ const (
 type PreemptionType string
 
 const (
-	Unknown                          PreemptionType = "unknown"
-	UnknownGangJob                   PreemptionType = "unknown-gang"
-	PreemptedWithFairsharePreemption PreemptionType = "fairshare"
-	PreemptedWithUrgencyPreemption   PreemptionType = "urgency"
-	PreemptedWithOptimiserPreemption PreemptionType = "optimiser"
-	PreemptedViaApi                  PreemptionType = "api"
-	PreemptedViaNodeReconciler       PreemptionType = "reconciler"
+	Unknown                                          PreemptionType = "unknown"
+	UnknownGangJob                                   PreemptionType = "unknown-gang"
+	PreemptedWithFairsharePreemption                 PreemptionType = "fairshare"
+	PreemptedWithUrgencyPreemption                   PreemptionType = "urgency"
+	PreemptedWithOptimiserPreemption                 PreemptionType = "optimiser"
+	PreemptedViaApi                                  PreemptionType = "api"
+	PreemptedViaNodeReconciler                       PreemptionType = "reconciler"
+	PreemptedWithFairshareFloatingResourcePreemption PreemptionType = "fairshare-floating-resource"
 )
 
 // PodSchedulingContext is returned by SelectAndBindNodeToPod and

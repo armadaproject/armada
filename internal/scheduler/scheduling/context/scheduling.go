@@ -644,13 +644,15 @@ func (sctx *SchedulingContext) EvictJob(jctx *JobSchedulingContext) (bool, error
 	return scheduledInThisRound, nil
 }
 
-func (sctx *SchedulingContext) IsWithinFloatingResourceLimits(gctx *GangSchedulingContext, resourceLimits *floatingresources.FloatingResourceTypes) (bool, string) {
+// IsWithinFloatingResourceLimits returns false, and the reason, if scheduling gctx would take the pool over its floating
+// resource limits. If a limit was exceeded, it also returns the name of the exceeded resource.
+func (sctx *SchedulingContext) IsWithinFloatingResourceLimits(gctx *GangSchedulingContext, resourceLimits *floatingresources.FloatingResourceTypes) (bool, string, string) {
 	if gctx == nil || !gctx.RequestsFloatingResources {
-		return true, ""
+		return true, "", ""
 	}
 
 	if resourceLimits == nil {
-		return false, fmt.Sprintf("floating resource limits not provided when checking for pool %s", sctx.Pool)
+		return false, fmt.Sprintf("floating resource limits not provided when checking for pool %s", sctx.Pool), ""
 	}
 
 	isAway := false
@@ -663,7 +665,11 @@ func (sctx *SchedulingContext) IsWithinFloatingResourceLimits(gctx *GangScheduli
 	// If the gang is from another pool, then the floating resource limit check will have already been performed on that pool
 	// Gangs from another pool can only be re-scheduled so shouldn't breach any limits
 	if isAway {
-		return true, ""
+		return true, "", ""
+	}
+
+	if ok, reason := resourceLimits.IsConfiguredForPool(sctx.Pool, gctx.TotalResourceRequests); !ok {
+		return false, reason, ""
 	}
 
 	return resourceLimits.WithinLimits(sctx.Pool, sctx.Allocated)
