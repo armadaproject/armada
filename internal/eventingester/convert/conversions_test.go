@@ -72,6 +72,20 @@ var jobValidated = &armadaevents.EventSequence_Event{
 	},
 }
 
+var jobRunStopRequested = &armadaevents.EventSequence_Event{
+	Created: baseTimeProto,
+	Event: &armadaevents.EventSequence_Event_JobRunStopRequested{
+		JobRunStopRequested: &armadaevents.JobRunStopRequested{JobId: JobId, RunId: RunId},
+	},
+}
+
+var jobRunStopped = &armadaevents.EventSequence_Event{
+	Created: baseTimeProto,
+	Event: &armadaevents.EventSequence_Event_JobRunStopped{
+		JobRunStopped: &armadaevents.JobRunStopped{JobId: JobId, RunId: RunId},
+	},
+}
+
 func TestConvert_RetainsEvents(t *testing.T) {
 	tests := map[string]struct {
 		input []*armadaevents.EventSequence_Event
@@ -121,6 +135,13 @@ func TestConvert_FiltersEventsNotForRedis(t *testing.T) {
 		},
 		"JobValidated with retained event": {
 			input: []*armadaevents.EventSequence_Event{cancelled, jobValidated},
+			want:  []*armadaevents.EventSequence_Event{cancelled},
+		},
+		"stop events only": {
+			input: []*armadaevents.EventSequence_Event{jobRunStopRequested, jobRunStopped},
+		},
+		"stop events with retained event": {
+			input: []*armadaevents.EventSequence_Event{jobRunStopRequested, cancelled, jobRunStopped},
 			want:  []*armadaevents.EventSequence_Event{cancelled},
 		},
 	}

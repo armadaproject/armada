@@ -94,6 +94,8 @@ message EventSequence {
             JobRunCancelled jobRunCancelled = 24;
             JobValidated jobValidated = 25;
             JobRunTerminatedDebugInfo jobRunTerminatedDebugInfo = 26;
+            JobRunStopRequested jobRunStopRequested = 27;
+            JobRunStopped jobRunStopped = 28;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -678,4 +680,32 @@ message JobRunTerminatedDebugInfo {
     string job_id = 1;
     string run_id = 2;
     string debugMessage = 3;
+}
+
+// JobRunStopRequested is the request of the scheduler to stop the run of a job that it preempts or
+// cancels. The run and the job end after the pod of the run stops. The message holds all the data
+// that ends the job, so a stored copy of the message is enough to end the job.
+message JobRunStopRequested {
+    string job_id = 1;
+    string run_id = 2;
+    // A stored copy of the message has no event around it, so the message holds the request time.
+    google.protobuf.Timestamp requested_at = 3;
+    StopCause cause = 4;
+    string reason = 5;
+    string requestor = 6;
+    string preemption_type = 7;
+    string preempting_job_id = 8;
+}
+
+enum StopCause {
+    STOP_CAUSE_UNSPECIFIED = 0;
+    STOP_CAUSE_PREEMPTION = 1;
+    STOP_CAUSE_CANCELLATION = 2;
+}
+
+// JobRunStopped reports that the executor no longer lists a run that has a stop request. The
+// executor then has no pod for the run. The lease API emits it.
+message JobRunStopped {
+    string job_id = 1;
+    string run_id = 2;
 }

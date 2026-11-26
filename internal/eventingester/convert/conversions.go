@@ -166,6 +166,8 @@ func removeEventsNotForRedis(es *armadaevents.EventSequence) {
 				continue
 			}
 		case *armadaevents.EventSequence_Event_JobRunTerminatedDebugInfo,
+			*armadaevents.EventSequence_Event_JobRunStopRequested,
+			*armadaevents.EventSequence_Event_JobRunStopped,
 			*armadaevents.EventSequence_Event_JobRunSucceeded,
 			*armadaevents.EventSequence_Event_JobValidated:
 			continue
