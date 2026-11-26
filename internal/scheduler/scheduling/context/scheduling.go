@@ -668,7 +668,7 @@ func (sctx *SchedulingContext) IsWithinFloatingResourceLimits(gctx *GangScheduli
 		return true, "", ""
 	}
 
-	if ok, reason := resourceLimits.IsConfiguredForPool(sctx.Pool); !ok {
+	if ok, reason := resourceLimits.IsConfiguredForPool(sctx.Pool, gctx.TotalResourceRequests); !ok {
 		return false, reason, ""
 	}
 
