@@ -1,9 +1,3 @@
-# Job Set Event Streaming at Scale: Options Under Consideration
-
-**Status:** exploration. Nothing is decided, and no benchmarking has been done yet.
-Seven candidate ideas and one cross-cutting enabler are laid out below, with a common problem
-statement and evaluation criteria.
-
 ## Summary
 
 - **The problem is cardinality and retention, not event throughput.** At 10x there are ~5M
@@ -17,8 +11,8 @@ statement and evaluation criteria.
   window.** Postgres (Idea 2) or ClickHouse (Idea 3) holds history; Redis keeps only minutes of
   delivery. ClickHouse is the natural fallback if Postgres per-job-set deletes and vacuum cannot keep
   up.
-- **Retention must be per job set, configured per queue.** Queue-wide TTL alone is not enough
-  (Ideas 4 and 5 cannot express it).
+- **Retention must be per job set, with the policy configured per queue.** Ideas 4 and 5 cannot
+  express it, which is a known gap in those options.
 - **Idea 1 is the cheap first step.** A retention policy on the current streams is small, reversible
   and produces the numbers the bigger decision needs.
 - **Nothing is decided or benchmarked.** The deciding measurements are stream count and Redis
@@ -31,8 +25,9 @@ statement and evaluation criteria.
   WebSocket/Connect); the store and key layout become internal, so any option below can ship
   without a user-visible break.
 - **1. Status quo plus retention policy.** Keep Redis and add per-job-set expiry plus a length cap.
-  Cheapest and reversible, but needs a job-set-finished signal and leaves Redis as the durable
-  store.
+  Cheapest and reversible, but finish-based expiry needs a job-set-finished signal that does not
+  exist yet, and Redis remains the durable store. Expiry N days after the last event needs no
+  signal.
 - **2. Postgres history, Redis live tail.** Durable history in Postgres, Redis for minutes of live
   delivery. Reuses existing infrastructure; costs dual writes, a delete/vacuum job and a
   history-to-live seam.
@@ -171,13 +166,13 @@ the migration seam that lets a storage change ship without an API break.
 **One line:** keep Redis streams as the event store, but clean them up by policy instead of relying
 solely on the 14-day TTL.
 
-**How it would work.** Continue writing every event batch to `Events:<queue>:<jobSetId>`. Add a
-retention policy configurable per queue: expire short-lived job sets shortly after they finish;
-expire long-lived ones N days after the last event, with a stream length cap. API, cursors and keys
-stay the same.
+**How it would work.** Continue writing every event batch to `Events:<queue>:<jobSetId>`. Add
+per-job-set retention, with the policy configured per queue: expire short-lived job sets shortly
+after they finish, or after specified duration configurable on the queue level; expire long-lived
+ones N days after the last event, with a stream length cap. API, cursors and keys stay the same.
 
 There is no "job set finished" event today: producers emit per-job events, and `CancelJobSet` is a
-request, not an announcement. "Expire on terminal" therefore needs a signal the stateless ingester
+request, not an announcement. "Expire on finish" therefore needs a signal the stateless ingester
 does not have — per-job state tracking, a query against Lookout/scheduler state, or a new event. The
 state-free fallback is expiry N days after the last event.
 
@@ -377,7 +372,6 @@ means seeing everyone's events.
 - Fast recovery is native: data lives in BookKeeper with replication, so a failed broker is replaced
   and clients reconnect without replaying from the producer.
 - No new storage technology; the team already runs Pulsar.
-- Retention configurable per topic, so policy can differ by queue.
 - Tiered storage can move old history to cheaper storage without a separate archive pipeline.
 - Producers are unchanged — they already publish to Pulsar.
 
@@ -424,8 +418,6 @@ queue.
 - Directly attacks the 5M-stream problem: stream count equals queue count.
 - Simple model, easy to explain and reason about.
 - Works with either Redis or Pulsar underneath, so it composes with other ideas.
-- One retention policy per queue, which is simple to operate.
-- No per-job-set key management or TTL bookkeeping.
 - Predictable capacity planning: memory and key count scale with queues, not job sets.
 - Can act as the live layer for ideas 2 and 3 without rewriting the whole watch path.
 
