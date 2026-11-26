@@ -69,10 +69,13 @@ func (frt *FloatingResourceTypes) WithinLimits(poolName string, allocated intern
 	return true, "", ""
 }
 
-// IsConfiguredForPool returns false, and the reason, if no floating resources are configured for the pool.
-func (frt *FloatingResourceTypes) IsConfiguredForPool(poolName string) (bool, string) {
-	if frt.GetTotalAvailableForPool(poolName).AllZero() {
-		return false, fmt.Sprintf("floating resources not configured for pool %s", poolName)
+// IsConfiguredForPool returns false, and the reason, if any floating resource requested is not configured for the pool.
+func (frt *FloatingResourceTypes) IsConfiguredForPool(poolName string, requested internaltypes.ResourceList) (bool, string) {
+	available := frt.GetTotalAvailableForPool(poolName)
+	for _, requestedResource := range requested.OfType(internaltypes.Floating).GetAll() {
+		if !requestedResource.Value.IsZero() && available.GetRawByNameZeroIfMissing(requestedResource.Name) == 0 {
+			return false, fmt.Sprintf("floating resource %s not configured for pool %s", requestedResource.Name, poolName)
+		}
 	}
 	return true, ""
 }
