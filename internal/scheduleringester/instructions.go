@@ -3,6 +3,7 @@ package scheduleringester
 import (
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
@@ -78,7 +79,63 @@ func (c *JobSetEventsInstructionConverter) Convert(ctx *armadacontext.Context, e
 	}
 }
 
+// Postgres rejects NUL and invalid UTF-8 in text columns and text parameters with SQLSTATE 22021,
+// and SchedulerDb.Store retries every error, so one such value in a batch would block ingestion
+// for every tenant. User-controlled strings are handled in two ways:
+//   - Names that pick which jobs an event acts on (queue, job set, job id) are never rewritten,
+//     because a rewritten name can match a different, valid job or job set. Events carrying an
+//     unstorable name are dropped instead. No job can be stored under such a name, so a dropped
+//     event would have matched nothing anyway.
+//   - Strings that are only recorded (user id, reasons) are rewritten with pgText.
+
+// storableText reports whether Postgres can store s as text.
+func storableText(s string) bool {
+	return utf8.ValidString(s) && !strings.ContainsRune(s, 0)
+}
+
+// pgText makes s storable in a Postgres text column.
+func pgText(s string) string {
+	return strings.ReplaceAll(strings.ToValidUTF8(s, "\uFFFD"), "\x00", "")
+}
+
+// userJobId returns the user-supplied job id that event targets, if it has one.
+func userJobId(event *armadaevents.EventSequence_Event) (string, bool) {
+	switch e := event.GetEvent().(type) {
+	case *armadaevents.EventSequence_Event_SubmitJob:
+		return e.SubmitJob.JobId, true
+	case *armadaevents.EventSequence_Event_CancelJob:
+		return e.CancelJob.JobId, true
+	case *armadaevents.EventSequence_Event_JobPreemptionRequested:
+		return e.JobPreemptionRequested.JobId, true
+	case *armadaevents.EventSequence_Event_ReprioritiseJob:
+		return e.ReprioritiseJob.JobId, true
+	}
+	return "", false
+}
+
+// scrubRecordedStrings rewrites the user-controlled strings of es that are only recorded, not
+// matched against existing rows.
+func scrubRecordedStrings(es *armadaevents.EventSequence) {
+	es.UserId = pgText(es.UserId)
+	for _, event := range es.Events {
+		switch e := event.GetEvent().(type) {
+		case *armadaevents.EventSequence_Event_CancelJob:
+			e.CancelJob.Reason = pgText(e.CancelJob.Reason)
+		case *armadaevents.EventSequence_Event_CancelJobSet:
+			e.CancelJobSet.Reason = pgText(e.CancelJobSet.Reason)
+		case *armadaevents.EventSequence_Event_JobPreemptionRequested:
+			e.JobPreemptionRequested.Reason = pgText(e.JobPreemptionRequested.Reason)
+		}
+	}
+}
+
 func (c *JobSetEventsInstructionConverter) dbOperationsFromEventSequence(es *armadaevents.EventSequence) []DbOperation {
+	if !storableText(es.Queue) || !storableText(es.JobSetName) {
+		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		log.Warnf("Dropping event sequence for queue %q, job set %q: names Postgres cannot store as text", es.Queue, es.JobSetName)
+		return nil
+	}
+	scrubRecordedStrings(es)
 	meta := eventSequenceCommon{
 		queue:  es.Queue,
 		jobset: es.JobSetName,
@@ -87,6 +144,11 @@ func (c *JobSetEventsInstructionConverter) dbOperationsFromEventSequence(es *arm
 	}
 	operations := make([]DbOperation, 0, len(es.Events))
 	for idx, event := range es.Events {
+		if jobId, ok := userJobId(event); ok && !storableText(jobId) {
+			c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+			log.Warnf("Dropping %T at index %d: job id %q cannot be stored as text", event.GetEvent(), idx, jobId)
+			continue
+		}
 		eventTime := protoutil.ToStdTime(event.Created)
 		var err error = nil
 		var operationsFromEvent []DbOperation
