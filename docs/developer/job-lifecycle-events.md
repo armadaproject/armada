@@ -326,7 +326,7 @@ Preemption errors use the category `preemption`. The subcategory is the preempti
 Watchers receive external API events. The event ingester writes a filtered copy of the internal events to Redis, and the server converts them when a watcher reads them. The event ingester removes these items:
 
 - the `Groups` field of each event sequence
-- `JobRunSucceeded`, `JobValidated`, and `JobRunTerminatedDebugInfo`
+- `JobRunSucceeded`, `JobValidated`, `JobRunTerminatedDebugInfo`, `JobRunStopRequested`, and `JobRunStopped`
 - `JobRunErrors`, except for the `LeaseExpired` and `PodLeaseReturned` reasons
 - cancel reasons, start-up info, and debug messages
 
@@ -353,6 +353,8 @@ Watchers receive external API events. The event ingester writes a filtered copy 
 | `CancelJobSet`              | (none)                                            | Watchers see one `JobCancellingEvent` for each job.                      |
 | `JobRunTerminatedDebugInfo` | (none)                                            | Only Lookout stores this event.                                          |
 | `JobValidated`              | (none)                                            |                                                                          |
+| `JobRunStopRequested`       | (none)                                            |                                                                          |
+| `JobRunStopped`             | (none)                                            |                                                                          |
 | `ReprioritiseJobSet`        | (none)                                            |                                                                          |
 
 Watchers see the outcome of a job only when the scheduler emits the job-level event. Lookout updates the run state from the run-level events. It sets the job state to `Leased`, `Pending`, or `Running` from `JobRunLeased`, `JobRunAssigned`, and `JobRunRunning`, and sets `Queued` and the terminal job states from the job-level events.
