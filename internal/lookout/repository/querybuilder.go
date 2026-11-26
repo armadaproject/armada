@@ -689,9 +689,12 @@ func (qb *QueryBuilder) valueForMatch(value interface{}, match string) (string, 
 	}
 }
 
+// Escapes the escape character (\) and the LIKE wildcards (%, _), so that
+// the value is matched literally.
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
 func parseStringForLike(value interface{}) string {
-	s := fmt.Sprintf("%v", value)
-	return strings.ReplaceAll(s, "\\", "\\\\")
+	return likeEscaper.Replace(fmt.Sprintf("%v", value))
 }
 
 // Save value to be used in prepared statement, returns template string to put in place of the value in the SQL string
