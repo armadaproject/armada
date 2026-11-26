@@ -52,6 +52,8 @@ For more information about Armada's design, see the following pages:
 
 ## Other developer docs
 
+- [Recorded workload replay](developer/recorded-replay.md) through the Armada scheduler.
+
 - [Armada API](./developer/armada-api.md)
 - [Regenerating code and API clients](./developer/generation.md)
 - [Running Armada in an EC2 instance](https://armadaproject.io/developer/aws-ec2)

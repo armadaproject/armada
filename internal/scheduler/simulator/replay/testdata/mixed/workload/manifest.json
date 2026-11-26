@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "execution_model": "fixed-useful-work-v1",
+  "dataset_id": "synthetic-mixed-v1",
+  "converter_version": "duckdb-2.0.0",
+  "work_estimation_method": "synthetic-known-work",
+  "quality_counts": {
+    "estimated": 0,
+    "excluded": 0,
+    "known": 3
+  },
+  "partitions": [
+    {
+      "path": "part-0.parquet",
+      "sha256": "39ea55087fcd622a42047aedba8f61a52013c1bdfced3a1fe15d404d585e8db8",
+      "rows": 1,
+      "min_submitted_at_us": 1735684200000000,
+      "max_submitted_at_us": 1735684200000000
+    },
+    {
+      "path": "part-1.parquet",
+      "sha256": "e7afd1dd9acc7958a5db016fa89a91890351d9cd435d2a165d70cd5455227189",
+      "rows": 1,
+      "min_submitted_at_us": 1735684200000000,
+      "max_submitted_at_us": 1735684200000000
+    },
+    {
+      "path": "part-2.parquet",
+      "sha256": "13e247133db632ddc17f49ad429c234337c2e553ab72555f062d3319f23b7b84",
+      "rows": 1,
+      "min_submitted_at_us": 1735691400000000,
+      "max_submitted_at_us": 1735691400000000
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+schemaVersion: 1
+clusters:
+  - name: test-executor
+    pool: test-pool
+    nodeTemplates:
+      - number: 1
+        totalResources:
+          resources:
+            cpu: "1"
+            memory: "9007199254740993"
+            nvidia.com/gpu: "1"
