@@ -1921,3 +1921,33 @@ func TestMarkJobsCancelRequested_EmptyReasonThenReal(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestInsertRuns_ReplayKeepsStopRequest(t *testing.T) {
+	jobId := util.NewULID()
+	runId := uuid.NewString()
+	stopRequest := []byte("stop-request")
+
+	err := schedulerdb.WithTestDb(func(queries *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := &SchedulerDb{db: db}
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
+		defer cancel()
+
+		insertJob := InsertJobs{jobId: &JobInsertion{Job: &schedulerdb.Job{JobID: jobId, Queue: testQueueName, JobSet: "set1"}}}
+		require.NoError(t, assertOpSuccess(t, schedulerDb, map[string]int64{}, addDefaultValues(insertJob)))
+		insertRun := InsertRuns{runId: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobId, RunID: runId, JobSet: "set1"}}}
+		require.NoError(t, assertOpSuccess(t, schedulerDb, map[string]int64{}, insertRun))
+
+		_, err := db.Exec(ctx, "UPDATE runs SET stop_request = $1 WHERE run_id = $2", stopRequest, runId)
+		require.NoError(t, err)
+		require.NoError(t, pgx.BeginTxFunc(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			return schedulerDb.WriteDbOp(ctx, tx, insertRun)
+		}))
+
+		runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{JobIds: []string{jobId}})
+		require.NoError(t, err)
+		require.Len(t, runs, 1)
+		assert.Equal(t, stopRequest, runs[0].StopRequest)
+		return nil
+	})
+	assert.NoError(t, err)
+}

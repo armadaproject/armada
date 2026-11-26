@@ -100,4 +100,5 @@ type Run struct {
 	Terminated             bool       `db:"terminated"`
 	PreemptReason          *string    `db:"preempt_reason"`
 	PreemptUser            *string    `db:"preempt_user"`
+	StopRequest            []byte     `db:"stop_request"`
 }
