@@ -684,7 +684,7 @@ func TestIsWithinFloatingResourceLimits(t *testing.T) {
 			resources:      testfixtures.TestEmptyFloatingResources,
 			allocated:      allocatedWithinLimits,
 			expectSuccess:  false,
-			expectedReason: "floating resources not configured for pool pool",
+			expectedReason: "floating resource test-floating-resource not configured for pool pool",
 		},
 		"gctx - within limits": {
 			gctx:          NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(homeJob)}),
