@@ -15,6 +15,8 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
+var floatingResourceLimitDescription = fmt.Sprintf(floatingResourcePreemptionCause, testfixtures.TestPool, "test-floating-resource")
+
 func TestPopulatePreemptionDescriptions(t *testing.T) {
 	scheduledJobContexts := []*context.JobSchedulingContext{
 		makeJobSchedulingContext("job-2", "node-1", context.ScheduledWithUrgencyBasedPreemption),
@@ -68,6 +70,98 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 				Job:                   makeJob(t, "job-1", true),
 				PreemptionDescription: unknownGangPreemptionCause,
 				PreemptionType:        context.UnknownGangJob,
+			}},
+		},
+		"floating resource limit - kept": {
+			preemptedJobContexts: []*context.JobSchedulingContext{{
+				JobId:                 "job-1",
+				AssignedNode:          testfixtures.TestSimpleNode("node-3"),
+				Job:                   makeJob(t, "job-1", false),
+				PreemptionDescription: floatingResourceLimitDescription,
+				PreemptionType:        context.PreemptedWithFairshareFloatingResourcePreemption,
+			}},
+			expectedPreemptedJobContexts: []*context.JobSchedulingContext{{
+				JobId:                 "job-1",
+				AssignedNode:          testfixtures.TestSimpleNode("node-3"),
+				Job:                   makeJob(t, "job-1", false),
+				PreemptionDescription: floatingResourceLimitDescription,
+				PreemptionType:        context.PreemptedWithFairshareFloatingResourcePreemption,
+			}},
+		},
+		"floating resource limit - kept on a node with an urgency preemption": {
+			preemptedJobContexts: []*context.JobSchedulingContext{{
+				JobId:                 "job-1",
+				AssignedNode:          testfixtures.TestSimpleNode("node-1"),
+				Job:                   makeJob(t, "job-1", false),
+				PreemptionDescription: floatingResourceLimitDescription,
+				PreemptionType:        context.PreemptedWithFairshareFloatingResourcePreemption,
+			}},
+			expectedPreemptedJobContexts: []*context.JobSchedulingContext{{
+				JobId:                 "job-1",
+				AssignedNode:          testfixtures.TestSimpleNode("node-1"),
+				Job:                   makeJob(t, "job-1", false),
+				PreemptionDescription: floatingResourceLimitDescription,
+				PreemptionType:        context.PreemptedWithFairshareFloatingResourcePreemption,
+			}},
+		},
+		"floating resource limit - kept when another job took its place": {
+			preemptedJobContexts: []*context.JobSchedulingContext{{
+				JobId:                 "job-1",
+				AssignedNode:          testfixtures.TestSimpleNode("node-4"),
+				Job:                   makeJob(t, "job-1", false),
+				PreemptionDetails:     &context.PreemptionDetails{PreemptingJob: makeJob(t, "job-7", false)},
+				PreemptionDescription: floatingResourceLimitDescription,
+				PreemptionType:        context.PreemptedWithFairshareFloatingResourcePreemption,
+			}},
+			expectedPreemptedJobContexts: []*context.JobSchedulingContext{{
+				JobId:                 "job-1",
+				AssignedNode:          testfixtures.TestSimpleNode("node-4"),
+				Job:                   makeJob(t, "job-1", false),
+				PreemptionDetails:     &context.PreemptionDetails{PreemptingJob: makeJob(t, "job-7", false)},
+				PreemptionDescription: floatingResourceLimitDescription,
+				PreemptionType:        context.PreemptedWithFairshareFloatingResourcePreemption,
+			}},
+		},
+		"floating resource limit - kept for a gang sibling": {
+			preemptedJobContexts: []*context.JobSchedulingContext{{
+				JobId:        "job-1",
+				AssignedNode: testfixtures.TestSimpleNode("node-4"),
+				Job:          makeJob(t, "job-1", true),
+				PreemptionDetails: &context.PreemptionDetails{
+					PreemptingJob:       makeJob(t, "job-7", false),
+					PreemptedSiblingJob: makeJob(t, "job-8", true),
+				},
+				PreemptionDescription: floatingResourceLimitDescription,
+				PreemptionType:        context.PreemptedWithFairshareFloatingResourcePreemption,
+			}},
+			expectedPreemptedJobContexts: []*context.JobSchedulingContext{{
+				JobId:        "job-1",
+				AssignedNode: testfixtures.TestSimpleNode("node-4"),
+				Job:          makeJob(t, "job-1", true),
+				PreemptionDetails: &context.PreemptionDetails{
+					PreemptingJob:       makeJob(t, "job-7", false),
+					PreemptedSiblingJob: makeJob(t, "job-8", true),
+				},
+				PreemptionDescription: floatingResourceLimitDescription,
+				PreemptionType:        context.PreemptedWithFairshareFloatingResourcePreemption,
+			}},
+		},
+		"optimiser - kept despite a preempting job": {
+			preemptedJobContexts: []*context.JobSchedulingContext{{
+				JobId:                 "job-1",
+				AssignedNode:          testfixtures.TestSimpleNode("node-4"),
+				Job:                   makeJob(t, "job-1", false),
+				PreemptionDetails:     &context.PreemptionDetails{PreemptingJob: makeJob(t, "job-7", false)},
+				PreemptionDescription: "preempted by optimiser",
+				PreemptionType:        context.PreemptedWithOptimiserPreemption,
+			}},
+			expectedPreemptedJobContexts: []*context.JobSchedulingContext{{
+				JobId:                 "job-1",
+				AssignedNode:          testfixtures.TestSimpleNode("node-4"),
+				Job:                   makeJob(t, "job-1", false),
+				PreemptionDetails:     &context.PreemptionDetails{PreemptingJob: makeJob(t, "job-7", false)},
+				PreemptionDescription: "preempted by optimiser",
+				PreemptionType:        context.PreemptedWithOptimiserPreemption,
 			}},
 		},
 		"urgency preemption - single preempting job": {
@@ -180,6 +274,13 @@ func TestPopulatePreemptionDescriptions(t *testing.T) {
 			assert.Equal(t, tc.expectedPreemptedJobContexts, tc.preemptedJobContexts)
 		})
 	}
+}
+
+func TestSetFloatingResourceLimitPreemption(t *testing.T) {
+	jctx := &context.JobSchedulingContext{JobId: "job-1", Job: makeJob(t, "job-1", false)}
+	setFloatingResourceLimitPreemption(jctx, testfixtures.TestPool, "test-floating-resource")
+	assert.Equal(t, context.PreemptedWithFairshareFloatingResourcePreemption, jctx.PreemptionType)
+	assert.Equal(t, fmt.Sprintf(floatingResourcePreemptionCause, testfixtures.TestPool, "test-floating-resource"), jctx.PreemptionDescription)
 }
 
 func makeJobSchedulingContext(jobId string, nodeId string, schedulingMethod context.SchedulingType) *context.JobSchedulingContext {

@@ -100,61 +100,72 @@ func TestGetTotalAvailableForPoolAsMap(t *testing.T) {
 func TestWithinLimits_WhenWithinLimits_ReturnsTrue(t *testing.T) {
 	rlFactory := makeRlFactory()
 	sut := makeSut(t, rlFactory)
-	withinLimits, errorMessage := sut.WithinLimits("cpu",
-		rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("199")}),
-	)
+	allocated := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("199")})
+	withinLimits, errorMessage, exceededResource := sut.WithinLimits("cpu", allocated)
 	assert.True(t, withinLimits)
 	assert.Empty(t, errorMessage)
+	assert.Empty(t, exceededResource)
 }
 
 func TestWithinLimits_WhenAtLimit_ReturnsTrue(t *testing.T) {
 	rlFactory := makeRlFactory()
 	sut := makeSut(t, rlFactory)
-	withinLimits, errorMessage := sut.WithinLimits("cpu",
-		rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("200")}),
-	)
+	allocated := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("200")})
+	withinLimits, errorMessage, exceededResource := sut.WithinLimits("cpu", allocated)
 	assert.True(t, withinLimits)
 	assert.Empty(t, errorMessage)
+	assert.Empty(t, exceededResource)
 }
 
 func TestWithinLimits_WhenExceedsLimit_ReturnsFalse(t *testing.T) {
 	rlFactory := makeRlFactory()
 	sut := makeSut(t, rlFactory)
-	withinLimits, errorMessage := sut.WithinLimits("cpu",
-		rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("201")}),
-	)
+	allocated := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("201")})
+	withinLimits, errorMessage, exceededResource := sut.WithinLimits("cpu", allocated)
 	assert.False(t, withinLimits)
-	assert.NotEmpty(t, errorMessage)
+	assert.Equal(t, "not enough floating resource floating-resource-1 in pool cpu", errorMessage)
+	assert.Equal(t, "floating-resource-1", exceededResource)
 }
 
 func TestWithinLimits_IgnoresNonFloatingResources(t *testing.T) {
 	rlFactory := makeRlFactory()
 	sut := makeSut(t, rlFactory)
-	withinLimits, errorMessage := sut.WithinLimits("cpu",
-		rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"cpu": resource.MustParse("1000")}),
-	)
+	allocated := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"cpu": resource.MustParse("1000")})
+	withinLimits, errorMessage, exceededResource := sut.WithinLimits("cpu", allocated)
 	assert.True(t, withinLimits)
 	assert.Empty(t, errorMessage)
+	assert.Empty(t, exceededResource)
 }
 
-func TestWithinLimits_WhenResourceNotSpecifiedForAPool_ReturnsFalse(t *testing.T) {
+func TestIsConfiguredForPool_WhenConfigured_ReturnsTrue(t *testing.T) {
 	rlFactory := makeRlFactory()
 	sut := makeSut(t, rlFactory)
-	withinLimits, errorMessage := sut.WithinLimits("gpu",
-		rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-2": resource.MustParse("1")}),
-	)
-	assert.False(t, withinLimits)
-	assert.NotEmpty(t, errorMessage)
+	requested := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("1")})
+	configured, reason := sut.IsConfiguredForPool("cpu", requested)
+	assert.True(t, configured)
+	assert.Empty(t, reason)
 }
 
-func TestWithinLimits_WhenPoolDoesNotExist_ReturnsFalse(t *testing.T) {
+func TestIsConfiguredForPool_WhenPoolDoesNotExist_ReturnsFalse(t *testing.T) {
 	rlFactory := makeRlFactory()
 	sut := makeSut(t, rlFactory)
-	withinLimits, errorMessage := sut.WithinLimits("some-other-pool",
-		rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("1")}),
-	)
-	assert.False(t, withinLimits)
-	assert.NotEmpty(t, errorMessage)
+	requested := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"floating-resource-1": resource.MustParse("1")})
+	configured, reason := sut.IsConfiguredForPool("some-other-pool", requested)
+	assert.False(t, configured)
+	assert.Equal(t, "floating resource floating-resource-1 not configured for pool some-other-pool", reason)
+}
+
+func TestIsConfiguredForPool_WhenRequestedResourceNotConfiguredForPool_ReturnsFalse(t *testing.T) {
+	rlFactory := makeRlFactory()
+	sut := makeSut(t, rlFactory)
+	// The gpu pool has floating-resource-1 configured, but not floating-resource-2.
+	requested := rlFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{
+		"floating-resource-1": resource.MustParse("1"),
+		"floating-resource-2": resource.MustParse("1"),
+	})
+	configured, reason := sut.IsConfiguredForPool("gpu", requested)
+	assert.False(t, configured)
+	assert.Equal(t, "floating resource floating-resource-2 not configured for pool gpu", reason)
 }
 
 func testConfig() []configuration.FloatingResourceConfig {
