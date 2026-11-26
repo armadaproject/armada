@@ -13,6 +13,7 @@ import (
 	clock "k8s.io/utils/clock/testing"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/constants"
 	"github.com/armadaproject/armada/internal/common/errormatch"
 	"github.com/armadaproject/armada/internal/common/pointer"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -218,37 +219,67 @@ func categorizedError(category string) *armadaevents.Error {
 	return err
 }
 
-func TestRetryPolicy_FFOn_DefaultPolicyNameFallback(t *testing.T) {
-	policy, err := retry.ConvertPolicy(&api.RetryPolicy{
-		Name:          "default-policy",
-		RetryLimit:    3,
-		DefaultAction: api.RetryAction_RETRY_ACTION_RETRY,
-	})
-	require.NoError(t, err)
+func TestRetryPolicy_FFOn_PolicyResolution(t *testing.T) {
+	retryPolicy := mkPolicy(t, 3, api.RetryAction_RETRY_ACTION_RETRY)
+	cache := fakePolicyCache{"job-policy": retryPolicy, "queue-policy": retryPolicy, "default-policy": retryPolicy}
+	tests := map[string]struct {
+		annotations        map[string]string
+		queueRetryPolicies map[string]string
+		defaultPolicyName  string
+		wantPolicyName     string
+		wantDecided        bool
+	}{
+		"the first policy of the job annotation replaces the policy of the queue": {
+			annotations:        map[string]string{constants.RetryPoliciesAnnotation: "job-policy,queue-policy"},
+			queueRetryPolicies: map[string]string{"testQueue": "queue-policy"},
+			defaultPolicyName:  "default-policy",
+			wantPolicyName:     "job-policy",
+			wantDecided:        true,
+		},
+		"without the job annotation the policy of the queue applies": {
+			queueRetryPolicies: map[string]string{"testQueue": "queue-policy"},
+			defaultPolicyName:  "default-policy",
+			wantPolicyName:     "queue-policy",
+			wantDecided:        true,
+		},
+		"without a job or queue policy the default policy applies": {
+			queueRetryPolicies: map[string]string{},
+			defaultPolicyName:  "default-policy",
+			wantPolicyName:     "default-policy",
+			wantDecided:        true,
+		},
+		"without a job, queue, or default policy the legacy path decides": {
+			queueRetryPolicies: map[string]string{},
+			wantDecided:        false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			sched := makeRetryTestScheduler(t, true, cache)
+			sched.retryPolicyConfig.DefaultPolicyName = tc.defaultPolicyName
+			job := makeRetryJob(t, sched, jobRunOpts{schedulingInfo: schedulingInfoWithAnnotations(tc.annotations), failedRuns: 1})
 
-	sched := makeRetryTestScheduler(t, true, fakePolicyCache{"default-policy": policy})
-	sched.retryPolicyConfig.DefaultPolicyName = "default-policy"
-
-	job := makeFailedJobForRetry(t, sched)
-
-	// An empty queue map means the queue has no attached policy, so resolution
-	// must fall back to the default.
-	result, policyName, decided := sched.evaluateRetryPolicy(
-		armadacontext.Background(), job, categorizedError("app-error"), map[string]string{})
-	assert.True(t, decided, "default policy must produce a decision for an unattached queue")
-	assert.Equal(t, "default-policy", policyName, "the decision must be attributed to the default policy")
-	assert.True(t, result.ShouldRetry, "default policy's Retry default action must apply")
+			_, policyName, decided := sched.evaluateRetryPolicy(
+				armadacontext.Background(), job, categorizedError("app-error"), tc.queueRetryPolicies)
+			assert.Equal(t, tc.wantDecided, decided)
+			assert.Equal(t, tc.wantPolicyName, policyName)
+		})
+	}
 }
 
-func TestRetryPolicy_FFOn_UnattachedQueueWithoutDefaultIsUndecided(t *testing.T) {
-	sched := makeRetryTestScheduler(t, true, fakePolicyCache{})
-	job := makeFailedJobForRetry(t, sched)
-
-	// No attached queue policy and no configured default means the name resolves
-	// to empty, so the engine must leave the decision to the legacy path.
-	_, _, decided := sched.evaluateRetryPolicy(
-		armadacontext.Background(), job, categorizedError("app-error"), map[string]string{})
-	assert.False(t, decided, "an unattached queue with no default policy must not be decided by the engine")
+func schedulingInfoWithAnnotations(annotations map[string]string) *schedulerobjects.JobSchedulingInfo {
+	return &schedulerobjects.JobSchedulingInfo{
+		AtMostOnce:        true,
+		PriorityClassName: testfixtures.PriorityClass2NonPreemptible,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{Annotations: annotations},
+				},
+			},
+		},
+		Version: 1,
+	}
 }
 
 func TestRetryPolicy_FFOn_NilRunErrorIsUndecided(t *testing.T) {
