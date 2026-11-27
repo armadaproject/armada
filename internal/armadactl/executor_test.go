@@ -71,18 +71,22 @@ func TestGetAllExecutors_Yaml(t *testing.T) {
 	require.NoError(t, a.GetAllExecutors())
 
 	var doc struct {
-		Kind      string         `json:"kind"`
-		Executors []executorInfo `json:"executors"`
+		Kind      string                              `json:"kind"`
+		Executors []*schedulerobjects.ExecutorSummary `json:"executors"`
 	}
 	require.NoError(t, yaml.Unmarshal(out.Bytes(), &doc))
 	assert.Equal(t, "Executor", doc.Kind)
 	require.Len(t, doc.Executors, 2)
 	assert.Equal(t, "executor-a", doc.Executors[0].Name)
 	require.NotNil(t, doc.Executors[0].LastUpdateTime)
-	assert.True(t, doc.Executors[0].LastUpdateTime.Equal(time.Date(2026, 11, 24, 10, 0, 0, 0, time.UTC)))
+	assert.True(t, protoutil.ToStdTime(doc.Executors[0].LastUpdateTime).Equal(time.Date(2026, 11, 24, 10, 0, 0, 0, time.UTC)))
 	assert.Nil(t, doc.Executors[1].LastUpdateTime)
 	assert.True(t, doc.Executors[1].Cordoned)
 	assert.Equal(t, "maintenance", doc.Executors[1].CordonReason)
+
+	// false and zero values stay in the output.
+	assert.Contains(t, out.String(), "cordoned: false")
+	assert.Contains(t, out.String(), "nodeCount: 0")
 }
 
 func TestGetExecutor_Json(t *testing.T) {
@@ -141,7 +145,7 @@ func TestGetAllExecutors_YamlKeepsControlCharacters(t *testing.T) {
 	require.NoError(t, a.GetAllExecutors())
 
 	var doc struct {
-		Executors []executorInfo `json:"executors"`
+		Executors []*schedulerobjects.ExecutorSummary `json:"executors"`
 	}
 	require.NoError(t, yaml.Unmarshal(out.Bytes(), &doc))
 	require.Len(t, doc.Executors, 1)

@@ -23,36 +23,8 @@ func (a *App) DeleteExecutor(name string) error {
 	return nil
 }
 
-// executorInfo is how an executor is printed. It uses a plain time.Time so that yaml and json output show a
-// readable timestamp rather than the seconds and nanos of the protobuf timestamp.
-type executorInfo struct {
-	Name           string     `json:"name"`
-	Pool           string     `json:"pool"`
-	LastUpdateTime *time.Time `json:"lastUpdateTime,omitempty"`
-	NodeCount      int32      `json:"nodeCount"`
-	Cordoned       bool       `json:"cordoned"`
-	CordonReason   string     `json:"cordonReason,omitempty"`
-	CordonedBy     string     `json:"cordonedBy,omitempty"`
-}
-
 type executorListBody struct {
-	Executors []executorInfo `json:"executors"`
-}
-
-func toExecutorInfo(e *schedulerobjects.ExecutorSummary) executorInfo {
-	info := executorInfo{
-		Name:         e.Name,
-		Pool:         e.Pool,
-		NodeCount:    e.NodeCount,
-		Cordoned:     e.Cordoned,
-		CordonReason: e.CordonReason,
-		CordonedBy:   e.CordonedBy,
-	}
-	if e.LastUpdateTime != nil {
-		t := protoutil.ToStdTime(e.LastUpdateTime)
-		info.LastUpdateTime = &t
-	}
-	return info
+	Executors []*schedulerobjects.ExecutorSummary `json:"executors"`
 }
 
 // GetExecutor prints the executor with the given name.
@@ -67,7 +39,7 @@ func (a *App) GetExecutor(name string) error {
 	if a.Params.Output == OutputText {
 		return a.printExecutorTable(executors)
 	}
-	if err := a.emitDocument(client.ResourceKindExecutor, toExecutorInfo(executors[0])); err != nil {
+	if err := a.emitDocument(client.ResourceKindExecutor, executors[0]); err != nil {
 		return errors.Errorf("error writing executor: %s", err)
 	}
 	return nil
@@ -82,9 +54,9 @@ func (a *App) GetAllExecutors() error {
 	if a.Params.Output == OutputText {
 		return a.printExecutorTable(executors)
 	}
-	body := executorListBody{Executors: make([]executorInfo, 0, len(executors))}
-	for _, e := range executors {
-		body.Executors = append(body.Executors, toExecutorInfo(e))
+	body := executorListBody{Executors: executors}
+	if body.Executors == nil {
+		body.Executors = []*schedulerobjects.ExecutorSummary{}
 	}
 	if err := a.emitDocument(client.ResourceKindExecutor, body); err != nil {
 		return errors.Errorf("error writing executors: %s", err)
