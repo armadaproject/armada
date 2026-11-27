@@ -3,11 +3,13 @@
 package restapi
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-openapi/errors"
@@ -102,8 +104,8 @@ var UIConfig configuration.UIConfig
 func setupGlobalMiddleware(apiHandler http.Handler) http.Handler {
 	return allowCORS(
 		uiHandler(
-			authHandler(
-				recordRequestDuration(
+			recordRequestDuration(
+				authHandler(
 					apiHandler,
 				),
 			),
@@ -121,6 +123,12 @@ func authHandler(handler http.Handler) http.Handler {
 		ctxWithPrincipal, err := authFunction(w, r)
 		if err != nil {
 			return
+		}
+
+		// recordRequestDuration sits outside this handler so that it also sees failed authentication,
+		// pass the principal back to it
+		if holder, ok := r.Context().Value(principalHolderKey{}).(*principalHolder); ok {
+			holder.principal = auth.GetPrincipal(ctxWithPrincipal)
 		}
 
 		handler.ServeHTTP(w, r.WithContext(ctxWithPrincipal))
@@ -174,14 +182,48 @@ func recordRequestDuration(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
-		handler.ServeHTTP(recorder, r)
+		holder := &principalHolder{principal: auth.GetPrincipal(r.Context())}
+		handler.ServeHTTP(recorder, r.WithContext(context.WithValue(r.Context(), principalHolderKey{}, holder)))
 		duration := time.Since(start)
 		if strings.HasPrefix(r.URL.Path, "/api/v1/") {
-			user := auth.GetPrincipal(r.Context()).GetName()
-			metrics.RecordRequestDuration(user, r.URL.Path, float64(duration.Milliseconds()))
-			metrics.RecordRequest(user, r.URL.Path, r.Method, recorder.status)
+			user := holder.principal.GetName()
+			endpoint := endpointLabel(r.URL.Path)
+			metrics.RecordRequestDuration(user, endpoint, float64(duration.Milliseconds()))
+			metrics.RecordRequest(user, endpoint, r.Method, recorder.status)
 		}
 	})
+}
+
+type principalHolderKey struct{}
+
+// principalHolder lets the auth handler report who made the request to the metrics middleware wrapped around it.
+type principalHolder struct {
+	principal auth.Principal
+}
+
+const unknownEndpointLabel = "unknown"
+
+// loadApiEndpoints returns the paths in the swagger spec. Clients can request any path, so everything else is
+// reported under one label to keep the number of metric series bounded.
+var loadApiEndpoints = sync.OnceValue(func() map[string]bool {
+	var spec struct {
+		Paths map[string]json.RawMessage `json:"paths"`
+	}
+	endpoints := map[string]bool{}
+	if err := json.Unmarshal(SwaggerJSON, &spec); err != nil {
+		return endpoints
+	}
+	for path := range spec.Paths {
+		endpoints[path] = true
+	}
+	return endpoints
+})
+
+func endpointLabel(path string) string {
+	if loadApiEndpoints()[path] {
+		return path
+	}
+	return unknownEndpointLabel
 }
 
 // statusRecorder keeps the status code written by the handler so it can be reported as a metric.

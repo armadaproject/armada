@@ -1,6 +1,8 @@
 package restapi
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,6 +10,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/common/auth"
 )
 
 // requestCount returns the current value of lookout_requests_total for one label set. The counter is
@@ -84,4 +88,43 @@ func TestStatusRecorder_Unwrap(t *testing.T) {
 	assert.Equal(t, http.ResponseWriter(rec), recorder.Unwrap())
 	require.NoError(t, http.NewResponseController(recorder).Flush())
 	assert.True(t, rec.Flushed)
+}
+
+func TestRecordRequest_UnknownPathsShareOneLabel(t *testing.T) {
+	handler := recordRequestDuration(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+
+	before := requestCount(t, "GET", "unknown", "404")
+	for _, path := range []string{"/api/v1/foo", "/api/v1/bar", "/api/v1/jobs/extra"} {
+		handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, path, nil))
+	}
+
+	assert.Equal(t, float64(3), requestCount(t, "GET", "unknown", "404")-before)
+	assert.Equal(t, float64(0), requestCount(t, "GET", "/api/v1/foo", "404"))
+}
+
+type failingAuthService struct{}
+
+func (failingAuthService) Authenticate(_ context.Context, _ string) (auth.Principal, error) {
+	return nil, errors.New("bad credentials")
+}
+
+func TestRecordRequest_CountsFailedAuthentication(t *testing.T) {
+	previous := authService
+	authService = failingAuthService{}
+	t.Cleanup(func() { authService = previous })
+
+	called := false
+	handler := recordRequestDuration(authHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	})))
+
+	before := requestCount(t, "GET", "/api/v1/jobs", "500")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/jobs", nil))
+
+	assert.False(t, called)
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Equal(t, float64(1), requestCount(t, "GET", "/api/v1/jobs", "500")-before)
 }
