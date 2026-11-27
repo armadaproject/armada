@@ -7,18 +7,23 @@ import (
 	types "github.com/gogo/protobuf/types"
 )
 
+// executorSummaryJSON is the JSON form of ExecutorSummary. MarshalJSON and UnmarshalJSON share it, so the
+// field list only lives in one place. cordoned and nodeCount are always written, so that a cordoned false or a
+// node count of zero is visible to readers.
+type executorSummaryJSON struct {
+	Name           string `json:"name,omitempty"`
+	Pool           string `json:"pool,omitempty"`
+	LastUpdateTime string `json:"lastUpdateTime,omitempty"`
+	NodeCount      int32  `json:"nodeCount"`
+	Cordoned       bool   `json:"cordoned"`
+	CordonReason   string `json:"cordonReason,omitempty"`
+	CordonedBy     string `json:"cordonedBy,omitempty"`
+}
+
 // MarshalJSON writes the heartbeat as an RFC 3339 string, which is what the OpenAPI schema promises. Without
 // this the gateway would write the protobuf timestamp as an object with seconds and nanos.
 func (m *ExecutorSummary) MarshalJSON() ([]byte, error) {
-	out := struct {
-		Name           string `json:"name,omitempty"`
-		Pool           string `json:"pool,omitempty"`
-		LastUpdateTime string `json:"lastUpdateTime,omitempty"`
-		NodeCount      int32  `json:"nodeCount,omitempty"`
-		Cordoned       bool   `json:"cordoned,omitempty"`
-		CordonReason   string `json:"cordonReason,omitempty"`
-		CordonedBy     string `json:"cordonedBy,omitempty"`
-	}{
+	out := executorSummaryJSON{
 		Name:         m.Name,
 		Pool:         m.Pool,
 		NodeCount:    m.NodeCount,
@@ -34,15 +39,7 @@ func (m *ExecutorSummary) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON reads what MarshalJSON writes, so that Go clients can decode the response of the REST gateway.
 func (m *ExecutorSummary) UnmarshalJSON(data []byte) error {
-	in := struct {
-		Name           string `json:"name,omitempty"`
-		Pool           string `json:"pool,omitempty"`
-		LastUpdateTime string `json:"lastUpdateTime,omitempty"`
-		NodeCount      int32  `json:"nodeCount,omitempty"`
-		Cordoned       bool   `json:"cordoned,omitempty"`
-		CordonReason   string `json:"cordonReason,omitempty"`
-		CordonedBy     string `json:"cordonedBy,omitempty"`
-	}{}
+	in := executorSummaryJSON{}
 	if err := json.Unmarshal(data, &in); err != nil {
 		return err
 	}
