@@ -132,6 +132,86 @@ func TestExecutorRepository_GetLastUpdateTimes(t *testing.T) {
 	}
 }
 
+func TestExecutorRepository_GetExecutor(t *testing.T) {
+	now := time.Now().UTC().Round(1 * time.Microsecond) // postgres only stores times with micro precision
+	stored := &schedulerobjects.Executor{
+		Id:   "test-executor-1",
+		Pool: "test-pool-1",
+		Nodes: []*schedulerobjects.Node{
+			{Id: "test-node-1", LastSeen: protoutil.ToTimestamp(now)},
+		},
+		LastUpdateTime: protoutil.ToTimestamp(now),
+	}
+	tests := map[string]struct {
+		id       string
+		expected *schedulerobjects.Executor
+	}{
+		"found":     {id: "test-executor-1", expected: stored},
+		"not found": {id: "missing-executor", expected: nil},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := withExecutorRepository(func(repo *PostgresExecutorRepository) error {
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+				defer cancel()
+				require.NoError(t, repo.StoreExecutor(ctx, stored))
+				require.NoError(t, repo.StoreExecutor(ctx, &schedulerobjects.Executor{Id: "test-executor-2", LastUpdateTime: protoutil.ToTimestamp(now)}))
+
+				executor, err := repo.GetExecutor(ctx, tc.id)
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, executor)
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestExecutorRepository_GetExecutorSettingsByID(t *testing.T) {
+	now := time.Now().UTC().Round(1 * time.Microsecond) // postgres only stores times with micro precision
+	stored := &schedulerobjects.ExecutorSettings{
+		ExecutorId:   "test-executor-1",
+		Cordoned:     true,
+		CordonReason: "maintenance",
+		SetByUser:    "alice",
+		SetAtTime:    protoutil.ToTimestamp(now),
+	}
+	tests := map[string]struct {
+		id       string
+		expected *schedulerobjects.ExecutorSettings
+	}{
+		"found":     {id: "test-executor-1", expected: stored},
+		"not found": {id: "missing-executor", expected: nil},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := withExecutorRepository(func(repo *PostgresExecutorRepository) error {
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+				defer cancel()
+				queries := New(repo.db)
+				for _, settings := range []*schedulerobjects.ExecutorSettings{
+					stored,
+					{ExecutorId: "test-executor-2", SetByUser: "bob", SetAtTime: protoutil.ToTimestamp(now)},
+				} {
+					require.NoError(t, queries.UpsertExecutorSettings(ctx, UpsertExecutorSettingsParams{
+						ExecutorID:   settings.ExecutorId,
+						Cordoned:     settings.Cordoned,
+						CordonReason: settings.CordonReason,
+						SetByUser:    settings.SetByUser,
+						SetAtTime:    now,
+					}))
+				}
+
+				settings, err := repo.GetExecutorSettingsByID(ctx, tc.id)
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected, settings)
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
 func withExecutorRepository(action func(repository *PostgresExecutorRepository) error) error {
 	return WithTestDb(func(_ *Queries, db *pgxpool.Pool) error {
 		repo := NewPostgresExecutorRepository(db)
