@@ -848,11 +848,13 @@ func TestGetJobsByJobSetWithLikeWildcards(t *testing.T) {
 			Build().
 			Job()
 
-		// Matches job_set% and _set% only if _ and % are treated as wildcards.
-		_ = NewJobSimulatorWithClock(converter, store, testClock).
-			Submit(queue, "jobXsetY1", owner, namespace, baseTime, basicJobOpts).
-			Build().
-			Job()
+		// Match job_set% and _set% only if _ or % is treated as a wildcard.
+		for _, js := range []string{"jobXset%1", "job_setY1"} {
+			_ = NewJobSimulatorWithClock(converter, store, testClock).
+				Submit(queue, js, owner, namespace, baseTime, basicJobOpts).
+				Build().
+				Job()
+		}
 
 		for _, filter := range []*model.Filter{
 			{Field: "jobSet", Match: model.MatchStartsWith, Value: "job_set%"},
