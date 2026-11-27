@@ -19,38 +19,8 @@ func newLazyPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-func TestRegisterPoolMetrics(t *testing.T) {
-	registry := prometheus.NewRegistry()
-	require.NoError(t, RegisterPoolMetrics(registry, newLazyPool(t), map[string]string{"pool": "main"}))
-
-	families, err := registry.Gather()
-	require.NoError(t, err)
-
-	var maxConns *float64
-	for _, family := range families {
-		if family.GetName() != "pgxpool_max_conns" {
-			continue
-		}
-		require.Len(t, family.GetMetric(), 1)
-		metric := family.GetMetric()[0]
-		require.Len(t, metric.GetLabel(), 1)
-		assert.Equal(t, "pool", metric.GetLabel()[0].GetName())
-		assert.Equal(t, "main", metric.GetLabel()[0].GetValue())
-		v := metric.GetGauge().GetValue()
-		maxConns = &v
-	}
-	require.NotNil(t, maxConns, "pgxpool_max_conns not exported")
-	assert.Equal(t, float64(7), *maxConns)
-}
-
-func TestRegisterPoolMetrics_TwoPoolsNeedDistinctLabels(t *testing.T) {
-	registry := prometheus.NewRegistry()
-	require.NoError(t, RegisterPoolMetrics(registry, newLazyPool(t), map[string]string{"pool": "main"}))
-	require.NoError(t, RegisterPoolMetrics(registry, newLazyPool(t), map[string]string{"pool": "mirror"}))
-	assert.Error(t, RegisterPoolMetrics(registry, newLazyPool(t), map[string]string{"pool": "main"}))
-}
-
-func samplesByPool(t *testing.T, registry *prometheus.Registry, name string) map[string]float64 {
+// samplesByDatabase returns the value of the named gauge keyed by its "database" label ("" when unlabelled).
+func samplesByDatabase(t *testing.T, registry *prometheus.Registry, name string) map[string]float64 {
 	t.Helper()
 	families, err := registry.Gather()
 	require.NoError(t, err)
@@ -60,27 +30,56 @@ func samplesByPool(t *testing.T, registry *prometheus.Registry, name string) map
 			continue
 		}
 		for _, metric := range family.GetMetric() {
-			pool := ""
+			database := ""
 			for _, label := range metric.GetLabel() {
-				if label.GetName() == "pool" {
-					pool = label.GetValue()
+				if label.GetName() == "database" {
+					database = label.GetValue()
 				}
 			}
-			out[pool] = metric.GetGauge().GetValue()
+			out[database] = metric.GetGauge().GetValue()
 		}
 	}
 	return out
 }
 
-func TestRegisterPoolMetrics_TwoPoolsAreBothScraped(t *testing.T) {
-	registry := prometheus.NewRegistry()
-	require.NoError(t, RegisterPoolMetrics(registry, newLazyPool(t), map[string]string{"pool": "main"}))
-	require.NoError(t, RegisterPoolMetrics(registry, newLazyPool(t), map[string]string{"pool": "mirror"}))
-	assert.Equal(t, map[string]float64{"main": 7, "mirror": 7}, samplesByPool(t, registry, "pgxpool_max_conns"))
-}
-
-func TestRegisterPoolMetrics_NilLabelsGiveAnUnlabeledSample(t *testing.T) {
-	registry := prometheus.NewRegistry()
-	require.NoError(t, RegisterPoolMetrics(registry, newLazyPool(t), nil))
-	assert.Equal(t, map[string]float64{"": 7}, samplesByPool(t, registry, "pgxpool_max_conns"))
+func TestRegisterPoolMetrics(t *testing.T) {
+	tests := map[string]struct {
+		labels           []map[string]string
+		expected         map[string]float64
+		expectedErrorAt  int
+		expectDuplicates bool
+	}{
+		"labelled": {
+			labels:   []map[string]string{{"database": "main"}},
+			expected: map[string]float64{"main": 7},
+		},
+		"two pools": {
+			labels:   []map[string]string{{"database": "main"}, {"database": "mirror"}},
+			expected: map[string]float64{"main": 7, "mirror": 7},
+		},
+		"nil labels": {
+			labels:   []map[string]string{nil},
+			expected: map[string]float64{"": 7},
+		},
+		"duplicate labels": {
+			labels:           []map[string]string{{"database": "main"}, {"database": "mirror"}, {"database": "main"}},
+			expected:         map[string]float64{"main": 7, "mirror": 7},
+			expectedErrorAt:  2,
+			expectDuplicates: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			registry := prometheus.NewRegistry()
+			for i, labels := range tc.labels {
+				err := RegisterPoolMetrics(registry, newLazyPool(t), labels)
+				if tc.expectDuplicates && i == tc.expectedErrorAt {
+					assert.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+			}
+			assert.Equal(t, tc.expected, samplesByDatabase(t, registry, "pgxpool_max_conns"))
+		})
+	}
 }

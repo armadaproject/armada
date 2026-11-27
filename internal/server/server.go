@@ -91,7 +91,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 	defer dbPool.Close()
 	// The query api mirror opens a second pool, so the label tells the two apart.
-	if err := database.RegisterPoolMetrics(prometheus.DefaultRegisterer, dbPool, map[string]string{"pool": "main"}); err != nil {
+	if err := database.RegisterPoolMetrics(prometheus.DefaultRegisterer, dbPool, map[string]string{"database": "main"}); err != nil {
 		return err
 	}
 
@@ -106,7 +106,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 			// In-flight mirror queries use a detached context, so shutdown may
 			// block here for up to the mirror query timeout while they drain.
 			defer mirrorPool.Close()
-			if err := database.RegisterPoolMetrics(prometheus.DefaultRegisterer, mirrorPool, map[string]string{"pool": "queryapi_mirror"}); err != nil {
+			if err := database.RegisterPoolMetrics(prometheus.DefaultRegisterer, mirrorPool, map[string]string{"database": "queryapi_mirror"}); err != nil {
 				log.WithError(err).Warn("failed to register query api mirror pool metrics")
 			}
 			queryDb = queryapi.NewMirroringDB(dbPool, mirrorPool, config.QueryApi.Mirror.MaxInFlight)
