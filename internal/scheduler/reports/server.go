@@ -13,26 +13,17 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/scheduler/database"
 	internalschedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api/schedulerobjects"
 )
 
-// executorRepository is the part of the scheduler's executor repository the reports server reads from.
-type executorRepository interface {
-	GetExecutors(ctx *armadacontext.Context) ([]*internalschedulerobjects.Executor, error)
-	// GetExecutor returns the executor with the given id, or nil if it is not in the database.
-	GetExecutor(ctx *armadacontext.Context, id string) (*internalschedulerobjects.Executor, error)
-	GetExecutorSettings(ctx *armadacontext.Context) ([]*internalschedulerobjects.ExecutorSettings, error)
-	// GetExecutorSettingsByID returns the settings of the given executor, or nil if it has none.
-	GetExecutorSettingsByID(ctx *armadacontext.Context, id string) (*internalschedulerobjects.ExecutorSettings, error)
-}
-
 type Server struct {
 	repository         *SchedulingContextRepository
-	executorRepository executorRepository
+	executorRepository database.ExecutorRepository
 }
 
-func NewServer(repository *SchedulingContextRepository, executorRepository executorRepository) *Server {
+func NewServer(repository *SchedulingContextRepository, executorRepository database.ExecutorRepository) *Server {
 	return &Server{
 		repository:         repository,
 		executorRepository: executorRepository,
@@ -77,9 +68,6 @@ func (s *Server) GetJobReport(ctx context.Context, request *schedulerobjects.Job
 // Executors are sorted by name. If request.Name is set, only that executor is returned, or NotFound if it is unknown.
 // The name is used as is, since executor ids are stored unchanged.
 func (s *Server) GetExecutors(grpcCtx context.Context, request *schedulerobjects.ExecutorsRequest) (*schedulerobjects.ExecutorsResponse, error) {
-	if s.executorRepository == nil {
-		return nil, status.Error(codes.Unimplemented, "executor information is not available")
-	}
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
 	name := request.GetName()

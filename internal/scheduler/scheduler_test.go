@@ -2588,6 +2588,14 @@ func (t testExecutorRepository) GetExecutors(ctx *armadacontext.Context) ([]*sch
 	panic("not implemented")
 }
 
+func (t testExecutorRepository) GetExecutor(ctx *armadacontext.Context, id string) (*schedulerobjects.Executor, error) {
+	panic("not implemented")
+}
+
+func (t testExecutorRepository) GetExecutorSettingsByID(ctx *armadacontext.Context, id string) (*schedulerobjects.ExecutorSettings, error) {
+	panic("not implemented")
+}
+
 func (t testExecutorRepository) GetExecutorSettings(ctx *armadacontext.Context) ([]*schedulerobjects.ExecutorSettings, error) {
 	panic("not implemented")
 }

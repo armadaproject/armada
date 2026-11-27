@@ -18,8 +18,12 @@ import (
 type ExecutorRepository interface {
 	// GetExecutors returns all known executors, regardless of their last heartbeat time
 	GetExecutors(ctx *armadacontext.Context) ([]*schedulerobjects.Executor, error)
+	// GetExecutor returns the executor with the given id, or nil if there is no such executor
+	GetExecutor(ctx *armadacontext.Context, id string) (*schedulerobjects.Executor, error)
 	// GetExecutorSettings returns all defined executor settings
 	GetExecutorSettings(ctx *armadacontext.Context) ([]*schedulerobjects.ExecutorSettings, error)
+	// GetExecutorSettingsByID returns the settings of the executor with the given id, or nil if it has none
+	GetExecutorSettingsByID(ctx *armadacontext.Context, id string) (*schedulerobjects.ExecutorSettings, error)
 	// GetLastUpdateTimes returns a map of executor name -> last heartbeat time
 	GetLastUpdateTimes(ctx *armadacontext.Context) (map[string]time.Time, error)
 	// StoreExecutor persists the latest executor state
