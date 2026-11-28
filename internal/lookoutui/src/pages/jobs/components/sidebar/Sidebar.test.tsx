@@ -44,6 +44,8 @@ describe("Sidebar", () => {
         },
       ],
     )
+    // Differs from the run's pending time (now) so a Submitted row showing the wrong time is caught
+    job.submitted = "2020-06-15T12:00:00Z"
     mockServer.setPostJobRunErrorResponseForRunId("1234-5678", "job run error")
     mockServer.setPostJobRunDebugMessageResponseForRunId("1234-5678", { errorString: "job run debug message" })
     mockServer.use(
@@ -131,6 +133,81 @@ describe("Sidebar", () => {
     // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
     within(getByRole("row", { name: /Cluster/ })).getByText(run.cluster)
+    // The time is shown with the user's timestamp settings, so only the year is stable here
+    within(getByRole("row", { name: /Submitted/ })).getByText(/2020/)
+  })
+
+  it("should show when each run of a retried job started waiting in the queue", async () => {
+    // The job is submitted in 2020, and its first run is preempted in 2022 and requeued, so the wait for the second
+    // run is measured from then and not from submission
+    job.runs = [
+      {
+        jobId: "abcde",
+        runId: "1234-5678",
+        cluster: "demo-a",
+        leased: "2021-06-15T12:00:00Z",
+        finished: "2022-06-15T12:00:00Z",
+        jobRunState: JobRunState.RunPreempted,
+      },
+      {
+        jobId: "abcde",
+        runId: "9999-0000",
+        cluster: "demo-b",
+        leased: "2023-06-15T12:00:00Z",
+        jobRunState: JobRunState.RunLeased,
+      },
+    ]
+    const { getByRole, queryByRole } = renderComponent()
+
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
+
+    // The newest run is expanded first
+    within(getByRole("row", { name: /Requeued/ })).getByText(/2022/)
+    expect(queryByRole("row", { name: /Submitted/ })).toBeNull()
+
+    await userEvent.click(getByRole("button", { name: /Run 1/ }))
+    within(getByRole("row", { name: /Submitted/ })).getByText(/2020/)
+  })
+
+  it("should measure each run's wait from the end of the run before it", async () => {
+    // Each run is requeued when the one before it ends, so a later run must not use the first run's end
+    job.runs = [
+      {
+        jobId: "abcde",
+        runId: "1111-1111",
+        cluster: "demo-a",
+        leased: "2021-06-15T12:00:00Z",
+        finished: "2022-06-15T12:00:00Z",
+        jobRunState: JobRunState.RunPreempted,
+      },
+      {
+        jobId: "abcde",
+        runId: "2222-2222",
+        cluster: "demo-a",
+        leased: "2023-06-15T12:00:00Z",
+        finished: "2024-06-15T12:00:00Z",
+        jobRunState: JobRunState.RunPreempted,
+      },
+      {
+        jobId: "abcde",
+        runId: "3333-3333",
+        cluster: "demo-a",
+        leased: "2025-06-15T12:00:00Z",
+        jobRunState: JobRunState.RunLeased,
+      },
+    ]
+    const { getByRole, getAllByRole } = renderComponent()
+
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
+    await userEvent.click(getByRole("button", { name: /Run 2/ }))
+    await userEvent.click(getByRole("button", { name: /Run 1/ }))
+
+    // Runs are listed newest first
+    const requeuedRows = getAllByRole("row", { name: /Requeued/ })
+    expect(requeuedRows).toHaveLength(2)
+    within(requeuedRows[0]).getByText(/2024/)
+    within(requeuedRows[1]).getByText(/2022/)
+    within(getByRole("row", { name: /Submitted/ })).getByText(/2020/)
   })
 
   it("should handle runs with errors", async () => {

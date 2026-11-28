@@ -6,12 +6,20 @@ import { CodeBlock } from "../../../../components/CodeBlock"
 import { Job, JobState } from "../../../../models/lookoutModels"
 import { useGetJobError } from "../../../../services/lookout/useGetJobError"
 
-import { JobRunDetails } from "./JobRunDetails"
+import { JobRunDetails, QueuedSince } from "./JobRunDetails"
 import { NoRunsAlert } from "./NoRunsAlert"
 import { SidebarTabHeading } from "./sidebarTabContentComponents"
 
 export interface SidebarTabJobResultProps {
   job: Job
+}
+
+const getQueuedSince = (job: Job, runIndex: number): QueuedSince | undefined => {
+  if (runIndex === 0) {
+    return { label: "Submitted", timestamp: job.submitted }
+  }
+  const previousRunFinished = job.runs[runIndex - 1]?.finished
+  return previousRunFinished ? { label: "Requeued", timestamp: previousRunFinished } : undefined
 }
 
 export const SidebarTabJobResult = ({ job }: SidebarTabJobResultProps) => {
@@ -73,6 +81,7 @@ export const SidebarTabJobResult = ({ job }: SidebarTabJobResultProps) => {
               <JobRunDetails
                 key={run.runId}
                 run={run}
+                queuedSince={getQueuedSince(job, runsNewestFirst.length - 1 - i)}
                 runIndex={runsNewestFirst.length - 1 - i}
                 defaultExpanded={i === 0}
                 setRunError={i === 0 ? setLastJobRunError : undefined}
