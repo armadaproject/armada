@@ -836,6 +836,54 @@ func TestGetJobsByJobSet(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGetJobsByJobSetWithLikeWildcards(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		job := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, "job_set%1", owner, namespace, baseTime, basicJobOpts).
+			Build().
+			Job()
+
+		job2 := NewJobSimulatorWithClock(converter, store, testClock).
+			Submit(queue, "job_set%2", owner, namespace, baseTime, basicJobOpts).
+			Build().
+			Job()
+
+		// Match job_set% and _set% only if _ or % is treated as a wildcard.
+		for _, js := range []string{"jobXset%1", "job_setY1"} {
+			_ = NewJobSimulatorWithClock(converter, store, testClock).
+				Submit(queue, js, owner, namespace, baseTime, basicJobOpts).
+				Build().
+				Job()
+		}
+
+		for _, filter := range []*model.Filter{
+			{Field: "jobSet", Match: model.MatchStartsWith, Value: "job_set%"},
+			{Field: "jobSet", Match: model.MatchContains, Value: "_set%"},
+		} {
+			t.Run(filter.Match, func(t *testing.T) {
+				result, err := repo.GetJobs(
+					armadacontext.TODO(),
+					[]*model.Filter{filter},
+					false,
+					&model.Order{
+						Field:     "jobId",
+						Direction: model.DirectionAsc,
+					},
+					0,
+					10,
+				)
+				require.NoError(t, err)
+				require.Len(t, result.Jobs, 2)
+				assert.Equal(t, job, result.Jobs[0])
+				assert.Equal(t, job2, result.Jobs[1])
+			})
+		}
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestGetJobsByOwner(t *testing.T) {
 	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
 		job := NewJobSimulatorWithClock(converter, store, testClock).
