@@ -46,7 +46,11 @@ func main() {
 	common.LoadConfig(&config, "./config/server", userSpecifiedConfigs)
 
 	// Initialize OpenTelemetry
-	if err := observability.InitOTel(config.Observability); err != nil {
+	initOTel := observability.InitOTel
+	if config.Submission.TraceContext.Enabled {
+		initOTel = observability.InitOTelWithJobSubmissionSpans
+	}
+	if err := initOTel(config.Observability); err != nil {
 		log.Fatalf("Failed to initialize OTel: %v", err)
 	}
 	defer func() {

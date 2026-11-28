@@ -5,6 +5,7 @@
     "architecture",
     "submitting-jobs",
     "monitoring-and-fleet",
+    "tracing",
     "priority-and-preemption",
     "interactive-jobs-and-services",
     "gang-jobs",

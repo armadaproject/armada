@@ -26,6 +26,13 @@ eventsApiRedis:
   db: 1
   poolSize: 1000
 submission:
+  traceContext:
+    enabled: false
+    # Separate opt-in for request baggage; explicit annotation baggage is unaffected.
+    propagateGrpcBaggage: false
+    aliasAnnotationPrefixes: []
+    maxTraceStateBytes: 512
+    maxBaggageBytes: 8192
   allowedPriorityClassNames:
     armada-default: true
     armada-preemptible: true
