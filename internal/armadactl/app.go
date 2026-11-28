@@ -69,7 +69,8 @@ type QueueAPI struct {
 }
 
 type JobAPI struct {
-	Get job.GetAPI
+	Get  job.GetAPI
+	List job.ListAPI
 }
 
 type ExecutorAPI struct {
