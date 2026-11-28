@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.12.0
           cache: yarn
@@ -30,7 +30,7 @@ jobs:
 
       - name: Upload Test Reports Artifacts
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ts-unit-test-reports
           path: ./internal/lookoutui/junit.xml
@@ -58,7 +58,7 @@ jobs:
 
       - name: Upload Test Reports Artifacts
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: go-unit-test-reports
           path: test-reports/
@@ -129,7 +129,7 @@ jobs:
 
       - name: Upload Scheduler Race Results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scheduler-race-results-${{ github.run_attempt }}
           path: scheduler-race-results.jsonl
@@ -163,7 +163,7 @@ jobs:
           swap-storage: false
 
       - name: Setup Docker
-        uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5.5.0
+        uses: docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6 # v5.7.0
         with:
           daemon-config: '{"features":{"containerd-snapshotter":false}}'
 
@@ -203,7 +203,7 @@ jobs:
 
       - name: Restore integration Go build cache
         id: build-cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ${{ steps.setup-go.outputs.build-cache-path }}
           key: ${{ steps.build-cache-key.outputs.current }}
@@ -219,7 +219,7 @@ jobs:
           github.ref == 'refs/heads/master' &&
           (github.event_name == 'push' || github.event_name == 'schedule') &&
           steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ${{ steps.setup-go.outputs.build-cache-path }}
           key: ${{ steps.build-cache-key.outputs.current }}
@@ -228,7 +228,7 @@ jobs:
         run: go run github.com/magefile/mage@v1.17.2 -v testsuite
 
       - name: Upload JUnit Report Artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: go-integration-test-reports
           path: junit*.xml
@@ -242,7 +242,7 @@ jobs:
           docker logs pulsar > ./logs/pulsar.log 2>&1
 
       - name: Upload Docker Compose Logs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: docker-compose-logs
