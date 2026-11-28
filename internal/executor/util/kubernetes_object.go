@@ -106,6 +106,39 @@ func ExtractServices(job *executorapi.JobRunLease, pod *v1.Pod) []*v1.Service {
 	return result
 }
 
+// ExtractGangService returns the headless service shared by the gang the pod belongs to, or nil if the gang did not
+// request one, see serverconfiguration.GangServiceAnnotation. Every pod of the gang yields the same service.
+// The service has no ports: it only publishes a DNS name for each pod of the gang that sets a hostname. It publishes
+// those names before the pods are ready, so that the pods can find each other while they start up.
+func ExtractGangService(pod *v1.Pod) *v1.Service {
+	serviceName := pod.Labels[serverconfiguration.GangServiceNameLabel]
+	if serviceName == "" {
+		return nil
+	}
+	// The service is deliberately not labelled with the job or run id: it must outlive any single pod of the gang.
+	labels := map[string]string{
+		serverconfiguration.GangServiceNameLabel: serviceName,
+		domain.Queue:                             pod.Labels[domain.Queue],
+	}
+	return &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceName,
+			Namespace: pod.Namespace,
+			Labels:    labels,
+			Annotations: map[string]string{
+				serverconfiguration.GangIdAnnotation: pod.Annotations[serverconfiguration.GangIdAnnotation],
+				domain.JobSetId:                      pod.Annotations[domain.JobSetId],
+				domain.Owner:                         pod.Annotations[domain.Owner],
+			},
+		},
+		Spec: v1.ServiceSpec{
+			ClusterIP:                v1.ClusterIPNone,
+			PublishNotReadyAddresses: true,
+			Selector:                 maps.Clone(labels),
+		},
+	}
+}
+
 func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configuration.PodDefaults) (*v1.Pod, error) {
 	podSpec, err := getPodSpec(job)
 	if err != nil {
@@ -209,6 +242,10 @@ func injectArmadaEnvVars(podSpec *v1.PodSpec, job *executorapi.JobRunLease, anno
 			v1.EnvVar{Name: serverconfiguration.GangNodeUniformityLabelNameEnvVar, Value: labelName},
 			v1.EnvVar{Name: serverconfiguration.GangNodeUniformityLabelValueEnvVar, Value: labelValue},
 		)
+	}
+
+	if serviceName := job.Job.GetObjectMeta().GetLabels()[serverconfiguration.GangServiceNameLabel]; serviceName != "" {
+		gangEnvVars = append(gangEnvVars, v1.EnvVar{Name: serverconfiguration.GangServiceNameEnvVar, Value: serviceName})
 	}
 
 	allEnvVars := append(baseEnvVars, gangEnvVars...)

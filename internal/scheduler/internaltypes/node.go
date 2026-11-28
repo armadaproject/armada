@@ -247,6 +247,9 @@ func CreateNodeAndType(
 		labels = maps.Clone(labels)
 	}
 	labels[configuration.NodeIdLabel] = id
+	if executor != "" {
+		labels[configuration.ExecutorIdLabel] = executor
+	}
 
 	return CreateNode(
 		id,

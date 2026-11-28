@@ -57,3 +57,8 @@ redis:
 schedulerApiConnection:
   armadaUrl: "localhost:50052"
   forceNoTls: true
+submission:
+  allowGangServices: true
+  mpiJobs:
+    enabled: true
+    bootstrapImage: gresearch/armada-mpi:latest

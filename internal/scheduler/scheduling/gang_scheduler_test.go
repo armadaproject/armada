@@ -385,6 +385,52 @@ func TestGangScheduler(t *testing.T) {
 			ExpectedRuntimeGangCardinality:         []int{4},
 			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
 		},
+		"NodeUniformityLabel executor id is usable without being indexed": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+					map[string]string{configuration.ExecutorIdLabel: "executor1"},
+				),
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+					map[string]string{configuration.ExecutorIdLabel: "executor2"},
+				),
+			),
+			Gangs: [][]*jobdb.Job{
+				testfixtures.WithNodeUniformityGangAnnotationsJobs(
+					testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2),
+					configuration.ExecutorIdLabel,
+				),
+			},
+			ExpectedScheduledIndices:               []int{0},
+			ExpectedCumulativeScheduledJobs:        []int{2},
+			ExpectedRuntimeGangCardinality:         []int{2},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
+		},
+		"NodeUniformityLabel executor id keeps a gang from spanning executors": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+					map[string]string{configuration.ExecutorIdLabel: "executor1"},
+				),
+				testfixtures.TestNodeFactory.AddLabels(
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+					map[string]string{configuration.ExecutorIdLabel: "executor2"},
+				),
+			),
+			Gangs: [][]*jobdb.Job{
+				testfixtures.WithNodeUniformityGangAnnotationsJobs(
+					testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 3),
+					configuration.ExecutorIdLabel,
+				),
+			},
+			ExpectedScheduledIndices:               nil,
+			ExpectedCumulativeScheduledJobs:        []int{0},
+			ExpectedRuntimeGangCardinality:         []int{0},
+			ExpectedUnfeasibleSchedulingKeyIndices: []int{},
+		},
 		"NodeUniformityLabel NumScheduled tiebreak": {
 			SchedulingConfig: testfixtures.WithIndexedNodeLabelsConfig(
 				[]string{"my-cool-node-uniformity"},

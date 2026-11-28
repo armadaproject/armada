@@ -117,6 +117,14 @@ UnschedulableReason: uniformity label topology.kubernetes.io/zone is not indexed
 
 A laptop install has no labels enabled. Ask your platform team which labels are available on yours.
 
+One label is always available, with no setup: `armadaproject.io/executorId`. Armada sets it on every node to the name of the worker cluster the node belongs to, so this keeps the whole gang on one cluster:
+
+```yaml
+armadaproject.io/gangNodeUniformityLabel: 'armadaproject.io/executorId'
+```
+
+Use it when members must reach each other directly. Without a uniformity label, a gang can be spread over several clusters.
+
 Your platform team can also set a default label that applies to every gang that doesn't set one. If a gang stays Queued with `is not indexed` and you didn't add the annotation, ask them.
 
 ## Step 4. Let members find each other
@@ -130,31 +138,88 @@ Each member gets these environment variables, as well as the usual `ARMADA_JOB_I
 | `ARMADA_GANG_NODE_UNIFORMITY_LABEL_NAME`  | The uniformity label, if one is set |
 | `ARMADA_GANG_NODE_UNIFORMITY_LABEL_VALUE` | The label value the gang landed on  |
 
-There's no member number and no list of the other members' addresses. Members have to find each other, in one of two ways:
+There's no member number and no list of the other members' addresses. Members have to find each other, in one of three ways:
 
-1. **Through a service on one member.** Give one job (the leader) a headless service. Its address follows a fixed pattern, so the others can work it out. See Interactive jobs and services.
-2. **External coordination:** an etcd or Redis endpoint, or your framework's own meeting point (for example `torchrun --rdzv_backend=c10d` pointed at the leader's service address).
+1. **Through a gang service.** Give every member a name of your choosing, and let Armada publish those names. See the next section. This is the simplest way, if your platform team has enabled it.
+2. **Through a service on one member.** Give one job (the leader) a headless service. Its address follows a fixed pattern, so the others can work it out. See Interactive jobs and services.
+3. **External coordination:** an etcd or Redis endpoint, or your framework's own meeting point (for example `torchrun --rdzv_backend=c10d` pointed at the leader's service address).
+
+### Gang services
+
+A gang service gives every member a network name that you choose before you submit, so each member can be told the names of the others in its command or environment. Add this annotation to every member, and give each member a different `hostname` in its `podSpec`:
+
+```yaml
+jobs:
+  - namespace: default
+    annotations:
+      armadaproject.io/gangId: 'my-gang-2'
+      armadaproject.io/gangCardinality: '2'
+      armadaproject.io/gangService: 'true'
+    podSpec:
+      hostname: leader
+      # ...
+  - namespace: default
+    annotations:
+      armadaproject.io/gangId: 'my-gang-2'
+      armadaproject.io/gangCardinality: '2'
+      armadaproject.io/gangService: 'true'
+    podSpec:
+      hostname: worker-0
+      # ...
+```
+
+Armada creates one service for the gang and gives every member its name in `ARMADA_GANG_SERVICE_NAME`. A member reaches another as `<hostname>.$ARMADA_GANG_SERVICE_NAME`, for example `worker-0.$ARMADA_GANG_SERVICE_NAME`. The names work on any port, and they work as soon as the other member's pod has an address, before its program is ready. The service is removed when the last member's pod is removed.
+
+What to know:
+
+- **All members must be in the same namespace**, and all must set the annotation.
+- **Don't set `subdomain` in the `podSpec`.** Armada sets it to the service name.
+- **The gang runs on one cluster.** Unless you set a node uniformity label yourself, Armada uses `armadaproject.io/executorId`. If you set your own, pick one that keeps the gang on one cluster, or the names won't resolve between clusters.
+- **The names only work inside the cluster**, and only while the member's pod exists.
 
 ## What happens when something fails
 
 - **Gangs aren't retried.** Armada marks every gang job fail-fast, and you can't turn that off. If a member's pod fails to start, that job fails with `Job has fail fast flag set - this job will no longer be retried`. If its node or worker cluster is lost, the job also fails without a retry, but the message is different and it can take some minutes for Armada to notice (see Troubleshooting). Plan to resubmit the whole gang with a new `gangId`.
 - **If one member is preempted, the whole gang is stopped.** All members end as failed with a `Preempted` reason. You're never left with part of a gang running.
-- **If one member's program crashes, the others keep running.** All-or-nothing applies to starting and preemption, not to your code. If your framework can't continue without every member, cancel the whole gang when one fails:
+- **If one member's program crashes, the others keep running.** All-or-nothing applies to starting and preemption, not to your code. If your framework can't continue without every member, either set a failure policy (see below) or cancel the whole gang yourself when one fails:
 
   ```bash
   armadactl cancel job-set my-team gang-demo-1
   ```
 
+## Stop the whole gang together
+
+Two optional annotations tie the members' endings together. Armada cancels the affected members for you, and each shows the reason and `armada-scheduler` as the requestor.
+
+- **Stop everything when one member fails.** Add this to every member:
+
+  ```yaml
+  armadaproject.io/gangFailurePolicy: 'CancelGang'
+  ```
+
+  When any member fails or is cancelled, Armada cancels the rest with the reason `gang member <job-id> failed` or `gang member <job-id> was cancelled`. `CancelGang` is the only value.
+
+- **Stop everything when the leader finishes.** Add this to one member only:
+
+  ```yaml
+  armadaproject.io/gangLeader: 'true'
+  ```
+
+  When that member succeeds, Armada cancels the rest with the reason `gang leader <job-id> succeeded`. Use it when the other members only serve the leader and never exit on their own, such as the workers of an MPI job.
+
+The cancelled members end as Cancelled, not Succeeded or Failed. To tell how the work went, look at the member that ended first: the leader, or the member named in the reason.
+
 ## Operator setup
 
 These settings decide what gangs can do on your installation. On an Operator install, they go in the `spec.applicationConfig` of the named resource. On a Helm install, use `scheduler.applicationConfig` in the scheduler chart and `applicationConfig` in the server and executor charts.
 
-| Setting                                                                             | In                      | Default                  | What it controls                                                                                                                                                       |
-| ----------------------------------------------------------------------------------- | ----------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scheduling.indexedNodeLabels`                                                      | Scheduler               | None                     | Labels gangs may use for node uniformity. A gang naming any other label never starts.                                                                                  |
-| `submission.defaultGangNodeUniformityLabel`                                         | Server (`ArmadaServer`) | Not set                  | A uniformity label applied to every gang that doesn't set one. It must also be in `indexedNodeLabels`.                                                                 |
-| `scheduling.maximumSchedulingBurst` and `scheduling.maximumPerQueueSchedulingBurst` | Scheduler               | `1000` each              | The most jobs Armada starts in one scheduling round, overall and per queue. A gang with more members than either value can never start. Raise them, or split the gang. |
-| `kubernetes.trackedNodeLabels`                                                      | Executor                | `kubernetes.io/hostname` | Node labels the executor reports to the scheduler. A label used for node uniformity must be here as well as in `indexedNodeLabels`.                                    |
+| Setting                                                                             | In                      | Default                  | What it controls                                                                                                                                                         |
+| ----------------------------------------------------------------------------------- | ----------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `scheduling.indexedNodeLabels`                                                      | Scheduler               | None                     | Labels gangs may use for node uniformity. A gang naming any other label never starts.                                                                                    |
+| `submission.defaultGangNodeUniformityLabel`                                         | Server (`ArmadaServer`) | Not set                  | A uniformity label applied to every gang that doesn't set one. It must also be in `indexedNodeLabels`.                                                                   |
+| `scheduling.maximumSchedulingBurst` and `scheduling.maximumPerQueueSchedulingBurst` | Scheduler               | `1000` each              | The most jobs Armada starts in one scheduling round, overall and per queue. A gang with more members than either value can never start. Raise them, or split the gang.   |
+| `kubernetes.trackedNodeLabels`                                                      | Executor                | `kubernetes.io/hostname` | Node labels the executor reports to the scheduler. A label used for node uniformity must be here as well as in `indexedNodeLabels`.                                      |
+| `submission.allowGangServices`                                                      | Server (`ArmadaServer`) | `false`                  | Whether gangs may request a gang service. Before turning it on, upgrade every executor and give its role the `patch` permission on services, as the executor chart does. |
 
 ## Troubleshooting
 
@@ -171,6 +236,11 @@ These settings decide what gangs can do on your installation. On an Operator ins
 | `inconsistent gang cardinality in gang <id>: expected N but got M` when submitting                                                   | Members disagree on `gangCardinality`                                                                                                                         | Use the same value on every member.                                                                  |
 | `inconsistent PriorityClassName in gang <id>` or `inconsistent nodeUniformityLabel in gang <id>` when submitting                     | Members disagree on priority class or uniformity label                                                                                                        | Use the same value on every member.                                                                  |
 | `gang jobs may not set fail fast flag ... to anything but true` when submitting                                                      | A member sets `armadaproject.io/failFast` to something other than `"true"`                                                                                    | Remove the annotation. Gang jobs are always fail-fast.                                               |
+| `inconsistent gang failure policy in gang <id>` when submitting                                                                      | Some members set `armadaproject.io/gangFailurePolicy` and others don't                                                                                        | Set it on every member, or on none.                                                                  |
+| `gang <id> has more than one leader` when submitting                                                                                 | More than one member sets `armadaproject.io/gangLeader`                                                                                                       | Set it on one member only.                                                                           |
+| Members ended as Cancelled with the requestor `armada-scheduler`                                                                     | A gang failure policy or leader annotation stopped the gang                                                                                                   | Expected. The reason names the member that ended first.                                              |
+| `gang services ... are not enabled` when submitting                                                                                  | Your installation doesn't allow gang services                                                                                                                 | Ask your platform team to enable them, or use another way to find members.                           |
+| `duplicate hostname <name> in gang <id>` when submitting                                                                             | Two members of a gang with a gang service have the same `hostname`                                                                                            | Give every member a different `hostname`.                                                            |
 | The whole gang stopped when one member was preempted                                                                                 | Gangs are all-or-nothing                                                                                                                                      | Resubmit the whole gang with a new `gangId`.                                                         |
 | I set `gangCardinality: '1'` and nothing gang-like happened                                                                          | A gang of one is an ordinary job                                                                                                                              | Expected.                                                                                            |
 | `zsh: no such file or directory: job-id` (or `bash: job-id: No such file or directory`)                                              | A placeholder was pasted with its angle brackets                                                                                                              | Replace `<job-id>`, including `<` and `>`, with the real value.                                      |

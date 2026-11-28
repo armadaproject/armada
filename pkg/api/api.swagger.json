@@ -2048,6 +2048,10 @@
             "type": "string"
           }
         },
+        "mpi": {
+          "description": "If set, the item describes an MPI job rather than a single job.\nArmada expands it into a gang made of one launcher and of mpi.workers workers, and returns one job id for\neach of them, the launcher first. The launcher runs the pod spec of the item, whose command is expected to\nstart the MPI job, e.g., with mpirun. The workers stand by to run the MPI processes.",
+          "$ref": "#/definitions/apiMpiJobConfig"
+        },
         "namespace": {
           "type": "string"
         },
@@ -2217,6 +2221,26 @@
           "additionalProperties": {
             "$ref": "#/definitions/resourceQuantity"
           }
+        }
+      }
+    },
+    "apiMpiJobConfig": {
+      "description": "Describes the workers of an MPI job. See JobSubmitRequestItem.mpi.",
+      "type": "object",
+      "properties": {
+        "slotsPerWorker": {
+          "description": "Number of MPI processes each worker may run. Defaults to 1.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "workerPodSpec": {
+          "description": "Pod spec of the workers. If not set, the workers use the pod spec of the launcher.\nEither way, Armada replaces the command and args of the first container of each worker with its own program,\nwhich waits for the launcher to tell it which MPI processes to run.",
+          "$ref": "#/definitions/v1PodSpec"
+        },
+        "workers": {
+          "description": "Number of workers. Must be at least 1.",
+          "type": "integer",
+          "format": "int64"
         }
       }
     },

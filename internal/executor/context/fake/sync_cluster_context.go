@@ -8,6 +8,7 @@ import (
 	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
@@ -24,18 +25,21 @@ type SyncFakeClusterContext struct {
 	Events           map[string][]*v1.Event
 	NodeEvents       map[string][]*v1.Event
 	AnnotationsAdded map[string]map[string]string
-	podEventHandlers []*cache.ResourceEventHandlerFuncs
-	GetPodEventsErr  error
-	rwLock           sync.RWMutex
+	// SharedServiceOwners records, by service name, the owners passed to EnsureServiceWithOwner.
+	SharedServiceOwners map[string][]metav1.OwnerReference
+	podEventHandlers    []*cache.ResourceEventHandlerFuncs
+	GetPodEventsErr     error
+	rwLock              sync.RWMutex
 }
 
 func NewSyncFakeClusterContext() *SyncFakeClusterContext {
 	c := &SyncFakeClusterContext{
-		Pods:             map[string]*v1.Pod{},
-		Nodes:            map[string]*v1.Node{},
-		Events:           map[string][]*v1.Event{},
-		NodeEvents:       map[string][]*v1.Event{},
-		AnnotationsAdded: map[string]map[string]string{},
+		Pods:                map[string]*v1.Pod{},
+		Nodes:               map[string]*v1.Node{},
+		Events:              map[string][]*v1.Event{},
+		NodeEvents:          map[string][]*v1.Event{},
+		AnnotationsAdded:    map[string]map[string]string{},
+		SharedServiceOwners: map[string][]metav1.OwnerReference{},
 	}
 	return c
 }
@@ -93,6 +97,13 @@ func (c *SyncFakeClusterContext) GetNodeEvents(nodeName string) ([]*v1.Event, er
 
 func (c *SyncFakeClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
 	return nil, fmt.Errorf("Services not implemented in SyncFakeClusterContext")
+}
+
+func (c *SyncFakeClusterContext) EnsureServiceWithOwner(service *v1.Service, owner metav1.OwnerReference) error {
+	c.rwLock.Lock()
+	defer c.rwLock.Unlock()
+	c.SharedServiceOwners[service.Name] = append(c.SharedServiceOwners[service.Name], owner)
+	return nil
 }
 
 func (c *SyncFakeClusterContext) GetServices(pod *v1.Pod) ([]*v1.Service, error) {

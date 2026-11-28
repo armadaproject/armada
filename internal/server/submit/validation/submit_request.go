@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 	resourcehelper "k8s.io/component-helpers/resource"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
@@ -28,6 +29,7 @@ var (
 	requestValidators = []requestValidator{
 		validateHasQueue,
 		validateGangs,
+		validateGangServices,
 		validateHasJobSetId,
 		validateJobSetIdLength,
 		validateJobSetIdStorable,
@@ -476,12 +478,17 @@ func (j jobAdapter) Annotations() map[string]string {
 //   - MinimumCardinality
 //   - Priority Class
 //   - Node Uniformity
+//   - Failure Policy
+//
+// It also checks that the gang lifecycle annotations are only set on gang jobs and that a gang has at most one leader.
 func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConfig) error {
 	type GangValidationInfo struct {
 		jobdb.GangInfo
 		PriorityClassName string
+		FailurePolicy     string
 	}
 	gangDetailsByGangId := make(map[string]GangValidationInfo)
+	gangLeaderByGangId := make(map[string]bool)
 	for _, job := range request.JobRequestItems {
 		adaptedJob := jobAdapter{job}
 		rawGangInfo, err := jobdb.GangInfoFromMinimalJob(adaptedJob)
@@ -489,8 +496,37 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 			return fmt.Errorf("invalid gang information: %s", err.Error())
 		}
 		gangInfo := *rawGangInfo
+
+		failurePolicy, hasFailurePolicy := job.Annotations[constants.GangFailurePolicyAnnotation]
+		if hasFailurePolicy && failurePolicy != constants.GangFailurePolicyCancelGang {
+			return errors.Errorf(
+				"invalid gang failure policy (annotation - %s) %q: must be %s if set",
+				constants.GangFailurePolicyAnnotation, failurePolicy, constants.GangFailurePolicyCancelGang,
+			)
+		}
+		leaderFlag, hasLeaderFlag := job.Annotations[constants.GangLeaderAnnotation]
+		if hasLeaderFlag && leaderFlag != "true" {
+			return errors.Errorf(
+				"invalid gang leader flag (annotation - %s) %q: must be true if set",
+				constants.GangLeaderAnnotation, leaderFlag,
+			)
+		}
+
 		if !gangInfo.IsGang() {
+			if hasFailurePolicy {
+				return errors.Errorf("gang failure policy (annotation - %s) may only be set on gang jobs", constants.GangFailurePolicyAnnotation)
+			}
+			if hasLeaderFlag {
+				return errors.Errorf("gang leader flag (annotation - %s) may only be set on gang jobs", constants.GangLeaderAnnotation)
+			}
 			continue
+		}
+
+		if hasLeaderFlag {
+			if gangLeaderByGangId[gangInfo.Id()] {
+				return errors.Errorf("gang %s has more than one leader (annotation - %s)", gangInfo.Id(), constants.GangLeaderAnnotation)
+			}
+			gangLeaderByGangId[gangInfo.Id()] = true
 		}
 
 		failFastFlag, present := job.Annotations[constants.FailFastAnnotation]
@@ -501,7 +537,7 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 			)
 		}
 
-		actual := GangValidationInfo{gangInfo, adaptedJob.PriorityClassName()}
+		actual := GangValidationInfo{gangInfo, adaptedJob.PriorityClassName(), failurePolicy}
 		if expected, ok := gangDetailsByGangId[actual.Id()]; ok {
 			if expected.Cardinality() != actual.Cardinality() {
 				return errors.Errorf(
@@ -521,9 +557,99 @@ func validateGangs(request *api.JobSubmitRequest, _ configuration.SubmissionConf
 					actual.Id(), expected.NodeUniformity(), actual.NodeUniformity(),
 				)
 			}
+			if actual.FailurePolicy != expected.FailurePolicy {
+				return errors.Errorf(
+					"inconsistent gang failure policy in gang %s: expected %q but got %q",
+					actual.Id(), expected.FailurePolicy, actual.FailurePolicy,
+				)
+			}
 		} else {
 			gangDetailsByGangId[actual.Id()] = actual
 		}
+	}
+	return nil
+}
+
+// Ensures that any gang services requested in the request, see constants.GangServiceAnnotation, are well-formed.
+// This checks that:
+//   - Gang services are enabled
+//   - Only gang jobs request a gang service
+//   - All jobs in the same gang agree on whether to request one, and are in the same namespace
+//   - No job sets the subdomain of its pod, as Armada sets it to the name of the service
+//   - Any hostnames are valid and unique within the gang, as they become DNS names under the service
+func validateGangServices(request *api.JobSubmitRequest, config configuration.SubmissionConfig) error {
+	type gangServiceInfo struct {
+		requested bool
+		namespace string
+		hostnames map[string]bool
+	}
+	infoByGangId := make(map[string]*gangServiceInfo)
+	for _, job := range request.JobRequestItems {
+		flag, requested := job.Annotations[constants.GangServiceAnnotation]
+		if requested && flag != "true" {
+			return errors.Errorf(
+				"invalid gang service flag (annotation - %s) %q: must be true if set",
+				constants.GangServiceAnnotation, flag,
+			)
+		}
+		if requested && !config.AllowGangServices {
+			return errors.Errorf("gang services (annotation - %s) are not enabled", constants.GangServiceAnnotation)
+		}
+
+		gangInfo, err := jobdb.GangInfoFromMinimalJob(jobAdapter{job})
+		if err != nil {
+			return fmt.Errorf("invalid gang information: %s", err.Error())
+		}
+		if !gangInfo.IsGang() {
+			if requested {
+				return errors.Errorf("gang service flag (annotation - %s) may only be set on gang jobs", constants.GangServiceAnnotation)
+			}
+			continue
+		}
+
+		info, ok := infoByGangId[gangInfo.Id()]
+		if !ok {
+			info = &gangServiceInfo{requested: requested, namespace: job.Namespace, hostnames: make(map[string]bool)}
+			infoByGangId[gangInfo.Id()] = info
+		}
+		if info.requested != requested {
+			return errors.Errorf(
+				"inconsistent gang service flag (annotation - %s) in gang %s: it must be set on all jobs of the gang or on none",
+				constants.GangServiceAnnotation, gangInfo.Id(),
+			)
+		}
+		if !requested {
+			continue
+		}
+		if info.namespace != job.Namespace {
+			return errors.Errorf(
+				"inconsistent namespace in gang %s: expected %s but got %s; jobs sharing a gang service must be in the same namespace",
+				gangInfo.Id(), info.namespace, job.Namespace,
+			)
+		}
+
+		podSpec := job.GetMainPodSpec()
+		if podSpec == nil {
+			continue
+		}
+		if podSpec.Subdomain != "" {
+			return errors.Errorf(
+				"jobs requesting a gang service may not set the subdomain of their pod: it is set to the name of the service",
+			)
+		}
+		if podSpec.Hostname == "" {
+			continue
+		}
+		if problems := k8svalidation.IsDNS1123Label(podSpec.Hostname); len(problems) > 0 {
+			return errors.Errorf("invalid hostname %q in gang %s: %s", podSpec.Hostname, gangInfo.Id(), strings.Join(problems, "; "))
+		}
+		if info.hostnames[podSpec.Hostname] {
+			return errors.Errorf(
+				"duplicate hostname %s in gang %s: jobs sharing a gang service must have distinct hostnames",
+				podSpec.Hostname, gangInfo.Id(),
+			)
+		}
+		info.hostnames[podSpec.Hostname] = true
 	}
 	return nil
 }

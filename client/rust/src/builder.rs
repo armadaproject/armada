@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
-use crate::api::{IngressConfig, JobSubmitRequestItem, ServiceConfig};
+use crate::api::{IngressConfig, JobSubmitRequestItem, MpiJobConfig, ServiceConfig};
 use crate::k8s::io::api::core::v1::PodSpec;
 
 /// Typestate marker: builder has no pod spec yet — `.build()` is unavailable.
@@ -36,6 +36,7 @@ pub struct JobRequestItemBuilder<S> {
     annotations: HashMap<String, String>,
     scheduler: String,
     external_job_uri: String,
+    mpi: Option<MpiJobConfig>,
     ingress: Vec<IngressConfig>,
     services: Vec<ServiceConfig>,
     pod_specs: Vec<PodSpec>,
@@ -58,6 +59,7 @@ impl JobRequestItemBuilder<NoPodSpec> {
             annotations: HashMap::new(),
             scheduler: String::new(),
             external_job_uri: String::new(),
+            mpi: None,
             ingress: Vec::new(),
             services: Vec::new(),
             pod_specs: Vec::new(),
@@ -146,6 +148,15 @@ impl<S> JobRequestItemBuilder<S> {
         self
     }
 
+    /// Make this an MPI job: the pod spec describes the launcher, and Armada adds the
+    /// workers described by `config`. Submitting it returns one job id for the launcher
+    /// and one for each worker.
+    #[must_use]
+    pub fn mpi(mut self, config: MpiJobConfig) -> Self {
+        self.mpi = Some(config);
+        self
+    }
+
     /// Replace the entire ingress config list.
     #[must_use]
     pub fn ingress(mut self, i: Vec<IngressConfig>) -> Self {
@@ -199,6 +210,7 @@ impl<S> JobRequestItemBuilder<S> {
             annotations: self.annotations,
             scheduler: self.scheduler,
             external_job_uri: self.external_job_uri,
+            mpi: self.mpi,
             ingress: self.ingress,
             services: self.services,
             pod_specs: specs,
@@ -230,6 +242,7 @@ impl JobRequestItemBuilder<HasPodSpec> {
             services: self.services,
             scheduler: self.scheduler,
             external_job_uri: self.external_job_uri,
+            mpi: self.mpi,
             // Deprecated singular fields — zeroed, not used by this builder
             pod_spec: None,
             required_node_labels: HashMap::new(),

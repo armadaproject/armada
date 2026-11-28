@@ -99,6 +99,11 @@ type SubmissionConfig struct {
 	AddGangIdLabel bool
 	// Controls whether custom service names are allowed
 	AllowCustomServiceNames bool
+	// Controls whether gangs may request a headless service shared by all jobs of the gang, see
+	// constants.GangServiceAnnotation. All executors must be able to create and patch services before this is enabled.
+	AllowGangServices bool
+	// MpiJobs configures MPI jobs, see JobSubmitRequestItem.mpi in the submit API.
+	MpiJobs MpiJobsConfig
 	// ObjectNamePrefix is the prefix of the names of the pod, the services, the ingresses and the ingress hosts
 	// of a job. The server writes it to the job, and the executor reads it from there for the pod name. The
 	// default is armada. The server does not start when the prefix is empty or is not a DNS-1035 label of at
@@ -138,4 +143,14 @@ type QueryApiMirrorConfig struct {
 	// When the bound is reached, further mirror queries are dropped. If zero,
 	// a sensible default is used.
 	MaxInFlight int
+}
+
+// MpiJobsConfig configures MPI jobs, which the server expands into a gang made of a launcher and of workers.
+type MpiJobsConfig struct {
+	// Enabled controls whether MPI jobs may be submitted. MPI jobs rely on gang services, so AllowGangServices
+	// must be set too.
+	Enabled bool
+	// BootstrapImage is the image of the armada-mpi program. An init container copies the program from this image
+	// into every pod of an MPI job. It lets the launcher start MPI processes on the workers without ssh.
+	BootstrapImage string
 }

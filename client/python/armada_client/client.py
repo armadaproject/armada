@@ -518,6 +518,7 @@ class ArmadaClient:
         required_node_labels: Optional[Dict[str, str]] = None,
         ingress: Optional[List[submit_pb2.IngressConfig]] = None,
         services: Optional[List[submit_pb2.ServiceConfig]] = None,
+        mpi: Optional[submit_pb2.MpiJobConfig] = None,
     ) -> submit_pb2.JobSubmitRequestItem:
         """Create a job request.
 
@@ -538,6 +539,9 @@ class ArmadaClient:
         :param required_node_labels: The required node labels of the job
         :param ingress: The ingress of the job
         :param services: The services of the job
+        :param mpi: If set, the request describes an MPI job: pod_spec is its
+            launcher, and Armada adds the workers described here. Submitting it
+            returns one job id for the launcher and one for each worker.
         :return: A job item request object. See the api definition.
         """
 
@@ -562,4 +566,5 @@ class ArmadaClient:
             required_node_labels=required_node_labels,
             ingress=ingress,
             services=services,
+            mpi=mpi,
         )

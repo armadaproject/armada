@@ -62,6 +62,9 @@ type ClusterContext interface {
 
 	SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error)
 	SubmitService(service *v1.Service) (*v1.Service, error)
+	// EnsureServiceWithOwner creates the service with the given owner, or adds the owner to the service if it
+	// already exists. It is used for services shared by several pods, which must live until the last pod is gone.
+	EnsureServiceWithOwner(service *v1.Service, owner metav1.OwnerReference) error
 	SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error)
 	DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error
 	DeletePods(pods []*v1.Pod)
@@ -284,6 +287,35 @@ func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGro
 
 func (c *KubernetesClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
 	return c.kubernetesClient.CoreV1().Services(service.Namespace).Create(armadacontext.Background(), service, metav1.CreateOptions{})
+}
+
+// ensureServiceWithOwnerAttempts bounds the retries of EnsureServiceWithOwner when the service is deleted between
+// the failed create and the patch.
+const ensureServiceWithOwnerAttempts = 3
+
+func (c *KubernetesClusterContext) EnsureServiceWithOwner(service *v1.Service, owner metav1.OwnerReference) error {
+	// Owner references are merged by uid, so adding the same owner twice is a no-op and concurrent callers
+	// adding different owners do not overwrite each other.
+	patchBytes, err := json.Marshal(&domain.Patch{
+		MetaData: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{owner}},
+	})
+	if err != nil {
+		return err
+	}
+	services := c.kubernetesClient.CoreV1().Services(service.Namespace)
+	for attempt := 1; ; attempt++ {
+		toCreate := service.DeepCopy()
+		toCreate.OwnerReferences = []metav1.OwnerReference{owner}
+		_, err = services.Create(armadacontext.Background(), toCreate, metav1.CreateOptions{})
+		if err == nil || !k8s_errors.IsAlreadyExists(err) {
+			return err
+		}
+		_, err = services.Patch(armadacontext.Background(), service.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
+		// The service is garbage collected once all of its owners are gone, so it can vanish before the patch.
+		if err == nil || !k8s_errors.IsNotFound(err) || attempt >= ensureServiceWithOwnerAttempts {
+			return err
+		}
+	}
 }
 
 func (c *KubernetesClusterContext) SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error) {

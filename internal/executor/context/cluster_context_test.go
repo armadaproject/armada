@@ -1095,3 +1095,23 @@ func (p *FakeClientProvider) Client() kubernetes.Interface {
 func (p *FakeClientProvider) ClientConfig() *rest.Config {
 	return nil
 }
+
+func TestKubernetesClusterContext_EnsureServiceWithOwner(t *testing.T) {
+	clusterContext, client := setupTest()
+	t.Cleanup(clusterContext.Stop)
+
+	service := createService()
+	firstOwner := metav1.OwnerReference{APIVersion: "v1", Kind: "Pod", Name: "pod-1", UID: "uid-1"}
+	secondOwner := metav1.OwnerReference{APIVersion: "v1", Kind: "Pod", Name: "pod-2", UID: "uid-2"}
+
+	// The first owner creates the service, later owners are added to it, and adding an owner twice changes nothing.
+	require.NoError(t, clusterContext.EnsureServiceWithOwner(service, firstOwner))
+	require.NoError(t, clusterContext.EnsureServiceWithOwner(service, secondOwner))
+	require.NoError(t, clusterContext.EnsureServiceWithOwner(service, secondOwner))
+
+	stored, err := client.CoreV1().Services(service.Namespace).Get(armadacontext.Background(), service.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []metav1.OwnerReference{firstOwner, secondOwner}, stored.OwnerReferences)
+	// The service passed in is a template shared by the callers, so it must not be modified.
+	assert.Empty(t, service.OwnerReferences)
+}

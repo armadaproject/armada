@@ -128,6 +128,12 @@ func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, error) {
 		return pod, err
 	}
 
+	if gangService := util2.ExtractGangService(submittedPod); gangService != nil {
+		if err = submitService.clusterContext.EnsureServiceWithOwner(gangService, util2.CreateOwnerReference(submittedPod)); err != nil {
+			return pod, err
+		}
+	}
+
 	for _, service := range job.Services {
 		service.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
 		_, err = submitService.clusterContext.SubmitService(service)

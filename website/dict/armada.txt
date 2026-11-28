@@ -79,3 +79,12 @@ temurin
 Dskip
 GOBIN
 reprioritization
+hostfile
+mpiexec
+mpioperator
+mpirun
+mpiuser
+ompi
+openmpi
+orte
+prte

@@ -187,6 +187,7 @@ pub mod error;
 pub use api::{
     CancellationResult, EventMessage, EventStreamMessage, JobCancelRequest, JobSetCancelRequest,
     JobSetFilter, JobState, JobSubmitRequest, JobSubmitRequestItem, JobSubmitResponse,
+    MpiJobConfig,
 };
 pub use auth::{BasicAuthProvider, StaticTokenProvider, TokenProvider};
 pub use builder::JobRequestItemBuilder;

@@ -430,6 +430,13 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		}
 	}
 
+	// Apply gang lifecycle policies to the jobs that reached a terminal state this cycle.
+	gangEvents, err := s.cancelGangsOfFinishedJobs(ctx, txn, events)
+	if err != nil {
+		return schedulerResult != nil, err
+	}
+	events = append(events, gangEvents...)
+
 	// Publish to Pulsar.
 	isLeader := func() bool {
 		return s.leaderController.ValidateToken(leaderToken)
@@ -1514,6 +1521,125 @@ func (s *Scheduler) generateUpdateMessagesFromJob(ctx *armadacontext.Context, jo
 	}
 
 	return nil, nil
+}
+
+// gangLifecycleRequestor is recorded as the requestor on cancellations the scheduler issues to enforce a gang's
+// lifecycle policy.
+const gangLifecycleRequestor = "armada-scheduler"
+
+// jobOutcomeSucceeded is the outcome terminalJobOutcome reports for a job that succeeded.
+const jobOutcomeSucceeded = "succeeded"
+
+// cancelGangsOfFinishedJobs enforces the opt-in gang lifecycle policies.
+// It inspects the events generated so far this cycle for jobs reaching a terminal state and, for each such job,
+// cancels the remaining jobs of its gang if either:
+//   - the job failed or was cancelled and the gang sets constants.GangFailurePolicyAnnotation to CancelGang, or
+//   - the job succeeded and is the gang leader (constants.GangLeaderAnnotation).
+//
+// It must run after all other events of the cycle have been generated. Jobs are re-read from txn, so a gang member
+// that already reached a terminal state this cycle is left alone and never receives a second terminal event.
+func (s *Scheduler) cancelGangsOfFinishedJobs(ctx *armadacontext.Context, txn *jobdb.Txn, events []*armadaevents.EventSequence) ([]*armadaevents.EventSequence, error) {
+	var gangEvents []*armadaevents.EventSequence
+	for _, eventSequence := range events {
+		for _, event := range eventSequence.Events {
+			jobId, outcome := terminalJobOutcome(event)
+			if jobId == "" {
+				continue
+			}
+			job := txn.GetById(jobId)
+			if job == nil || !job.IsInGang() {
+				continue
+			}
+			var reason string
+			if outcome == jobOutcomeSucceeded {
+				if job.Annotations()[constants.GangLeaderAnnotation] != "true" {
+					continue
+				}
+				reason = fmt.Sprintf("gang leader %s succeeded", job.Id())
+			} else {
+				if job.Annotations()[constants.GangFailurePolicyAnnotation] != constants.GangFailurePolicyCancelGang {
+					continue
+				}
+				reason = fmt.Sprintf("gang member %s %s", job.Id(), outcome)
+			}
+
+			gangJobs, err := txn.GetGangJobsByGangId(job.Queue(), job.GetGangInfo().Id())
+			if err != nil {
+				return nil, err
+			}
+			cancelledJobs := make([]*jobdb.Job, 0, len(gangJobs))
+			for _, gangJob := range gangJobs {
+				if gangJob.Id() == job.Id() || gangJob.InTerminalState() {
+					continue
+				}
+				ctx.Infof("Cancelling job %s of gang %s: %s", gangJob.Id(), job.GetGangInfo().Id(), reason)
+				cancelledJob, cancelEvents := createEventsForGangCancelledJob(gangJob, reason, s.clock.Now())
+				s.shortJobPenalty.ReportFinishedJob(cancelledJob)
+				cancelledJobs = append(cancelledJobs, cancelledJob)
+				gangEvents = append(gangEvents, &armadaevents.EventSequence{
+					Queue:      gangJob.Queue(),
+					JobSetName: gangJob.Jobset(),
+					Events:     cancelEvents,
+				})
+			}
+			if err := txn.Upsert(cancelledJobs); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return gangEvents, nil
+}
+
+// terminalJobOutcome returns the id of the job the event moves to a terminal state and how the job ended:
+// succeeded, failed or cancelled. It returns an empty job id for all other events.
+func terminalJobOutcome(event *armadaevents.EventSequence_Event) (string, string) {
+	switch e := event.Event.(type) {
+	case *armadaevents.EventSequence_Event_JobSucceeded:
+		return e.JobSucceeded.JobId, jobOutcomeSucceeded
+	case *armadaevents.EventSequence_Event_CancelledJob:
+		return e.CancelledJob.JobId, "was cancelled"
+	case *armadaevents.EventSequence_Event_JobErrors:
+		for _, jobError := range e.JobErrors.Errors {
+			if jobError.Terminal {
+				return e.JobErrors.JobId, "failed"
+			}
+		}
+	}
+	return "", ""
+}
+
+// createEventsForGangCancelledJob cancels a job on behalf of its gang's lifecycle policy.
+// It returns the cancelled job and the events that record the cancellation.
+func createEventsForGangCancelledJob(job *jobdb.Job, reason string, time time.Time) (*jobdb.Job, []*armadaevents.EventSequence_Event) {
+	var events []*armadaevents.EventSequence_Event
+	job = job.WithCancelRequested(true).WithCancelUser(ptr.To(gangLifecycleRequestor)).WithCancelReason(&reason)
+	if job.HasRuns() {
+		lastRun := job.LatestRun()
+		job = job.WithUpdatedRun(lastRun.WithoutTerminal().WithCancelled(true))
+		events = append(events, &armadaevents.EventSequence_Event{
+			Created: protoutil.ToTimestamp(time),
+			Event: &armadaevents.EventSequence_Event_JobRunCancelled{
+				JobRunCancelled: &armadaevents.JobRunCancelled{
+					RunId:     lastRun.Id(),
+					JobId:     job.Id(),
+					Requestor: gangLifecycleRequestor,
+					Reason:    reason,
+				},
+			},
+		})
+	}
+	job = job.WithQueued(false).WithoutTerminal().WithCancelled(true)
+	events = append(events, &armadaevents.EventSequence_Event{
+		Created: protoutil.ToTimestamp(time),
+		Event: &armadaevents.EventSequence_Event_CancelledJob{
+			CancelledJob: &armadaevents.CancelledJob{
+				JobId:     job.Id(),
+				Requestor: gangLifecycleRequestor,
+				Reason:    reason,
+			},
+		},
+	})
+	return job, events
 }
 
 // expireJobsIfNecessary removes any jobs from the JobDb which are running on stale executors.

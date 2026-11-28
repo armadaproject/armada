@@ -379,6 +379,20 @@ var (
 )
 
 var (
+	// A leased gang in which a failure or cancellation of any job cancels the rest, and which has a leader.
+	cancelGangLeaderJob = createLeasedGangJob(map[string]string{
+		apiconfig.GangFailurePolicyAnnotation: apiconfig.GangFailurePolicyCancelGang,
+		apiconfig.GangLeaderAnnotation:        "true",
+	})
+	cancelGangJob = createLeasedGangJob(map[string]string{
+		apiconfig.GangFailurePolicyAnnotation: apiconfig.GangFailurePolicyCancelGang,
+	})
+	// A leased gang with a leader, but without a failure policy.
+	leaderOnlyGangLeaderJob = createLeasedGangJob(map[string]string{apiconfig.GangLeaderAnnotation: "true"})
+	leaderOnlyGangJob       = createLeasedGangJob(nil)
+)
+
+var (
 	testExecutor        = "test-executor"
 	testNode            = "test-node"
 	testPool            = "test-pool"
@@ -1085,6 +1099,143 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedJobSucceeded:  []string{leasedJob.Id()},
 			expectedTerminal:      []string{leasedJob.Id()},
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
+		},
+		"Gang job failed - cancels the rest of the gang when the failure policy is CancelGang": {
+			initialJobs: []*jobdb.Job{cancelGangLeaderJob, cancelGangJob},
+			runUpdates: []database.Run{
+				{
+					RunID:    cancelGangJob.LatestRun().Id(),
+					JobID:    cancelGangJob.Id(),
+					JobSet:   "testJobSet",
+					Executor: "testExecutor",
+					Failed:   true,
+					Serial:   1,
+				},
+			},
+			jobRunErrors: map[string]*armadaevents.Error{
+				cancelGangJob.LatestRun().Id(): defaultJobError,
+			},
+			expectedJobErrors:              []string{cancelGangJob.Id()},
+			expectedJobRunCancelled:        []jobRunId{{jobId: cancelGangLeaderJob.Id(), runId: cancelGangLeaderJob.LatestRun().Id()}},
+			expectedJobCancelled:           []string{cancelGangLeaderJob.Id()},
+			expectedJobCancelledRequestors: map[string]string{cancelGangLeaderJob.Id(): gangLifecycleRequestor},
+			expectedTerminal:               []string{cancelGangLeaderJob.Id(), cancelGangJob.Id()},
+			expectedQueuedVersion:          cancelGangJob.QueuedVersion(),
+		},
+		"Gang job failed - leaves the rest of the gang running without a failure policy": {
+			initialJobs: []*jobdb.Job{leaderOnlyGangLeaderJob, leaderOnlyGangJob},
+			runUpdates: []database.Run{
+				{
+					RunID:    leaderOnlyGangJob.LatestRun().Id(),
+					JobID:    leaderOnlyGangJob.Id(),
+					JobSet:   "testJobSet",
+					Executor: "testExecutor",
+					Failed:   true,
+					Serial:   1,
+				},
+			},
+			jobRunErrors: map[string]*armadaevents.Error{
+				leaderOnlyGangJob.LatestRun().Id(): defaultJobError,
+			},
+			expectedJobErrors:     []string{leaderOnlyGangJob.Id()},
+			expectedLeased:        []string{leaderOnlyGangLeaderJob.Id()},
+			expectedTerminal:      []string{leaderOnlyGangJob.Id()},
+			expectedQueuedVersion: leaderOnlyGangJob.QueuedVersion(),
+		},
+		"Gang job cancelled - cancels the rest of the gang when the failure policy is CancelGang": {
+			initialJobs: []*jobdb.Job{cancelGangLeaderJob, cancelGangJob},
+			jobUpdates: []database.Job{
+				{
+					JobID:           cancelGangJob.Id(),
+					JobSet:          "testJobSet",
+					Queue:           "testQueue",
+					CancelRequested: true,
+					Serial:          1,
+				},
+			},
+			expectedJobRunCancelled: []jobRunId{
+				{jobId: cancelGangJob.Id(), runId: cancelGangJob.LatestRun().Id()},
+				{jobId: cancelGangLeaderJob.Id(), runId: cancelGangLeaderJob.LatestRun().Id()},
+			},
+			expectedJobCancelled:           []string{cancelGangJob.Id(), cancelGangLeaderJob.Id()},
+			expectedJobCancelledRequestors: map[string]string{cancelGangLeaderJob.Id(): gangLifecycleRequestor},
+			expectedTerminal:               []string{cancelGangLeaderJob.Id(), cancelGangJob.Id()},
+			expectedQueuedVersion:          cancelGangJob.QueuedVersion(),
+		},
+		"Gang leader succeeded - cancels the rest of the gang": {
+			initialJobs: []*jobdb.Job{leaderOnlyGangLeaderJob, leaderOnlyGangJob},
+			runUpdates: []database.Run{
+				{
+					RunID:     leaderOnlyGangLeaderJob.LatestRun().Id(),
+					JobID:     leaderOnlyGangLeaderJob.Id(),
+					JobSet:    "testJobSet",
+					Executor:  "testExecutor",
+					Succeeded: true,
+					Serial:    1,
+				},
+			},
+			expectedJobSucceeded:           []string{leaderOnlyGangLeaderJob.Id()},
+			expectedJobRunCancelled:        []jobRunId{{jobId: leaderOnlyGangJob.Id(), runId: leaderOnlyGangJob.LatestRun().Id()}},
+			expectedJobCancelled:           []string{leaderOnlyGangJob.Id()},
+			expectedJobCancelledRequestors: map[string]string{leaderOnlyGangJob.Id(): gangLifecycleRequestor},
+			expectedTerminal:               []string{leaderOnlyGangLeaderJob.Id(), leaderOnlyGangJob.Id()},
+			expectedQueuedVersion:          leaderOnlyGangJob.QueuedVersion(),
+		},
+		"Gang job that is not the leader succeeded - leaves the rest of the gang running": {
+			initialJobs: []*jobdb.Job{cancelGangLeaderJob, cancelGangJob},
+			runUpdates: []database.Run{
+				{
+					RunID:     cancelGangJob.LatestRun().Id(),
+					JobID:     cancelGangJob.Id(),
+					JobSet:    "testJobSet",
+					Executor:  "testExecutor",
+					Succeeded: true,
+					Serial:    1,
+				},
+			},
+			expectedJobSucceeded:  []string{cancelGangJob.Id()},
+			expectedLeased:        []string{cancelGangLeaderJob.Id()},
+			expectedTerminal:      []string{cancelGangJob.Id()},
+			expectedQueuedVersion: cancelGangJob.QueuedVersion(),
+		},
+		"Gang jobs failed in the same cycle - each fails once and none is cancelled": {
+			initialJobs: []*jobdb.Job{cancelGangLeaderJob, cancelGangJob},
+			runUpdates: []database.Run{
+				{
+					RunID:    cancelGangLeaderJob.LatestRun().Id(),
+					JobID:    cancelGangLeaderJob.Id(),
+					JobSet:   "testJobSet",
+					Executor: "testExecutor",
+					Failed:   true,
+					Serial:   1,
+				},
+				{
+					RunID:    cancelGangJob.LatestRun().Id(),
+					JobID:    cancelGangJob.Id(),
+					JobSet:   "testJobSet",
+					Executor: "testExecutor",
+					Failed:   true,
+					Serial:   1,
+				},
+			},
+			jobRunErrors: map[string]*armadaevents.Error{
+				cancelGangLeaderJob.LatestRun().Id(): defaultJobError,
+				cancelGangJob.LatestRun().Id():       defaultJobError,
+			},
+			expectedJobErrors:     []string{cancelGangLeaderJob.Id(), cancelGangJob.Id()},
+			expectedTerminal:      []string{cancelGangLeaderJob.Id(), cancelGangJob.Id()},
+			expectedQueuedVersion: cancelGangJob.QueuedVersion(),
+		},
+		"Gang lease expired - each job fails once and none is cancelled": {
+			initialJobs:   []*jobdb.Job{cancelGangLeaderJob, cancelGangJob},
+			staleExecutor: true,
+			expectedJobRunErrors: []jobRunId{
+				{jobId: cancelGangLeaderJob.Id(), runId: cancelGangLeaderJob.LatestRun().Id()},
+				{jobId: cancelGangJob.Id(), runId: cancelGangJob.LatestRun().Id()},
+			},
+			expectedJobErrors:     []string{cancelGangLeaderJob.Id(), cancelGangJob.Id()},
+			expectedTerminal:      []string{cancelGangLeaderJob.Id(), cancelGangJob.Id()},
+			expectedQueuedVersion: cancelGangJob.QueuedVersion(),
 		},
 		"Job preempted": {
 			initialJobs:               []*jobdb.Job{leasedJob},
@@ -4176,6 +4327,43 @@ func toInternalSchedulingInfo(j *schedulerobjects.JobSchedulingInfo) *internalty
 		panic(err)
 	}
 	return internalJsi
+}
+
+// createLeasedGangJob returns a leased job that belongs to a gang and carries the provided additional annotations.
+func createLeasedGangJob(annotations map[string]string) *jobdb.Job {
+	gangAnnotations := map[string]string{
+		apiconfig.GangCardinalityAnnotation: "2",
+		apiconfig.GangIdAnnotation:          "id",
+	}
+	for k, v := range annotations {
+		gangAnnotations[k] = v
+	}
+	gangSchedulingInfo := &schedulerobjects.JobSchedulingInfo{
+		AtMostOnce:        true,
+		PriorityClassName: testfixtures.PriorityClass1,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{Annotations: gangAnnotations},
+				},
+			},
+		},
+		Version: 1,
+	}
+	return testfixtures.NewJob(
+		util.NewULID(),
+		"testJobset",
+		"testQueue",
+		0,
+		toInternalSchedulingInfo(gangSchedulingInfo),
+		false,
+		1,
+		false,
+		false,
+		false,
+		1,
+		true,
+	).WithNewRun("testExecutor", "test-node", "node", "pool", 5)
 }
 
 func createPreemptibleGangJob() *jobdb.Job {
