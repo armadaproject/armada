@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
@@ -19,10 +20,22 @@ import (
 //go:embed target_schema.sql
 var targetSchemaSQL string
 
-// testHookAfterCopy is called inside convertUnpartitionedToPartitioned after
-// the INSERT SELECT and before DROP TABLE. It is nil in production; tests in
-// this package set it.
-var testHookAfterCopy func()
+//go:embed target_schema_indexes.sql
+var targetSchemaIndexesSQL string
+
+// testHookBeforeStep is called inside convertUnpartitionedToPartitioned
+// before each conversion step. It is nil in production; tests in this
+// package set it.
+var testHookBeforeStep func(step conversionStep)
+
+// conversionOptions configures applyPartitioner.
+type conversionOptions struct {
+	// onlyIfEmpty leaves an unpartitioned job table untouched if it has rows.
+	onlyIfEmpty bool
+	// lockTimeout bounds the wait for the ACCESS EXCLUSIVE lock on job; zero
+	// waits indefinitely.
+	lockTimeout time.Duration
+}
 
 // DB is the database handle needed by the partitioner. Both *pgx.Conn and
 // *pgxpool.Pool satisfy it.
@@ -71,7 +84,7 @@ func (s JobTableShape) String() string {
 //
 // The caller must have already applied the lookout migration chain.
 func PartitionJobTable(ctx *armadacontext.Context, db DB) error {
-	_, err := applyPartitioner(ctx, db, false)
+	_, err := applyPartitioner(ctx, db, conversionOptions{})
 	return err
 }
 
@@ -88,7 +101,7 @@ func PartitionJobTableIfEmpty(ctx *armadacontext.Context, db DB) (JobTableShape,
 		return JobTableShapeUnknown, errors.Wrap(err, "detect job table shape")
 	}
 	if shape == JobTableShapeUnpartitioned {
-		hasRows, err := jobTableHasRows(ctx, db)
+		hasRows, err := JobTableHasRows(ctx, db)
 		if err != nil {
 			return JobTableShapeUnknown, errors.Wrap(err, "check whether job table has rows")
 		}
@@ -96,10 +109,10 @@ func PartitionJobTableIfEmpty(ctx *armadacontext.Context, db DB) (JobTableShape,
 			return JobTableShapeUnpartitioned, nil
 		}
 	}
-	return applyPartitioner(ctx, db, true)
+	return applyPartitioner(ctx, db, conversionOptions{onlyIfEmpty: true})
 }
 
-func applyPartitioner(ctx *armadacontext.Context, db DB, onlyIfEmpty bool) (JobTableShape, error) {
+func applyPartitioner(ctx *armadacontext.Context, db DB, opts conversionOptions) (JobTableShape, error) {
 	var shape JobTableShape
 	err := pgx.BeginTxFunc(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		detected, detail, err := DetectJobTableShape(ctx, tx)
@@ -115,7 +128,7 @@ func applyPartitioner(ctx *armadacontext.Context, db DB, onlyIfEmpty bool) (JobT
 			shape = detected
 			return nil
 		case JobTableShapeUnpartitioned:
-			shape, err = convertUnpartitionedToPartitioned(ctx, tx, onlyIfEmpty)
+			shape, err = convertUnpartitionedToPartitioned(ctx, tx, opts)
 			if err != nil {
 				return errors.Wrap(err, "convert unpartitioned job table")
 			}
@@ -179,7 +192,8 @@ func DetectJobTableShape(ctx *armadacontext.Context, q database.Querier) (JobTab
 	return JobTableShapePartitioned, "", nil
 }
 
-func jobTableHasRows(ctx *armadacontext.Context, q database.Querier) (bool, error) {
+// JobTableHasRows reports whether the job table has any rows.
+func JobTableHasRows(ctx *armadacontext.Context, q database.Querier) (bool, error) {
 	var hasRows bool
 	err := q.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM job)`).Scan(&hasRows)
 	return hasRows, err
@@ -391,16 +405,24 @@ func backfillQueueJobIDIndex(ctx *armadacontext.Context, tx pgx.Tx) error {
 	return err
 }
 
-// convertUnpartitionedToPartitioned is the conversion branch: it creates
-// job_new as a partitioned table using target_schema.sql, copies data from
-// the existing unpartitioned job into job_new (letting Postgres route rows
-// to the correct partition), drops the old job, and renames job_new plus
-// its partitions and parent indexes to their final names. If onlyIfEmpty is
-// set and job has any rows once the lock is held, it makes no changes. It
-// returns the shape of the job table afterwards.
-func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx, onlyIfEmpty bool) (JobTableShape, error) {
-	if _, err := tx.Exec(ctx, `LOCK TABLE job IN ACCESS EXCLUSIVE MODE`); err != nil {
+// convertUnpartitionedToPartitioned is the conversion branch: it locks job,
+// then runs conversionSteps. If opts.onlyIfEmpty is set and job has any rows
+// once the lock is held, it makes no changes. It returns the shape of the
+// job table afterwards.
+func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx, opts conversionOptions) (JobTableShape, error) {
+	// The conversion must not be cancelled part-way by a statement_timeout
+	// set for the role or database; it runs for as long as it needs.
+	if _, err := tx.Exec(ctx, disableStatementTimeout); err != nil {
+		return JobTableShapeUnknown, errors.Wrap(err, "disable statement_timeout")
+	}
+	if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL lock_timeout = %d", opts.lockTimeout.Milliseconds())); err != nil {
+		return JobTableShapeUnknown, errors.Wrap(err, "set lock_timeout")
+	}
+	if _, err := tx.Exec(ctx, lockJobTable); err != nil {
 		return JobTableShapeUnknown, errors.Wrap(err, "lock job table")
+	}
+	if _, err := tx.Exec(ctx, "SET LOCAL lock_timeout = 0"); err != nil {
+		return JobTableShapeUnknown, errors.Wrap(err, "reset lock_timeout")
 	}
 
 	// Re-check state under the lock: a concurrent partitioner run may have
@@ -413,8 +435,8 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx, on
 		return recheck, nil
 	}
 
-	if onlyIfEmpty {
-		hasRows, err := jobTableHasRows(ctx, tx)
+	if opts.onlyIfEmpty {
+		hasRows, err := JobTableHasRows(ctx, tx)
 		if err != nil {
 			return JobTableShapeUnknown, errors.Wrap(err, "check whether job table has rows after lock")
 		}
@@ -423,92 +445,94 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx, on
 		}
 	}
 
-	ddl := strings.ReplaceAll(targetSchemaSQL, "{{TABLE}}", "job_new")
-	if _, err := tx.Exec(ctx, ddl); err != nil {
-		return JobTableShapeUnknown, errors.Wrap(err, "create job_new partitioned table")
-	}
-
-	columns, err := columnsToCopy(ctx, tx)
+	columns, err := jobColumns(ctx, tx)
 	if err != nil {
 		return JobTableShapeUnknown, err
 	}
-	columnList := strings.Join(columns, ", ")
-	if _, err := tx.Exec(ctx, "INSERT INTO job_new ("+columnList+") SELECT "+columnList+" FROM job"); err != nil {
-		return JobTableShapeUnknown, errors.Wrap(err, "copy rows from job to job_new")
-	}
-
-	if testHookAfterCopy != nil {
-		testHookAfterCopy()
-	}
-
-	// no CASCADE: loud failure for a destructive operation is safer than silently dropping dependent objects
-	if _, err := tx.Exec(ctx, `DROP TABLE job`); err != nil {
-		return JobTableShapeUnknown, errors.Wrap(err, "drop old job table")
-	}
-
-	renames := []string{
-		`ALTER TABLE job_new RENAME TO job`,
-		`ALTER TABLE job_new_active RENAME TO job_active`,
-		`ALTER TABLE job_new_terminated RENAME TO job_terminated`,
-		`ALTER INDEX job_new_pkey RENAME TO job_pkey`,
-		`ALTER INDEX idx_job_new_queue_last_transition_time_seconds RENAME TO idx_job_queue_last_transition_time_seconds`,
-		`ALTER INDEX idx_job_new_queue_job_id RENAME TO idx_job_queue_job_id`,
-		`ALTER INDEX idx_job_new_queue_jobset_state RENAME TO idx_job_queue_jobset_state`,
-		`ALTER INDEX idx_job_new_state RENAME TO idx_job_state`,
-		`ALTER INDEX idx_job_new_submitted RENAME TO idx_job_submitted`,
-		`ALTER INDEX idx_job_new_jobset_pattern RENAME TO idx_job_jobset_pattern`,
-		`ALTER INDEX idx_job_new_annotations_path RENAME TO idx_job_annotations_path`,
-		`ALTER INDEX idx_job_new_latest_run_id RENAME TO idx_job_latest_run_id`,
-		`ALTER INDEX idx_job_new_queue_namespace RENAME TO idx_job_queue_namespace`,
-		`ALTER INDEX idx_job_new_ltt_jobid RENAME TO idx_job_ltt_jobid`,
-		`ALTER INDEX idx_job_new_active_queue_jobset RENAME TO idx_job_active_queue_jobset`,
-	}
-	for _, sqlStmt := range renames {
-		if _, err := tx.Exec(ctx, sqlStmt); err != nil {
-			return JobTableShapeUnknown, errors.Wrapf(err, "rename: %s", sqlStmt)
+	for _, step := range conversionSteps(columns) {
+		if testHookBeforeStep != nil {
+			testHookBeforeStep(step)
+		}
+		ctx.Info(step.description)
+		if _, err := tx.Exec(ctx, step.sql); err != nil {
+			return JobTableShapeUnknown, errors.Wrap(err, step.description)
 		}
 	}
-
 	return JobTableShapePartitioned, nil
 }
 
-// columnsToCopy returns the quoted names of the columns of job, in order. It
-// returns an error if job_new lacks any of them, because copying would
-// otherwise silently drop that column's data. Columns of job_new that job
-// lacks, which exist when the conversion runs before the migration that adds
-// them, are left to take their defaults.
-func columnsToCopy(ctx *armadacontext.Context, tx pgx.Tx) ([]string, error) {
-	rows, err := tx.Query(ctx, `
-		SELECT a.attname, EXISTS (
-			SELECT 1 FROM pg_attribute n
-			WHERE n.attrelid = 'job_new'::regclass AND n.attname = a.attname AND n.attnum > 0 AND NOT n.attisdropped
-		)
-		FROM pg_attribute a
-		WHERE a.attrelid = 'job'::regclass AND a.attnum > 0 AND NOT a.attisdropped
-		ORDER BY a.attnum
+const (
+	disableStatementTimeout = "SET LOCAL statement_timeout = 0"
+	lockJobTable            = "LOCK TABLE job IN ACCESS EXCLUSIVE MODE"
+)
+
+type conversionStep struct {
+	description string
+	sql         string
+}
+
+// conversionSteps returns the statements that convert a locked,
+// unpartitioned job table with the given columns. They create job_new as a
+// partitioned table using target_schema.sql, copy the rows from job (letting
+// Postgres route them to the correct partition), build the primary key and
+// indexes from target_schema_indexes.sql, drop the old job, and rename
+// job_new plus its partitions and parent indexes to their final names.
+//
+// Copying every column of job means that a column missing from
+// target_schema.sql fails the copy rather than silently dropping its data.
+// Columns of job_new that job lacks, which exist when the conversion runs
+// before the migration that adds them, take their defaults.
+func conversionSteps(columns []string) []conversionStep {
+	columnList := strings.Join(columns, ", ")
+	return []conversionStep{
+		{"Creating the partitioned table job_new", renderTargetSchema(targetSchemaSQL)},
+		{"Copying rows from job into job_new", "INSERT INTO job_new (" + columnList + ") SELECT " + columnList + " FROM job"},
+		{"Building the primary key and indexes of job_new", renderTargetSchema(targetSchemaIndexesSQL)},
+		// no CASCADE: loud failure for a destructive operation is safer than silently dropping dependent objects
+		{"Dropping the unpartitioned job table", "DROP TABLE job"},
+		{"Renaming job_new, its partitions and its indexes", strings.Join(renames, ";\n")},
+	}
+}
+
+func renderTargetSchema(sql string) string {
+	return strings.ReplaceAll(sql, "{{TABLE}}", "job_new")
+}
+
+var renames = []string{
+	`ALTER TABLE job_new RENAME TO job`,
+	`ALTER TABLE job_new_active RENAME TO job_active`,
+	`ALTER TABLE job_new_terminated RENAME TO job_terminated`,
+	`ALTER INDEX job_new_pkey RENAME TO job_pkey`,
+	`ALTER INDEX idx_job_new_queue_last_transition_time_seconds RENAME TO idx_job_queue_last_transition_time_seconds`,
+	`ALTER INDEX idx_job_new_queue_job_id RENAME TO idx_job_queue_job_id`,
+	`ALTER INDEX idx_job_new_queue_jobset_state RENAME TO idx_job_queue_jobset_state`,
+	`ALTER INDEX idx_job_new_state RENAME TO idx_job_state`,
+	`ALTER INDEX idx_job_new_submitted RENAME TO idx_job_submitted`,
+	`ALTER INDEX idx_job_new_jobset_pattern RENAME TO idx_job_jobset_pattern`,
+	`ALTER INDEX idx_job_new_annotations_path RENAME TO idx_job_annotations_path`,
+	`ALTER INDEX idx_job_new_latest_run_id RENAME TO idx_job_latest_run_id`,
+	`ALTER INDEX idx_job_new_queue_namespace RENAME TO idx_job_queue_namespace`,
+	`ALTER INDEX idx_job_new_ltt_jobid RENAME TO idx_job_ltt_jobid`,
+	`ALTER INDEX idx_job_new_active_queue_jobset RENAME TO idx_job_active_queue_jobset`,
+}
+
+// jobColumns returns the quoted names of the columns of job, in order.
+func jobColumns(ctx *armadacontext.Context, q database.Querier) ([]string, error) {
+	rows, err := q.Query(ctx, `
+		SELECT attname FROM pg_attribute
+		WHERE attrelid = 'job'::regclass AND attnum > 0 AND NOT attisdropped
+		ORDER BY attnum
 	`)
 	if err != nil {
 		return nil, errors.Wrap(err, "list job columns")
 	}
-	var columns, missing []string
-	for rows.Next() {
-		var name string
-		var inTarget bool
-		if err := rows.Scan(&name, &inTarget); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		if !inTarget {
-			missing = append(missing, name)
-		}
-		columns = append(columns, pgx.Identifier{name}.Sanitize())
+	names, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, errors.Wrap(err, "list job columns")
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	if len(missing) > 0 {
-		return nil, fmt.Errorf("job has columns missing from target_schema.sql: %v", missing)
+	columns := make([]string, len(names))
+	for i, name := range names {
+		columns[i] = pgx.Identifier{name}.Sanitize()
 	}
 	return columns, nil
 }
