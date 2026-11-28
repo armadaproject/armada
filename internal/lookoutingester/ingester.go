@@ -5,6 +5,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
@@ -31,6 +32,10 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 	db, err := database.OpenPgxPool(config.Postgres)
 	if err != nil {
 		panic(errors.WithMessage(err, "Error opening connection to postgres"))
+	}
+	if err := database.RegisterPoolMetrics(prometheus.DefaultRegisterer, db, nil); err != nil {
+		db.Close()
+		panic(err)
 	}
 
 	fatalRegexes := make([]*regexp.Regexp, len(config.FatalInsertionErrors))
