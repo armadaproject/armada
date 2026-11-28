@@ -266,6 +266,8 @@ Wait until http://localhost:8180/realms/armada answers before the last command, 
 
 ## Run the tests
 
+Use [Validating changes](https://github.com/armadaproject/armada/blob/master/docs/developer_guide.md#validating-changes) to choose focused Go checks, the service-backed Go suite or Lookout UI checks without starting the full Armada stack.
+
 Run the end-to-end test cases against your running Armada. Like `armadactl`, the test runner reads `~/.armadactl.yaml` unless you pass `--config`:
 
 ```bash
@@ -308,12 +310,14 @@ The first run compiles for about 5 minutes before building the images; later run
 Then run the same tests as CI:
 
 ```bash
-mage testsuite
+mage -v testsuite
 ```
 
 **Success:** after about 5.5 minutes, each group reports `Failure: 0`, and the last line is `(Real) Total time to run all tests: ...`. (Tested: 34 tests in 8 groups, all passed.)
 
-To stop it, and **delete the `armada-test` cluster**:
+`testsuite` waits for the full-stack containers and real executor; it does not start them or provide a generic readiness check for the Goreman or fake-executor setup. The manual basic-case command above runs only a subset of these suites. See [Full-stack integration tests](https://github.com/armadaproject/armada/blob/master/docs/developer_guide.md#full-stack-integration-tests) for build tools, resources and cleanup details.
+
+To stop your disposable stack, remove its volumes and **delete the `armada-test` cluster**:
 
 ```bash
 mage dev:fullDown
