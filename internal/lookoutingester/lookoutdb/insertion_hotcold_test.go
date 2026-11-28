@@ -16,7 +16,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	lookoutschema "github.com/armadaproject/armada/internal/lookout/schema"
-	lookouthcschema "github.com/armadaproject/armada/internal/lookouthc/schema"
 	"github.com/armadaproject/armada/internal/lookoutingester/model"
 )
 
@@ -26,7 +25,7 @@ func withLookoutHCDb(action func(db *pgxpool.Pool) error) error {
 		return err
 	}
 	return database.WithTestDb(migrations, func(db *pgxpool.Pool) error {
-		if err := lookouthcschema.ApplyPartitioner(armadacontext.Background(), db); err != nil {
+		if err := lookoutschema.PartitionJobTable(armadacontext.Background(), db); err != nil {
 			return err
 		}
 		return action(db)

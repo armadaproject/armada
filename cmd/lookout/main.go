@@ -21,7 +21,6 @@ import (
 	"github.com/armadaproject/armada/internal/lookout/gen/restapi"
 	"github.com/armadaproject/armada/internal/lookout/pruner"
 	lookoutschema "github.com/armadaproject/armada/internal/lookout/schema"
-	lookouthcschema "github.com/armadaproject/armada/internal/lookouthc/schema"
 	armada_config "github.com/armadaproject/armada/internal/server/configuration"
 )
 
@@ -84,10 +83,14 @@ func migrate(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 		panic(err)
 	}
 
-	if config.ExperimentalHotColdSplit {
-		if err := lookouthcschema.ApplyPartitioner(ctx, db); err != nil {
-			panic(err)
-		}
+	shape, err := lookoutschema.PartitionJobTableIfEmpty(ctx, db)
+	if err != nil {
+		panic(err)
+	}
+	if shape == lookoutschema.JobTableShapeUnpartitioned {
+		log.Warn("The job table uses the legacy unpartitioned schema. It already contains data, so it has not been partitioned automatically.")
+	} else {
+		log.Infof("Job table shape: %s", shape)
 	}
 }
 
@@ -130,7 +133,6 @@ func prune(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 		zombieRepairThreshold,
 		config.PrunerConfig.BatchSize,
 		clock.RealClock{},
-		config.ExperimentalHotColdSplit,
 	)
 	if err != nil {
 		panic(err)

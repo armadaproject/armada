@@ -6,7 +6,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	lookoutschema "github.com/armadaproject/armada/internal/lookout/schema"
-	lookouthcschema "github.com/armadaproject/armada/internal/lookouthc/schema"
 )
 
 // WithLookoutDb spins up two Lookout test databases in sequence and runs
@@ -14,10 +13,10 @@ import (
 //
 //  1. a fresh database with the lookout migration chain applied;
 //  2. a fresh database with the lookout migration chain applied, then
-//     converted to the partitioned hot-cold shape via ApplyPartitioner.
+//     converted to the partitioned shape via PartitionJobTable.
 //
 // This exercises shared test logic against both the non-partitioned and
-// the experimental partitioned schema.
+// the partitioned schema.
 func WithLookoutDb(action func(db *pgxpool.Pool) error) error {
 	lookoutMigrations, err := lookoutschema.LookoutMigrations()
 	if err != nil {
@@ -29,7 +28,7 @@ func WithLookoutDb(action func(db *pgxpool.Pool) error) error {
 	}
 
 	return database.WithTestDb(lookoutMigrations, func(db *pgxpool.Pool) error {
-		if err := lookouthcschema.ApplyPartitioner(armadacontext.Background(), db); err != nil {
+		if err := lookoutschema.PartitionJobTable(armadacontext.Background(), db); err != nil {
 			return err
 		}
 		return action(db)

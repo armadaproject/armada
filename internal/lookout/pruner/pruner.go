@@ -1,7 +1,6 @@
 package pruner
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -21,7 +20,6 @@ func PruneDb(
 	zombieRepairThreshold time.Duration,
 	batchLimit int,
 	clock clock.Clock,
-	hotColdSplit bool,
 ) error {
 	var result *multierror.Error
 
@@ -31,7 +29,7 @@ func PruneDb(
 		}
 	}
 
-	if err := deleteJobs(ctx, db, jobLifetime, batchLimit, clock, hotColdSplit); err != nil {
+	if err := deleteJobs(ctx, db, jobLifetime, batchLimit, clock); err != nil {
 		result = multierror.Append(result, err)
 	}
 
@@ -53,10 +51,10 @@ func deleteDeduplications(ctx *armadacontext.Context, db *pgx.Conn, deduplicatio
 	return nil
 }
 
-func deleteJobs(ctx *armadacontext.Context, db *pgx.Conn, jobLifetime time.Duration, batchLimit int, clock clock.Clock, hotColdSplit bool) error {
+func deleteJobs(ctx *armadacontext.Context, db *pgx.Conn, jobLifetime time.Duration, batchLimit int, clock clock.Clock) error {
 	now := clock.Now()
 	cutOffTime := now.Add(-jobLifetime)
-	totalJobsToDelete, err := createJobIdsToDeleteTempTable(ctx, db, cutOffTime, hotColdSplit)
+	totalJobsToDelete, err := createJobIdsToDeleteTempTable(ctx, db, cutOffTime)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -102,28 +100,22 @@ func deleteJobs(ctx *armadacontext.Context, db *pgx.Conn, jobLifetime time.Durat
 	return nil
 }
 
+// selectJobIdsToDelete selects expired terminal jobs. On the partitioned
+// schema, the state filter lets Postgres prune the scan to job_terminated.
+const selectJobIdsToDelete = `
+	SELECT job_id FROM job
+	WHERE last_transition_time < $1
+	AND state in (
+		4, -- Succeeded
+		5, -- Failed
+		6, -- Cancelled
+		7, -- Preempted
+		9  -- Rejected
+	)`
+
 // Returns total number of jobs to delete
-func createJobIdsToDeleteTempTable(ctx *armadacontext.Context, db *pgx.Conn, cutOffTime time.Time, hotColdSplit bool) (int, error) {
-	table := "job"
-	if hotColdSplit {
-		table = "job_terminated"
-	}
-
-	// Using interpolation for table name as parameterized queries do not allow it. The table name is controlled by us and not user input, so this is safe.
-	query := fmt.Sprintf(`
-		CREATE TEMP TABLE job_ids_to_delete AS (
-			SELECT job_id FROM %s
-			WHERE last_transition_time < $1
-			AND state in (
-				4, -- Succeeded
-		   		5, -- Failed
-		   		6, -- Cancelled
-		   		7, -- Preempted
-		   		9  -- Rejected
-		    )
-		)`, table)
-
-	_, err := db.Exec(ctx, query, cutOffTime)
+func createJobIdsToDeleteTempTable(ctx *armadacontext.Context, db *pgx.Conn, cutOffTime time.Time) (int, error) {
+	_, err := db.Exec(ctx, "CREATE TEMP TABLE job_ids_to_delete AS ("+selectJobIdsToDelete+")", cutOffTime)
 	if err != nil {
 		return -1, errors.WithStack(err)
 	}

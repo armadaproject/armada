@@ -4,7 +4,7 @@ Everything the local dev stack uses. `mage dev:up <profiles>` wires these pieces
 
 | Path                      | Purpose                                                                                                                                                   |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `<component>/config.yaml` | Per-component config for host-run processes (server, scheduler, scheduleringester, eventingester, executor, fakeexecutor, lookout, lookoutingester, lookouthc, lookouthcingester, binoculars) |
+| `<component>/config.yaml` | Per-component config for host-run processes (server, scheduler, scheduleringester, eventingester, executor, fakeexecutor, lookout, lookoutingester, binoculars) |
 | `compose/stack.yaml`      | Dependency containers: redis, postgres, pulsar, plus keycloak (`auth` profile) and prometheus (`prometheus` profile)                                      |
 | `compose/full.yaml`       | Fully containerized Armada stack, used by `mage dev:full` and CI                                                                                          |
 | `compose/postgres-init.sql` | Creates the scheduler and lookout databases when the postgres container first initialises                                                               |

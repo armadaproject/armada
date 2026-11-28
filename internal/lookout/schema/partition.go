@@ -13,116 +13,182 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/database"
 )
 
 //go:embed target_schema.sql
 var targetSchemaSQL string
 
 // testHookAfterCopy is called inside convertUnpartitionedToPartitioned after
-// the INSERT SELECT and before DROP TABLE. It is nil in production; tests set
-// it via the exported HookAfterCopy pointer in export_test.go.
+// the INSERT SELECT and before DROP TABLE. It is nil in production; tests in
+// this package set it.
 var testHookAfterCopy func()
 
-// TxBeginner is the minimal interface needed by ApplyPartitioner. Both
-// *pgx.Conn and *pgxpool.Pool satisfy it.
-type TxBeginner interface {
+// DB is the database handle needed by the partitioner. Both *pgx.Conn and
+// *pgxpool.Pool satisfy it.
+type DB interface {
+	database.Querier
 	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
 }
 
-// ApplyPartitioner runs the experimental hot-cold partitioner against db.
+// JobTableShape describes the live shape of the job table.
+type JobTableShape int
+
+const (
+	JobTableShapeUnknown JobTableShape = iota
+	JobTableShapeMissing
+	JobTableShapeUnpartitioned
+	JobTableShapePartitioned
+	JobTableShapeUnexpected
+)
+
+func (s JobTableShape) String() string {
+	switch s {
+	case JobTableShapeMissing:
+		return "missing"
+	case JobTableShapeUnpartitioned:
+		return "unpartitioned"
+	case JobTableShapePartitioned:
+		return "partitioned"
+	case JobTableShapeUnexpected:
+		return "unexpected"
+	default:
+		return "unknown"
+	}
+}
+
+// PartitionJobTable converts the job table into the partitioned shape,
+// whatever its size.
 //
 // Behaviour:
 //
-//   - If the job table is already partitioned with the expected shape, returns
-//     nil without making changes.
-//   - If the job table is unpartitioned (e.g., just created by the lookout
-//     migration chain), converts it into the partitioned shape in a single
-//     transaction.
-//   - If the job table exists but has an unexpected partitioned shape, or is
-//     missing entirely, returns an error.
+//   - If the job table is already partitioned with the expected shape,
+//     backfills idx_job_queue_job_id if it is missing, then returns.
+//   - If the job table is unpartitioned, converts it into the partitioned
+//     shape in a single transaction.
+//   - If the job table has an unexpected partitioned shape, or is missing
+//     entirely, returns an error.
 //
-// The partitioner assumes the caller has already applied the lookout
-// migration chain, so the job table either exists as an unpartitioned table
-// (fresh chain) or as the partitioned result of a previous partitioner run.
-func ApplyPartitioner(ctx *armadacontext.Context, db TxBeginner) error {
-	return pgx.BeginTxFunc(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		state, detail, err := detectJobTableState(ctx, tx)
+// The caller must have already applied the lookout migration chain.
+func PartitionJobTable(ctx *armadacontext.Context, db DB) error {
+	_, err := applyPartitioner(ctx, db, false)
+	return err
+}
+
+// PartitionJobTableIfEmpty behaves like PartitionJobTable, except that it
+// leaves an unpartitioned job table untouched if it contains any rows. It
+// returns the shape of the job table afterwards.
+//
+// Emptiness is checked once without a lock, so that a populated table is
+// never locked, and again under the ACCESS EXCLUSIVE lock taken for the
+// conversion, so that a row committed in between prevents the conversion.
+func PartitionJobTableIfEmpty(ctx *armadacontext.Context, db DB) (JobTableShape, error) {
+	shape, _, err := DetectJobTableShape(ctx, db)
+	if err != nil {
+		return JobTableShapeUnknown, errors.Wrap(err, "detect job table shape")
+	}
+	if shape == JobTableShapeUnpartitioned {
+		hasRows, err := jobTableHasRows(ctx, db)
 		if err != nil {
-			return errors.Wrap(err, "detect job table state")
+			return JobTableShapeUnknown, errors.Wrap(err, "check whether job table has rows")
+		}
+		if hasRows {
+			return JobTableShapeUnpartitioned, nil
+		}
+	}
+	return applyPartitioner(ctx, db, true)
+}
+
+func applyPartitioner(ctx *armadacontext.Context, db DB, onlyIfEmpty bool) (JobTableShape, error) {
+	var shape JobTableShape
+	err := pgx.BeginTxFunc(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		detected, detail, err := DetectJobTableShape(ctx, tx)
+		if err != nil {
+			return errors.Wrap(err, "detect job table shape")
 		}
 
-		switch state {
-		case jobStateAlreadyPartitioned:
+		switch detected {
+		case JobTableShapePartitioned:
 			if err := backfillQueueJobIDIndex(ctx, tx); err != nil {
 				return errors.Wrap(err, "backfill idx_job_queue_job_id")
 			}
+			shape = detected
 			return nil
-		case jobStateUnpartitioned:
-			if err := convertUnpartitionedToPartitioned(ctx, tx); err != nil {
+		case JobTableShapeUnpartitioned:
+			shape, err = convertUnpartitionedToPartitioned(ctx, tx, onlyIfEmpty)
+			if err != nil {
 				return errors.Wrap(err, "convert unpartitioned job table")
 			}
 			return nil
-		case jobStatePartitionedWrongShape:
+		case JobTableShapeUnexpected:
 			return fmt.Errorf("job table is partitioned but shape does not match target: %s", detail)
-		case jobStateNoJobTable:
+		case JobTableShapeMissing:
 			return errors.New("job table not found; run lookout migration chain first")
 		default:
-			return fmt.Errorf("unknown job table state: %d", state)
+			return fmt.Errorf("unknown job table shape: %d", detected)
 		}
 	})
+	if err != nil {
+		return JobTableShapeUnknown, err
+	}
+	return shape, nil
 }
 
-type jobTableState int
+// IsJobTablePartitioned reports whether the job table in the current schema
+// is a partitioned table, without checking that its shape matches the
+// target.
+func IsJobTablePartitioned(ctx *armadacontext.Context, q database.Querier) (bool, error) {
+	var isPartitioned bool
+	err := q.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM pg_partitioned_table pt
+                        JOIN pg_class c ON c.oid = pt.partrelid
+                        WHERE c.relname = 'job' AND c.relnamespace = current_schema()::regnamespace)`,
+	).Scan(&isPartitioned)
+	return isPartitioned, err
+}
 
-const (
-	jobStateUnknown jobTableState = iota
-	jobStateNoJobTable
-	jobStateUnpartitioned
-	jobStateAlreadyPartitioned
-	jobStatePartitionedWrongShape
-)
-
-// detectJobTableState inspects the database and reports which of the four
-// known states the job table is in. When the state is
-// jobStatePartitionedWrongShape, the returned detail string describes the
-// first mismatch found (to aid the operator).
-func detectJobTableState(ctx *armadacontext.Context, q pgx.Tx) (jobTableState, string, error) {
+// DetectJobTableShape inspects the database and reports the shape of the job
+// table. When the shape is JobTableShapeUnexpected, the returned detail
+// string describes the first mismatch found (to aid the operator).
+func DetectJobTableShape(ctx *armadacontext.Context, q database.Querier) (JobTableShape, string, error) {
 	var exists bool
 	if err := q.QueryRow(ctx,
 		`SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'job' AND relkind IN ('r', 'p') AND relnamespace = current_schema()::regnamespace)`,
 	).Scan(&exists); err != nil {
-		return jobStateUnknown, "", err
+		return JobTableShapeUnknown, "", err
 	}
 	if !exists {
-		return jobStateNoJobTable, "", nil
+		return JobTableShapeMissing, "", nil
 	}
 
-	var isPartitioned bool
-	if err := q.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM pg_partitioned_table pt
-                        JOIN pg_class c ON c.oid = pt.partrelid
-                        WHERE c.relname = 'job' AND c.relnamespace = current_schema()::regnamespace)`,
-	).Scan(&isPartitioned); err != nil {
-		return jobStateUnknown, "", err
+	isPartitioned, err := IsJobTablePartitioned(ctx, q)
+	if err != nil {
+		return JobTableShapeUnknown, "", err
 	}
 	if !isPartitioned {
-		return jobStateUnpartitioned, "", nil
+		return JobTableShapeUnpartitioned, "", nil
 	}
 
 	mismatch, err := findShapeMismatch(ctx, q)
 	if err != nil {
-		return jobStateUnknown, "", err
+		return JobTableShapeUnknown, "", err
 	}
 	if mismatch != "" {
-		return jobStatePartitionedWrongShape, mismatch, nil
+		return JobTableShapeUnexpected, mismatch, nil
 	}
-	return jobStateAlreadyPartitioned, "", nil
+	return JobTableShapePartitioned, "", nil
+}
+
+func jobTableHasRows(ctx *armadacontext.Context, q database.Querier) (bool, error) {
+	var hasRows bool
+	err := q.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM job)`).Scan(&hasRows)
+	return hasRows, err
 }
 
 // findShapeMismatch returns a non-empty string describing the first shape
 // mismatch found between the live partitioned job table and the target
 // schema. Returns an empty string if the shape matches.
-func findShapeMismatch(ctx *armadacontext.Context, q pgx.Tx) (string, error) {
+func findShapeMismatch(ctx *armadacontext.Context, q database.Querier) (string, error) {
 	rows, err := q.Query(ctx, `
 		SELECT c.relname FROM pg_inherits i
 		JOIN pg_class c ON c.oid = i.inhrelid
@@ -329,25 +395,37 @@ func backfillQueueJobIDIndex(ctx *armadacontext.Context, tx pgx.Tx) error {
 // job_new as a partitioned table using target_schema.sql, copies data from
 // the existing unpartitioned job into job_new (letting Postgres route rows
 // to the correct partition), drops the old job, and renames job_new plus
-// its partitions and parent indexes to their final names.
-func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx) error {
+// its partitions and parent indexes to their final names. If onlyIfEmpty is
+// set and job has any rows once the lock is held, it makes no changes. It
+// returns the shape of the job table afterwards.
+func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx, onlyIfEmpty bool) (JobTableShape, error) {
 	if _, err := tx.Exec(ctx, `LOCK TABLE job IN ACCESS EXCLUSIVE MODE`); err != nil {
-		return errors.Wrap(err, "lock job table")
+		return JobTableShapeUnknown, errors.Wrap(err, "lock job table")
 	}
 
 	// Re-check state under the lock: a concurrent partitioner run may have
 	// completed between our initial check and acquiring the lock.
-	recheck, _, err := detectJobTableState(ctx, tx)
+	recheck, _, err := DetectJobTableShape(ctx, tx)
 	if err != nil {
-		return errors.Wrap(err, "re-check job table state after lock")
+		return JobTableShapeUnknown, errors.Wrap(err, "re-check job table shape after lock")
 	}
-	if recheck == jobStateAlreadyPartitioned {
-		return nil
+	if recheck == JobTableShapePartitioned {
+		return recheck, nil
+	}
+
+	if onlyIfEmpty {
+		hasRows, err := jobTableHasRows(ctx, tx)
+		if err != nil {
+			return JobTableShapeUnknown, errors.Wrap(err, "check whether job table has rows after lock")
+		}
+		if hasRows {
+			return JobTableShapeUnpartitioned, nil
+		}
 	}
 
 	ddl := strings.ReplaceAll(targetSchemaSQL, "{{TABLE}}", "job_new")
 	if _, err := tx.Exec(ctx, ddl); err != nil {
-		return errors.Wrap(err, "create job_new partitioned table")
+		return JobTableShapeUnknown, errors.Wrap(err, "create job_new partitioned table")
 	}
 
 	if _, err := tx.Exec(ctx, `
@@ -366,7 +444,7 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx) er
 			external_job_uri, cancel_user, preempt_user, reprioritize_user
 		FROM job
 	`); err != nil {
-		return errors.Wrap(err, "copy rows from job to job_new")
+		return JobTableShapeUnknown, errors.Wrap(err, "copy rows from job to job_new")
 	}
 
 	if testHookAfterCopy != nil {
@@ -375,7 +453,7 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx) er
 
 	// no CASCADE: loud failure for a destructive operation is safer than silently dropping dependent objects
 	if _, err := tx.Exec(ctx, `DROP TABLE job`); err != nil {
-		return errors.Wrap(err, "drop old job table")
+		return JobTableShapeUnknown, errors.Wrap(err, "drop old job table")
 	}
 
 	renames := []string{
@@ -397,9 +475,9 @@ func convertUnpartitionedToPartitioned(ctx *armadacontext.Context, tx pgx.Tx) er
 	}
 	for _, sqlStmt := range renames {
 		if _, err := tx.Exec(ctx, sqlStmt); err != nil {
-			return errors.Wrapf(err, "rename: %s", sqlStmt)
+			return JobTableShapeUnknown, errors.Wrapf(err, "rename: %s", sqlStmt)
 		}
 	}
 
-	return nil
+	return JobTableShapePartitioned, nil
 }
