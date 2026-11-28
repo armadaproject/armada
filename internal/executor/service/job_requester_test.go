@@ -175,30 +175,6 @@ func TestRequestJobsRuns_HandlesRunIdsToCancel(t *testing.T) {
 	assert.Equal(t, allJobRuns[0], expectedRunState)
 }
 
-func TestRequestJobsRuns_HandlesRunIsToPreempt(t *testing.T) {
-	runId := uuid.NewString()
-	activeRun := createRun(runId, job.Active)
-	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{activeRun})
-
-	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
-		RunIdsToPreempt: []string{
-			"",               // Invalid should be skipped
-			uuid.NewString(), // Belongs to no known runs, should be skipped
-			runId,
-		},
-	}
-
-	expectedRunState := activeRun.DeepCopy()
-	expectedRunState.PreemptionRequested = true
-
-	jobRequester.RequestJobsRuns()
-
-	assert.Len(t, eventReporter.ReceivedEvents, 0)
-	allJobRuns := stateStore.GetAll()
-	assert.Len(t, allJobRuns, 1)
-	assert.Equal(t, allJobRuns[0], expectedRunState)
-}
-
 func TestRequestJobsRuns_HandlesPartiallyInvalidLeasedJobs(t *testing.T) {
 	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{})
 

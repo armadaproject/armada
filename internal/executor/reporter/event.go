@@ -200,25 +200,6 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices
 	return sequence, nil
 }
 
-func CreateSimpleJobPreemptedEvent(pod *v1.Pod) (*armadaevents.EventSequence, error) {
-	sequence := createEmptySequence(pod)
-	preemptedJobId, preemptedRunId, err := extractIds(pod)
-	if err != nil {
-		return nil, err
-	}
-
-	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-		Created: types.TimestampNow(),
-		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
-			JobRunPreempted: &armadaevents.JobRunPreempted{
-				PreemptedJobId: preemptedJobId,
-				PreemptedRunId: preemptedRunId,
-			},
-		},
-	})
-	return sequence, nil
-}
-
 func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.KubernetesReason, debugMessage string,
 	containerStatuses []*armadaevents.ContainerError, clusterId string, failureCategory string, failureSubcategory string,
 ) (*armadaevents.EventSequence, error) {

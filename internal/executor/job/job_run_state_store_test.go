@@ -66,7 +66,6 @@ func TestReportRunLeased(t *testing.T) {
 	assert.Equal(t, allKnownJobRuns[0].KubernetesId, "")
 	assert.Equal(t, allKnownJobRuns[0].Phase, Leased)
 	assert.False(t, allKnownJobRuns[0].CancelRequested)
-	assert.False(t, allKnownJobRuns[0].PreemptionRequested)
 	assert.Equal(t, allKnownJobRuns[0].Job, job)
 }
 
@@ -79,7 +78,6 @@ func TestReportRunInvalid(t *testing.T) {
 	assert.Equal(t, allKnownJobRuns[0].Meta, defaultRunInfoMeta)
 	assert.Equal(t, allKnownJobRuns[0].KubernetesId, "")
 	assert.False(t, allKnownJobRuns[0].CancelRequested)
-	assert.False(t, allKnownJobRuns[0].PreemptionRequested)
 	assert.Equal(t, allKnownJobRuns[0].Phase, Invalid)
 }
 
@@ -105,17 +103,6 @@ func TestReportFailedSubmission(t *testing.T) {
 	allKnownJobRuns := jobRunStateManager.GetAll()
 	assert.Len(t, allKnownJobRuns, 1)
 	assert.Equal(t, allKnownJobRuns[0].Phase, FailedSubmission)
-}
-
-func TestRequestRunPreemption(t *testing.T) {
-	jobRunStateManager, _ := setup(t, []*v1.Pod{})
-	jobRunStateManager.jobRunState = map[string]*RunState{
-		"run-1": createRunState("run-1", Active),
-	}
-
-	jobRunStateManager.RequestRunPreemption("run-1")
-	result := jobRunStateManager.Get("run-1")
-	assert.True(t, result.PreemptionRequested)
 }
 
 func TestRequestRunCancellation(t *testing.T) {

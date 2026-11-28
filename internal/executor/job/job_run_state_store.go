@@ -18,7 +18,6 @@ type RunStateStore interface {
 	ReportSuccessfulSubmission(runId string)
 	ReportFailedSubmission(runId string)
 	RequestRunCancellation(runId string)
-	RequestRunPreemption(runId string)
 	Delete(runId string)
 	Get(runId string) *RunState
 	GetAll() []*RunState
@@ -184,15 +183,6 @@ func (stateStore *JobRunStateStore) RequestRunCancellation(runId string) {
 
 	if currentState, present := stateStore.jobRunState[runId]; present {
 		currentState.CancelRequested = true
-	}
-}
-
-func (stateStore *JobRunStateStore) RequestRunPreemption(runId string) {
-	stateStore.lock.Lock()
-	defer stateStore.lock.Unlock()
-
-	if currentState, present := stateStore.jobRunState[runId]; present {
-		currentState.PreemptionRequested = true
 	}
 }
 

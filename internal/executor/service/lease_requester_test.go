@@ -37,30 +37,20 @@ func TestLeaseJobRuns(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
 	tests := map[string]struct {
-		leaseMessages        []*executorapi.JobRunLease
-		cancelMessages       [][]string
-		preemptMessages      [][]string
-		expectedLeases       []*executorapi.JobRunLease
-		expectedIdsToCancel  []string
-		expectedIdsToPreempt []string
+		leaseMessages       []*executorapi.JobRunLease
+		cancelMessages      [][]string
+		expectedLeases      []*executorapi.JobRunLease
+		expectedIdsToCancel []string
 	}{
 		"Lease Messages": {
-			leaseMessages:        []*executorapi.JobRunLease{lease1, lease2},
-			expectedLeases:       []*executorapi.JobRunLease{lease1, lease2},
-			expectedIdsToCancel:  []string{},
-			expectedIdsToPreempt: []string{},
+			leaseMessages:       []*executorapi.JobRunLease{lease1, lease2},
+			expectedLeases:      []*executorapi.JobRunLease{lease1, lease2},
+			expectedIdsToCancel: []string{},
 		},
 		"Cancel Messages": {
-			cancelMessages:       [][]string{{id1, id2}, {id3}},
-			expectedLeases:       []*executorapi.JobRunLease{},
-			expectedIdsToCancel:  []string{id1, id2, id3},
-			expectedIdsToPreempt: []string{},
-		},
-		"Preempt Messages": {
-			preemptMessages:      [][]string{{id1, id2}, {id3}},
-			expectedLeases:       []*executorapi.JobRunLease{},
-			expectedIdsToCancel:  []string{},
-			expectedIdsToPreempt: []string{id1, id2, id3},
+			cancelMessages:      [][]string{{id1, id2}, {id3}},
+			expectedLeases:      []*executorapi.JobRunLease{},
+			expectedIdsToCancel: []string{id1, id2, id3},
 		},
 	}
 
@@ -69,7 +59,7 @@ func TestLeaseJobRuns(t *testing.T) {
 			jobRequester, mockExecutorApiClient, mockStream := setup(t)
 			mockExecutorApiClient.EXPECT().LeaseJobRuns(gomock.Any(), gomock.Any(), gomock.Any()).Return(mockStream, nil)
 			mockStream.EXPECT().Send(gomock.Any()).Return(nil)
-			setStreamExpectations(mockStream, tc.leaseMessages, tc.cancelMessages, tc.preemptMessages)
+			setStreamExpectations(mockStream, tc.leaseMessages, tc.cancelMessages)
 			mockStream.EXPECT().Recv().Return(endMarker, nil)
 			mockStream.EXPECT().Recv().Return(nil, io.EOF)
 
@@ -77,7 +67,6 @@ func TestLeaseJobRuns(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedLeases, response.LeasedRuns)
 			assert.Equal(t, tc.expectedIdsToCancel, response.RunIdsToCancel)
-			assert.Equal(t, tc.expectedIdsToPreempt, response.RunIdsToPreempt)
 		})
 	}
 }
@@ -172,7 +161,7 @@ func TestLeaseJobRuns_ReceiveError(t *testing.T) {
 			if tc.recvError {
 				mockStream.EXPECT().Recv().Return(nil, receiveErr).AnyTimes()
 			} else {
-				setStreamExpectations(mockStream, tc.leaseMessages, nil, nil)
+				setStreamExpectations(mockStream, tc.leaseMessages, nil)
 
 				if tc.endOfStreamErr {
 					mockStream.EXPECT().Recv().Return(nil, endStreamMarkerTimeoutErr)
@@ -257,7 +246,6 @@ func setup(t *testing.T) (*JobLeaseRequester, *mocks.MockExecutorApiClient, *moc
 func setStreamExpectations(stream *mocks.MockExecutorApi_LeaseJobRunsClient,
 	leaseMessages []*executorapi.JobRunLease,
 	cancelMessages [][]string,
-	preemptMessages [][]string,
 ) {
 	for _, lease := range leaseMessages {
 		message := &executorapi.LeaseStreamMessage{
@@ -272,16 +260,6 @@ func setStreamExpectations(stream *mocks.MockExecutorApi_LeaseJobRunsClient,
 			Event: &executorapi.LeaseStreamMessage_CancelRuns{
 				CancelRuns: &executorapi.CancelRuns{
 					JobRunIdsToCancel: cancelIds,
-				},
-			},
-		}
-		stream.EXPECT().Recv().Return(message, nil)
-	}
-	for _, preemptIds := range preemptMessages {
-		message := &executorapi.LeaseStreamMessage{
-			Event: &executorapi.LeaseStreamMessage_PreemptRuns{
-				PreemptRuns: &executorapi.PreemptRuns{
-					JobRunIdsToPreempt: preemptIds,
 				},
 			},
 		}

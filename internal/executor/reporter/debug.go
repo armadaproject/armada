@@ -35,7 +35,6 @@ const (
 	TriggerCancelledNotStarted    DebugTrigger = "cancelledNotStarted"
 	TriggerStuckTerminating       DebugTrigger = "stuckTerminating"
 	TriggerUndeletable            DebugTrigger = "undeletable"
-	TriggerPreempted              DebugTrigger = "preempted"
 	TriggerExternallyDeleted      DebugTrigger = "externallyDeleted"
 	TriggerActiveDeadlineExceeded DebugTrigger = "activeDeadlineExceeded"
 )
