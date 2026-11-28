@@ -122,6 +122,9 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 
 	var classifyResult categorizer.ClassifyResult
 	var debugMessage string
+	// Set when the issue handler leaves this failed pod's report to this call, which must then let
+	// the issue handler know if it cannot report it, or sent it but cannot mark the pod as reported.
+	releaseFailedPodReport := func(sent bool) {}
 	var startUpInfo *armadaevents.PodStartUpInfo
 	if pod.Status.Phase == v1.PodRunning && stateReporter.startUpTimings != nil {
 		podEvents, err := stateReporter.clusterContext.GetPodEvents(pod)
@@ -151,11 +154,12 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 			// Pod already being handled by issue handler
 			return
 		}
-		issueAdded, err := stateReporter.podIssueHandler.DetectAndRegisterIssuesForFailedPod(pod)
-		if issueAdded {
-			// Pod already being handled by issue handler
+		reportClaim, err := stateReporter.podIssueHandler.DetectAndRegisterIssuesForFailedPod(pod)
+		if reportClaim == nil {
+			// Pod already being handled by issue handler, or reported by another observation
 			return
 		}
+		releaseFailedPodReport = func(sent bool) { stateReporter.podIssueHandler.ReleaseFailedPodReport(reportClaim, sent) }
 		if err != nil {
 			log.Errorf("Failed detecting issue on failed pod %s(%s) - %v", pod.Name, util.ExtractJobRunId(pod), err)
 			// Don't return here, as it is very important we don't block reporting a terminal event (failed)
@@ -169,12 +173,14 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 	event, err := reporter.CreateEventForCurrentState(pod, stateReporter.clusterContext.GetClusterId(), classifyResult, debugMessage, startUpInfo)
 	if err != nil {
 		log.Errorf("Failed to report event: %v", err)
+		releaseFailedPodReport(false)
 		return
 	}
 
 	stateReporter.eventReporter.QueueEvent(reporter.EventMessage{Event: event, JobRunId: util.ExtractJobRunId(pod)}, func(err error) {
 		if err != nil {
 			log.Errorf("Failed to report event: %s", err)
+			releaseFailedPodReport(false)
 			return
 		}
 		// Increment only after successful emission so failed sends do not inflate the counter.
@@ -186,6 +192,9 @@ func (stateReporter *JobStateReporter) reportCurrentStatus(pod *v1.Pod) {
 			err = stateReporter.addAnnotationToMarkStateReported(pod)
 			if err != nil {
 				log.Errorf("Failed to add state annotation %s to pod %s: %v", string(pod.Status.Phase), pod.Name, err)
+				// A later observation reports the pod again, and so marks it. The failure was sent, so it
+				// must not decide for the run again and hand it to an issue.
+				releaseFailedPodReport(true)
 				return
 			}
 		}
