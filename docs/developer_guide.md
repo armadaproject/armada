@@ -167,7 +167,11 @@ mage lintCheck
 go mod tidy -diff
 ```
 
-`mage lintCheck` runs golangci-lint across the repository with [`.golangci.yml`](../.golangci.yml), whose formatters make it fail on formatting drift as well as lint findings. For native runs, it requires the golangci-lint version pinned in [`tools.yaml`](../tools.yaml) or a newer stable release on your `PATH`. To install the pinned version, run `mage BootstrapTools` and put Go’s tool directory (`$(go env GOPATH)/bin`, or `GOBIN` if set) first on your `PATH`. If golangci-lint is missing or fails the version check, Mage stops before linting and prints installation instructions. `mage lintFix` applies the available fixes, including formatting, in place; review its changes before committing.
+`mage lintCheck` runs golangci-lint across the repository with [`.golangci.yml`](../.golangci.yml), whose formatters make it fail on formatting drift as well as lint findings. For runs on your host, use the exact version pinned in [`tools.yaml`](../tools.yaml) to match the [Go lint workflow](../.github/workflows/lint.yml). Mage's version gate also accepts newer stable releases, which can produce different results from CI. With `TESTS_IN_DOCKER=true`, Mage runs linting in Docker and skips the host version check.
+
+Follow [Step 2 of the website developer guide](../website/content/docs/developer-guide.mdx#step-2-set-up-mage-and-the-build-tools) to set up Mage and run `mage BootstrapTools`. Put Go's tool folder first on your `PATH`. Use the directory reported by `go env GOBIN` if set, or the `bin` subdirectory of the first entry reported by `go env GOPATH`. If the pinned binary is still missing or the wrong version is installed in that folder, run `go install` with the full golangci-lint package path and version from `tools.yaml`. This reinstalls the binary even if the bootstrap record already lists it. Run `golangci-lint --version` to confirm your shell finds the pinned version.
+
+`mage lintFix` applies the available fixes, including formatting, in place. Review its changes before committing.
 
 `go mod tidy -diff` prints the changes that `go mod tidy` would make to `go.mod` and `go.sum` and fails if there are any. Builds and tests can pass despite this drift, for example when a module that tests import directly is still marked `// indirect`. Run `go mod tidy` to apply the changes, then review them.
 
