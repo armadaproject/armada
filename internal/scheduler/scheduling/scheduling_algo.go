@@ -197,10 +197,11 @@ func (l *FairSchedulingAlgo) Schedule(
 		}
 		var outcome *PoolSchedulingOutcome
 		var schedulingResult *SchedulingResult
+		var sctx *schedulercontext.SchedulingContext
 		if reconciliation.Err() != nil {
 			outcome = reconciliation.Outcome()
 		} else {
-			outcome, schedulingResult, err = l.runPoolSchedulingRound(ctx, pool, txn, executors, shortJobPenalty)
+			outcome, schedulingResult, sctx, err = l.runPoolSchedulingRound(ctx, pool, txn, executors, shortJobPenalty)
 			if err != nil {
 				return nil, observe.Error(span, err)
 			}
@@ -209,6 +210,16 @@ func (l *FairSchedulingAlgo) Schedule(
 
 		if outcome == nil {
 			return nil, observe.Errorf(span, "unexpectedly got nil scheduling result for pool %s", pool.Name)
+		}
+
+		var setupTime, processingTime time.Duration
+		if sctx != nil {
+			if !startTime.IsZero() && sctx.Started.After(startTime) {
+				setupTime = sctx.Started.Sub(startTime)
+			}
+			if !sctx.Finished.IsZero() && sctx.Finished.After(sctx.Started) {
+				processingTime = sctx.Finished.Sub(sctx.Started)
+			}
 		}
 
 		// If pools are not configured to fail independently, cause total scheduling round failure on pool failure
@@ -226,6 +237,8 @@ func (l *FairSchedulingAlgo) Schedule(
 			SchedulingResult:     schedulingResult,
 			StartTime:            startTime,
 			EndTime:              endTime,
+			SetupTime:            setupTime,
+			ProcessingTime:       processingTime,
 			Outcome:              *outcome,
 		}
 
@@ -256,10 +269,10 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	txn *jobdb.Txn,
 	executors []*schedulerobjects.Executor,
 	shortJobPenalty *ShortJobPenaltySnapshot,
-) (*PoolSchedulingOutcome, *SchedulingResult, error) {
+) (*PoolSchedulingOutcome, *SchedulingResult, *schedulercontext.SchedulingContext, error) {
 	select {
 	case <-ctx.Done():
-		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, fmt.Errorf("scheduling round hit global maximum scheduling duration")), nil, nil
+		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, fmt.Errorf("scheduling round hit global maximum scheduling duration")), nil, nil, nil
 	default:
 	}
 
@@ -268,7 +281,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	// If we use a different copy of nodes (possibly more to date copy) it may no longer align with the jobs/runs
 	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, executors, pool, shortJobPenalty)
 	if err != nil {
-		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, errors.WithMessagef(err, "failed to create scheduling algo context")), nil, nil
+		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonSchedulingDisabled, errors.WithMessagef(err, "failed to create scheduling algo context")), nil, nil, nil
 	}
 
 	if fsctx.nodeDb.NumNodes() <= 0 {
@@ -282,7 +295,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 				AdditionalSchedulingInfo: &SchedulingInformation{
 					NodeDb: fsctx.nodeDb,
 				},
-			}, nil
+			}, fsctx.schedulingContext, nil
 	}
 
 	start := time.Now()
@@ -290,9 +303,9 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 	if err != nil {
 		ctx.Infof("Scheduled on pool %s in %v - failed with error %s", pool.Name, time.Now().Sub(start), err)
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, err), nil, nil
+			return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonTimeout, err), nil, fsctx.schedulingContext, nil
 		} else if err != nil {
-			return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonError, errors.WithMessagef(err, "failed scheduling on pool %s", pool.Name)), nil, nil
+			return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonError, errors.WithMessagef(err, "failed scheduling on pool %s", pool.Name)), nil, fsctx.schedulingContext, nil
 		}
 	}
 
@@ -306,13 +319,13 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 
 	terminationReason := terminationReasonFromString(sctx.TerminationReason)
 	if err := txn.Upsert(preemptedJobs); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if err := txn.Upsert(scheduledJobs); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return NewPoolSchedulingOutcome(terminationReason, nil), schedulingResult, nil
+	return NewPoolSchedulingOutcome(terminationReason, nil), schedulingResult, fsctx.schedulingContext, nil
 }
 
 type FairSchedulingAlgoContext struct {
