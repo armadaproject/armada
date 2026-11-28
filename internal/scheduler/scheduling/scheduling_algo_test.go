@@ -413,7 +413,7 @@ func TestSchedule_FloatingCapacityQueueLimit(t *testing.T) {
 	contexts := result.GetAllSchedulingContexts()
 	require.Len(t, contexts, 1)
 	assert.True(t, expectedCapacity.Equal(contexts[0].TotalResources), "got %s", contexts[0].TotalResources)
-	report, err := reports.NewServer(reportRepo).GetSchedulingReport(ctx, &apischeduleobjects.SchedulingReportRequest{})
+	report, err := reports.NewServer(reportRepo, nil).GetSchedulingReport(ctx, &apischeduleobjects.SchedulingReportRequest{})
 	require.NoError(t, err)
 	assert.Regexp(t, `Total capacity:\s+`+regexp.QuoteMeta(expectedCapacity.String()), report.Report)
 

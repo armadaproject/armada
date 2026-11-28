@@ -42,6 +42,21 @@ func (m *MockExecutorRepository) EXPECT() *MockExecutorRepositoryMockRecorder {
 	return m.recorder
 }
 
+// GetExecutor mocks base method.
+func (m *MockExecutorRepository) GetExecutor(ctx *armadacontext.Context, id string) (*schedulerobjects.Executor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExecutor", ctx, id)
+	ret0, _ := ret[0].(*schedulerobjects.Executor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExecutor indicates an expected call of GetExecutor.
+func (mr *MockExecutorRepositoryMockRecorder) GetExecutor(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutor", reflect.TypeOf((*MockExecutorRepository)(nil).GetExecutor), ctx, id)
+}
+
 // GetExecutorSettings mocks base method.
 func (m *MockExecutorRepository) GetExecutorSettings(ctx *armadacontext.Context) ([]*schedulerobjects.ExecutorSettings, error) {
 	m.ctrl.T.Helper()
@@ -55,6 +70,21 @@ func (m *MockExecutorRepository) GetExecutorSettings(ctx *armadacontext.Context)
 func (mr *MockExecutorRepositoryMockRecorder) GetExecutorSettings(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutorSettings", reflect.TypeOf((*MockExecutorRepository)(nil).GetExecutorSettings), ctx)
+}
+
+// GetExecutorSettingsByID mocks base method.
+func (m *MockExecutorRepository) GetExecutorSettingsByID(ctx *armadacontext.Context, id string) (*schedulerobjects.ExecutorSettings, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExecutorSettingsByID", ctx, id)
+	ret0, _ := ret[0].(*schedulerobjects.ExecutorSettings)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExecutorSettingsByID indicates an expected call of GetExecutorSettingsByID.
+func (mr *MockExecutorRepositoryMockRecorder) GetExecutorSettingsByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutorSettingsByID", reflect.TypeOf((*MockExecutorRepository)(nil).GetExecutorSettingsByID), ctx, id)
 }
 
 // GetExecutors mocks base method.

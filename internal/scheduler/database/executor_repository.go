@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
@@ -17,8 +18,12 @@ import (
 type ExecutorRepository interface {
 	// GetExecutors returns all known executors, regardless of their last heartbeat time
 	GetExecutors(ctx *armadacontext.Context) ([]*schedulerobjects.Executor, error)
+	// GetExecutor returns the executor with the given id, or nil if there is no such executor
+	GetExecutor(ctx *armadacontext.Context, id string) (*schedulerobjects.Executor, error)
 	// GetExecutorSettings returns all defined executor settings
 	GetExecutorSettings(ctx *armadacontext.Context) ([]*schedulerobjects.ExecutorSettings, error)
+	// GetExecutorSettingsByID returns the settings of the executor with the given id, or nil if it has none
+	GetExecutorSettingsByID(ctx *armadacontext.Context, id string) (*schedulerobjects.ExecutorSettings, error)
 	// GetLastUpdateTimes returns a map of executor name -> last heartbeat time
 	GetLastUpdateTimes(ctx *armadacontext.Context) (map[string]time.Time, error)
 	// StoreExecutor persists the latest executor state
@@ -59,6 +64,23 @@ func (r *PostgresExecutorRepository) GetExecutors(ctx *armadacontext.Context) ([
 		executors[i] = executor
 	}
 	return executors, nil
+}
+
+// GetExecutor returns the executor with the given id, or nil if there is no such executor.
+func (r *PostgresExecutorRepository) GetExecutor(ctx *armadacontext.Context, id string) (*schedulerobjects.Executor, error) {
+	queries := New(r.db)
+	request, err := queries.SelectExecutorByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, errors.WithStack(err)
+	}
+	executor := &schedulerobjects.Executor{}
+	if err := decompressAndMarshall(request.LastRequest, r.decompressor, executor); err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return executor, nil
 }
 
 // GetLastUpdateTimes returns a map of executor name -> last heartbeat time
@@ -116,6 +138,25 @@ func (r *PostgresExecutorRepository) GetExecutorSettings(ctx *armadacontext.Cont
 		executorSettings[i] = settings
 	}
 	return executorSettings, nil
+}
+
+// GetExecutorSettingsByID returns the settings of the executor with the given id, or nil if it has none.
+func (r *PostgresExecutorRepository) GetExecutorSettingsByID(ctx *armadacontext.Context, id string) (*schedulerobjects.ExecutorSettings, error) {
+	queries := New(r.db)
+	result, err := queries.SelectExecutorSettingsByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, errors.WithStack(err)
+	}
+	return &schedulerobjects.ExecutorSettings{
+		ExecutorId:   result.ExecutorID,
+		Cordoned:     result.Cordoned,
+		CordonReason: result.CordonReason,
+		SetByUser:    result.SetByUser,
+		SetAtTime:    protoutil.ToTimestamp(result.SetAtTime),
+	}, nil
 }
 
 func decompressAndMarshall(b []byte, decompressor compress.Decompressor, msg proto.Message) error {

@@ -58,13 +58,15 @@ func getCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get",
 		Short: "Retrieve information about armada resource",
-		Long:  "Retrieve information about armada resource. Supported: queue, queues, scheduling-report, queue-report, job-report",
+		Long:  "Retrieve information about armada resource. Supported: queue, queues, executor, executors, scheduling-report, queue-report, job-report",
 	}
 	cmd.AddCommand(
 		queueGetCmd(),
 		queuesGetCmd(),
 		retryPolicyGetCmd(),
 		retryPolicyGetAllCmd(),
+		executorGetCmd(),
+		executorsGetCmd(),
 		getSchedulingReportCmd(armadactl.New()),
 		getQueueSchedulingReportCmd(armadactl.New()),
 		getJobSchedulingReportCmd(armadactl.New()),

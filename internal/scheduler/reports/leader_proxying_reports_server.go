@@ -62,6 +62,12 @@ func (s *LeaderProxyingSchedulingReportsServer) GetJobReport(ctx context.Context
 	return leaderClient.GetJobReport(ctx, request)
 }
 
+// GetExecutors is always served locally. Executors are read from the scheduler database, which every
+// scheduler replica can reach, so there is no need to go through the leader.
+func (s *LeaderProxyingSchedulingReportsServer) GetExecutors(ctx context.Context, request *schedulerobjects.ExecutorsRequest) (*schedulerobjects.ExecutorsResponse, error) {
+	return s.localReportsServer.GetExecutors(ctx, request)
+}
+
 type reportingClientProvider interface {
 	GetSchedulerReportingClient(conn *grpc.ClientConn) schedulerobjects.SchedulerReportingClient
 }

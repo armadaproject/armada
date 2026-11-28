@@ -35,6 +35,12 @@ func (s *ProxyingSchedulingReportsServer) GetJobReport(ctx context.Context, requ
 	return s.client.GetJobReport(ctx, request)
 }
 
+func (s *ProxyingSchedulingReportsServer) GetExecutors(ctx context.Context, request *schedulerobjects.ExecutorsRequest) (*schedulerobjects.ExecutorsResponse, error) {
+	ctx, cancel := reduceTimeout(ctx)
+	defer cancel()
+	return s.client.GetExecutors(ctx, request)
+}
+
 // We reduce the context deadline here, to prevent our call and the caller who called us from timing out at the same time
 // This should mean our caller gets the real error message rather than a generic timeout error from client side
 func reduceTimeout(ctx context.Context) (context.Context, context.CancelFunc) {

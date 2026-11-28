@@ -22,6 +22,37 @@ func SwaggerJsonTemplate() string {
 		"    \"version\": \"version not set\"\n" +
 		"  },\n" +
 		"  \"paths\": {\n" +
+		"    \"/v1/executors\": {\n" +
+		"      \"get\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"SchedulerReporting\"\n" +
+		"        ],\n" +
+		"        \"summary\": \"Return the executors known to the scheduler along with their cordon state.\",\n" +
+		"        \"operationId\": \"GetExecutors\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"type\": \"string\",\n" +
+		"            \"description\": \"If set, only the executor with this name is returned.\",\n" +
+		"            \"name\": \"name\",\n" +
+		"            \"in\": \"query\"\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/schedulerobjectsExecutorsResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"/v1/job/{jobId}/scheduler-report\": {\n" +
 		"      \"get\": {\n" +
 		"        \"tags\": [\n" +
@@ -163,6 +194,48 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"message\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"schedulerobjectsExecutorSummary\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"cordonReason\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"cordoned\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"cordonedBy\": {\n" +
+		"          \"description\": \"User who cordoned the executor. Only set while it is cordoned.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"lastUpdateTime\": {\n" +
+		"          \"description\": \"Last time the executor sent a heartbeat to the scheduler.\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"nodeCount\": {\n" +
+		"          \"description\": \"Number of nodes the executor reported in its last heartbeat.\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
+		"        \"pool\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"schedulerobjectsExecutorsResponse\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"executors\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/schedulerobjectsExecutorSummary\"\n" +
+		"          }\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

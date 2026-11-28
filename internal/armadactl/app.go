@@ -72,6 +72,7 @@ type ExecutorAPI struct {
 	CancelOnExecutor  executor.CancelAPI
 	PreemptOnExecutor executor.PreemptAPI
 	Delete            executor.DeleteAPI
+	Get               executor.GetAPI
 }
 
 type RetryPolicyAPI struct {

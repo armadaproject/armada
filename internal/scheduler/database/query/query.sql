@@ -98,6 +98,12 @@ SELECT * FROM job_run_errors;
 -- name: SelectAllExecutors :many
 SELECT * FROM executors;
 
+-- name: SelectExecutorByID :one
+SELECT * FROM executors WHERE executor_id = @executor_id::text;
+
+-- name: SelectExecutorSettingsByID :one
+SELECT executor_id, cordoned, cordon_reason, set_by_user, set_at_time FROM executor_settings WHERE executor_id = @executor_id::text;
+
 -- name: SelectExecutorUpdateTimes :many
 SELECT executor_id, last_updated FROM executors;
 
