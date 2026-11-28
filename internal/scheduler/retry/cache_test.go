@@ -16,14 +16,15 @@ import (
 
 func TestApiPolicyCache_Fetch(t *testing.T) {
 	tests := map[string][]struct {
-		policies []*api.RetryPolicy
-		apiErr   error
-		wantErr  bool
-		served   []string
-		missing  []string
+		policies  []*api.RetryPolicy
+		apiErr    error
+		wantErr   bool
+		served    []string
+		missing   []string
+		notLoaded bool
 	}{
 		"fetch error then success": {
-			{apiErr: errors.New("api unavailable"), wantErr: true, missing: []string{"test"}},
+			{apiErr: errors.New("api unavailable"), wantErr: true, missing: []string{"test"}, notLoaded: true},
 			{policies: []*api.RetryPolicy{
 				{Name: "test", DefaultAction: api.RetryAction_RETRY_ACTION_RETRY},
 			}, served: []string{"test"}},
@@ -33,7 +34,7 @@ func TestApiPolicyCache_Fetch(t *testing.T) {
 			{policies: []*api.RetryPolicy{
 				{Name: "bad-1", DefaultAction: api.RetryAction_RETRY_ACTION_UNSPECIFIED},
 				{Name: "bad-2", DefaultAction: api.RetryAction_RETRY_ACTION_UNSPECIFIED},
-			}, wantErr: true, missing: []string{"bad-1", "bad-2"}},
+			}, wantErr: true, missing: []string{"bad-1", "bad-2"}, notLoaded: true},
 		},
 		"mixed valid and invalid serves only the valid": {
 			{policies: []*api.RetryPolicy{
@@ -72,13 +73,15 @@ func TestApiPolicyCache_Fetch(t *testing.T) {
 				} else {
 					require.NoError(t, err, "step %d: fetch must succeed", i)
 				}
+				policies, err := cache.All()
+				assert.Equal(t, s.notLoaded, err != nil, "step %d: All must fail only before the first successful fetch", i)
 				for _, policyName := range s.served {
-					policy, ok := cache.Get(policyName)
+					policy, ok := policies[policyName]
 					require.True(t, ok, "step %d: policy %q must be served", i, policyName)
 					assert.Equal(t, policyName, policy.Name)
 				}
 				for _, policyName := range s.missing {
-					_, ok := cache.Get(policyName)
+					_, ok := policies[policyName]
 					assert.False(t, ok, "step %d: policy %q must not be served", i, policyName)
 				}
 			}
