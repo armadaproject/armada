@@ -78,7 +78,7 @@ func migrate(ctx *armadacontext.Context, config configuration.LookoutConfig) {
 		panic(err)
 	}
 
-	err = database.UpdateDatabase(ctx, db, migrations)
+	err = lookoutschema.UpdateDatabase(ctx, db, migrations)
 	if err != nil {
 		panic(err)
 	}
