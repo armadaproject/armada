@@ -20,7 +20,10 @@ var mergedConfigFiles []string
 // path to config file, as given by viper flags
 var cfgFile string
 
-var defaultArmadaConnectionUrl string = "localhost:50051"
+var (
+	defaultArmadaConnectionUrl string = "localhost:50051"
+	defaultLookoutUrl          string = "localhost:8089"
+)
 
 // AddArmadaApiConnectionCommandlineArgs adds command-line flags to a cobra command.
 // Arguments given via these flags are later used by LoadCommandlineArgsFromConfigFile.
@@ -35,6 +38,18 @@ func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
 
 	rootCmd.PersistentFlags().String("armadaUrl", defaultArmadaConnectionUrl, "specify armada server url")
 	err = viper.BindPFlag("armadaUrl", rootCmd.PersistentFlags().Lookup("armadaUrl"))
+	if err != nil {
+		panic(err)
+	}
+
+	rootCmd.PersistentFlags().String("lookoutUrl", defaultLookoutUrl, "specify lookout url, used by the commands that query Lookout")
+	err = viper.BindPFlag("lookoutUrl", rootCmd.PersistentFlags().Lookup("lookoutUrl"))
+	if err != nil {
+		panic(err)
+	}
+
+	rootCmd.PersistentFlags().Duration("lookoutTimeout", 0, "how long to wait for Lookout to answer a request, e.g. 90s (default 1m)")
+	err = viper.BindPFlag("lookoutTimeout", rootCmd.PersistentFlags().Lookup("lookoutTimeout"))
 	if err != nil {
 		panic(err)
 	}
@@ -198,6 +213,15 @@ func ExtractCommandlineArmadaApiConnectionDetails() (*ApiConnectionDetails, erro
 		err = subTree.Unmarshal(apiConnectionDetails)
 		if viper.GetString("armadaUrl") != defaultArmadaConnectionUrl {
 			apiConnectionDetails.ArmadaUrl = viper.GetString("armadaUrl")
+		}
+		// The flag has a default, so only an explicit --lookoutUrl replaces the context's saved url. The default
+		// still applies to a context that has none. viper.IsSet is false for a flag that has not been passed.
+		if viper.IsSet("lookoutUrl") || apiConnectionDetails.LookoutUrl == "" {
+			apiConnectionDetails.LookoutUrl = viper.GetString("lookoutUrl")
+		}
+		// The flag defaults to zero, which means the default timeout, so it only replaces the context's when passed.
+		if viper.IsSet("lookoutTimeout") {
+			apiConnectionDetails.LookoutTimeout = viper.GetDuration("lookoutTimeout")
 		}
 
 	} else {
