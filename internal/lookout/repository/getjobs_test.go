@@ -2903,3 +2903,41 @@ func TestGetJobsIncludesIngressAddresses(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestGetJobsPagingWithEqualValues(t *testing.T) {
+	err := withGetJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGetJobsRepository, testClock *clock.FakeClock) error {
+		nJobs := 100
+		for i := 0; i < nJobs; i++ {
+			NewJobSimulatorWithClock(converter, store, testClock).
+				Submit(fmt.Sprintf("queue-%d", i%2), jobSet, owner, namespace, baseTime, basicJobOpts).
+				Build().
+				Job()
+		}
+
+		// Many jobs have the same queue and state; every page must still be
+		// distinct, and together the pages must contain every job.
+		for _, field := range []string{"queue", "state"} {
+			t.Run(field, func(t *testing.T) {
+				seen := map[string]bool{}
+				for skip := 0; skip < nJobs; skip += 10 {
+					result, err := repo.GetJobs(
+						armadacontext.TODO(),
+						[]*model.Filter{},
+						false,
+						&model.Order{Field: field, Direction: model.DirectionAsc},
+						skip,
+						10,
+					)
+					require.NoError(t, err)
+					for _, job := range result.Jobs {
+						assert.False(t, seen[job.JobId], "job %s returned twice", job.JobId)
+						seen[job.JobId] = true
+					}
+				}
+				assert.Len(t, seen, nJobs)
+			})
+		}
+		return nil
+	})
+	require.NoError(t, err)
+}

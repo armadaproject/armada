@@ -83,6 +83,41 @@ func TestGroupByQueue(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGroupByPagingWithEqualCounts(t *testing.T) {
+	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
+		nQueues := 120
+		for i := 0; i < nQueues; i++ {
+			NewJobSimulator(converter, store).
+				Submit(fmt.Sprintf("queue-%d", i), jobSet, owner, namespace, baseTime, basicJobOpts).
+				Build()
+		}
+
+		// Every group has a count of 1; every page must still be distinct, and
+		// together the pages must contain every group.
+		seen := map[string]bool{}
+		for skip := 0; skip < nQueues; skip += 10 {
+			result, err := repo.GroupBy(
+				armadacontext.TODO(),
+				[]*model.Filter{},
+				false,
+				&model.Order{Field: "count", Direction: "DESC"},
+				&model.GroupedField{Field: "queue"},
+				[]string{},
+				skip,
+				10,
+			)
+			require.NoError(t, err)
+			for _, group := range result.Groups {
+				assert.False(t, seen[group.Name], "group %s returned twice", group.Name)
+				seen[group.Name] = true
+			}
+		}
+		assert.Len(t, seen, nQueues)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestGroupByJobSet(t *testing.T) {
 	err := withGroupJobsSetup(func(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb, repo *SqlGroupJobsRepository) error {
 		manyJobs(10, &createJobsOpts{

@@ -303,7 +303,7 @@ func (qb *QueryBuilder) GroupBy(
 		return nil, err
 	}
 
-	orderBy, err := qb.groupByOrderSql(order)
+	orderBy, err := qb.groupByOrderSql(order, groupByColumn)
 	if err != nil {
 		return nil, err
 	}
@@ -622,7 +622,12 @@ func (qb *QueryBuilder) makeOrderBy(order *model.Order) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("ORDER BY %s.%s %s", tableAbbrev, column, order.Direction), nil
+	if column == jobIdCol {
+		return fmt.Sprintf("ORDER BY %s.%s %s", tableAbbrev, column, order.Direction), nil
+	}
+	// Break ties with the job ID, so that jobs with equal values are always in the
+	// same order and paging with skip and take doesn't repeat or leave out any.
+	return fmt.Sprintf("ORDER BY %s.%s %s, %s.%s %s", tableAbbrev, column, order.Direction, jobTableAbbrev, jobIdCol, order.Direction), nil
 }
 
 func operatorForMatch(match string) (string, error) {
@@ -748,18 +753,21 @@ func (qb *QueryBuilder) getAggregatesSql(aggregators []QueryAggregator) (string,
 	return strings.Join(selectList, ", "), nil
 }
 
-func (qb *QueryBuilder) groupByOrderSql(order *model.Order) (string, error) {
+func (qb *QueryBuilder) groupByOrderSql(order *model.Order, groupByColumn queryColumn) (string, error) {
 	if orderIsNull(order) {
 		return "", nil
 	}
-	if order.Field == countCol {
-		return fmt.Sprintf("ORDER BY %s %s", countCol, order.Direction), nil
+	col := countCol
+	if order.Field != countCol {
+		var err error
+		col, err = qb.lookoutTables.ColumnFromField(order.Field)
+		if err != nil {
+			return "", err
+		}
 	}
-	col, err := qb.lookoutTables.ColumnFromField(order.Field)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("ORDER BY %s %s", col, order.Direction), nil
+	// Break ties with the grouped column, which is unique per group, so that
+	// paging with skip and take doesn't repeat or leave out any groups.
+	return fmt.Sprintf("ORDER BY %s %s, %s.%s %s", col, order.Direction, groupByColumn.abbrev, groupByColumn.name, order.Direction), nil
 }
 
 func limitOffsetSql(skip, take int) string {
