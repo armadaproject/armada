@@ -6,6 +6,7 @@ import (
 	"github.com/armadaproject/armada/internal/armadactl"
 	"github.com/armadaproject/armada/pkg/client"
 	ce "github.com/armadaproject/armada/pkg/client/executor"
+	cj "github.com/armadaproject/armada/pkg/client/job"
 	cn "github.com/armadaproject/armada/pkg/client/node"
 	cq "github.com/armadaproject/armada/pkg/client/queue"
 	crp "github.com/armadaproject/armada/pkg/client/retrypolicy"
@@ -39,6 +40,9 @@ func initParams(cmd *cobra.Command, params *armadactl.Params) error {
 	params.RetryPolicyAPI.Get = crp.Get(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.RetryPolicyAPI.GetAll = crp.GetAll(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.RetryPolicyAPI.Update = crp.Update(client.ExtractCommandlineArmadaApiConnectionDetails)
+
+	params.JobAPI.Get = cj.Get(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.JobAPI.List = cj.List(client.ExtractCommandlineArmadaApiConnectionDetails)
 
 	params.ExecutorAPI.Cordon = ce.CordonExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.ExecutorAPI.Uncordon = ce.UncordonExecutor(client.ExtractCommandlineArmadaApiConnectionDetails)
