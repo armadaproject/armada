@@ -48,9 +48,39 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Go
+        id: setup-go
         uses: ./.github/actions/setup-go-cache
         with:
           cache-prefix: go-unit-tests
+          cache-build: "false"
+
+      - name: Compute unit Go build cache keys
+        id: unit-cache-key
+        shell: bash
+        env:
+          GO_VERSION: ${{ steps.setup-go.outputs.go-version }}
+          GO_SUM_HASH: ${{ hashFiles('go.sum') }}
+        run: |
+          : "${GO_VERSION:?}" "${GO_SUM_HASH:?}"
+          day=$((24 * 60 * 60))
+          period=$((3 * day))
+          now=$(date -u +%s)
+          bucket=$((now / period))
+          prefix="go-unit-tests-refresh-v1-${RUNNER_OS}-${RUNNER_ARCH}-go-${GO_VERSION}-mod-${GO_SUM_HASH}"
+          echo "current=${prefix}-utc3d-${bucket}-cache" >> "$GITHUB_OUTPUT"
+          # Keep a previous bucket eligible for at most five days from its start.
+          if (( now % period < 2 * day )); then
+            echo "previous=${prefix}-utc3d-$((bucket - 1))-cache" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore unit Go build cache
+        id: unit-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ steps.setup-go.outputs.build-cache-path }}
+          key: ${{ steps.unit-cache-key.outputs.current }}
+          # Seed each bucket on master with fresh build entries.
+          restore-keys: ${{ github.event_name == 'pull_request' && steps.unit-cache-key.outputs.previous || '' }}
 
       - name: Unit Tests
         id: unit_test
@@ -63,6 +93,18 @@ jobs:
           name: go-unit-test-reports
           path: test-reports/
           if-no-files-found: error
+
+      - name: Save unit Go build cache
+        if: >-
+          success() && github.repository == 'armadaproject/armada' &&
+          github.ref == 'refs/heads/master' &&
+          (github.event_name == 'push' || github.event_name == 'schedule') &&
+          steps.unit-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ steps.setup-go.outputs.build-cache-path }}
+          key: ${{ steps.unit-cache-key.outputs.current }}
 
   executor-service-race-tests:
     name: Executor Service Race Tests
