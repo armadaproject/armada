@@ -40,18 +40,24 @@ func makeLocalBin() error {
 	return nil
 }
 
-// Gotestsum downloads gotestsum locally if necessary
+const (
+	gotestsumModule  = "gotest.tools/gotestsum"
+	gotestsumVersion = "v1.13.0"
+)
+
+// gotestsum ensures that tests use the pinned gotestsum binary.
 func gotestsum() error {
 	mg.Deps(makeLocalBin)
-	Gotestsum = filepath.Join(LocalBin, "/gotestsum")
-
-	if _, err := os.Stat(Gotestsum); os.IsNotExist(err) {
-		fmt.Println(Gotestsum)
-		cmd := exec.Command("go", "install", "gotest.tools/gotestsum@v1.8.2")
-		cmd.Env = append(os.Environ(), "GOBIN="+LocalBin)
-		return cmd.Run()
-
+	binDir := filepath.Join(LocalBin, "gotestsum-"+gotestsumVersion)
+	binary := filepath.Join(binDir, binaryWithExt("gotestsum"))
+	if _, err := os.Stat(binary); os.IsNotExist(err) {
+		if err := installDependency(binDir, gotestsumModule, gotestsumVersion); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
 	}
+	Gotestsum = binary
 	return nil
 }
 

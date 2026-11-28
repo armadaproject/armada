@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query"
 import { render, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { http, HttpResponse } from "msw"
 import { SnackbarProvider } from "notistack"
 
 import { queryClient } from "../../../../app/App"
@@ -12,6 +13,7 @@ import { MockServer } from "../../../../services/lookout/mocks/mockServer"
 import { Sidebar } from "./Sidebar"
 
 const mockServer = new MockServer()
+const schedulerTerminationReasonEndpoint = "/api/v1/jobRunSchedulerTerminationReason"
 
 describe("Sidebar", () => {
   let job: Job, onClose: () => undefined
@@ -43,7 +45,12 @@ describe("Sidebar", () => {
       ],
     )
     mockServer.setPostJobRunErrorResponseForRunId("1234-5678", "job run error")
-    mockServer.setPostJobRunDebugMessageResponseForRunId("1234-5678", "job run debug message")
+    mockServer.setPostJobRunDebugMessageResponseForRunId("1234-5678", { errorString: "job run debug message" })
+    mockServer.use(
+      http.post(schedulerTerminationReasonEndpoint, () =>
+        HttpResponse.json({ error: "No scheduler termination reason found for run" }, { status: 400 }),
+      ),
+    )
     mockServer.setPostJobSpecResponse({
       // eslint-disable-next-line @cspell/spellchecker
       clientId: "01gvgjbr0jrzvschp2f8jhk6n5",
@@ -83,7 +90,9 @@ describe("Sidebar", () => {
   })
 
   afterEach(() => {
-    mockServer.reset()
+    mockServer.resetHandlers()
+    // The query client is shared across tests, so drop what one test fetched before the next test asks again
+    queryClient.clear()
   })
 
   afterAll(() => {
@@ -125,9 +134,20 @@ describe("Sidebar", () => {
   })
 
   it("should handle runs with errors", async () => {
-    const { getByRole } = renderComponent()
     const run = job.runs[0]
     run.exitCode = 137
+    run.jobRunState = JobRunState.RunPreempted
+
+    const reason = "Job preempted to reclaim queue capacity"
+    mockServer.use(
+      http.post<object, { runId: string }>(schedulerTerminationReasonEndpoint, async ({ request }) => {
+        const { runId } = await request.json()
+        if (runId === run.runId) {
+          return HttpResponse.json({ schedulerTerminationReason: JSON.stringify({ reason }) })
+        }
+      }),
+    )
+    const { getByRole, findByRole, findByText } = renderComponent()
 
     // Switch to runs tab
     await userEvent.click(getByRole("tab", { name: /Result/ }))
@@ -135,6 +155,82 @@ describe("Sidebar", () => {
     // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
     within(getByRole("row", { name: /Exit code/ })).getByText(137)
+
+    await userEvent.click(await findByRole("button", { name: "Scheduler Termination Reason" }))
+    const reasonCode = await findByText(
+      (_, element) => element?.textContent?.includes(JSON.stringify(reason)) ?? false,
+      {
+        selector: "code",
+      },
+    )
+    expect(reasonCode).toBeVisible()
+  })
+
+  it("should show the pod events table when the run has structured debug info", async () => {
+    mockServer.setPostJobRunDebugMessageResponseForRunId("1234-5678", {
+      errorString: "{}",
+      debugInfo: {
+        schemaVersion: 1,
+        trigger: "cancelledNotStarted",
+        pod: {
+          events: [
+            {
+              type: "Warning",
+              reason: "FailedMount",
+              from: "kubelet",
+              message: "MountVolume.SetUp failed",
+              timestamp: "2026-11-03T18:59:35Z",
+            },
+          ],
+        },
+        node: { name: "node-1", _exists: false },
+      },
+    })
+    const { getByRole, findByRole } = renderComponent()
+
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
+    await userEvent.click(await findByRole("button", { name: "Debug" }))
+
+    const eventsTable = await findByRole("table", { name: "Pod events" })
+    // The time is shown with the user's timestamp settings, like the run's own times, so only the year is stable here
+    within(eventsTable).getByRole("row", { name: /Warning.*FailedMount.*2026.*kubelet.*MountVolume.SetUp failed/ })
+
+    // A field the generated model renames (exists -> _exists) must survive the trip through the mocked API
+    await userEvent.click(getByRole("button", { name: "Node" }))
+    within(await findByRole("row", { name: /Exists/ })).getByText("false")
+  })
+
+  it("should show an unstructured debug message as text", async () => {
+    const { getByRole, findByRole, findByText, queryByRole } = renderComponent()
+
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
+    await userEvent.click(await findByRole("button", { name: "Debug" }))
+
+    expect(await findByText("job run debug message")).toBeInTheDocument()
+    expect(queryByRole("table", { name: "Pod events" })).toBeNull()
+  })
+
+  it("should display the run error", async () => {
+    const run = job.runs[0]
+    job.state = JobState.Queued
+    run.jobRunState = JobRunState.RunFailed
+
+    const runError = "Container exceeded its memory limit"
+    mockServer.setPostJobRunErrorResponseForRunId(run.runId, runError)
+    mockServer.use(
+      http.post("/api/v1/jobRunSchedulerTerminationReason", () =>
+        HttpResponse.json({ error: "No scheduler termination reason found for run" }, { status: 400 }),
+      ),
+    )
+    const { getByRole, findByRole, findByText } = renderComponent()
+
+    await userEvent.click(getByRole("tab", { name: /Result/ }))
+    await userEvent.click(await findByRole("button", { name: "Error" }))
+
+    const runErrorCode = await findByText((_, element) => element?.textContent === runError, {
+      selector: '[role="region"] code',
+    })
+    expect(runErrorCode).toBeVisible()
   })
 
   it("should handle no runs", async () => {

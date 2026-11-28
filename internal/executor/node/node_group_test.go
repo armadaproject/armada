@@ -303,6 +303,16 @@ func TestFilterAvailableProcessingNodes_IsTrue_NodeWithWellKnownTaint(t *testing
 	assert.True(t, nodeInfoService.IsAvailableProcessingNode(&node))
 }
 
+func TestNewWellKnownTaints_RejectsInvalidTaintPattern(t *testing.T) {
+	config := configuration.KubernetesConfiguration{
+		TaintCategorisation: configuration.TaintCategorisationConfiguration{
+			WellKnownTaints: configuration.WellKnownTaintsConfiguration{Keys: []string{"["}},
+		},
+	}
+	_, err := config.NewWellKnownTaints()
+	require.Error(t, err)
+}
+
 func TestFilterAvailableProcessingNodes_LegacyToleratedTaintsAreLiteral(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
 	nodeInfoService := NewKubernetesNodeInfoService(context,
@@ -311,20 +321,19 @@ func TestFilterAvailableProcessingNodes_LegacyToleratedTaintsAreLiteral(t *testi
 		reservedNodePoolSuffix,
 		mustWellKnownTaints(t, []string{"example.com/dedicated"}, configuration.WellKnownTaintsConfiguration{}))
 
-	for _, tc := range []struct {
-		key       string
+	for key, tc := range map[string]struct {
 		available bool
 	}{
-		{key: "example.com/dedicated", available: true},
-		{key: "exampleXcom/dedicated"},
-		{key: "prefix-example.com/dedicated"},
-		{key: "example.com/dedicated-extra"},
-		{key: constants.ReservationTaintKey, available: true},
-		{key: "prefix-" + constants.ReservationTaintKey},
-		{key: constants.ReservationTaintKey + "-extra"},
+		"example.com/dedicated":                   {available: true},
+		"exampleXcom/dedicated":                   {},
+		"prefix-example.com/dedicated":            {},
+		"example.com/dedicated-extra":             {},
+		constants.ReservationTaintKey:             {available: true},
+		"prefix-" + constants.ReservationTaintKey: {},
+		constants.ReservationTaintKey + "-extra":  {},
 	} {
-		t.Run(tc.key, func(t *testing.T) {
-			node := v1.Node{Spec: v1.NodeSpec{Taints: []v1.Taint{{Key: tc.key, Effect: v1.TaintEffectNoSchedule}}}}
+		t.Run(key, func(t *testing.T) {
+			node := v1.Node{Spec: v1.NodeSpec{Taints: []v1.Taint{{Key: key, Effect: v1.TaintEffectNoSchedule}}}}
 			assert.Equal(t, tc.available, nodeInfoService.IsAvailableProcessingNode(&node))
 		})
 	}
@@ -370,10 +379,11 @@ func createNodeWithTaints(nodeName string, taintNames ...string) *v1.Node {
 
 func mustWellKnownTaints(t *testing.T, toleratedTaints []string, wellKnownTaints configuration.WellKnownTaintsConfiguration) *configuration.WellKnownTaints {
 	t.Helper()
-	result, err := (configuration.KubernetesConfiguration{
+	config := configuration.KubernetesConfiguration{
 		ToleratedTaints:     toleratedTaints,
 		TaintCategorisation: configuration.TaintCategorisationConfiguration{WellKnownTaints: wellKnownTaints},
-	}).NewWellKnownTaints()
+	}
+	matcher, err := config.NewWellKnownTaints()
 	require.NoError(t, err)
-	return result
+	return matcher
 }

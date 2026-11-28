@@ -124,11 +124,11 @@ func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
 func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 	queues, err := srv.queueCache.GetAll(ctx)
 	if err != nil {
-		return fmt.Errorf("failed fetching queues from queue cache - %s", err)
+		return fmt.Errorf("failed fetching queues from queue cache - %w", err)
 	}
 	executors, err := srv.executorRepository.GetExecutors(ctx)
 	if err != nil {
-		return fmt.Errorf("failed fetching executors from db - %s", err)
+		return fmt.Errorf("failed fetching executors from db - %w", err)
 	}
 
 	ctx.Infof("Retrieved %d executors", len(executors))
@@ -178,7 +178,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) error {
 
 		nodeDb, err := scheduling.ConstructNodeDb(nodeDbConfig, srv.resourceListFactory, srv.schedulingConfig.PriorityClasses, pool, nil, nil, poolNodes)
 		if err != nil {
-			return fmt.Errorf("failed constructing nodedb for pool %s - %s", pool.Name, err)
+			return fmt.Errorf("failed constructing nodedb for pool %s - %w", pool.Name, err)
 		}
 
 		nodeDbByPool[pool.Name] = nodeDb
@@ -310,9 +310,14 @@ func (srv *SubmitChecker) getSchedulingResult(originalGangCtx *context.GangSched
 		sb.WriteString(fmt.Sprintf("pool %s:\n", pool.Name))
 
 		if originalGangCtx.RequestsFloatingResources {
-			rr := originalGangCtx.TotalResourceRequests
-			if ok, reason := srv.floatingResourceTypes.WithinLimits(pool.Name, rr); !ok {
-				sb.WriteString(fmt.Sprintf("job/gang requests floating resources %s but %s\n", rr.OfType(internaltypes.Floating).String(), reason))
+			resourceRequests := originalGangCtx.TotalResourceRequests
+			if ok, reason := srv.floatingResourceTypes.IsConfiguredForPool(pool.Name, resourceRequests); !ok {
+				sb.WriteString(fmt.Sprintf("job/gang requests floating resources %s but %s\n", resourceRequests.OfType(internaltypes.Floating).String(), reason))
+				sb.WriteString("\n---\n")
+				continue
+			}
+			if ok, reason, _ := srv.floatingResourceTypes.WithinLimits(pool.Name, resourceRequests); !ok {
+				sb.WriteString(fmt.Sprintf("job/gang requests floating resources %s but %s\n", resourceRequests.OfType(internaltypes.Floating).String(), reason))
 				sb.WriteString("\n---\n")
 				continue
 			}

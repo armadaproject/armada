@@ -48,9 +48,9 @@ type QueueSchedulingContext struct {
 	// Total demand from this queue.  This is essentially the cumulative resources of all non-terminal jobs at the
 	// start of the scheduling cycle
 	Demand internaltypes.ResourceList
-	// Constrained demand for this queue. This differs from Demand in that it takes into account any constraints that we have
-	// placed on the queue
-	ConstrainedDemand internaltypes.ResourceList
+	// ConstrainedDemandByPriorityClass is the constrained demand for this queue, by priority class. This differs from
+	// Demand in that it takes into account any constraints that we have placed on the queue.
+	ConstrainedDemandByPriorityClass map[string]internaltypes.ResourceList
 	// Fair share is the weight of this queue over the sum of the weights of all queues
 	FairShare float64
 	// UncappedAdjustedFairShare includes not only this queue's fairshare, but also this queue's share of any unused fairshare from other queues. It's

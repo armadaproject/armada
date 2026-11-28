@@ -1,4 +1,5 @@
 import { BinocularsLogLine } from "../../../openapi/binoculars"
+import { JobRunDebugMessage, PodDebugInfo, PodDebugInfoToJSON } from "../../../openapi/lookout"
 
 const twoSecondsAgo = new Date(Date.now() - 1000 * 2)
 const twoMinutesAgo = new Date(Date.now() - 1000 * 60 * 2)
@@ -125,6 +126,69 @@ export const fakeRunError =
   "    ... 54 more"
 /* eslint-enable @cspell/spellchecker */
 
-export const fakeRunDebugMessage = "Failed to pull image from registry: RateLimitExceeded"
+const secondsAgo = (seconds: number) => new Date(Date.now() - 1000 * seconds).toISOString()
+
+const fakeRunDebugInfo: PodDebugInfo = {
+  schemaVersion: 1,
+  trigger: "cancelledNotStarted",
+  pod: {
+    phase: "Pending",
+    restartPolicy: "Never",
+    containers: [{ name: "main", state: "waiting", reason: "ImagePullBackOff" }],
+    events: [
+      {
+        type: "Normal",
+        reason: "Scheduled",
+        from: "default-scheduler",
+        message: "Successfully assigned default/armada-fake-0 to fake-node-1",
+        timestamp: secondsAgo(90),
+      },
+      {
+        type: "Normal",
+        reason: "Pulling",
+        from: "kubelet",
+        message: 'Pulling image "registry.example.com/fake:latest"',
+        timestamp: secondsAgo(88),
+      },
+      {
+        type: "Warning",
+        reason: "Failed",
+        from: "kubelet",
+        message: "Failed to pull image from registry: RateLimitExceeded",
+        timestamp: secondsAgo(85),
+      },
+      {
+        type: "Warning",
+        reason: "Failed",
+        from: "kubelet",
+        message: "Error: ImagePullBackOff",
+        timestamp: secondsAgo(60),
+      },
+    ],
+  },
+  node: {
+    name: "fake-node-1",
+    _exists: true,
+    unschedulable: false,
+    ready: "True",
+    readyReason: "KubeletReady",
+    conditions: [{ type: "Ready", status: "True", reason: "KubeletReady", message: "kubelet is posting ready status" }],
+    events: [
+      {
+        type: "Normal",
+        reason: "NodeReady",
+        from: "kubelet",
+        message: "Node fake-node-1 status is now: NodeReady",
+        timestamp: secondsAgo(3600),
+      },
+    ],
+  },
+}
+
+// Shaped like the API's response: the raw message exactly as stored, and the same data parsed
+export const fakeRunDebugMessage: JobRunDebugMessage = {
+  errorString: JSON.stringify(PodDebugInfoToJSON(fakeRunDebugInfo)),
+  debugInfo: fakeRunDebugInfo,
+}
 
 export const fakeJobError = "something has gone wrong with this job"

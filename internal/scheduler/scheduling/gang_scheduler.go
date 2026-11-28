@@ -140,8 +140,17 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *context.Gan
 		}
 	}
 
-	if ok, unschedulableReason = sch.schedulingContext.IsWithinFloatingResourceLimits(gctx, sch.floatingResourceTypes); !ok {
-		return ok, unschedulableReason, err
+	withinLimits, reason, exceededFloatingResource := sch.schedulingContext.IsWithinFloatingResourceLimits(gctx, sch.floatingResourceTypes)
+	if !withinLimits {
+		// Evicted jobs that exceed a floating resource limit can't be re-scheduled this round, so will be preempted.
+		if exceededFloatingResource != "" {
+			for _, jctx := range gctx.JobSchedulingContexts {
+				if jctx.IsEvicted {
+					setFloatingResourceLimitPreemption(jctx, sch.schedulingContext.Pool, exceededFloatingResource)
+				}
+			}
+		}
+		return false, reason, err
 	}
 
 	return sch.trySchedule(ctx, gctx)

@@ -14,6 +14,9 @@ import (
 // Logger wraps a zerolog.Logger so that the rest of the code doesn't depend directly on zerolog
 type Logger struct {
 	underlying zerolog.Logger
+	// skipCount is the number of wrapper frames between the logging site and this Logger's log methods
+	// (Debug, Infof, ...). The caller field is added once, when the event is written, using this count.
+	skipCount int
 }
 
 // NullLogger is Logger that discards all log lines
@@ -30,57 +33,57 @@ func FromZerolog(l zerolog.Logger) *Logger {
 
 // Debug logs a message at level Debug
 func (l *Logger) Debug(args ...any) {
-	l.underlying.Debug().Msg(fmt.Sprint(args...))
+	l.underlying.Debug().Caller(1 + l.skipCount).Msg(fmt.Sprint(args...))
 }
 
 // Info logs a message at level Info
 func (l *Logger) Info(args ...any) {
-	l.underlying.Info().Msg(fmt.Sprint(args...))
+	l.underlying.Info().Caller(1 + l.skipCount).Msg(fmt.Sprint(args...))
 }
 
 // Warn logs a message at level Warn
 func (l *Logger) Warn(args ...any) {
-	l.underlying.Warn().Msg(fmt.Sprint(args...))
+	l.underlying.Warn().Caller(1 + l.skipCount).Msg(fmt.Sprint(args...))
 }
 
 // Error logs a message at level Error
 func (l *Logger) Error(args ...any) {
-	l.underlying.Error().Msg(fmt.Sprint(args...))
+	l.underlying.Error().Caller(1 + l.skipCount).Msg(fmt.Sprint(args...))
 }
 
 // Panic logs a message at level Panic and panics
 func (l *Logger) Panic(args ...any) {
-	l.underlying.Panic().Msg(fmt.Sprint(args...))
+	l.underlying.Panic().Caller(1 + l.skipCount).Msg(fmt.Sprint(args...))
 }
 
 // Fatal logs a message at level Fatal and exits the application
 func (l *Logger) Fatal(args ...any) {
-	l.underlying.Fatal().Msg(fmt.Sprint(args...))
+	l.underlying.Fatal().Caller(1 + l.skipCount).Msg(fmt.Sprint(args...))
 }
 
 // Debugf logs a formatted message at level Debug
 func (l *Logger) Debugf(format string, args ...interface{}) {
-	l.underlying.Debug().Msgf(format, args...)
+	l.underlying.Debug().Caller(1+l.skipCount).Msgf(format, args...)
 }
 
 // Infof logs a formatted message at level Info
 func (l *Logger) Infof(format string, args ...interface{}) {
-	l.underlying.Info().Msgf(format, args...)
+	l.underlying.Info().Caller(1+l.skipCount).Msgf(format, args...)
 }
 
 // Warnf logs a formatted message at level Warn
 func (l *Logger) Warnf(format string, args ...interface{}) {
-	l.underlying.Warn().Msgf(format, args...)
+	l.underlying.Warn().Caller(1+l.skipCount).Msgf(format, args...)
 }
 
 // Errorf logs a formatted message at level Error
 func (l *Logger) Errorf(format string, args ...interface{}) {
-	l.underlying.Error().Msgf(format, args...)
+	l.underlying.Error().Caller(1+l.skipCount).Msgf(format, args...)
 }
 
 // Fatalf logs a formatted message at level Fatal and exits the application
 func (l *Logger) Fatalf(format string, args ...interface{}) {
-	l.underlying.Fatal().Msgf(format, args...)
+	l.underlying.Fatal().Caller(1+l.skipCount).Msgf(format, args...)
 }
 
 // WithError returns a new Logger with the error added as a field
@@ -89,8 +92,8 @@ func (l *Logger) WithError(err error) *Logger {
 		underlying: l.underlying.
 			With().
 			AnErr("error", err).
-			CallerWithSkipFrameCount(StdSkipFrames - 1).
 			Logger(),
+		skipCount: l.skipCount,
 	}
 }
 
@@ -129,8 +132,8 @@ func (l *Logger) WithField(key string, value any) *Logger {
 		underlying: l.underlying.
 			With().
 			Interface(key, value).
-			CallerWithSkipFrameCount(StdSkipFrames - 1).
 			Logger(),
+		skipCount: l.skipCount,
 	}
 }
 
@@ -141,7 +144,8 @@ func (l *Logger) WithFields(args map[string]any) *Logger {
 		event = event.Interface(key, value)
 	}
 	return &Logger{
-		underlying: event.CallerWithSkipFrameCount(StdSkipFrames - 1).Logger(),
+		underlying: event.Logger(),
+		skipCount:  l.skipCount,
 	}
 }
 
@@ -178,10 +182,12 @@ func (l *Logger) WithContext(ctx context.Context) *Logger {
 
 // WithCallerSkip returns a new Logger with the number of callers skipped increased by the skip amount.
 // This is needed when building wrappers around the Logger so as to prevent us from always reporting the
-// wrapper code as the caller.
+// wrapper code as the caller: a wrapper that adds one frame between the logging site and the Logger
+// should log through l.WithCallerSkip(1).
 func (l *Logger) WithCallerSkip(skip int) *Logger {
 	return &Logger{
-		underlying: l.underlying.With().CallerWithSkipFrameCount(skip).Logger(),
+		underlying: l.underlying,
+		skipCount:  l.skipCount + skip,
 	}
 }
 

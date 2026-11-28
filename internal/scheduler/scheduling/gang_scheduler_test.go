@@ -631,6 +631,7 @@ func TestGangScheduler(t *testing.T) {
 				),
 				nil,
 				tc.TotalResources,
+				tc.SchedulingConfig.PriorityClasses,
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
 				err := sctx.AddQueueSchedulingContext(
@@ -639,7 +640,7 @@ func TestGangScheduler(t *testing.T) {
 					priorityFactor,
 					nil,
 					internaltypes.ResourceList{},
-					internaltypes.ResourceList{},
+					map[string]internaltypes.ResourceList{},
 					internaltypes.ResourceList{},
 					rate.NewLimiter(
 						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
@@ -773,11 +774,12 @@ func TestGangScheduler_MarksPreemptedJobs(t *testing.T) {
 		rate.NewLimiter(rate.Limit(schedulingConfig.MaximumSchedulingRate), schedulingConfig.MaximumSchedulingBurst),
 		rate.NewLimiter(rate.Limit(1), 5),
 		totalResources,
+		schedulingConfig.PriorityClasses,
 	)
 	for _, queue := range []string{"A", "B"} {
 		require.NoError(t, sctx.AddQueueSchedulingContext(
 			queue, 1, 1, nil,
-			internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{},
+			internaltypes.ResourceList{}, map[string]internaltypes.ResourceList{}, internaltypes.ResourceList{},
 			rate.NewLimiter(rate.Limit(schedulingConfig.MaximumPerQueueSchedulingRate), schedulingConfig.MaximumPerQueueSchedulingBurst),
 		))
 	}
@@ -890,11 +892,12 @@ func TestGangScheduler_FairsharePreemption_PreemptsWholeGang(t *testing.T) {
 		// thing under test; we only assert how many tokens are consumed.
 		rate.NewLimiter(rate.Limit(1), 100),
 		totalResources,
+		schedulingConfig.PriorityClasses,
 	)
 	for _, queue := range []string{"A", "B"} {
 		require.NoError(t, sctx.AddQueueSchedulingContext(
 			queue, 1, 1, nil,
-			internaltypes.ResourceList{}, internaltypes.ResourceList{}, internaltypes.ResourceList{},
+			internaltypes.ResourceList{}, map[string]internaltypes.ResourceList{}, internaltypes.ResourceList{},
 			rate.NewLimiter(rate.Limit(schedulingConfig.MaximumPerQueueSchedulingRate), schedulingConfig.MaximumPerQueueSchedulingBurst),
 		))
 	}
@@ -948,4 +951,109 @@ func addFloatingResourceRequest(request string, jobs []*jobdb.Job) []*jobdb.Job 
 			},
 		},
 		jobs)
+}
+
+func TestGangScheduler_FloatingResourceLimit_LabelsEvictedJobsAsPreempted(t *testing.T) {
+	tests := map[string]struct {
+		evicted                       bool
+		memberWithoutFloatingResource bool
+		floatingResourceTypes         *floatingresources.FloatingResourceTypes
+		expectedReason                string
+		expectLabelled                bool
+	}{
+		"evicted gang over the limit is labelled": {
+			evicted:               true,
+			floatingResourceTypes: testfixtures.TestFloatingResources,
+			expectedReason:        "not enough floating resource test-floating-resource in pool pool",
+			expectLabelled:        true,
+		},
+		"evicted gang over the limit is labelled, including a member that doesn't request the floating resource": {
+			evicted:                       true,
+			memberWithoutFloatingResource: true,
+			floatingResourceTypes:         testfixtures.TestFloatingResources,
+			expectedReason:                "not enough floating resource test-floating-resource in pool pool",
+			expectLabelled:                true,
+		},
+		"queued gang over the limit is not labelled": {
+			evicted:               false,
+			floatingResourceTypes: testfixtures.TestFloatingResources,
+			expectedReason:        "not enough floating resource test-floating-resource in pool pool",
+			expectLabelled:        false,
+		},
+		"evicted gang in a pool without floating resources configured is not labelled": {
+			evicted:               true,
+			floatingResourceTypes: testfixtures.TestEmptyFloatingResources,
+			expectedReason:        "floating resource test-floating-resource not configured for pool pool",
+			expectLabelled:        false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			schedulingConfig := testfixtures.TestSchedulingConfig()
+			nodeDb, err := nodedb.NewNodeDb(
+				schedulingConfig.PriorityClasses,
+				schedulingConfig.IndexedResources,
+				schedulingConfig.IndexedTaints,
+				schedulingConfig.IndexedNodeLabels,
+				schedulingConfig.WellKnownNodeTypes,
+				testfixtures.TestResourceListFactory,
+			)
+			require.NoError(t, err)
+
+			totalResources := testfixtures.TestResourceListFactory.FromNodeProto(map[string]*resource.Quantity{
+				"cpu":    pointer.MustParseResource("32"),
+				"memory": pointer.MustParseResource("256Gi"),
+			})
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(totalResources, "pool", schedulingConfig)
+			require.NoError(t, err)
+			sctx := context.NewSchedulingContext(
+				"pool",
+				fairnessCostProvider,
+				rate.NewLimiter(rate.Limit(schedulingConfig.MaximumSchedulingRate), schedulingConfig.MaximumSchedulingBurst),
+				nil,
+				totalResources,
+				schedulingConfig.PriorityClasses,
+			)
+			require.NoError(t, sctx.AddQueueSchedulingContext(
+				"A", 1, 1, nil,
+				internaltypes.ResourceList{}, map[string]internaltypes.ResourceList{}, internaltypes.ResourceList{},
+				rate.NewLimiter(rate.Limit(schedulingConfig.MaximumPerQueueSchedulingRate), schedulingConfig.MaximumPerQueueSchedulingBurst),
+			))
+			// The pool's floating resource limit (10) is already in use, so the gang can't fit.
+			sctx.Allocated = sctx.Allocated.Add(testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(
+				map[string]resource.Quantity{"test-floating-resource": resource.MustParse("10")},
+			))
+			constraints := schedulerconstraints.NewSchedulingConstraints("pool", totalResources, schedulingConfig, []*api.Queue{{Name: "A"}})
+			sch, err := NewGangScheduler(sctx, constraints, tc.floatingResourceTypes, nodeDb, false)
+			require.NoError(t, err)
+
+			jobs := testfixtures.WithGangJobDetails(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2), "gang-1", 2, "")
+			jobs[0] = addFloatingResourceRequest("1", jobs[:1])[0]
+			if !tc.memberWithoutFloatingResource {
+				jobs[1] = addFloatingResourceRequest("1", jobs[1:])[0]
+			}
+			jctxs := make([]*context.JobSchedulingContext, len(jobs))
+			for i, job := range jobs {
+				if tc.evicted {
+					job = job.WithNewRun("executor-1", "node-1", "node-1", "pool", 0)
+				}
+				jctxs[i] = context.JobSchedulingContextFromJob(job)
+				jctxs[i].IsEvicted = tc.evicted
+			}
+
+			ok, reason, err := sch.Schedule(armadacontext.Background(), context.NewGangSchedulingContext(jctxs))
+			require.NoError(t, err)
+			assert.False(t, ok)
+			assert.Equal(t, tc.expectedReason, reason)
+			for _, jctx := range jctxs {
+				if tc.expectLabelled {
+					assert.Equal(t, context.PreemptedWithFairshareFloatingResourcePreemption, jctx.PreemptionType)
+					assert.Equal(t, fmt.Sprintf(floatingResourcePreemptionCause, "pool", "test-floating-resource"), jctx.PreemptionDescription)
+				} else {
+					assert.Empty(t, jctx.PreemptionType)
+					assert.Empty(t, jctx.PreemptionDescription)
+				}
+			}
+		})
+	}
 }
