@@ -167,7 +167,7 @@ mage lintCheck
 go mod tidy -diff
 ```
 
-`mage lintCheck` runs golangci-lint across the repository with [`.golangci.yml`](../.golangci.yml), whose formatters make it fail on formatting drift as well as lint findings. It needs the golangci-lint version pinned in [`tools.yaml`](../tools.yaml) first on your `PATH`, which [Step 2 of the published developer guide](https://armadaproject.io/docs/developer-guide#step-2-set-up-mage-and-the-build-tools) installs; with another version or none, it fails before linting and says how to install it. `mage lintFix` applies the available fixes, including formatting, in place; review its changes before committing.
+`mage lintCheck` runs golangci-lint across the repository with [`.golangci.yml`](../.golangci.yml), whose formatters make it fail on formatting drift as well as lint findings. For native runs, it requires the golangci-lint version pinned in [`tools.yaml`](../tools.yaml) or a newer stable release on your `PATH`. To install the pinned version, run `mage BootstrapTools` and put Go’s tool directory (`$(go env GOPATH)/bin`, or `GOBIN` if set) first on your `PATH`. If golangci-lint is missing or fails the version check, Mage stops before linting and prints installation instructions. `mage lintFix` applies the available fixes, including formatting, in place; review its changes before committing.
 
 `go mod tidy -diff` prints the changes that `go mod tidy` would make to `go.mod` and `go.sum` and fails if there are any. Builds and tests can pass despite this drift, for example when a module that tests import directly is still marked `// indirect`. Run `go mod tidy` to apply the changes, then review them.
 
