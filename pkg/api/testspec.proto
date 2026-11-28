@@ -5,6 +5,7 @@ option go_package = "github.com/armadaproject/armada/pkg/api";
 option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
 import "pkg/api/submit.proto";
 import "pkg/api/event.proto";
 import "pkg/api/node.proto";
@@ -61,6 +62,10 @@ message TestSpec {
     QueueConfig queue_config = 25;
     // Cancel jobs by job set.
     JobSetCancelConfig cancel_job_set = 26;
+    // Config overrides by component name, for example "executor". Each value has the shape of the config file of
+    // the component and merges over its config. The testsuite applies the overrides through the config hook before
+    // the test case runs. Without a config hook, it skips the test case.
+    map<string, google.protobuf.Struct> config = 27;
 }
 
 message NodeCancelConfig {
