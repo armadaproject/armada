@@ -1,6 +1,8 @@
 package internaltypes
 
 import (
+	"strings"
+
 	"github.com/segmentio/fasthash/fnv1a"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -85,16 +87,17 @@ func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[
 	}
 
 	// Sort taints to ensure node type id is consistent regardless of
-	// the order in which taints are set on the node.
+	// the order in which taints are set on the node. A node can have several
+	// taints with the same key (and different effects), so sort on every field.
 	slices.SortFunc(taints, func(a, b v1.Taint) int {
-		if a.Key < b.Key {
-			return -1
-		} else if a.Key > b.Key {
-			return 1
-		} else {
-			return 0
+		if c := strings.Compare(a.Key, b.Key); c != 0 {
+			return c
 		}
-	}) // TODO: Use less ambiguous sorting.
+		if c := strings.Compare(string(a.Effect), string(b.Effect)); c != 0 {
+			return c
+		}
+		return strings.Compare(a.Value, b.Value)
+	})
 
 	// Filter out any labels that should not be indexed.
 	if indexedLabels != nil {
@@ -131,7 +134,6 @@ func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[
 // https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
 // https://man.archlinux.org/man/community/kubectl/kubectl-taint.1.en
 func nodeTypeIdFromTaintsAndLabels(taints []v1.Taint, labels, unsetIndexedLabels map[string]string) uint64 {
-	// TODO: We should test this function to ensure there are no collisions. And that the string is never empty.
 	h := fnv1a.Init64
 	for _, taint := range taints {
 		h = fnv1a.AddString64(h, taint.Key)
