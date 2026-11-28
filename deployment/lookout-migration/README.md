@@ -15,6 +15,10 @@ A Helm chart for the Armada Lookout  database migration
 | customServiceAccount | string | `nil` |  |
 | image.repository | string | `"gresearch/armada-lookout"` |  |
 | image.tag | string | `"0.0.0-latest"` |  |
+| partitionJobTable.activeDeadlineSeconds | int | `86400` | Maximum time in seconds the Job may run before Kubernetes stops it, which rolls the migration back |
+| partitionJobTable.enabled | bool | `false` | Create a Job that partitions the job table. Enable it in a separate `helm upgrade` after this version's migration Job has succeeded. Helm does not wait for it: follow it with `kubectl logs -f job/<name>-partition-job-table-<revision>`, then set this back to false |
+| partitionJobTable.resources | object | `{}` | Resources for the Job; defaults to resources if empty |
+| partitionJobTable.ttlSecondsAfterFinished | int | `604800` | Time in seconds to keep the finished Job and its logs before Kubernetes deletes it |
 | resources.limits.cpu | string | `"200m"` |  |
 | resources.limits.memory | string | `"256Mi"` |  |
 | resources.requests.cpu | string | `"100m"` |  |
