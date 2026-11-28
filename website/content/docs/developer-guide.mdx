@@ -62,7 +62,7 @@ Run every command in this guide from this folder.
 
 ## Step 2. Set up Mage and the build tools
 
-Make `mage` run a pinned, known-good version, and put Go's tool folder first on your `PATH` (if you set `GOBIN`, use that folder instead). These last until you close the terminal, so run them again in each new terminal:
+Make `mage` run a pinned, known-good version, and put Go's tool folder first on your `PATH` (if you set `GOBIN`, use that folder instead; if `GOPATH` lists several folders, use the `bin` folder of the first one). These last until you close the terminal, so run them again in each new terminal:
 
 ```bash
 alias mage='go run github.com/magefile/mage@v1.17.2'
