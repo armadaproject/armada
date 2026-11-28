@@ -69,11 +69,11 @@ type FairSchedulingAlgo struct {
 	floatingResourceTypes *floatingresources.FloatingResourceTypes
 	shortJobPenalty       *ShortJobPenalty
 	tracer                trace.Tracer
-	// Whether to compare the aggregate demand against the scan.
+	// Whether to compare the queued aggregate against the scan.
 	// The scan remains authoritative; the aggregate is only read for monitoring.
-	compareAggregateDemand bool
+	compareQueuedAggregateDemand bool
 	// Whether queued demand is sourced from the aggregate.
-	useAggregateDemand bool
+	useQueuedAggregateDemand bool
 }
 
 // FairSchedulingAlgoOption configures a scheduling algorithm at construction.
@@ -124,8 +124,8 @@ func NewFairSchedulingAlgo(
 		shortJobPenalty:              shortJobPenalty,
 		stateValidator:               stateValidator,
 		tracer:                       otel.Tracer("armada.scheduler.fair_scheduling_algo"),
-		compareAggregateDemand:       config.ExperimentalAggregateDemand.Compare,
-		useAggregateDemand:           config.ExperimentalAggregateDemand.Use,
+		compareQueuedAggregateDemand: config.ExperimentalAggregateDemand.Compare,
+		useQueuedAggregateDemand:     config.ExperimentalAggregateDemand.Use,
 	}
 	for _, option := range options {
 		option(algo)
@@ -616,15 +616,15 @@ type jobSchedulingInfo struct {
 	runningDemandByQueueAndPriorityClass map[string]map[string]internaltypes.ResourceList
 }
 
-// computeAggregateDemand reports whether the aggregate demand must be computed,
-// i.e. it is either compared against the scan or used as the source.
-func (l *FairSchedulingAlgo) computeAggregateDemand() bool {
-	return l.compareAggregateDemand || l.useAggregateDemand
+// computeQueuedAggregateDemand reports whether the queued aggregate demand must
+// be computed, i.e. it is either compared against the scan or used as the source.
+func (l *FairSchedulingAlgo) computeQueuedAggregateDemand() bool {
+	return l.compareQueuedAggregateDemand || l.useQueuedAggregateDemand
 }
 
 // queuedScanRequired reports whether queued jobs must be fetched and scanned.
 func (l *FairSchedulingAlgo) queuedScanRequired() bool {
-	return !l.useAggregateDemand || l.compareAggregateDemand
+	return !l.useQueuedAggregateDemand || l.compareQueuedAggregateDemand
 }
 
 // newCalculateJobSchedulingInfo returns the per-round scheduling info.
@@ -643,7 +643,7 @@ func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 
 	// One lookup shared by Use and Compare.
 	var aggregateDemand map[string]map[string]internaltypes.ResourceList
-	if l.computeAggregateDemand() {
+	if l.computeQueuedAggregateDemand() {
 		lookupStart := time.Now()
 		aggregateDemand = queuedDemandFromAggregate(txn, queues, currentPool)
 		observeJobAggregateLookupDuration(currentPool, time.Since(lookupStart).Seconds())
@@ -653,11 +653,11 @@ func (l *FairSchedulingAlgo) newCalculateJobSchedulingInfo(
 	if err != nil {
 		return nil, err
 	}
-	if l.compareAggregateDemand {
+	if l.compareQueuedAggregateDemand {
 		observeJobAggregateSchedulingInfoDuration(currentPool, time.Since(start).Seconds())
 		l.compareScannedWithAggregate(ctx, aggregateDemand, currentPool, info.queuedDemandByQueueAndPriorityClass)
 	}
-	if l.useAggregateDemand {
+	if l.useQueuedAggregateDemand {
 		// Queued demand and its in-use priority classes come from the aggregate.
 		info.queuedDemandByQueueAndPriorityClass = aggregateDemand
 		for _, byPriorityClass := range aggregateDemand {

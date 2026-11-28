@@ -35,7 +35,8 @@ func NewTestJobDb() *JobDb {
 		stringinterner.New(1024),
 		testResourceListFactory,
 	)
-	jobDb.SetAggregateEnabled(true)
+	jobDb.SetQueuedAggregateEnabled(true)
+	jobDb.SetRunningAggregateEnabled(true)
 	return jobDb
 }
 

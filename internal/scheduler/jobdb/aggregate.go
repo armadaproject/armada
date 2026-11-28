@@ -14,6 +14,11 @@ import (
 // exactly while no job contributes to it: remove drops the bucket once the
 // remaining demand is all zero.
 type JobAggregate struct {
+	// queuedEnabled and runningEnabled gate maintenance of the queued and running
+	// aggregates independently. When both are false the aggregate stays empty
+	// and no per-job maintenance is done.
+	queuedEnabled  bool
+	runningEnabled bool
 	// Queued demand by pool, then queue, then priority class.
 	queuedDemand *immutable.Map[string, *immutable.Map[string, *immutable.Map[string, internaltypes.ResourceList]]]
 }
@@ -24,6 +29,17 @@ func NewJobAggregate() *JobAggregate {
 	}
 }
 
+// SetEnabled toggles queued and running aggregate maintenance independently.
+func (a *JobAggregate) SetEnabled(queued, running bool) {
+	a.queuedEnabled = queued
+	a.runningEnabled = running
+}
+
+// enabled reports whether any aggregate maintenance is enabled.
+func (a *JobAggregate) enabled() bool {
+	return a.queuedEnabled || a.runningEnabled
+}
+
 // Clone returns a copy of the aggregate for use by a write transaction. The copy
 // shares the current state; changes to it are not visible until committed.
 func (a *JobAggregate) Clone() *JobAggregate {
@@ -31,14 +47,16 @@ func (a *JobAggregate) Clone() *JobAggregate {
 		return NewJobAggregate()
 	}
 	return &JobAggregate{
-		queuedDemand: a.queuedDemand,
+		queuedEnabled:  a.queuedEnabled,
+		runningEnabled: a.runningEnabled,
+		queuedDemand:   a.queuedDemand,
 	}
 }
 
 // add incorporates job into the aggregate. Jobs that are not queued or are in a
-// terminal state are ignored.
+// terminal state are ignored, as are queued jobs when queued maintenance is off.
 func (a *JobAggregate) add(job *Job) {
-	if a == nil || job == nil || job.InTerminalState() || !job.Queued() {
+	if a == nil || job == nil || job.InTerminalState() || !job.Queued() || !a.queuedEnabled {
 		return
 	}
 
@@ -66,7 +84,7 @@ func (a *JobAggregate) add(job *Job) {
 // remove removes job from the aggregate. The job must be in the same state as
 // when it was added; any inconsistency is reported as an invariant violation.
 func (a *JobAggregate) remove(job *Job) {
-	if a == nil || job == nil || job.InTerminalState() || !job.Queued() {
+	if a == nil || job == nil || job.InTerminalState() || !job.Queued() || !a.queuedEnabled {
 		return
 	}
 
