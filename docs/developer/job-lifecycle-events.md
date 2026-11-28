@@ -319,7 +319,7 @@ The scheduler publisher also emits `PartitionMarker`. When an instance becomes t
 - `failure_category` and `failure_subcategory`: the classification of the failure.
 - `retry_policy_name`: the retry policy that decided the retry or the terminal failure.
 
-Preemption errors use the category `preemption`. The subcategory is the preemption type: `fairshare`, `urgency`, `optimiser`, `api`, `reconciler`, `unknown`, or `unknown-gang`.
+Preemption errors use the category `preemption`. The subcategory is the preemption type: `fairshare`, `urgency`, `optimiser`, `api`, `reconciler`, `fairshare-floating-resource`, `unknown`, or `unknown-gang`.
 
 ### Events that watchers receive
 

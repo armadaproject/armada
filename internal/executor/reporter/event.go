@@ -219,13 +219,6 @@ func CreateSimpleJobPreemptedEvent(pod *v1.Pod) (*armadaevents.EventSequence, er
 	return sequence, nil
 }
 
-// CreateSimpleJobFailedEvent creates a failed event with no container details
-// or failure category, for failures where pod container statuses are unavailable
-// (preemption, submit failures).
-func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string, cause armadaevents.KubernetesReason) (*armadaevents.EventSequence, error) {
-	return CreateJobFailedEvent(pod, reason, cause, "", []*armadaevents.ContainerError{}, clusterId, "", "")
-}
-
 func CreateJobFailedEvent(pod *v1.Pod, reason string, cause armadaevents.KubernetesReason, debugMessage string,
 	containerStatuses []*armadaevents.ContainerError, clusterId string, failureCategory string, failureSubcategory string,
 ) (*armadaevents.EventSequence, error) {
@@ -349,7 +342,7 @@ func CreateReturnLeaseEvent(pod *v1.Pod, reason string, debugMessage string, clu
 				JobId: jobId,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal:           true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
+						Terminal:           true, // The run is over; the scheduler decides whether to re-lease the job.
 						FailureCategory:    failureCategory,
 						FailureSubcategory: failureSubcategory,
 						Reason: &armadaevents.Error_PodLeaseReturned{

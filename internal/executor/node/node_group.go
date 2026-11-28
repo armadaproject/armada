@@ -12,7 +12,9 @@ import (
 	util2 "github.com/armadaproject/armada/internal/executor/util"
 )
 
-const defaultNodeType = "none"
+const (
+	defaultNodeType = "none"
+)
 
 type NodeInfoService interface {
 	IsAvailableProcessingNode(*v1.Node) bool

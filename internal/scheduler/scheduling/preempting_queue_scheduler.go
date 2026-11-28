@@ -85,7 +85,7 @@ func NewPreemptingQueueScheduler(
 // - schedules new jobs belonging to queues with total allocation less than their fair share.
 func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulingResult, error) {
 	defer func() {
-		sch.schedulingContext.Finished = time.Now()
+		sch.schedulingContext.Finished = sch.clock.Now()
 	}()
 
 	preemptedJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
@@ -756,7 +756,7 @@ func (sch *PreemptingQueueScheduler) schedule(
 		sch.maxQueueLookBack,
 		sch.marketDriven,
 		spotPriceCutoff,
-		sch.clock,
+		clock.RealClock{},
 	)
 	if err != nil {
 		return nil, err

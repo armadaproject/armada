@@ -226,7 +226,7 @@ func (ip *MarketDrivenIndicativePricer) checkIfWillBreachSchedulingLimits(
 		return false, unschedulableReason, err
 	}
 
-	if ok, unschedulableReason = sctx.IsWithinFloatingResourceLimits(gctx, ip.floatingResourceTypes); !ok {
+	if ok, unschedulableReason, _ = sctx.IsWithinFloatingResourceLimits(gctx, ip.floatingResourceTypes); !ok {
 		return ok, unschedulableReason, nil
 	}
 	return true, "", nil

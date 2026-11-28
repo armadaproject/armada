@@ -57,17 +57,26 @@ func validate(config []configuration.FloatingResourceConfig) error {
 	return nil
 }
 
-func (frt *FloatingResourceTypes) WithinLimits(poolName string, allocated internaltypes.ResourceList) (bool, string) {
+// WithinLimits returns false, the reason and the name of the exceeded resource, if allocated is over the pool's limit
+// for any floating resource.
+func (frt *FloatingResourceTypes) WithinLimits(poolName string, allocated internaltypes.ResourceList) (bool, string, string) {
 	available := frt.GetTotalAvailableForPool(poolName)
-	if available.AllZero() {
-		return false, fmt.Sprintf("floating resources not configured for pool %s", poolName)
-	}
-
 	resourceName, _, _, exceeds := allocated.OfType(internaltypes.Floating).ExceedsAvailable(available)
 	if exceeds {
-		return false, fmt.Sprintf("not enough floating resource %s in pool %s", resourceName, poolName)
+		return false, fmt.Sprintf("not enough floating resource %s in pool %s", resourceName, poolName), resourceName
 	}
 
+	return true, "", ""
+}
+
+// IsConfiguredForPool returns false, and the reason, if any floating resource requested is not configured for the pool.
+func (frt *FloatingResourceTypes) IsConfiguredForPool(poolName string, requested internaltypes.ResourceList) (bool, string) {
+	available := frt.GetTotalAvailableForPool(poolName)
+	for _, requestedResource := range requested.OfType(internaltypes.Floating).GetAll() {
+		if !requestedResource.Value.IsZero() && available.GetRawByNameZeroIfMissing(requestedResource.Name) == 0 {
+			return false, fmt.Sprintf("floating resource %s not configured for pool %s", requestedResource.Name, poolName)
+		}
+	}
 	return true, ""
 }
 

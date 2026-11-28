@@ -1967,14 +1967,9 @@ type PodStartUpInfo struct {
 	ScheduledAt *types.Timestamp `protobuf:"bytes,2,opt,name=scheduled_at,json=scheduledAt,proto3" json:"scheduledAt,omitempty"`
 	// Time the pod was acknowledged by the kubelet
 	KubeletAcknowledgedAt *types.Timestamp `protobuf:"bytes,3,opt,name=kubelet_acknowledged_at,json=kubeletAcknowledgedAt,proto3" json:"kubeletAcknowledgedAt,omitempty"`
-	// Time a sandbox existed for the pod with its networking configured, from
-	// status.conditions[PodReadyToStartContainers]. Sandbox creation and CNI are not separable: the
-	// kubelet derives this condition from a single PodSandboxChanged check.
-	//
-	// Unset before Kubernetes 1.29, where the PodReadyToStartContainersCondition feature gate is
-	// off by default, and on any later cluster that turns it off - the gate is still Beta. The time
-	// is then simply unattributed, sitting in the gap between kubelet_acknowledged_at and the first
-	// container starting.
+	// Time a sandbox existed for the pod with its networking configured, the earlier of
+	// status.conditions[PodReadyToStartContainers] and the first event the kubelet recorded against
+	// one of the pod's containers.
 	SandboxReadyAt *types.Timestamp `protobuf:"bytes,4,opt,name=sandbox_ready_at,json=sandboxReadyAt,proto3" json:"sandboxReadyAt,omitempty"`
 	// Time the last of the pod's app containers started, and so the end of start up. This is the
 	// maximum of the started_at instants on containers below; it excludes init containers and

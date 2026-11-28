@@ -229,7 +229,7 @@ func BuildDockers(arg string) error {
 	for _, s := range strings.Split(arg, ",") {
 		dockerIds = append(dockerIds, strings.TrimSpace(s))
 	}
-	if err := goreleaserMinimalRelease(dockerIds...); err != nil {
+	if err := goreleaserMinimalRelease(false, dockerIds...); err != nil {
 		return err
 	}
 	fmt.Println("Time to build dockers:", time.Since(timeTaken))
@@ -314,7 +314,7 @@ func Generate() error {
 // CI Image to build
 func BuildCI() error {
 	ciImage := []string{"bundle", "lookout-bundle", "server", "executor", "armadactl", "testsuite", "lookout", "lookoutingester", "eventingester", "scheduler", "scheduleringester", "binoculars"}
-	err := goreleaserMinimalRelease(ciImage...)
+	err := goreleaserMinimalRelease(false, ciImage...)
 	if err != nil {
 		return err
 	}

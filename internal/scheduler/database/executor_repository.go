@@ -54,7 +54,7 @@ func (r *PostgresExecutorRepository) GetExecutors(ctx *armadacontext.Context) ([
 		executor := &schedulerobjects.Executor{}
 		err := decompressAndMarshall(request.LastRequest, r.decompressor, executor)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		executors[i] = executor
 	}

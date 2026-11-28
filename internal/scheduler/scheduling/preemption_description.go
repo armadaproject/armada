@@ -11,6 +11,7 @@ import (
 const (
 	unknownPreemptionCause                 = "Preempted by scheduler due to the job failing to reschedule - possibly node resource changed causing this job to be unschedulable.\nUnschedulable reason: %s\nNode Summary:\n%s"
 	unknownGangPreemptionCause             = "Preempted by scheduler due to the job failing to reschedule - possibly another job in the gang was preempted or the node resource changed causing this job to be unschedulable"
+	floatingResourcePreemptionCause        = "Preempted by scheduler using fair share preemption to keep pool %s within its floating resource limit for %s"
 	gangSiblingFairSharePreemptionTemplate = "Preempted by scheduler using fair share preemption because the fellow gang member %s was preempted by %s"
 	fairSharePreemptionTemplate            = "Preempted by scheduler using fair share preemption - preempting job %s"
 	marketBasedPreemptionTemplate          = "Preempted by scheduler using market based preemption - current job has a bid of %f - preempting job %s has a bid of %f"
@@ -62,6 +63,12 @@ func PopulatePreemptionDescriptions(marketBasedScheduling bool, pool string, pre
 			}
 		}
 	}
+}
+
+// setFloatingResourceLimitPreemption labels jctx as preempted to keep the pool within its floating resource limit.
+func setFloatingResourceLimitPreemption(jctx *context.JobSchedulingContext, pool string, exceededResource string) {
+	jctx.PreemptionType = context.PreemptedWithFairshareFloatingResourcePreemption
+	jctx.PreemptionDescription = fmt.Sprintf(floatingResourcePreemptionCause, pool, exceededResource)
 }
 
 func calculateJobsScheduledWithUrgencyBasedPreemptionByNode(scheduledJobs []*context.JobSchedulingContext) map[string][]*context.JobSchedulingContext {

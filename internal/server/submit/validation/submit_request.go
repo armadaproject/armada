@@ -30,6 +30,7 @@ var (
 		validateGangs,
 		validateHasJobSetId,
 		validateJobSetIdLength,
+		validateJobSetIdStorable,
 	}
 	itemValidators = []itemValidator{
 		validateHasNamespace,
@@ -127,6 +128,11 @@ func validateJobSetIdLength(j *api.JobSubmitRequest, _ configuration.SubmissionC
 		return fmt.Errorf("job set id of length %d must be less than max character length %d", len(j.GetJobSetId()), maxJobSetIdChars)
 	}
 	return nil
+}
+
+// Ensures that the job set id can be stored in a Postgres text column (valid UTF-8, no NUL).
+func validateJobSetIdStorable(j *api.JobSubmitRequest, _ configuration.SubmissionConfig) error {
+	return ValidateStorableText("JobSetId", j.GetJobSetId())
 }
 
 // Ensures that the request has non-empty namespace field.

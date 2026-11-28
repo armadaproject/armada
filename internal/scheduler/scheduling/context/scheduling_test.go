@@ -661,10 +661,12 @@ func TestIsWithinFloatingResourceLimits(t *testing.T) {
 	allocatedAboveLimits := testfixtures.TestResourceListFactory.FromJobResourceListIgnoreUnknown(map[string]resource.Quantity{"test-floating-resource": resource.MustParse("15")})
 
 	tests := map[string]struct {
-		gctx          *GangSchedulingContext
-		resources     *floatingresources.FloatingResourceTypes
-		allocated     internaltypes.ResourceList
-		expectSuccess bool
+		gctx                     *GangSchedulingContext
+		resources                *floatingresources.FloatingResourceTypes
+		allocated                internaltypes.ResourceList
+		expectSuccess            bool
+		expectedReason           string
+		expectedExceededResource string
 	}{
 		"nil gctx": {
 			resources:     testfixtures.TestFloatingResources,
@@ -672,9 +674,17 @@ func TestIsWithinFloatingResourceLimits(t *testing.T) {
 			expectSuccess: true,
 		},
 		"nil floating resources": {
-			gctx:          NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(homeJob)}),
-			allocated:     allocatedWithinLimits,
-			expectSuccess: false,
+			gctx:           NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(homeJob)}),
+			allocated:      allocatedWithinLimits,
+			expectSuccess:  false,
+			expectedReason: "floating resource limits not provided when checking for pool pool",
+		},
+		"no floating resources configured for pool": {
+			gctx:           NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(homeJob)}),
+			resources:      testfixtures.TestEmptyFloatingResources,
+			allocated:      allocatedWithinLimits,
+			expectSuccess:  false,
+			expectedReason: "floating resource test-floating-resource not configured for pool pool",
 		},
 		"gctx - within limits": {
 			gctx:          NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(homeJob)}),
@@ -683,10 +693,12 @@ func TestIsWithinFloatingResourceLimits(t *testing.T) {
 			expectSuccess: true,
 		},
 		"gctx - not within limits": {
-			gctx:          NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(homeJob)}),
-			resources:     testfixtures.TestFloatingResources,
-			allocated:     allocatedAboveLimits,
-			expectSuccess: false,
+			gctx:                     NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(homeJob)}),
+			resources:                testfixtures.TestFloatingResources,
+			allocated:                allocatedAboveLimits,
+			expectSuccess:            false,
+			expectedReason:           "not enough floating resource test-floating-resource in pool pool",
+			expectedExceededResource: "test-floating-resource",
 		},
 		"gctx - away - within limits": {
 			gctx:          NewGangSchedulingContext([]*JobSchedulingContext{JobSchedulingContextFromJob(awayJob)}),
@@ -705,11 +717,10 @@ func TestIsWithinFloatingResourceLimits(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			sctx := SchedulingContext{Pool: homePool, Allocated: tc.allocated}
 
-			ok, reason := sctx.IsWithinFloatingResourceLimits(tc.gctx, tc.resources)
+			ok, reason, exceededResource := sctx.IsWithinFloatingResourceLimits(tc.gctx, tc.resources)
 			assert.Equal(t, tc.expectSuccess, ok)
-			if !ok {
-				assert.NotEmpty(t, reason)
-			}
+			assert.Equal(t, tc.expectedReason, reason)
+			assert.Equal(t, tc.expectedExceededResource, exceededResource)
 		})
 	}
 }

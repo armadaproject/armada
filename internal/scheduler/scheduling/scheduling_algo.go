@@ -76,6 +76,18 @@ type FairSchedulingAlgo struct {
 	useAggregateDemand bool
 }
 
+// FairSchedulingAlgoOption configures a scheduling algorithm at construction.
+type FairSchedulingAlgoOption func(*FairSchedulingAlgo)
+
+// WithPolicyClock supplies policy time for tests and future replay callers:
+// the time used for rate-limit token refill, executor eligibility, optimiser
+// cadence and scheduling context timestamps. The clock must be non-nil.
+// Production callers use the default real clock.
+// Computation budgets and deadlines use real time.
+func WithPolicyClock(clk clock.Clock) FairSchedulingAlgoOption {
+	return func(algo *FairSchedulingAlgo) { algo.clock = clk }
+}
+
 func NewFairSchedulingAlgo(
 	config configuration.SchedulingConfig,
 	maxSchedulingDuration time.Duration,
@@ -87,6 +99,7 @@ func NewFairSchedulingAlgo(
 	queueOverrideProvider priorityoverride.Provider,
 	shortJobPenalty *ShortJobPenalty,
 	stateValidator JobRunNodeReconciler,
+	options ...FairSchedulingAlgoOption,
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.PriorityClasses[config.DefaultPriorityClassName]; !ok {
 		return nil, errors.Errorf(
@@ -94,7 +107,7 @@ func NewFairSchedulingAlgo(
 			config.DefaultPriorityClassName, config.PriorityClasses,
 		)
 	}
-	return &FairSchedulingAlgo{
+	algo := &FairSchedulingAlgo{
 		schedulingConfig:             config,
 		executorRepository:           executorRepository,
 		queueCache:                   queueCache,
@@ -113,7 +126,14 @@ func NewFairSchedulingAlgo(
 		tracer:                       otel.Tracer("armada.scheduler.fair_scheduling_algo"),
 		compareAggregateDemand:       config.ExperimentalAggregateDemand.Compare,
 		useAggregateDemand:           config.ExperimentalAggregateDemand.Use,
-	}, nil
+	}
+	for _, option := range options {
+		option(algo)
+	}
+	if algo.clock == nil {
+		return nil, errors.New("nil policy clock")
+	}
+	return algo, nil
 }
 
 // Schedule assigns jobs to nodes in the same way as the old lease call.
@@ -253,6 +273,7 @@ func (l *FairSchedulingAlgo) runPoolSchedulingRound(
 
 	if fsctx.nodeDb.NumNodes() <= 0 {
 		ctx.Infof("Skipping pool %s as it has no active nodes", pool.Name)
+		fsctx.schedulingContext.Finished = l.clock.Now()
 		return NewPoolSchedulingOutcome(PoolSchedulingTerminationReasonCompleted, nil),
 			&SchedulingResult{
 				SchedulingContext: fsctx.schedulingContext,
@@ -392,7 +413,7 @@ func (l *FairSchedulingAlgo) reconcilePoolJobs(config configuration.PoolConfig, 
 	for gang, failedReconciliations := range gangsPreempted {
 		jobs, err := txn.GetGangJobsByGangId(gang.queue, gang.gangId)
 		if err != nil {
-			return nil, fmt.Errorf("failed to process failed reconciliatiion gang jobs because - %s", err)
+			return nil, fmt.Errorf("failed to process failed reconciliation gang jobs because - %w", err)
 		}
 
 		for _, job := range jobs {
@@ -895,13 +916,14 @@ func (l *FairSchedulingAlgo) constructSchedulingContext(
 	if err != nil {
 		return nil, err
 	}
-	sctx := schedulercontext.NewSchedulingContext(
+	sctx := schedulercontext.NewSchedulingContextAt(
 		pool,
 		fairnessCostProvider,
 		l.limiter,
 		l.preemptionLimiterByPool[pool],
 		totalCapacity,
 		l.schedulingConfig.PriorityClasses,
+		l.clock.Now(),
 	)
 	constraints := schedulerconstraints.NewSchedulingConstraints(
 		pool,
