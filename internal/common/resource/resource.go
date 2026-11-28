@@ -5,6 +5,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	resourcehelper "k8s.io/component-helpers/resource"
 )
 
 // PodsResourceName is the Kubernetes resource key for per-node pod capacity
@@ -237,47 +238,56 @@ func (a ComputeResources) AsKubernetesResourceList() v1.ResourceList {
 // ComputeResourcesFloat is float version of compute resource, prefer calculations with quantity where possible
 type ComputeResourcesFloat map[string]float64
 
-// TotalPodResourceRequest represents the resource request for a given pod is the maximum of:
-//   - sum of all containers + sum of native sidecar init containers
-//   - any individual classic init container
-//
-// This is because:
-//   - containers run in parallel (so need to sum resources)
-//   - native sidecar init containers (RestartPolicy=Always) run alongside main containers (so need to sum)
-//   - classic init containers run sequentially before main containers (so only their individual resource need be considered)
-//
-// So pod resource usage is the max for each resource type (cpu/memory etc.) that could be used at any given time
-func TotalPodResourceRequest(podSpec *v1.PodSpec) ComputeResources {
-	totalResources := make(ComputeResources)
+// podResourcesOptions leaves out the pod overhead. The RuntimeClass of the executor cluster adds the overhead.
+// The scheduler does not know that overhead. The executor also leaves it out, so both totals stay equal.
+var podResourcesOptions = resourcehelper.PodResourcesOptions{ExcludeOverhead: true}
 
-	// Sum resources from main containers
-	for _, container := range podSpec.Containers {
-		totalResources.Add(FromResourceList(container.Resources.Requests))
-	}
-
-	// Process init containers: native sidecars are summed, classic init containers use max
-	for _, initContainer := range podSpec.InitContainers {
-		containerResource := FromResourceList(initContainer.Resources.Requests)
-		if IsNativeSidecar(&initContainer) {
-			totalResources.Add(containerResource)
-		} else {
-			totalResources.Max(containerResource)
-		}
-	}
-
-	// Kubernetes requires the pod-level request to be at least the sum of the container requests.
-	// Max keeps the accounting correct for a pod that breaks that rule.
-	if podSpec.Resources != nil {
-		totalResources.Max(FromResourceList(podSpec.Resources.Requests))
-	}
-	return totalResources
+// PodResourceRequirements returns the resource requests and limits of a pod as Kubernetes computes them
+// for scheduling and admission. The result includes native sidecars, classic init containers, and pod-level resources.
+func PodResourceRequirements(podSpec *v1.PodSpec) *v1.ResourceRequirements {
+	pod := &v1.Pod{Spec: *podSpec}
+	requests := resourcehelper.PodRequests(pod, podResourcesOptions)
+	limits := resourcehelper.PodLimits(pod, podResourcesOptions)
+	dropUndeclaredZeroResources(requests, podSpec, func(r v1.ResourceRequirements) v1.ResourceList { return r.Requests })
+	dropUndeclaredZeroResources(limits, podSpec, func(r v1.ResourceRequirements) v1.ResourceList { return r.Limits })
+	// The helper results share the pod-level quantities with the pod spec. The copies keep callers from changing the spec.
+	return &v1.ResourceRequirements{Requests: requests.DeepCopy(), Limits: limits.DeepCopy()}
 }
 
-// IsNativeSidecar returns true if the container is a native sidecar (init container with RestartPolicy=Always).
-// Native sidecars run alongside main containers for the lifetime of the pod, unlike classic init containers
-// which run to completion before main containers start.
-func IsNativeSidecar(container *v1.Container) bool {
-	return container.RestartPolicy != nil && *container.RestartPolicy == v1.ContainerRestartPolicyAlways
+// TotalPodResourceRequest returns the requests of PodResourceRequirements as ComputeResources.
+// It keeps zero-valued resources. The executor does not check resource names, so a zero value has no effect there.
+func TotalPodResourceRequest(podSpec *v1.PodSpec) ComputeResources {
+	requests := resourcehelper.PodRequests(&v1.Pod{Spec: *podSpec}, podResourcesOptions)
+	// FromResourceList copies each quantity, so the result shares no quantity with the pod spec.
+	return FromResourceList(requests)
+}
+
+// dropUndeclaredZeroResources removes a zero-valued resource that no main container and no native sidecar
+// declares. The scheduler rejects a job that requests a resource it does not support, even at zero. A zero value from
+// a classic init container or from the pod-level block has no effect on scheduling.
+func dropUndeclaredZeroResources(
+	total v1.ResourceList,
+	podSpec *v1.PodSpec,
+	resourcesOf func(v1.ResourceRequirements) v1.ResourceList,
+) {
+	declared := map[v1.ResourceName]bool{}
+	for _, c := range podSpec.Containers {
+		for name := range resourcesOf(c.Resources) {
+			declared[name] = true
+		}
+	}
+	for _, c := range podSpec.InitContainers {
+		if c.RestartPolicy != nil && *c.RestartPolicy == v1.ContainerRestartPolicyAlways {
+			for name := range resourcesOf(c.Resources) {
+				declared[name] = true
+			}
+		}
+	}
+	for name, quantity := range total {
+		if quantity.IsZero() && !declared[name] {
+			delete(total, name)
+		}
+	}
 }
 
 // CalculateTotalResource computes the combined total quantity of each resource (cpu, memory, etc) available for scheduling

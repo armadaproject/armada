@@ -33,68 +33,9 @@ func JobRunStateFromApiJobState(s JobState) schedulerobjects.JobRunState {
 	return schedulerobjects.JobRunState_UNKNOWN
 }
 
-// SchedulingResourceRequirementsFromPodSpec returns resource requests and limits necessary for scheduling a pod.
-// The requests and limits are set to:
-//
-// max(
-//
-//	sum across all containers + sum across native sidecar init containers,
-//	max over all classic init containers,
-//
-// )
-//
-// This is because:
-//   - containers run in parallel (sum)
-//   - native sidecar init containers (RestartPolicy=Always) run alongside main containers (sum)
-//   - classic init containers run sequentially before main containers (max)
+// SchedulingResourceRequirementsFromPodSpec returns the resource requests and limits that the scheduler reserves for a pod.
 func SchedulingResourceRequirementsFromPodSpec(podSpec *v1.PodSpec) *v1.ResourceRequirements {
-	rv := v1.ResourceRequirements{
-		Requests: make(v1.ResourceList),
-		Limits:   make(v1.ResourceList),
-	}
-
-	// Sum resources from main containers
-	for _, c := range podSpec.Containers {
-		addResourcesToList(rv.Requests, c.Resources.Requests)
-		addResourcesToList(rv.Limits, c.Resources.Limits)
-	}
-
-	// Process init containers: native sidecars are summed, classic init containers use max
-	for _, c := range podSpec.InitContainers {
-		if resource.IsNativeSidecar(&c) {
-			addResourcesToList(rv.Requests, c.Resources.Requests)
-			addResourcesToList(rv.Limits, c.Resources.Limits)
-		} else {
-			maxResourcesToList(rv.Requests, c.Resources.Requests)
-			maxResourcesToList(rv.Limits, c.Resources.Limits)
-		}
-	}
-
-	// Kubernetes requires the pod-level request to be at least the sum of the container requests.
-	// Max keeps the accounting correct for a pod that breaks that rule.
-	if podSpec.Resources != nil {
-		maxResourcesToList(rv.Requests, podSpec.Resources.Requests)
-		maxResourcesToList(rv.Limits, podSpec.Resources.Limits)
-	}
-	return &rv
-}
-
-// addResourcesToList adds each resource quantity from src to dst.
-func addResourcesToList(dst, src v1.ResourceList) {
-	for t, quantity := range src {
-		q := dst[t]
-		q.Add(quantity)
-		dst[t] = q
-	}
-}
-
-// maxResourcesToList updates dst with the max of dst and src for each resource.
-func maxResourcesToList(dst, src v1.ResourceList) {
-	for t, quantity := range src {
-		if quantity.Cmp(dst[t]) == 1 {
-			dst[t] = quantity.DeepCopy()
-		}
-	}
+	return resource.PodResourceRequirements(podSpec)
 }
 
 func (job *Job) GetMainPodSpec() *v1.PodSpec {
