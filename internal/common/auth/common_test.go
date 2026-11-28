@@ -21,6 +21,13 @@ func TestCreateGrpcMiddlewareAuthFunction_Success(t *testing.T) {
 	assert.Equal(t, principal, ctxPrincipal, "principal should be added to context")
 }
 
+func TestGetPrincipal_IgnoresPlainStringKey(t *testing.T) {
+	principal := NewStaticPrincipal("test", "test", []string{"group"})
+	//nolint:staticcheck // a plain string key is what a colliding package would use
+	ctx := context.WithValue(context.Background(), "principal", principal)
+	assert.Equal(t, anonymousPrincipal, GetPrincipal(ctx))
+}
+
 func TestCreateGrpcMiddlewareAuthFunction_Failure(t *testing.T) {
 	failingService := &fakeAuthService{nil, errors.New("failed")}
 

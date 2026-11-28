@@ -7,11 +7,9 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata"
 	"golang.org/x/exp/slices"
 
+	"github.com/armadaproject/armada/internal/common/ctxkeys"
 	"github.com/armadaproject/armada/internal/common/util"
 )
-
-// Name of the key used to store principals in contexts.
-const principalKey = "principal"
 
 // All users are implicitly part of this group.
 const EveryoneGroup = "everyone"
@@ -91,7 +89,7 @@ func (p *StaticPrincipal) GetGroupNames() []string {
 // The principal is assumed to be stored as a ctx.Value.
 // If no principal can be found, a principal representing an anonymous (unauthenticated) user is returned.
 func GetPrincipal(ctx context.Context) Principal {
-	p, ok := ctx.Value(principalKey).(Principal)
+	p, ok := ctx.Value(ctxkeys.PrincipalKey).(Principal)
 	if !ok {
 		return anonymousPrincipal
 	}
@@ -100,7 +98,7 @@ func GetPrincipal(ctx context.Context) Principal {
 
 // WithPrincipal returns a new context containing a principal that is a child to the given context.
 func WithPrincipal(ctx context.Context, principal Principal) context.Context {
-	return context.WithValue(ctx, principalKey, principal)
+	return context.WithValue(ctx, ctxkeys.PrincipalKey, principal)
 }
 
 // AuthService represents a method of authentication for the HTTP or gRPC API.
@@ -124,7 +122,7 @@ func CreateGrpcMiddlewareAuthFunction(authService AuthService) func(ctx context.
 			return nil, err
 		}
 		// record username for request logging
-		ctx = context.WithValue(ctx, "user", principal.GetName())
+		ctx = context.WithValue(ctx, ctxkeys.UserKey, principal.GetName())
 		return WithPrincipal(ctx, principal), nil
 	}
 }
