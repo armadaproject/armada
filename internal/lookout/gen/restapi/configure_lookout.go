@@ -3,11 +3,13 @@
 package restapi
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-openapi/errors"
@@ -102,8 +104,8 @@ var UIConfig configuration.UIConfig
 func setupGlobalMiddleware(apiHandler http.Handler) http.Handler {
 	return allowCORS(
 		uiHandler(
-			authHandler(
-				recordRequestDuration(
+			recordRequestDuration(
+				authHandler(
 					apiHandler,
 				),
 			),
@@ -121,6 +123,12 @@ func authHandler(handler http.Handler) http.Handler {
 		ctxWithPrincipal, err := authFunction(w, r)
 		if err != nil {
 			return
+		}
+
+		// recordRequestDuration sits outside this handler so that it also sees failed authentication,
+		// pass the principal back to it
+		if holder, ok := r.Context().Value(principalHolderKey{}).(*principalHolder); ok {
+			holder.principal = auth.GetPrincipal(ctxWithPrincipal)
 		}
 
 		handler.ServeHTTP(w, r.WithContext(ctxWithPrincipal))
@@ -173,12 +181,75 @@ func allowCORS(handler http.Handler, corsAllowedOrigins []string) http.Handler {
 func recordRequestDuration(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		handler.ServeHTTP(w, r)
+		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		holder := &principalHolder{principal: auth.GetPrincipal(r.Context())}
+		handler.ServeHTTP(recorder, r.WithContext(context.WithValue(r.Context(), principalHolderKey{}, holder)))
 		duration := time.Since(start)
 		if strings.HasPrefix(r.URL.Path, "/api/v1/") {
-			metrics.RecordRequestDuration(auth.GetPrincipal(r.Context()).GetName(), r.URL.Path, float64(duration.Milliseconds()))
+			user := holder.principal.GetName()
+			endpoint := endpointLabel(r.URL.Path)
+			metrics.RecordRequestDuration(user, endpoint, float64(duration.Milliseconds()))
+			metrics.RecordRequest(user, endpoint, r.Method, recorder.status)
 		}
 	})
+}
+
+type principalHolderKey struct{}
+
+// principalHolder lets the auth handler report who made the request to the metrics middleware wrapped around it.
+type principalHolder struct {
+	principal auth.Principal
+}
+
+const unknownEndpointLabel = "unknown"
+
+// loadApiEndpoints returns the paths in the swagger spec. Clients can request any path, so everything else is
+// reported under one label to keep the number of metric series bounded.
+var loadApiEndpoints = sync.OnceValue(func() map[string]bool {
+	var spec struct {
+		Paths map[string]json.RawMessage `json:"paths"`
+	}
+	endpoints := map[string]bool{}
+	if err := json.Unmarshal(SwaggerJSON, &spec); err != nil {
+		return endpoints
+	}
+	for path := range spec.Paths {
+		endpoints[path] = true
+	}
+	return endpoints
+})
+
+func endpointLabel(path string) string {
+	if loadApiEndpoints()[path] {
+		return path
+	}
+	return unknownEndpointLabel
+}
+
+// statusRecorder keeps the status code written by the handler so it can be reported as a metric.
+// Handlers that never call WriteHeader respond with 200.
+type statusRecorder struct {
+	http.ResponseWriter
+	status      int
+	wroteHeader bool
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+	if !r.wroteHeader {
+		r.status = code
+		r.wroteHeader = true
+	}
+	r.ResponseWriter.WriteHeader(code)
+}
+
+func (r *statusRecorder) Write(b []byte) (int, error) {
+	r.wroteHeader = true
+	return r.ResponseWriter.Write(b)
+}
+
+// Unwrap lets http.ResponseController reach the underlying writer.
+func (r *statusRecorder) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
 }
 
 func preflightHandler(w http.ResponseWriter) {
